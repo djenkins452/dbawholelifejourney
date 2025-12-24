@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="page-header">
+        <h1 class="page-title">Edit Profile</h1>
+        <p class="page-subtitle">Update your account information</p>
+    </div>
+    
+    <div class="card" style="max-width: 500px;">
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="id_first_name" class="form-label">First Name</label>
+                <input 
+                    type="text" 
+                    name="first_name" 
+                    id="id_first_name" 
+                    class="form-input"
+                    value="{{ form.first_name.value|default:'' }}"
+                    placeholder="Your first name"
+                >
+                {% if form.first_name.errors %}
+                    <p class="form-error">{{ form.first_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="id_last_name" class="form-label">Last Name</label>
+                <input 
+                    type="text" 
+                    name="last_name" 
+                    id="id_last_name" 
+                    class="form-input"
+                    value="{{ form.last_name.value|default:'' }}"
+                    placeholder="Your last name"
+                >
+                {% if form.last_name.errors %}
+                    <p class="form-error">{{ form.last_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="id_email" class="form-label">Email Address</label>
+                <input 
+                    type="email" 
+                    name="email" 
+                    id="id_email" 
+                    class="form-input"
+                    value="{{ form.email.value|default:'' }}"
+                    required
+                >
+                {% if form.email.errors %}
+                    <p class="form-error">{{ form.email.errors.0 }}</p>
+                {% endif %}
+                <p class="form-help">Changing your email will require verification.</p>
+            </div>
+            
+            <div class="form-actions flex gap-4">
+                <button type="submit" class="btn btn-primary">
+                    Save Changes
+                </button>
+                <a href="{% url 'users:profile' %}" class="btn btn-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

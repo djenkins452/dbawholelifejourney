@@ -1,0 +1,354 @@
+/*
+ * Whole Life Journey - Theme Styles
+ * 
+ * Five themes that shape the visual experience:
+ * 1. Faith - Peaceful, grounded, spiritually respectful
+ * 2. Sports - Goal-driven, disciplined, focused
+ * 3. Nature - Warm, calming, emotionally safe
+ * 4. Outdoors - Curious, expansive, journey-focused
+ * 5. Minimal - Quiet, clear, intentional (default)
+ */
+
+/* ==========================================================================
+   Theme 1: Christian Faith
+   Peaceful, grounded, spiritually respectful
+   ========================================================================== */
+
+[data-theme="faith"],
+.theme-faith {
+    --color-primary: #1e3a5f;
+    --color-secondary: #faf8f5;
+    --color-accent: #d4a574;
+    --color-text: #2d3748;
+    --color-text-muted: #5a6577;
+    --color-background: #faf8f5;
+    --color-surface: #f5f1eb;
+    --color-border: #e2dcd2;
+}
+
+.theme-faith .site-header {
+    background-color: #1e3a5f;
+}
+
+.theme-faith .nav-logo-text,
+.theme-faith .nav-link,
+.theme-faith .nav-user-name {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-faith .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.theme-faith .nav-link.active {
+    background-color: rgba(212, 165, 116, 0.2);
+    color: #d4a574;
+}
+
+.theme-faith .nav-user-initial {
+    background-color: #d4a574;
+}
+
+.theme-faith .nav-mobile-toggle {
+    color: white;
+}
+
+/* ==========================================================================
+   Theme 2: Sports & Performance
+   Goal-driven, disciplined, focused
+   ========================================================================== */
+
+[data-theme="sports"],
+.theme-sports {
+    --color-primary: #1f2937;
+    --color-secondary: #ffffff;
+    --color-accent: #dc2626;
+    --color-text: #111827;
+    --color-text-muted: #4b5563;
+    --color-background: #ffffff;
+    --color-surface: #f3f4f6;
+    --color-border: #e5e7eb;
+}
+
+.theme-sports .site-header {
+    background-color: #1f2937;
+}
+
+.theme-sports .nav-logo-text,
+.theme-sports .nav-link,
+.theme-sports .nav-user-name {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-sports .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.theme-sports .nav-link.active {
+    background-color: rgba(220, 38, 38, 0.2);
+    color: #dc2626;
+}
+
+.theme-sports .nav-user-initial {
+    background-color: #dc2626;
+}
+
+.theme-sports .nav-mobile-toggle {
+    color: white;
+}
+
+/* Sports theme with blue accent variant */
+.theme-sports[data-accent="blue"] {
+    --color-accent: #2563eb;
+}
+
+/* ==========================================================================
+   Theme 3: Animals & Nature
+   Warm, calming, emotionally safe
+   ========================================================================== */
+
+[data-theme="nature"],
+.theme-nature {
+    --color-primary: #2d5a27;
+    --color-secondary: #fefce8;
+    --color-accent: #7dd3fc;
+    --color-text: #1a2e05;
+    --color-text-muted: #4a5d3a;
+    --color-background: #fefce8;
+    --color-surface: #f7f9e8;
+    --color-border: #d9e4c3;
+}
+
+.theme-nature .site-header {
+    background-color: #2d5a27;
+}
+
+.theme-nature .nav-logo-text,
+.theme-nature .nav-link,
+.theme-nature .nav-user-name {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-nature .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.theme-nature .nav-link.active {
+    background-color: rgba(125, 211, 252, 0.2);
+    color: #7dd3fc;
+}
+
+.theme-nature .nav-user-initial {
+    background-color: #7dd3fc;
+    color: #1a2e05;
+}
+
+.theme-nature .nav-mobile-toggle {
+    color: white;
+}
+
+/* ==========================================================================
+   Theme 4: Outdoors & Adventure
+   Curious, expansive, journey-focused
+   ========================================================================== */
+
+[data-theme="outdoors"],
+.theme-outdoors {
+    --color-primary: #475569;
+    --color-secondary: #fffbeb;
+    --color-accent: #f97316;
+    --color-text: #1e293b;
+    --color-text-muted: #64748b;
+    --color-background: #fffbeb;
+    --color-surface: #fef3c7;
+    --color-border: #e2d5b7;
+}
+
+.theme-outdoors .site-header {
+    background-color: #475569;
+}
+
+.theme-outdoors .nav-logo-text,
+.theme-outdoors .nav-link,
+.theme-outdoors .nav-user-name {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.theme-outdoors .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.theme-outdoors .nav-link.active {
+    background-color: rgba(249, 115, 22, 0.2);
+    color: #f97316;
+}
+
+.theme-outdoors .nav-user-initial {
+    background-color: #f97316;
+}
+
+.theme-outdoors .nav-mobile-toggle {
+    color: white;
+}
+
+/* ==========================================================================
+   Theme 5: Minimal / Life Focus (Default)
+   Quiet, clear, intentional
+   ========================================================================== */
+
+[data-theme="minimal"],
+.theme-minimal {
+    --color-primary: #6b7280;
+    --color-secondary: #f9fafb;
+    --color-accent: #6366f1;
+    --color-text: #374151;
+    --color-text-muted: #6b7280;
+    --color-background: #ffffff;
+    --color-surface: #f9fafb;
+    --color-border: #e5e7eb;
+}
+
+/* Minimal theme keeps the light header by default */
+.theme-minimal .site-header {
+    background-color: var(--color-background);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* ==========================================================================
+   Theme-Specific Card Styles
+   ========================================================================== */
+
+/* Faith theme cards have a subtle warm glow */
+.theme-faith .card {
+    border-color: #d4c5b5;
+    box-shadow: 0 2px 4px rgba(30, 58, 95, 0.05);
+}
+
+/* Sports theme cards are crisp and bold */
+.theme-sports .card {
+    border-color: #d1d5db;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Nature theme cards feel organic */
+.theme-nature .card {
+    border-color: #c5d6a8;
+    box-shadow: 0 2px 4px rgba(45, 90, 39, 0.05);
+}
+
+/* Outdoors theme cards have earthy warmth */
+.theme-outdoors .card {
+    border-color: #d4c5a0;
+    box-shadow: 0 2px 4px rgba(71, 85, 105, 0.05);
+}
+
+/* ==========================================================================
+   Theme-Specific Button Accents
+   ========================================================================== */
+
+/* Ensure buttons use theme accent colors properly */
+.theme-faith .btn-primary { background-color: #d4a574; }
+.theme-faith .btn-primary:hover { background-color: #c49464; }
+
+.theme-sports .btn-primary { background-color: #dc2626; }
+.theme-sports .btn-primary:hover { background-color: #b91c1c; }
+
+.theme-nature .btn-primary { background-color: #2d5a27; }
+.theme-nature .btn-primary:hover { background-color: #234a1f; }
+
+.theme-outdoors .btn-primary { background-color: #f97316; }
+.theme-outdoors .btn-primary:hover { background-color: #ea580c; }
+
+.theme-minimal .btn-primary { background-color: #6366f1; }
+.theme-minimal .btn-primary:hover { background-color: #4f46e5; }
+
+/* ==========================================================================
+   Encouragement / Scripture Styling by Theme
+   ========================================================================== */
+
+.encouragement-card {
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+}
+
+.theme-faith .encouragement-card {
+    background: linear-gradient(135deg, #f5f1eb 0%, #ede5d8 100%);
+    border-left: 4px solid #d4a574;
+}
+
+.theme-sports .encouragement-card {
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    border-left: 4px solid #dc2626;
+}
+
+.theme-nature .encouragement-card {
+    background: linear-gradient(135deg, #f7f9e8 0%, #ecf4d6 100%);
+    border-left: 4px solid #2d5a27;
+}
+
+.theme-outdoors .encouragement-card {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-left: 4px solid #f97316;
+}
+
+.theme-minimal .encouragement-card {
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+    border-left: 4px solid #6366f1;
+}
+
+.scripture-reference {
+    font-style: italic;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-2);
+}
+
+/* ==========================================================================
+   Mood Indicator Colors (consistent across themes)
+   ========================================================================== */
+
+.mood-great { color: #10b981; }
+.mood-good { color: #3b82f6; }
+.mood-okay { color: #6b7280; }
+.mood-low { color: #f59e0b; }
+.mood-difficult { color: #ef4444; }
+
+.mood-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.mood-badge-great {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.mood-badge-good {
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.mood-badge-okay {
+    background-color: rgba(107, 114, 128, 0.1);
+    color: #6b7280;
+}
+
+.mood-badge-low {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.mood-badge-difficult {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}

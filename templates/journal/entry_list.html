@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block title %}Journal - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Journal</h1>
+            <p class="page-subtitle">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} · {{ archived_count }} archived</p>
+        </div>
+        <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New Entry
+        </a>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filters-bar mb-6">
+        <form method="get" class="filters-form">
+            <div class="filter-group">
+                <select name="category" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                        <option value="{{ category.slug }}" {% if active_filters.category == category.slug %}selected{% endif %}>
+                            {{ category.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <select name="mood" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Moods</option>
+                    {% for value, label in mood_choices %}
+                        <option value="{{ value }}" {% if active_filters.mood == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group search-group">
+                <input 
+                    type="text" 
+                    name="search" 
+                    class="form-input form-input-sm"
+                    placeholder="Search entries..."
+                    value="{{ active_filters.search|default:'' }}"
+                >
+                <button type="submit" class="btn btn-ghost btn-sm">Search</button>
+            </div>
+            
+            {% if active_filters.category or active_filters.mood or active_filters.search %}
+                <a href="{% url 'journal:entry_list' %}" class="btn btn-ghost btn-sm">Clear Filters</a>
+            {% endif %}
+        </form>
+    </div>
+    
+    <!-- Entry List -->
+    {% if entries %}
+        <div class="entry-list">
+            {% for entry in entries %}
+                <article class="entry-card">
+                    <a href="{% url 'journal:entry_detail' entry.pk %}" class="entry-link">
+                        <div class="entry-header">
+                            <h2 class="entry-title">{{ entry.title }}</h2>
+                            <time class="entry-date" datetime="{{ entry.entry_date|date:'Y-m-d' }}">
+                                {{ entry.entry_date|date:"M j, Y" }}
+                            </time>
+                        </div>
+                        
+                        <p class="entry-preview">{{ entry.body_preview }}</p>
+                        
+                        <div class="entry-meta">
+                            {% if entry.mood %}
+                                <span class="mood-badge mood-badge-{{ entry.mood }}">
+                                    {{ entry.mood_emoji }} {{ entry.get_mood_display }}
+                                </span>
+                            {% endif %}
+                            
+                            {% for category in entry.categories.all %}
+                                <span class="category-tag">{{ category.name }}</span>
+                            {% endfor %}
+                            
+                            <span class="entry-words text-muted text-xs">
+                                {{ entry.word_count }} word{{ entry.word_count|pluralize }}
+                            </span>
+                        </div>
+                    </a>
+                </article>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination" aria-label="Journal pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">
+                        ← Previous
+                    </a>
+                {% endif %}
+                
+                <span class="pagination-info">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+                
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">
+                        Next →
+                    </a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+            </div>
+            <h2 class="empty-state-title">
+                {% if active_filters.category or active_filters.mood or active_filters.search %}
+                    No entries match your filters
+                {% else %}
+                    Start your journal
+                {% endif %}
+            </h2>
+            <p class="empty-state-text">
+                {% if active_filters.category or active_filters.mood or active_filters.search %}
+                    Try adjusting your filters or <a href="{% url 'journal:entry_list' %}">view all entries</a>.
+                {% else %}
+                    Your journal is a safe space for reflection. Write about your day, your thoughts, or use a prompt to get started.
+                {% endif %}
+            </p>
+            {% if not active_filters.category and not active_filters.mood and not active_filters.search %}
+                <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">
+                    Write Your First Entry
+                </a>
+            {% endif %}
+        </div>
+    {% endif %}
+    
+    <!-- Quick Links -->
+    <div class="quick-nav mt-8">
+        <a href="{% url 'journal:archived_list' %}" class="quick-nav-link">
+            View Archived ({{ archived_count }})
+        </a>
+        <a href="{% url 'journal:prompt_list' %}" class="quick-nav-link">
+            Browse Prompts
+        </a>
+        <a href="{% url 'journal:tag_list' %}" class="quick-nav-link">
+            Manage Tags
+        </a>
+    </div>
+</div>
+
+<style>
+.filters-bar {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+}
+
+.filters-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.filter-group {
+    flex-shrink: 0;
+}
+
+.search-group {
+    display: flex;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 200px;
+}
+
+.search-group .form-input {
+    flex: 1;
+}
+
+.form-select-sm,
+.form-input-sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+}
+
+.entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.entry-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-fast);
+}
+
+.entry-card:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-sm);
+}
+
+.entry-link {
+    display: block;
+    padding: var(--space-5);
+    color: inherit;
+    text-decoration: none;
+}
+
+.entry-link:hover {
+    text-decoration: none;
+}
+
+.entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-2);
+}
+
+.entry-title {
+    font-size: var(--font-size-lg);
+    margin: 0;
+}
+
+.entry-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.entry-preview {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+    margin-bottom: var(--space-3);
+}
+
+.entry-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.category-tag {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.pagination-info {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.quick-nav {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.quick-nav-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.quick-nav-link:hover {
+    color: var(--color-accent);
+}
+
+@media (max-width: 640px) {
+    .filters-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-group,
+    .search-group {
+        width: 100%;
+    }
+    
+    .entry-header {
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+}
+</style>
+{% endblock %}

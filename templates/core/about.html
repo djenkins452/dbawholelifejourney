@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}About - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <article class="about-page">
+        <header class="about-header">
+            <h1>About Whole Life Journey</h1>
+            <p class="about-tagline">
+                A calm space for reflection, growth, and faithful living.
+            </p>
+        </header>
+        
+        <section class="about-section">
+            <h2>Why We Built This</h2>
+            <p>
+                We live in a world of apps that demand our attention, gamify our habits, 
+                and make us feel guilty when we miss a day. We wanted something different.
+            </p>
+            <p>
+                Whole Life Journey is built on a simple belief: personal growth happens 
+                best in quiet, not noise. In reflection, not reaction. In clarity, not 
+                complexity.
+            </p>
+            <p>
+                This is a tool that respects you — your time, your journey, and your 
+                autonomy. No streaks to maintain. No badges to earn. No pressure to 
+                perform.
+            </p>
+        </section>
+        
+        <section class="about-section">
+            <h2>Our Philosophy</h2>
+            <div class="philosophy-list">
+                <div class="philosophy-item">
+                    <h3>Calm over Clever</h3>
+                    <p>
+                        We choose simplicity over flashy features. Every element 
+                        serves a purpose and contributes to a peaceful experience.
+                    </p>
+                </div>
+                <div class="philosophy-item">
+                    <h3>Simple over Complex</h3>
+                    <p>
+                        Life is complicated enough. Your tools should reduce 
+                        complexity, not add to it.
+                    </p>
+                </div>
+                <div class="philosophy-item">
+                    <h3>Respect over Pressure</h3>
+                    <p>
+                        We'll never guilt you, nag you, or manipulate you into 
+                        using the app. You're in control.
+                    </p>
+                </div>
+                <div class="philosophy-item">
+                    <h3>Clarity over Features</h3>
+                    <p>
+                        We'd rather do a few things well than many things poorly. 
+                        Every feature earns its place.
+                    </p>
+                </div>
+                <div class="philosophy-item">
+                    <h3>Reflection over Performance</h3>
+                    <p>
+                        This isn't about optimizing yourself. It's about understanding 
+                        yourself and growing at your own pace.
+                    </p>
+                </div>
+                <div class="philosophy-item">
+                    <h3>Stewardship over Control</h3>
+                    <p>
+                        Your data is yours. We're just helping you steward it well.
+                    </p>
+                </div>
+            </div>
+        </section>
+        
+        <section class="about-section">
+            <h2>Faith as Foundation</h2>
+            <p>
+                For those who choose it, Whole Life Journey offers a Faith module 
+                grounded in Christian belief. When enabled, you'll find Scripture 
+                woven naturally throughout the experience — not forced, not preachy, 
+                just present.
+            </p>
+            <p>
+                We believe in a personal relationship with Jesus Christ, and we've 
+                designed the Faith features to support that relationship. But we also 
+                respect that faith is personal. If Faith isn't your path, the app 
+                works beautifully without it.
+            </p>
+        </section>
+        
+        <section class="about-section">
+            <h2>What We're Not</h2>
+            <p>To be clear about what Whole Life Journey is not:</p>
+            <ul class="not-list">
+                <li>Not a medical device or health app replacement</li>
+                <li>Not a therapist or mental health treatment</li>
+                <li>Not a pastor or spiritual director</li>
+                <li>Not social media — there are no followers, likes, or shares</li>
+                <li>Not a productivity system designed to extract maximum output from you</li>
+            </ul>
+            <p>
+                We're a quiet companion for your journey. Nothing more, nothing less.
+            </p>
+        </section>
+        
+        <section class="about-section">
+            <h2>Built By</h2>
+            <p>
+                Whole Life Journey is created by Beacon Innovations LLC — a small team 
+                that believes technology should serve people, not the other way around.
+            </p>
+            <p>
+                We're building this because we wanted it for ourselves. We hope it 
+                blesses your journey as much as building it has blessed ours.
+            </p>
+        </section>
+        
+        <section class="about-section about-cta">
+            <h2>Ready to Begin?</h2>
+            <p>Your journey is waiting.</p>
+            <a href="{% url 'account_signup' %}" class="btn btn-primary btn-lg">
+                Create Your Free Account
+            </a>
+        </section>
+    </article>
+</div>
+
+<style>
+.about-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--space-8) 0;
+}
+
+.about-header {
+    text-align: center;
+    margin-bottom: var(--space-12);
+}
+
+.about-header h1 {
+    margin-bottom: var(--space-4);
+}
+
+.about-tagline {
+    font-size: var(--font-size-xl);
+    color: var(--color-text-muted);
+}
+
+.about-section {
+    margin-bottom: var(--space-12);
+}
+
+.about-section h2 {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-4);
+}
+
+.philosophy-list {
+    display: grid;
+    gap: var(--space-6);
+}
+
+.philosophy-item {
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.philosophy-item h3 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-2);
+    color: var(--color-accent);
+}
+
+.philosophy-item p {
+    margin: 0;
+    color: var(--color-text-muted);
+}
+
+.not-list {
+    padding-left: var(--space-6);
+}
+
+.not-list li {
+    margin-bottom: var(--space-2);
+}
+
+.about-cta {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.about-cta h2 {
+    margin-bottom: var(--space-2);
+}
+
+.about-cta p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,242 @@
+[
+  {
+    "model": "journal.journalprompt",
+    "pk": 1,
+    "fields": {
+      "text": "What are three things you're grateful for today?",
+      "category": 5,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 2,
+    "fields": {
+      "text": "Describe a moment today when you felt truly present.",
+      "category": null,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 3,
+    "fields": {
+      "text": "What challenged you today, and how did you respond?",
+      "category": 6,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 4,
+    "fields": {
+      "text": "Write about someone who made a positive impact on your day.",
+      "category": 7,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 5,
+    "fields": {
+      "text": "What's one thing you want to remember about this season of life?",
+      "category": null,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 6,
+    "fields": {
+      "text": "Reflect on a recent conversation that stayed with you.",
+      "category": 7,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 7,
+    "fields": {
+      "text": "What does rest look like for you right now?",
+      "category": 4,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 8,
+    "fields": {
+      "text": "Describe your ideal day. What parts of it are already present in your life?",
+      "category": 8,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 9,
+    "fields": {
+      "text": "What's weighing on your heart today?",
+      "category": null,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 10,
+    "fields": {
+      "text": "Write about something you're looking forward to.",
+      "category": null,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 11,
+    "fields": {
+      "text": "How have you seen God at work in your life recently?",
+      "category": 1,
+      "is_faith_specific": true,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 12,
+    "fields": {
+      "text": "What verse or passage has been speaking to you lately?",
+      "category": 1,
+      "is_faith_specific": true,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 13,
+    "fields": {
+      "text": "Write a prayer for someone on your heart today.",
+      "category": 1,
+      "is_faith_specific": true,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 14,
+    "fields": {
+      "text": "Reflect on this: 'Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God.'",
+      "category": 1,
+      "is_faith_specific": true,
+      "scripture_reference": "Philippians 4:6",
+      "scripture_text": "Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God.",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 15,
+    "fields": {
+      "text": "Where do you sense God calling you to trust Him more deeply?",
+      "category": 1,
+      "is_faith_specific": true,
+      "scripture_reference": "Proverbs 3:5-6",
+      "scripture_text": "Trust in the Lord with all your heart and lean not on your own understanding; in all your ways submit to him, and he will make your paths straight.",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 16,
+    "fields": {
+      "text": "How can you show love to your family this week?",
+      "category": 2,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 17,
+    "fields": {
+      "text": "What's one thing you're learning at work right now?",
+      "category": 3,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 18,
+    "fields": {
+      "text": "Describe how your body feels today. What does it need?",
+      "category": 4,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 19,
+    "fields": {
+      "text": "What's something small that brought you joy today?",
+      "category": 5,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  },
+  {
+    "model": "journal.journalprompt",
+    "pk": 20,
+    "fields": {
+      "text": "What's one step you can take toward a goal this week?",
+      "category": 8,
+      "is_faith_specific": false,
+      "scripture_reference": "",
+      "scripture_text": "",
+      "is_active": true
+    }
+  }
+]

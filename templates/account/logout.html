@@ -1,0 +1,16 @@
+{% extends "account/base.html" %}
+
+{% block title %}Signed Out - Whole Life Journey{% endblock %}
+
+{% block auth_content %}
+<h1>You've been signed out</h1>
+<p>Thank you for using Whole Life Journey. See you next time.</p>
+
+<a href="{% url 'account_login' %}" class="btn btn-primary" style="width: 100%;">
+    Sign In Again
+</a>
+
+<p class="auth-link">
+    <a href="{% url 'core:landing' %}">Return to home</a>
+</p>
+{% endblock %}

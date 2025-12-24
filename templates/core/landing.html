@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Whole Life Journey - Live with Clarity and Intention{% endblock %}
+
+{% block body %}
+<div class="landing-page">
+    <!-- Hero Section -->
+    <header class="landing-header">
+        <nav class="landing-nav">
+            <a href="{% url 'core:landing' %}" class="landing-logo">
+                <img src="{% static 'icons/common/logo.svg' %}" alt="" class="landing-logo-icon">
+                <span>Whole Life Journey</span>
+            </a>
+            <div class="landing-nav-links">
+                <a href="{% url 'account_login' %}" class="btn btn-ghost">Sign In</a>
+                <a href="{% url 'account_signup' %}" class="btn btn-primary">Get Started</a>
+            </div>
+        </nav>
+        
+        <div class="hero">
+            <div class="hero-content">
+                <h1 class="hero-title">Live with clarity, intention, and peace.</h1>
+                <p class="hero-subtitle">
+                    A calm space for reflection and growth. Track your journey across 
+                    faith, health, and life — without pressure or guilt.
+                </p>
+                <div class="hero-actions">
+                    <a href="{% url 'account_signup' %}" class="btn btn-primary btn-lg">
+                        Start Your Journey
+                    </a>
+                    <a href="{% url 'core:about' %}" class="btn btn-secondary btn-lg">
+                        Learn More
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Features Section -->
+    <section class="landing-section">
+        <div class="container">
+            <h2 class="section-title text-center">Everything in one place. Nothing overwhelming.</h2>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Journal</h3>
+                    <p class="feature-description">
+                        A safe space for your thoughts. Write freely, track your mood, 
+                        and discover patterns over time.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v20M2 12h20"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Faith</h3>
+                    <p class="feature-description">
+                        Ground your journey in Scripture. Daily verses, prayer reflections, 
+                        and spiritual growth — when you're ready.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Health</h3>
+                    <p class="feature-description">
+                        Track what matters. Weight, fasting, heart rate — connected to 
+                        your whole story, not isolated metrics.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Philosophy Section -->
+    <section class="landing-section landing-section-alt">
+        <div class="container">
+            <div class="philosophy-content">
+                <h2 class="section-title">Built different. On purpose.</h2>
+                <div class="philosophy-grid">
+                    <div class="philosophy-item">
+                        <span class="philosophy-label">Calm</span>
+                        <span class="philosophy-vs">over</span>
+                        <span class="philosophy-value">clever</span>
+                    </div>
+                    <div class="philosophy-item">
+                        <span class="philosophy-label">Simple</span>
+                        <span class="philosophy-vs">over</span>
+                        <span class="philosophy-value">complex</span>
+                    </div>
+                    <div class="philosophy-item">
+                        <span class="philosophy-label">Respect</span>
+                        <span class="philosophy-vs">over</span>
+                        <span class="philosophy-value">pressure</span>
+                    </div>
+                    <div class="philosophy-item">
+                        <span class="philosophy-label">Reflection</span>
+                        <span class="philosophy-vs">over</span>
+                        <span class="philosophy-value">performance</span>
+                    </div>
+                </div>
+                <p class="philosophy-description">
+                    No gamification. No guilt trips. No endless notifications. 
+                    Just a quiet companion for your journey.
+                </p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- CTA Section -->
+    <section class="landing-section landing-cta">
+        <div class="container text-center">
+            <h2 class="cta-title">Ready to begin?</h2>
+            <p class="cta-subtitle">
+                Your journey is waiting. Start with a free account.
+            </p>
+            <a href="{% url 'account_signup' %}" class="btn btn-primary btn-lg">
+                Create Your Account
+            </a>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer class="landing-footer">
+        <div class="container">
+            <div class="landing-footer-content">
+                <p>&copy; {% now "Y" %} Beacon Innovations LLC dba Whole Life Journey</p>
+                <nav class="landing-footer-nav">
+                    <a href="{% url 'core:terms' %}">Terms</a>
+                    <a href="{% url 'core:privacy' %}">Privacy</a>
+                    <a href="{% url 'core:about' %}">About</a>
+                </nav>
+            </div>
+        </div>
+    </footer>
+</div>
+
+<style>
+/* Landing Page Specific Styles */
+.landing-page {
+    min-height: 100vh;
+}
+
+.landing-header {
+    background: linear-gradient(135deg, var(--color-primary) 0%, color-mix(in srgb, var(--color-primary) 80%, black) 100%);
+    color: white;
+    padding-bottom: var(--space-16);
+}
+
+.landing-nav {
+    max-width: var(--container-max-width);
+    margin: 0 auto;
+    padding: var(--space-4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.landing-logo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.landing-logo-icon {
+    width: 32px;
+    height: 32px;
+}
+
+.landing-nav-links {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.landing-nav .btn-ghost {
+    color: rgba(255,255,255,0.9);
+}
+
+.landing-nav .btn-ghost:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.hero {
+    max-width: var(--container-max-width);
+    margin: 0 auto;
+    padding: var(--space-16) var(--space-4);
+    text-align: center;
+}
+
+.hero-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: var(--space-4);
+    line-height: 1.2;
+}
+
+@media (min-width: 768px) {
+    .hero-title {
+        font-size: 3.5rem;
+    }
+}
+
+.hero-subtitle {
+    font-size: var(--font-size-xl);
+    opacity: 0.9;
+    max-width: 600px;
+    margin: 0 auto var(--space-8);
+}
+
+.hero-actions {
+    display: flex;
+    gap: var(--space-4);
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.landing-section {
+    padding: var(--space-16) 0;
+}
+
+.landing-section-alt {
+    background-color: var(--color-surface);
+}
+
+.section-title {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-8);
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-6);
+}
+
+.feature-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+}
+
+.feature-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto var(--space-4);
+    color: var(--color-accent);
+}
+
+.feature-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.feature-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-2);
+}
+
+.feature-description {
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.philosophy-content {
+    text-align: center;
+}
+
+.philosophy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.philosophy-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+}
+
+.philosophy-label {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.philosophy-vs {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.philosophy-value {
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.philosophy-description {
+    color: var(--color-text-muted);
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.landing-cta {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+.cta-title {
+    color: white;
+    margin-bottom: var(--space-2);
+}
+
+.cta-subtitle {
+    opacity: 0.9;
+    margin-bottom: var(--space-6);
+}
+
+.landing-footer {
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    padding: var(--space-6) 0;
+}
+
+.landing-footer-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    text-align: center;
+}
+
+@media (min-width: 768px) {
+    .landing-footer-content {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+}
+
+.landing-footer-nav {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.landing-footer-nav a {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Whole Life Journey Logo - A calm, flowing path symbol -->
+  <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/>
+  <path 
+    d="M12 28 C16 20, 20 32, 24 24 C28 16, 32 28, 36 20" 
+    stroke="currentColor" 
+    stroke-width="2.5" 
+    stroke-linecap="round" 
+    fill="none"
+  />
+  <circle cx="12" cy="28" r="3" fill="currentColor" opacity="0.6"/>
+  <circle cx="36" cy="20" r="3" fill="currentColor"/>
+</svg>

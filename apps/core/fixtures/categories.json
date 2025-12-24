@@ -1,0 +1,90 @@
+[
+  {
+    "model": "core.category",
+    "pk": 1,
+    "fields": {
+      "name": "Faith",
+      "slug": "faith",
+      "description": "Spiritual reflections, prayers, and encounters with God",
+      "icon": "faith/cross.svg",
+      "order": 1
+    }
+  },
+  {
+    "model": "core.category",
+    "pk": 2,
+    "fields": {
+      "name": "Family",
+      "slug": "family",
+      "description": "Relationships with spouse, children, parents, and extended family",
+      "icon": "common/heart.svg",
+      "order": 2
+    }
+  },
+  {
+    "model": "core.category",
+    "pk": 3,
+    "fields": {
+      "name": "Work",
+      "slug": "work",
+      "description": "Career, professional development, and work-life balance",
+      "icon": "common/briefcase.svg",
+      "order": 3
+    }
+  },
+  {
+    "model": "core.category",
+    "pk": 4,
+    "fields": {
+      "name": "Health",
+      "slug": "health",
+      "description": "Physical wellness, exercise, nutrition, and self-care",
+      "icon": "common/heart-pulse.svg",
+      "order": 4
+    }
+  },
+  {
+    "model": "core.category",
+    "pk": 5,
+    "fields": {
+      "name": "Gratitude",
+      "slug": "gratitude",
+      "description": "Things you're thankful for and blessings recognized",
+      "icon": "common/sun.svg",
+      "order": 5
+    }
+  },
+  {
+    "model": "core.category",
+    "pk": 6,
+    "fields": {
+      "name": "Growth",
+      "slug": "growth",
+      "description": "Personal development, learning, and self-improvement",
+      "icon": "common/trending-up.svg",
+      "order": 6
+    }
+  },
+  {
+    "model": "core.category",
+    "pk": 7,
+    "fields": {
+      "name": "Relationships",
+      "slug": "relationships",
+      "description": "Friendships, community, and social connections",
+      "icon": "common/users.svg",
+      "order": 7
+    }
+  },
+  {
+    "model": "core.category",
+    "pk": 8,
+    "fields": {
+      "name": "Dreams",
+      "slug": "dreams",
+      "description": "Goals, aspirations, and vision for the future",
+      "icon": "common/star.svg",
+      "order": 8
+    }
+  }
+]

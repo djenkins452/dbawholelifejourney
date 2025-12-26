@@ -27,28 +27,30 @@ class DashboardAI:
     def get_daily_insight(self, force_refresh: bool = False) -> str:
         """
         Get or generate the daily AI insight for the dashboard.
-        
+
         Returns cached insight if available and valid, otherwise generates new one.
+        Cache is invalidated when coaching style changes.
         """
-        # Check for cached valid insight
+        # Check for cached valid insight with matching coaching style
         if not force_refresh:
             cached = AIInsight.objects.filter(
                 user=self.user,
                 insight_type='daily',
+                coaching_style=self.coaching_style,  # Must match current style
                 valid_until__gt=timezone.now()
             ).first()
-            
+
             if cached:
                 return cached.content
-        
+
         # Generate new insight
         user_data = self._gather_user_data()
         content = ai_service.generate_daily_insight(
-            user_data, 
+            user_data,
             self.faith_enabled,
             self.coaching_style
         )
-        
+
         if content:
             # Cache until end of day
             end_of_day = timezone.now().replace(hour=23, minute=59, second=59)
@@ -57,47 +59,51 @@ class DashboardAI:
                 insight_type='daily',
                 content=content,
                 context_summary=str(user_data)[:500],
+                coaching_style=self.coaching_style,  # Store the style used
                 valid_until=end_of_day
             )
-        
+
         return content or self._get_fallback_insight()
     
     def get_weekly_summary(self, force_refresh: bool = False) -> str:
         """
         Get or generate weekly journal summary.
+        Cache is invalidated when coaching style changes.
         """
-        # Check cache (valid for a day)
+        # Check cache (valid for a day, must match coaching style)
         if not force_refresh:
             cached = AIInsight.objects.filter(
                 user=self.user,
                 insight_type='weekly_summary',
+                coaching_style=self.coaching_style,  # Must match current style
                 created_at__gte=timezone.now() - timedelta(days=1)
             ).first()
-            
+
             if cached:
                 return cached.content
-        
+
         # Gather journal entries
         entries = self._get_journal_entries(days=7)
-        
+
         if not entries:
             return None
-        
+
         content = ai_service.generate_journal_summary(
-            entries, 
-            'week', 
+            entries,
+            'week',
             self.faith_enabled,
             self.coaching_style
         )
-        
+
         if content:
             AIInsight.objects.create(
                 user=self.user,
                 insight_type='weekly_summary',
                 content=content,
+                coaching_style=self.coaching_style,  # Store the style used
                 valid_until=timezone.now() + timedelta(days=1)
             )
-        
+
         return content
     
     def get_nudge_message(self, nudge_type: str, context: dict) -> str:

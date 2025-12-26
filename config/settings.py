@@ -317,5 +317,9 @@ if DEBUG:
 # Google Calendar Integration
 GOOGLE_CALENDAR_CLIENT_ID = env('GOOGLE_CALENDAR_CLIENT_ID', default='')
 GOOGLE_CALENDAR_CLIENT_SECRET = env('GOOGLE_CALENDAR_CLIENT_SECRET', default='')
-GOOGLE_CALENDAR_REDIRECT_URI = 'http://localhost:8000/life/calendar/google/callback/'
+# Redirect URI is environment-dependent
+if DEBUG:
+    GOOGLE_CALENDAR_REDIRECT_URI = 'http://localhost:8000/life/calendar/google/callback/'
+else:
+    GOOGLE_CALENDAR_REDIRECT_URI = env('GOOGLE_CALENDAR_REDIRECT_URI', default='')
     

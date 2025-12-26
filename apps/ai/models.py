@@ -40,6 +40,14 @@ class AIInsight(models.Model):
     
     # Context used to generate (for debugging/transparency)
     context_summary = models.TextField(blank=True, help_text="Summary of data used to generate")
+
+    # Coaching style used when generating (for cache invalidation)
+    coaching_style = models.CharField(
+        max_length=20,
+        blank=True,
+        default='supportive',
+        help_text="Coaching style used when generating this insight"
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

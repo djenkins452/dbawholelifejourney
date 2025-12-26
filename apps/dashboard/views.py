@@ -48,11 +48,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         
         # AI Insights (if enabled)
         context["ai_enabled"] = prefs.ai_enabled
-        if prefs.ai_enabled and getattr(settings, 'OPENAI_API_KEY', None):
+        if prefs.ai_enabled:
             context["ai_insights"] = self._get_ai_insights(user, prefs, user_data)
         else:
             context["ai_insights"] = None
-        
+
         # Quick stats for the header
         context["quick_stats"] = self._get_quick_stats(user_data)
         

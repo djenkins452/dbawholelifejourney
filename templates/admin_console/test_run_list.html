@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Test History - Admin Console
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold">Test History</h1>
+            <p class="text-muted">View historical test run results</p>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="card p-4">
+            <div class="text-3xl font-bold">{{ total_runs }}</div>
+            <div class="text-muted">Total Runs</div>
+        </div>
+        <div class="card p-4">
+            <div class="text-3xl font-bold text-green-600">{{ passed_runs }}</div>
+            <div class="text-muted">Passed</div>
+        </div>
+        <div class="card p-4">
+            <div class="text-3xl font-bold text-red-600">{{ failed_runs }}</div>
+            <div class="text-muted">Failed</div>
+        </div>
+        {% if latest_run %}
+        <div class="card p-4">
+            <div class="text-3xl font-bold">{{ latest_run.total_tests }}</div>
+            <div class="text-muted">Tests in Latest Run</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Test Runs Table -->
+    <div class="card">
+        <div class="p-4 border-b">
+            <h2 class="text-lg font-semibold">Test Runs</h2>
+        </div>
+
+        {% if test_runs %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-surface">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-medium">Date/Time</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium">Status</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Total</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Passed</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Failed</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Errors</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Pass Rate</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium">Branch</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Duration</th>
+                        <th class="px-4 py-3 text-center text-sm font-medium">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for run in test_runs %}
+                    <tr class="hover:bg-surface/50">
+                        <td class="px-4 py-3 text-sm">
+                            <a href="{% url 'admin_console:test_run_detail' run.pk %}" class="hover:underline">
+                                {{ run.run_at|date:"M d, Y H:i" }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if run.status == 'passed' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Passed
+                            </span>
+                            {% elif run.status == 'failed' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                Failed
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                Error
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-center">{{ run.total_tests }}</td>
+                        <td class="px-4 py-3 text-sm text-center text-green-600">{{ run.passed }}</td>
+                        <td class="px-4 py-3 text-sm text-center {% if run.failed > 0 %}text-red-600 font-bold{% endif %}">{{ run.failed }}</td>
+                        <td class="px-4 py-3 text-sm text-center {% if run.errors > 0 %}text-orange-600 font-bold{% endif %}">{{ run.errors }}</td>
+                        <td class="px-4 py-3 text-sm text-center">{{ run.pass_rate }}%</td>
+                        <td class="px-4 py-3 text-sm">
+                            {% if run.git_branch %}
+                            <code class="text-xs bg-surface px-2 py-1 rounded">{{ run.git_branch }}</code>
+                            {% if run.git_commit %}
+                            <code class="text-xs text-muted ml-1">{{ run.git_commit }}</code>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-center">{{ run.duration_seconds|floatformat:1 }}s</td>
+                        <td class="px-4 py-3 text-sm text-center">
+                            <a href="{% url 'admin_console:test_run_detail' run.pk %}" class="text-primary hover:underline mr-2">View</a>
+                            <a href="{% url 'admin_console:test_run_delete' run.pk %}" class="text-red-600 hover:underline">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="px-4 py-3 border-t flex justify-between items-center">
+            <div class="text-sm text-muted">
+                Showing {{ page_obj.start_index }} - {{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+            </div>
+            <div class="flex gap-2">
+                {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary btn-sm">Previous</a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary btn-sm">Next</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="p-8 text-center text-muted">
+            <p>No test runs recorded yet.</p>
+            <p class="text-sm mt-2">Run <code class="bg-surface px-2 py-1 rounded">python run_tests.py</code> to generate test history.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+</div>
+{% endblock %}

@@ -369,3 +369,73 @@ class ChoiceOptionDeleteView(AdminRequiredMixin, DeleteView):
     
     def get_success_url(self):
         return reverse_lazy('admin_console:choice_option_list', kwargs={'category_pk': self.object.category.pk})
+
+# ============================================================
+# Test History Views
+# ============================================================
+
+class TestRunListView(AdminRequiredMixin, ListView):
+    """List all test runs with summary information."""
+    template_name = "admin_console/test_run_list.html"
+    context_object_name = "test_runs"
+    paginate_by = 25
+    
+    def get_queryset(self):
+        from apps.core.models import TestRun
+        return TestRun.objects.all().order_by('-run_at')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.core.models import TestRun
+        
+        # Get stats
+        runs = TestRun.objects.all()
+        context['total_runs'] = runs.count()
+        context['passed_runs'] = runs.filter(status='passed').count()
+        context['failed_runs'] = runs.filter(status__in=['failed', 'error']).count()
+        
+        # Latest run
+        context['latest_run'] = runs.first()
+        
+        return context
+
+
+class TestRunDetailView(AdminRequiredMixin, TemplateView):
+    """View details of a specific test run."""
+    template_name = "admin_console/test_run_detail.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.core.models import TestRun
+        import json
+        
+        test_run = TestRun.objects.get(pk=self.kwargs['pk'])
+        context['test_run'] = test_run
+        context['details'] = test_run.details.all().order_by('app_name')
+        
+        # Parse failed/error tests from JSON
+        for detail in context['details']:
+            try:
+                detail.failed_tests_list = json.loads(detail.failed_tests) if detail.failed_tests else []
+            except:
+                detail.failed_tests_list = []
+            try:
+                detail.error_tests_list = json.loads(detail.error_tests) if detail.error_tests else []
+            except:
+                detail.error_tests_list = []
+        
+        return context
+
+
+class TestRunDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a test run and its details."""
+    template_name = "admin_console/test_run_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:test_run_list')
+    
+    def get_queryset(self):
+        from apps.core.models import TestRun
+        return TestRun.objects.all()
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Test run from {self.object.run_at.strftime('%Y-%m-%d %H:%M')} deleted.")
+        return super().form_valid(form)

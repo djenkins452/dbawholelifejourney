@@ -155,6 +155,23 @@
             </svg>
         </a>
         
+        <!-- Test History -->
+        <a href="{% url 'admin_console:test_run_list' %}" class="admin-card">
+            <div class="admin-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Test History</h3>
+                <p>View test run results</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+
         <!-- Django Admin (escape hatch) -->
         <a href="/admin/" class="admin-card admin-card-secondary">
             <div class="admin-card-icon">

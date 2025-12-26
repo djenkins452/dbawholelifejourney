@@ -43,4 +43,10 @@ urlpatterns = [
     path("choices/options/<int:pk>/edit/", views.ChoiceOptionUpdateView.as_view(), name="choice_option_update"),
     path("choices/options/<int:pk>/delete/", views.ChoiceOptionDeleteView.as_view(), name="choice_option_delete"),
 
+
+
+    # Test History
+    path("tests/", views.TestRunListView.as_view(), name="test_run_list"),
+    path("tests/<int:pk>/", views.TestRunDetailView.as_view(), name="test_run_detail"),
+    path("tests/<int:pk>/delete/", views.TestRunDeleteView.as_view(), name="test_run_delete"),
 ]

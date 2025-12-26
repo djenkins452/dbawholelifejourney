@@ -714,3 +714,95 @@ def get_scripture_translation_choices():
             ('KJV', 'King James Version'),
         ]
     return choices
+
+
+# =============================================================================
+# TEST RUN HISTORY MODELS
+# =============================================================================
+
+class TestRun(models.Model):
+    """
+    Record of a test run execution.
+    
+    Stores historical test results for tracking over time.
+    """
+    
+    STATUS_CHOICES = [
+        ('passed', 'All Passed'),
+        ('failed', 'Some Failed'),
+        ('error', 'Has Errors'),
+    ]
+    
+    # Run metadata
+    run_at = models.DateTimeField(auto_now_add=True)
+    duration_seconds = models.FloatField(default=0, help_text="Total run time in seconds")
+    
+    # Overall results
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='passed')
+    total_tests = models.PositiveIntegerField(default=0)
+    passed = models.PositiveIntegerField(default=0)
+    failed = models.PositiveIntegerField(default=0)
+    errors = models.PositiveIntegerField(default=0)
+    
+    # Apps tested
+    apps_tested = models.TextField(help_text="Comma-separated list of apps tested")
+    
+    # Pass rate
+    pass_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0,
+                                     help_text="Pass rate as percentage")
+    
+    # Git info (optional)
+    git_branch = models.CharField(max_length=100, blank=True)
+    git_commit = models.CharField(max_length=40, blank=True)
+    
+    class Meta:
+        ordering = ['-run_at']
+        verbose_name = "Test Run"
+        verbose_name_plural = "Test Runs"
+    
+    def __str__(self):
+        return f"Test Run {self.run_at.strftime('%Y-%m-%d %H:%M')} - {self.status}"
+    
+    @property
+    def apps_list(self):
+        """Return apps_tested as a list."""
+        return [a.strip() for a in self.apps_tested.split(',') if a.strip()]
+
+
+class TestRunDetail(models.Model):
+    """
+    Detailed results for each app in a test run.
+    """
+    
+    test_run = models.ForeignKey(TestRun, on_delete=models.CASCADE, related_name='details')
+    
+    # App info
+    app_name = models.CharField(max_length=100)
+    
+    # Results
+    passed = models.PositiveIntegerField(default=0)
+    failed = models.PositiveIntegerField(default=0)
+    errors = models.PositiveIntegerField(default=0)
+    total = models.PositiveIntegerField(default=0)
+    
+    # Failed/error test names (JSON list)
+    failed_tests = models.TextField(blank=True, help_text="JSON list of failed test names")
+    error_tests = models.TextField(blank=True, help_text="JSON list of error test names")
+    
+    # Error details (full traceback)
+    error_details = models.TextField(blank=True, help_text="Full error tracebacks")
+    
+    class Meta:
+        ordering = ['app_name']
+    
+    def __str__(self):
+        return f"{self.app_name} - {self.passed}/{self.total} passed"
+    
+    @property
+    def status(self):
+        """Get status string for this app."""
+        if self.errors > 0:
+            return 'error'
+        elif self.failed > 0:
+            return 'failed'
+        return 'passed'

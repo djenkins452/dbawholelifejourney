@@ -2,13 +2,13 @@
 TEST SUMMARY REPORT
 ============================================================
 
-Timestamp: 2025-12-26 17:19:16
+Timestamp: 2025-12-26 17:31:29
 
 ----------------------------------------
 OVERALL RESULTS
 ----------------------------------------
-Total Tests:  617
-Passed:       617
+Total Tests:  676
+Passed:       676
 Failed:       0
 Errors:       0
 Pass Rate:    100.0%
@@ -34,6 +34,8 @@ RESULTS BY APP
        Passed: 67, Failed: 0, Errors: 0
 [PASS] apps.admin_console.tests
        Passed: 25, Failed: 0, Errors: 0
+[PASS] apps.ai.tests
+       Passed: 59, Failed: 0, Errors: 0
 
 ============================================================
 ALL TESTS PASSED!

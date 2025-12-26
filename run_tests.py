@@ -107,6 +107,7 @@ def main():
             'apps.life',
             'apps.purpose.tests',  # Need full path due to import issue
             'apps.admin_console.tests',
+            'apps.ai.tests',
         ]
     
     print("=" * 60)

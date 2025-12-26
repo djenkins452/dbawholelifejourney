@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Option{% else %}New Option{% endif %} - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:choice_category_list' %}">Dropdown Choices</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:choice_option_list' category.pk %}">{{ category.name }}</a>
+                <span>/</span>
+                <span>{% if object %}Edit{% else %}New{% endif %}</span>
+            </nav>
+            <h1 class="page-title">{% if object %}Edit Option{% else %}New Option{% endif %}</h1>
+            <p class="page-subtitle">For {{ category.name }} dropdown</p>
+        </div>
+    </div>
+    
+    <form method="post" class="admin-form">
+        {% csrf_token %}
+        
+        <div class="form-section">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_label" class="form-label">Label</label>
+                    <input type="text" name="label" id="id_label" class="form-input" 
+                           value="{{ form.label.value|default:'' }}" required
+                           placeholder="e.g., Happy 😊">
+                    <p class="form-help">What users see in the dropdown</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_value" class="form-label">Value</label>
+                    <input type="text" name="value" id="id_value" class="form-input" 
+                           value="{{ form.value.value|default:'' }}" required
+                           placeholder="e.g., happy" pattern="[a-z0-9_]+">
+                    <p class="form-help">Stored in database (lowercase)</p>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_icon" class="form-label">Icon (optional)</label>
+                    <input type="text" name="icon" id="id_icon" class="form-input" 
+                           value="{{ form.icon.value|default:'' }}"
+                           placeholder="e.g., 😊">
+                    <p class="form-help">Emoji or icon class</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_color" class="form-label">Color (optional)</label>
+                    <div class="color-input-group">
+                        <input type="color" name="color" id="id_color" 
+                               value="{{ form.color.value|default:'#6366f1' }}" class="form-color">
+                        <input type="text" class="form-input color-hex" 
+                               value="{{ form.color.value|default:'' }}" maxlength="7"
+                               placeholder="#6366f1">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_sort_order" class="form-label">Sort Order</label>
+                    <input type="number" name="sort_order" id="id_sort_order" class="form-input" 
+                           value="{{ form.sort_order.value|default:'0' }}" min="0">
+                    <p class="form-help">Lower numbers appear first</p>
+                </div>
+                
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %}>
+                        Active (show in dropdown)
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_default" {% if form.is_default.value %}checked{% endif %}>
+                        Default selection
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Preview -->
+        <div class="form-section">
+            <h3 class="form-section-title">Preview</h3>
+            <div class="option-preview" id="optionPreview">
+                <span class="preview-icon"></span>
+                <span class="preview-label">Option Label</span>
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Add Option{% endif %}
+            </button>
+            <a href="{% url 'admin_console:choice_option_list' category.pk %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.admin-form {
+    max-width: 600px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.color-input-group {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.form-color {
+    width: 48px;
+    height: 40px;
+    padding: 2px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.color-hex {
+    flex: 1;
+    font-family: monospace;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    justify-content: center;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.option-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+
+<script>
+// Sync color inputs
+const colorInput = document.getElementById('id_color');
+const hexInput = document.querySelector('.color-hex');
+
+if (colorInput && hexInput) {
+    colorInput.addEventListener('input', () => {
+        hexInput.value = colorInput.value;
+        updatePreview();
+    });
+    
+    hexInput.addEventListener('input', () => {
+        if (/^#[0-9A-Fa-f]{6}$/.test(hexInput.value)) {
+            colorInput.value = hexInput.value;
+            updatePreview();
+        }
+    });
+}
+
+// Auto-generate value from label
+const labelInput = document.getElementById('id_label');
+const valueInput = document.getElementById('id_value');
+
+if (labelInput && valueInput && !valueInput.value) {
+    labelInput.addEventListener('input', () => {
+        // Remove emoji and special chars, convert to lowercase
+        valueInput.value = labelInput.value
+            .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Remove emojis
+            .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+            .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+            .replace(/[\u{2600}-\u{26FF}]/gu, '')
+            .replace(/[\u{2700}-\u{27BF}]/gu, '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_|_$/g, '');
+        updatePreview();
+    });
+}
+
+// Update preview
+function updatePreview() {
+    const preview = document.getElementById('optionPreview');
+    const icon = document.getElementById('id_icon').value;
+    const label = document.getElementById('id_label').value || 'Option Label';
+    const color = hexInput.value;
+    
+    preview.querySelector('.preview-icon').textContent = icon;
+    preview.querySelector('.preview-label').textContent = label;
+    
+    if (color && /^#[0-9A-Fa-f]{6}$/.test(color)) {
+        preview.style.background = color + '20';
+        preview.style.color = color;
+    } else {
+        preview.style.background = '';
+        preview.style.color = '';
+    }
+}
+
+// Initial preview
+document.getElementById('id_label').addEventListener('input', updatePreview);
+document.getElementById('id_icon').addEventListener('input', updatePreview);
+updatePreview();
+</script>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Log{% endif %} Glucose - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Log{% endif %} Blood Glucose</h1>
+    </div>
+    
+    <form method="post" class="card">
+        {% csrf_token %}
+        
+        <div class="form-row-3">
+            <div class="form-group">
+                <label for="id_value" class="form-label">Reading</label>
+                <input 
+                    type="number" 
+                    name="value" 
+                    id="id_value" 
+                    class="form-input"
+                    value="{{ form.value.value|default:'' }}"
+                    step="0.1"
+                    placeholder="e.g., 95"
+                    required
+                    autofocus
+                >
+            </div>
+            
+            <div class="form-group">
+                <label for="id_unit" class="form-label">Unit</label>
+                <select name="unit" id="id_unit" class="form-select">
+                    {% for value, label in form.fields.unit.choices %}
+                        <option value="{{ value }}" {% if form.unit.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_context" class="form-label">When</label>
+                <select name="context" id="id_context" class="form-select">
+                    {% for value, label in form.fields.context.choices %}
+                        <option value="{{ value }}" {% if form.context.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="glucose-guide">
+            <h3>Typical Blood Glucose Ranges (mg/dL)</h3>
+            <div class="guide-grid">
+                <div class="guide-item">
+                    <strong>Fasting:</strong>
+                    <span>70-100 normal</span>
+                </div>
+                <div class="guide-item">
+                    <strong>Before meals:</strong>
+                    <span>70-130 target</span>
+                </div>
+                <div class="guide-item">
+                    <strong>After meals (2h):</strong>
+                    <span>&lt;180 target</span>
+                </div>
+            </div>
+            <p class="text-muted text-sm mt-2">
+                <em>Note: These are general guidelines. Consult your healthcare provider for personalized targets.</em>
+            </p>
+        </div>
+        
+        <div class="form-group">
+            <label for="id_recorded_at" class="form-label">Date & Time</label>
+            <input 
+                type="datetime-local" 
+                name="recorded_at" 
+                id="id_recorded_at" 
+                class="form-input"
+                value="{{ form.recorded_at.value|date:'Y-m-d\TH:i'|default:'' }}"
+            >
+        </div>
+        
+        <div class="form-group">
+            <label for="id_notes" class="form-label">Notes (optional)</label>
+            <textarea 
+                name="notes" 
+                id="id_notes" 
+                class="form-textarea"
+                placeholder="Any notes about this reading..."
+                rows="2"
+            >{{ form.notes.value|default:'' }}</textarea>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Log Glucose{% endif %}
+            </button>
+            <a href="{% url 'health:glucose_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-row-3 {
+    display: grid;
+    grid-template-columns: 2fr 1fr 2fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+.glucose-guide {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.glucose-guide h3 {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+}
+
+.guide-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-3);
+}
+
+.guide-item {
+    font-size: var(--font-size-sm);
+}
+
+.guide-item strong {
+    display: block;
+    color: var(--color-text-muted);
+}
+
+.guide-item span {
+    font-weight: 500;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

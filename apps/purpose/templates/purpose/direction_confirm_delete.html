@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Direction - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="confirm-delete-card">
+        <h1>Delete {{ object.year }} Direction?</h1>
+        <p>Are you sure you want to delete the direction for <strong>{{ object.year }}</strong> with word "<strong>{{ object.word_of_year }}</strong>"?</p>
+        <p class="text-muted">This action cannot be undone. Any linked goals and intentions will be unlinked but not deleted.</p>
+        
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-actions">
+                <a href="{% url 'purpose:direction_detail' object.pk %}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-danger">Delete Direction</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.confirm-delete-card {
+    max-width: 500px;
+    margin: var(--space-8) auto;
+    padding: var(--space-8);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+
+.confirm-delete-card h1 {
+    margin-bottom: var(--space-4);
+}
+
+.confirm-delete-card p {
+    margin-bottom: var(--space-4);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.btn-danger {
+    background: var(--color-error);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: color-mix(in srgb, var(--color-error) 85%, #000);
+}
+</style>
+{% endblock %}

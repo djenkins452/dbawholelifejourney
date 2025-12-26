@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}{{ reflection }} - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <span>/</span>
+        <a href="{% url 'purpose:reflection_list' %}">Reflections</a>
+        <span>/</span>
+        <span>{{ reflection.year }}</span>
+    </nav>
+    
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ reflection }}</h1>
+            <div class="reflection-meta">
+                <span class="badge">{{ reflection.get_reflection_type_display }}</span>
+                {% if reflection.is_complete %}
+                <span class="badge badge-complete">Complete</span>
+                {% else %}
+                <span class="badge badge-draft">In Progress</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="header-actions">
+            {% if not reflection.is_complete %}
+            <a href="{% url 'purpose:reflection_edit' reflection.pk %}" class="btn btn-primary">Continue Reflection</a>
+            {% else %}
+            <a href="{% url 'purpose:reflection_edit' reflection.pk %}" class="btn btn-secondary">Edit Responses</a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="reflection-content">
+        {% for response in responses %}
+        <div class="response-card">
+            <h3 class="response-question">{{ response.question_text }}</h3>
+            {% if response.response %}
+            <p class="response-text">{{ response.response }}</p>
+            {% else %}
+            <p class="response-empty">Not yet answered</p>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="empty-section">
+            <p>No prompts for this reflection.</p>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="page-footer">
+        <a href="{% url 'purpose:reflection_delete' reflection.pk %}" class="btn btn-ghost text-danger">Delete Reflection</a>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.reflection-meta {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+}
+
+.badge-complete {
+    background: color-mix(in srgb, var(--color-success) 20%, transparent);
+    color: var(--color-success);
+}
+
+.badge-draft {
+    background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+    color: var(--color-warning);
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.reflection-content {
+    max-width: 700px;
+}
+
+.response-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.response-question {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-3) 0;
+    color: var(--color-text);
+}
+
+.response-text {
+    margin: 0;
+    line-height: 1.7;
+    white-space: pre-wrap;
+}
+
+.response-empty {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.empty-section {
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+}
+
+.page-footer {
+    margin-top: var(--space-8);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.text-danger {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

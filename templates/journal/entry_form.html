@@ -5,8 +5,19 @@
 {% block content %}
 <div class="content-container">
     <div class="page-header">
-        <h1 class="page-title">{% if is_edit %}Edit Entry{% else %}New Entry{% endif %}</h1>
-        {% if suggested_prompt and not is_edit %}
+        <h1 class="page-title">{% if is_edit %}Edit Entry{% else %}New Journal Entry{% endif %}</h1>
+        {% if selected_prompt and not is_edit %}
+            <div class="prompt-suggestion prompt-selected">
+                <p class="prompt-label">Writing about:</p>
+                <p class="prompt-text">"{{ selected_prompt.text }}"</p>
+                {% if selected_prompt.scripture_reference %}
+                    <p class="prompt-scripture text-sm text-muted">{{ selected_prompt.scripture_reference }}</p>
+                {% endif %}
+                {% if selected_prompt.category %}
+                    <span class="prompt-category-badge">{{ selected_prompt.category.name }}</span>
+                {% endif %}
+            </div>
+        {% elif suggested_prompt and not is_edit %}
             <div class="prompt-suggestion">
                 <p class="prompt-label">Need inspiration?</p>
                 <p class="prompt-text">"{{ suggested_prompt.text }}"</p>
@@ -31,9 +42,9 @@
                 id="id_title" 
                 class="form-input"
                 value="{{ form.title.value|default:'' }}"
-                placeholder="Entry title"
-                required
+                placeholder="Leave blank to use the date"
             >
+            <p class="form-help">Leave blank to automatically use the date as the title.</p>
             {% if form.title.errors %}
                 <p class="form-error">{{ form.title.errors.0 }}</p>
             {% endif %}
@@ -111,7 +122,7 @@
                             type="checkbox" 
                             name="categories" 
                             value="{{ category.pk }}"
-                            {% if category.pk in form.categories.value %}checked{% endif %}
+                            {% if category.pk in form.categories.value %}checked{% elif selected_prompt and selected_prompt.category and selected_prompt.category.pk == category.pk %}checked{% endif %}
                         >
                         <span class="category-button">{{ category.name }}</span>
                     </label>
@@ -119,7 +130,7 @@
             </div>
         </div>
         
-        {% if tags %}
+        {% if form.fields.tags.queryset.exists %}
         <div class="form-group">
             <label class="form-label">Tags (optional)</label>
             <div class="tag-selector">
@@ -136,6 +147,11 @@
                 {% endfor %}
             </div>
             <a href="{% url 'journal:tag_create' %}" class="text-sm">+ Create new tag</a>
+        </div>
+        {% else %}
+        <div class="form-group">
+            <label class="form-label">Tags (optional)</label>
+            <p class="text-muted text-sm">No tags created yet. <a href="{% url 'journal:tag_create' %}">Create your first tag</a></p>
         </div>
         {% endif %}
         
@@ -157,6 +173,20 @@
     border-radius: var(--radius-lg);
     margin-top: var(--space-4);
     border-left: 4px solid var(--color-accent);
+}
+
+.prompt-suggestion.prompt-selected {
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+}
+
+.prompt-category-badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    background: var(--color-accent);
+    color: white;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-top: var(--space-2);
 }
 
 .prompt-label {
@@ -260,4 +290,54 @@
     border-top: 1px solid var(--color-border);
 }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const titleInput = document.getElementById('id_title');
+    const dateInput = document.getElementById('id_entry_date');
+    const bodyInput = document.getElementById('id_body');
+    const wordCount = document.getElementById('word-count');
+    
+    // Track if user has manually edited the title
+    let titleManuallyEdited = titleInput.value.trim() !== '';
+    
+    // Format date as "Day, Month DD, YYYY"
+    function formatDateAsTitle(dateString) {
+        if (!dateString) return '';
+        const date = new Date(dateString + 'T00:00:00'); // Add time to avoid timezone issues
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        return date.toLocaleDateString('en-US', options);
+    }
+    
+    // Set initial title from date if title is empty
+    if (!titleManuallyEdited && dateInput.value) {
+        titleInput.placeholder = formatDateAsTitle(dateInput.value);
+    }
+    
+    // Update title placeholder when date changes
+    dateInput.addEventListener('change', function() {
+        if (!titleManuallyEdited) {
+            titleInput.placeholder = formatDateAsTitle(this.value);
+        }
+    });
+    
+    // Track manual title edits
+    titleInput.addEventListener('input', function() {
+        titleManuallyEdited = this.value.trim() !== '';
+        if (!titleManuallyEdited && dateInput.value) {
+            this.placeholder = formatDateAsTitle(dateInput.value);
+        }
+    });
+    
+    // Word count
+    function updateWordCount() {
+        const text = bodyInput.value.trim();
+        const words = text ? text.split(/\s+/).length : 0;
+        wordCount.textContent = words + ' word' + (words !== 1 ? 's' : '');
+    }
+    
+    bodyInput.addEventListener('input', updateWordCount);
+    updateWordCount(); // Initial count
+});
+</script>
 {% endblock %}

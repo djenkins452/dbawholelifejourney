@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Goal - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <span>/</span>
+        <a href="{% url 'purpose:goal_list' %}">Goals</a>
+        <span>/</span>
+        <span>{% if form.instance.pk %}Edit{% else %}New{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="page-header">
+            <h1 class="page-title">{% if form.instance.pk %}Edit Goal{% else %}Add Life Goal{% endif %}</h1>
+            <p class="page-subtitle">Focus on direction, not execution</p>
+        </div>
+        
+        <form method="post" class="form-card">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="id_title" class="form-label">Goal Title</label>
+                <input type="text" name="title" id="id_title" class="form-input"
+                       value="{{ form.title.value|default:'' }}" required
+                       placeholder="What do you want to achieve?">
+            </div>
+            
+            <div class="form-group">
+                <label for="id_description" class="form-label">Description</label>
+                <textarea name="description" id="id_description" class="form-textarea" rows="3"
+                          placeholder="Describe this goal...">{{ form.description.value|default:'' }}</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_why_it_matters" class="form-label">Why It Matters</label>
+                <textarea name="why_it_matters" id="id_why_it_matters" class="form-textarea" rows="3"
+                          placeholder="Why is this goal important to you?">{{ form.why_it_matters.value|default:'' }}</textarea>
+                <p class="form-help">Understanding your "why" keeps you motivated.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_success_looks_like" class="form-label">What Success Looks Like</label>
+                <textarea name="success_looks_like" id="id_success_looks_like" class="form-textarea" rows="3"
+                          placeholder="How will you know you've achieved this?">{{ form.success_looks_like.value|default:'' }}</textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_domain" class="form-label">Life Domain</label>
+                    <select name="domain" id="id_domain" class="form-select">
+                        <option value="">Select a domain...</option>
+                        {% for domain in form.fields.domain.queryset %}
+                        <option value="{{ domain.pk }}" {% if form.domain.value == domain.pk|stringformat:"i" %}selected{% endif %}>
+                            {{ domain.icon }} {{ domain.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_timeframe" class="form-label">Timeframe</label>
+                    <select name="timeframe" id="id_timeframe" class="form-select">
+                        {% for value, label in form.fields.timeframe.choices %}
+                        <option value="{{ value }}" {% if form.timeframe.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_target_date" class="form-label">Target Date <span class="optional-badge">Optional</span></label>
+                    <input type="date" name="target_date" id="id_target_date" class="form-input"
+                           value="{{ form.target_date.value|date:'Y-m-d'|default:'' }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_annual_direction" class="form-label">Link to Direction <span class="optional-badge">Optional</span></label>
+                    <select name="annual_direction" id="id_annual_direction" class="form-select">
+                        <option value="">None</option>
+                        {% for direction in form.fields.annual_direction.queryset %}
+                        <option value="{{ direction.pk }}" {% if form.annual_direction.value == direction.pk|stringformat:"i" %}selected{% endif %}>
+                            {{ direction.year }}: {{ direction.word_of_year }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            {% if form.instance.pk %}
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_status" class="form-label">Status</label>
+                    <select name="status" id="id_status" class="form-select">
+                        {% for value, label in form.fields.status.choices %}
+                        <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_reflection" class="form-label">Reflection <span class="optional-badge">For completed/released goals</span></label>
+                <textarea name="reflection" id="id_reflection" class="form-textarea" rows="3"
+                          placeholder="What did you learn? How did it go?">{{ form.reflection.value|default:'' }}</textarea>
+            </div>
+            {% endif %}
+            
+            <div class="form-actions">
+                <a href="{% url 'purpose:goal_list' %}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    {% if form.instance.pk %}Save Changes{% else %}Add Goal{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 700px;
+}
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.optional-badge {
+    font-size: var(--font-size-xs);
+    font-weight: normal;
+    color: var(--color-text-muted);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

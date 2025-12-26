@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>Journal Prompts</h1>
+
+  {% if object_list %}
+    <ul>
+      {% for prompt in object_list %}
+        <li>
+          <strong>{{ prompt.title }}</strong><br>
+          {{ prompt.text }}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No prompts available yet.</p>
+  {% endif %}
+{% endblock %}

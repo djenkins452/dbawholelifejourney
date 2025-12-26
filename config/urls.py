@@ -22,6 +22,16 @@ urlpatterns = [
     path("dashboard/", include("apps.dashboard.urls", namespace="dashboard")),
     # Journal
     path("journal/", include("apps.journal.urls", namespace="journal")),
+    # Faith
+    path("faith/", include("apps.faith.urls", namespace="faith")),
+    # Health
+    path("health/", include("apps.health.urls", namespace="health")),
+    # Admin Console
+    path("admin-console/", include("apps.admin_console.urls")),    
+    # Life
+    path("life/", include("apps.life.urls")),
+    # Purpose
+    path('purpose/', include('apps.purpose.urls')),
 ]
 
 # Serve media files in development

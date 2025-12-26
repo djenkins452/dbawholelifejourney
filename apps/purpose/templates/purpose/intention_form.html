@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Intention - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <span>/</span>
+        <a href="{% url 'purpose:intention_list' %}">Intentions</a>
+        <span>/</span>
+        <span>{% if form.instance.pk %}Edit{% else %}New{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="page-header">
+            <h1 class="page-title">{% if form.instance.pk %}Edit Intention{% else %}Add Change Intention{% endif %}</h1>
+            <p class="page-subtitle">Who do you want to become?</p>
+        </div>
+        
+        <form method="post" class="form-card">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="id_intention" class="form-label">Intention</label>
+                <input type="text" name="intention" id="id_intention" class="form-input"
+                       value="{{ form.intention.value|default:'' }}" required
+                       placeholder="e.g., Be more present, Build margin, Respond don't react">
+                <p class="form-help">A short phrase describing the change you want to embody.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_description" class="form-label">What This Looks Like</label>
+                <textarea name="description" id="id_description" class="form-textarea" rows="3"
+                          placeholder="How will this show up in your daily life?">{{ form.description.value|default:'' }}</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_motivation" class="form-label">Why This Matters</label>
+                <textarea name="motivation" id="id_motivation" class="form-textarea" rows="3"
+                          placeholder="Why is this change important to you?">{{ form.motivation.value|default:'' }}</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_annual_direction" class="form-label">Link to Direction <span class="optional-badge">Optional</span></label>
+                <select name="annual_direction" id="id_annual_direction" class="form-select">
+                    <option value="">None</option>
+                    {% for direction in form.fields.annual_direction.queryset %}
+                    <option value="{{ direction.pk }}" {% if form.annual_direction.value == direction.pk|stringformat:"i" %}selected{% endif %}>
+                        {{ direction.year }}: {{ direction.word_of_year }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            {% if form.instance.pk %}
+            <div class="form-group">
+                <label for="id_status" class="form-label">Status</label>
+                <select name="status" id="id_status" class="form-select">
+                    {% for value, label in form.fields.status.choices %}
+                    <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="form-help">"Integrated" means this change has become natural to you.</p>
+            </div>
+            {% endif %}
+            
+            <div class="form-actions">
+                <a href="{% url 'purpose:intention_list' %}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    {% if form.instance.pk %}Save Changes{% else %}Add Intention{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 600px;
+}
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+}
+
+.optional-badge {
+    font-size: var(--font-size-xs);
+    font-weight: normal;
+    color: var(--color-text-muted);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

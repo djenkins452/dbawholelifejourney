@@ -1,0 +1,371 @@
+"""
+Admin Views - Custom admin interface for site management.
+
+These views provide a user-friendly admin interface that matches
+the app's design, rather than using Django's default admin.
+"""
+
+from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.mixins import UserPassesTestMixin
+from django.shortcuts import redirect, render
+from django.urls import reverse_lazy
+from django.utils.decorators import method_decorator
+from django.views.generic import (
+    CreateView,
+    DeleteView,
+    ListView,
+    TemplateView,
+    UpdateView,
+    View,
+)
+
+from apps.core.models import Category, SiteConfiguration, Theme
+from apps.core.models import ChoiceCategory, ChoiceOption
+
+
+class AdminRequiredMixin(UserPassesTestMixin):
+    """Mixin to ensure user is staff/admin."""
+    
+    def test_func(self):
+        return self.request.user.is_staff
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "You don't have permission to access the admin area.")
+        return redirect('dashboard:home')
+
+
+class AdminDashboardView(AdminRequiredMixin, TemplateView):
+    """
+    Main admin dashboard - overview of site management options.
+    """
+    template_name = "admin_console/dashboard.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.users.models import User
+        from apps.journal.models import JournalEntry
+        
+        # Stats
+        context['total_users'] = User.objects.count()
+        context['total_entries'] = JournalEntry.objects.count()
+        context['total_themes'] = Theme.objects.filter(is_active=True).count()
+        context['total_categories'] = Category.objects.count()
+        context['total_choice_categories'] = ChoiceCategory.objects.count()
+        
+        # Recent activity
+        context['recent_users'] = User.objects.order_by('-date_joined')[:5]
+        
+        return context
+
+
+# ============================================================
+# Site Configuration Views
+# ============================================================
+
+class SiteConfigView(AdminRequiredMixin, TemplateView):
+    """
+    Edit site configuration (singleton).
+    """
+    template_name = "admin_console/site_config.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['config'] = SiteConfiguration.get_solo()
+        context['themes'] = Theme.objects.filter(is_active=True)
+        return context
+    
+    def post(self, request):
+        config = SiteConfiguration.get_solo()
+        
+        # Update fields
+        config.site_name = request.POST.get('site_name', config.site_name)
+        config.tagline = request.POST.get('tagline', config.tagline)
+        config.default_theme = request.POST.get('default_theme', config.default_theme)
+        config.footer_text = request.POST.get('footer_text', config.footer_text)
+        config.privacy_policy_url = request.POST.get('privacy_policy_url', '')
+        config.terms_url = request.POST.get('terms_url', '')
+        
+        # Booleans
+        config.allow_registration = request.POST.get('allow_registration') == 'on'
+        config.require_email_verification = request.POST.get('require_email_verification') == 'on'
+        config.faith_enabled_by_default = request.POST.get('faith_enabled_by_default') == 'on'
+        
+        # Handle logo upload
+        if 'logo' in request.FILES:
+            config.logo = request.FILES['logo']
+        elif request.POST.get('clear_logo') == 'on':
+            config.logo = None
+        
+        # Handle favicon upload
+        if 'favicon' in request.FILES:
+            config.favicon = request.FILES['favicon']
+        elif request.POST.get('clear_favicon') == 'on':
+            config.favicon = None
+        
+        config.save()
+        messages.success(request, "Site configuration updated successfully.")
+        return redirect('admin_console:site_config')
+
+
+# ============================================================
+# Theme Management Views
+# ============================================================
+
+class ThemeListView(AdminRequiredMixin, ListView):
+    """List all themes."""
+    model = Theme
+    template_name = "admin_console/theme_list.html"
+    context_object_name = "themes"
+    
+    def get_queryset(self):
+        return Theme.objects.all().order_by('sort_order', 'name')
+
+
+class ThemeCreateView(AdminRequiredMixin, CreateView):
+    """Create a new theme."""
+    model = Theme
+    template_name = "admin_console/theme_form.html"
+    fields = [
+        'slug', 'name', 'description', 'sort_order', 'is_active', 'is_default',
+        'color_primary', 'color_secondary', 'color_accent', 'color_text',
+        'color_text_muted', 'color_background', 'color_surface', 'color_border',
+        'dark_color_primary', 'dark_color_secondary', 'dark_color_accent', 
+        'dark_color_text', 'dark_color_text_muted', 'dark_color_background',
+        'dark_color_surface', 'dark_color_border',
+    ]
+    success_url = reverse_lazy('admin_console:theme_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Theme '{form.instance.name}' created successfully.")
+        return super().form_valid(form)
+
+
+class ThemeUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit an existing theme."""
+    model = Theme
+    template_name = "admin_console/theme_form.html"
+    fields = [
+        'slug', 'name', 'description', 'sort_order', 'is_active', 'is_default',
+        'color_primary', 'color_secondary', 'color_accent', 'color_text',
+        'color_text_muted', 'color_background', 'color_surface', 'color_border',
+        'dark_color_primary', 'dark_color_secondary', 'dark_color_accent', 
+        'dark_color_text', 'dark_color_text_muted', 'dark_color_background',
+        'dark_color_surface', 'dark_color_border',
+    ]
+    success_url = reverse_lazy('admin_console:theme_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Theme '{form.instance.name}' updated successfully.")
+        return super().form_valid(form)
+
+
+class ThemeDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a theme."""
+    model = Theme
+    template_name = "admin_console/theme_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:theme_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Theme '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+
+class ThemePreviewView(AdminRequiredMixin, View):
+    """AJAX endpoint to preview theme colors."""
+    
+    def get(self, request, pk):
+        theme = Theme.objects.get(pk=pk)
+        return render(request, 'admin_console/partials/theme_preview.html', {
+            'theme': theme
+        })
+
+
+# ============================================================
+# Category Management Views
+# ============================================================
+
+class CategoryListView(AdminRequiredMixin, ListView):
+    """List all categories."""
+    model = Category
+    template_name = "admin_console/category_list.html"
+    context_object_name = "categories"
+    
+    def get_queryset(self):
+        return Category.objects.all().order_by('name')
+
+
+class CategoryCreateView(AdminRequiredMixin, CreateView):
+    """Create a new category."""
+    model = Category
+    template_name = "admin_console/category_form.html"
+    fields = ['name', 'slug', 'description', 'icon', 'color']
+    success_url = reverse_lazy('admin_console:category_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Category '{form.instance.name}' created successfully.")
+        return super().form_valid(form)
+
+
+class CategoryUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit a category."""
+    model = Category
+    template_name = "admin_console/category_form.html"
+    fields = ['name', 'slug', 'description', 'icon', 'color']
+    success_url = reverse_lazy('admin_console:category_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Category '{form.instance.name}' updated successfully.")
+        return super().form_valid(form)
+
+
+class CategoryDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a category."""
+    model = Category
+    template_name = "admin_console/category_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:category_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Category '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+
+# ============================================================
+# User Management Views (Basic)
+# ============================================================
+
+class UserListView(AdminRequiredMixin, ListView):
+    """List all users."""
+    template_name = "admin_console/user_list.html"
+    context_object_name = "users"
+    paginate_by = 50
+    
+    def get_queryset(self):
+        from apps.users.models import User
+        return User.objects.all().order_by('-date_joined')
+
+
+# ============================================================
+# Choice Category & Option Views (Phase 3)
+# ============================================================
+
+class ChoiceCategoryListView(AdminRequiredMixin, ListView):
+    """List all choice categories."""
+    model = ChoiceCategory
+    template_name = "admin_console/choice_category_list.html"
+    context_object_name = "categories"
+    
+    def get_queryset(self):
+        return ChoiceCategory.objects.all().prefetch_related('options')
+
+
+class ChoiceCategoryCreateView(AdminRequiredMixin, CreateView):
+    """Create a new choice category."""
+    model = ChoiceCategory
+    template_name = "admin_console/choice_category_form.html"
+    fields = ['slug', 'name', 'description', 'app_label', 'is_system']
+    success_url = reverse_lazy('admin_console:choice_category_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Category '{form.instance.name}' created.")
+        return super().form_valid(form)
+
+
+class ChoiceCategoryUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit a choice category."""
+    model = ChoiceCategory
+    template_name = "admin_console/choice_category_form.html"
+    fields = ['slug', 'name', 'description', 'app_label', 'is_system']
+    success_url = reverse_lazy('admin_console:choice_category_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Category '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+
+class ChoiceCategoryDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a choice category."""
+    model = ChoiceCategory
+    template_name = "admin_console/choice_category_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:choice_category_list')
+    
+    def form_valid(self, form):
+        if self.object.is_system:
+            messages.error(self.request, "Cannot delete system categories.")
+            return redirect('admin_console:choice_category_list')
+        messages.success(self.request, f"Category '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+
+class ChoiceOptionListView(AdminRequiredMixin, ListView):
+    """List options for a specific category."""
+    model = ChoiceOption
+    template_name = "admin_console/choice_option_list.html"
+    context_object_name = "options"
+    
+    def get_queryset(self):
+        self.category = ChoiceCategory.objects.get(pk=self.kwargs['category_pk'])
+        return ChoiceOption.objects.filter(category=self.category).order_by('sort_order')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['category'] = self.category
+        return context
+
+
+class ChoiceOptionCreateView(AdminRequiredMixin, CreateView):
+    """Create a new choice option."""
+    model = ChoiceOption
+    template_name = "admin_console/choice_option_form.html"
+    fields = ['value', 'label', 'icon', 'color', 'sort_order', 'is_active', 'is_default']
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['category'] = ChoiceCategory.objects.get(pk=self.kwargs['category_pk'])
+        return context
+    
+    def form_valid(self, form):
+        form.instance.category = ChoiceCategory.objects.get(pk=self.kwargs['category_pk'])
+        messages.success(self.request, f"Option '{form.instance.label}' created.")
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse_lazy('admin_console:choice_option_list', kwargs={'category_pk': self.kwargs['category_pk']})
+
+
+class ChoiceOptionUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit a choice option."""
+    model = ChoiceOption
+    template_name = "admin_console/choice_option_form.html"
+    fields = ['value', 'label', 'icon', 'color', 'sort_order', 'is_active', 'is_default']
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['category'] = self.object.category
+        return context
+    
+    def form_valid(self, form):
+        messages.success(self.request, f"Option '{form.instance.label}' updated.")
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse_lazy('admin_console:choice_option_list', kwargs={'category_pk': self.object.category.pk})
+
+
+class ChoiceOptionDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a choice option."""
+    model = ChoiceOption
+    template_name = "admin_console/choice_option_confirm_delete.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['category'] = self.object.category
+        return context
+    
+    def form_valid(self, form):
+        category_pk = self.object.category.pk
+        messages.success(self.request, f"Option '{self.object.label}' deleted.")
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse_lazy('admin_console:choice_option_list', kwargs={'category_pk': self.object.category.pk})

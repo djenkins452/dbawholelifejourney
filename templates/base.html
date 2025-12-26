@@ -19,14 +19,58 @@
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     
-    <!-- Custom accent color override -->
+    <!-- Custom accent color override - must come AFTER theme styles -->
     {% if accent_color %}
     <style>
-        :root {
-            --color-accent: {{ accent_color }};
+        :root,
+        [data-theme],
+        .theme-light,
+        .theme-dark,
+        .theme-faith,
+        .theme-sports,
+        .theme-nature,
+        .theme-outdoors,
+        .theme-minimal {
+            --color-accent: {{ accent_color }} !important;
+        }
+        
+        /* Override button colors */
+        .btn-primary {
+            background-color: {{ accent_color }} !important;
+        }
+        .btn-primary:hover {
+            background-color: color-mix(in srgb, {{ accent_color }} 85%, black) !important;
+        }
+        
+        /* Override other accent-colored elements */
+        .nav-link.active,
+        .tile-icon,
+        .quick-action-icon,
+        .tile-link,
+        a {
+            color: {{ accent_color }};
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: {{ accent_color }} !important;
+        }
+        
+        .nav-user-initial {
+            background-color: {{ accent_color }} !important;
+        }
+        
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            border-color: {{ accent_color }} !important;
+            box-shadow: 0 0 0 3px color-mix(in srgb, {{ accent_color }} 20%, transparent) !important;
         }
     </style>
     {% endif %}
+
+    <!-- Speech-to-Text and Spell Check -->
+    <script src="{% static 'js/speech-and-spellcheck.js' %}"></script>
+</body>
 </head>
 <body class="theme-{{ current_theme }}">
     {% block body %}

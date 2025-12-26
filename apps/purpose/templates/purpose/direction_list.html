@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}All Directions - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Annual Directions</h1>
+            <p class="page-subtitle">Your yearly compass through life</p>
+        </div>
+        <a href="{% url 'purpose:direction_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New Direction
+        </a>
+    </div>
+    
+    {% if directions %}
+    <div class="direction-list">
+        {% for direction in directions %}
+        <a href="{% url 'purpose:direction_detail' direction.pk %}" class="direction-item {% if direction.is_current %}current{% endif %}">
+            <div class="direction-year">{{ direction.year }}</div>
+            <div class="direction-content">
+                <h3 class="direction-word">{{ direction.word_of_year }}</h3>
+                {% if direction.theme %}
+                <p class="direction-theme">{{ direction.theme }}</p>
+                {% endif %}
+            </div>
+            {% if direction.is_current %}
+            <span class="current-badge">Current</span>
+            {% endif %}
+            <svg class="direction-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+            </svg>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🧭</div>
+        <h2>No Directions Yet</h2>
+        <p>Set your first annual direction to guide your year.</p>
+        <a href="{% url 'purpose:direction_create' %}" class="btn btn-primary">Set Your Direction</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.direction-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.direction-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.direction-item:hover {
+    border-color: var(--color-accent);
+    transform: translateX(4px);
+}
+
+.direction-item.current {
+    border-color: var(--color-accent);
+    background: linear-gradient(135deg, var(--color-background) 0%, color-mix(in srgb, var(--color-accent) 5%, var(--color-background)) 100%);
+}
+
+.direction-year {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+    min-width: 80px;
+}
+
+.direction-content {
+    flex: 1;
+}
+
+.direction-word {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text);
+    text-transform: capitalize;
+}
+
+.direction-theme {
+    margin: var(--space-1) 0 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.current-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: var(--space-1) var(--space-3);
+    background: var(--color-accent);
+    color: white;
+    border-radius: var(--radius-full);
+}
+
+.direction-arrow {
+    color: var(--color-text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12);
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "account/base.html" %}
+
+{% block title %}Verify Your Email - Whole Life Journey{% endblock %}
+
+{% block auth_content %}
+<h1>Check your email</h1>
+<p>We've sent a verification link to your email address. Please click the link to verify your account.</p>
+
+<div class="verification-info">
+    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" class="verification-icon">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+        <polyline points="22,6 12,13 2,6"/>
+    </svg>
+    <p class="text-muted">Didn't receive the email? Check your spam folder or request a new link below.</p>
+</div>
+
+<a href="{% url 'account_email' %}" class="btn btn-secondary" style="width: 100%;">
+    Manage Email Addresses
+</a>
+
+<p class="auth-link">
+    <a href="{% url 'account_login' %}">Back to sign in</a>
+</p>
+
+<style>
+.verification-info {
+    text-align: center;
+    padding: var(--space-6) 0;
+}
+
+.verification-icon {
+    margin: 0 auto var(--space-4);
+    color: var(--color-accent);
+}
+</style>
+{% endblock %}

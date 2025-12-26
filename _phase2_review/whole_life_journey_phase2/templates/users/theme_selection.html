@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Choose Your Theme - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="page-header">
+        <h1 class="page-title">Choose Your Theme</h1>
+        <p class="page-subtitle">Select a visual theme that resonates with your journey</p>
+    </div>
+    
+    <div class="theme-grid">
+        {% for key, theme in themes.items %}
+        <div class="theme-card {% if current_theme == key %}theme-card-active{% endif %}" data-theme="{{ key }}">
+            <div class="theme-preview" style="
+                --preview-primary: {{ theme.primary }};
+                --preview-secondary: {{ theme.secondary }};
+                --preview-accent: {{ theme.accent }};
+                --preview-text: {{ theme.text }};
+            ">
+                <div class="preview-header"></div>
+                <div class="preview-body">
+                    <div class="preview-card">
+                        <div class="preview-title"></div>
+                        <div class="preview-text"></div>
+                        <div class="preview-button"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="theme-info">
+                <h3 class="theme-name">{{ theme.name }}</h3>
+                <p class="theme-description">{{ theme.description }}</p>
+                
+                <div class="theme-colors">
+                    <span class="color-swatch" style="background-color: {{ theme.primary }}"></span>
+                    <span class="color-swatch" style="background-color: {{ theme.secondary }}"></span>
+                    <span class="color-swatch" style="background-color: {{ theme.accent }}"></span>
+                </div>
+                
+                <form method="post" class="theme-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="theme" value="{{ key }}">
+                    <button type="submit" class="btn {% if current_theme == key %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+                        {% if current_theme == key %}
+                            ✓ Current Theme
+                        {% else %}
+                            Select Theme
+                        {% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'users:preferences' %}" class="btn btn-ghost">
+            ← Back to Preferences
+        </a>
+    </div>
+</div>
+
+<style>
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-6);
+}
+
+.theme-card {
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-background);
+    transition: all var(--transition-fast);
+}
+
+.theme-card:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-md);
+}
+
+.theme-card-active {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.theme-preview {
+    height: 140px;
+    background: var(--preview-secondary);
+    position: relative;
+    overflow: hidden;
+}
+
+.preview-header {
+    height: 32px;
+    background: var(--preview-primary);
+}
+
+.preview-body {
+    padding: 12px;
+}
+
+.preview-card {
+    background: white;
+    border-radius: 6px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.preview-title {
+    width: 60%;
+    height: 10px;
+    background: var(--preview-text);
+    border-radius: 2px;
+    margin-bottom: 8px;
+    opacity: 0.8;
+}
+
+.preview-text {
+    width: 90%;
+    height: 6px;
+    background: var(--preview-text);
+    border-radius: 2px;
+    margin-bottom: 4px;
+    opacity: 0.3;
+}
+
+.preview-text:after {
+    content: "";
+    display: block;
+    width: 70%;
+    height: 6px;
+    background: var(--preview-text);
+    border-radius: 2px;
+    margin-top: 4px;
+    opacity: 1;
+}
+
+.preview-button {
+    width: 50px;
+    height: 16px;
+    background: var(--preview-accent);
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.theme-info {
+    padding: var(--space-4);
+}
+
+.theme-name {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-1);
+}
+
+.theme-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.theme-colors {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.color-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    border: 2px solid white;
+    box-shadow: 0 0 0 1px var(--color-border);
+}
+
+.theme-form {
+    margin: 0;
+}
+</style>
+{% endblock %}

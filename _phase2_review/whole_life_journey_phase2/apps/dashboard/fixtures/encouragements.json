@@ -1,0 +1,227 @@
+[
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 1,
+    "fields": {
+      "message": "Today is a gift. Take it one moment at a time.",
+      "scripture_reference": "",
+      "scripture_text": "",
+      "translation": "ESV",
+      "is_faith_specific": false,
+      "themes": ["peace", "present"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 2,
+    "fields": {
+      "message": "You don't have to have it all figured out. Just take the next right step.",
+      "scripture_reference": "",
+      "scripture_text": "",
+      "translation": "ESV",
+      "is_faith_specific": false,
+      "themes": ["guidance", "peace"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 3,
+    "fields": {
+      "message": "Rest is not laziness. It's how you refill what the world drains.",
+      "scripture_reference": "",
+      "scripture_text": "",
+      "translation": "ESV",
+      "is_faith_specific": false,
+      "themes": ["rest", "peace"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 4,
+    "fields": {
+      "message": "Progress, not perfection. You're doing better than you think.",
+      "scripture_reference": "",
+      "scripture_text": "",
+      "translation": "ESV",
+      "is_faith_specific": false,
+      "themes": ["growth", "encouragement"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 5,
+    "fields": {
+      "message": "What you're feeling is valid. Give yourself permission to feel it.",
+      "scripture_reference": "",
+      "scripture_text": "",
+      "translation": "ESV",
+      "is_faith_specific": false,
+      "themes": ["emotional", "acceptance"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 6,
+    "fields": {
+      "message": "His mercies are new every morning. This is a fresh start.",
+      "scripture_reference": "Lamentations 3:22-23",
+      "scripture_text": "Because of the Lord's great love we are not consumed, for his compassions never fail. They are new every morning; great is your faithfulness.",
+      "translation": "NIV",
+      "is_faith_specific": true,
+      "themes": ["mercy", "hope", "morning"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 7,
+    "fields": {
+      "message": "You are seen, known, and deeply loved by the One who made you.",
+      "scripture_reference": "Psalm 139:1-4",
+      "scripture_text": "You have searched me, Lord, and you know me. You know when I sit and when I rise; you perceive my thoughts from afar.",
+      "translation": "NIV",
+      "is_faith_specific": true,
+      "themes": ["identity", "love", "known"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 8,
+    "fields": {
+      "message": "Cast your cares on Him today. He's got you.",
+      "scripture_reference": "1 Peter 5:7",
+      "scripture_text": "Cast all your anxiety on him because he cares for you.",
+      "translation": "NIV",
+      "is_faith_specific": true,
+      "themes": ["peace", "trust", "care"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 9,
+    "fields": {
+      "message": "Be still. He is God, and He is working even when you can't see it.",
+      "scripture_reference": "Psalm 46:10",
+      "scripture_text": "Be still, and know that I am God.",
+      "translation": "NIV",
+      "is_faith_specific": true,
+      "themes": ["peace", "stillness", "trust"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 10,
+    "fields": {
+      "message": "Whatever you're facing, you don't face it alone.",
+      "scripture_reference": "Joshua 1:9",
+      "scripture_text": "The Lord your God will be with you wherever you go.",
+      "translation": "NIV",
+      "is_faith_specific": true,
+      "themes": ["presence", "courage", "support"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 11,
+    "fields": {
+      "message": "Small steps still move you forward. Keep going.",
+      "scripture_reference": "",
+      "scripture_text": "",
+      "translation": "ESV",
+      "is_faith_specific": false,
+      "themes": ["progress", "perseverance"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 12,
+    "fields": {
+      "message": "Your worth isn't measured by your productivity.",
+      "scripture_reference": "",
+      "scripture_text": "",
+      "translation": "ESV",
+      "is_faith_specific": false,
+      "themes": ["identity", "worth", "rest"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 13,
+    "fields": {
+      "message": "It's okay to not be okay. Healing takes time.",
+      "scripture_reference": "",
+      "scripture_text": "",
+      "translation": "ESV",
+      "is_faith_specific": false,
+      "themes": ["healing", "acceptance", "patience"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 14,
+    "fields": {
+      "message": "Take a deep breath. You've survived 100% of your hardest days.",
+      "scripture_reference": "",
+      "scripture_text": "",
+      "translation": "ESV",
+      "is_faith_specific": false,
+      "themes": ["strength", "perseverance"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  },
+  {
+    "model": "dashboard.dailyencouragement",
+    "pk": 15,
+    "fields": {
+      "message": "His grace is sufficient for today. Don't borrow tomorrow's worries.",
+      "scripture_reference": "2 Corinthians 12:9",
+      "scripture_text": "My grace is sufficient for you, for my power is made perfect in weakness.",
+      "translation": "NIV",
+      "is_faith_specific": true,
+      "themes": ["grace", "present", "trust"],
+      "day_of_week": null,
+      "month": null,
+      "is_active": true
+    }
+  }
+]

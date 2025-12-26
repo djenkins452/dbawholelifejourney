@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Page View - Journal - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Journal - Page View</h1>
+            <p class="page-subtitle">Read through your entries in one continuous flow.</p>
+        </div>
+        <div class="view-toggle">
+            <a href="{% url 'journal:entry_list' %}" class="btn btn-ghost btn-sm">List View</a>
+            <a href="{% url 'journal:page_view' %}" class="btn btn-secondary btn-sm">Page View</a>
+            <a href="{% url 'journal:book_view' %}" class="btn btn-ghost btn-sm desktop-only">Book View</a>
+        </div>
+    </div>
+    
+    {% if entries %}
+    <div class="page-view-content">
+        {% for entry in entries %}
+        <article class="page-entry" id="entry-{{ entry.pk }}">
+            <header class="page-entry-header">
+                <time class="page-entry-date">{{ entry.entry_date|date:"F j, Y" }}</time>
+                <h2 class="page-entry-title">{{ entry.title }}</h2>
+                {% if entry.mood %}
+                <span class="page-entry-mood">{{ entry.mood_emoji }} {{ entry.get_mood_display }}</span>
+                {% endif %}
+            </header>
+            
+            <div class="page-entry-body">
+                {{ entry.body|linebreaks }}
+            </div>
+            
+            {% if entry.categories.exists or entry.tags.exists %}
+            <footer class="page-entry-footer">
+                {% for category in entry.categories.all %}
+                <span class="entry-tag">{{ category.name }}</span>
+                {% endfor %}
+                {% for tag in entry.tags.all %}
+                <span class="entry-tag tag-custom">{{ tag.name }}</span>
+                {% endfor %}
+            </footer>
+            {% endif %}
+        </article>
+        
+        {% if not forloop.last %}
+        <div class="entry-divider"></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="pagination" aria-label="Journal pagination">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">← Newer</a>
+        {% endif %}
+        
+        <span class="pagination-info">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Older →</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+    
+    {% else %}
+    <div class="empty-state">
+        <h2 class="empty-state-title">No entries yet</h2>
+        <p class="empty-state-text">Start writing to see your entries here.</p>
+        <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">Write Your First Entry</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.view-toggle {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.desktop-only {
+    display: none;
+}
+
+@media (min-width: 1024px) {
+    .desktop-only {
+        display: inline-flex;
+    }
+}
+
+.page-view-content {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.page-entry {
+    padding: var(--space-8) 0;
+}
+
+.page-entry-header {
+    margin-bottom: var(--space-6);
+    text-align: center;
+}
+
+.page-entry-date {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-2);
+}
+
+.page-entry-title {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    margin: 0 0 var(--space-2) 0;
+}
+
+.page-entry-mood {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.page-entry-body {
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-relaxed);
+    color: var(--color-text);
+}
+
+.page-entry-body p {
+    margin-bottom: var(--space-4);
+}
+
+.page-entry-footer {
+    margin-top: var(--space-6);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-content: center;
+}
+
+.entry-tag {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+}
+
+.entry-tag.tag-custom {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+}
+
+.entry-divider {
+    height: 1px;
+    background: linear-gradient(
+        to right,
+        transparent,
+        var(--color-border) 20%,
+        var(--color-border) 80%,
+        transparent
+    );
+    margin: var(--space-4) 0;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.pagination-info {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+</style>
+{% endblock %}

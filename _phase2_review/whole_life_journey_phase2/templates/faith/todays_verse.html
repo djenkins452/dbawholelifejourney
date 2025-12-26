@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Today's Verse - Faith - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="todays-verse-page">
+        <span class="verse-label">Today's Verse</span>
+        
+        {% if verse %}
+            <blockquote class="verse-text">
+                "{{ verse.text }}"
+            </blockquote>
+            <cite class="verse-reference">
+                — {{ verse.reference }} ({{ verse.translation }})
+            </cite>
+            
+            {% if daily_verse.reflection_prompt %}
+                <div class="reflection-prompt">
+                    <h2>Reflect</h2>
+                    <p>{{ daily_verse.reflection_prompt }}</p>
+                </div>
+            {% endif %}
+            
+            <div class="verse-actions">
+                <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">
+                    Write a Reflection
+                </a>
+                <a href="{% url 'faith:scripture_list' %}" class="btn btn-ghost">
+                    Browse More Scripture
+                </a>
+            </div>
+            
+            {% if verse.themes %}
+                <div class="verse-themes">
+                    <span class="themes-label">Themes:</span>
+                    {% for theme in verse.themes %}
+                        <span class="theme-tag">{{ theme }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% else %}
+            <p class="text-muted">No verse available for today.</p>
+            <a href="{% url 'faith:scripture_list' %}" class="btn btn-secondary">
+                Browse Scripture Library
+            </a>
+        {% endif %}
+    </div>
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:home' %}" class="btn btn-ghost">← Back to Faith</a>
+    </div>
+</div>
+
+<style>
+.todays-verse-page {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: var(--space-12) var(--space-4);
+}
+
+.verse-label {
+    display: inline-block;
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-accent);
+    font-weight: 600;
+    margin-bottom: var(--space-6);
+}
+
+.verse-text {
+    font-size: var(--font-size-2xl);
+    font-style: italic;
+    line-height: var(--line-height-relaxed);
+    margin: 0 0 var(--space-4) 0;
+    padding: 0;
+    border: none;
+}
+
+.verse-reference {
+    display: block;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    font-style: normal;
+    margin-bottom: var(--space-8);
+}
+
+.reflection-prompt {
+    background: var(--color-surface);
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-8);
+    text-align: left;
+}
+
+.reflection-prompt h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-2);
+}
+
+.reflection-prompt p {
+    margin: 0;
+    color: var(--color-text-muted);
+}
+
+.verse-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-8);
+    flex-wrap: wrap;
+}
+
+.verse-themes {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.themes-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.theme-tag {
+    font-size: var(--font-size-xs);
+    background: var(--color-surface);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+</style>
+{% endblock %}

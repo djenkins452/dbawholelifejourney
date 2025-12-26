@@ -1,0 +1,682 @@
+"""
+Dashboard Views - The main landing experience.
+"""
+import random
+import pytz
+from datetime import timedelta, datetime
+from django.db.models import Q, Avg, Count
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.utils import timezone
+from django.views.generic import TemplateView, View
+from django.http import HttpResponse, JsonResponse
+
+from .models import DailyEncouragement
+
+
+class DashboardView(LoginRequiredMixin, TemplateView):
+    """
+    Main dashboard view - the calm landing space.
+    
+    Displays:
+    - Daily encouragement (with Scripture if Faith enabled)
+    - Summary tiles for active modules
+    - Quick actions
+    """
+    template_name = "dashboard/home.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        prefs = user.preferences
+        
+        # Get user's timezone
+        user_tz = self.get_user_timezone(prefs)
+        context["user_timezone"] = user_tz
+        
+        # Get daily encouragement
+        context["encouragement"] = self.get_daily_encouragement(prefs.faith_enabled)
+        
+        # Get journal stats with streak
+        context["journal_stats"] = self.get_journal_stats(user, user_tz)
+        
+        # Get faith stats (if enabled)
+        context["faith_enabled"] = prefs.faith_enabled
+        if prefs.faith_enabled:
+            context["faith_stats"] = self.get_faith_stats(user)
+            context["todays_verse"] = self.get_todays_verse()
+        
+        # Get health stats - expanded
+        context["weight_stats"] = self.get_weight_stats(user)
+        context["fasting_stats"] = self.get_fasting_stats(user, user_tz)
+        context["heart_rate_stats"] = self.get_heart_rate_stats(user)
+        context["glucose_stats"] = self.get_glucose_stats(user)
+        
+        # Legacy health_stats for backward compatibility
+        context["health_stats"] = {
+            "has_any_data": any([
+                context["weight_stats"]["latest"],
+                context["fasting_stats"]["active_fast"],
+                context["fasting_stats"]["total_count"],
+                context["heart_rate_stats"]["latest"],
+                context["glucose_stats"]["latest"],
+            ])
+        }
+        
+        # Get Purpose stats (if enabled)
+        context["purpose_enabled"] = getattr(prefs, 'purpose_enabled', True)
+        if context["purpose_enabled"]:
+            context["purpose_stats"] = self.get_purpose_stats(user)
+        
+        # Get Life stats (if enabled)
+        context["life_enabled"] = getattr(prefs, 'life_enabled', True)
+        if context["life_enabled"]:
+            context["life_stats"] = self.get_life_stats(user, user_tz)
+        
+        # Dashboard configuration
+        context["dashboard_config"] = prefs.dashboard_config or self.get_default_config()
+        
+        # Current date/time info (in user's timezone)
+        user_now = timezone.now().astimezone(user_tz)
+        context["current_date"] = user_now
+        context["greeting"] = self.get_greeting(user_tz)
+        
+        return context
+    
+    def get_user_timezone(self, prefs):
+        """Get user's timezone as a pytz timezone object."""
+        tz_name = prefs.timezone or "UTC"
+        try:
+            return pytz.timezone(tz_name)
+        except pytz.UnknownTimeZoneError:
+            return pytz.UTC
+    
+    def get_daily_encouragement(self, faith_enabled):
+        """
+        Get an appropriate encouragement message for today.
+        If Faith is enabled, may include Scripture.
+        Otherwise, returns a general, uplifting message.
+        """
+        today = timezone.now()
+        
+        # Build query
+        queryset = DailyEncouragement.objects.filter(is_active=True)
+        
+        if not faith_enabled:
+            queryset = queryset.filter(is_faith_specific=False)
+        
+        # Try to match day of week or month
+        targeted = queryset.filter(
+            Q(day_of_week=today.weekday()) |
+            Q(month=today.month)
+        )
+        
+        if targeted.exists():
+            return random.choice(list(targeted))
+        
+        # Fall back to any applicable message
+        if queryset.exists():
+            return random.choice(list(queryset))
+        
+        # Default message if no curated content
+        return {
+            "message": "Take a moment to breathe. You're exactly where you need to be.",
+            "scripture_reference": "",
+            "scripture_text": "",
+        }
+    
+    def get_journal_stats(self, user, user_tz):
+        """Get journal statistics including streak."""
+        from apps.journal.models import JournalEntry
+        
+        now = timezone.now()
+        user_today = now.astimezone(user_tz).date()
+        week_ago = now - timedelta(days=7)
+        month_ago = now - timedelta(days=30)
+        
+        entries = JournalEntry.objects.filter(user=user)
+        
+        # Calculate streak
+        streak = self.calculate_journal_streak(entries, user_today)
+        
+        return {
+            "total": entries.count(),
+            "this_week": entries.filter(created_at__gte=week_ago).count(),
+            "this_month": entries.filter(created_at__gte=month_ago).count(),
+            "recent": entries.order_by("-entry_date")[:3],
+            "streak": streak,
+        }
+    
+    def calculate_journal_streak(self, entries, today):
+        """Calculate consecutive days of journaling."""
+        if not entries.exists():
+            return 0
+        
+        # Get unique dates with entries, ordered by most recent
+        entry_dates = set(
+            entries.values_list('entry_date', flat=True)
+        )
+        
+        if not entry_dates:
+            return 0
+        
+        # Check if user wrote today or yesterday (to continue streak)
+        streak = 0
+        check_date = today
+        
+        # If no entry today, start checking from yesterday
+        if check_date not in entry_dates:
+            check_date = today - timedelta(days=1)
+            if check_date not in entry_dates:
+                return 0  # No entry today or yesterday, streak is 0
+        
+        # Count consecutive days
+        while check_date in entry_dates:
+            streak += 1
+            check_date -= timedelta(days=1)
+        
+        return streak
+    
+    def get_faith_stats(self, user):
+        """Get faith statistics for the dashboard."""
+        from apps.faith.models import PrayerRequest, FaithMilestone
+        
+        prayers = PrayerRequest.objects.filter(user=user)
+        active_prayers = prayers.filter(is_answered=False)
+        answered_prayers = prayers.filter(is_answered=True)
+        milestones = FaithMilestone.objects.filter(user=user)
+        
+        return {
+            "active_prayers": active_prayers.count(),
+            "answered_prayers": answered_prayers.count(),
+            "total_milestones": milestones.count(),
+            "recent_prayers": active_prayers.order_by("-created_at")[:3],
+            "recent_answered": answered_prayers.order_by("-answered_at")[:1],
+        }
+    
+    def get_todays_verse(self):
+        """Get today's scripture verse."""
+        from apps.faith.models import DailyVerse, ScriptureVerse
+        
+        today = timezone.now().date()
+        
+        # Check for assigned daily verse
+        daily = DailyVerse.objects.filter(date=today).select_related('verse').first()
+        if daily:
+            return daily.verse
+        
+        # Fall back to random verse
+        verses = ScriptureVerse.objects.filter(is_active=True)
+        if verses.exists():
+            return random.choice(list(verses))
+        
+        return None
+    
+    def get_purpose_stats(self, user):
+        """Get Purpose module statistics for the dashboard."""
+        try:
+            from apps.purpose.models import AnnualDirection, LifeGoal, ChangeIntention
+            
+            # Get current direction
+            current_direction = AnnualDirection.objects.filter(
+                user=user,
+                is_current=True
+            ).first()
+            
+            # If no current, try this year
+            if not current_direction:
+                current_direction = AnnualDirection.objects.filter(
+                    user=user,
+                    year=timezone.now().year
+                ).first()
+            
+            # Goal counts
+            goals = LifeGoal.objects.filter(user=user)
+            active_goals = goals.filter(status='active').count()
+            completed_goals = goals.filter(status='completed').count()
+            
+            # Active intentions
+            active_intentions = ChangeIntention.objects.filter(
+                user=user,
+                status='active'
+            ).count()
+            
+            # Get a few active goals for display
+            recent_goals = LifeGoal.objects.filter(
+                user=user,
+                status='active'
+            ).select_related('domain').order_by('domain__sort_order', 'sort_order')[:3]
+            
+            return {
+                "current_direction": current_direction,
+                "word_of_year": current_direction.word_of_year if current_direction else None,
+                "active_goals": active_goals,
+                "completed_goals": completed_goals,
+                "active_intentions": active_intentions,
+                "recent_goals": recent_goals,
+            }
+        except Exception as e:
+            # Return empty stats dict so tile still shows
+            import logging
+            logging.warning(f"Purpose stats error: {e}")
+            return {
+                "current_direction": None,
+                "word_of_year": None,
+                "active_goals": 0,
+                "completed_goals": 0,
+                "active_intentions": 0,
+                "recent_goals": [],
+            }
+    
+    def get_life_stats(self, user, user_tz):
+        """Get Life module (calendar) statistics for the dashboard."""
+        try:
+            from apps.life.models import LifeEvent, GoogleCalendarCredential
+            
+            # Check if user has Google Calendar connected (stored in database)
+            has_connections = False
+            try:
+                credential = user.google_calendar_credential
+                has_connections = credential.is_connected
+            except GoogleCalendarCredential.DoesNotExist:
+                pass
+            
+            # Get today's date in user's timezone
+            user_now = timezone.now().astimezone(user_tz)
+            today = user_now.date()
+            tomorrow = today + timedelta(days=1)
+            week_end = today + timedelta(days=7)
+            
+            # Get today's events from LifeEvent model
+            todays_events = LifeEvent.objects.filter(
+                user=user,
+                start_date=today
+            ).order_by('start_time')[:5]
+            
+            # Get upcoming events (next 7 days, excluding today)
+            upcoming_events = LifeEvent.objects.filter(
+                user=user,
+                start_date__gt=today,
+                start_date__lte=week_end
+            ).order_by('start_date', 'start_time')[:5]
+            
+            # Count events
+            todays_count = LifeEvent.objects.filter(
+                user=user,
+                start_date=today
+            ).count()
+            
+            tomorrows_count = LifeEvent.objects.filter(
+                user=user,
+                start_date=tomorrow
+            ).count()
+            
+            return {
+                "has_connections": has_connections,
+                "connection_count": 1 if has_connections else 0,
+                "todays_events": todays_events,
+                "todays_count": todays_count,
+                "tomorrows_count": tomorrows_count,
+                "upcoming_events": upcoming_events,
+            }
+        except Exception as e:
+            # Return empty stats dict so tile still shows
+            import logging
+            logging.warning(f"Life stats error: {e}")
+            return {
+                "has_connections": False,
+                "connection_count": 0,
+                "todays_events": [],
+                "todays_count": 0,
+                "tomorrows_count": 0,
+                "upcoming_events": [],
+            }
+    
+    def get_weight_stats(self, user):
+        """Get weight statistics for the dashboard."""
+        from apps.health.models import WeightEntry
+        
+        now = timezone.now()
+        
+        weights = WeightEntry.objects.filter(user=user).order_by("-recorded_at")
+        latest = weights.first()
+        
+        # Calculate change over different periods
+        weight_change_30d = None
+        weight_change_7d = None
+        
+        if latest:
+            # 30 day change
+            month_ago_weight = weights.filter(
+                recorded_at__lte=now - timedelta(days=25),
+                recorded_at__gte=now - timedelta(days=35)
+            ).first()
+            if month_ago_weight:
+                weight_change_30d = round(latest.value - month_ago_weight.value, 1)
+            
+            # 7 day change
+            week_ago_weight = weights.filter(
+                recorded_at__lte=now - timedelta(days=5),
+                recorded_at__gte=now - timedelta(days=10)
+            ).first()
+            if week_ago_weight:
+                weight_change_7d = round(latest.value - week_ago_weight.value, 1)
+        
+        return {
+            "latest": latest,
+            "total_count": weights.count(),
+            "change_7d": weight_change_7d,
+            "change_30d": weight_change_30d,
+        }
+    
+    def get_fasting_stats(self, user, user_tz):
+        """Get fasting statistics for the dashboard."""
+        from apps.health.models import FastingWindow
+        
+        now = timezone.now()
+        user_today = now.astimezone(user_tz).date()
+        
+        fasting = FastingWindow.objects.filter(user=user)
+        active_fast = fasting.filter(ended_at__isnull=True).first()
+        completed_fasts = fasting.filter(ended_at__isnull=False)
+        
+        # Calculate fasting streak (consecutive days with a fast)
+        streak = self.calculate_fasting_streak(fasting, user_today, user_tz)
+        
+        # Current fast duration (if active)
+        current_duration = None
+        current_progress = None
+        if active_fast:
+            current_duration = active_fast.duration_hours
+            current_progress = active_fast.progress_percent
+        
+        return {
+            "active_fast": active_fast,
+            "current_duration": current_duration,
+            "current_progress": current_progress,
+            "total_count": fasting.count(),
+            "completed_count": completed_fasts.count(),
+            "streak": streak,
+        }
+    
+    def calculate_fasting_streak(self, fasting_qs, today, user_tz):
+        """Calculate consecutive days of fasting."""
+        if not fasting_qs.exists():
+            return 0
+        
+        # Get dates with fasting activity
+        fasting_dates = set()
+        for fast in fasting_qs:
+            start_date = fast.started_at.astimezone(user_tz).date()
+            fasting_dates.add(start_date)
+            if fast.ended_at:
+                end_date = fast.ended_at.astimezone(user_tz).date()
+                fasting_dates.add(end_date)
+        
+        # Count streak
+        streak = 0
+        check_date = today
+        
+        # Check if there's activity today or yesterday
+        if check_date not in fasting_dates:
+            check_date = today - timedelta(days=1)
+            if check_date not in fasting_dates:
+                return 0
+        
+        while check_date in fasting_dates:
+            streak += 1
+            check_date -= timedelta(days=1)
+        
+        return streak
+    
+    def get_heart_rate_stats(self, user):
+        """Get heart rate statistics for the dashboard."""
+        from apps.health.models import HeartRateEntry
+        
+        now = timezone.now()
+        month_ago = now - timedelta(days=30)
+        
+        heart_rates = HeartRateEntry.objects.filter(user=user)
+        latest = heart_rates.order_by("-recorded_at").first()
+        
+        # Calculate averages
+        avg_resting = heart_rates.filter(
+            context="resting",
+            recorded_at__gte=month_ago
+        ).aggregate(avg=Avg("bpm"))["avg"]
+        
+        avg_all = heart_rates.filter(
+            recorded_at__gte=month_ago
+        ).aggregate(avg=Avg("bpm"))["avg"]
+        
+        return {
+            "latest": latest,
+            "total_count": heart_rates.count(),
+            "avg_resting_30d": round(avg_resting) if avg_resting else None,
+            "avg_all_30d": round(avg_all) if avg_all else None,
+        }
+    
+    def get_glucose_stats(self, user):
+        """Get glucose statistics for the dashboard."""
+        from apps.health.models import GlucoseEntry
+        
+        now = timezone.now()
+        month_ago = now - timedelta(days=30)
+        
+        glucose = GlucoseEntry.objects.filter(user=user)
+        latest = glucose.order_by("-recorded_at").first()
+        
+        # Calculate averages
+        avg_fasting = glucose.filter(
+            context="fasting",
+            recorded_at__gte=month_ago
+        ).aggregate(avg=Avg("value"))["avg"]
+        
+        avg_all = glucose.filter(
+            recorded_at__gte=month_ago
+        ).aggregate(avg=Avg("value"))["avg"]
+        
+        return {
+            "latest": latest,
+            "total_count": glucose.count(),
+            "avg_fasting_30d": round(avg_fasting, 1) if avg_fasting else None,
+            "avg_all_30d": round(avg_all, 1) if avg_all else None,
+        }
+    
+    def get_greeting(self, user_tz):
+        """Get a time-appropriate greeting based on user's timezone."""
+        user_now = timezone.now().astimezone(user_tz)
+        hour = user_now.hour
+        
+        if hour < 12:
+            return "Good morning"
+        elif hour < 17:
+            return "Good afternoon"
+        else:
+            return "Good evening"
+    
+    def get_default_config(self):
+        """Default dashboard tile configuration."""
+        return {
+            "tiles": [
+                {"type": "encouragement", "visible": True, "order": 1},
+                {"type": "journal_summary", "visible": True, "order": 2},
+                {"type": "quick_actions", "visible": True, "order": 3},
+            ]
+        }
+
+
+class WeightChartDataView(LoginRequiredMixin, View):
+    """
+    API endpoint for weight chart data.
+    Returns JSON data for the weight line graph.
+    """
+    
+    def get(self, request):
+        from apps.health.models import WeightEntry
+        
+        # Get timeframe from query params (default 30 days)
+        timeframe = request.GET.get('timeframe', '30')
+        
+        try:
+            days = int(timeframe)
+        except ValueError:
+            days = 30
+        
+        # Limit to reasonable ranges
+        if days not in [7, 30, 90, 180, 365]:
+            days = 30
+        
+        start_date = timezone.now() - timedelta(days=days)
+        
+        weights = WeightEntry.objects.filter(
+            user=request.user,
+            recorded_at__gte=start_date
+        ).order_by("recorded_at")
+        
+        data = {
+            "labels": [],
+            "values": [],
+            "unit": "lb"
+        }
+        
+        for entry in weights:
+            data["labels"].append(entry.recorded_at.strftime("%m/%d"))
+            data["values"].append(float(entry.value))
+            if entry.unit == "kg":
+                data["unit"] = "kg"
+        
+        return JsonResponse(data)
+
+
+class ConfigureDashboardView(LoginRequiredMixin, TemplateView):
+    """
+    Dashboard configuration view.
+    
+    Allows users to:
+    - Show/hide tiles
+    - Reorder tiles
+    - Choose tile sizes (future)
+    """
+    template_name = "dashboard/configure.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        prefs = self.request.user.preferences
+        
+        context["current_config"] = prefs.dashboard_config or {}
+        context["available_tiles"] = self.get_available_tiles()
+        
+        return context
+    
+    def get_available_tiles(self):
+        """Get list of available tile types."""
+        tiles = [
+            {
+                "type": "encouragement",
+                "name": "Daily Encouragement",
+                "description": "An uplifting message to start your day",
+            },
+            {
+                "type": "journal_summary",
+                "name": "Journal Summary",
+                "description": "Recent journal activity and quick entry",
+            },
+            {
+                "type": "quick_actions",
+                "name": "Quick Actions",
+                "description": "Fast access to common tasks",
+            },
+            {
+                "type": "weight",
+                "name": "Weight Tracking",
+                "description": "Weight data with trend graph",
+            },
+            {
+                "type": "fasting",
+                "name": "Fasting Tracker",
+                "description": "Active fast, history, and streak",
+            },
+            {
+                "type": "heart_rate",
+                "name": "Heart Rate",
+                "description": "Heart rate tracking and averages",
+            },
+            {
+                "type": "glucose",
+                "name": "Blood Glucose",
+                "description": "Glucose readings and averages",
+            },
+        ]
+        
+        # Add faith-specific tiles if enabled
+        if self.request.user.preferences.faith_enabled:
+            tiles.append({
+                "type": "scripture",
+                "name": "Daily Scripture",
+                "description": "A verse to reflect on today",
+            })
+            tiles.append({
+                "type": "prayers",
+                "name": "Prayer Requests",
+                "description": "Your active prayer list",
+            })
+        
+        return tiles
+    
+    def post(self, request, *args, **kwargs):
+        """Save dashboard configuration."""
+        import json
+        
+        try:
+            config = json.loads(request.body)
+            prefs = request.user.preferences
+            prefs.dashboard_config = config
+            prefs.save(update_fields=["dashboard_config", "updated_at"])
+            return HttpResponse(status=200)
+        except (json.JSONDecodeError, KeyError):
+            return HttpResponse(status=400)
+
+
+class JournalSummaryTileView(LoginRequiredMixin, TemplateView):
+    """
+    HTMX endpoint for journal summary tile.
+    Returns just the tile content for dynamic updates.
+    """
+    template_name = "dashboard/tiles/journal_summary.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.journal.models import JournalEntry
+        
+        user = self.request.user
+        entries = JournalEntry.objects.filter(user=user)
+        
+        context["recent_entries"] = entries.order_by("-entry_date")[:3]
+        context["total_count"] = entries.count()
+        
+        return context
+
+
+class EncouragementTileView(LoginRequiredMixin, TemplateView):
+    """
+    HTMX endpoint for encouragement tile.
+    Can be used to refresh the encouragement without full page reload.
+    """
+    template_name = "dashboard/tiles/encouragement.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        faith_enabled = self.request.user.preferences.faith_enabled
+        
+        queryset = DailyEncouragement.objects.filter(is_active=True)
+        if not faith_enabled:
+            queryset = queryset.filter(is_faith_specific=False)
+        
+        if queryset.exists():
+            context["encouragement"] = random.choice(list(queryset))
+        else:
+            context["encouragement"] = {
+                "message": "Take a moment to breathe. You're exactly where you need to be.",
+            }
+        
+        return context

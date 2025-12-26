@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} Prayer Request - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Prayer Request</h1>
+        <p class="page-subtitle">Bring your requests to God</p>
+    </div>
+    
+    <form method="post" class="card">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="id_title" class="form-label">What would you like to pray for?</label>
+            <input 
+                type="text" 
+                name="title" 
+                id="id_title" 
+                class="form-input"
+                value="{{ form.title.value|default:'' }}"
+                placeholder="Prayer request title"
+                required
+            >
+            {% if form.title.errors %}
+                <p class="form-error">{{ form.title.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="form-group">
+            <label for="id_description" class="form-label">Details (optional)</label>
+            <textarea 
+                name="description" 
+                id="id_description" 
+                class="form-textarea"
+                placeholder="Add more details about this prayer request..."
+                rows="4"
+            >{{ form.description.value|default:'' }}</textarea>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input 
+                        type="checkbox" 
+                        name="is_personal" 
+                        class="form-checkbox"
+                        {% if form.is_personal.value %}checked{% endif %}
+                    >
+                    <span>This is a personal prayer</span>
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_priority" class="form-label">Priority</label>
+                <select name="priority" id="id_priority" class="form-select">
+                    {% for value, label in form.fields.priority.choices %}
+                        <option value="{{ value }}" {% if form.priority.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="id_person_or_situation" class="form-label">
+                Who or what are you praying for? (optional)
+            </label>
+            <input 
+                type="text" 
+                name="person_or_situation" 
+                id="id_person_or_situation" 
+                class="form-input"
+                value="{{ form.person_or_situation.value|default:'' }}"
+                placeholder="e.g., Mom's health, job situation"
+            >
+        </div>
+        
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input 
+                    type="checkbox" 
+                    name="remind_daily" 
+                    class="form-checkbox"
+                    {% if form.remind_daily.value %}checked{% endif %}
+                >
+                <span>Include in daily prayer reminders</span>
+            </label>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Add Prayer Request{% endif %}
+            </button>
+            <a href="{% url 'faith:prayer_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Fasting History - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Fasting</h1>
+            <p class="page-subtitle">Intermittent fasting tracker</p>
+        </div>
+        {% if not active_fast %}
+            <a href="{% url 'health:fasting_start' %}" class="btn btn-primary">Start Fast</a>
+        {% endif %}
+    </div>
+    
+    {% if active_fast %}
+    <div class="active-fast-card mb-6">
+        <div class="fast-header">
+            <span class="fast-badge">Active Fast</span>
+            <span class="fast-type">{{ active_fast.fasting_type }}</span>
+        </div>
+        
+        <div class="fast-timer">
+            <span class="timer-value">{{ active_fast.duration_display }}</span>
+            {% if active_fast.target_hours %}
+                <div class="timer-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: {{ active_fast.progress_percent }}%"></div>
+                    </div>
+                    <span class="progress-label">{{ active_fast.progress_percent|floatformat:0 }}% of {{ active_fast.target_hours }}h goal</span>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="fast-details">
+            <p>Started: {{ active_fast.started_at|date:"M j, Y g:i A" }}</p>
+            {% if active_fast.notes %}
+                <p class="fast-notes">{{ active_fast.notes }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="fast-actions">
+            <form method="post" action="{% url 'health:fasting_end' active_fast.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">End Fast</button>
+            </form>
+            <a href="{% url 'health:fasting_update' active_fast.pk %}" class="btn btn-ghost">Edit</a>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if fasts %}
+        <h2 class="mb-4">Completed Fasts</h2>
+        <div class="fast-history">
+            {% for fast in fasts %}
+                {% if fast.ended_at %}
+                <div class="fast-entry">
+                    <div class="fast-entry-main">
+                        <span class="fast-entry-type">{{ fast.fasting_type }}</span>
+                        <span class="fast-entry-duration">{{ fast.duration_display }}</span>
+                        <span class="fast-entry-date">{{ fast.started_at|date:"M j" }}</span>
+                    </div>
+                    <div class="fast-entry-actions">
+                        <form method="post" action="{% url 'health:fasting_delete' fast.pk %}" class="inline-form">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-ghost btn-sm text-error">Delete</button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination mt-6">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">← Previous</a>
+                {% endif %}
+                <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next →</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% elif not active_fast %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No fasting history yet</h2>
+            <p class="empty-state-text">Start your first fast to begin tracking.</p>
+            <a href="{% url 'health:fasting_start' %}" class="btn btn-primary">Start Your First Fast</a>
+        </div>
+    {% endif %}
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">← Back to Health</a>
+    </div>
+</div>
+
+<style>
+.active-fast-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, var(--color-background) 100%);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.fast-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.fast-badge {
+    background: var(--color-accent);
+    color: white;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.fast-type {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+.fast-timer {
+    margin-bottom: var(--space-4);
+}
+
+.timer-value {
+    font-size: var(--font-size-4xl);
+    font-weight: 700;
+    display: block;
+    margin-bottom: var(--space-2);
+}
+
+.timer-progress {
+    max-width: 300px;
+}
+
+.progress-track {
+    height: 8px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--space-1);
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: var(--radius-full);
+    transition: width 0.5s ease;
+}
+
+.progress-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.fast-details {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.fast-notes {
+    font-style: italic;
+    margin-top: var(--space-2);
+}
+
+.fast-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.fast-history {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.fast-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.fast-entry-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.fast-entry-type {
+    font-weight: 500;
+    min-width: 60px;
+}
+
+.fast-entry-duration {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.fast-entry-date {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

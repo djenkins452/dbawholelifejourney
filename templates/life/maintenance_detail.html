@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}{{ log.title }} - Maintenance{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:maintenance_list' %}">Maintenance</a>
+        <span>/</span>
+        <span>{{ log.title }}</span>
+    </nav>
+    
+    <div class="maintenance-detail">
+        <div class="detail-header">
+            <div>
+                <div class="header-row">
+                    <h1 class="page-title">{{ log.title }}</h1>
+                    <span class="log-type log-type-{{ log.log_type }}">{{ log.get_log_type_display }}</span>
+                </div>
+                <p class="log-area-display">{{ log.area }}</p>
+            </div>
+            <div class="detail-actions">
+                <a href="{% url 'life:maintenance_update' log.pk %}" class="btn btn-secondary">Edit</a>
+                <a href="{% url 'life:maintenance_delete' log.pk %}" class="btn btn-ghost text-error">Delete</a>
+            </div>
+        </div>
+        
+        <div class="detail-body">
+            <div class="detail-main">
+                {% if log.description %}
+                <section class="detail-section">
+                    <h2>Description</h2>
+                    <p>{{ log.description|linebreaks }}</p>
+                </section>
+                {% endif %}
+                
+                {% if log.notes %}
+                <section class="detail-section">
+                    <h2>Notes</h2>
+                    <p>{{ log.notes|linebreaks }}</p>
+                </section>
+                {% endif %}
+                
+                {% if log.provider %}
+                <section class="detail-section">
+                    <h2>Service Provider</h2>
+                    <p class="provider-name">{{ log.provider }}</p>
+                    {% if log.provider_contact %}
+                    <p class="provider-contact">{{ log.provider_contact }}</p>
+                    {% endif %}
+                </section>
+                {% endif %}
+            </div>
+            
+            <aside class="detail-sidebar">
+                <div class="sidebar-card">
+                    <h3>Details</h3>
+                    <dl class="detail-list">
+                        <dt>Date</dt>
+                        <dd>{{ log.date|date:"F j, Y" }}</dd>
+                        
+                        <dt>Area</dt>
+                        <dd>{{ log.area }}</dd>
+                        
+                        {% if log.cost %}
+                        <dt>Cost</dt>
+                        <dd class="cost-value">${{ log.cost|floatformat:2 }}</dd>
+                        {% endif %}
+                        
+                        {% if log.follow_up_date %}
+                        <dt>Follow-up</dt>
+                        <dd>{{ log.follow_up_date|date:"F j, Y" }}</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+                
+                {% if log.inventory_item %}
+                <div class="sidebar-card">
+                    <h3>Related Item</h3>
+                    <a href="{{ log.inventory_item.get_absolute_url }}" class="related-item">
+                        <span class="item-name">{{ log.inventory_item.name }}</span>
+                        <span class="item-category">{{ log.inventory_item.category }}</span>
+                    </a>
+                </div>
+                {% endif %}
+                
+                <div class="sidebar-card">
+                    <p class="recorded-at">Recorded {{ log.created_at|date:"M j, Y" }}</p>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+}
+
+.header-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.log-type {
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+}
+
+.log-type-repair { background: color-mix(in srgb, var(--color-error) 15%, transparent); color: var(--color-error); }
+.log-type-maintenance { background: color-mix(in srgb, #10b981 15%, transparent); color: #10b981; }
+.log-type-upgrade { background: color-mix(in srgb, #6366f1 15%, transparent); color: #6366f1; }
+.log-type-service { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #f59e0b; }
+.log-type-replacement { background: color-mix(in srgb, #ec4899 15%, transparent); color: #ec4899; }
+.log-type-inspection { background: color-mix(in srgb, #14b8a6 15%, transparent); color: #14b8a6; }
+
+.log-area-display {
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.detail-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.detail-body {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: var(--space-6);
+}
+
+@media (max-width: 900px) {
+    .detail-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+.detail-section {
+    margin-bottom: var(--space-6);
+}
+
+.detail-section h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-3);
+}
+
+.provider-name {
+    font-weight: 500;
+    margin: 0;
+}
+
+.provider-contact {
+    color: var(--color-text-muted);
+    margin: var(--space-1) 0 0 0;
+}
+
+.sidebar-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+
+.sidebar-card h3 {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.detail-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.detail-list dt {
+    color: var(--color-text-muted);
+}
+
+.detail-list dd {
+    margin: 0;
+}
+
+.cost-value {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.related-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+}
+
+.related-item:hover {
+    background: var(--color-border);
+}
+
+.item-name {
+    font-weight: 500;
+}
+
+.item-category {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.recorded-at {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

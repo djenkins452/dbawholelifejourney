@@ -1,0 +1,965 @@
+{% extends "base.html" %}
+{% load static %}
+{% load safe_urls %}
+
+{% block title %}Dashboard - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Greeting -->
+    <header class="dashboard-header">
+        <div class="greeting">
+            <h1>{{ greeting }}, {{ user.get_short_name }}.</h1>
+            <p class="current-date">{{ current_date|date:"l, F j, Y" }}</p>
+        </div>
+        <div class="quick-actions-header">
+            <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+                New Entry
+            </a>
+        </div>
+    </header>
+    
+    <!-- Daily Encouragement -->
+    <section class="encouragement-card">
+        {% if encouragement %}
+            <p class="encouragement-message">{{ encouragement.message }}</p>
+            {% if encouragement.scripture_reference and faith_enabled %}
+                <p class="scripture-reference">
+                    — {{ encouragement.scripture_reference }}
+                </p>
+            {% endif %}
+        {% else %}
+            <p class="encouragement-message">
+                Take a moment to breathe. You're exactly where you need to be.
+            </p>
+        {% endif %}
+    </section>
+    
+    <!-- Dashboard Tiles -->
+    <div class="dashboard-grid">
+        
+        <!-- Journal Summary Tile -->
+        <div class="dashboard-tile">
+            <div class="tile-header">
+                <h2 class="tile-title">
+                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                    Journal
+                </h2>
+                <a href="{% url 'journal:entry_list' %}" class="tile-link">View All</a>
+            </div>
+            
+            <div class="tile-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ journal_stats.total }}</span>
+                    <span class="stat-label">Total</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ journal_stats.this_week }}</span>
+                    <span class="stat-label">This Week</span>
+                </div>
+                <div class="stat stat-streak">
+                    <span class="stat-value">🔥 {{ journal_stats.streak }}</span>
+                    <span class="stat-label">Day Streak</span>
+                </div>
+            </div>
+            
+            {% if journal_stats.recent %}
+                <div class="tile-recent">
+                    <ul class="recent-list">
+                        {% for entry in journal_stats.recent %}
+                            <li class="recent-item">
+                                <a href="{{ entry.get_absolute_url }}" class="recent-link">
+                                    <span class="recent-entry-title">{{ entry.title }}</span>
+                                    <span class="recent-entry-date">{{ entry.entry_date|date:"M j" }}</span>
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% else %}
+                <div class="tile-empty">
+                    <p>No journal entries yet.</p>
+                    <a href="{% url 'journal:entry_create' %}" class="btn btn-secondary btn-sm">
+                        Write Your First Entry
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+        
+        {% if faith_enabled %}
+        <!-- Faith Tile -->
+        <div class="dashboard-tile tile-faith">
+            <div class="tile-header">
+                <h2 class="tile-title">
+                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M2 12h20"/>
+                    </svg>
+                    Faith
+                </h2>
+                <a href="{% url 'faith:home' %}" class="tile-link">View All</a>
+            </div>
+            
+            {% if todays_verse %}
+            <div class="todays-verse">
+                <p class="verse-text">"{{ todays_verse.text|truncatewords:30 }}"</p>
+                <p class="verse-ref">— {{ todays_verse.reference }}</p>
+            </div>
+            {% endif %}
+            
+            <div class="tile-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ faith_stats.active_prayers }}</span>
+                    <span class="stat-label">Active Prayers</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ faith_stats.answered_prayers }}</span>
+                    <span class="stat-label">Answered</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ faith_stats.total_milestones }}</span>
+                    <span class="stat-label">Milestones</span>
+                </div>
+            </div>
+            
+            <div class="tile-actions">
+                <a href="{% url 'faith:prayer_create' %}" class="btn btn-secondary btn-sm">Add Prayer</a>
+                <a href="{% url 'faith:scripture_list' %}" class="btn btn-ghost btn-sm">Scripture</a>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if purpose_enabled and purpose_stats %}
+        <!-- Purpose Tile -->
+        <div class="dashboard-tile tile-purpose">
+            <div class="tile-header">
+                <h2 class="tile-title">
+                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="12" r="6"/>
+                        <circle cx="12" cy="12" r="2"/>
+                    </svg>
+                    Purpose
+                </h2>
+                <a href="{% url 'purpose:home' %}" class="tile-link">View All</a>
+            </div>
+            
+            {% if purpose_stats.word_of_year %}
+            <div class="word-of-year-display">
+                <span class="woy-label">Word of the Year</span>
+                <span class="woy-word">{{ purpose_stats.word_of_year }}</span>
+            </div>
+            {% endif %}
+            
+            <div class="tile-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ purpose_stats.active_goals }}</span>
+                    <span class="stat-label">Active Goals</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ purpose_stats.completed_goals }}</span>
+                    <span class="stat-label">Completed</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ purpose_stats.active_intentions }}</span>
+                    <span class="stat-label">Intentions</span>
+                </div>
+            </div>
+            
+            {% if purpose_stats.recent_goals %}
+            <div class="tile-recent">
+                <ul class="recent-list">
+                    {% for goal in purpose_stats.recent_goals %}
+                    <li class="recent-item">
+                        <a href="{% url 'purpose:goal_detail' goal.pk %}" class="recent-link">
+                            <span class="recent-entry-title">{{ goal.title|truncatewords:6 }}</span>
+                            <span class="recent-entry-date">{% if goal.domain %}{{ goal.domain.icon }}{% endif %}</span>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            <div class="tile-actions">
+                {% if not purpose_stats.current_direction %}
+                <a href="{% url 'purpose:direction_create' %}" class="btn btn-primary btn-sm">Set Direction</a>
+                {% else %}
+                <a href="{% url 'purpose:goal_create' %}" class="btn btn-secondary btn-sm">Add Goal</a>
+                <a href="{% url 'purpose:direction_detail' purpose_stats.current_direction.pk %}" class="btn btn-ghost btn-sm">View Direction</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if life_enabled and life_stats %}
+        <!-- Life Tile -->
+        <div class="dashboard-tile tile-life">
+            <div class="tile-header">
+                <h2 class="tile-title">
+                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    Life
+                </h2>
+                <a href="{% url 'life:home' %}" class="tile-link">View Calendar</a>
+            </div>
+            
+            {% if life_stats.has_connections %}
+            <div class="tile-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ life_stats.todays_count }}</span>
+                    <span class="stat-label">Today</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ life_stats.tomorrows_count }}</span>
+                    <span class="stat-label">Tomorrow</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ life_stats.connection_count }}</span>
+                    <span class="stat-label">Calendars</span>
+                </div>
+            </div>
+            
+            {% if life_stats.todays_events %}
+            <div class="tile-recent">
+                <h4 class="events-label">Today's Events</h4>
+                <ul class="recent-list">
+                    {% for event in life_stats.todays_events %}
+                    <li class="recent-item">
+                        <span class="recent-link">
+                            <span class="event-time">{% if event.start_time %}{{ event.start_time|time:"g:i A" }}{% else %}All Day{% endif %}</span>
+                            <span class="recent-entry-title">{{ event.title|truncatewords:5 }}</span>
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% elif life_stats.upcoming_events %}
+            <div class="tile-recent">
+                <h4 class="events-label">Coming Up</h4>
+                <ul class="recent-list">
+                    {% for event in life_stats.upcoming_events %}
+                    <li class="recent-item">
+                        <span class="recent-link">
+                            <span class="event-date">{{ event.start_date|date:"D" }}</span>
+                            <span class="recent-entry-title">{{ event.title|truncatewords:5 }}</span>
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% else %}
+            <div class="tile-empty-mini">
+                <p>No upcoming events</p>
+            </div>
+            {% endif %}
+            
+            <div class="tile-actions">
+                <a href="{% safe_url 'life:home' fallback='/' %}" class="btn btn-secondary btn-sm">View Calendar</a>
+                <a href="{% safe_url 'life:google_calendar_settings' fallback='/life/' %}" class="btn btn-ghost btn-sm">Settings</a>
+            </div>
+            {% else %}
+            <div class="tile-empty">
+                <p>Connect your calendar to see events here.</p>
+                <a href="{% safe_url 'life:google_calendar_settings' fallback='/life/' %}" class="btn btn-primary btn-sm">Connect Calendar</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <!-- Weight Tile -->
+        <div class="dashboard-tile tile-weight">
+            <div class="tile-header">
+                <h2 class="tile-title">
+                    <span class="tile-icon-emoji">⚖️</span>
+                    Weight
+                </h2>
+                <a href="{% url 'health:weight_list' %}" class="tile-link">View All</a>
+            </div>
+            
+            {% if weight_stats.latest %}
+            <div class="weight-current">
+                <span class="weight-value">{{ weight_stats.latest.value }}</span>
+                <span class="weight-unit">{{ weight_stats.latest.unit }}</span>
+                {% if weight_stats.change_30d %}
+                <span class="weight-change {% if weight_stats.change_30d < 0 %}down{% else %}up{% endif %}">
+                    {% if weight_stats.change_30d > 0 %}+{% endif %}{{ weight_stats.change_30d }} (30d)
+                </span>
+                {% endif %}
+            </div>
+            
+            <div class="tile-actions">
+                <a href="{% url 'health:weight_create' %}" class="btn btn-secondary btn-sm">Log Weight</a>
+            </div>
+            {% else %}
+            <div class="tile-empty">
+                <p>Start tracking your weight.</p>
+                <a href="{% url 'health:weight_create' %}" class="btn btn-secondary btn-sm">Log First Entry</a>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Fasting Tile -->
+        <div class="dashboard-tile tile-fasting">
+            <div class="tile-header">
+                <h2 class="tile-title">
+                    <span class="tile-icon-emoji">🕐</span>
+                    Fasting
+                </h2>
+                <a href="{% url 'health:fasting_list' %}" class="tile-link">View All</a>
+            </div>
+            
+            {% if fasting_stats.active_fast %}
+            <div class="active-fast-display">
+                <div class="fast-timer">
+                    <span class="fast-hours" id="fastHours">{{ fasting_stats.current_duration|floatformat:1 }}</span>
+                    <span class="fast-label">hours</span>
+                </div>
+                <div class="fast-progress-ring">
+                    <svg viewBox="0 0 36 36" class="circular-chart">
+                        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                        <path class="circle" stroke-dasharray="{{ fasting_stats.current_progress }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                    </svg>
+                    <span class="progress-text">{{ fasting_stats.current_progress|floatformat:0 }}%</span>
+                </div>
+                <form method="post" action="{% url 'health:fasting_end' fasting_stats.active_fast.pk %}" class="fast-end-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary btn-sm">End Fast</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="no-active-fast">
+                <p class="text-muted">No active fast</p>
+                <a href="{% url 'health:fasting_start' %}" class="btn btn-secondary btn-sm">Start Fast</a>
+            </div>
+            {% endif %}
+            
+            <div class="tile-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ fasting_stats.total_count }}</span>
+                    <span class="stat-label">Total Fasts</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ fasting_stats.completed_count }}</span>
+                    <span class="stat-label">Completed</span>
+                </div>
+                <div class="stat stat-streak">
+                    <span class="stat-value">🔥 {{ fasting_stats.streak }}</span>
+                    <span class="stat-label">Day Streak</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Heart Rate Tile -->
+        <div class="dashboard-tile tile-heartrate">
+            <div class="tile-header">
+                <h2 class="tile-title">
+                    <span class="tile-icon-emoji">❤️</span>
+                    Heart Rate
+                </h2>
+                <a href="{% url 'health:heartrate_list' %}" class="tile-link">View All</a>
+            </div>
+            
+            {% if heart_rate_stats.latest %}
+            <div class="health-metric-display">
+                <div class="metric-main">
+                    <span class="metric-value-large">{{ heart_rate_stats.latest.bpm }}</span>
+                    <span class="metric-unit">BPM</span>
+                </div>
+                <div class="metric-context">{{ heart_rate_stats.latest.get_context_display }}</div>
+                <div class="metric-time">{{ heart_rate_stats.latest.recorded_at|timesince }} ago</div>
+            </div>
+            
+            <div class="tile-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ heart_rate_stats.total_count }}</span>
+                    <span class="stat-label">Total</span>
+                </div>
+                {% if heart_rate_stats.avg_resting_30d %}
+                <div class="stat">
+                    <span class="stat-value">{{ heart_rate_stats.avg_resting_30d }}</span>
+                    <span class="stat-label">Avg Resting</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="tile-actions">
+                <a href="{% url 'health:heartrate_create' %}" class="btn btn-secondary btn-sm">Log Heart Rate</a>
+            </div>
+            {% else %}
+            <div class="tile-empty">
+                <p>Start tracking your heart rate.</p>
+                <a href="{% url 'health:heartrate_create' %}" class="btn btn-secondary btn-sm">Log First Entry</a>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Glucose Tile -->
+        <div class="dashboard-tile tile-glucose">
+            <div class="tile-header">
+                <h2 class="tile-title">
+                    <span class="tile-icon-emoji">🩸</span>
+                    Glucose
+                </h2>
+                <a href="{% url 'health:glucose_list' %}" class="tile-link">View All</a>
+            </div>
+            
+            {% if glucose_stats.latest %}
+            <div class="health-metric-display">
+                <div class="metric-main">
+                    <span class="metric-value-large">{{ glucose_stats.latest.value }}</span>
+                    <span class="metric-unit">{{ glucose_stats.latest.unit }}</span>
+                </div>
+                <div class="metric-context">{{ glucose_stats.latest.get_context_display }}</div>
+                <div class="metric-time">{{ glucose_stats.latest.recorded_at|timesince }} ago</div>
+            </div>
+            
+            <div class="tile-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ glucose_stats.total_count }}</span>
+                    <span class="stat-label">Total</span>
+                </div>
+                {% if glucose_stats.avg_fasting_30d %}
+                <div class="stat">
+                    <span class="stat-value">{{ glucose_stats.avg_fasting_30d }}</span>
+                    <span class="stat-label">Avg Fasting</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="tile-actions">
+                <a href="{% url 'health:glucose_create' %}" class="btn btn-secondary btn-sm">Log Glucose</a>
+            </div>
+            {% else %}
+            <div class="tile-empty">
+                <p>Start tracking your glucose.</p>
+                <a href="{% url 'health:glucose_create' %}" class="btn btn-secondary btn-sm">Log First Entry</a>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Quick Actions Tile -->
+        <div class="dashboard-tile">
+            <div class="tile-header">
+                <h2 class="tile-title">
+                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                    Quick Actions
+                </h2>
+            </div>
+            
+            <div class="quick-action-list">
+                <a href="{% url 'journal:entry_create' %}" class="quick-action-item">
+                    <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    <span>New Journal Entry</span>
+                </a>
+                
+                <a href="{% url 'journal:prompt_list' %}" class="quick-action-item">
+                    <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                    <span>Writing Prompts</span>
+                </a>
+                
+                {% if faith_enabled %}
+                <a href="{% url 'faith:prayer_create' %}" class="quick-action-item">
+                    <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M2 12h20"/>
+                    </svg>
+                    <span>Add Prayer Request</span>
+                </a>
+                {% endif %}
+                
+                <a href="{% url 'users:preferences' %}" class="quick-action-item">
+                    <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                    </svg>
+                    <span>Preferences</span>
+                </a>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+<style>
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.greeting h1 {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-1);
+}
+
+.current-date {
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.btn-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.encouragement-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, var(--color-surface) 100%);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+    text-align: center;
+}
+
+.encouragement-message {
+    font-size: var(--font-size-xl);
+    font-style: italic;
+    margin: 0;
+    line-height: var(--line-height-relaxed);
+}
+
+.scripture-reference {
+    margin-top: var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-6);
+}
+
+.dashboard-tile {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.tile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.tile-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-lg);
+    margin: 0;
+}
+
+.tile-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--color-accent);
+}
+
+.tile-icon-emoji {
+    font-size: 1.25rem;
+}
+
+.tile-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+}
+
+.tile-stats {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.stat-streak .stat-value {
+    color: var(--color-accent);
+}
+
+/* Today's Verse */
+.todays-verse {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+    border-left: 3px solid var(--color-accent);
+}
+
+.verse-text {
+    font-style: italic;
+    margin: 0 0 var(--space-2) 0;
+    line-height: var(--line-height-relaxed);
+}
+
+.verse-ref {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* Purpose Tile */
+.tile-purpose .word-of-year-display {
+    text-align: center;
+    padding: var(--space-4);
+    background: linear-gradient(135deg, var(--color-accent) 0%, color-mix(in srgb, var(--color-accent) 70%, #000) 100%);
+    border-radius: var(--radius-md);
+    color: white;
+    margin-bottom: var(--space-4);
+}
+
+.woy-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.8;
+    margin-bottom: var(--space-1);
+}
+
+.woy-word {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+/* Life Tile */
+.tile-life .events-label {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-2) 0;
+}
+
+.tile-life .event-time,
+.tile-life .event-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    min-width: 70px;
+    font-weight: 500;
+}
+
+.tile-life .recent-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.tile-empty-mini {
+    text-align: center;
+    padding: var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.tile-empty-mini p {
+    margin: 0;
+}
+
+/* Weight Tile */
+.weight-current {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.weight-value {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+}
+
+.weight-unit {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+}
+
+.weight-change {
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+}
+
+.weight-change.down {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.weight-change.up {
+    background: color-mix(in srgb, var(--color-text-muted) 15%, transparent);
+    color: var(--color-text-muted);
+}
+
+.weight-chart-container {
+    margin-bottom: var(--space-4);
+}
+
+.chart-timeframe {
+    display: flex;
+    gap: var(--space-1);
+    margin-bottom: var(--space-3);
+}
+
+.timeframe-btn {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    border: 1px solid var(--color-border);
+    background: var(--color-background);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.timeframe-btn:hover {
+    background: var(--color-surface);
+}
+
+.timeframe-btn.active {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+/* Fasting Tile */
+.active-fast-display {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+}
+
+.fast-timer {
+    text-align: center;
+}
+
+.fast-hours {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    display: block;
+}
+
+.fast-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+}
+
+.fast-progress-ring {
+    position: relative;
+    width: 60px;
+    height: 60px;
+}
+
+.circular-chart {
+    width: 60px;
+    height: 60px;
+}
+
+.circle-bg {
+    fill: none;
+    stroke: var(--color-border);
+    stroke-width: 3;
+}
+
+.circle {
+    fill: none;
+    stroke: var(--color-accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    transition: stroke-dasharray 0.3s;
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+.fast-end-form {
+    margin-left: auto;
+}
+
+.no-active-fast {
+    text-align: center;
+    padding: var(--space-4);
+}
+
+/* Health Metric Display */
+.health-metric-display {
+    text-align: center;
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+}
+
+.metric-main {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.metric-value-large {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+}
+
+.metric-unit {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+}
+
+.metric-context {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.metric-time {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* Recent Lists */
+.recent-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.recent-item {
+    margin-bottom: var(--space-2);
+}
+
+.recent-link {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+}
+
+.recent-link:hover {
+    background-color: var(--color-surface);
+    text-decoration: none;
+}
+
+.recent-entry-title {
+    color: var(--color-text);
+}
+
+.recent-entry-date {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* Tile Empty & Actions */
+.tile-empty {
+    text-align: center;
+    padding: var(--space-4);
+    color: var(--color-text-muted);
+}
+
+.tile-empty p {
+    margin-bottom: var(--space-4);
+}
+
+.tile-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+/* Quick Actions */
+.quick-action-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.quick-action-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    transition: background-color var(--transition-fast);
+}
+
+.quick-action-item:hover {
+    background-color: var(--color-surface);
+    text-decoration: none;
+}
+
+.quick-action-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--color-accent);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .tile-stats {
+        flex-wrap: wrap;
+        gap: var(--space-4);
+    }
+    
+    .active-fast-display {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .fast-end-form {
+        margin-left: 0;
+    }
+}
+</style>
+{% endblock %}

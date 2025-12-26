@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Project{% else %}New Project{% endif %} - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:project_list' %}">Projects</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}New{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="form-header">
+            <h1 class="page-title">{% if object %}Edit Project{% else %}New Project{% endif %}</h1>
+            <p class="page-subtitle">{% if object %}Update your project details{% else %}Start a new meaningful effort{% endif %}</p>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data" class="life-form">
+            {% csrf_token %}
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_title" class="form-label">Project Title</label>
+                    <input type="text" name="title" id="id_title" class="form-input" 
+                           value="{{ form.title.value|default:'' }}" required
+                           placeholder="What are you working on?">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_description" class="form-label">Description</label>
+                    <textarea name="description" id="id_description" class="form-textarea" rows="3"
+                              placeholder="What is this project about?">{{ form.description.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_purpose" class="form-label">Purpose</label>
+                    <textarea name="purpose" id="id_purpose" class="form-textarea" rows="2"
+                              placeholder="Why does this project matter to you?">{{ form.purpose.value|default:'' }}</textarea>
+                    <p class="form-help">Understanding your "why" helps maintain focus</p>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Status & Priority</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_status" class="form-label">Status</label>
+                        <select name="status" id="id_status" class="form-select">
+                            <option value="active" {% if form.status.value == 'active' %}selected{% endif %}>Active</option>
+                            <option value="paused" {% if form.status.value == 'paused' %}selected{% endif %}>Paused</option>
+                            <option value="completed" {% if form.status.value == 'completed' %}selected{% endif %}>Completed</option>
+                            <option value="archived" {% if form.status.value == 'archived' %}selected{% endif %}>Archived</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_priority" class="form-label">Priority</label>
+                        <select name="priority" id="id_priority" class="form-select">
+                            <option value="now" {% if form.priority.value == 'now' %}selected{% endif %}>Now - Focus on this</option>
+                            <option value="soon" {% if form.priority.value == 'soon' %}selected{% endif %}>Soon - Coming up next</option>
+                            <option value="someday" {% if form.priority.value == 'someday' or not form.priority.value %}selected{% endif %}>Someday - When time allows</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Dates</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_start_date" class="form-label">Start Date</label>
+                        <input type="date" name="start_date" id="id_start_date" class="form-input"
+                               value="{{ form.start_date.value|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_target_date" class="form-label">Target Completion</label>
+                        <input type="date" name="target_date" id="id_target_date" class="form-input"
+                               value="{{ form.target_date.value|date:'Y-m-d'|default:'' }}">
+                        <p class="form-help">Optional - When would you like to finish?</p>
+                    </div>
+                </div>
+                
+                {% if object and object.status == 'completed' %}
+                <div class="form-group">
+                    <label for="id_completed_date" class="form-label">Completed Date</label>
+                    <input type="date" name="completed_date" id="id_completed_date" class="form-input"
+                           value="{{ form.completed_date.value|date:'Y-m-d'|default:'' }}">
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Organization</h2>
+                
+                <div class="form-group">
+                    <label for="id_category" class="form-label">Category</label>
+                    <input type="text" name="category" id="id_category" class="form-input"
+                           value="{{ form.category.value|default:'' }}"
+                           placeholder="e.g., Home, Travel, Learning, Family"
+                           list="category-suggestions">
+                    <datalist id="category-suggestions">
+                        <option value="Home">
+                        <option value="Travel">
+                        <option value="Learning">
+                        <option value="Family">
+                        <option value="Work">
+                        <option value="Creative">
+                        <option value="Health">
+                        <option value="Financial">
+                    </datalist>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_cover_image" class="form-label">Cover Image</label>
+                    {% if object and object.cover_image %}
+                    <div class="current-image mb-3">
+                        <img src="{{ object.cover_image.url }}" alt="Current cover" class="preview-image">
+                        <label class="checkbox-label mt-2">
+                            <input type="checkbox" name="cover_image-clear">
+                            Remove image
+                        </label>
+                    </div>
+                    {% endif %}
+                    <input type="file" name="cover_image" id="id_cover_image" class="form-input"
+                           accept="image/*">
+                    <p class="form-help">Optional - Add a visual for your project</p>
+                </div>
+            </div>
+            
+            {% if object and object.status == 'completed' %}
+            <div class="form-section">
+                <h2 class="form-section-title">Reflection</h2>
+                
+                <div class="form-group">
+                    <label for="id_reflection" class="form-label">What did you learn?</label>
+                    <textarea name="reflection" id="id_reflection" class="form-textarea" rows="4"
+                              placeholder="How did the project go? What would you do differently?">{{ form.reflection.value|default:'' }}</textarea>
+                    <p class="form-help">Take a moment to reflect on your completed project</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Create Project{% endif %}
+                </button>
+                <a href="{% if object %}{{ object.get_absolute_url }}{% else %}{% url 'life:project_list' %}{% endif %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 700px;
+}
+
+.form-header {
+    margin-bottom: var(--space-6);
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.preview-image {
+    max-width: 200px;
+    max-height: 120px;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+{% endblock %}

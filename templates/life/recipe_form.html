@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Recipe{% else %}New Recipe{% endif %} - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:recipe_list' %}">Recipes</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}New{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="form-header">
+            <h1 class="page-title">{% if object %}Edit Recipe{% else %}Add Recipe{% endif %}</h1>
+            <p class="page-subtitle">Save your favorite recipes and family traditions</p>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data" class="life-form">
+            {% csrf_token %}
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_title" class="form-label">Recipe Title</label>
+                    <input type="text" name="title" id="id_title" class="form-input" 
+                           value="{{ form.title.value|default:'' }}" required
+                           placeholder="What are you making?">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_description" class="form-label">Description</label>
+                    <textarea name="description" id="id_description" class="form-textarea" rows="2"
+                              placeholder="Brief description or story behind this recipe...">{{ form.description.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_image" class="form-label">Photo</label>
+                    {% if object and object.image %}
+                    <div class="current-image mb-3">
+                        <img src="{{ object.image.url }}" alt="{{ object.title }}" class="preview-image">
+                    </div>
+                    {% endif %}
+                    <input type="file" name="image" id="id_image" class="form-input" accept="image/*">
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_favorite" {% if form.is_favorite.value %}checked{% endif %}>
+                        ⭐ Mark as favorite
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Ingredients</h2>
+                
+                <div class="form-group">
+                    <label for="id_ingredients" class="form-label">Ingredients</label>
+                    <textarea name="ingredients" id="id_ingredients" class="form-textarea" rows="8" required
+                              placeholder="Enter one ingredient per line:
+2 cups flour
+1 tsp salt
+3 eggs
+...">{{ form.ingredients.value|default:'' }}</textarea>
+                    <p class="form-help">One ingredient per line</p>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Instructions</h2>
+                
+                <div class="form-group">
+                    <label for="id_instructions" class="form-label">Instructions</label>
+                    <textarea name="instructions" id="id_instructions" class="form-textarea" rows="10" required
+                              placeholder="Step by step instructions...">{{ form.instructions.value|default:'' }}</textarea>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Details</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_prep_time_minutes" class="form-label">Prep Time (minutes)</label>
+                        <input type="number" name="prep_time_minutes" id="id_prep_time_minutes" class="form-input"
+                               value="{{ form.prep_time_minutes.value|default:'' }}"
+                               min="0" placeholder="15">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_cook_time_minutes" class="form-label">Cook Time (minutes)</label>
+                        <input type="number" name="cook_time_minutes" id="id_cook_time_minutes" class="form-input"
+                               value="{{ form.cook_time_minutes.value|default:'' }}"
+                               min="0" placeholder="30">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_servings" class="form-label">Servings</label>
+                        <input type="number" name="servings" id="id_servings" class="form-input"
+                               value="{{ form.servings.value|default:'' }}"
+                               min="1" placeholder="4">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_difficulty" class="form-label">Difficulty</label>
+                        <select name="difficulty" id="id_difficulty" class="form-select">
+                            <option value="">Not specified</option>
+                            <option value="easy" {% if form.difficulty.value == 'easy' %}selected{% endif %}>Easy</option>
+                            <option value="medium" {% if form.difficulty.value == 'medium' %}selected{% endif %}>Medium</option>
+                            <option value="hard" {% if form.difficulty.value == 'hard' %}selected{% endif %}>Hard</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_category" class="form-label">Category</label>
+                    <input type="text" name="category" id="id_category" class="form-input"
+                           value="{{ form.category.value|default:'' }}"
+                           placeholder="e.g., Breakfast, Dinner, Dessert"
+                           list="category-list">
+                    <datalist id="category-list">
+                        <option value="Breakfast">
+                        <option value="Lunch">
+                        <option value="Dinner">
+                        <option value="Dessert">
+                        <option value="Appetizer">
+                        <option value="Snack">
+                        <option value="Beverage">
+                        <option value="Side Dish">
+                        <option value="Holiday">
+                    </datalist>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Source</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_source" class="form-label">Source</label>
+                        <input type="text" name="source" id="id_source" class="form-input"
+                               value="{{ form.source.value|default:'' }}"
+                               placeholder="e.g., Grandma's cookbook, Food Network">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_source_url" class="form-label">Source URL</label>
+                        <input type="url" name="source_url" id="id_source_url" class="form-input"
+                               value="{{ form.source_url.value|default:'' }}"
+                               placeholder="https://...">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_notes" class="form-label">Personal Notes</label>
+                    <textarea name="notes" id="id_notes" class="form-textarea" rows="3"
+                              placeholder="Your variations, tips, memories...">{{ form.notes.value|default:'' }}</textarea>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Save Recipe{% endif %}
+                </button>
+                <a href="{% url 'life:recipe_list' %}" class="btn btn-ghost">Cancel</a>
+                {% if object %}
+                <a href="{% url 'life:recipe_delete' object.pk %}" class="btn btn-ghost text-error ml-auto">Delete</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 700px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.preview-image {
+    max-width: 200px;
+    max-height: 150px;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.ml-auto {
+    margin-left: auto;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

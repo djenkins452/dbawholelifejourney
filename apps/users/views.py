@@ -19,11 +19,33 @@ class ProfileView(LoginRequiredMixin, TemplateView):
     """
 
     template_name = "users/profile.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        # Get stats for the profile page
+        from apps.journal.models import JournalEntry
+        context["journal_count"] = JournalEntry.objects.filter(user=user).count()
+        
+        # Faith stats (if enabled)
+        if user.preferences.faith_enabled:
+            from apps.faith.models import PrayerRequest
+            context["prayer_count"] = PrayerRequest.objects.filter(user=user).count()
+        
+        # Health stats
+        from apps.health.models import WeightEntry, HeartRateEntry, GlucoseEntry
+        weight_count = WeightEntry.objects.filter(user=user).count()
+        hr_count = HeartRateEntry.objects.filter(user=user).count()
+        glucose_count = GlucoseEntry.objects.filter(user=user).count()
+        context["weight_count"] = weight_count + hr_count + glucose_count
+        
+        return context
 
 
 class ProfileEditView(LoginRequiredMixin, UpdateView):
     """
-    Edit user profile (name, email).
+    Edit user profile (name, email, avatar).
     """
 
     template_name = "users/profile_edit.html"
@@ -49,6 +71,21 @@ class PreferencesView(LoginRequiredMixin, UpdateView):
 
     def get_object(self):
         return self.request.user.preferences
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Google Calendar integration status
+        try:
+            from apps.life.models import GoogleCalendarCredential
+            credential = self.request.user.google_calendar_credential
+            context['google_calendar_connected'] = credential.is_connected
+            context['google_calendar_name'] = credential.selected_calendar_name
+        except:
+            context['google_calendar_connected'] = False
+            context['google_calendar_name'] = None
+        
+        return context
 
     def form_valid(self, form):
         messages.success(self.request, "Preferences saved successfully.")

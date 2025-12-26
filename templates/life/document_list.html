@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Documents - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Documents</h1>
+            <p class="page-subtitle">Important files, organized and secure</p>
+        </div>
+        <a href="{% url 'life:document_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Upload Document
+        </a>
+    </div>
+    
+    <!-- Expiring Soon Alert -->
+    {% if expiring_soon > 0 %}
+    <div class="alert alert-warning mb-6">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>{{ expiring_soon }} document{{ expiring_soon|pluralize }} expiring within 30 days</span>
+    </div>
+    {% endif %}
+    
+    <!-- Filters -->
+    <div class="filters-bar mb-6">
+        <select onchange="location.href='?category=' + this.value" class="form-select form-select-sm">
+            <option value="">All Categories</option>
+            {% for value, label in categories %}
+            <option value="{{ value }}" {% if request.GET.category == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        
+        <label class="checkbox-label">
+            <input type="checkbox" onchange="location.href='?archived=' + (this.checked ? '1' : '')"
+                   {% if request.GET.archived %}checked{% endif %}>
+            Show archived
+        </label>
+        
+        <form method="get" class="search-form">
+            <input type="text" name="q" value="{{ request.GET.q }}" 
+                   placeholder="Search documents..." class="form-input form-input-sm">
+        </form>
+    </div>
+    
+    {% if documents %}
+    <div class="document-grid">
+        {% for doc in documents %}
+        <a href="{{ doc.get_absolute_url }}" class="document-card {% if doc.is_expired %}expired{% elif doc.is_expiring_soon %}expiring{% endif %}">
+            <div class="document-icon">
+                {% if doc.file_type == 'pdf' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="9" y1="15" x2="15" y2="15"/>
+                </svg>
+                {% elif doc.file_type == 'image/jpeg' or doc.file_type == 'image/png' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                {% else %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                {% endif %}
+            </div>
+            
+            <div class="document-content">
+                <h3 class="document-title">{{ doc.title }}</h3>
+                <p class="document-category">{{ doc.get_category_display }}</p>
+                
+                {% if doc.expiration_date %}
+                <p class="document-expiry {% if doc.is_expired %}text-error{% elif doc.is_expiring_soon %}text-warning{% endif %}">
+                    {% if doc.is_expired %}
+                    Expired {{ doc.expiration_date|date:"M j, Y" }}
+                    {% else %}
+                    Expires {{ doc.expiration_date|date:"M j, Y" }}
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+            
+            <div class="document-meta">
+                <span class="document-size">{{ doc.file_size_display }}</span>
+                <span class="document-date">{{ doc.created_at|date:"M j" }}</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <h2>No documents yet</h2>
+        <p>Upload important documents to keep them organized and accessible.</p>
+        <a href="{% url 'life:document_create' %}" class="btn btn-primary">Upload Your First Document</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.alert {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+}
+
+.alert-warning {
+    background: color-mix(in srgb, #f59e0b 15%, transparent);
+    border: 1px solid #f59e0b;
+    color: #b45309;
+}
+
+.filters-bar {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.form-select-sm,
+.form-input-sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.search-form {
+    flex: 1;
+    min-width: 200px;
+}
+
+.document-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+
+.document-card {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: inherit;
+    transition: all var(--transition-fast);
+}
+
+.document-card:hover {
+    border-color: var(--color-accent);
+}
+
+.document-card.expired {
+    border-color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 5%, var(--color-background));
+}
+
+.document-card.expiring {
+    border-color: #f59e0b;
+    background: color-mix(in srgb, #f59e0b 5%, var(--color-background));
+}
+
+.document-icon {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.document-icon svg {
+    width: 28px;
+    height: 28px;
+    color: var(--color-accent);
+}
+
+.document-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.document-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-1) 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.document-category {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.document-expiry {
+    font-size: var(--font-size-xs);
+    margin: var(--space-1) 0 0 0;
+}
+
+.text-error { color: var(--color-error); }
+.text-warning { color: #f59e0b; }
+
+.document-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+}
+
+.empty-state svg {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endblock %}

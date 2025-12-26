@@ -1,15 +1,20 @@
 {% extends "base.html" %}
+{% load static %}
+{% load safe_urls %}
 
 {% block title %}Preferences - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="content-container">
     <div class="page-header">
-        <h1 class="page-title">Preferences</h1>
-        <p class="page-subtitle">Customize your Whole Life Journey experience</p>
+        <div>
+            <h1 class="page-title">Preferences</h1>
+            <p class="page-subtitle">Customize your Whole Life Journey experience</p>
+        </div>
+        <button type="submit" form="preferences-form" class="btn btn-primary">Save Changes</button>
     </div>
     
-    <form method="post">
+    <form method="post" id="preferences-form">
         {% csrf_token %}
         
         <!-- Theme Section -->
@@ -41,6 +46,7 @@
                     >
                     <input 
                         type="text" 
+                        id="accent_color_text"
                         class="form-input form-color-text"
                         value="{{ form.accent_color.value|default:'' }}"
                         placeholder="Leave blank for theme default"
@@ -58,38 +64,244 @@
             </div>
         </div>
         
-        <!-- Features Section -->
+        <!-- Modules Section -->
         <div class="card mb-6">
-            <h2 class="card-title">Features</h2>
-            <p class="text-muted mb-4">Enable or disable optional features.</p>
+            <h2 class="card-title">Modules</h2>
+            <p class="text-muted mb-4">Enable or disable life areas you want to track.</p>
+            
+            <!-- Active Modules -->
+            <div class="module-section">
+                <h3 class="module-section-title">Active Modules</h3>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">📝</span>
+                            <h4>Journal</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Daily reflections, guided prompts, mood tracking, and personal entries.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="journal_enabled" {% if form.journal_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">✝️</span>
+                            <h4>Faith</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Scripture reading, prayer requests, faith milestones, and Christian encouragement throughout the app.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="faith_enabled" {% if form.faith_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">❤️</span>
+                            <h4>Health</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Track weight, fasting windows, heart rate, blood glucose, and view health trends over time.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="health_enabled" {% if form.health_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">🏠</span>
+                            <h4>Life</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Projects, tasks, calendar, inventory, pets, recipes, maintenance logs, and document storage.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="life_enabled" {% if form.life_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">🧭</span>
+                            <h4>Purpose</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Annual direction, Word of the Year, life goals, change intentions, and seasonal reflections.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="purpose_enabled" {% if form.purpose_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Coming Soon Modules -->
+            <div class="module-section mt-6">
+                <h3 class="module-section-title">Coming Soon</h3>
+                <p class="text-muted text-sm mb-4">These modules are in development. Enable them to be notified when they launch.</p>
+                
+                <div class="toggle-option disabled">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">💰</span>
+                            <h4>Finances</h4>
+                            <span class="module-status status-coming">Coming Soon</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Budget tracking, expense categories, savings goals, and financial insights.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="finances_enabled" {% if form.finances_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option disabled">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">👥</span>
+                            <h4>Relationships</h4>
+                            <span class="module-status status-coming">Coming Soon</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Track meaningful connections, remember important dates, and nurture relationships.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="relationships_enabled" {% if form.relationships_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option disabled">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">🔄</span>
+                            <h4>Habits</h4>
+                            <span class="module-status status-coming">Coming Soon</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Build positive habits with streaks, reminders, and progress tracking.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="habits_enabled" {% if form.habits_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- AI Features Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">AI Features</h2>
+            <p class="text-muted mb-4">AI-powered insights and encouragement for your journey.</p>
             
             <div class="toggle-option">
                 <div class="toggle-info">
-                    <h3>Faith Module</h3>
+                    <div class="module-header">
+                        <span class="module-icon">🤖</span>
+                        <h4>AI Insights</h4>
+                        <span class="module-status status-active">Active</span>
+                    </div>
                     <p class="text-muted text-sm">
-                        Enable Scripture prompts, faith-specific journal categories, 
-                        and Christian encouragement throughout the app.
+                        AI-powered pattern recognition, personalized encouragement, and reflective prompts based on your journey. 
+                        AI provides thoughts to consider — never medical, financial, or spiritual advice.
                     </p>
                 </div>
                 <label class="toggle-switch">
-                    <input type="checkbox" name="faith_enabled" {% if form.faith_enabled.value %}checked{% endif %}>
+                    <input type="checkbox" name="ai_enabled" id="ai_enabled_toggle" {% if form.ai_enabled.value %}checked{% endif %}>
                     <span class="toggle-slider"></span>
                 </label>
             </div>
             
-            <div class="toggle-option">
-                <div class="toggle-info">
-                    <h3>AI Insights</h3>
-                    <p class="text-muted text-sm">
-                        Enable AI-powered pattern recognition and reflective prompts 
-                        based on your journal entries. AI provides thoughts to consider, 
-                        never medical, financial, or spiritual advice.
-                    </p>
+            <!-- AI Coaching Style (shown when AI is enabled) -->
+            <div id="ai-coaching-section" class="ai-coaching-section {% if not form.ai_enabled.value %}hidden{% endif %}">
+                <h3 class="module-section-title mt-6">AI Coaching Style</h3>
+                <p class="text-muted text-sm mb-4">
+                    Choose how you'd like the AI to communicate with you. This affects the tone of insights, encouragements, and accountability nudges.
+                </p>
+                
+                <div class="coaching-style-options">
+                    <label class="coaching-style-card {% if form.ai_coaching_style.value == 'gentle' %}selected{% endif %}">
+                        <input type="radio" name="ai_coaching_style" value="gentle" 
+                               {% if form.ai_coaching_style.value == 'gentle' %}checked{% endif %}>
+                        <div class="card-content">
+                            <div class="card-icon">🌱</div>
+                            <div class="card-text">
+                                <div class="card-title">Gentle Guide</div>
+                                <div class="card-description">
+                                    Soft, encouraging, nurturing. Never pressures, always supportive. 
+                                    Perfect if you need kindness and patience.
+                                </div>
+                                <div class="card-example">
+                                    <em>"Whenever you're ready, your journal is here. No pressure—even a single sentence counts."</em>
+                                </div>
+                            </div>
+                        </div>
+                    </label>
+                    
+                    <label class="coaching-style-card {% if form.ai_coaching_style.value == 'supportive' or not form.ai_coaching_style.value %}selected{% endif %}">
+                        <input type="radio" name="ai_coaching_style" value="supportive" 
+                               {% if form.ai_coaching_style.value == 'supportive' or not form.ai_coaching_style.value %}checked{% endif %}>
+                        <div class="card-content">
+                            <div class="card-icon">🤝</div>
+                            <div class="card-text">
+                                <div class="card-title">Supportive Partner</div>
+                                <div class="card-description">
+                                    Balanced warmth with gentle accountability. Celebrates wins, 
+                                    nudges on gaps. A trusted friend walking with you.
+                                </div>
+                                <div class="card-example">
+                                    <em>"It's been 5 days since you wrote. Life gets busy! Want to take 2 minutes now?"</em>
+                                </div>
+                            </div>
+                        </div>
+                    </label>
+                    
+                    <label class="coaching-style-card {% if form.ai_coaching_style.value == 'direct' %}selected{% endif %}">
+                        <input type="radio" name="ai_coaching_style" value="direct" 
+                               {% if form.ai_coaching_style.value == 'direct' %}checked{% endif %}>
+                        <div class="card-content">
+                            <div class="card-icon">🎯</div>
+                            <div class="card-text">
+                                <div class="card-title">Direct Coach</div>
+                                <div class="card-description">
+                                    Straightforward, action-oriented. Calls things out clearly 
+                                    and pushes you forward. For those who want real talk.
+                                </div>
+                                <div class="card-example">
+                                    <em>"5 days without journaling. You said this matters. Open it up—write one thing you're grateful for. Go."</em>
+                                </div>
+                            </div>
+                        </div>
+                    </label>
                 </div>
-                <label class="toggle-switch">
-                    <input type="checkbox" name="ai_enabled" {% if form.ai_enabled.value %}checked{% endif %}>
-                    <span class="toggle-slider"></span>
-                </label>
             </div>
         </div>
         
@@ -97,6 +309,28 @@
         <div class="card mb-6">
             <h2 class="card-title">Location</h2>
             <p class="text-muted mb-4">Used for weather context (optional).</p>
+            
+            <!-- US ZIP Code Lookup -->
+            <div class="form-group">
+                <label for="zip_code" class="form-label">
+                    ZIP Code (US only)
+                    <span class="form-label-hint">— auto-fills city</span>
+                </label>
+                <div class="zip-input-wrapper">
+                    <input 
+                        type="text" 
+                        id="zip_code" 
+                        class="form-input"
+                        placeholder="e.g., 37201"
+                        maxlength="5"
+                        pattern="[0-9]{5}"
+                    >
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="lookupZip()">
+                        Lookup
+                    </button>
+                </div>
+                <p class="form-help" id="zip_status"></p>
+            </div>
             
             <div class="form-row">
                 <div class="form-group">
@@ -112,14 +346,14 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="id_location_country" class="form-label">Country</label>
+                    <label for="id_location_state" class="form-label">State/Country</label>
                     <input 
                         type="text" 
                         name="location_country" 
                         id="id_location_country" 
                         class="form-input"
                         value="{{ form.location_country.value|default:'' }}"
-                        placeholder="e.g., United States"
+                        placeholder="e.g., Tennessee, US"
                     >
                 </div>
             </div>
@@ -136,6 +370,47 @@
             </div>
         </div>
         
+        <!-- Integrations Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">Integrations</h2>
+            <p class="text-muted mb-4">Connect external services to enhance your experience.</p>
+            
+            <div class="integration-item">
+                <div class="integration-icon">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                </div>
+                <div class="integration-info">
+                    <h4>Google Calendar</h4>
+                    <p class="text-muted text-sm">
+                        Sync your events between Whole Life Journey and Google Calendar.
+                    </p>
+                    {% if google_calendar_connected %}
+                    <p class="integration-status integration-connected">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        Connected{% if google_calendar_name %} — {{ google_calendar_name }}{% endif %}
+                    </p>
+                    {% else %}
+                    <p class="integration-status integration-disconnected">
+                        Not connected
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="integration-actions">
+                    <a href="{% safe_url 'life:google_calendar_settings' fallback='/life/' %}" class="btn btn-secondary btn-sm">
+                        {% if google_calendar_connected %}Manage{% else %}Connect{% endif %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        
         <!-- Save -->
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">
@@ -146,16 +421,33 @@
 </div>
 
 <style>
+.module-section-title {
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+}
+
 .toggle-option {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: var(--space-4) 0;
-    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
 }
 
 .toggle-option:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.toggle-option.disabled {
+    opacity: 0.7;
 }
 
 .toggle-info {
@@ -163,9 +455,27 @@
     padding-right: var(--space-4);
 }
 
-.toggle-info h3 {
+.module-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.module-icon {
+    font-size: var(--font-size-xl);
+}
+
+.module-header h4 {
     font-size: var(--font-size-base);
-    margin-bottom: var(--space-1);
+    margin: 0;
+}
+
+.module-status {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-weight: 500;
 }
 
 .toggle-switch {
@@ -234,6 +544,23 @@
     max-width: 150px;
 }
 
+.zip-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 250px;
+}
+
+.zip-input-wrapper .form-input {
+    flex: 1;
+}
+
+.form-label-hint {
+    font-weight: normal;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -244,17 +571,245 @@
     .form-row {
         grid-template-columns: 1fr;
     }
+    
+    .toggle-option {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+    
+    .toggle-info {
+        padding-right: 0;
+    }
+}
+
+/* Integrations */
+.integration-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+}
+
+.integration-item:last-child {
+    margin-bottom: 0;
+}
+
+.integration-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.integration-info {
+    flex: 1;
+}
+
+.integration-info h4 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0 0 var(--space-1) 0;
+}
+
+.integration-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-2);
+}
+
+.integration-connected {
+    color: var(--color-success, #10b981);
+}
+
+.integration-disconnected {
+    color: var(--color-text-muted);
+}
+
+.integration-actions {
+    flex-shrink: 0;
+}
+
+.integration-coming-soon {
+    opacity: 0.6;
+}
+
+.coming-soon-badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    background: var(--color-border);
+    color: var(--color-text-muted);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-top: var(--space-2);
+}
+
+@media (max-width: 640px) {
+    .integration-item {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .integration-actions {
+        width: 100%;
+    }
+    
+    .integration-actions .btn {
+        width: 100%;
+    }
+}
+
+/* AI Coaching Style Cards */
+.ai-coaching-section {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.ai-coaching-section.hidden {
+    display: none;
+}
+
+.coaching-style-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.coaching-style-card {
+    display: block;
+    cursor: pointer;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    transition: all var(--transition-fast);
+    background: var(--color-background);
+}
+
+.coaching-style-card:hover {
+    border-color: var(--color-accent);
+    background: var(--color-surface);
+}
+
+.coaching-style-card.selected,
+.coaching-style-card:has(input:checked) {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-background));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+.coaching-style-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.card-content {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+}
+
+.card-icon {
+    font-size: 2rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.card-text {
+    flex: 1;
+}
+
+.card-title {
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+    margin-bottom: var(--space-1);
+}
+
+.card-description {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+    margin-bottom: var(--space-2);
+}
+
+.card-example {
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    border-left: 3px solid var(--color-accent);
+}
+
+@media (min-width: 1024px) {
+    .coaching-style-options {
+        flex-direction: row;
+    }
+    
+    .coaching-style-card {
+        flex: 1;
+    }
+    
+    .card-content {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .card-icon {
+        font-size: 2.5rem;
+        margin: 0 auto var(--space-2);
+    }
+    
+    .card-example {
+        text-align: left;
+    }
 }
 </style>
 
+<script src="{% static 'js/timezone-lookup.js' %}"></script>
 <script>
+// Accent color handling
 document.getElementById('id_accent_color').addEventListener('input', function(e) {
-    document.querySelector('.form-color-text').value = e.target.value;
+    document.getElementById('accent_color_text').value = e.target.value;
 });
 
 function clearAccentColor() {
     document.getElementById('id_accent_color').value = '#6366f1';
-    document.querySelector('.form-color-text').value = '';
+    document.getElementById('accent_color_text').value = '';
 }
+
+// AI coaching style toggle visibility
+document.getElementById('ai_enabled_toggle').addEventListener('change', function() {
+    const coachingSection = document.getElementById('ai-coaching-section');
+    if (this.checked) {
+        coachingSection.classList.remove('hidden');
+    } else {
+        coachingSection.classList.add('hidden');
+    }
+});
+
+// Coaching style card selection
+document.querySelectorAll('.coaching-style-card input[type="radio"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        document.querySelectorAll('.coaching-style-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        if (this.checked) {
+            this.closest('.coaching-style-card').classList.add('selected');
+        }
+    });
+});
 </script>
 {% endblock %}

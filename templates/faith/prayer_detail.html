@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}{{ prayer.title }} - Prayer Request - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-6">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span class="breadcrumb-separator">›</span>
+        <a href="{% url 'faith:prayer_list' %}">Prayer Requests</a>
+        <span class="breadcrumb-separator">›</span>
+        <span>{{ prayer.title|truncatewords:5 }}</span>
+    </nav>
+    
+    <article class="prayer-detail card">
+        <header class="prayer-header">
+            {% if prayer.priority == 'urgent' %}
+                <span class="priority-badge">Urgent</span>
+            {% endif %}
+            <h1 class="prayer-title">{{ prayer.title }}</h1>
+            <p class="prayer-meta">
+                Added {{ prayer.created_at|date:"F j, Y" }}
+                {% if prayer.remind_daily %}
+                    · <span class="remind-indicator">Daily reminder on</span>
+                {% endif %}
+            </p>
+        </header>
+        
+        {% if prayer.description %}
+            <div class="prayer-body">
+                {{ prayer.description|linebreaks }}
+            </div>
+        {% endif %}
+        
+        {% if prayer.person_or_situation %}
+            <div class="prayer-for-section">
+                <strong>Praying for:</strong> {{ prayer.person_or_situation }}
+            </div>
+        {% endif %}
+        
+        <div class="prayer-actions">
+            <a href="{% url 'faith:prayer_update' prayer.pk %}" class="btn btn-secondary">
+                Edit
+            </a>
+            
+            <form method="post" action="{% url 'faith:prayer_answered' prayer.pk %}" class="inline-form answer-form">
+                {% csrf_token %}
+                <button type="button" class="btn btn-primary" onclick="showAnswerModal()">
+                    🙏 Mark as Answered
+                </button>
+            </form>
+            
+            <form method="post" action="{% url 'faith:prayer_delete' prayer.pk %}" class="inline-form" data-confirm-delete>
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost text-error">Delete</button>
+            </form>
+        </div>
+    </article>
+    
+    <!-- Answer Modal -->
+    <div id="answer-modal" class="modal" hidden>
+        <div class="modal-backdrop" onclick="hideAnswerModal()"></div>
+        <div class="modal-content card">
+            <h2>Prayer Answered!</h2>
+            <p class="text-muted">How did God answer this prayer?</p>
+            
+            <form method="post" action="{% url 'faith:prayer_answered' prayer.pk %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <textarea 
+                        name="notes" 
+                        class="form-textarea"
+                        placeholder="Describe how God answered this prayer... (optional)"
+                        rows="4"
+                    ></textarea>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Confirm Answered</button>
+                    <button type="button" class="btn btn-ghost" onclick="hideAnswerModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="mt-6">
+        <a href="{% url 'faith:prayer_list' %}" class="btn btn-ghost">← Back to Prayer Requests</a>
+    </div>
+</div>
+
+<style>
+.prayer-detail {
+    padding: var(--space-6);
+}
+
+.prayer-header {
+    margin-bottom: var(--space-6);
+}
+
+.priority-badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-2);
+}
+
+.prayer-title {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-2);
+}
+
+.prayer-meta {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.remind-indicator {
+    color: var(--color-accent);
+}
+
+.prayer-body {
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-relaxed);
+    margin-bottom: var(--space-6);
+}
+
+.prayer-for-section {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.prayer-actions {
+    display: flex;
+    gap: var(--space-3);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+
+/* Modal styles */
+.modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.modal[hidden] {
+    display: none;
+}
+
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    position: relative;
+    max-width: 400px;
+    width: 90%;
+    padding: var(--space-6);
+}
+
+.modal-content h2 {
+    margin-bottom: var(--space-2);
+}
+
+.modal-content .text-muted {
+    margin-bottom: var(--space-4);
+}
+
+.modal-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+</style>
+
+<script>
+function showAnswerModal() {
+    document.getElementById('answer-modal').hidden = false;
+}
+
+function hideAnswerModal() {
+    document.getElementById('answer-modal').hidden = true;
+}
+</script>
+{% endblock %}

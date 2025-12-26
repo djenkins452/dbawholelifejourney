@@ -27,7 +27,7 @@ class JournalEntryForm(forms.ModelForm):
         widgets = {
             "title": forms.TextInput(attrs={
                 "class": "form-input",
-                "placeholder": "Entry title",
+                "placeholder": "Leave blank to use the date",
             }),
             "body": forms.Textarea(attrs={
                 "class": "form-textarea",
@@ -52,6 +52,9 @@ class JournalEntryForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
+        
+        # Make title optional - will default to date if empty
+        self.fields["title"].required = False
         
         # Add empty choice for mood
         self.fields["mood"].choices = [("", "Select mood (optional)")] + list(

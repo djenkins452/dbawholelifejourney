@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Theme{% else %}New Theme{% endif %} - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:theme_list' %}">Themes</a>
+                <span>/</span>
+                <span>{% if object %}Edit{% else %}New{% endif %}</span>
+            </nav>
+            <h1 class="page-title">{% if object %}Edit Theme{% else %}New Theme{% endif %}</h1>
+        </div>
+    </div>
+    
+    <div class="theme-editor">
+        <form method="post" class="theme-form">
+            {% csrf_token %}
+            
+            <!-- Basic Info -->
+            <div class="form-section">
+                <h2 class="form-section-title">Basic Information</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_name" class="form-label">Theme Name</label>
+                        <input type="text" name="name" id="id_name" class="form-input" 
+                               value="{{ form.name.value|default:'' }}" required
+                               placeholder="e.g., Ocean Blue">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_slug" class="form-label">Slug</label>
+                        <input type="text" name="slug" id="id_slug" class="form-input" 
+                               value="{{ form.slug.value|default:'' }}" required
+                               placeholder="e.g., ocean-blue" pattern="[a-z0-9-]+">
+                        <p class="form-help">Lowercase letters, numbers, and hyphens only</p>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_description" class="form-label">Description</label>
+                    <input type="text" name="description" id="id_description" class="form-input" 
+                           value="{{ form.description.value|default:'' }}"
+                           placeholder="e.g., Calm, focused, professional">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_sort_order" class="form-label">Sort Order</label>
+                        <input type="number" name="sort_order" id="id_sort_order" class="form-input" 
+                               value="{{ form.sort_order.value|default:'0' }}" min="0">
+                    </div>
+                    
+                    <div class="form-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %}>
+                            Active (visible to users)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="is_default" {% if form.is_default.value %}checked{% endif %}>
+                            Default theme for new users
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Light Mode Colors -->
+            <div class="form-section">
+                <h2 class="form-section-title">Light Mode Colors</h2>
+                
+                <div class="color-grid">
+                    <div class="form-group">
+                        <label for="id_color_accent" class="form-label">Accent</label>
+                        <div class="color-input-group">
+                            <input type="color" name="color_accent" id="id_color_accent" 
+                                   value="{{ form.color_accent.value|default:'#6366f1' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.color_accent.value|default:'#6366f1' }}" 
+                                   data-for="id_color_accent" maxlength="7">
+                        </div>
+                        <p class="form-help">Buttons, links, highlights</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_color_primary" class="form-label">Primary</label>
+                        <div class="color-input-group">
+                            <input type="color" name="color_primary" id="id_color_primary" 
+                                   value="{{ form.color_primary.value|default:'#6b7280' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.color_primary.value|default:'#6b7280' }}" 
+                                   data-for="id_color_primary" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_color_text" class="form-label">Text</label>
+                        <div class="color-input-group">
+                            <input type="color" name="color_text" id="id_color_text" 
+                                   value="{{ form.color_text.value|default:'#374151' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.color_text.value|default:'#374151' }}" 
+                                   data-for="id_color_text" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_color_text_muted" class="form-label">Muted Text</label>
+                        <div class="color-input-group">
+                            <input type="color" name="color_text_muted" id="id_color_text_muted" 
+                                   value="{{ form.color_text_muted.value|default:'#6b7280' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.color_text_muted.value|default:'#6b7280' }}" 
+                                   data-for="id_color_text_muted" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_color_background" class="form-label">Background</label>
+                        <div class="color-input-group">
+                            <input type="color" name="color_background" id="id_color_background" 
+                                   value="{{ form.color_background.value|default:'#ffffff' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.color_background.value|default:'#ffffff' }}" 
+                                   data-for="id_color_background" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_color_surface" class="form-label">Surface</label>
+                        <div class="color-input-group">
+                            <input type="color" name="color_surface" id="id_color_surface" 
+                                   value="{{ form.color_surface.value|default:'#f3f4f6' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.color_surface.value|default:'#f3f4f6' }}" 
+                                   data-for="id_color_surface" maxlength="7">
+                        </div>
+                        <p class="form-help">Cards, panels</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_color_border" class="form-label">Border</label>
+                        <div class="color-input-group">
+                            <input type="color" name="color_border" id="id_color_border" 
+                                   value="{{ form.color_border.value|default:'#e5e7eb' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.color_border.value|default:'#e5e7eb' }}" 
+                                   data-for="id_color_border" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_color_secondary" class="form-label">Secondary</label>
+                        <div class="color-input-group">
+                            <input type="color" name="color_secondary" id="id_color_secondary" 
+                                   value="{{ form.color_secondary.value|default:'#f9fafb' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.color_secondary.value|default:'#f9fafb' }}" 
+                                   data-for="id_color_secondary" maxlength="7">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dark Mode Colors -->
+            <div class="form-section">
+                <h2 class="form-section-title">Dark Mode Colors</h2>
+                
+                <div class="color-grid">
+                    <div class="form-group">
+                        <label for="id_dark_color_accent" class="form-label">Accent</label>
+                        <div class="color-input-group">
+                            <input type="color" name="dark_color_accent" id="id_dark_color_accent" 
+                                   value="{{ form.dark_color_accent.value|default:'#818cf8' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.dark_color_accent.value|default:'#818cf8' }}" 
+                                   data-for="id_dark_color_accent" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_dark_color_primary" class="form-label">Primary</label>
+                        <div class="color-input-group">
+                            <input type="color" name="dark_color_primary" id="id_dark_color_primary" 
+                                   value="{{ form.dark_color_primary.value|default:'#9ca3af' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.dark_color_primary.value|default:'#9ca3af' }}" 
+                                   data-for="id_dark_color_primary" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_dark_color_text" class="form-label">Text</label>
+                        <div class="color-input-group">
+                            <input type="color" name="dark_color_text" id="id_dark_color_text" 
+                                   value="{{ form.dark_color_text.value|default:'#f9fafb' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.dark_color_text.value|default:'#f9fafb' }}" 
+                                   data-for="id_dark_color_text" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_dark_color_text_muted" class="form-label">Muted Text</label>
+                        <div class="color-input-group">
+                            <input type="color" name="dark_color_text_muted" id="id_dark_color_text_muted" 
+                                   value="{{ form.dark_color_text_muted.value|default:'#9ca3af' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.dark_color_text_muted.value|default:'#9ca3af' }}" 
+                                   data-for="id_dark_color_text_muted" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_dark_color_background" class="form-label">Background</label>
+                        <div class="color-input-group">
+                            <input type="color" name="dark_color_background" id="id_dark_color_background" 
+                                   value="{{ form.dark_color_background.value|default:'#030712' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.dark_color_background.value|default:'#030712' }}" 
+                                   data-for="id_dark_color_background" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_dark_color_surface" class="form-label">Surface</label>
+                        <div class="color-input-group">
+                            <input type="color" name="dark_color_surface" id="id_dark_color_surface" 
+                                   value="{{ form.dark_color_surface.value|default:'#1f2937' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.dark_color_surface.value|default:'#1f2937' }}" 
+                                   data-for="id_dark_color_surface" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_dark_color_border" class="form-label">Border</label>
+                        <div class="color-input-group">
+                            <input type="color" name="dark_color_border" id="id_dark_color_border" 
+                                   value="{{ form.dark_color_border.value|default:'#374151' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.dark_color_border.value|default:'#374151' }}" 
+                                   data-for="id_dark_color_border" maxlength="7">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_dark_color_secondary" class="form-label">Secondary</label>
+                        <div class="color-input-group">
+                            <input type="color" name="dark_color_secondary" id="id_dark_color_secondary" 
+                                   value="{{ form.dark_color_secondary.value|default:'#111827' }}" class="form-color">
+                            <input type="text" class="form-input color-hex" 
+                                   value="{{ form.dark_color_secondary.value|default:'#111827' }}" 
+                                   data-for="id_dark_color_secondary" maxlength="7">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Create Theme{% endif %}
+                </button>
+                <a href="{% url 'admin_console:theme_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+        
+        <!-- Live Preview -->
+        <div class="theme-preview-panel">
+            <h3>Live Preview</h3>
+            <div class="preview-container" id="livePreview">
+                <div class="preview-card">
+                    <div class="preview-header">Preview Card</div>
+                    <p class="preview-text">This is how your theme will look.</p>
+                    <p class="preview-muted">Secondary text appears like this.</p>
+                    <button class="preview-button">Button</button>
+                </div>
+            </div>
+            <div class="preview-toggle">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="togglePreviewMode()">
+                    Toggle Dark/Light
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.theme-editor {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: var(--space-6);
+    align-items: start;
+}
+
+@media (max-width: 1024px) {
+    .theme-editor {
+        grid-template-columns: 1fr;
+    }
+    
+    .theme-preview-panel {
+        position: static;
+        order: -1;
+    }
+}
+
+.theme-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--space-5) 0;
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.color-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--space-4);
+}
+
+.color-input-group {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.form-color {
+    width: 48px;
+    height: 40px;
+    padding: 2px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.color-hex {
+    flex: 1;
+    font-family: monospace;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    justify-content: center;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+/* Preview Panel */
+.theme-preview-panel {
+    position: sticky;
+    top: var(--space-6);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.theme-preview-panel h3 {
+    margin: 0 0 var(--space-4) 0;
+    font-size: var(--font-size-base);
+}
+
+.preview-container {
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    transition: all 0.3s;
+}
+
+.preview-card {
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    border: 1px solid;
+}
+
+.preview-header {
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+
+.preview-text {
+    margin-bottom: var(--space-2);
+}
+
+.preview-muted {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+}
+
+.preview-button {
+    padding: var(--space-2) var(--space-4);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: 500;
+    color: white;
+}
+
+.preview-toggle {
+    margin-top: var(--space-4);
+    text-align: center;
+}
+</style>
+
+<script>
+let previewDarkMode = false;
+
+// Sync color inputs
+document.querySelectorAll('.form-color').forEach(colorInput => {
+    const hexInput = colorInput.parentElement.querySelector('.color-hex');
+    
+    colorInput.addEventListener('input', () => {
+        hexInput.value = colorInput.value;
+        updatePreview();
+    });
+    
+    hexInput.addEventListener('input', () => {
+        if (/^#[0-9A-Fa-f]{6}$/.test(hexInput.value)) {
+            colorInput.value = hexInput.value;
+            updatePreview();
+        }
+    });
+});
+
+function updatePreview() {
+    const preview = document.getElementById('livePreview');
+    const prefix = previewDarkMode ? 'dark_' : '';
+    
+    const bg = document.querySelector(`[name="${prefix}color_background"]`).value;
+    const surface = document.querySelector(`[name="${prefix}color_surface"]`).value;
+    const border = document.querySelector(`[name="${prefix}color_border"]`).value;
+    const text = document.querySelector(`[name="${prefix}color_text"]`).value;
+    const muted = document.querySelector(`[name="${prefix}color_text_muted"]`).value;
+    const accent = document.querySelector(`[name="${prefix}color_accent"]`).value;
+    
+    preview.style.background = bg;
+    preview.querySelector('.preview-card').style.background = surface;
+    preview.querySelector('.preview-card').style.borderColor = border;
+    preview.querySelector('.preview-header').style.color = text;
+    preview.querySelector('.preview-text').style.color = text;
+    preview.querySelector('.preview-muted').style.color = muted;
+    preview.querySelector('.preview-button').style.background = accent;
+}
+
+function togglePreviewMode() {
+    previewDarkMode = !previewDarkMode;
+    updatePreview();
+}
+
+// Initial preview
+updatePreview();
+</script>
+{% endblock %}

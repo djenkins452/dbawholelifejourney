@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Category{% else %}New Category{% endif %} - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:category_list' %}">Categories</a>
+                <span>/</span>
+                <span>{% if object %}Edit{% else %}New{% endif %}</span>
+            </nav>
+            <h1 class="page-title">{% if object %}Edit Category{% else %}New Category{% endif %}</h1>
+        </div>
+    </div>
+    
+    <form method="post" class="admin-form">
+        {% csrf_token %}
+        
+        <div class="form-section">
+            <div class="form-group">
+                <label for="id_name" class="form-label">Name</label>
+                <input type="text" name="name" id="id_name" class="form-input" 
+                       value="{{ form.name.value|default:'' }}" required
+                       placeholder="e.g., Personal Growth">
+            </div>
+            
+            <div class="form-group">
+                <label for="id_slug" class="form-label">Slug</label>
+                <input type="text" name="slug" id="id_slug" class="form-input" 
+                       value="{{ form.slug.value|default:'' }}" required
+                       placeholder="e.g., personal-growth" pattern="[a-z0-9-]+">
+                <p class="form-help">URL-friendly name. Lowercase letters, numbers, and hyphens only.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_description" class="form-label">Description (optional)</label>
+                <textarea name="description" id="id_description" class="form-textarea" rows="3"
+                          placeholder="Describe what this category is for...">{{ form.description.value|default:'' }}</textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_icon" class="form-label">Icon (optional)</label>
+                    <input type="text" name="icon" id="id_icon" class="form-input" 
+                           value="{{ form.icon.value|default:'' }}"
+                           placeholder="e.g., 📝 or icon name">
+                    <p class="form-help">Emoji or icon identifier</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_color" class="form-label">Color (optional)</label>
+                    <div class="color-input-group">
+                        <input type="color" name="color" id="id_color" 
+                               value="{{ form.color.value|default:'#6366f1' }}" class="form-color">
+                        <input type="text" class="form-input color-hex" 
+                               value="{{ form.color.value|default:'#6366f1' }}" maxlength="7">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Create Category{% endif %}
+            </button>
+            <a href="{% url 'admin_console:category_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.admin-form {
+    max-width: 600px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.color-input-group {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.form-color {
+    width: 48px;
+    height: 40px;
+    padding: 2px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.color-hex {
+    flex: 1;
+    font-family: monospace;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+
+<script>
+// Sync color inputs
+const colorInput = document.getElementById('id_color');
+const hexInput = document.querySelector('.color-hex');
+
+if (colorInput && hexInput) {
+    colorInput.addEventListener('input', () => {
+        hexInput.value = colorInput.value;
+    });
+    
+    hexInput.addEventListener('input', () => {
+        if (/^#[0-9A-Fa-f]{6}$/.test(hexInput.value)) {
+            colorInput.value = hexInput.value;
+        }
+    });
+}
+
+// Auto-generate slug from name
+const nameInput = document.getElementById('id_name');
+const slugInput = document.getElementById('id_slug');
+
+if (nameInput && slugInput && !slugInput.value) {
+    nameInput.addEventListener('input', () => {
+        slugInput.value = nameInput.value
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+    });
+}
+</script>
+{% endblock %}

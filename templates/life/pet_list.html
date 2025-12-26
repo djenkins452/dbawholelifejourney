@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Pets - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Pets</h1>
+            <p class="page-subtitle">Your furry family members</p>
+        </div>
+        <a href="{% url 'life:pet_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Pet
+        </a>
+    </div>
+    
+    {% if pets %}
+    <div class="pet-grid">
+        {% for pet in pets %}
+        <a href="{{ pet.get_absolute_url }}" class="pet-card {% if not pet.is_active %}memorial{% endif %}">
+            <div class="pet-photo">
+                {% if pet.photo %}
+                <img src="{{ pet.photo.url }}" alt="{{ pet.name }}">
+                {% else %}
+                <div class="pet-placeholder">
+                    <span class="pet-emoji">
+                        {% if pet.species == 'dog' %}🐕
+                        {% elif pet.species == 'cat' %}🐈
+                        {% elif pet.species == 'bird' %}🐦
+                        {% elif pet.species == 'fish' %}🐟
+                        {% elif pet.species == 'rabbit' %}🐰
+                        {% elif pet.species == 'hamster' %}🐹
+                        {% elif pet.species == 'reptile' %}🦎
+                        {% else %}🐾{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+            <div class="pet-info">
+                <h3 class="pet-name">{{ pet.name }}</h3>
+                <p class="pet-details">
+                    {{ pet.get_species_display }}
+                    {% if pet.breed %} · {{ pet.breed }}{% endif %}
+                </p>
+                {% if pet.age %}
+                <p class="pet-age">{{ pet.age }} year{{ pet.age|pluralize }} old</p>
+                {% endif %}
+                {% if not pet.is_active %}
+                <p class="pet-memorial">🌈 In loving memory</p>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="empty-emoji">🐾</span>
+        <h2>No pets yet</h2>
+        <p>Add your furry, feathered, or scaly family members.</p>
+        <a href="{% url 'life:pet_create' %}" class="btn btn-primary">Add Your First Pet</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.pet-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: var(--space-5);
+}
+
+.pet-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    transition: all var(--transition-fast);
+}
+
+.pet-card:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-2px);
+}
+
+.pet-card.memorial {
+    opacity: 0.7;
+}
+
+.pet-photo {
+    height: 200px;
+    overflow: hidden;
+}
+
+.pet-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.pet-placeholder {
+    width: 100%;
+    height: 100%;
+    background: var(--color-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pet-emoji {
+    font-size: 4rem;
+}
+
+.pet-info {
+    padding: var(--space-5);
+}
+
+.pet-name {
+    font-size: var(--font-size-xl);
+    margin: 0 0 var(--space-2) 0;
+}
+
+.pet-details {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-1) 0;
+}
+
+.pet-age {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.pet-memorial {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    font-style: italic;
+    margin: var(--space-2) 0 0 0;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+}
+
+.empty-emoji {
+    font-size: 4rem;
+    display: block;
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}{{ goal.title }} - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <span>/</span>
+        <a href="{% url 'purpose:goal_list' %}">Goals</a>
+        <span>/</span>
+        <span>{{ goal.title|truncatewords:5 }}</span>
+    </nav>
+    
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ goal.title }}</h1>
+            <div class="goal-meta">
+                {% if goal.domain %}
+                <span class="badge">{{ goal.domain.icon }} {{ goal.domain.name }}</span>
+                {% endif %}
+                <span class="badge badge-{{ goal.status }}">{{ goal.get_status_display }}</span>
+                <span class="badge">{{ goal.get_timeframe_display }}</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'purpose:goal_update' goal.pk %}" class="btn btn-secondary">Edit</a>
+            {% if goal.status == 'active' %}
+            <form method="post" action="{% url 'purpose:goal_toggle_status' goal.pk %}" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="complete">
+                <button type="submit" class="btn btn-primary">Mark Complete</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="goal-content">
+        {% if goal.description %}
+        <div class="content-section">
+            <h3>Description</h3>
+            <p>{{ goal.description }}</p>
+        </div>
+        {% endif %}
+        
+        {% if goal.why_it_matters %}
+        <div class="content-section highlight">
+            <h3>Why It Matters</h3>
+            <p>{{ goal.why_it_matters }}</p>
+        </div>
+        {% endif %}
+        
+        {% if goal.success_looks_like %}
+        <div class="content-section">
+            <h3>What Success Looks Like</h3>
+            <p>{{ goal.success_looks_like }}</p>
+        </div>
+        {% endif %}
+        
+        <div class="content-section">
+            <h3>Details</h3>
+            <dl class="details-list">
+                {% if goal.target_date %}
+                <div class="detail-item">
+                    <dt>Target Date</dt>
+                    <dd>{{ goal.target_date|date:"F j, Y" }}</dd>
+                </div>
+                {% endif %}
+                {% if goal.annual_direction %}
+                <div class="detail-item">
+                    <dt>Linked Direction</dt>
+                    <dd><a href="{% url 'purpose:direction_detail' goal.annual_direction.pk %}">{{ goal.annual_direction.year }}: {{ goal.annual_direction.word_of_year }}</a></dd>
+                </div>
+                {% endif %}
+                {% if goal.completed_date %}
+                <div class="detail-item">
+                    <dt>Completed</dt>
+                    <dd>{{ goal.completed_date|date:"F j, Y" }}</dd>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <dt>Created</dt>
+                    <dd>{{ goal.created_at|date:"F j, Y" }}</dd>
+                </div>
+            </dl>
+        </div>
+        
+        {% if goal.reflection %}
+        <div class="content-section">
+            <h3>Reflection</h3>
+            <p>{{ goal.reflection }}</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="page-footer">
+        <a href="{% url 'purpose:goal_delete' goal.pk %}" class="btn btn-ghost text-danger">Delete Goal</a>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.goal-meta {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+}
+
+.badge-active { background: color-mix(in srgb, var(--color-success) 20%, transparent); color: var(--color-success); }
+.badge-paused { background: color-mix(in srgb, var(--color-warning) 20%, transparent); color: var(--color-warning); }
+.badge-completed { background: color-mix(in srgb, var(--color-accent) 20%, transparent); color: var(--color-accent); }
+.badge-released { background: var(--color-surface); color: var(--color-text-muted); }
+
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.inline {
+    display: inline;
+}
+
+.goal-content {
+    max-width: 700px;
+}
+
+.content-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.content-section.highlight {
+    background: linear-gradient(135deg, var(--color-background) 0%, color-mix(in srgb, var(--color-accent) 5%, var(--color-background)) 100%);
+    border-color: var(--color-accent);
+}
+
+.content-section h3 {
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-3) 0;
+}
+
+.content-section p {
+    margin: 0;
+    line-height: 1.7;
+}
+
+.details-list {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+}
+
+.detail-item dt {
+    color: var(--color-text-muted);
+}
+
+.detail-item dd {
+    margin: 0;
+    font-weight: 500;
+}
+
+.detail-item a {
+    color: var(--color-accent);
+}
+
+.page-footer {
+    margin-top: var(--space-8);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.text-danger {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

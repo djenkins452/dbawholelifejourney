@@ -1,0 +1,751 @@
+{% extends "base.html" %}
+
+{% block title %}Preferences - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Preferences</h1>
+            <p class="page-subtitle">Customize your Whole Life Journey experience</p>
+        </div>
+        <button type="submit" form="preferences-form" class="btn btn-primary">Save Changes</button>
+    </div>
+    
+    <form method="post" id="preferences-form">
+        {% csrf_token %}
+        
+        <!-- Theme Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">Appearance</h2>
+            <p class="text-muted mb-4">Choose a visual theme that resonates with you.</p>
+            
+            <div class="form-group">
+                <label for="id_theme" class="form-label">Theme</label>
+                <select name="theme" id="id_theme" class="form-select">
+                    {% for value, label in form.fields.theme.choices %}
+                        <option value="{{ value }}" {% if form.theme.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <p class="form-help">Each theme shapes the visual feel of your experience.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_accent_color" class="form-label">Custom Accent Color (Optional)</label>
+                <div class="color-input-wrapper">
+                    <input 
+                        type="color" 
+                        name="accent_color" 
+                        id="id_accent_color" 
+                        class="form-color"
+                        value="{{ form.accent_color.value|default:'#6366f1' }}"
+                    >
+                    <input 
+                        type="text" 
+                        id="accent_color_text"
+                        class="form-input form-color-text"
+                        value="{{ form.accent_color.value|default:'' }}"
+                        placeholder="Leave blank for theme default"
+                        readonly
+                    >
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="clearAccentColor()">Clear</button>
+                </div>
+                <p class="form-help">Override the theme's accent color with your own choice.</p>
+            </div>
+            
+            <div class="text-right">
+                <a href="{% url 'users:theme_selection' %}" class="btn btn-secondary btn-sm">
+                    Preview All Themes →
+                </a>
+            </div>
+        </div>
+        
+        <!-- Modules Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">Modules</h2>
+            <p class="text-muted mb-4">Enable or disable life areas you want to track.</p>
+            
+            <!-- Active Modules -->
+            <div class="module-section">
+                <h3 class="module-section-title">Active Modules</h3>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">📝</span>
+                            <h4>Journal</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Daily reflections, guided prompts, mood tracking, and personal entries.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="journal_enabled" {% if form.journal_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">✝️</span>
+                            <h4>Faith</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Scripture reading, prayer requests, faith milestones, and Christian encouragement throughout the app.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="faith_enabled" {% if form.faith_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">❤️</span>
+                            <h4>Health</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Track weight, fasting windows, heart rate, blood glucose, and view health trends over time.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="health_enabled" {% if form.health_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">🏠</span>
+                            <h4>Life</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Projects, tasks, calendar, inventory, pets, recipes, maintenance logs, and document storage.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="life_enabled" {% if form.life_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">🧭</span>
+                            <h4>Purpose</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Annual direction, Word of the Year, life goals, change intentions, and seasonal reflections.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="purpose_enabled" {% if form.purpose_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Coming Soon Modules -->
+            <div class="module-section mt-6">
+                <h3 class="module-section-title">Coming Soon</h3>
+                <p class="text-muted text-sm mb-4">These modules are in development. Enable them to be notified when they launch.</p>
+                
+                <div class="toggle-option disabled">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">💰</span>
+                            <h4>Finances</h4>
+                            <span class="module-status status-coming">Coming Soon</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Budget tracking, expense categories, savings goals, and financial insights.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="finances_enabled" {% if form.finances_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option disabled">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">👥</span>
+                            <h4>Relationships</h4>
+                            <span class="module-status status-coming">Coming Soon</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Track meaningful connections, remember important dates, and nurture relationships.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="relationships_enabled" {% if form.relationships_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-option disabled">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">🔄</span>
+                            <h4>Habits</h4>
+                            <span class="module-status status-coming">Coming Soon</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Build positive habits with streaks, reminders, and progress tracking.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="habits_enabled" {% if form.habits_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- AI Features Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">AI Features</h2>
+            <p class="text-muted mb-4">Optional AI-powered enhancements.</p>
+            
+            <div class="toggle-option">
+                <div class="toggle-info">
+                    <div class="module-header">
+                        <span class="module-icon">🤖</span>
+                        <h4>AI Insights</h4>
+                        <span class="module-status status-coming">Coming Soon</span>
+                    </div>
+                    <p class="text-muted text-sm">
+                        AI-powered pattern recognition and reflective prompts based on your journal entries. 
+                        AI provides thoughts to consider — never medical, financial, or spiritual advice.
+                    </p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" name="ai_enabled" {% if form.ai_enabled.value %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Location Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">Location</h2>
+            <p class="text-muted mb-4">Used for weather context (optional).</p>
+            
+            <!-- US ZIP Code Lookup -->
+            <div class="form-group">
+                <label for="zip_code" class="form-label">
+                    ZIP Code (US only)
+                    <span class="form-label-hint">— auto-fills city</span>
+                </label>
+                <div class="zip-input-wrapper">
+                    <input 
+                        type="text" 
+                        id="zip_code" 
+                        class="form-input"
+                        placeholder="e.g., 37201"
+                        maxlength="5"
+                        pattern="[0-9]{5}"
+                    >
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="lookupZip()">
+                        Lookup
+                    </button>
+                </div>
+                <p class="form-help" id="zip_status"></p>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_location_city" class="form-label">City</label>
+                    <input 
+                        type="text" 
+                        name="location_city" 
+                        id="id_location_city" 
+                        class="form-input"
+                        value="{{ form.location_city.value|default:'' }}"
+                        placeholder="e.g., Nashville"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_location_state" class="form-label">State/Country</label>
+                    <input 
+                        type="text" 
+                        name="location_country" 
+                        id="id_location_country" 
+                        class="form-input"
+                        value="{{ form.location_country.value|default:'' }}"
+                        placeholder="e.g., Tennessee, US"
+                    >
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_timezone" class="form-label">Timezone</label>
+                <select name="timezone" id="id_timezone" class="form-select">
+                    {% for value, label in form.fields.timezone.widget.choices %}
+                        <option value="{{ value }}" {% if form.timezone.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <!-- Integrations Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">Integrations</h2>
+            <p class="text-muted mb-4">Connect external services to enhance your experience.</p>
+            
+            <div class="integration-item">
+                <div class="integration-icon">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                </div>
+                <div class="integration-info">
+                    <h4>Google Calendar</h4>
+                    <p class="text-muted text-sm">
+                        Sync your events between Whole Life Journey and Google Calendar.
+                    </p>
+                    {% if google_calendar_connected %}
+                    <p class="integration-status integration-connected">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        Connected{% if google_calendar_name %} — {{ google_calendar_name }}{% endif %}
+                    </p>
+                    {% else %}
+                    <p class="integration-status integration-disconnected">
+                        Not connected
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="integration-actions">
+                    <a href="{% url 'life:google_calendar_settings' %}" class="btn btn-secondary btn-sm">
+                        {% if google_calendar_connected %}Manage{% else %}Connect{% endif %}
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Future integrations can be added here -->
+            <!--
+            <div class="integration-item integration-coming-soon">
+                <div class="integration-icon">
+                    <svg>...</svg>
+                </div>
+                <div class="integration-info">
+                    <h4>Apple Health</h4>
+                    <p class="text-muted text-sm">Import health data from Apple Health.</p>
+                    <span class="coming-soon-badge">Coming Soon</span>
+                </div>
+            </div>
+            -->
+        </div>
+        
+        <!-- Save -->
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                Save Preferences
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+.module-section-title {
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.toggle-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+}
+
+.toggle-option:last-child {
+    margin-bottom: 0;
+}
+
+.toggle-option.disabled {
+    opacity: 0.7;
+}
+
+.toggle-info {
+    flex: 1;
+    padding-right: var(--space-4);
+}
+
+.module-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.module-icon {
+    font-size: var(--font-size-xl);
+}
+
+.module-header h4 {
+    font-size: var(--font-size-base);
+    margin: 0;
+}
+
+.module-status {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-weight: 500;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--color-border);
+    transition: var(--transition-fast);
+    border-radius: var(--radius-full);
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: var(--transition-fast);
+    border-radius: var(--radius-full);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--color-accent);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.color-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.form-color {
+    width: 50px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.form-color-text {
+    flex: 1;
+    max-width: 150px;
+}
+
+.zip-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 250px;
+}
+
+.zip-input-wrapper .form-input {
+    flex: 1;
+}
+
+.form-label-hint {
+    font-weight: normal;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .toggle-option {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+    
+    .toggle-info {
+        padding-right: 0;
+    }
+}
+
+/* Integrations */
+.integration-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+}
+
+.integration-item:last-child {
+    margin-bottom: 0;
+}
+
+.integration-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.integration-info {
+    flex: 1;
+}
+
+.integration-info h4 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0 0 var(--space-1) 0;
+}
+
+.integration-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-2);
+}
+
+.integration-connected {
+    color: var(--color-success, #10b981);
+}
+
+.integration-disconnected {
+    color: var(--color-text-muted);
+}
+
+.integration-actions {
+    flex-shrink: 0;
+}
+
+.integration-coming-soon {
+    opacity: 0.6;
+}
+
+.coming-soon-badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    background: var(--color-border);
+    color: var(--color-text-muted);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-top: var(--space-2);
+}
+
+@media (max-width: 640px) {
+    .integration-item {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .integration-actions {
+        width: 100%;
+    }
+    
+    .integration-actions .btn {
+        width: 100%;
+    }
+}
+</style>
+
+<script>
+// Accent color handling
+document.getElementById('id_accent_color').addEventListener('input', function(e) {
+    document.getElementById('accent_color_text').value = e.target.value;
+});
+
+function clearAccentColor() {
+    document.getElementById('id_accent_color').value = '#6366f1';
+    document.getElementById('accent_color_text').value = '';
+    // Also clear the hidden field value
+    document.getElementById('id_accent_color').value = '';
+}
+
+// ZIP Code lookup using free Zippopotam.us API
+async function lookupZip() {
+    const zipInput = document.getElementById('zip_code');
+    const statusEl = document.getElementById('zip_status');
+    const cityInput = document.getElementById('id_location_city');
+    const stateInput = document.getElementById('id_location_country');
+    const timezoneSelect = document.getElementById('id_timezone');
+    
+    const zip = zipInput.value.trim();
+    
+    // Validate ZIP format
+    if (!/^\d{5}$/.test(zip)) {
+        statusEl.textContent = 'Please enter a valid 5-digit ZIP code';
+        statusEl.style.color = 'var(--color-error)';
+        return;
+    }
+    
+    statusEl.textContent = 'Looking up...';
+    statusEl.style.color = 'var(--color-text-muted)';
+    
+    try {
+        const response = await fetch(`https://api.zippopotam.us/us/${zip}`);
+        
+        if (!response.ok) {
+            throw new Error('ZIP code not found');
+        }
+        
+        const data = await response.json();
+        const place = data.places[0];
+        
+        // Fill in city and state
+        cityInput.value = place['place name'];
+        stateInput.value = `${place['state']}, US`;
+        
+        // Try to set timezone based on state
+        const stateTimezones = {
+            'Alabama': 'US/Central',
+            'Alaska': 'US/Alaska',
+            'Arizona': 'US/Mountain',
+            'Arkansas': 'US/Central',
+            'California': 'US/Pacific',
+            'Colorado': 'US/Mountain',
+            'Connecticut': 'US/Eastern',
+            'Delaware': 'US/Eastern',
+            'Florida': 'US/Eastern',
+            'Georgia': 'US/Eastern',
+            'Hawaii': 'US/Hawaii',
+            'Idaho': 'US/Mountain',
+            'Illinois': 'US/Central',
+            'Indiana': 'US/Eastern',
+            'Iowa': 'US/Central',
+            'Kansas': 'US/Central',
+            'Kentucky': 'US/Eastern',
+            'Louisiana': 'US/Central',
+            'Maine': 'US/Eastern',
+            'Maryland': 'US/Eastern',
+            'Massachusetts': 'US/Eastern',
+            'Michigan': 'US/Eastern',
+            'Minnesota': 'US/Central',
+            'Mississippi': 'US/Central',
+            'Missouri': 'US/Central',
+            'Montana': 'US/Mountain',
+            'Nebraska': 'US/Central',
+            'Nevada': 'US/Pacific',
+            'New Hampshire': 'US/Eastern',
+            'New Jersey': 'US/Eastern',
+            'New Mexico': 'US/Mountain',
+            'New York': 'US/Eastern',
+            'North Carolina': 'US/Eastern',
+            'North Dakota': 'US/Central',
+            'Ohio': 'US/Eastern',
+            'Oklahoma': 'US/Central',
+            'Oregon': 'US/Pacific',
+            'Pennsylvania': 'US/Eastern',
+            'Rhode Island': 'US/Eastern',
+            'South Carolina': 'US/Eastern',
+            'South Dakota': 'US/Central',
+            'Tennessee': 'US/Central',
+            'Texas': 'US/Central',
+            'Utah': 'US/Mountain',
+            'Vermont': 'US/Eastern',
+            'Virginia': 'US/Eastern',
+            'Washington': 'US/Pacific',
+            'West Virginia': 'US/Eastern',
+            'Wisconsin': 'US/Central',
+            'Wyoming': 'US/Mountain',
+            'District of Columbia': 'US/Eastern'
+        };
+        
+        const tz = stateTimezones[place['state']];
+        if (tz) {
+            // Find and select the matching timezone option
+            for (let option of timezoneSelect.options) {
+                if (option.value === tz) {
+                    option.selected = true;
+                    break;
+                }
+            }
+        }
+        
+        statusEl.textContent = `Found: ${place['place name']}, ${place['state abbreviation']}`;
+        statusEl.style.color = 'var(--color-success)';
+        
+    } catch (error) {
+        statusEl.textContent = 'ZIP code not found. Please enter city manually.';
+        statusEl.style.color = 'var(--color-error)';
+    }
+}
+
+// Allow Enter key to trigger lookup
+document.getElementById('zip_code').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        lookupZip();
+    }
+});
+</script>
+{% endblock %}

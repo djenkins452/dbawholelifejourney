@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}{{ pet.name }} - Pets{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:pet_list' %}">Pets</a>
+        <span>/</span>
+        <span>{{ pet.name }}</span>
+    </nav>
+    
+    <div class="pet-detail {% if not pet.is_active %}memorial{% endif %}">
+        <div class="pet-header">
+            <div class="pet-photo-large">
+                {% if pet.photo %}
+                <img src="{{ pet.photo.url }}" alt="{{ pet.name }}">
+                {% else %}
+                <div class="pet-placeholder-large">
+                    <span class="pet-emoji-large">
+                        {% if pet.species == 'dog' %}🐕
+                        {% elif pet.species == 'cat' %}🐈
+                        {% elif pet.species == 'bird' %}🐦
+                        {% elif pet.species == 'fish' %}🐟
+                        {% elif pet.species == 'rabbit' %}🐰
+                        {% elif pet.species == 'hamster' %}🐹
+                        {% elif pet.species == 'reptile' %}🦎
+                        {% else %}🐾{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="pet-header-info">
+                <h1 class="page-title">{{ pet.name }}</h1>
+                <p class="pet-subtitle">
+                    {{ pet.get_species_display }}
+                    {% if pet.breed %} · {{ pet.breed }}{% endif %}
+                </p>
+                
+                {% if pet.age %}
+                <p class="pet-age-display">{{ pet.age }} year{{ pet.age|pluralize }} old</p>
+                {% endif %}
+                
+                {% if not pet.is_active %}
+                <p class="memorial-note">🌈 In loving memory ({{ pet.passed_date|date:"M j, Y" }})</p>
+                {% endif %}
+                
+                <div class="pet-actions mt-4">
+                    <a href="{% url 'life:pet_update' pet.pk %}" class="btn btn-secondary">Edit</a>
+                    <a href="{% url 'life:pet_record_create' pet.pk %}" class="btn btn-primary">Add Record</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="pet-body">
+            <div class="pet-main">
+                {% if pet.notes %}
+                <section class="detail-section">
+                    <h2>About {{ pet.name }}</h2>
+                    <p>{{ pet.notes|linebreaks }}</p>
+                </section>
+                {% endif %}
+                
+                <!-- Records -->
+                <section class="detail-section">
+                    <div class="section-header">
+                        <h2>Records</h2>
+                        <a href="{% url 'life:pet_record_create' pet.pk %}" class="btn btn-sm btn-secondary">Add Record</a>
+                    </div>
+                    
+                    {% if records %}
+                    <div class="record-list">
+                        {% for record in records %}
+                        <div class="record-card">
+                            <div class="record-icon">
+                                {% if record.record_type == 'vet_visit' %}🏥
+                                {% elif record.record_type == 'vaccination' %}💉
+                                {% elif record.record_type == 'medication' %}💊
+                                {% elif record.record_type == 'grooming' %}✂️
+                                {% elif record.record_type == 'weight' %}⚖️
+                                {% else %}📝{% endif %}
+                            </div>
+                            <div class="record-content">
+                                <div class="record-header">
+                                    <span class="record-date">{{ record.date|date:"M j, Y" }}</span>
+                                    <span class="record-type">{{ record.get_record_type_display }}</span>
+                                </div>
+                                <h4 class="record-title">{{ record.title }}</h4>
+                                {% if record.description %}
+                                <p class="record-desc">{{ record.description|truncatewords:30 }}</p>
+                                {% endif %}
+                                {% if record.next_due_date %}
+                                <p class="record-next-due">
+                                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <polyline points="12 6 12 12 16 14"/>
+                                    </svg>
+                                    Next due: {{ record.next_due_date|date:"M j, Y" }}
+                                </p>
+                                {% endif %}
+                            </div>
+                            <div class="record-meta">
+                                {% if record.cost %}
+                                <span class="record-cost">${{ record.cost|floatformat:0 }}</span>
+                                {% endif %}
+                                <div class="record-actions">
+                                    <a href="{% url 'life:pet_record_update' record.pk %}" class="record-action">Edit</a>
+                                    <a href="{% url 'life:pet_record_delete' record.pk %}" class="record-action delete">Delete</a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="no-records">
+                        <p>No records yet for {{ pet.name }}.</p>
+                        <a href="{% url 'life:pet_record_create' pet.pk %}" class="btn btn-secondary btn-sm">Add First Record</a>
+                    </div>
+                    {% endif %}
+                </section>
+            </div>
+            
+            <aside class="pet-sidebar">
+                <div class="sidebar-card">
+                    <h3>Details</h3>
+                    <dl class="detail-list">
+                        {% if pet.color %}
+                        <dt>Color</dt>
+                        <dd>{{ pet.color }}</dd>
+                        {% endif %}
+                        
+                        {% if pet.weight %}
+                        <dt>Weight</dt>
+                        <dd>{{ pet.weight }} lbs</dd>
+                        {% endif %}
+                        
+                        {% if pet.birth_date %}
+                        <dt>Birthday</dt>
+                        <dd>{{ pet.birth_date|date:"M j, Y" }}</dd>
+                        {% endif %}
+                        
+                        {% if pet.adoption_date %}
+                        <dt>Adoption Date</dt>
+                        <dd>{{ pet.adoption_date|date:"M j, Y" }}</dd>
+                        {% endif %}
+                        
+                        {% if pet.microchip_id %}
+                        <dt>Microchip</dt>
+                        <dd>{{ pet.microchip_id }}</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+                
+                {% if pet.veterinarian or pet.vet_phone %}
+                <div class="sidebar-card">
+                    <h3>Veterinarian</h3>
+                    {% if pet.veterinarian %}
+                    <p class="vet-name">{{ pet.veterinarian }}</p>
+                    {% endif %}
+                    {% if pet.vet_phone %}
+                    <p class="vet-phone">
+                        <a href="tel:{{ pet.vet_phone }}">{{ pet.vet_phone }}</a>
+                    </p>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </aside>
+        </div>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.pet-detail.memorial {
+    opacity: 0.85;
+}
+
+.pet-header {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-8);
+}
+
+@media (max-width: 640px) {
+    .pet-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+}
+
+.pet-photo-large {
+    width: 200px;
+    height: 200px;
+    flex-shrink: 0;
+}
+
+.pet-photo-large img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: var(--radius-xl);
+}
+
+.pet-placeholder-large {
+    width: 100%;
+    height: 100%;
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pet-emoji-large {
+    font-size: 5rem;
+}
+
+.pet-header-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.pet-subtitle {
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.pet-age-display {
+    font-size: var(--font-size-lg);
+    color: var(--color-accent);
+    margin-top: var(--space-2);
+}
+
+.memorial-note {
+    font-style: italic;
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+}
+
+.pet-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.pet-body {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: var(--space-6);
+}
+
+@media (max-width: 900px) {
+    .pet-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+.detail-section {
+    margin-bottom: var(--space-8);
+}
+
+.detail-section h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header h2 {
+    margin: 0;
+}
+
+.record-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.record-card {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.record-icon {
+    font-size: 1.5rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.record-content {
+    flex: 1;
+}
+
+.record-header {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin-bottom: var(--space-1);
+}
+
+.record-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    font-weight: 500;
+}
+
+.record-type {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.record-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-1) 0;
+}
+
+.record-desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.record-next-due {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    margin: var(--space-2) 0 0 0;
+}
+
+.record-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+.record-cost {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.record-actions {
+    display: flex;
+    gap: var(--space-2);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.record-card:hover .record-actions {
+    opacity: 1;
+}
+
+.record-action {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.record-action:hover {
+    color: var(--color-accent);
+}
+
+.record-action.delete:hover {
+    color: var(--color-error);
+}
+
+.no-records {
+    padding: var(--space-6);
+    text-align: center;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.no-records p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.sidebar-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+
+.sidebar-card h3 {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.detail-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.detail-list dt {
+    color: var(--color-text-muted);
+}
+
+.detail-list dd {
+    margin: 0;
+}
+
+.vet-name {
+    font-weight: 500;
+    margin: 0 0 var(--space-1) 0;
+}
+
+.vet-phone {
+    margin: 0;
+}
+
+.vet-phone a {
+    color: var(--color-accent);
+}
+</style>
+{% endblock %}

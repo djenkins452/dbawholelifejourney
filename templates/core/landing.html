@@ -1,250 +1,185 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Whole Life Journey - Live with Clarity and Intention{% endblock %}
+{% block title %}Whole Life Journey - Your Personal Life Operating System{% endblock %}
 
-{% block body %}
+{% block content %}
 <div class="landing-page">
     <!-- Hero Section -->
-    <header class="landing-header">
-        <nav class="landing-nav">
-            <a href="{% url 'core:landing' %}" class="landing-logo">
-                <img src="{% static 'icons/common/logo.svg' %}" alt="" class="landing-logo-icon">
-                <span>Whole Life Journey</span>
-            </a>
-            <div class="landing-nav-links">
-                <a href="{% url 'account_login' %}" class="btn btn-ghost">Sign In</a>
-                <a href="{% url 'account_signup' %}" class="btn btn-primary">Get Started</a>
-            </div>
-        </nav>
-        
-        <div class="hero">
-            <div class="hero-content">
-                <h1 class="hero-title">Live with clarity, intention, and peace.</h1>
-                <p class="hero-subtitle">
-                    A calm space for reflection and growth. Track your journey across 
-                    faith, health, and life — without pressure or guilt.
-                </p>
-                <div class="hero-actions">
+    <section class="hero">
+        <div class="hero-content">
+            <img src="{% static 'images/wlj-logo.png' %}" alt="Whole Life Journey" class="hero-logo">
+            <p class="hero-tagline">
+                A calm, intentional space to reflect, track, and grow across every area of your life.
+            </p>
+            <div class="hero-actions">
+                {% if user.is_authenticated %}
+                    <a href="{% url 'dashboard:home' %}" class="btn btn-primary btn-lg">
+                        Go to Dashboard
+                    </a>
+                {% else %}
                     <a href="{% url 'account_signup' %}" class="btn btn-primary btn-lg">
-                        Start Your Journey
+                        Get Started Free
                     </a>
-                    <a href="{% url 'core:about' %}" class="btn btn-secondary btn-lg">
-                        Learn More
+                    <a href="{% url 'account_login' %}" class="btn btn-ghost btn-lg">
+                        Sign In
                     </a>
-                </div>
+                {% endif %}
             </div>
         </div>
-    </header>
+    </section>
     
     <!-- Features Section -->
-    <section class="landing-section">
-        <div class="container">
-            <h2 class="section-title text-center">Everything in one place. Nothing overwhelming.</h2>
+    <section class="features">
+        <h2 class="section-title">One Place for Your Whole Life</h2>
+        <p class="section-subtitle">
+            Stop juggling multiple apps. Bring your reflections, health, faith, and goals together.
+        </p>
+        
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📝</div>
+                <h3>Journal</h3>
+                <p>Daily reflections with guided prompts, mood tracking, and personal entries.</p>
+            </div>
             
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">Journal</h3>
-                    <p class="feature-description">
-                        A safe space for your thoughts. Write freely, track your mood, 
-                        and discover patterns over time.
-                    </p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 2v20M2 12h20"/>
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">Faith</h3>
-                    <p class="feature-description">
-                        Ground your journey in Scripture. Daily verses, prayer reflections, 
-                        and spiritual growth — when you're ready.
-                    </p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                        </svg>
-                    </div>
-                    <h3 class="feature-title">Health</h3>
-                    <p class="feature-description">
-                        Track what matters. Weight, fasting, heart rate — connected to 
-                        your whole story, not isolated metrics.
-                    </p>
-                </div>
+            <div class="feature-card">
+                <div class="feature-icon">✝️</div>
+                <h3>Faith</h3>
+                <p>Scripture reading, prayer requests, and faith milestones to nurture your spiritual life.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">❤️</div>
+                <h3>Health</h3>
+                <p>Track weight, fasting, heart rate, and glucose with gentle, judgment-free insights.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <h3>Goals</h3>
+                <p class="coming-soon">Coming Soon — Set meaningful goals and track your progress.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">💰</div>
+                <h3>Finances</h3>
+                <p class="coming-soon">Coming Soon — Budget tracking and financial peace of mind.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🔄</div>
+                <h3>Habits</h3>
+                <p class="coming-soon">Coming Soon — Build positive habits with streaks and reminders.</p>
             </div>
         </div>
     </section>
     
     <!-- Philosophy Section -->
-    <section class="landing-section landing-section-alt">
-        <div class="container">
-            <div class="philosophy-content">
-                <h2 class="section-title">Built different. On purpose.</h2>
-                <div class="philosophy-grid">
-                    <div class="philosophy-item">
-                        <span class="philosophy-label">Calm</span>
-                        <span class="philosophy-vs">over</span>
-                        <span class="philosophy-value">clever</span>
-                    </div>
-                    <div class="philosophy-item">
-                        <span class="philosophy-label">Simple</span>
-                        <span class="philosophy-vs">over</span>
-                        <span class="philosophy-value">complex</span>
-                    </div>
-                    <div class="philosophy-item">
-                        <span class="philosophy-label">Respect</span>
-                        <span class="philosophy-vs">over</span>
-                        <span class="philosophy-value">pressure</span>
-                    </div>
-                    <div class="philosophy-item">
-                        <span class="philosophy-label">Reflection</span>
-                        <span class="philosophy-vs">over</span>
-                        <span class="philosophy-value">performance</span>
-                    </div>
-                </div>
-                <p class="philosophy-description">
-                    No gamification. No guilt trips. No endless notifications. 
-                    Just a quiet companion for your journey.
-                </p>
-            </div>
+    <section class="philosophy">
+        <div class="philosophy-content">
+            <h2>Built for Real Life</h2>
+            <p>
+                Whole Life Journey isn't about perfection or productivity hacks. 
+                It's a quiet companion for your journey — helping you notice patterns, 
+                celebrate progress, and navigate life's seasons with intention.
+            </p>
+            <ul class="philosophy-list">
+                <li>✓ No guilt, no pressure — just gentle support</li>
+                <li>✓ Your data stays private and secure</li>
+                <li>✓ Faith-friendly, but never pushy</li>
+                <li>✓ Works on any device</li>
+            </ul>
         </div>
     </section>
     
     <!-- CTA Section -->
-    <section class="landing-section landing-cta">
-        <div class="container text-center">
-            <h2 class="cta-title">Ready to begin?</h2>
-            <p class="cta-subtitle">
-                Your journey is waiting. Start with a free account.
-            </p>
+    <section class="cta">
+        <h2>Start Your Journey Today</h2>
+        <p>Free to use. No credit card required.</p>
+        {% if not user.is_authenticated %}
             <a href="{% url 'account_signup' %}" class="btn btn-primary btn-lg">
-                Create Your Account
+                Create Your Free Account
             </a>
-        </div>
+        {% endif %}
     </section>
     
     <!-- Footer -->
     <footer class="landing-footer">
-        <div class="container">
-            <div class="landing-footer-content">
-                <p>&copy; {% now "Y" %} Beacon Innovations LLC dba Whole Life Journey</p>
-                <nav class="landing-footer-nav">
-                    <a href="{% url 'core:terms' %}">Terms</a>
-                    <a href="{% url 'core:privacy' %}">Privacy</a>
-                    <a href="{% url 'core:about' %}">About</a>
-                </nav>
+        <div class="footer-content">
+            <div class="footer-brand">
+                <img src="{% static 'images/wlj-logo.png' %}" alt="Whole Life Journey" class="footer-logo">
+                <p>© 2025 Beacon Innovations LLC. All rights reserved.</p>
+            </div>
+            <div class="footer-links">
+                <a href="{% url 'core:about' %}">About</a>
+                <a href="{% url 'core:privacy' %}">Privacy</a>
+                <a href="{% url 'core:terms' %}">Terms</a>
             </div>
         </div>
     </footer>
 </div>
 
 <style>
-/* Landing Page Specific Styles */
 .landing-page {
     min-height: 100vh;
 }
 
-.landing-header {
-    background: linear-gradient(135deg, var(--color-primary) 0%, color-mix(in srgb, var(--color-primary) 80%, black) 100%);
-    color: white;
-    padding-bottom: var(--space-16);
-}
-
-.landing-nav {
-    max-width: var(--container-max-width);
-    margin: 0 auto;
-    padding: var(--space-4);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.landing-logo {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    color: white;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: var(--font-size-lg);
-}
-
-.landing-logo-icon {
-    width: 32px;
-    height: 32px;
-}
-
-.landing-nav-links {
-    display: flex;
-    gap: var(--space-2);
-}
-
-.landing-nav .btn-ghost {
-    color: rgba(255,255,255,0.9);
-}
-
-.landing-nav .btn-ghost:hover {
-    background: rgba(255,255,255,0.1);
-}
-
+/* Hero */
 .hero {
-    max-width: var(--container-max-width);
-    margin: 0 auto;
-    padding: var(--space-16) var(--space-4);
     text-align: center;
+    padding: var(--space-16) var(--space-4);
+    background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-background) 100%);
 }
 
-.hero-title {
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin-bottom: var(--space-4);
-    line-height: 1.2;
+.hero-content {
+    max-width: 700px;
+    margin: 0 auto;
 }
 
-@media (min-width: 768px) {
-    .hero-title {
-        font-size: 3.5rem;
-    }
+.hero-logo {
+    width: 200px;
+    height: auto;
+    margin-bottom: var(--space-6);
 }
 
-.hero-subtitle {
+.hero-tagline {
     font-size: var(--font-size-xl);
-    opacity: 0.9;
-    max-width: 600px;
-    margin: 0 auto var(--space-8);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-8);
+    line-height: var(--line-height-relaxed);
 }
 
 .hero-actions {
     display: flex;
-    gap: var(--space-4);
     justify-content: center;
+    gap: var(--space-4);
     flex-wrap: wrap;
 }
 
-.landing-section {
-    padding: var(--space-16) 0;
-}
-
-.landing-section-alt {
-    background-color: var(--color-surface);
+/* Features */
+.features {
+    padding: var(--space-16) var(--space-4);
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
 .section-title {
+    text-align: center;
     font-size: var(--font-size-2xl);
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-2);
 }
 
-.features-grid {
+.section-subtitle {
+    text-align: center;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-10);
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.feature-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: var(--space-6);
@@ -256,115 +191,146 @@
     border-radius: var(--radius-lg);
     padding: var(--space-6);
     text-align: center;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
 }
 
 .feature-icon {
-    width: 48px;
-    height: 48px;
-    margin: 0 auto var(--space-4);
-    color: var(--color-accent);
+    font-size: 2.5rem;
+    margin-bottom: var(--space-4);
 }
 
-.feature-icon svg {
-    width: 100%;
-    height: 100%;
-}
-
-.feature-title {
+.feature-card h3 {
     font-size: var(--font-size-lg);
     margin-bottom: var(--space-2);
 }
 
-.feature-description {
+.feature-card p {
     color: var(--color-text-muted);
     margin: 0;
 }
 
-.philosophy-content {
-    text-align: center;
-}
-
-.philosophy-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-4);
-    margin-bottom: var(--space-6);
-}
-
-.philosophy-item {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: var(--space-4);
-}
-
-.philosophy-label {
-    font-weight: 600;
-    color: var(--color-accent);
-}
-
-.philosophy-vs {
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-}
-
-.philosophy-value {
-    color: var(--color-text-muted);
-    text-decoration: line-through;
+.feature-card p.coming-soon {
+    font-style: italic;
     opacity: 0.7;
 }
 
-.philosophy-description {
-    color: var(--color-text-muted);
-    max-width: 500px;
-    margin: 0 auto;
-}
-
-.landing-cta {
-    background-color: var(--color-primary);
-    color: white;
-}
-
-.cta-title {
-    color: white;
-    margin-bottom: var(--space-2);
-}
-
-.cta-subtitle {
-    opacity: 0.9;
-    margin-bottom: var(--space-6);
-}
-
-.landing-footer {
+/* Philosophy */
+.philosophy {
     background: var(--color-surface);
-    border-top: 1px solid var(--color-border);
-    padding: var(--space-6) 0;
+    padding: var(--space-16) var(--space-4);
 }
 
-.landing-footer-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-4);
+.philosophy-content {
+    max-width: 700px;
+    margin: 0 auto;
     text-align: center;
 }
 
-@media (min-width: 768px) {
-    .landing-footer-content {
-        flex-direction: row;
-        justify-content: space-between;
-    }
+.philosophy h2 {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-4);
 }
 
-.landing-footer-nav {
+.philosophy p {
+    color: var(--color-text-muted);
+    line-height: var(--line-height-relaxed);
+    margin-bottom: var(--space-6);
+}
+
+.philosophy-list {
+    list-style: none;
+    padding: 0;
+    text-align: left;
+    display: inline-block;
+}
+
+.philosophy-list li {
+    padding: var(--space-2) 0;
+    color: var(--color-text);
+}
+
+/* CTA */
+.cta {
+    text-align: center;
+    padding: var(--space-16) var(--space-4);
+}
+
+.cta h2 {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-2);
+}
+
+.cta p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+
+/* Footer */
+.landing-footer {
+    background: var(--color-surface);
+    padding: var(--space-8) var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.footer-content {
+    max-width: 1200px;
+    margin: 0 auto;
     display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-4);
 }
 
-.landing-footer-nav a {
+.footer-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.footer-logo {
+    height: 40px;
+    width: auto;
+}
+
+.footer-brand p {
+    margin: 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
+}
+
+.footer-links {
+    display: flex;
+    gap: var(--space-6);
+}
+
+.footer-links a {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.footer-links a:hover {
+    color: var(--color-accent);
+}
+
+@media (max-width: 768px) {
+    .hero-logo {
+        width: 150px;
+    }
+    
+    .footer-content {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .footer-brand {
+        flex-direction: column;
+    }
 }
 </style>
 {% endblock %}

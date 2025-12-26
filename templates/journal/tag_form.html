@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Tag{% else %}New Tag{% endif %} - Journal - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit Tag{% else %}Create New Tag{% endif %}</h1>
+        <p class="page-subtitle">Tags help you organize and find entries quickly.</p>
+    </div>
+    
+    <form method="post" class="card">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="id_name" class="form-label">Tag Name</label>
+            <input 
+                type="text" 
+                name="name" 
+                id="id_name" 
+                class="form-input"
+                value="{{ form.name.value|default:'' }}"
+                placeholder="e.g., Work, Family, Goals"
+                required
+                maxlength="50"
+            >
+            {% if form.name.errors %}
+                <p class="form-error">{{ form.name.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="form-group">
+            <label for="id_color" class="form-label">Tag Color (optional)</label>
+            <div class="color-picker-wrapper">
+                <input 
+                    type="color" 
+                    name="color" 
+                    id="id_color" 
+                    class="form-color"
+                    value="{{ form.color.value|default:'#6366f1' }}"
+                >
+                <span class="color-preview" id="colorPreview">
+                    <span class="tag-preview" id="tagPreview">{{ form.name.value|default:'Preview' }}</span>
+                </span>
+            </div>
+            <p class="form-help">Choose a color to help identify this tag.</p>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Create Tag{% endif %}
+            </button>
+            <a href="{% url 'journal:tag_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.color-picker-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.form-color {
+    width: 60px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    background: transparent;
+}
+
+.form-color::-webkit-color-swatch-wrapper {
+    padding: 4px;
+}
+
+.form-color::-webkit-color-swatch {
+    border: none;
+    border-radius: var(--radius-sm);
+}
+
+.color-preview {
+    display: flex;
+    align-items: center;
+}
+
+.tag-preview {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    background: var(--color-surface);
+    border-left: 3px solid var(--color-accent);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const colorInput = document.getElementById('id_color');
+    const nameInput = document.getElementById('id_name');
+    const tagPreview = document.getElementById('tagPreview');
+    
+    function updatePreview() {
+        const color = colorInput.value;
+        tagPreview.style.borderLeftColor = color;
+        tagPreview.style.backgroundColor = color + '20'; // 20 = ~12% opacity in hex
+        tagPreview.style.color = color;
+        tagPreview.textContent = nameInput.value || 'Preview';
+    }
+    
+    colorInput.addEventListener('input', updatePreview);
+    nameInput.addEventListener('input', updatePreview);
+    
+    // Initial preview
+    updatePreview();
+});
+</script>
+{% endblock %}

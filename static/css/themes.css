@@ -1,16 +1,171 @@
 /*
  * Whole Life Journey - Theme Styles
  * 
- * Five themes that shape the visual experience:
- * 1. Faith - Peaceful, grounded, spiritually respectful
- * 2. Sports - Goal-driven, disciplined, focused
- * 3. Nature - Warm, calming, emotionally safe
- * 4. Outdoors - Curious, expansive, journey-focused
- * 5. Minimal - Quiet, clear, intentional (default)
+ * Six themes that shape the visual experience:
+ * 1. Light - Clean, bright, modern
+ * 2. Dark - Easy on the eyes, modern dark mode
+ * 3. Faith - Peaceful, grounded, spiritually respectful
+ * 4. Sports - Goal-driven, disciplined, focused
+ * 5. Nature - Warm, calming, emotionally safe
+ * 6. Outdoors - Curious, expansive, journey-focused
+ * 7. Minimal - Quiet, clear, intentional (default)
  */
 
 /* ==========================================================================
-   Theme 1: Christian Faith
+   Theme 1: Light
+   Clean, bright, modern
+   ========================================================================== */
+
+[data-theme="light"],
+.theme-light {
+    --color-primary: #3b82f6;
+    --color-secondary: #ffffff;
+    --color-accent: #3b82f6;
+    --color-text: #1f2937;
+    --color-text-muted: #6b7280;
+    --color-background: #ffffff;
+    --color-surface: #f9fafb;
+    --color-border: #e5e7eb;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+}
+
+.theme-light .site-header {
+    background-color: var(--color-background);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* ==========================================================================
+   Theme 2: Dark
+   Easy on the eyes, modern dark mode
+   ========================================================================== */
+
+[data-theme="dark"],
+.theme-dark {
+    --color-primary: #60a5fa;
+    --color-secondary: #1f2937;
+    --color-accent: #60a5fa;
+    --color-text: #f9fafb;
+    --color-text-muted: #9ca3af;
+    --color-background: #111827;
+    --color-surface: #1f2937;
+    --color-border: #374151;
+    --color-success: #34d399;
+    --color-warning: #fbbf24;
+    --color-error: #f87171;
+}
+
+.theme-dark .site-header {
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.theme-dark .nav-logo-text,
+.theme-dark .nav-link,
+.theme-dark .nav-user-name {
+    color: var(--color-text);
+}
+
+.theme-dark .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-dark .nav-link.active {
+    background-color: rgba(96, 165, 250, 0.2);
+    color: var(--color-accent);
+}
+
+.theme-dark .nav-user-initial {
+    background-color: var(--color-accent);
+    color: #111827;
+}
+
+.theme-dark .card {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+.theme-dark .form-input,
+.theme-dark .form-select,
+.theme-dark .form-textarea {
+    background-color: var(--color-background);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+
+.theme-dark .form-input:focus,
+.theme-dark .form-select:focus,
+.theme-dark .form-textarea:focus {
+    border-color: var(--color-accent);
+}
+
+.theme-dark .btn-secondary {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+
+.theme-dark .btn-secondary:hover {
+    background-color: var(--color-border);
+}
+
+.theme-dark .btn-ghost {
+    color: var(--color-text-muted);
+}
+
+.theme-dark .btn-ghost:hover {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+}
+
+.theme-dark .dashboard-tile {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+.theme-dark .tile-stats {
+    border-color: var(--color-border);
+}
+
+.theme-dark .recent-link:hover {
+    background-color: var(--color-background);
+}
+
+.theme-dark .encouragement-card {
+    background: linear-gradient(135deg, var(--color-surface) 0%, rgba(96, 165, 250, 0.1) 100%);
+    border-left: 4px solid var(--color-accent);
+}
+
+.theme-dark .toggle-option {
+    background-color: var(--color-background);
+    border-color: var(--color-border);
+}
+
+.theme-dark .health-metric {
+    background-color: var(--color-background);
+}
+
+.theme-dark .todays-verse {
+    background-color: var(--color-background);
+}
+
+.theme-dark .prompt-card {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+.theme-dark .filter-tag {
+    background-color: var(--color-surface);
+}
+
+.theme-dark .site-footer {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+/* ==========================================================================
+   Theme 3: Christian Faith
    Peaceful, grounded, spiritually respectful
    ========================================================================== */
 
@@ -24,6 +179,9 @@
     --color-background: #faf8f5;
     --color-surface: #f5f1eb;
     --color-border: #e2dcd2;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
 }
 
 .theme-faith .site-header {
@@ -55,7 +213,7 @@
 }
 
 /* ==========================================================================
-   Theme 2: Sports & Performance
+   Theme 4: Sports & Performance
    Goal-driven, disciplined, focused
    ========================================================================== */
 
@@ -69,6 +227,9 @@
     --color-background: #ffffff;
     --color-surface: #f3f4f6;
     --color-border: #e5e7eb;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
 }
 
 .theme-sports .site-header {
@@ -99,13 +260,8 @@
     color: white;
 }
 
-/* Sports theme with blue accent variant */
-.theme-sports[data-accent="blue"] {
-    --color-accent: #2563eb;
-}
-
 /* ==========================================================================
-   Theme 3: Animals & Nature
+   Theme 5: Animals & Nature
    Warm, calming, emotionally safe
    ========================================================================== */
 
@@ -119,6 +275,9 @@
     --color-background: #fefce8;
     --color-surface: #f7f9e8;
     --color-border: #d9e4c3;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
 }
 
 .theme-nature .site-header {
@@ -151,7 +310,7 @@
 }
 
 /* ==========================================================================
-   Theme 4: Outdoors & Adventure
+   Theme 6: Outdoors & Adventure
    Curious, expansive, journey-focused
    ========================================================================== */
 
@@ -165,6 +324,9 @@
     --color-background: #fffbeb;
     --color-surface: #fef3c7;
     --color-border: #e2d5b7;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
 }
 
 .theme-outdoors .site-header {
@@ -196,7 +358,7 @@
 }
 
 /* ==========================================================================
-   Theme 5: Minimal / Life Focus (Default)
+   Theme 7: Minimal / Life Focus (Default)
    Quiet, clear, intentional
    ========================================================================== */
 
@@ -210,12 +372,88 @@
     --color-background: #ffffff;
     --color-surface: #f9fafb;
     --color-border: #e5e7eb;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
 }
 
 /* Minimal theme keeps the light header by default */
 .theme-minimal .site-header {
     background-color: var(--color-background);
     border-bottom: 1px solid var(--color-border);
+}
+
+/* ==========================================================================
+   Global Button Styles Using CSS Variables
+   These use var(--color-accent) so custom accent colors work
+   ========================================================================== */
+
+.btn-primary {
+    background-color: var(--color-accent);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 85%, black);
+}
+
+.btn-secondary {
+    background-color: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+}
+
+.btn-secondary:hover {
+    background-color: var(--color-surface);
+}
+
+/* Links and accents should use the accent color */
+a {
+    color: var(--color-accent);
+}
+
+a:hover {
+    color: color-mix(in srgb, var(--color-accent) 80%, black);
+}
+
+/* Focus states */
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+/* Toggle switch accent */
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--color-accent);
+}
+
+/* Active nav link */
+.nav-link.active {
+    color: var(--color-accent);
+}
+
+/* Accent colored elements */
+.tile-icon,
+.quick-action-icon,
+.nav-link-icon {
+    color: var(--color-accent);
+}
+
+.tile-link {
+    color: var(--color-accent);
+}
+
+/* Module status badges */
+.status-active {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.status-coming {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
 }
 
 /* ==========================================================================
@@ -247,26 +485,6 @@
 }
 
 /* ==========================================================================
-   Theme-Specific Button Accents
-   ========================================================================== */
-
-/* Ensure buttons use theme accent colors properly */
-.theme-faith .btn-primary { background-color: #d4a574; }
-.theme-faith .btn-primary:hover { background-color: #c49464; }
-
-.theme-sports .btn-primary { background-color: #dc2626; }
-.theme-sports .btn-primary:hover { background-color: #b91c1c; }
-
-.theme-nature .btn-primary { background-color: #2d5a27; }
-.theme-nature .btn-primary:hover { background-color: #234a1f; }
-
-.theme-outdoors .btn-primary { background-color: #f97316; }
-.theme-outdoors .btn-primary:hover { background-color: #ea580c; }
-
-.theme-minimal .btn-primary { background-color: #6366f1; }
-.theme-minimal .btn-primary:hover { background-color: #4f46e5; }
-
-/* ==========================================================================
    Encouragement / Scripture Styling by Theme
    ========================================================================== */
 
@@ -274,6 +492,12 @@
     padding: var(--space-6);
     border-radius: var(--radius-lg);
     margin-bottom: var(--space-6);
+}
+
+.theme-light .encouragement-card,
+.theme-minimal .encouragement-card {
+    background: linear-gradient(135deg, var(--color-surface) 0%, color-mix(in srgb, var(--color-accent) 10%, var(--color-surface)) 100%);
+    border-left: 4px solid var(--color-accent);
 }
 
 .theme-faith .encouragement-card {
@@ -294,11 +518,6 @@
 .theme-outdoors .encouragement-card {
     background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
     border-left: 4px solid #f97316;
-}
-
-.theme-minimal .encouragement-card {
-    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
-    border-left: 4px solid #6366f1;
 }
 
 .scripture-reference {

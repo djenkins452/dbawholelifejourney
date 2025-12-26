@@ -12,12 +12,19 @@ User = get_user_model()
 
 class ProfileForm(forms.ModelForm):
     """
-    Form for editing user profile (name, email).
+    Form for editing user profile (name, email, avatar).
     """
+    
+    # Add a clear avatar checkbox
+    clear_avatar = forms.BooleanField(
+        required=False,
+        label="Remove current photo",
+        widget=forms.CheckboxInput(attrs={"class": "form-checkbox"})
+    )
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email"]
+        fields = ["first_name", "last_name", "email", "avatar"]
         widgets = {
             "first_name": forms.TextInput(attrs={
                 "class": "form-input",
@@ -31,7 +38,40 @@ class ProfileForm(forms.ModelForm):
                 "class": "form-input",
                 "placeholder": "Email address",
             }),
+            "avatar": forms.FileInput(attrs={
+                "class": "form-file-input",
+                "accept": "image/*",
+            }),
         }
+        help_texts = {
+            "email": "Changing your email will update your login credentials.",
+            "avatar": "Upload a profile picture (JPG, PNG, GIF). Max 2MB.",
+        }
+    
+    def clean_avatar(self):
+        avatar = self.cleaned_data.get('avatar')
+        if avatar:
+            # Check file size (2MB limit)
+            if avatar.size > 2 * 1024 * 1024:
+                raise forms.ValidationError("Image file too large. Maximum size is 2MB.")
+            # Check file type
+            if not avatar.content_type.startswith('image/'):
+                raise forms.ValidationError("Please upload an image file.")
+        return avatar
+    
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        
+        # Handle clear avatar checkbox
+        if self.cleaned_data.get('clear_avatar'):
+            # Delete old avatar file if it exists
+            if user.avatar:
+                user.avatar.delete(save=False)
+            user.avatar = None
+        
+        if commit:
+            user.save()
+        return user
 
 
 class PreferencesForm(forms.ModelForm):
@@ -44,8 +84,20 @@ class PreferencesForm(forms.ModelForm):
         fields = [
             "theme",
             "accent_color",
+            # Module toggles
+            "journal_enabled",
             "faith_enabled",
+            "health_enabled",
+            "life_enabled",
+            "purpose_enabled",
+            "goals_enabled",
+            "finances_enabled",
+            "relationships_enabled",
+            "habits_enabled",
+            # AI
             "ai_enabled",
+            'ai_coaching_style',
+            # Location
             "location_city",
             "location_country",
             "timezone",
@@ -59,12 +111,38 @@ class PreferencesForm(forms.ModelForm):
                 "type": "color",
                 "placeholder": "#6366f1",
             }),
+            # Module toggles
+            "journal_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
             "faith_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "health_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "life_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "purpose_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "goals_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "finances_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "relationships_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "habits_enabled": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
             "ai_enabled": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
+            # Location
             "location_city": forms.TextInput(attrs={
                 "class": "form-input",
                 "placeholder": "City",
@@ -77,16 +155,10 @@ class PreferencesForm(forms.ModelForm):
                 "class": "form-select",
             }),
         }
-        help_texts = {
-            "faith_enabled": "Enable the Faith module and faith-aware content throughout the app.",
-            "ai_enabled": "Enable AI-powered insights and reflections based on your entries.",
-            "accent_color": "Leave blank to use the theme's default accent color.",
-        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Generate timezone choices
-        import pytz
         common_timezones = [
             ("UTC", "UTC"),
             ("US/Eastern", "US Eastern"),

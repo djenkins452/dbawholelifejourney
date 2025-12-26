@@ -9,13 +9,15 @@ from pathlib import Path
 
 import environ
 
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Environment variables
 env = environ.Env(
     DEBUG=(bool, False),
-    ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
 )
 
 # Read .env file if it exists
@@ -27,9 +29,10 @@ if env_file.exists():
 SECRET_KEY = env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env("DEBUG")
+DEBUG = env.bool("DEBUG", default=False)
 
-ALLOWED_HOSTS = env("ALLOWED_HOSTS")
+# Parse ALLOWED_HOSTS properly (handles comma-separated string)
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
 # Application definition
 INSTALLED_APPS = [
@@ -52,6 +55,12 @@ INSTALLED_APPS = [
     "apps.users",
     "apps.dashboard",
     "apps.journal",
+    "apps.faith",
+    "apps.health",
+    "apps.admin_console",
+    "apps.life",
+    'apps.purpose',
+    'apps.ai',
 ]
 
 MIDDLEWARE = [
@@ -82,6 +91,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.theme_context",
+                "apps.core.context_processors.site_context", 
             ],
         },
     },
@@ -93,10 +103,22 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-# Use DATABASE_URL from environment (Railway provides this)
-DATABASES = {
-    "default": env.db("DATABASE_URL", default="sqlite:///db.sqlite3"),
-}
+# Database
+# Use DATABASE_URL if provided (Railway provides this), otherwise SQLite
+DATABASE_URL = env("DATABASE_URL", default="")
+if DATABASE_URL:
+    DATABASES = {
+        "default": env.db("DATABASE_URL"),
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
+
 
 
 # Password validation
@@ -170,6 +192,8 @@ AUTHENTICATION_BACKENDS = [
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_LOGOUT_ON_GET = True
 ACCOUNT_PRESERVE_USERNAME_CASING = False
@@ -180,8 +204,10 @@ ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_AUTHENTICATION_METHOD = "email"
-ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+ACCOUNT_EMAIL_VERIFICATION = "none"  #"mandatory"
 ACCOUNT_LOGIN_ON_PASSWORD_RESET = True
+
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 
 LOGIN_REDIRECT_URL = "dashboard:home"
 LOGOUT_REDIRECT_URL = "core:landing"
@@ -204,9 +230,11 @@ else:
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@wholelifejourney.com")
 
 
-# Security Settings (production)
+# Security Settings - ONLY apply in production (when DEBUG is False)
+# These settings require HTTPS and will break local development if enabled
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+    # Only enable SSL redirect if explicitly set (for production)
+    SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
@@ -215,6 +243,11 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+else:
+    # Explicitly disable SSL for local development
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
 
 
 # Whole Life Journey Custom Settings
@@ -269,3 +302,20 @@ WLJ_SETTINGS = {
     # Terms of Service version (increment when terms change)
     "TERMS_VERSION": "1.0",
 }
+
+# Bible API
+BIBLE_API_KEY = os.environ.get('BIBLE_API_KEY', 'mwa_ZKeSL5nB0VZ_tcRxt')
+
+
+
+# Debug output (remove in production)
+if DEBUG:
+    print(f"DEBUG = {DEBUG}")
+    print(f"ALLOWED_HOSTS = {ALLOWED_HOSTS}")
+    print(f"SECURE_SSL_REDIRECT = {SECURE_SSL_REDIRECT}")
+
+# Google Calendar Integration
+GOOGLE_CALENDAR_CLIENT_ID = env('GOOGLE_CALENDAR_CLIENT_ID', default='')
+GOOGLE_CALENDAR_CLIENT_SECRET = env('GOOGLE_CALENDAR_CLIENT_SECRET', default='')
+GOOGLE_CALENDAR_REDIRECT_URI = 'http://localhost:8000/life/calendar/google/callback/'
+    

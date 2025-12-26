@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit {{ object.name }}{% else %}Add Pet{% endif %} - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:pet_list' %}">Pets</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Add{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="form-header">
+            <h1 class="page-title">{% if object %}Edit {{ object.name }}{% else %}Add a Pet{% endif %}</h1>
+            <p class="page-subtitle">Tell us about your furry family member</p>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data" class="life-form">
+            {% csrf_token %}
+            
+            <div class="form-section">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_name" class="form-label">Name</label>
+                        <input type="text" name="name" id="id_name" class="form-input" 
+                               value="{{ form.name.value|default:'' }}" required
+                               placeholder="What's your pet's name?">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_species" class="form-label">Species</label>
+                        <select name="species" id="id_species" class="form-select">
+                            <option value="dog" {% if form.species.value == 'dog' %}selected{% endif %}>🐕 Dog</option>
+                            <option value="cat" {% if form.species.value == 'cat' %}selected{% endif %}>🐈 Cat</option>
+                            <option value="bird" {% if form.species.value == 'bird' %}selected{% endif %}>🐦 Bird</option>
+                            <option value="fish" {% if form.species.value == 'fish' %}selected{% endif %}>🐟 Fish</option>
+                            <option value="rabbit" {% if form.species.value == 'rabbit' %}selected{% endif %}>🐰 Rabbit</option>
+                            <option value="hamster" {% if form.species.value == 'hamster' %}selected{% endif %}>🐹 Hamster</option>
+                            <option value="reptile" {% if form.species.value == 'reptile' %}selected{% endif %}>🦎 Reptile</option>
+                            <option value="other" {% if form.species.value == 'other' %}selected{% endif %}>🐾 Other</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_breed" class="form-label">Breed</label>
+                        <input type="text" name="breed" id="id_breed" class="form-input"
+                               value="{{ form.breed.value|default:'' }}"
+                               placeholder="e.g., Golden Retriever">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_color" class="form-label">Color</label>
+                        <input type="text" name="color" id="id_color" class="form-input"
+                               value="{{ form.color.value|default:'' }}"
+                               placeholder="e.g., Golden">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_photo" class="form-label">Photo</label>
+                    {% if object and object.photo %}
+                    <div class="current-photo mb-3">
+                        <img src="{{ object.photo.url }}" alt="{{ object.name }}" class="preview-photo">
+                    </div>
+                    {% endif %}
+                    <input type="file" name="photo" id="id_photo" class="form-input" accept="image/*">
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Dates</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_birth_date" class="form-label">Birth Date</label>
+                        <input type="date" name="birth_date" id="id_birth_date" class="form-input"
+                               value="{{ form.birth_date.value|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_adoption_date" class="form-label">Adoption Date</label>
+                        <input type="date" name="adoption_date" id="id_adoption_date" class="form-input"
+                               value="{{ form.adoption_date.value|date:'Y-m-d'|default:'' }}">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_weight" class="form-label">Weight (lbs)</label>
+                    <input type="number" name="weight" id="id_weight" class="form-input"
+                           value="{{ form.weight.value|default:'' }}"
+                           step="0.1" min="0" style="max-width: 150px;">
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Medical Info</h2>
+                
+                <div class="form-group">
+                    <label for="id_microchip_id" class="form-label">Microchip ID</label>
+                    <input type="text" name="microchip_id" id="id_microchip_id" class="form-input"
+                           value="{{ form.microchip_id.value|default:'' }}">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_veterinarian" class="form-label">Veterinarian</label>
+                        <input type="text" name="veterinarian" id="id_veterinarian" class="form-input"
+                               value="{{ form.veterinarian.value|default:'' }}"
+                               placeholder="Vet name or clinic">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_vet_phone" class="form-label">Vet Phone</label>
+                        <input type="tel" name="vet_phone" id="id_vet_phone" class="form-input"
+                               value="{{ form.vet_phone.value|default:'' }}"
+                               placeholder="(555) 555-5555">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_notes" class="form-label">Notes</label>
+                    <textarea name="notes" id="id_notes" class="form-textarea" rows="3"
+                              placeholder="Personality, favorite toys, dietary needs, etc.">{{ form.notes.value|default:'' }}</textarea>
+                </div>
+            </div>
+            
+            {% if object %}
+            <div class="form-section">
+                <h2 class="form-section-title">Status</h2>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %}>
+                        Pet is currently with us
+                    </label>
+                    <p class="form-help">Uncheck if your pet has passed away</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_passed_date" class="form-label">Passed Date</label>
+                    <input type="date" name="passed_date" id="id_passed_date" class="form-input"
+                           value="{{ form.passed_date.value|date:'Y-m-d'|default:'' }}">
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Add Pet{% endif %}
+                </button>
+                <a href="{% url 'life:pet_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 600px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.preview-photo {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: var(--radius-lg);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}Set{% endif %} Direction - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <span>/</span>
+        <a href="{% url 'purpose:direction_list' %}">Directions</a>
+        <span>/</span>
+        <span>{% if form.instance.pk %}Edit{% else %}New{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="page-header">
+            <h1 class="page-title">{% if form.instance.pk %}Edit Annual Direction{% else %}Set Your Direction{% endif %}</h1>
+            <p class="page-subtitle">Define your Word of the Year and annual focus</p>
+        </div>
+        
+        <form method="post" class="form-card">
+            {% csrf_token %}
+            
+            <!-- Year -->
+            <div class="form-group">
+                <label for="id_year" class="form-label">Year</label>
+                <input type="number" name="year" id="id_year" class="form-input" 
+                       value="{{ form.year.value|default:'' }}" required min="2020" max="2100"
+                       style="max-width: 150px;">
+            </div>
+            
+            <!-- Word of the Year Section -->
+            <div class="form-section">
+                <h3 class="form-section-title">Word of the Year</h3>
+                <p class="form-section-desc">Choose one word to guide your year. This becomes a decision filter for everything you do.</p>
+                
+                <div class="form-group">
+                    <label for="id_word_of_year" class="form-label">Your Word</label>
+                    <input type="text" name="word_of_year" id="id_word_of_year" class="form-input"
+                           value="{{ form.word_of_year.value|default:'' }}" required
+                           placeholder="e.g., Present, Growth, Simplify, Trust"
+                           style="max-width: 300px; font-size: 1.5rem; font-weight: 600;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_word_explanation" class="form-label">Why This Word?</label>
+                    <textarea name="word_explanation" id="id_word_explanation" class="form-textarea" rows="3"
+                              placeholder="What does this word mean to you? Why did you choose it?">{{ form.word_explanation.value|default:'' }}</textarea>
+                </div>
+            </div>
+            
+            <!-- Theme Section -->
+            <div class="form-section">
+                <h3 class="form-section-title">Annual Theme <span class="optional-badge">Optional</span></h3>
+                <p class="form-section-desc">A theme expands on your word with more context.</p>
+                
+                <div class="form-group">
+                    <label for="id_theme" class="form-label">Theme</label>
+                    <input type="text" name="theme" id="id_theme" class="form-input"
+                           value="{{ form.theme.value|default:'' }}"
+                           placeholder="e.g., Building Margin, Deepening Roots">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_theme_description" class="form-label">Theme Description</label>
+                    <textarea name="theme_description" id="id_theme_description" class="form-textarea" rows="3"
+                              placeholder="Expand on your theme...">{{ form.theme_description.value|default:'' }}</textarea>
+                </div>
+            </div>
+            
+            <!-- Anchor Section -->
+            <div class="form-section">
+                <h3 class="form-section-title">Anchor Quote or Scripture <span class="optional-badge">Optional</span></h3>
+                <p class="form-section-desc">A verse or quote to ground your year.</p>
+                
+                <div class="form-group">
+                    <label for="id_anchor_text" class="form-label">Quote or Scripture</label>
+                    <textarea name="anchor_text" id="id_anchor_text" class="form-textarea" rows="3"
+                              placeholder="e.g., Trust in the Lord with all your heart...">{{ form.anchor_text.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_anchor_source" class="form-label">Source</label>
+                    <input type="text" name="anchor_source" id="id_anchor_source" class="form-input"
+                           value="{{ form.anchor_source.value|default:'' }}"
+                           placeholder="e.g., Proverbs 3:5-6, Author Name"
+                           style="max-width: 300px;">
+                </div>
+            </div>
+            
+            <!-- Set as Current -->
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="is_current" {% if form.is_current.value %}checked{% endif %}>
+                    <span>Set as my current direction</span>
+                </label>
+                <p class="form-help">This will be shown on your Purpose dashboard and referenced across the app.</p>
+            </div>
+            
+            <div class="form-actions">
+                <a href="{% url 'purpose:direction_list' %}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    {% if form.instance.pk %}Save Changes{% else %}Set Direction{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 700px;
+}
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+}
+
+.form-section {
+    margin: var(--space-8) 0;
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.form-section:first-of-type {
+    margin-top: var(--space-6);
+    padding-top: 0;
+    border-top: none;
+}
+
+.form-section-title {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--space-2) 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.form-section-desc {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-4);
+}
+
+.optional-badge {
+    font-size: var(--font-size-xs);
+    font-weight: normal;
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

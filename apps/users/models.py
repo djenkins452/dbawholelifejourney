@@ -12,15 +12,22 @@ from django.db import models
 from django.utils import timezone
 
 
+def user_avatar_path(instance, filename):
+    """Generate upload path for user avatars."""
+    # File will be uploaded to MEDIA_ROOT/avatars/user_<id>/<filename>
+    ext = filename.split('.')[-1]
+    return f'avatars/user_{instance.id}/avatar.{ext}'
+
+
 class UserManager(BaseUserManager):
     """
     Custom user manager for email-based authentication.
     """
-
     def create_user(self, email, password=None, **extra_fields):
         """Create and return a regular user with an email and password."""
         if not email:
             raise ValueError("The Email field must be set")
+
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
@@ -28,9 +35,9 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
-        """Create and return a superuser with an email and password."""
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
 
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True.")
@@ -54,6 +61,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
+    
+    # Avatar image
+    avatar = models.ImageField(
+        upload_to=user_avatar_path,
+        blank=True,
+        null=True,
+        help_text="Profile picture (optional)",
+    )
+    
     is_staff = models.BooleanField(
         default=False,
         help_text="Designates whether the user can log into the admin site.",
@@ -62,6 +78,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         default=True,
         help_text="Designates whether this user should be treated as active.",
     )
+
     date_joined = models.DateTimeField(default=timezone.now)
 
     objects = UserManager()
@@ -84,6 +101,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_short_name(self):
         """Return the short name for the user."""
         return self.first_name or self.email.split("@")[0]
+    
+    def get_initials(self):
+        """Return user's initials for avatar fallback."""
+        if self.first_name and self.last_name:
+            return f"{self.first_name[0]}{self.last_name[0]}".upper()
+        elif self.first_name:
+            return self.first_name[0].upper()
+        else:
+            return self.email[0].upper()
 
     @property
     def has_accepted_current_terms(self):
@@ -103,18 +129,33 @@ class UserPreferences(models.Model):
     Includes:
     - Theme selection
     - Accent color override
-    - Faith module toggle
+    - Module toggles (Journal, Faith, Health, Goals, Finances, Relationships)
     - AI features toggle
     - Location for weather
     - Dashboard configuration
     """
 
     THEME_CHOICES = [
+        ("light", "Light"),
+        ("dark", "Dark"),
         ("faith", "Christian Faith"),
         ("sports", "Sports & Performance"),
         ("nature", "Animals & Nature"),
         ("outdoors", "Outdoors & Adventure"),
         ("minimal", "Minimal / Life Focus"),
+    ]
+
+    AI_COACHING_STYLE_CHOICES = [
+        ('gentle', 'Gentle Guide'),
+        ('supportive', 'Supportive Partner'),
+        ('direct', 'Direct Coach'),
+]
+
+    TIMEZONE_CHOICES = [
+        ("US/Eastern", "US/Eastern"),
+        ("US/Central", "US/Central"),
+        ("US/Mountain", "US/Mountain"),
+        ("US/Pacific", "US/Pacific"),
     ]
 
     user = models.OneToOneField(
@@ -135,14 +176,75 @@ class UserPreferences(models.Model):
         help_text="Custom hex color to override theme accent",
     )
 
-    # Feature toggles
+    # ===================
+    # MODULE TOGGLES
+    # ===================
+    
+    # Core Modules (always available)
+    journal_enabled = models.BooleanField(
+        default=True,
+        help_text="Enable Journal module for daily reflections and entries",
+    )
+    
+    # Faith Module
     faith_enabled = models.BooleanField(
         default=False,
-        help_text="Enable Faith module and faith-aware content",
+        help_text="Enable Faith module with Scripture, prayers, and faith-aware content",
     )
+    
+    # Health Module
+    health_enabled = models.BooleanField(
+        default=True,
+        help_text="Enable Health module for tracking weight, fasting, heart rate, and glucose",
+    )
+    
+    # Life Module
+    life_enabled = models.BooleanField(
+        default=True,
+        help_text="Enable Life module for projects, tasks, calendar, inventory, pets, recipes, and documents",
+    )
+    
+    # Purpose Module
+    purpose_enabled = models.BooleanField(
+        default=True,
+        help_text="Enable Purpose module for annual direction, goals, intentions, and reflections",
+    )
+    
+    # Goals Module (Coming Soon)
+    goals_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable Goals module for setting and tracking personal goals",
+    )
+    
+    # Finances Module (Coming Soon)
+    finances_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable Finances module for budget tracking and financial goals",
+    )
+    
+    # Relationships Module (Coming Soon)
+    relationships_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable Relationships module for tracking connections and interactions",
+    )
+    
+    # Habits Module (Coming Soon)
+    habits_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable Habits module for building and tracking daily habits",
+    )
+    
+    # AI Features
     ai_enabled = models.BooleanField(
         default=False,
         help_text="Enable AI-powered insights and reflections",
+    )
+
+    ai_coaching_style = models.CharField(
+    max_length=20,
+    choices=AI_COACHING_STYLE_CHOICES,
+    default='supportive',
+    help_text='AI personality style for insights and feedback',
     )
 
     # Location for weather (manual entry)

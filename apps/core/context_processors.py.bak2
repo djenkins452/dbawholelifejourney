@@ -1,0 +1,55 @@
+"""
+Core Context Processors
+
+These add variables to every template context.
+"""
+
+from apps.core.models import SiteConfiguration, Theme
+
+
+def theme_context(request):
+    """
+    Add theme and accent color to template context.
+    """
+    context = {
+        'current_theme': 'minimal',
+        'current_theme_object': None,
+        'accent_color': None,
+        'faith_enabled': False,
+    }
+    
+    if request.user.is_authenticated:
+        try:
+            prefs = request.user.preferences
+            context['current_theme'] = prefs.theme or 'minimal'
+            context['accent_color'] = prefs.accent_color if prefs.accent_color else None
+            context['faith_enabled'] = prefs.faith_enabled
+            
+            # Get the theme object from database
+            theme_obj = Theme.get_by_slug(context['current_theme'])
+            if theme_obj:
+                context['current_theme_object'] = theme_obj
+        except Exception:
+            pass
+    
+    return context
+
+
+def site_context(request):
+    """
+    Add site configuration and themes to template context.
+    
+    Available in templates:
+        {{ site_config.site_name }}
+        {{ site_config.logo.url }}
+        {{ available_themes }}
+    """
+    config = SiteConfiguration.get_solo()
+    
+    # Get available themes from database
+    available_themes = Theme.get_active_themes()
+    
+    return {
+        'site_config': config,
+        'available_themes': available_themes,
+    }

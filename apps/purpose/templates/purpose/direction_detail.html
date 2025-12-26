@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block title %}{{ direction.year }} Direction - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <span>/</span>
+        <a href="{% url 'purpose:direction_list' %}">Directions</a>
+        <span>/</span>
+        <span>{{ direction.year }}</span>
+    </nav>
+    
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ direction.year }} Direction</h1>
+            {% if direction.is_current %}
+            <span class="badge badge-accent">Current Year</span>
+            {% endif %}
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'purpose:direction_update' direction.pk %}" class="btn btn-secondary">Edit</a>
+            <a href="{% url 'purpose:direction_delete' direction.pk %}" class="btn btn-ghost text-danger">Delete</a>
+        </div>
+    </div>
+    
+    <!-- Word of the Year Card -->
+    <div class="direction-card mb-8">
+        <div class="word-of-year">
+            <span class="word-label">Word of the Year</span>
+            <h2 class="word-value">{{ direction.word_of_year }}</h2>
+            {% if direction.word_explanation %}
+            <p class="word-explanation">{{ direction.word_explanation }}</p>
+            {% endif %}
+        </div>
+        
+        {% if direction.anchor_text %}
+        <div class="anchor-quote">
+            <blockquote>
+                "{{ direction.anchor_text }}"
+                {% if direction.anchor_source %}
+                <cite>— {{ direction.anchor_source }}</cite>
+                {% endif %}
+            </blockquote>
+        </div>
+        {% endif %}
+        
+        {% if direction.theme %}
+        <div class="theme-section">
+            <span class="theme-label">Theme</span>
+            <p class="theme-value">{{ direction.theme }}</p>
+            {% if direction.theme_description %}
+            <p class="theme-description">{{ direction.theme_description }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Planning Actions -->
+    <div class="section mb-8">
+        <div class="section-header">
+            <h3>Planning Actions</h3>
+            <a href="{% url 'purpose:planning_action_create' direction.pk %}" class="btn btn-secondary btn-sm">+ Add Action</a>
+        </div>
+        
+        {% if planning_actions %}
+        <div class="planning-grid">
+            {% regroup planning_actions by action_type as actions_by_type %}
+            {% for action_group in actions_by_type %}
+            <div class="planning-column">
+                <h4 class="planning-type planning-type-{{ action_group.grouper }}">
+                    {% if action_group.grouper == 'keep' %}✓ Keep{% endif %}
+                    {% if action_group.grouper == 'stop' %}✕ Stop{% endif %}
+                    {% if action_group.grouper == 'start' %}+ Start{% endif %}
+                    {% if action_group.grouper == 'simplify' %}↓ Simplify{% endif %}
+                </h4>
+                <ul class="planning-list">
+                    {% for action in action_group.list %}
+                    <li>
+                        <span>{{ action.description }}</span>
+                        <form method="post" action="{% url 'purpose:planning_action_delete' action.pk %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-icon text-muted" onclick="return confirm('Delete this action?')">×</button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-section">
+            <p>No planning actions yet. Add Keep/Stop/Start/Simplify items.</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Linked Goals -->
+    {% if goals %}
+    <div class="section mb-8">
+        <div class="section-header">
+            <h3>Linked Goals</h3>
+        </div>
+        <ul class="linked-list">
+            {% for goal in goals %}
+            <li>
+                <a href="{% url 'purpose:goal_detail' goal.pk %}">{{ goal.title }}</a>
+                <span class="badge">{{ goal.get_status_display }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    <!-- Linked Intentions -->
+    {% if intentions %}
+    <div class="section mb-8">
+        <div class="section-header">
+            <h3>Linked Intentions</h3>
+        </div>
+        <ul class="linked-list">
+            {% for intention in intentions %}
+            <li>
+                <a href="{% url 'purpose:intention_detail' intention.pk %}">{{ intention.intention }}</a>
+                <span class="badge">{{ intention.get_status_display }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+}
+
+.badge-accent {
+    background: var(--color-accent);
+    color: white;
+}
+
+.direction-card {
+    background: linear-gradient(135deg, var(--color-accent) 0%, color-mix(in srgb, var(--color-accent) 70%, #000) 100%);
+    color: white;
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+}
+
+.word-of-year {
+    text-align: center;
+    margin-bottom: var(--space-6);
+}
+
+.word-label {
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.8;
+}
+
+.word-value {
+    font-size: 3rem;
+    font-weight: 700;
+    margin: var(--space-2) 0;
+    text-transform: capitalize;
+}
+
+.word-explanation {
+    opacity: 0.9;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.anchor-quote {
+    background: rgba(255,255,255,0.1);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.anchor-quote blockquote {
+    margin: 0;
+    font-style: italic;
+    text-align: center;
+}
+
+.anchor-quote cite {
+    display: block;
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    opacity: 0.8;
+}
+
+.theme-section {
+    text-align: center;
+    padding-top: var(--space-4);
+    border-top: 1px solid rgba(255,255,255,0.2);
+}
+
+.theme-label {
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.8;
+}
+
+.theme-value {
+    font-size: var(--font-size-lg);
+    margin-top: var(--space-1);
+    font-weight: 600;
+}
+
+.theme-description {
+    opacity: 0.9;
+    margin-top: var(--space-2);
+}
+
+.section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header h3 {
+    margin: 0;
+}
+
+.planning-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+}
+
+.planning-column {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+}
+
+.planning-type {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 2px solid var(--color-border);
+}
+
+.planning-type-keep { color: var(--color-success); border-color: var(--color-success); }
+.planning-type-stop { color: var(--color-error); border-color: var(--color-error); }
+.planning-type-start { color: var(--color-accent); border-color: var(--color-accent); }
+.planning-type-simplify { color: var(--color-warning); border-color: var(--color-warning); }
+
+.planning-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.planning-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.planning-list li:last-child {
+    border-bottom: none;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: var(--font-size-lg);
+    padding: 0 var(--space-1);
+}
+
+.linked-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.linked-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.linked-list li:last-child {
+    border-bottom: none;
+}
+
+.linked-list a {
+    color: var(--color-text);
+}
+
+.linked-list a:hover {
+    color: var(--color-accent);
+}
+
+.empty-section {
+    text-align: center;
+    padding: var(--space-6);
+    color: var(--color-text-muted);
+}
+
+.inline {
+    display: inline;
+}
+
+.text-danger {
+    color: var(--color-error);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

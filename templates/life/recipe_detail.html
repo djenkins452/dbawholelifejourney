@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}{{ recipe.title }} - Recipes{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:recipe_list' %}">Recipes</a>
+        <span>/</span>
+        <span>{{ recipe.title }}</span>
+    </nav>
+    
+    <div class="recipe-detail">
+        <div class="recipe-header">
+            {% if recipe.image %}
+            <div class="recipe-hero" style="background-image: url('{{ recipe.image.url }}')"></div>
+            {% endif %}
+            
+            <div class="recipe-header-content">
+                <div class="recipe-title-row">
+                    <h1 class="page-title">
+                        {% if recipe.is_favorite %}⭐{% endif %}
+                        {{ recipe.title }}
+                    </h1>
+                </div>
+                
+                {% if recipe.description %}
+                <p class="recipe-description">{{ recipe.description }}</p>
+                {% endif %}
+                
+                <div class="recipe-meta-bar">
+                    {% if recipe.total_time_minutes %}
+                    <span class="meta-item">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        {{ recipe.total_time_minutes }} min
+                    </span>
+                    {% endif %}
+                    
+                    {% if recipe.servings %}
+                    <span class="meta-item">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        {{ recipe.servings }} servings
+                    </span>
+                    {% endif %}
+                    
+                    {% if recipe.difficulty %}
+                    <span class="meta-item difficulty-{{ recipe.difficulty }}">
+                        {{ recipe.get_difficulty_display }}
+                    </span>
+                    {% endif %}
+                    
+                    {% if recipe.category %}
+                    <span class="meta-item category">{{ recipe.category }}</span>
+                    {% endif %}
+                </div>
+                
+                <div class="recipe-actions">
+                    <form method="post" action="{% url 'life:recipe_toggle_favorite' recipe.pk %}" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-secondary">
+                            {% if recipe.is_favorite %}Remove from Favorites{% else %}⭐ Add to Favorites{% endif %}
+                        </button>
+                    </form>
+                    <a href="{% url 'life:recipe_update' recipe.pk %}" class="btn btn-ghost">Edit</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="recipe-body">
+            <div class="recipe-main">
+                <!-- Ingredients -->
+                <section class="recipe-section">
+                    <h2>Ingredients</h2>
+                    <ul class="ingredient-list">
+                        {% for line in recipe.ingredients.splitlines %}
+                        {% if line.strip %}
+                        <li>{{ line }}</li>
+                        {% endif %}
+                        {% endfor %}
+                    </ul>
+                </section>
+                
+                <!-- Instructions -->
+                <section class="recipe-section">
+                    <h2>Instructions</h2>
+                    <div class="instructions">
+                        {{ recipe.instructions|linebreaks }}
+                    </div>
+                </section>
+                
+                <!-- Notes -->
+                {% if recipe.notes %}
+                <section class="recipe-section">
+                    <h2>Notes</h2>
+                    <p class="recipe-notes">{{ recipe.notes|linebreaks }}</p>
+                </section>
+                {% endif %}
+            </div>
+            
+            <aside class="recipe-sidebar">
+                {% if recipe.prep_time_minutes or recipe.cook_time_minutes %}
+                <div class="sidebar-card">
+                    <h3>Time</h3>
+                    <dl class="time-list">
+                        {% if recipe.prep_time_minutes %}
+                        <dt>Prep</dt>
+                        <dd>{{ recipe.prep_time_minutes }} min</dd>
+                        {% endif %}
+                        {% if recipe.cook_time_minutes %}
+                        <dt>Cook</dt>
+                        <dd>{{ recipe.cook_time_minutes }} min</dd>
+                        {% endif %}
+                        {% if recipe.total_time_minutes %}
+                        <dt><strong>Total</strong></dt>
+                        <dd><strong>{{ recipe.total_time_minutes }} min</strong></dd>
+                        {% endif %}
+                    </dl>
+                </div>
+                {% endif %}
+                
+                {% if recipe.source or recipe.source_url %}
+                <div class="sidebar-card">
+                    <h3>Source</h3>
+                    {% if recipe.source %}
+                    <p>{{ recipe.source }}</p>
+                    {% endif %}
+                    {% if recipe.source_url %}
+                    <a href="{{ recipe.source_url }}" target="_blank" class="source-link">View original →</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <div class="sidebar-card">
+                    <h3>Actions</h3>
+                    <div class="action-buttons">
+                        <a href="{% url 'life:recipe_update' recipe.pk %}" class="btn btn-secondary btn-block">Edit Recipe</a>
+                        <a href="{% url 'life:recipe_delete' recipe.pk %}" class="btn btn-ghost btn-block text-error">Delete</a>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.recipe-hero {
+    height: 300px;
+    background-size: cover;
+    background-position: center;
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+}
+
+.recipe-header-content {
+    margin-bottom: var(--space-6);
+}
+
+.recipe-description {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    margin: var(--space-2) 0 var(--space-4) 0;
+}
+
+.recipe-meta-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.meta-item.category {
+    background: var(--color-surface);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.difficulty-easy { color: #10b981; }
+.difficulty-medium { color: #f59e0b; }
+.difficulty-hard { color: var(--color-error); }
+
+.recipe-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.recipe-body {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: var(--space-6);
+}
+
+@media (max-width: 900px) {
+    .recipe-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+.recipe-section {
+    margin-bottom: var(--space-8);
+}
+
+.recipe-section h2 {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 2px solid var(--color-accent);
+}
+
+.ingredient-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.ingredient-list li {
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.ingredient-list li::before {
+    content: '•';
+    color: var(--color-accent);
+    font-weight: bold;
+}
+
+.instructions {
+    line-height: 1.8;
+}
+
+.recipe-notes {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--color-accent);
+}
+
+.sidebar-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+
+.sidebar-card h3 {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-3) 0;
+}
+
+.time-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.time-list dt {
+    color: var(--color-text-muted);
+}
+
+.time-list dd {
+    margin: 0;
+    text-align: right;
+}
+
+.source-link {
+    font-size: var(--font-size-sm);
+}
+
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.btn-block {
+    width: 100%;
+    text-align: center;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

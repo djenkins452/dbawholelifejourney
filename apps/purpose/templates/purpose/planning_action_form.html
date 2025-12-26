@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Add Planning Action - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <span>/</span>
+        <a href="{% url 'purpose:direction_detail' direction.pk %}">{{ direction.year }}</a>
+        <span>/</span>
+        <span>Add Action</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="page-header">
+            <h1 class="page-title">Add Planning Action</h1>
+            <p class="page-subtitle">For {{ direction.year }}: {{ direction.word_of_year }}</p>
+        </div>
+        
+        <form method="post" class="form-card">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="id_action_type" class="form-label">Action Type</label>
+                <div class="action-type-grid">
+                    {% for value, label in form.fields.action_type.choices %}
+                    <label class="action-type-option">
+                        <input type="radio" name="action_type" value="{{ value }}" {% if forloop.first %}checked{% endif %}>
+                        <span class="action-type-card type-{{ value }}">
+                            <span class="action-type-icon">
+                                {% if value == 'keep' %}✓{% endif %}
+                                {% if value == 'stop' %}✕{% endif %}
+                                {% if value == 'start' %}+{% endif %}
+                                {% if value == 'simplify' %}↓{% endif %}
+                            </span>
+                            <span class="action-type-label">{{ label }}</span>
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_description" class="form-label">What will you keep/stop/start/simplify?</label>
+                <textarea name="description" id="id_description" class="form-textarea" rows="3" required
+                          placeholder="Describe the action...">{{ form.description.value|default:'' }}</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_reason" class="form-label">Why? <span class="optional-badge">Optional</span></label>
+                <textarea name="reason" id="id_reason" class="form-textarea" rows="2"
+                          placeholder="Why is this important?">{{ form.reason.value|default:'' }}</textarea>
+            </div>
+            
+            <div class="form-actions">
+                <a href="{% url 'purpose:direction_detail' direction.pk %}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-primary">Add Action</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 600px;
+}
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+}
+
+.action-type-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+    .action-type-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.action-type-option {
+    cursor: pointer;
+}
+
+.action-type-option input {
+    display: none;
+}
+
+.action-type-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-4);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.action-type-option input:checked + .action-type-card {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.action-type-icon {
+    font-size: var(--font-size-xl);
+    font-weight: bold;
+    margin-bottom: var(--space-1);
+}
+
+.type-keep .action-type-icon { color: var(--color-success); }
+.type-stop .action-type-icon { color: var(--color-error); }
+.type-start .action-type-icon { color: var(--color-accent); }
+.type-simplify .action-type-icon { color: var(--color-warning); }
+
+.action-type-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.optional-badge {
+    font-size: var(--font-size-xs);
+    font-weight: normal;
+    color: var(--color-text-muted);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

@@ -4,9 +4,11 @@ Journal Views - CRUD operations and entry management.
 
 import random
 from datetime import date
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import models
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
@@ -25,6 +27,10 @@ from apps.core.models import Category, Tag
 
 from .forms import JournalEntryForm, TagForm
 from .models import JournalEntry, JournalPrompt
+from django.db.models import Count
+from django.views.generic import TemplateView
+
+
 
 
 class EntryListView(LoginRequiredMixin, ListView):
@@ -78,6 +84,51 @@ class EntryListView(LoginRequiredMixin, ListView):
         }
         context["total_count"] = JournalEntry.objects.filter(user=self.request.user).count()
         context["archived_count"] = JournalEntry.objects.archived_only().filter(user=self.request.user).count()
+        return context
+
+
+class PageView(LoginRequiredMixin, ListView):
+    """
+    Page view - displays all entries in a continuous scrollable format.
+    """
+
+    model = JournalEntry
+    template_name = "journal/page_view.html"
+    context_object_name = "entries"
+    paginate_by = 50  # More entries per page for continuous reading
+
+    def get_queryset(self):
+        return JournalEntry.objects.filter(user=self.request.user).order_by('-entry_date')
+
+
+class BookView(LoginRequiredMixin, ListView):
+    """
+    Book view - displays entries one at a time like pages in a book.
+    Desktop only feature.
+    """
+
+    model = JournalEntry
+    template_name = "journal/book_view.html"
+    context_object_name = "entries"
+
+    def get_queryset(self):
+        return JournalEntry.objects.filter(user=self.request.user).order_by('-entry_date')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        entries = list(self.get_queryset())
+        context["entries_json"] = [
+            {
+                "id": e.pk,
+                "title": e.title,
+                "date": e.entry_date.strftime("%B %d, %Y"),
+                "body": e.body,
+                "mood": e.get_mood_display() if e.mood else None,
+                "mood_emoji": e.mood_emoji if e.mood else None,
+            }
+            for e in entries
+        ]
+        context["total_entries"] = len(entries)
         return context
 
 
@@ -140,16 +191,20 @@ class EntryCreateView(LoginRequiredMixin, CreateView):
 
     def get_initial(self):
         initial = super().get_initial()
-        # Default title to current date
-        initial["title"] = timezone.now().strftime("%A, %B %d, %Y")
+        # Default entry_date to today
         initial["entry_date"] = date.today()
+        # Title will be set dynamically based on date (handled in form/template)
+        initial["title"] = ""
         
-        # If coming from a prompt, pre-fill it
+        # If coming from a prompt, pre-fill it and set category
         prompt_id = self.request.GET.get("prompt")
         if prompt_id:
             try:
                 prompt = JournalPrompt.objects.get(pk=prompt_id)
                 initial["prompt"] = prompt
+                # Pre-select the prompt's category if it has one
+                if prompt.category:
+                    initial["category"] = prompt.category
             except JournalPrompt.DoesNotExist:
                 pass
         
@@ -157,12 +212,19 @@ class EntryCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
+        
+        # If title is empty, default to the entry_date
+        if not form.instance.title:
+            entry_date = form.cleaned_data.get('entry_date', date.today())
+            form.instance.title = entry_date.strftime("%A, %B %d, %Y")
+        
         messages.success(self.request, "Journal entry created.")
         return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["is_edit"] = False
+        context["page_title"] = "New Journal Entry"
         
         # Random prompt suggestion
         prompts = JournalPrompt.objects.filter(is_active=True)
@@ -170,6 +232,14 @@ class EntryCreateView(LoginRequiredMixin, CreateView):
             prompts = prompts.filter(is_faith_specific=False)
         if prompts.exists():
             context["suggested_prompt"] = random.choice(list(prompts))
+        
+        # Pass prompt info if coming from a prompt
+        prompt_id = self.request.GET.get("prompt")
+        if prompt_id:
+            try:
+                context["selected_prompt"] = JournalPrompt.objects.get(pk=prompt_id)
+            except JournalPrompt.DoesNotExist:
+                pass
         
         return context
 
@@ -198,6 +268,7 @@ class EntryUpdateView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["is_edit"] = True
+        context["page_title"] = "Edit Entry"
         return context
 
     def get_success_url(self):
@@ -282,9 +353,32 @@ class PromptListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = JournalPrompt.objects.filter(is_active=True)
+        
+        # Filter by faith setting
         if not self.request.user.preferences.faith_enabled:
             queryset = queryset.filter(is_faith_specific=False)
+        
+        # Filter by category if specified
+        category_slug = self.request.GET.get("category")
+        if category_slug:
+            queryset = queryset.filter(category__slug=category_slug)
+        
         return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get all categories that have prompts
+        base_queryset = JournalPrompt.objects.filter(is_active=True)
+        if not self.request.user.preferences.faith_enabled:
+            base_queryset = base_queryset.filter(is_faith_specific=False)
+        
+        # Get unique categories from prompts
+        category_ids = base_queryset.exclude(category__isnull=True).values_list('category_id', flat=True).distinct()
+        context["prompt_categories"] = Category.objects.filter(id__in=category_ids)
+        context["active_category"] = self.request.GET.get("category")
+        
+        return context
 
 
 class RandomPromptView(LoginRequiredMixin, View):
@@ -377,3 +471,67 @@ class HTMXMoodSelectView(LoginRequiredMixin, TemplateView):
         context["mood_choices"] = JournalEntry.MOOD_CHOICES
         context["selected_mood"] = self.request.GET.get("current", "")
         return context
+
+# =============================================================================
+# JOURNAL HOME VIEW (apps/journal/views.py)
+# =============================================================================
+
+
+
+
+class JournalHomeView(LoginRequiredMixin, TemplateView):
+    template_name = "journal/home.html"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        from .models import JournalEntry, Tag
+        
+        now = timezone.now()
+        week_ago = now - timedelta(days=7)
+        month_ago = now - timedelta(days=30)
+        today = now.date()
+        
+        entries = JournalEntry.objects.filter(user=user)
+        
+        context["stats"] = {
+            "total": entries.count(),
+            "this_week": entries.filter(created_at__gte=week_ago).count(),
+            "this_month": entries.filter(created_at__gte=month_ago).count(),
+            "streak": self._calculate_streak(entries, today),
+        }
+        
+        context["recent_entries"] = entries.order_by("-entry_date")[:5]
+        context["mood_stats"] = self._get_mood_stats(entries, week_ago)
+        
+        # Prompts - skip if model doesn't exist
+        context["suggested_prompt"] = None
+        
+        context["popular_tags"] = Tag.objects.filter(
+            user=user
+        ).annotate(entry_count=Count('journal_entries')).order_by('-entry_count')[:10]
+        
+        return context
+    
+    def _calculate_streak(self, entries, today):
+        dates = entries.order_by('-entry_date').values_list('entry_date', flat=True).distinct()[:60]
+        if not dates:
+            return 0
+        streak = 0
+        expected_date = today
+        for entry_date in dates:
+            if entry_date == expected_date:
+                streak += 1
+                expected_date -= timedelta(days=1)
+            elif entry_date < expected_date:
+                break
+        return streak
+    
+    def _get_mood_stats(self, entries, since):
+        MOOD_EMOJIS = {'great': '😄', 'good': '🙂', 'okay': '😐', 'low': '😔', 'difficult': '😢'}
+        moods = entries.filter(created_at__gte=since).exclude(mood='').values('mood').annotate(count=Count('mood')).order_by('-count')
+        if not moods:
+            return []
+        total = sum(m['count'] for m in moods)
+        return [{'mood': m['mood'], 'emoji': MOOD_EMOJIS.get(m['mood'], '😐'), 'count': m['count'], 'percentage': round((m['count'] / total) * 100)} for m in moods]

@@ -1,60 +1,49 @@
 """
-Context Processors - Make data available to all templates.
+Core Context Processors
 
-These processors inject common data into every template context:
-- Theme settings (colors, icons based on user preferences)
-- User preferences
-- App-wide settings
+These add variables to every template context.
 """
 
 from django.conf import settings
 
 
-def theme_context(request):
+def site_context(request):
     """
-    Inject theme-related context into all templates.
-    
-    Provides:
-    - current_theme: The user's selected theme (or default)
-    - theme_config: Full configuration for the current theme
-    - accent_color: User's custom accent color (or theme default)
-    - faith_enabled: Whether Faith module is enabled for this user
-    - ai_enabled: Whether AI features are enabled for this user
+    Add site-wide context variables.
     """
-    context = {
-        "themes": settings.WLJ_SETTINGS["THEMES"],
-        "default_theme": settings.WLJ_SETTINGS["DEFAULT_THEME"],
+    return {
+        'site_name': 'Whole Life Journey',
+        'site_tagline': 'A calm space for reflection, growth, and faithful living.',
     }
 
-    # Default values for anonymous users
-    current_theme = settings.WLJ_SETTINGS["DEFAULT_THEME"]
-    theme_config = settings.WLJ_SETTINGS["THEMES"][current_theme]
-    accent_color = theme_config["accent"]
-    faith_enabled = False
-    ai_enabled = False
 
-    # Override with user preferences if authenticated
+def theme_context(request):
+    """
+    Add theme, accent color, and module flags to template context.
+    """
+    context = {
+        'current_theme': 'minimal',
+        'accent_color': None,
+        # Module flags - defaults
+        'journal_enabled': True,
+        'faith_enabled': False,
+        'health_enabled': True,
+        'life_enabled': True,
+        'purpose_enabled': True,
+    }
+    
     if request.user.is_authenticated:
         try:
             prefs = request.user.preferences
-            current_theme = prefs.theme or current_theme
-            theme_config = settings.WLJ_SETTINGS["THEMES"].get(
-                current_theme, 
-                settings.WLJ_SETTINGS["THEMES"][settings.WLJ_SETTINGS["DEFAULT_THEME"]]
-            )
-            accent_color = prefs.accent_color or theme_config["accent"]
-            faith_enabled = prefs.faith_enabled
-            ai_enabled = prefs.ai_enabled
-        except AttributeError:
-            # User doesn't have preferences yet
+            context['current_theme'] = prefs.theme or 'minimal'
+            context['accent_color'] = prefs.accent_color if prefs.accent_color else None
+            # Module toggles
+            context['journal_enabled'] = prefs.journal_enabled
+            context['faith_enabled'] = prefs.faith_enabled
+            context['health_enabled'] = prefs.health_enabled
+            context['life_enabled'] = prefs.life_enabled
+            context['purpose_enabled'] = prefs.purpose_enabled
+        except Exception:
             pass
-
-    context.update({
-        "current_theme": current_theme,
-        "theme_config": theme_config,
-        "accent_color": accent_color,
-        "faith_enabled": faith_enabled,
-        "ai_enabled": ai_enabled,
-    })
-
+    
     return context

@@ -3,32 +3,131 @@
 
 {% block title %}Dashboard - Whole Life Journey{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
 {% block content %}
 <div class="container">
-    <!-- Greeting -->
+    <!-- Header -->
     <header class="dashboard-header">
         <div class="greeting">
             <h1>{{ greeting }}, {{ user.get_short_name }}.</h1>
             <p class="current-date">{{ current_date|date:"l, F j, Y" }}</p>
         </div>
-        <div class="quick-actions">
-            <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 5v14M5 12h14"/>
-                </svg>
-                New Entry
-            </a>
+        
+        <!-- Quick Stats -->
+        <div class="quick-stats">
+            {% if quick_stats.journal_streak > 0 %}
+            <div class="quick-stat" title="Journal Streak">
+                <span class="stat-icon">🔥</span>
+                <span class="stat-value">{{ quick_stats.journal_streak }}</span>
+            </div>
+            {% endif %}
+            {% if quick_stats.tasks_today > 0 %}
+            <div class="quick-stat" title="Tasks Today">
+                <span class="stat-icon">✓</span>
+                <span class="stat-value">{{ quick_stats.tasks_today }}</span>
+            </div>
+            {% endif %}
+            {% if faith_enabled and quick_stats.active_prayers > 0 %}
+            <div class="quick-stat" title="Active Prayers">
+                <span class="stat-icon">🙏</span>
+                <span class="stat-value">{{ quick_stats.active_prayers }}</span>
+            </div>
+            {% endif %}
         </div>
     </header>
     
-    <!-- Daily Encouragement -->
+    {% if ai_enabled and ai_insights %}
+    <!-- AI Insight Card (Main Focus) -->
+    <section class="ai-insight-hero">
+        <div class="ai-insight-content">
+            <div class="ai-badge">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+                    <path d="M12 6v6l4 2"/>
+                </svg>
+                Today's Insight
+            </div>
+            <p class="ai-insight-text">{{ ai_insights.daily_insight }}</p>
+        </div>
+    </section>
+    
+    <!-- Celebrations (if any) -->
+    {% if ai_insights.celebrations %}
+    <section class="celebrations-section">
+        <div class="celebrations-grid">
+            {% for celebration in ai_insights.celebrations %}
+            <div class="celebration-card celebration-{{ celebration.type }}">
+                <div class="celebration-title">{{ celebration.title }}</div>
+                <div class="celebration-detail">{{ celebration.detail }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+    
+    <!-- Accountability Nudges (if any) -->
+    {% if ai_insights.nudges %}
+    <section class="nudges-section">
+        {% for nudge in ai_insights.nudges %}
+        <div class="nudge-card nudge-{{ nudge.type }}">
+            {% if nudge.type == 'journal' %}
+            <div class="nudge-content">
+                <span class="nudge-icon">📝</span>
+                <div class="nudge-text">
+                    <span class="nudge-message">It's been {{ nudge.days }} days since you journaled.</span>
+                </div>
+            </div>
+            <a href="{{ nudge.action_url }}" class="btn btn-primary btn-sm">{{ nudge.action_text }}</a>
+            {% elif nudge.type == 'tasks' %}
+            <div class="nudge-content">
+                <span class="nudge-icon">⚠️</span>
+                <div class="nudge-text">
+                    <span class="nudge-message">You have {{ nudge.count }} overdue task{{ nudge.count|pluralize }}.</span>
+                </div>
+            </div>
+            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+            {% elif nudge.type == 'goals' %}
+            <div class="nudge-content">
+                <span class="nudge-icon">🎯</span>
+                <div class="nudge-text">
+                    <span class="nudge-message">No active goals set. What are you working toward?</span>
+                </div>
+            </div>
+            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+    
+    <!-- Weekly Summary (if available) -->
+    {% if ai_insights.weekly_summary %}
+    <section class="weekly-summary-section">
+        <div class="summary-header">
+            <h3>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Your Week
+            </h3>
+        </div>
+        <p class="summary-text">{{ ai_insights.weekly_summary }}</p>
+    </section>
+    {% endif %}
+    
+    {% else %}
+    <!-- Fallback: Daily Encouragement (when AI disabled) -->
     <section class="encouragement-card">
         {% if encouragement %}
             <p class="encouragement-message">{{ encouragement.message }}</p>
             {% if encouragement.scripture_reference and faith_enabled %}
-                <p class="scripture-reference">
-                    — {{ encouragement.scripture_reference }}
-                </p>
+                <p class="scripture-reference">— {{ encouragement.scripture_reference }}</p>
             {% endif %}
         {% else %}
             <p class="encouragement-message">
@@ -36,269 +135,152 @@
             </p>
         {% endif %}
     </section>
+    {% endif %}
     
-    <!-- Dashboard Tiles -->
-    <div class="dashboard-grid">
-        <!-- Journal Summary Tile -->
-        <div class="dashboard-tile">
-            <div class="tile-header">
-                <h2 class="tile-title">
-                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                    </svg>
-                    Journal
-                </h2>
-                <a href="{% url 'journal:entry_list' %}" class="tile-link">View All</a>
-            </div>
+    <!-- Quick Actions Grid -->
+    <section class="quick-actions-section">
+        <h2 class="section-title">Quick Actions</h2>
+        <div class="quick-actions-grid">
+            {% if journal_enabled %}
+            <a href="{% url 'journal:entry_create' %}" class="quick-action-card">
+                <span class="action-icon">📝</span>
+                <span class="action-label">New Journal Entry</span>
+            </a>
+            {% endif %}
             
-            <div class="tile-stats">
-                <div class="stat">
-                    <span class="stat-value">{{ journal_stats.total }}</span>
-                    <span class="stat-label">Total Entries</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-value">{{ journal_stats.this_week }}</span>
-                    <span class="stat-label">This Week</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-value">{{ journal_stats.this_month }}</span>
-                    <span class="stat-label">This Month</span>
-                </div>
-            </div>
+            {% if faith_enabled %}
+            <a href="{% url 'faith:prayer_create' %}" class="quick-action-card">
+                <span class="action-icon">🙏</span>
+                <span class="action-label">Add Prayer</span>
+            </a>
+            {% endif %}
             
-            {% if journal_stats.recent %}
-                <div class="tile-recent">
-                    <h3 class="recent-title">Recent Entries</h3>
-                    <ul class="recent-list">
-                        {% for entry in journal_stats.recent %}
-                            <li class="recent-item">
-                                <a href="{{ entry.get_absolute_url }}" class="recent-link">
-                                    <span class="recent-entry-title">{{ entry.title }}</span>
-                                    <span class="recent-entry-date">{{ entry.entry_date|date:"M j" }}</span>
-                                </a>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </div>
+            {% if health_enabled %}
+            <a href="{% url 'health:weight_create' %}" class="quick-action-card">
+                <span class="action-icon">⚖️</span>
+                <span class="action-label">Log Weight</span>
+            </a>
+            {% if not user_data.fasting_active %}
+            <a href="{% url 'health:fasting_start' %}" class="quick-action-card">
+                <span class="action-icon">🕐</span>
+                <span class="action-label">Start Fast</span>
+            </a>
             {% else %}
-                <div class="tile-empty">
-                    <p>No journal entries yet.</p>
-                    <a href="{% url 'journal:entry_create' %}" class="btn btn-secondary btn-sm">
-                        Write Your First Entry
-                    </a>
-                </div>
+            <a href="{% url 'health:fasting_list' %}" class="quick-action-card action-active">
+                <span class="action-icon">🕐</span>
+                <span class="action-label">Fasting Now</span>
+            </a>
+            {% endif %}
+            {% endif %}
+            
+            {% if life_enabled %}
+            <a href="{% url 'life:task_create' %}" class="quick-action-card">
+                <span class="action-icon">✓</span>
+                <span class="action-label">Add Task</span>
+            </a>
+            {% endif %}
+            
+            {% if purpose_enabled %}
+            <a href="{% url 'purpose:goal_create' %}" class="quick-action-card">
+                <span class="action-icon">🎯</span>
+                <span class="action-label">Add Goal</span>
+            </a>
             {% endif %}
         </div>
-        
-        <!-- Quick Actions Tile -->
-        <div class="dashboard-tile">
-            <div class="tile-header">
-                <h2 class="tile-title">
-                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 6v6l4 2"/>
-                    </svg>
-                    Quick Actions
-                </h2>
-            </div>
+    </section>
+    
+    <!-- Module Navigation Cards -->
+    <section class="modules-section">
+        <h2 class="section-title">Your Modules</h2>
+        <div class="modules-grid">
+            {% if journal_enabled %}
+            <a href="{% url 'journal:entry_list' %}" class="module-nav-card">
+                <div class="module-icon">📝</div>
+                <div class="module-info">
+                    <h3>Journal</h3>
+                    <p>{{ user_data.journal_total|default:0 }} entries</p>
+                </div>
+                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </a>
+            {% endif %}
             
-            <div class="quick-action-list">
-                <a href="{% url 'journal:entry_create' %}" class="quick-action-item">
-                    <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                    <span>New Journal Entry</span>
-                </a>
-                
-                <a href="{% url 'journal:prompt_list' %}" class="quick-action-item">
-                    <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                    </svg>
-                    <span>Writing Prompts</span>
-                </a>
-                
-                <a href="{% url 'users:preferences' %}" class="quick-action-item">
-                    <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-                    </svg>
-                    <span>Preferences</span>
-                </a>
-                
-                {% if faith_enabled %}
-                <a href="#" class="quick-action-item">
-                    <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2v20M2 12h20"/>
-                    </svg>
-                    <span>Faith Reflections</span>
-                </a>
-                {% endif %}
-            </div>
+            {% if faith_enabled %}
+            <a href="{% url 'faith:home' %}" class="module-nav-card">
+                <div class="module-icon">✝️</div>
+                <div class="module-info">
+                    <h3>Faith</h3>
+                    <p>{{ user_data.active_prayers|default:0 }} active prayers</p>
+                </div>
+                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </a>
+            {% endif %}
+            
+            {% if health_enabled %}
+            <a href="{% url 'health:home' %}" class="module-nav-card">
+                <div class="module-icon">❤️</div>
+                <div class="module-info">
+                    <h3>Health</h3>
+                    <p>{% if user_data.latest_weight %}{{ user_data.latest_weight.value }} {{ user_data.latest_weight.unit }}{% else %}Start tracking{% endif %}</p>
+                </div>
+                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </a>
+            {% endif %}
+            
+            {% if life_enabled %}
+            <a href="{% url 'life:home' %}" class="module-nav-card">
+                <div class="module-icon">🏠</div>
+                <div class="module-info">
+                    <h3>Life</h3>
+                    <p>{{ user_data.incomplete_tasks|default:0 }} tasks</p>
+                </div>
+                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </a>
+            {% endif %}
+            
+            {% if purpose_enabled %}
+            <a href="{% url 'purpose:home' %}" class="module-nav-card">
+                <div class="module-icon">🧭</div>
+                <div class="module-info">
+                    <h3>Purpose</h3>
+                    <p>{% if user_data.word_of_year %}{{ user_data.word_of_year }}{% else %}Set your direction{% endif %}</p>
+                </div>
+                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </a>
+            {% endif %}
         </div>
-    </div>
+    </section>
+    
+    <!-- Upcoming Events (if any) -->
+    {% if life_enabled and user_data.upcoming_events %}
+    <section class="upcoming-section">
+        <h2 class="section-title">Coming Up</h2>
+        <div class="upcoming-list">
+            {% for event in user_data.upcoming_events %}
+            <div class="upcoming-item">
+                <div class="upcoming-date">
+                    <span class="date-month">{{ event.start_date|date:"M" }}</span>
+                    <span class="date-day">{{ event.start_date|date:"j" }}</span>
+                </div>
+                <div class="upcoming-info">
+                    <span class="upcoming-title">{{ event.title }}</span>
+                    {% if event.start_time %}
+                    <span class="upcoming-time">{{ event.start_time|time:"g:i A" }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
 </div>
-
-<style>
-.dashboard-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: var(--space-6);
-    flex-wrap: wrap;
-    gap: var(--space-4);
-}
-
-.greeting h1 {
-    font-size: var(--font-size-2xl);
-    margin-bottom: var(--space-1);
-}
-
-.current-date {
-    color: var(--color-text-muted);
-    margin: 0;
-}
-
-.btn-icon {
-    width: 18px;
-    height: 18px;
-}
-
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: var(--space-6);
-}
-
-.dashboard-tile {
-    background: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-6);
-}
-
-.tile-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-4);
-}
-
-.tile-title {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--font-size-lg);
-    margin: 0;
-}
-
-.tile-icon {
-    width: 20px;
-    height: 20px;
-    color: var(--color-accent);
-}
-
-.tile-link {
-    font-size: var(--font-size-sm);
-    color: var(--color-accent);
-}
-
-.tile-stats {
-    display: flex;
-    gap: var(--space-6);
-    margin-bottom: var(--space-4);
-    padding-bottom: var(--space-4);
-    border-bottom: 1px solid var(--color-border);
-}
-
-.stat {
-    display: flex;
-    flex-direction: column;
-}
-
-.stat-value {
-    font-size: var(--font-size-2xl);
-    font-weight: 600;
-    color: var(--color-text);
-}
-
-.stat-label {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-}
-
-.recent-title {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-    margin-bottom: var(--space-2);
-}
-
-.recent-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.recent-item {
-    margin-bottom: var(--space-2);
-}
-
-.recent-link {
-    display: flex;
-    justify-content: space-between;
-    padding: var(--space-2);
-    border-radius: var(--radius-md);
-    transition: background-color var(--transition-fast);
-}
-
-.recent-link:hover {
-    background-color: var(--color-surface);
-    text-decoration: none;
-}
-
-.recent-entry-title {
-    color: var(--color-text);
-}
-
-.recent-entry-date {
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-}
-
-.tile-empty {
-    text-align: center;
-    padding: var(--space-4);
-    color: var(--color-text-muted);
-}
-
-.tile-empty p {
-    margin-bottom: var(--space-4);
-}
-
-.quick-action-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-}
-
-.quick-action-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    border-radius: var(--radius-md);
-    color: var(--color-text);
-    transition: background-color var(--transition-fast);
-}
-
-.quick-action-item:hover {
-    background-color: var(--color-surface);
-    text-decoration: none;
-}
-
-.quick-action-icon {
-    width: 20px;
-    height: 20px;
-    color: var(--color-accent);
-}
-</style>
 {% endblock %}

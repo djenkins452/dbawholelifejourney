@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ reflection }} - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <span>/</span>
+        <a href="{% url 'purpose:reflection_list' %}">Reflections</a>
+        <span>/</span>
+        <a href="{% url 'purpose:reflection_detail' reflection.pk %}">{{ reflection.year }}</a>
+        <span>/</span>
+        <span>Edit</span>
+    </nav>
+    
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ reflection }}</h1>
+            <p class="page-subtitle">Take your time. There's no rush.</p>
+        </div>
+    </div>
+    
+    <form method="post" class="reflection-form">
+        {% csrf_token %}
+        
+        {% for response in responses %}
+        <div class="response-card">
+            <label for="response_{{ response.id }}" class="response-question">
+                {{ forloop.counter }}. {{ response.question_text }}
+            </label>
+            <textarea 
+                name="response_{{ response.id }}" 
+                id="response_{{ response.id }}" 
+                class="form-textarea"
+                rows="4"
+                placeholder="Take a moment to reflect...">{{ response.response }}</textarea>
+        </div>
+        {% empty %}
+        <div class="empty-section">
+            <p>No prompts for this reflection type.</p>
+        </div>
+        {% endfor %}
+        
+        <div class="form-actions">
+            <a href="{% url 'purpose:reflection_detail' reflection.pk %}" class="btn btn-ghost">View Reflection</a>
+            <button type="submit" name="save" class="btn btn-secondary">Save Progress</button>
+            {% if not reflection.is_complete %}
+            <button type="submit" name="mark_complete" value="1" class="btn btn-primary">Complete Reflection</button>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.reflection-form {
+    max-width: 700px;
+}
+
+.response-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.response-question {
+    display: block;
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    margin-bottom: var(--space-3);
+    color: var(--color-text);
+}
+
+.form-textarea {
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+}
+
+.empty-section {
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding: var(--space-6);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    position: sticky;
+    bottom: var(--space-4);
+}
+</style>
+{% endblock %}

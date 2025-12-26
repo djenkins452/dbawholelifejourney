@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Recently Deleted - Journal - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Recently Deleted</h1>
+        <p class="page-subtitle">Entries are permanently removed after 30 days</p>
+    </div>
+    
+    {% if entries %}
+        <div class="info-banner mb-6">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>Deleted entries will be permanently removed after 30 days. Restore them now if you want to keep them.</span>
+        </div>
+        
+        <div class="entry-list">
+            {% for entry in entries %}
+                <article class="entry-card entry-card-deleted">
+                    <div class="entry-content">
+                        <div class="entry-header">
+                            <h2 class="entry-title">{{ entry.title }}</h2>
+                            <div class="entry-meta">
+                                <time datetime="{{ entry.entry_date|date:'Y-m-d' }}">
+                                    {{ entry.entry_date|date:"M j, Y" }}
+                                </time>
+                                {% if entry.days_until_permanent_deletion is not None %}
+                                    <span class="deletion-countdown">
+                                        {% if entry.days_until_permanent_deletion == 0 %}
+                                            Deleting today
+                                        {% else %}
+                                            {{ entry.days_until_permanent_deletion }} day{{ entry.days_until_permanent_deletion|pluralize }} left
+                                        {% endif %}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <p class="entry-preview">{{ entry.body_preview }}</p>
+                    </div>
+                    
+                    <div class="entry-actions">
+                        <form method="post" action="{% url 'journal:entry_restore' entry.pk %}" class="inline-form">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary btn-sm">Restore</button>
+                        </form>
+                        <form method="post" action="{% url 'journal:entry_permanent_delete' entry.pk %}" class="inline-form" data-confirm-delete="This will permanently delete the entry. This cannot be undone.">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-ghost btn-sm text-error">Delete Forever</button>
+                        </form>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination" aria-label="Deleted entries pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">← Previous</a>
+                {% endif %}
+                <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next →</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+            </div>
+            <h2 class="empty-state-title">Nothing in the trash</h2>
+            <p class="empty-state-text">
+                When you delete an entry, it will appear here for 30 days before being permanently removed.
+            </p>
+        </div>
+    {% endif %}
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'journal:entry_list' %}" class="btn btn-ghost">← Back to Journal</a>
+    </div>
+</div>
+
+<style>
+.info-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: color-mix(in srgb, var(--color-info) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-info) 30%, transparent);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-info);
+}
+
+.entry-card-deleted {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    opacity: 0.75;
+}
+
+.entry-card-deleted .entry-content {
+    flex: 1;
+}
+
+.entry-card-deleted .entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-2);
+}
+
+.entry-card-deleted .entry-title {
+    font-size: var(--font-size-base);
+    margin: 0;
+}
+
+.entry-card-deleted .entry-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.deletion-countdown {
+    font-size: var(--font-size-xs);
+    color: var(--color-error);
+    font-weight: 500;
+}
+
+.entry-card-deleted .entry-preview {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.entry-card-deleted .entry-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+
+@media (max-width: 640px) {
+    .entry-card-deleted {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .entry-card-deleted .entry-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+    }
+    
+    .entry-card-deleted .entry-meta {
+        align-items: flex-start;
+    }
+    
+    .entry-card-deleted .entry-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+</style>
+{% endblock %}

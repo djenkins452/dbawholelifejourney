@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Health</h1>
+        <p class="page-subtitle">Track your physical wellness, gently and without judgment</p>
+    </div>
+    
+    <!-- Quick Log Banner -->
+    {% if active_fast %}
+    <div class="active-fast-banner mb-6">
+        <div class="fast-info">
+            <span class="fast-label">🕐 Active Fast</span>
+            <span class="fast-type">{{ active_fast.fasting_type }}</span>
+            <span class="fast-duration">{{ active_fast.duration_display }}</span>
+            {% if active_fast.target_hours %}
+                <div class="fast-progress">
+                    <div class="progress-bar" style="width: {{ active_fast.progress_percent }}%"></div>
+                </div>
+                <span class="fast-target">{{ active_fast.progress_percent|floatformat:0 }}% of {{ active_fast.target_hours }}h goal</span>
+            {% endif %}
+        </div>
+        <form method="post" action="{% url 'health:fasting_end' active_fast.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-sm">End Fast</button>
+        </form>
+    </div>
+    {% endif %}
+    
+    <div class="health-grid">
+        <!-- Weight Card -->
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+                        <circle cx="12" cy="12" r="4"/>
+                    </svg>
+                    Weight
+                </h2>
+                <a href="{% url 'health:weight_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+            
+            {% if latest_weight %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_weight.value }}</span>
+                    <span class="metric-unit">{{ latest_weight.unit }}</span>
+                </div>
+                <p class="metric-date">{{ latest_weight.recorded_at|date:"M j" }}</p>
+                
+                {% if weight_change_30d is not None %}
+                    <p class="metric-change {% if weight_change_30d < 0 %}change-down{% elif weight_change_30d > 0 %}change-up{% endif %}">
+                        {% if weight_change_30d > 0 %}+{% endif %}{{ weight_change_30d }} lb in 30 days
+                    </p>
+                {% endif %}
+                
+                <a href="{% url 'health:weight_list' %}" class="card-link">View history ({{ weight_count }})</a>
+            {% else %}
+                <p class="text-muted">No weight logged yet.</p>
+                <a href="{% url 'health:weight_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Log your first weight
+                </a>
+            {% endif %}
+        </div>
+        
+        <!-- Fasting Card -->
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Fasting
+                </h2>
+                {% if not active_fast %}
+                    <a href="{% url 'health:fasting_start' %}" class="btn btn-primary btn-sm">Start Fast</a>
+                {% endif %}
+            </div>
+            
+            {% if fasts_this_month %}
+                <div class="fasting-stats">
+                    <div class="stat">
+                        <span class="stat-value">{{ fasts_this_month }}</span>
+                        <span class="stat-label">fasts this month</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">{{ avg_fast_duration }}h</span>
+                        <span class="stat-label">avg duration</span>
+                    </div>
+                </div>
+            {% else %}
+                <p class="text-muted">No fasts completed this month.</p>
+            {% endif %}
+            
+            <a href="{% url 'health:fasting_list' %}" class="card-link">View all fasts</a>
+        </div>
+        
+        <!-- Heart Rate Card -->
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                    Heart Rate
+                </h2>
+                <a href="{% url 'health:heartrate_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+            
+            {% if latest_heart_rate %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_heart_rate.bpm }}</span>
+                    <span class="metric-unit">BPM</span>
+                </div>
+                <p class="metric-context">{{ latest_heart_rate.get_context_display }}</p>
+                <p class="metric-date">{{ latest_heart_rate.recorded_at|date:"M j" }}</p>
+                
+                {% if avg_resting_hr %}
+                    <p class="metric-avg">Avg resting: {{ avg_resting_hr }} BPM</p>
+                {% endif %}
+                
+                <a href="{% url 'health:heartrate_list' %}" class="card-link">View history</a>
+            {% else %}
+                <p class="text-muted">No heart rate logged yet.</p>
+                <a href="{% url 'health:heartrate_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Log your first reading
+                </a>
+            {% endif %}
+        </div>
+        
+        <!-- Glucose Card -->
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v6M12 22v-6M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h6M22 12h-6M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24"/>
+                    </svg>
+                    Glucose
+                </h2>
+                <a href="{% url 'health:glucose_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+            
+            {% if latest_glucose %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_glucose.value }}</span>
+                    <span class="metric-unit">{{ latest_glucose.unit }}</span>
+                </div>
+                <p class="metric-context">{{ latest_glucose.get_context_display }}</p>
+                <p class="metric-date">{{ latest_glucose.recorded_at|date:"M j" }}</p>
+                
+                {% if avg_fasting_glucose %}
+                    <p class="metric-avg">Avg fasting: {{ avg_fasting_glucose }} {{ latest_glucose.unit }}</p>
+                {% endif %}
+                
+                <a href="{% url 'health:glucose_list' %}" class="card-link">View history</a>
+            {% else %}
+                <p class="text-muted">No glucose logged yet.</p>
+                <a href="{% url 'health:glucose_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Log your first reading
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.active-fast-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+    border-radius: var(--radius-lg);
+}
+
+.fast-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.fast-label {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.fast-type {
+    background: var(--color-background);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+}
+
+.fast-duration {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.fast-progress {
+    width: 100px;
+    height: 6px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+}
+
+.fast-target {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-6);
+}
+
+.health-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.health-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.health-card .card-header h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-lg);
+    margin: 0;
+}
+
+.card-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--color-accent);
+}
+
+.metric-display {
+    margin-bottom: var(--space-2);
+}
+
+.metric-value {
+    font-size: var(--font-size-3xl);
+    font-weight: 600;
+}
+
+.metric-unit {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    margin-left: var(--space-1);
+}
+
+.metric-context {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.metric-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.metric-change {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+}
+
+.change-down {
+    color: var(--color-success);
+}
+
+.change-up {
+    color: var(--color-text-muted);
+}
+
+.metric-avg {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+}
+
+.fasting-stats {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.fasting-stats .stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.fasting-stats .stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.fasting-stats .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.card-link {
+    display: block;
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .active-fast-banner {
+        flex-direction: column;
+        gap: var(--space-4);
+        text-align: center;
+    }
+    
+    .fast-info {
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}

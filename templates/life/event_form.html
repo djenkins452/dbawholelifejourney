@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Event{% else %}New Event{% endif %} - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:calendar' %}">Calendar</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}New{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="form-header">
+            <h1 class="page-title">{% if object %}Edit Event{% else %}New Event{% endif %}</h1>
+        </div>
+        
+        <form method="post" class="life-form">
+            {% csrf_token %}
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_title" class="form-label">Event Title</label>
+                    <input type="text" name="title" id="id_title" class="form-input" 
+                           value="{{ form.title.value|default:'' }}" required
+                           placeholder="What's happening?">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_description" class="form-label">Description</label>
+                    <textarea name="description" id="id_description" class="form-textarea" rows="2"
+                              placeholder="Additional details...">{{ form.description.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_event_type" class="form-label">Event Type</label>
+                    <select name="event_type" id="id_event_type" class="form-select">
+                        <option value="personal" {% if form.event_type.value == 'personal' %}selected{% endif %}>Personal</option>
+                        <option value="family" {% if form.event_type.value == 'family' %}selected{% endif %}>Family</option>
+                        <option value="household" {% if form.event_type.value == 'household' %}selected{% endif %}>Household</option>
+                        <option value="faith" {% if form.event_type.value == 'faith' %}selected{% endif %}>Faith</option>
+                        <option value="health" {% if form.event_type.value == 'health' %}selected{% endif %}>Health</option>
+                        <option value="work" {% if form.event_type.value == 'work' %}selected{% endif %}>Work</option>
+                        <option value="social" {% if form.event_type.value == 'social' %}selected{% endif %}>Social</option>
+                        <option value="travel" {% if form.event_type.value == 'travel' %}selected{% endif %}>Travel</option>
+                        <option value="other" {% if form.event_type.value == 'other' %}selected{% endif %}>Other</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Date & Time</h2>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_all_day" id="id_is_all_day" 
+                               {% if form.is_all_day.value %}checked{% endif %}
+                               onchange="toggleTimeFields()">
+                        All day event
+                    </label>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_start_date" class="form-label">Start Date</label>
+                        <input type="date" name="start_date" id="id_start_date" class="form-input"
+                               value="{{ form.start_date.value|date:'Y-m-d'|default:'' }}" required>
+                    </div>
+                    
+                    <div class="form-group time-field">
+                        <label for="id_start_time" class="form-label">Start Time</label>
+                        <input type="time" name="start_time" id="id_start_time" class="form-input"
+                               value="{{ form.start_time.value|time:'H:i'|default:'' }}">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_end_date" class="form-label">End Date (optional)</label>
+                        <input type="date" name="end_date" id="id_end_date" class="form-input"
+                               value="{{ form.end_date.value|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    
+                    <div class="form-group time-field">
+                        <label for="id_end_time" class="form-label">End Time</label>
+                        <input type="time" name="end_time" id="id_end_time" class="form-input"
+                               value="{{ form.end_time.value|time:'H:i'|default:'' }}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Location & Details</h2>
+                
+                <div class="form-group">
+                    <label for="id_location" class="form-label">Location</label>
+                    <input type="text" name="location" id="id_location" class="form-input"
+                           value="{{ form.location.value|default:'' }}"
+                           placeholder="Where is this happening?">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_project" class="form-label">Related Project (optional)</label>
+                    <select name="project" id="id_project" class="form-select">
+                        <option value="">No project</option>
+                        {% for project in form.fields.project.queryset %}
+                        <option value="{{ project.pk }}" {% if form.project.value == project.pk|stringformat:"s" %}selected{% endif %}>{{ project.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Create Event{% endif %}
+                </button>
+                <a href="{% url 'life:calendar' %}" class="btn btn-ghost">Cancel</a>
+                {% if object %}
+                <a href="{% url 'life:event_delete' object.pk %}" class="btn btn-ghost text-error ml-auto">Delete</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleTimeFields() {
+    const isAllDay = document.getElementById('id_is_all_day').checked;
+    const timeFields = document.querySelectorAll('.time-field');
+    timeFields.forEach(field => {
+        field.style.display = isAllDay ? 'none' : 'block';
+    });
+}
+// Run on page load
+toggleTimeFields();
+</script>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 600px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.ml-auto {
+    margin-left: auto;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

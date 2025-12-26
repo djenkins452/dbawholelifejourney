@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Journal Prompts - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Journal Prompts</h1>
+        <p class="page-subtitle">Need inspiration? Choose a prompt to get started.</p>
+    </div>
+    
+    <!-- Random Prompt Section -->
+    <div class="random-prompt-section mb-8">
+        <button 
+            type="button" 
+            class="btn btn-secondary"
+            hx-get="{% url 'journal:random_prompt' %}"
+            hx-target="#random-prompt"
+            hx-swap="outerHTML"
+        >
+            🎲 Give me a random prompt
+        </button>
+        <div id="random-prompt" class="mt-4"></div>
+    </div>
+    
+    {% if prompts %}
+        <!-- Filter by Category -->
+        <div class="prompt-filters mb-6">
+            <span class="filter-label">Filter:</span>
+            <a href="{% url 'journal:prompt_list' %}" class="filter-tag {% if not active_category %}active{% endif %}">All</a>
+            {% for category in prompt_categories %}
+                <a href="?category={{ category.slug }}" class="filter-tag {% if active_category == category.slug %}active{% endif %}">
+                    {{ category.name }}
+                </a>
+            {% endfor %}
+        </div>
+        
+        <div class="prompt-grid">
+            {% for prompt in prompts %}
+                <div class="prompt-card">
+                    <p class="prompt-text">{{ prompt.text }}</p>
+                    
+                    {% if prompt.category %}
+                        <span class="prompt-category">{{ prompt.category.name }}</span>
+                    {% endif %}
+                    
+                    {% if prompt.scripture_reference %}
+                        <p class="prompt-scripture">{{ prompt.scripture_reference }}</p>
+                    {% endif %}
+                    
+                    <a href="{% url 'journal:entry_create' %}?prompt={{ prompt.pk }}" class="btn btn-primary btn-sm mt-4">
+                        Write about this
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No prompts available</h2>
+            <p class="empty-state-text">
+                {% if active_category %}
+                    No prompts in this category. <a href="{% url 'journal:prompt_list' %}">View all prompts</a>.
+                {% elif not user.preferences.faith_enabled %}
+                    Enable faith in your preferences to see faith-specific prompts.
+                {% else %}
+                    Check back later for new prompts.
+                {% endif %}
+            </p>
+        </div>
+    {% endif %}
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'journal:entry_list' %}" class="btn btn-ghost">← Back to Journal</a>
+    </div>
+</div>
+
+<style>
+.random-prompt-section {
+    background: var(--color-surface);
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+
+.prompt-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.filter-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-right: var(--space-2);
+}
+
+.filter-tag {
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.filter-tag:hover,
+.filter-tag.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.prompt-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-4);
+}
+
+.prompt-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+}
+
+.prompt-text {
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-relaxed);
+    margin-bottom: var(--space-3);
+    flex-grow: 1;
+}
+
+.prompt-category {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-2);
+    width: fit-content;
+}
+
+.prompt-scripture {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+</style>
+{% endblock %}

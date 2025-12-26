@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}Life Goals - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Life Goals</h1>
+            <p class="page-subtitle">Direction, not daily execution</p>
+        </div>
+        <a href="{% url 'purpose:goal_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Goal
+        </a>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filters mb-6">
+        <div class="filter-group">
+            <label>Status:</label>
+            <a href="?status=active{% if current_domain %}&domain={{ current_domain }}{% endif %}" 
+               class="filter-chip {% if current_status == 'active' %}active{% endif %}">Active</a>
+            <a href="?status=paused{% if current_domain %}&domain={{ current_domain }}{% endif %}" 
+               class="filter-chip {% if current_status == 'paused' %}active{% endif %}">Paused</a>
+            <a href="?status=completed{% if current_domain %}&domain={{ current_domain }}{% endif %}" 
+               class="filter-chip {% if current_status == 'completed' %}active{% endif %}">Completed</a>
+            <a href="?status=released{% if current_domain %}&domain={{ current_domain }}{% endif %}" 
+               class="filter-chip {% if current_status == 'released' %}active{% endif %}">Released</a>
+            <a href="?{% if current_domain %}domain={{ current_domain }}{% endif %}" 
+               class="filter-chip {% if not current_status or current_status == '' %}active{% endif %}">All</a>
+        </div>
+        
+        <div class="filter-group">
+            <label>Domain:</label>
+            <a href="?status={{ current_status }}" 
+               class="filter-chip {% if not current_domain %}active{% endif %}">All</a>
+            {% for domain in domains %}
+            <a href="?status={{ current_status }}&domain={{ domain.slug }}" 
+               class="filter-chip {% if current_domain == domain.slug %}active{% endif %}">
+                {{ domain.icon }} {{ domain.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Goals by Domain -->
+    {% if goals_by_domain %}
+    <div class="goals-container">
+        {% for domain_name, domain_goals in goals_by_domain.items %}
+        <div class="domain-section">
+            <h2 class="domain-header">{{ domain_name }}</h2>
+            <div class="goal-cards">
+                {% for goal in domain_goals %}
+                <div class="goal-card status-{{ goal.status }}">
+                    <div class="goal-header">
+                        <h3 class="goal-title">
+                            <a href="{% url 'purpose:goal_detail' goal.pk %}">{{ goal.title }}</a>
+                        </h3>
+                        <span class="goal-timeframe">{{ goal.get_timeframe_display }}</span>
+                    </div>
+                    
+                    {% if goal.description %}
+                    <p class="goal-description">{{ goal.description|truncatewords:25 }}</p>
+                    {% endif %}
+                    
+                    {% if goal.why_it_matters %}
+                    <div class="goal-why">
+                        <span class="why-label">Why it matters:</span>
+                        <span class="why-text">{{ goal.why_it_matters|truncatewords:15 }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="goal-footer">
+                        <span class="goal-status status-{{ goal.status }}">{{ goal.get_status_display }}</span>
+                        <div class="goal-actions">
+                            <a href="{% url 'purpose:goal_update' goal.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                            {% if goal.status == 'active' %}
+                            <form method="post" action="{% url 'purpose:goal_toggle_status' goal.pk %}" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="complete">
+                                <button type="submit" class="btn btn-ghost btn-sm">Complete</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🎯</div>
+        <h2>No Goals Yet</h2>
+        <p>Life goals help you focus on direction, not daily tasks.</p>
+        <a href="{% url 'purpose:goal_create' %}" class="btn btn-primary">Add Your First Goal</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.filter-group label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    min-width: 60px;
+}
+
+.filter-chip {
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.filter-chip:hover {
+    background: var(--color-border);
+}
+
+.filter-chip.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.domain-section {
+    margin-bottom: var(--space-8);
+}
+
+.domain-header {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 2px solid var(--color-accent);
+}
+
+.goal-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var(--space-4);
+}
+
+.goal-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    transition: all var(--transition-fast);
+}
+
+.goal-card:hover {
+    border-color: var(--color-accent);
+}
+
+.goal-card.status-completed {
+    opacity: 0.7;
+}
+
+.goal-card.status-paused {
+    border-left: 3px solid var(--color-warning);
+}
+
+.goal-card.status-released {
+    opacity: 0.6;
+}
+
+.goal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-3);
+}
+
+.goal-title {
+    font-size: var(--font-size-base);
+    margin: 0;
+}
+
+.goal-title a {
+    color: var(--color-text);
+}
+
+.goal-title a:hover {
+    color: var(--color-accent);
+}
+
+.goal-timeframe {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+}
+
+.goal-description {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+}
+
+.goal-why {
+    font-size: var(--font-size-sm);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+}
+
+.why-label {
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.why-text {
+    color: var(--color-text);
+}
+
+.goal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.goal-status {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.goal-status.status-active {
+    color: var(--color-success);
+}
+
+.goal-status.status-paused {
+    color: var(--color-warning);
+}
+
+.goal-status.status-completed {
+    color: var(--color-accent);
+}
+
+.goal-status.status-released {
+    color: var(--color-text-muted);
+}
+
+.goal-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.inline {
+    display: inline;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12);
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+
+@media (max-width: 768px) {
+    .goal-cards {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

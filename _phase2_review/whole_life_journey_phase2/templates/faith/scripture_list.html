@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Scripture Library - Faith - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Scripture Library</h1>
+        <p class="page-subtitle">Curated verses for reflection and encouragement</p>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filters-bar mb-6">
+        <form method="get" class="filters-form">
+            <div class="filter-group">
+                <label for="theme-filter" class="sr-only">Filter by theme</label>
+                <select name="theme" id="theme-filter" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Themes</option>
+                    {% for theme in available_themes %}
+                        <option value="{{ theme }}" {% if selected_theme == theme %}selected{% endif %}>
+                            {{ theme|title }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="book-filter" class="sr-only">Filter by book</label>
+                <select name="book" id="book-filter" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Books</option>
+                    {% for book in available_books %}
+                        <option value="{{ book }}" {% if selected_book == book %}selected{% endif %}>
+                            {{ book }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            {% if selected_theme or selected_book %}
+                <a href="{% url 'faith:scripture_list' %}" class="btn btn-ghost btn-sm">Clear Filters</a>
+            {% endif %}
+        </form>
+    </div>
+    
+    {% if verses %}
+        <div class="scripture-grid">
+            {% for verse in verses %}
+                <article class="scripture-card">
+                    <blockquote class="scripture-text">
+                        "{{ verse.text }}"
+                    </blockquote>
+                    <cite class="scripture-reference">
+                        — {{ verse.reference }} ({{ verse.translation }})
+                    </cite>
+                    <div class="scripture-themes">
+                        {% for theme in verse.themes %}
+                            <span class="theme-tag">{{ theme }}</span>
+                        {% endfor %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination mt-8">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">← Previous</a>
+                {% endif %}
+                <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next →</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No verses found</h2>
+            <p class="empty-state-text">Try adjusting your filters.</p>
+            <a href="{% url 'faith:scripture_list' %}" class="btn btn-secondary">View All Verses</a>
+        </div>
+    {% endif %}
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:home' %}" class="btn btn-ghost">← Back to Faith</a>
+    </div>
+</div>
+
+<style>
+.filters-bar {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+}
+
+.filters-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.scripture-grid {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.scripture-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.scripture-text {
+    font-size: var(--font-size-lg);
+    font-style: italic;
+    line-height: var(--line-height-relaxed);
+    margin: 0 0 var(--space-3) 0;
+    padding: 0;
+    border: none;
+}
+
+.scripture-reference {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: normal;
+    margin-bottom: var(--space-3);
+}
+
+.scripture-themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.theme-tag {
+    font-size: var(--font-size-xs);
+    background: var(--color-surface);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

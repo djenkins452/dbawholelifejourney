@@ -1,77 +1,63 @@
-{% extends "base.html" %}
 {% load static %}
-
-{% block body %}
-<div class="auth-page">
-    <div class="auth-container">
-        <a href="{% url 'core:landing' %}" class="auth-logo">
-            <img src="{% static 'icons/common/logo.svg' %}" alt="" class="auth-logo-icon">
-            <span>Whole Life Journey</span>
-        </a>
-        
-        {% if messages %}
-        <div class="auth-messages">
-            {% for message in messages %}
-            <div class="message message-{{ message.tags }}">
-                {{ message }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Whole Life Journey{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="stylesheet" href="{% static 'css/themes.css' %}">
+    <link rel="icon" type="image/png" href="{% static 'images/wlj-logo.png' %}">
+</head>
+<body class="theme-minimal">
+    <div class="auth-page">
+        <div class="auth-container">
+            <div class="auth-header">
+                <a href="{% url 'core:landing' %}">
+                    <img src="{% static 'images/wlj-logo.png' %}" alt="Whole Life Journey" class="auth-logo">
+                </a>
             </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-        
-        <div class="auth-card">
-            {% block auth_content %}{% endblock %}
-        </div>
-        
-        <div class="auth-footer">
-            <a href="{% url 'core:terms' %}">Terms</a>
-            <span>·</span>
-            <a href="{% url 'core:privacy' %}">Privacy</a>
+            
+            <div class="auth-card">
+                {% block content %}{% endblock %}
+            </div>
+            
+            <div class="auth-footer">
+                <p>© 2025 Beacon Innovations LLC</p>
+            </div>
         </div>
     </div>
-</div>
-
+    
 <style>
 .auth-page {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--color-surface);
+    background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-background) 100%);
     padding: var(--space-4);
 }
 
 .auth-container {
     width: 100%;
-    max-width: 400px;
+    max-width: 420px;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: var(--space-8);
 }
 
 .auth-logo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    margin-bottom: var(--space-6);
-    font-weight: 600;
-    font-size: var(--font-size-lg);
-    color: var(--color-text);
-    text-decoration: none;
-}
-
-.auth-logo-icon {
-    width: 32px;
-    height: 32px;
-}
-
-.auth-messages {
-    margin-bottom: var(--space-4);
+    width: 120px;
+    height: auto;
 }
 
 .auth-card {
     background: var(--color-background);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    padding: var(--space-6);
+    padding: var(--space-8);
 }
 
 .auth-card h1 {
@@ -80,31 +66,16 @@
     margin-bottom: var(--space-6);
 }
 
-.auth-card p {
-    text-align: center;
-    color: var(--color-text-muted);
-    margin-bottom: var(--space-6);
-}
-
 .auth-footer {
     text-align: center;
     margin-top: var(--space-6);
-    font-size: var(--font-size-sm);
     color: var(--color-text-muted);
-}
-
-.auth-footer a {
-    color: var(--color-text-muted);
-}
-
-.auth-footer span {
-    margin: 0 var(--space-2);
-}
-
-.auth-link {
-    text-align: center;
-    margin-top: var(--space-4);
     font-size: var(--font-size-sm);
+}
+
+.auth-footer p {
+    margin: 0;
 }
 </style>
-{% endblock %}
+</body>
+</html>

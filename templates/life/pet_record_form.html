@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Record{% else %}Add Record{% endif %} for {{ pet.name }} - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:pet_list' %}">Pets</a>
+        <span>/</span>
+        <a href="{% url 'life:pet_detail' pet.pk %}">{{ pet.name }}</a>
+        <span>/</span>
+        <span>{% if object %}Edit Record{% else %}Add Record{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="form-header">
+            <div class="pet-badge">
+                {% if pet.photo %}
+                <img src="{{ pet.photo.url }}" alt="{{ pet.name }}" class="pet-avatar">
+                {% else %}
+                <span class="pet-emoji">
+                    {% if pet.species == 'dog' %}🐕
+                    {% elif pet.species == 'cat' %}🐈
+                    {% elif pet.species == 'bird' %}🐦
+                    {% elif pet.species == 'fish' %}🐟
+                    {% elif pet.species == 'rabbit' %}🐰
+                    {% elif pet.species == 'hamster' %}🐹
+                    {% elif pet.species == 'reptile' %}🦎
+                    {% else %}🐾{% endif %}
+                </span>
+                {% endif %}
+                <span class="pet-name">{{ pet.name }}</span>
+            </div>
+            <h1 class="page-title">{% if object %}Edit Record{% else %}Add Record{% endif %}</h1>
+        </div>
+        
+        <form method="post" class="life-form">
+            {% csrf_token %}
+            
+            <div class="form-section">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_record_type" class="form-label">Record Type</label>
+                        <select name="record_type" id="id_record_type" class="form-select">
+                            <option value="vet_visit" {% if form.record_type.value == 'vet_visit' %}selected{% endif %}>🏥 Vet Visit</option>
+                            <option value="vaccination" {% if form.record_type.value == 'vaccination' %}selected{% endif %}>💉 Vaccination</option>
+                            <option value="medication" {% if form.record_type.value == 'medication' %}selected{% endif %}>💊 Medication</option>
+                            <option value="grooming" {% if form.record_type.value == 'grooming' %}selected{% endif %}>✂️ Grooming</option>
+                            <option value="weight" {% if form.record_type.value == 'weight' %}selected{% endif %}>⚖️ Weight Check</option>
+                            <option value="other" {% if form.record_type.value == 'other' %}selected{% endif %}>📝 Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_date" class="form-label">Date</label>
+                        <input type="date" name="date" id="id_date" class="form-input"
+                               value="{{ form.date.value|date:'Y-m-d'|default:'' }}" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_title" class="form-label">Title</label>
+                    <input type="text" name="title" id="id_title" class="form-input" 
+                           value="{{ form.title.value|default:'' }}" required
+                           placeholder="e.g., Annual checkup, Rabies vaccine">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_description" class="form-label">Description</label>
+                    <textarea name="description" id="id_description" class="form-textarea" rows="4"
+                              placeholder="Notes from the visit, medications prescribed, etc.">{{ form.description.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_cost" class="form-label">Cost ($)</label>
+                        <input type="number" name="cost" id="id_cost" class="form-input"
+                               value="{{ form.cost.value|default:'' }}"
+                               step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_next_due_date" class="form-label">Next Due Date</label>
+                        <input type="date" name="next_due_date" id="id_next_due_date" class="form-input"
+                               value="{{ form.next_due_date.value|date:'Y-m-d'|default:'' }}">
+                        <p class="form-help">When is this needed again?</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Add Record{% endif %}
+                </button>
+                <a href="{% url 'life:pet_detail' pet.pk %}" class="btn btn-ghost">Cancel</a>
+                {% if object %}
+                <a href="{% url 'life:pet_record_delete' object.pk %}" class="btn btn-ghost text-error ml-auto">Delete</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 600px;
+}
+
+.form-header {
+    margin-bottom: var(--space-6);
+}
+
+.pet-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.pet-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.pet-emoji {
+    font-size: 2rem;
+}
+
+.pet-name {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.ml-auto {
+    margin-left: auto;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

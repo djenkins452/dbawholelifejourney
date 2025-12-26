@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Prayer Requests - Faith - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Prayer Requests</h1>
+            <p class="page-subtitle">{{ prayers|length }} active request{{ prayers|length|pluralize }}</p>
+        </div>
+        <a href="{% url 'faith:prayer_create' %}" class="btn btn-primary">
+            Add Prayer
+        </a>
+    </div>
+    
+    {% if answered_count > 0 %}
+    <div class="answered-banner mb-6">
+        <span>🙏</span>
+        <span>{{ answered_count }} answered prayer{{ answered_count|pluralize }}</span>
+        <a href="{% url 'faith:answered_prayers' %}" class="btn btn-ghost btn-sm">View Answered</a>
+    </div>
+    {% endif %}
+    
+    {% if prayers %}
+        <div class="prayer-grid">
+            {% for prayer in prayers %}
+                <article class="prayer-card {% if prayer.priority == 'urgent' %}prayer-urgent{% endif %}">
+                    <div class="prayer-header">
+                        <h2 class="prayer-title">{{ prayer.title }}</h2>
+                        {% if prayer.priority == 'urgent' %}
+                            <span class="priority-badge">Urgent</span>
+                        {% endif %}
+                    </div>
+                    
+                    {% if prayer.description %}
+                        <p class="prayer-description">{{ prayer.description|truncatewords:30 }}</p>
+                    {% endif %}
+                    
+                    {% if prayer.person_or_situation %}
+                        <p class="prayer-for">
+                            Praying for: <strong>{{ prayer.person_or_situation }}</strong>
+                        </p>
+                    {% endif %}
+                    
+                    <div class="prayer-meta">
+                        <span>Added {{ prayer.created_at|timesince }} ago</span>
+                        {% if prayer.remind_daily %}
+                            <span class="remind-badge">Daily reminder</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="prayer-actions">
+                        <a href="{% url 'faith:prayer_detail' prayer.pk %}" class="btn btn-ghost btn-sm">View</a>
+                        <form method="post" action="{% url 'faith:prayer_answered' prayer.pk %}" class="inline-form">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-secondary btn-sm">Mark Answered</button>
+                        </form>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination mt-8">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">← Previous</a>
+                {% endif %}
+                <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next →</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 19l-7-7 7-7M5 12h14"/>
+                </svg>
+            </div>
+            <h2 class="empty-state-title">No active prayer requests</h2>
+            <p class="empty-state-text">
+                Bring your requests to God. He hears every prayer.
+            </p>
+            <a href="{% url 'faith:prayer_create' %}" class="btn btn-primary">
+                Add Your First Prayer
+            </a>
+        </div>
+    {% endif %}
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:home' %}" class="btn btn-ghost">← Back to Faith</a>
+    </div>
+</div>
+
+<style>
+.answered-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: color-mix(in srgb, var(--color-success) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--color-success);
+}
+
+.prayer-grid {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.prayer-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.prayer-card.prayer-urgent {
+    border-left: 4px solid var(--color-error);
+}
+
+.prayer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-3);
+}
+
+.prayer-title {
+    font-size: var(--font-size-lg);
+    margin: 0;
+}
+
+.priority-badge {
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.prayer-description {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.prayer-for {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+}
+
+.prayer-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.remind-badge {
+    font-size: var(--font-size-xs);
+    background: var(--color-surface);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.prayer-actions {
+    display: flex;
+    gap: var(--space-2);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.inline-form {
+    display: inline;
+}
+</style>
+{% endblock %}

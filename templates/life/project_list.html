@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Projects</h1>
+            <p class="page-subtitle">Long-running meaningful efforts</p>
+        </div>
+        <a href="{% url 'life:project_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New Project
+        </a>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filters-bar mb-6">
+        <div class="filter-group">
+            <label class="filter-label">Status:</label>
+            <a href="{% url 'life:project_list' %}" class="filter-btn {% if not current_status %}active{% endif %}">Active</a>
+            <a href="?status=completed" class="filter-btn {% if current_status == 'completed' %}active{% endif %}">Completed</a>
+            <a href="?status=archived" class="filter-btn {% if current_status == 'archived' %}active{% endif %}">Archived</a>
+        </div>
+        <div class="filter-group">
+            <label class="filter-label">Priority:</label>
+            <a href="{% url 'life:project_list' %}{% if current_status %}?status={{ current_status }}{% endif %}" class="filter-btn {% if not current_priority %}active{% endif %}">All</a>
+            <a href="?priority=now{% if current_status %}&status={{ current_status }}{% endif %}" class="filter-btn {% if current_priority == 'now' %}active{% endif %}">Now</a>
+            <a href="?priority=soon{% if current_status %}&status={{ current_status }}{% endif %}" class="filter-btn {% if current_priority == 'soon' %}active{% endif %}">Soon</a>
+            <a href="?priority=someday{% if current_status %}&status={{ current_status }}{% endif %}" class="filter-btn {% if current_priority == 'someday' %}active{% endif %}">Someday</a>
+        </div>
+    </div>
+    
+    {% if projects %}
+    <div class="project-grid">
+        {% for project in projects %}
+        <a href="{{ project.get_absolute_url }}" class="project-card">
+            {% if project.cover_image %}
+            <div class="project-cover" style="background-image: url('{{ project.cover_image.url }}')"></div>
+            {% endif %}
+            <div class="project-content">
+                <div class="project-header">
+                    <h3 class="project-title">{{ project.title }}</h3>
+                    <span class="priority-badge priority-{{ project.priority }}">{{ project.get_priority_display }}</span>
+                </div>
+                
+                {% if project.description %}
+                <p class="project-description">{{ project.description|truncatewords:20 }}</p>
+                {% endif %}
+                
+                <div class="project-meta">
+                    {% if project.category %}
+                    <span class="project-category">{{ project.category }}</span>
+                    {% endif %}
+                    
+                    {% if project.task_total > 0 %}
+                    <div class="project-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{ project.progress_percentage }}%"></div>
+                        </div>
+                        <span class="progress-text">{{ project.task_done }}/{{ project.task_total }} tasks</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if project.target_date %}
+                    <span class="project-date {% if project.is_overdue %}overdue{% endif %}">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        {{ project.target_date|date:"M j, Y" }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        <h2>No projects yet</h2>
+        <p>Projects help you track meaningful long-term efforts.</p>
+        <a href="{% url 'life:project_create' %}" class="btn btn-primary">Start Your First Project</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.filters-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.filter-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.filter-btn {
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: var(--color-text-muted);
+    transition: all var(--transition-fast);
+}
+
+.filter-btn:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.filter-btn.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-5);
+}
+
+.project-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    transition: all var(--transition-fast);
+}
+
+.project-card:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-2px);
+}
+
+.project-cover {
+    height: 120px;
+    background-size: cover;
+    background-position: center;
+}
+
+.project-content {
+    padding: var(--space-5);
+}
+
+.project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.project-title {
+    font-size: var(--font-size-lg);
+    margin: 0;
+}
+
+.priority-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+}
+
+.priority-now {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+}
+
+.priority-soon {
+    background: color-mix(in srgb, #f59e0b 15%, transparent);
+    color: #f59e0b;
+}
+
+.priority-someday {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.project-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.project-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.project-category {
+    font-size: var(--font-size-xs);
+    background: var(--color-surface);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.project-progress {
+    flex: 1;
+    min-width: 100px;
+}
+
+.progress-bar {
+    height: 4px;
+    background: var(--color-surface);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: var(--space-1);
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-accent);
+    transition: width var(--transition-base);
+}
+
+.progress-text {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.project-date {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.project-date.overdue {
+    color: var(--color-error);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+}
+
+.empty-state svg {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.name }} - Inventory{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:inventory_list' %}">Inventory</a>
+        <span>/</span>
+        <span>{{ item.name }}</span>
+    </nav>
+    
+    <div class="inventory-detail">
+        <div class="detail-header">
+            <div>
+                <h1 class="page-title">{{ item.name }}</h1>
+                <p class="item-category">{{ item.category }}{% if item.location %} · {{ item.location }}{% endif %}</p>
+            </div>
+            <div class="detail-actions">
+                <a href="{% url 'life:inventory_update' item.pk %}" class="btn btn-secondary">Edit</a>
+                <a href="{% url 'life:inventory_delete' item.pk %}" class="btn btn-ghost text-error">Delete</a>
+            </div>
+        </div>
+        
+        <div class="detail-body">
+            <div class="detail-main">
+                <!-- Photos Section -->
+                <section class="photos-section mb-6">
+                    <div class="section-header">
+                        <h2>Photos</h2>
+                        <a href="{% url 'life:inventory_photo_create' item.pk %}" class="btn btn-sm btn-secondary">Add Photo</a>
+                    </div>
+                    
+                    {% if item.photos.exists %}
+                    <div class="photo-grid">
+                        {% for photo in item.photos.all %}
+                        <div class="photo-item {% if photo.is_primary %}is-primary{% endif %}">
+                            <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:item.name }}">
+                            <div class="photo-overlay">
+                                {% if photo.is_primary %}
+                                <span class="primary-badge">Primary</span>
+                                {% else %}
+                                <form method="post" action="{% url 'life:inventory_photo_set_primary' photo.pk %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="photo-action" title="Set as primary">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                        </svg>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                <a href="{% url 'life:inventory_photo_delete' photo.pk %}" class="photo-action delete" title="Delete photo">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="3 6 5 6 21 6"/>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                    </svg>
+                                </a>
+                            </div>
+                            {% if photo.caption %}
+                            <p class="photo-caption">{{ photo.caption }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="no-photos">
+                        <p>No photos yet.</p>
+                        <a href="{% url 'life:inventory_photo_create' item.pk %}" class="btn btn-secondary btn-sm">Add First Photo</a>
+                    </div>
+                    {% endif %}
+                </section>
+                
+                {% if item.description %}
+                <section class="detail-section">
+                    <h2>Description</h2>
+                    <p>{{ item.description }}</p>
+                </section>
+                {% endif %}
+                
+                {% if item.warranty_info or item.warranty_expiration %}
+                <section class="detail-section">
+                    <h2>Warranty</h2>
+                    {% if item.warranty_expiration %}
+                    <p><strong>Expires:</strong> {{ item.warranty_expiration|date:"M j, Y" }}</p>
+                    {% endif %}
+                    {% if item.warranty_info %}
+                    <p>{{ item.warranty_info }}</p>
+                    {% endif %}
+                </section>
+                {% endif %}
+                
+                {% if item.notes %}
+                <section class="detail-section">
+                    <h2>Notes</h2>
+                    <p>{{ item.notes|linebreaks }}</p>
+                </section>
+                {% endif %}
+                
+                <!-- Maintenance History -->
+                {% if item.maintenance_logs.exists %}
+                <section class="detail-section">
+                    <div class="section-header">
+                        <h2>Maintenance History</h2>
+                        <a href="{% url 'life:maintenance_create' %}?item={{ item.pk }}" class="btn btn-sm btn-secondary">Add Log</a>
+                    </div>
+                    <ul class="maintenance-list">
+                        {% for log in item.maintenance_logs.all|slice:":5" %}
+                        <li>
+                            <a href="{{ log.get_absolute_url }}">
+                                <span class="log-date">{{ log.date|date:"M j, Y" }}</span>
+                                <span class="log-title">{{ log.title }}</span>
+                                <span class="log-type">{{ log.get_log_type_display }}</span>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+                {% endif %}
+            </div>
+            
+            <aside class="detail-sidebar">
+                <div class="sidebar-card">
+                    <h3>Value</h3>
+                    {% if item.estimated_value %}
+                    <p class="value-display">${{ item.estimated_value|floatformat:2 }}</p>
+                    <p class="value-label">Estimated current value</p>
+                    {% endif %}
+                    {% if item.purchase_price %}
+                    <p class="purchase-info">Purchased for ${{ item.purchase_price|floatformat:2 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div class="sidebar-card">
+                    <h3>Details</h3>
+                    <dl class="detail-list">
+                        <dt>Condition</dt>
+                        <dd>{{ item.get_condition_display }}</dd>
+                        
+                        {% if item.brand %}
+                        <dt>Brand</dt>
+                        <dd>{{ item.brand }}</dd>
+                        {% endif %}
+                        
+                        {% if item.model_number %}
+                        <dt>Model</dt>
+                        <dd>{{ item.model_number }}</dd>
+                        {% endif %}
+                        
+                        {% if item.serial_number %}
+                        <dt>Serial #</dt>
+                        <dd>{{ item.serial_number }}</dd>
+                        {% endif %}
+                        
+                        {% if item.purchase_date %}
+                        <dt>Purchased</dt>
+                        <dd>{{ item.purchase_date|date:"M j, Y" }}</dd>
+                        {% endif %}
+                        
+                        <dt>Added</dt>
+                        <dd>{{ item.created_at|date:"M j, Y" }}</dd>
+                    </dl>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+}
+
+.item-category {
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.detail-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.detail-body {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: var(--space-6);
+}
+
+@media (max-width: 900px) {
+    .detail-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+}
+
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-3);
+}
+
+.photo-item {
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.photo-item.is-primary {
+    border: 2px solid var(--color-accent);
+}
+
+.photo-item img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+}
+
+.photo-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: var(--space-2);
+    display: flex;
+    gap: var(--space-1);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.photo-item:hover .photo-overlay {
+    opacity: 1;
+}
+
+.primary-badge {
+    font-size: var(--font-size-xs);
+    background: var(--color-accent);
+    color: white;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.photo-action {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.5);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: white;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.photo-action:hover {
+    background: rgba(0,0,0,0.7);
+}
+
+.photo-action.delete:hover {
+    background: var(--color-error);
+}
+
+.photo-caption {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    padding: var(--space-2);
+    margin: 0;
+    background: var(--color-surface);
+}
+
+.no-photos {
+    padding: var(--space-6);
+    text-align: center;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.no-photos p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.detail-section {
+    margin-bottom: var(--space-6);
+}
+
+.detail-section h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-3);
+}
+
+.maintenance-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.maintenance-list li {
+    border-bottom: 1px solid var(--color-border);
+}
+
+.maintenance-list li:last-child {
+    border-bottom: none;
+}
+
+.maintenance-list a {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    text-decoration: none;
+    color: inherit;
+}
+
+.maintenance-list a:hover {
+    color: var(--color-accent);
+}
+
+.log-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    min-width: 80px;
+}
+
+.log-title {
+    flex: 1;
+}
+
+.log-type {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.sidebar-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+
+.sidebar-card h3 {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.value-display {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+    margin: 0;
+}
+
+.value-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-2) 0;
+}
+
+.purchase-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.detail-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.detail-list dt {
+    color: var(--color-text-muted);
+}
+
+.detail-list dd {
+    margin: 0;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,5 @@
+M	./apps/dashboard/views.py - OK
+
+M	./apps/users/models.py - OK
+M	./config/settings.py - OK
+M	./templates/components/navigation.html - OK

@@ -4,18 +4,46 @@
 
 {% block content %}
 <div class="container">
-    <div class="page-header flex justify-between items-center">
+    <div class="page-header">
         <div>
             <h1 class="page-title">Journal</h1>
             <p class="page-subtitle">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} · {{ archived_count }} archived</p>
         </div>
-        <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            New Entry
-        </a>
+        <div class="header-actions">
+            <div class="view-toggle">
+                <a href="{% url 'journal:entry_list' %}" class="btn btn-secondary btn-sm" title="List View">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="8" y1="6" x2="21" y2="6"/>
+                        <line x1="8" y1="12" x2="21" y2="12"/>
+                        <line x1="8" y1="18" x2="21" y2="18"/>
+                        <line x1="3" y1="6" x2="3.01" y2="6"/>
+                        <line x1="3" y1="12" x2="3.01" y2="12"/>
+                        <line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                </a>
+                <a href="{% url 'journal:page_view' %}" class="btn btn-ghost btn-sm" title="Page View">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <path d="M14 2v6h6"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                </a>
+                <a href="{% url 'journal:book_view' %}" class="btn btn-ghost btn-sm desktop-only" title="Book View">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                    </svg>
+                </a>
+            </div>
+            <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                New Entry
+            </a>
+        </div>
     </div>
     
     <!-- Filters -->
@@ -159,6 +187,43 @@
 </div>
 
 <style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.view-toggle {
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.view-toggle .btn {
+    padding: var(--space-2);
+}
+
+.desktop-only {
+    display: none;
+}
+
+@media (min-width: 1024px) {
+    .desktop-only {
+        display: inline-flex;
+    }
+}
+
 .filters-bar {
     background: var(--color-surface);
     padding: var(--space-4);
@@ -295,6 +360,15 @@
 }
 
 @media (max-width: 640px) {
+    .page-header {
+        flex-direction: column;
+    }
+    
+    .header-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
     .filters-form {
         flex-direction: column;
         align-items: stretch;

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Change Intentions - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Change Intentions</h1>
+            <p class="page-subtitle">Identity shifts, not measurable goals</p>
+        </div>
+        <a href="{% url 'purpose:intention_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Intention
+        </a>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filters mb-6">
+        <a href="?status=active" class="filter-chip {% if current_status == 'active' %}active{% endif %}">Active</a>
+        <a href="?status=integrated" class="filter-chip {% if current_status == 'integrated' %}active{% endif %}">Integrated</a>
+        <a href="?status=paused" class="filter-chip {% if current_status == 'paused' %}active{% endif %}">Paused</a>
+        <a href="?status=released" class="filter-chip {% if current_status == 'released' %}active{% endif %}">Released</a>
+        <a href="?" class="filter-chip {% if not current_status %}active{% endif %}">All</a>
+    </div>
+    
+    {% if intentions %}
+    <div class="intention-list">
+        {% for intention in intentions %}
+        <div class="intention-card">
+            <div class="intention-content">
+                <h3 class="intention-text">
+                    <a href="{% url 'purpose:intention_detail' intention.pk %}">{{ intention.intention }}</a>
+                </h3>
+                {% if intention.description %}
+                <p class="intention-desc">{{ intention.description|truncatewords:20 }}</p>
+                {% endif %}
+            </div>
+            <div class="intention-footer">
+                <span class="badge badge-{{ intention.status }}">{{ intention.get_status_display }}</span>
+                <a href="{% url 'purpose:intention_update' intention.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🌱</div>
+        <h2>No Intentions Yet</h2>
+        <p>Change intentions are about who you want to become, not what you want to achieve.</p>
+        <p class="examples">Examples: "Be more present" • "Build margin" • "Respond, don't react"</p>
+        <a href="{% url 'purpose:intention_create' %}" class="btn btn-primary">Add Your First Intention</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.filters {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.filter-chip {
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.filter-chip:hover {
+    background: var(--color-border);
+}
+
+.filter-chip.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.intention-list {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.intention-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.intention-content {
+    margin-bottom: var(--space-4);
+}
+
+.intention-text {
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-size-lg);
+}
+
+.intention-text a {
+    color: var(--color-text);
+}
+
+.intention-text a:hover {
+    color: var(--color-accent);
+}
+
+.intention-desc {
+    margin: 0;
+    color: var(--color-text-muted);
+}
+
+.intention-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+}
+
+.badge-active { background: color-mix(in srgb, var(--color-success) 20%, transparent); color: var(--color-success); }
+.badge-integrated { background: color-mix(in srgb, var(--color-accent) 20%, transparent); color: var(--color-accent); }
+.badge-paused { background: color-mix(in srgb, var(--color-warning) 20%, transparent); color: var(--color-warning); }
+.badge-released { background: var(--color-surface); color: var(--color-text-muted); }
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12);
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.examples {
+    font-style: italic;
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endblock %}

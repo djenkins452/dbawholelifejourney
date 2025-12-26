@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}{{ milestone.title }} - Faith Journey - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-6">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span class="breadcrumb-separator">›</span>
+        <a href="{% url 'faith:milestone_list' %}">Journey</a>
+        <span class="breadcrumb-separator">›</span>
+        <span>{{ milestone.title|truncatewords:5 }}</span>
+    </nav>
+    
+    <article class="milestone-detail card">
+        <header class="milestone-header">
+            <span class="milestone-type-badge">{{ milestone.get_milestone_type_display }}</span>
+            <h1 class="milestone-title">{{ milestone.title }}</h1>
+            <time class="milestone-date">{{ milestone.date|date:"F j, Y" }}</time>
+        </header>
+        
+        {% if milestone.description %}
+            <div class="milestone-body">
+                {{ milestone.description|linebreaks }}
+            </div>
+        {% endif %}
+        
+        {% if milestone.scripture_reference %}
+            <div class="milestone-scripture">
+                <span class="scripture-label">Connected Scripture:</span>
+                <span class="scripture-ref">{{ milestone.scripture_reference }}</span>
+            </div>
+        {% endif %}
+        
+        <div class="milestone-actions">
+            <a href="{% url 'faith:milestone_update' milestone.pk %}" class="btn btn-secondary">Edit</a>
+            <form method="post" action="{% url 'faith:milestone_delete' milestone.pk %}" class="inline-form" data-confirm-delete>
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost text-error">Delete</button>
+            </form>
+        </div>
+    </article>
+    
+    <div class="mt-6">
+        <a href="{% url 'faith:milestone_list' %}" class="btn btn-ghost">← Back to Faith Journey</a>
+    </div>
+</div>
+
+<style>
+.milestone-detail {
+    padding: var(--space-6);
+}
+
+.milestone-header {
+    margin-bottom: var(--space-6);
+}
+
+.milestone-type-badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-2);
+}
+
+.milestone-title {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-2);
+}
+
+.milestone-date {
+    color: var(--color-text-muted);
+}
+
+.milestone-body {
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-relaxed);
+    margin-bottom: var(--space-6);
+}
+
+.milestone-scripture {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.scripture-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    display: block;
+    margin-bottom: var(--space-1);
+}
+
+.scripture-ref {
+    font-weight: 500;
+    color: var(--color-accent);
+}
+
+.milestone-actions {
+    display: flex;
+    gap: var(--space-3);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

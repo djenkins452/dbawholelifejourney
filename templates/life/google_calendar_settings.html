@@ -1,0 +1,601 @@
+{% extends "base.html" %}
+
+{% block title %}Google Calendar Settings - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:calendar' %}">Calendar</a>
+        <span>/</span>
+        <span>Google Calendar</span>
+    </nav>
+    
+    <div class="settings-page">
+        <div class="page-header">
+            <h1 class="page-title">Google Calendar</h1>
+            <p class="page-subtitle">Sync your events with Google Calendar</p>
+        </div>
+        
+        {% if not is_configured %}
+        <!-- Not Configured -->
+        <div class="settings-card">
+            <div class="card-icon warning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
+            <div class="card-content">
+                <h2>Google Calendar Not Configured</h2>
+                <p>Google Calendar integration requires API credentials. Please add the following to your settings:</p>
+                <ul class="config-list">
+                    <li><code>GOOGLE_CALENDAR_CLIENT_ID</code></li>
+                    <li><code>GOOGLE_CALENDAR_CLIENT_SECRET</code></li>
+                    <li><code>GOOGLE_CALENDAR_REDIRECT_URI</code></li>
+                </ul>
+                <p>You can obtain these from the <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a>.</p>
+            </div>
+        </div>
+        
+        {% elif is_connected %}
+        <!-- Connected -->
+        <div class="settings-card connected">
+            <div class="card-icon success">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </div>
+            <div class="card-content">
+                <h2>Google Calendar Connected</h2>
+                <p>Your Google Calendar is connected and ready to sync.</p>
+                
+                <div class="connection-info">
+                    {% if selected_calendar_name %}
+                    <p><strong>Selected Calendar:</strong> {{ selected_calendar_name }}</p>
+                    {% endif %}
+                    {% if last_sync %}
+                    <p><strong>Last Synced:</strong> {{ last_sync|date:"M j, Y g:i A" }}</p>
+                    {% endif %}
+                </div>
+                
+                <div class="action-buttons">
+                    <form method="post" action="{% url 'life:google_calendar_disconnect' %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost text-error">Disconnect</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sync Configuration -->
+        <div class="settings-card">
+            <h3>Sync Settings</h3>
+            
+            <form method="post" action="{% url 'life:google_calendar_save_settings' %}">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label for="calendar_id" class="form-label">Calendar to Sync</label>
+                    <select name="calendar_id" id="calendar_id" class="form-select">
+                        {% for cal in calendars %}
+                        <option value="{{ cal.id }}" {% if cal.id == selected_calendar %}selected{% endif %}>
+                            {{ cal.summary }}{% if cal.primary %} (Primary){% endif %}
+                        </option>
+                        {% empty %}
+                        <option value="primary">Primary Calendar</option>
+                        {% endfor %}
+                    </select>
+                    <p class="form-help">Choose which Google Calendar to sync with</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="sync_direction" class="form-label">Sync Direction</label>
+                    <select name="sync_direction" id="sync_direction" class="form-select">
+                        <option value="import" {% if sync_direction == 'import' %}selected{% endif %}>Google → Life (Import only)</option>
+                        <option value="export" {% if sync_direction == 'export' %}selected{% endif %}>Life → Google (Export only)</option>
+                        <option value="both" {% if sync_direction == 'both' %}selected{% endif %}>Two-way sync</option>
+                    </select>
+                    <p class="form-help">Choose how events are synced between calendars</p>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="days_past" class="form-label">Days in Past</label>
+                        <select name="days_past" id="days_past" class="form-select">
+                            <option value="0" {% if days_past == 0 %}selected{% endif %}>Today only</option>
+                            <option value="7" {% if days_past == 7 %}selected{% endif %}>Past week</option>
+                            <option value="30" {% if days_past == 30 %}selected{% endif %}>Past month</option>
+                            <option value="90" {% if days_past == 90 %}selected{% endif %}>Past 3 months</option>
+                            <option value="365" {% if days_past == 365 %}selected{% endif %}>Past year</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="days_future" class="form-label">Days in Future</label>
+                        <select name="days_future" id="days_future" class="form-select">
+                            <option value="7" {% if days_future == 7 %}selected{% endif %}>1 week</option>
+                            <option value="30" {% if days_future == 30 %}selected{% endif %}>1 month</option>
+                            <option value="90" {% if days_future == 90 %}selected{% endif %}>3 months</option>
+                            <option value="180" {% if days_future == 180 %}selected{% endif %}>6 months</option>
+                            <option value="365" {% if days_future == 365 %}selected{% endif %}>1 year</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Event Types to Sync</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="sync_types" value="personal" {% if 'personal' in sync_types %}checked{% endif %}>
+                            Personal
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="sync_types" value="family" {% if 'family' in sync_types %}checked{% endif %}>
+                            Family
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="sync_types" value="work" {% if 'work' in sync_types %}checked{% endif %}>
+                            Work
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="sync_types" value="health" {% if 'health' in sync_types %}checked{% endif %}>
+                            Health
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="sync_types" value="social" {% if 'social' in sync_types %}checked{% endif %}>
+                            Social
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="sync_types" value="travel" {% if 'travel' in sync_types %}checked{% endif %}>
+                            Travel
+                        </label>
+                    </div>
+                    <p class="form-help">Only sync events of these types (when exporting to Google)</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="auto_sync" {% if auto_sync %}checked{% endif %}>
+                        Enable automatic sync
+                    </label>
+                    <p class="form-help">Automatically sync when you view your calendar (requires page refresh)</p>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-secondary">Save Settings</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Manual Sync -->
+        <div class="settings-card">
+            <h3>Manual Sync</h3>
+            <p class="text-muted mb-4">Run a sync now with your current settings.</p>
+            
+            <form method="post" action="{% url 'life:google_calendar_sync' %}" class="sync-form">
+                {% csrf_token %}
+                <div class="sync-options">
+                    <div class="sync-option">
+                        <input type="radio" name="sync_action" value="import" id="sync_import" checked>
+                        <label for="sync_import">
+                            <span class="sync-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                            </span>
+                            <span class="sync-label">Import from Google</span>
+                            <span class="sync-desc">Pull events from Google Calendar</span>
+                        </label>
+                    </div>
+                    
+                    <div class="sync-option">
+                        <input type="radio" name="sync_action" value="export" id="sync_export">
+                        <label for="sync_export">
+                            <span class="sync-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                            </span>
+                            <span class="sync-label">Export to Google</span>
+                            <span class="sync-desc">Push Life events to Google Calendar</span>
+                        </label>
+                    </div>
+                    
+                    <div class="sync-option">
+                        <input type="radio" name="sync_action" value="both" id="sync_both">
+                        <label for="sync_both">
+                            <span class="sync-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="23 4 23 10 17 10"/>
+                                    <polyline points="1 20 1 14 7 14"/>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                                </svg>
+                            </span>
+                            <span class="sync-label">Two-way Sync</span>
+                            <span class="sync-desc">Sync both directions</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <polyline points="1 20 1 14 7 14"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                    Sync Now
+                </button>
+            </form>
+            
+            {% if sync_stats %}
+            <div class="sync-results mt-4">
+                <h4>Last Sync Results</h4>
+                <div class="stats-row">
+                    <div class="stat">
+                        <span class="stat-number">{{ sync_stats.imported }}</span>
+                        <span class="stat-label">Imported</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">{{ sync_stats.exported }}</span>
+                        <span class="stat-label">Exported</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">{{ sync_stats.updated }}</span>
+                        <span class="stat-label">Updated</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% else %}
+        <!-- Not Connected -->
+        <div class="settings-card">
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+            </div>
+            <div class="card-content">
+                <h2>Connect Google Calendar</h2>
+                <p>Connect your Google Calendar to sync events between your Life calendar and Google.</p>
+                
+                <div class="benefits-list">
+                    <div class="benefit">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span>Import events from Google Calendar</span>
+                    </div>
+                    <div class="benefit">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span>Push events to Google Calendar</span>
+                    </div>
+                    <div class="benefit">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span>Keep both calendars in sync</span>
+                    </div>
+                </div>
+                
+                <a href="{% url 'life:google_calendar_connect' %}" class="btn btn-primary btn-lg mt-4">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <polyline points="15 3 21 3 21 9"/>
+                        <line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                    Connect Google Calendar
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.settings-page {
+    max-width: 700px;
+}
+
+.settings-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.settings-card.connected {
+    border-color: #10b981;
+}
+
+.settings-card h3 {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.card-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    border-radius: 50%;
+}
+
+.card-icon svg {
+    width: 32px;
+    height: 32px;
+    color: var(--color-accent);
+}
+
+.card-icon.success {
+    background: color-mix(in srgb, #10b981 15%, transparent);
+}
+
+.card-icon.success svg {
+    color: #10b981;
+}
+
+.card-icon.warning {
+    background: color-mix(in srgb, #f59e0b 15%, transparent);
+}
+
+.card-icon.warning svg {
+    color: #f59e0b;
+}
+
+.card-content {
+    text-align: center;
+}
+
+.card-content h2 {
+    margin-bottom: var(--space-2);
+}
+
+.card-content p {
+    color: var(--color-text-muted);
+}
+
+.connection-info {
+    background: var(--color-surface);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    margin: var(--space-4) 0;
+    text-align: left;
+}
+
+.connection-info p {
+    margin: var(--space-1) 0;
+    font-size: var(--font-size-sm);
+}
+
+.config-list {
+    text-align: left;
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin: var(--space-4) 0;
+}
+
+.config-list li {
+    margin-bottom: var(--space-2);
+}
+
+.config-list code {
+    font-family: monospace;
+    background: var(--color-background);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.action-buttons {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.sync-form {
+    text-align: center;
+}
+
+.sync-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+}
+
+@media (max-width: 640px) {
+    .sync-options {
+        grid-template-columns: 1fr;
+    }
+}
+
+.sync-option {
+    position: relative;
+}
+
+.sync-option input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.sync-option label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.sync-option input:checked + label {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+
+.sync-option:hover label {
+    border-color: var(--color-text-muted);
+}
+
+.sync-icon svg {
+    width: 32px;
+    height: 32px;
+    color: var(--color-accent);
+}
+
+.sync-label {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+}
+
+.sync-desc {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+.btn-lg {
+    padding: var(--space-3) var(--space-6);
+    font-size: var(--font-size-base);
+}
+
+.sync-results {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+}
+
+.sync-results h4 {
+    font-size: var(--font-size-sm);
+    margin: 0 0 var(--space-3) 0;
+    text-align: center;
+}
+
+.stats-row {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-6);
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat-number {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.benefits-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    text-align: left;
+}
+
+.benefit {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.benefit svg {
+    color: #10b981;
+    flex-shrink: 0;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+}
+
+.form-actions {
+    margin-top: var(--space-4);
+}
+</style>
+{% endblock %}

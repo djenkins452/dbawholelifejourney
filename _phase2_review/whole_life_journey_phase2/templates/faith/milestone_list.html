@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Faith Journey Milestones - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Faith Journey</h1>
+            <p class="page-subtitle">Significant moments in your walk with God</p>
+        </div>
+        <a href="{% url 'faith:milestone_create' %}" class="btn btn-primary">Add Milestone</a>
+    </div>
+    
+    {% if milestones %}
+        <div class="timeline">
+            {% for milestone in milestones %}
+                <div class="timeline-item">
+                    <div class="timeline-marker">
+                        {% if milestone.milestone_type == 'salvation' %}✝️
+                        {% elif milestone.milestone_type == 'baptism' %}💧
+                        {% elif milestone.milestone_type == 'answered_prayer' %}🙏
+                        {% elif milestone.milestone_type == 'spiritual_insight' %}💡
+                        {% elif milestone.milestone_type == 'community' %}🤝
+                        {% else %}⭐{% endif %}
+                    </div>
+                    <div class="timeline-content">
+                        <span class="milestone-type-badge">{{ milestone.get_milestone_type_display }}</span>
+                        <h2 class="milestone-title">{{ milestone.title }}</h2>
+                        <time class="milestone-date">{{ milestone.date|date:"F j, Y" }}</time>
+                        {% if milestone.description %}
+                            <p class="milestone-description">{{ milestone.description|truncatewords:30 }}</p>
+                        {% endif %}
+                        <div class="milestone-actions">
+                            <a href="{% url 'faith:milestone_detail' milestone.pk %}" class="btn btn-ghost btn-sm">View</a>
+                            <a href="{% url 'faith:milestone_update' milestone.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No milestones yet</h2>
+            <p class="empty-state-text">
+                Record significant moments in your faith journey — salvation, baptism, answered prayers, spiritual insights, and more.
+            </p>
+            <a href="{% url 'faith:milestone_create' %}" class="btn btn-primary">Add Your First Milestone</a>
+        </div>
+    {% endif %}
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:home' %}" class="btn btn-ghost">← Back to Faith</a>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: var(--space-8);
+}
+
+.timeline::before {
+    content: "";
+    position: absolute;
+    left: 20px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--color-border);
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: var(--space-8);
+}
+
+.timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: calc(-1 * var(--space-8) - 2px);
+    width: 44px;
+    height: 44px;
+    background: var(--color-background);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-xl);
+}
+
+.timeline-content {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.milestone-type-badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-2);
+}
+
+.milestone-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-1);
+}
+
+.milestone-date {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.milestone-description {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.milestone-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+</style>
+{% endblock %}

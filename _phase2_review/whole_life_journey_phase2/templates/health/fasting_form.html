@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Start{% endif %} Fast - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit Fast{% else %}Start a Fast{% endif %}</h1>
+        <p class="page-subtitle">{% if not object %}Begin your fasting window{% endif %}</p>
+    </div>
+    
+    <form method="post" class="card">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="id_fasting_type" class="form-label">Fasting Type</label>
+            <select name="fasting_type" id="id_fasting_type" class="form-select">
+                {% for value, label in form.fields.fasting_type.choices %}
+                    <option value="{{ value }}" {% if form.fasting_type.value == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                {% endfor %}
+            </select>
+            <p class="form-help">Choose the type of fast you're doing.</p>
+        </div>
+        
+        <div class="fasting-types-info">
+            <h3>Common Fasting Schedules</h3>
+            <ul>
+                <li><strong>16:8</strong> — Fast 16 hours, eat within 8 hours (most common)</li>
+                <li><strong>18:6</strong> — Fast 18 hours, eat within 6 hours</li>
+                <li><strong>20:4</strong> — Fast 20 hours, eat within 4 hours</li>
+                <li><strong>OMAD</strong> — One meal a day (~23 hour fast)</li>
+                <li><strong>24h / 36h</strong> — Extended fasts</li>
+            </ul>
+        </div>
+        
+        <div class="form-group">
+            <label for="id_started_at" class="form-label">Start Time</label>
+            <input 
+                type="datetime-local" 
+                name="started_at" 
+                id="id_started_at" 
+                class="form-input"
+                value="{{ form.started_at.value|date:'Y-m-d\TH:i'|default:'' }}"
+                required
+            >
+            <p class="form-help">When did you last eat?</p>
+        </div>
+        
+        {% if object %}
+        <div class="form-group">
+            <label for="id_ended_at" class="form-label">End Time (optional)</label>
+            <input 
+                type="datetime-local" 
+                name="ended_at" 
+                id="id_ended_at" 
+                class="form-input"
+                value="{{ form.ended_at.value|date:'Y-m-d\TH:i'|default:'' }}"
+            >
+        </div>
+        {% endif %}
+        
+        <div class="form-group">
+            <label for="id_notes" class="form-label">Notes (optional)</label>
+            <textarea 
+                name="notes" 
+                id="id_notes" 
+                class="form-textarea"
+                placeholder="How are you feeling? Any goals for this fast?"
+                rows="2"
+            >{{ form.notes.value|default:'' }}</textarea>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Start Fast{% endif %}
+            </button>
+            <a href="{% url 'health:fasting_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.fasting-types-info {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.fasting-types-info h3 {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-2);
+}
+
+.fasting-types-info ul {
+    margin: 0;
+    padding-left: var(--space-4);
+}
+
+.fasting-types-info li {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

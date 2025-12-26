@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Log{% else %}New Maintenance Log{% endif %} - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:maintenance_list' %}">Maintenance</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}New{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="form-header">
+            <h1 class="page-title">{% if object %}Edit Maintenance Log{% else %}New Maintenance Log{% endif %}</h1>
+            <p class="page-subtitle">Record home repairs, services, and maintenance</p>
+        </div>
+        
+        <form method="post" class="life-form">
+            {% csrf_token %}
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_title" class="form-label">Title</label>
+                    <input type="text" name="title" id="id_title" class="form-input" 
+                           value="{{ form.title.value|default:'' }}" required
+                           placeholder="e.g., HVAC annual service">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_description" class="form-label">Description</label>
+                    <textarea name="description" id="id_description" class="form-textarea" rows="3"
+                              placeholder="What was done?">{{ form.description.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_log_type" class="form-label">Type</label>
+                        <select name="log_type" id="id_log_type" class="form-select">
+                            <option value="maintenance" {% if form.log_type.value == 'maintenance' or not form.log_type.value %}selected{% endif %}>Maintenance</option>
+                            <option value="repair" {% if form.log_type.value == 'repair' %}selected{% endif %}>Repair</option>
+                            <option value="upgrade" {% if form.log_type.value == 'upgrade' %}selected{% endif %}>Upgrade</option>
+                            <option value="service" {% if form.log_type.value == 'service' %}selected{% endif %}>Service Visit</option>
+                            <option value="replacement" {% if form.log_type.value == 'replacement' %}selected{% endif %}>Replacement</option>
+                            <option value="inspection" {% if form.log_type.value == 'inspection' %}selected{% endif %}>Inspection</option>
+                            <option value="other" {% if form.log_type.value == 'other' %}selected{% endif %}>Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_area" class="form-label">Area</label>
+                        <input type="text" name="area" id="id_area" class="form-input"
+                               value="{{ form.area.value|default:'' }}" required
+                               placeholder="e.g., HVAC, Plumbing, Roof"
+                               list="area-suggestions">
+                        <datalist id="area-suggestions">
+                            <option value="HVAC">
+                            <option value="Plumbing">
+                            <option value="Electrical">
+                            <option value="Roof">
+                            <option value="Exterior">
+                            <option value="Kitchen">
+                            <option value="Bathroom">
+                            <option value="Flooring">
+                            <option value="Windows">
+                            <option value="Doors">
+                            <option value="Garage">
+                            <option value="Landscaping">
+                            <option value="Pool">
+                            <option value="Appliances">
+                        </datalist>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_date" class="form-label">Date</label>
+                        <input type="date" name="date" id="id_date" class="form-input"
+                               value="{{ form.date.value|date:'Y-m-d'|default:'' }}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_cost" class="form-label">Cost ($)</label>
+                        <input type="number" name="cost" id="id_cost" class="form-input"
+                               value="{{ form.cost.value|default:'' }}"
+                               step="0.01" min="0" placeholder="0.00">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Service Provider</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_provider" class="form-label">Provider Name</label>
+                        <input type="text" name="provider" id="id_provider" class="form-input"
+                               value="{{ form.provider.value|default:'' }}"
+                               placeholder="Company or person who did the work">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_provider_contact" class="form-label">Contact Info</label>
+                        <input type="text" name="provider_contact" id="id_provider_contact" class="form-input"
+                               value="{{ form.provider_contact.value|default:'' }}"
+                               placeholder="Phone or email">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Additional Details</h2>
+                
+                <div class="form-group">
+                    <label for="id_inventory_item" class="form-label">Related Inventory Item</label>
+                    <select name="inventory_item" id="id_inventory_item" class="form-select">
+                        <option value="">None</option>
+                        {% for item in form.fields.inventory_item.queryset %}
+                        <option value="{{ item.pk }}" {% if form.inventory_item.value == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.name }} ({{ item.category }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_notes" class="form-label">Notes</label>
+                    <textarea name="notes" id="id_notes" class="form-textarea" rows="3"
+                              placeholder="Any additional notes...">{{ form.notes.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_follow_up_date" class="form-label">Follow-up Date</label>
+                    <input type="date" name="follow_up_date" id="id_follow_up_date" class="form-input"
+                           value="{{ form.follow_up_date.value|date:'Y-m-d'|default:'' }}">
+                    <p class="form-help">When should this be done again?</p>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Add Log{% endif %}
+                </button>
+                <a href="{% url 'life:maintenance_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 700px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+{% endblock %}

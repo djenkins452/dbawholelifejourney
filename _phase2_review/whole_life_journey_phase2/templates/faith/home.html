@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Faith - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Faith</h1>
+            <p class="page-subtitle">Your spiritual journey and growth</p>
+        </div>
+    </div>
+    
+    <!-- Today's Scripture -->
+    {% if todays_verse %}
+    <section class="scripture-card mb-6">
+        <div class="scripture-header">
+            <span class="scripture-label">Today's Verse</span>
+            <a href="{% url 'faith:todays_verse' %}" class="scripture-link">Read more</a>
+        </div>
+        <blockquote class="scripture-text">
+            "{{ todays_verse.verse.text }}"
+        </blockquote>
+        <cite class="scripture-reference">
+            — {{ todays_verse.verse.reference }} ({{ todays_verse.verse.translation }})
+        </cite>
+        {% if todays_verse.prompt %}
+            <p class="scripture-prompt mt-4">
+                <strong>Reflect:</strong> {{ todays_verse.prompt }}
+            </p>
+        {% endif %}
+    </section>
+    {% endif %}
+    
+    <div class="faith-grid">
+        <!-- Prayer Requests -->
+        <div class="faith-card">
+            <div class="card-header flex justify-between items-center">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 19l-7-7 7-7M5 12h14"/>
+                    </svg>
+                    Prayer Requests
+                </h2>
+                <a href="{% url 'faith:prayer_create' %}" class="btn btn-primary btn-sm">Add Prayer</a>
+            </div>
+            
+            {% if active_prayers %}
+                <ul class="prayer-list">
+                    {% for prayer in active_prayers %}
+                        <li class="prayer-item">
+                            <a href="{% url 'faith:prayer_detail' prayer.pk %}">
+                                <span class="prayer-title">{{ prayer.title }}</span>
+                                {% if prayer.priority == 'urgent' %}
+                                    <span class="prayer-urgent">Urgent</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+                <a href="{% url 'faith:prayer_list' %}" class="card-link">View all prayers →</a>
+            {% else %}
+                <p class="text-muted">No active prayer requests.</p>
+                <a href="{% url 'faith:prayer_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Add your first prayer request
+                </a>
+            {% endif %}
+            
+            {% if answered_prayers_count > 0 %}
+                <div class="answered-stat mt-4">
+                    <span class="stat-number">{{ answered_prayers_count }}</span>
+                    <span class="stat-label">answered prayer{{ answered_prayers_count|pluralize }}</span>
+                    <a href="{% url 'faith:answered_prayers' %}" class="stat-link">View</a>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Faith Reflections -->
+        <div class="faith-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                    Faith Reflections
+                </h2>
+            </div>
+            
+            {% if recent_reflections %}
+                <ul class="reflection-list">
+                    {% for entry in recent_reflections %}
+                        <li class="reflection-item">
+                            <a href="{{ entry.get_absolute_url }}">
+                                <span class="reflection-title">{{ entry.title }}</span>
+                                <span class="reflection-date">{{ entry.entry_date|date:"M j" }}</span>
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+                <a href="{% url 'faith:reflections' %}" class="card-link">View all reflections →</a>
+            {% else %}
+                <p class="text-muted">No faith reflections yet.</p>
+                <a href="{% url 'journal:entry_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Write a faith reflection
+                </a>
+            {% endif %}
+        </div>
+        
+        <!-- Milestones -->
+        <div class="faith-card">
+            <div class="card-header flex justify-between items-center">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    Faith Journey
+                </h2>
+                <a href="{% url 'faith:milestone_create' %}" class="btn btn-ghost btn-sm">Add Milestone</a>
+            </div>
+            
+            {% if milestones %}
+                <ul class="milestone-list">
+                    {% for milestone in milestones %}
+                        <li class="milestone-item">
+                            <a href="{% url 'faith:milestone_detail' milestone.pk %}">
+                                <span class="milestone-type">{{ milestone.get_milestone_type_display }}</span>
+                                <span class="milestone-title">{{ milestone.title }}</span>
+                                <span class="milestone-date">{{ milestone.date|date:"M j, Y" }}</span>
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+                <a href="{% url 'faith:milestone_list' %}" class="card-link">View all milestones →</a>
+            {% else %}
+                <p class="text-muted">Record significant moments in your faith journey.</p>
+                <a href="{% url 'faith:milestone_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Add your first milestone
+                </a>
+            {% endif %}
+        </div>
+        
+        <!-- Scripture Library -->
+        <div class="faith-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                    </svg>
+                    Scripture Library
+                </h2>
+            </div>
+            
+            <p class="text-muted mb-4">Browse curated verses organized by theme and context.</p>
+            
+            <a href="{% url 'faith:scripture_list' %}" class="btn btn-secondary">
+                Browse Scripture
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.scripture-card {
+    background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-background) 100%);
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    border-left: 4px solid var(--color-accent);
+}
+
+.scripture-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.scripture-label {
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
+.scripture-link {
+    font-size: var(--font-size-sm);
+}
+
+.scripture-text {
+    font-size: var(--font-size-xl);
+    font-style: italic;
+    line-height: var(--line-height-relaxed);
+    margin: 0 0 var(--space-3) 0;
+    padding: 0;
+    border: none;
+}
+
+.scripture-reference {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: normal;
+}
+
+.scripture-prompt {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.faith-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-6);
+}
+
+.faith-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.faith-card .card-header {
+    margin-bottom: var(--space-4);
+}
+
+.faith-card .card-header h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-lg);
+    margin: 0;
+}
+
+.card-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--color-accent);
+}
+
+.prayer-list,
+.reflection-list,
+.milestone-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-4) 0;
+}
+
+.prayer-item a,
+.reflection-item a,
+.milestone-item a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    color: var(--color-text);
+    text-decoration: none;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.prayer-item:last-child a,
+.reflection-item:last-child a,
+.milestone-item:last-child a {
+    border-bottom: none;
+}
+
+.prayer-item a:hover,
+.reflection-item a:hover,
+.milestone-item a:hover {
+    color: var(--color-accent);
+}
+
+.prayer-urgent {
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.reflection-date,
+.milestone-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.milestone-item a {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.milestone-type {
+    font-size: var(--font-size-xs);
+    background: var(--color-surface);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.milestone-title {
+    flex: 1;
+}
+
+.card-link {
+    font-size: var(--font-size-sm);
+}
+
+.answered-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
+}
+
+.answered-stat .stat-number {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.answered-stat .stat-label {
+    color: var(--color-text-muted);
+}
+
+.answered-stat .stat-link {
+    margin-left: auto;
+}
+</style>
+{% endblock %}

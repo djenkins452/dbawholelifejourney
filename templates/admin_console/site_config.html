@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}Site Configuration - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <span>Site Configuration</span>
+            </nav>
+            <h1 class="page-title">Site Configuration</h1>
+            <p class="page-subtitle">Manage your site's branding and default settings</p>
+        </div>
+    </div>
+    
+    <form method="post" enctype="multipart/form-data" class="admin-form">
+        {% csrf_token %}
+        
+        <!-- Branding Section -->
+        <div class="form-section">
+            <h2 class="form-section-title">Branding</h2>
+            
+            <div class="form-group">
+                <label for="site_name" class="form-label">Site Name</label>
+                <input 
+                    type="text" 
+                    name="site_name" 
+                    id="site_name" 
+                    class="form-input"
+                    value="{{ config.site_name }}"
+                    required
+                >
+            </div>
+            
+            <div class="form-group">
+                <label for="tagline" class="form-label">Tagline</label>
+                <input 
+                    type="text" 
+                    name="tagline" 
+                    id="tagline" 
+                    class="form-input"
+                    value="{{ config.tagline }}"
+                    placeholder="A short description of your site"
+                >
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Logo</label>
+                <div class="file-upload-group">
+                    {% if config.logo %}
+                        <div class="current-file">
+                            <img src="{{ config.logo.url }}" alt="Current logo" class="logo-preview">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="clear_logo">
+                                Remove logo
+                            </label>
+                        </div>
+                    {% endif %}
+                    <input type="file" name="logo" id="logo" accept="image/*" class="form-input-file">
+                    <p class="form-help">Recommended size: 200x64 pixels. PNG or SVG preferred.</p>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Favicon</label>
+                <div class="file-upload-group">
+                    {% if config.favicon %}
+                        <div class="current-file">
+                            <img src="{{ config.favicon.url }}" alt="Current favicon" class="favicon-preview">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="clear_favicon">
+                                Remove favicon
+                            </label>
+                        </div>
+                    {% endif %}
+                    <input type="file" name="favicon" id="favicon" accept="image/*" class="form-input-file">
+                    <p class="form-help">Recommended: 32x32 PNG.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Default Settings Section -->
+        <div class="form-section">
+            <h2 class="form-section-title">Default Settings</h2>
+            
+            <div class="form-group">
+                <label for="default_theme" class="form-label">Default Theme</label>
+                <select name="default_theme" id="default_theme" class="form-select">
+                    {% for theme in themes %}
+                        <option value="{{ theme.slug }}" {% if config.default_theme == theme.slug %}selected{% endif %}>
+                            {{ theme.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <p class="form-help">Theme applied to new users.</p>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Registration</label>
+                <div class="toggle-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="allow_registration" {% if config.allow_registration %}checked{% endif %}>
+                        <span class="toggle-text">Allow new user registration</span>
+                    </label>
+                    
+                    <label class="toggle-label">
+                        <input type="checkbox" name="require_email_verification" {% if config.require_email_verification %}checked{% endif %}>
+                        <span class="toggle-text">Require email verification</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Module Defaults</label>
+                <div class="toggle-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="faith_enabled_by_default" {% if config.faith_enabled_by_default %}checked{% endif %}>
+                        <span class="toggle-text">Enable Faith module by default for new users</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer & Legal Section -->
+        <div class="form-section">
+            <h2 class="form-section-title">Footer & Legal</h2>
+            
+            <div class="form-group">
+                <label for="footer_text" class="form-label">Footer Text</label>
+                <input 
+                    type="text" 
+                    name="footer_text" 
+                    id="footer_text" 
+                    class="form-input"
+                    value="{{ config.footer_text }}"
+                    placeholder="© 2025 Your Site. All rights reserved."
+                >
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="privacy_policy_url" class="form-label">Privacy Policy URL</label>
+                    <input 
+                        type="url" 
+                        name="privacy_policy_url" 
+                        id="privacy_policy_url" 
+                        class="form-input"
+                        value="{{ config.privacy_policy_url }}"
+                        placeholder="https://"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="terms_url" class="form-label">Terms of Service URL</label>
+                    <input 
+                        type="url" 
+                        name="terms_url" 
+                        id="terms_url" 
+                        class="form-input"
+                        value="{{ config.terms_url }}"
+                        placeholder="https://"
+                    >
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Configuration</button>
+            <a href="{% url 'admin_console:dashboard' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.admin-form {
+    max-width: 800px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--space-5) 0;
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.file-upload-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.current-file {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.logo-preview {
+    max-height: 48px;
+    width: auto;
+}
+
+.favicon-preview {
+    width: 32px;
+    height: 32px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.form-input-file {
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.toggle-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--color-accent);
+}
+
+.toggle-text {
+    font-size: var(--font-size-base);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+{% endblock %}

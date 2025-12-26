@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Calendar</h1>
+            <p class="page-subtitle">Your life events at a glance</p>
+        </div>
+        <a href="{% url 'life:event_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Event
+        </a>
+    </div>
+    
+    <!-- Google Calendar Integration Card -->
+    <div class="google-calendar-card mb-6">
+        <div class="gc-card-content">
+            <div class="gc-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+            </div>
+            <div class="gc-info">
+                <h3>Google Calendar</h3>
+                {% if google_calendar_connected %}
+                <p class="gc-status gc-connected">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Connected{% if google_calendar_name %} to {{ google_calendar_name }}{% endif %}
+                </p>
+                {% if google_last_sync %}
+                <p class="gc-last-sync">Last synced: {{ google_last_sync|timesince }} ago</p>
+                {% endif %}
+                {% else %}
+                <p class="gc-status gc-disconnected">Not connected</p>
+                <p class="gc-description">Sync events with your Google Calendar</p>
+                {% endif %}
+            </div>
+            <div class="gc-actions">
+                {% if google_calendar_connected %}
+                <form method="post" action="{% url 'life:google_calendar_sync' %}" class="gc-sync-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        Sync Now
+                    </button>
+                </form>
+                <a href="{% url 'life:google_calendar_settings' %}" class="btn btn-ghost btn-sm">Settings</a>
+                {% else %}
+                <a href="{% url 'life:google_calendar_settings' %}" class="btn btn-primary btn-sm">Connect</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Month Navigation -->
+    <div class="calendar-nav mb-6">
+        <a href="?year={% if month == 1 %}{{ year|add:'-1' }}{% else %}{{ year }}{% endif %}&month={% if month == 1 %}12{% else %}{{ month|add:'-1' }}{% endif %}" class="btn btn-ghost">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"/>
+            </svg>
+        </a>
+        <h2 class="calendar-month" id="monthDisplay"></h2>
+        <a href="?year={% if month == 12 %}{{ year|add:'1' }}{% else %}{{ year }}{% endif %}&month={% if month == 12 %}1{% else %}{{ month|add:'1' }}{% endif %}" class="btn btn-ghost">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+            </svg>
+        </a>
+        <a href="{% url 'life:calendar' %}?year={{ today.year }}&month={{ today.month }}" class="btn btn-secondary ml-4">Current Month</a>
+    </div>
+    
+    <!-- Events List -->
+    {% if events %}
+    <div class="events-by-date">
+        {% regroup events by start_date as events_by_day %}
+        {% for day in events_by_day %}
+        <div class="day-group {% if day.grouper == today %}today{% endif %}">
+            <div class="day-header">
+                <span class="day-number">{{ day.grouper|date:"j" }}</span>
+                <span class="day-name">{{ day.grouper|date:"l" }}</span>
+                {% if day.grouper == today %}
+                <span class="today-badge">Today</span>
+                {% endif %}
+            </div>
+            <ul class="day-events">
+                {% for event in day.list %}
+                <li class="event-item event-type-{{ event.event_type }}">
+                    <div class="event-time">
+                        {% if event.is_all_day %}
+                            All day
+                        {% elif event.start_time %}
+                            {{ event.start_time|time:"g:i A" }}
+                        {% endif %}
+                    </div>
+                    <div class="event-info">
+                        <span class="event-title">{{ event.title }}</span>
+                        {% if event.location %}
+                        <span class="event-location">{{ event.location }}</span>
+                        {% endif %}
+                    </div>
+                    <span class="event-type-badge">{{ event.get_event_type_display }}</span>
+                    <div class="event-actions">
+                        <a href="{% url 'life:event_update' event.pk %}" class="event-edit">Edit</a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <h2>No events this month</h2>
+        <p>Add events to keep track of what's happening in your life.</p>
+        <a href="{% url 'life:event_create' %}" class="btn btn-primary">Add Your First Event</a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Display month name
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+document.getElementById('monthDisplay').textContent = monthNames[{{ month }} - 1] + ' {{ year }}';
+</script>
+
+<style>
+/* Google Calendar Integration Card */
+.google-calendar-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.gc-card-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.gc-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.gc-info {
+    flex: 1;
+}
+
+.gc-info h3 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0 0 var(--space-1) 0;
+}
+
+.gc-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    margin: 0;
+}
+
+.gc-connected {
+    color: var(--color-success, #10b981);
+}
+
+.gc-disconnected {
+    color: var(--color-text-muted);
+}
+
+.gc-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: var(--space-1) 0 0 0;
+}
+
+.gc-last-sync {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: var(--space-1) 0 0 0;
+}
+
+.gc-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+.gc-sync-form {
+    display: inline;
+}
+
+.gc-actions .btn svg {
+    margin-right: var(--space-1);
+}
+
+@media (max-width: 640px) {
+    .gc-card-content {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .gc-actions {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.calendar-month {
+    min-width: 200px;
+    text-align: center;
+    font-size: var(--font-size-xl);
+    margin: 0;
+}
+
+.ml-4 {
+    margin-left: var(--space-4);
+}
+
+.events-by-date {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.day-group {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.day-group.today {
+    border-color: var(--color-accent);
+}
+
+.day-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.day-number {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+    min-width: 40px;
+}
+
+.day-name {
+    font-size: var(--font-size-base);
+    color: var(--color-text-muted);
+}
+
+.today-badge {
+    font-size: var(--font-size-xs);
+    background: var(--color-accent);
+    color: white;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.day-events {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.event-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-accent);
+}
+
+.event-item:last-child {
+    border-bottom: none;
+}
+
+.event-type-personal { border-left-color: #6366f1; }
+.event-type-family { border-left-color: #ec4899; }
+.event-type-household { border-left-color: #f59e0b; }
+.event-type-faith { border-left-color: #8b5cf6; }
+.event-type-health { border-left-color: #10b981; }
+.event-type-work { border-left-color: #3b82f6; }
+.event-type-social { border-left-color: #f97316; }
+.event-type-travel { border-left-color: #14b8a6; }
+
+.event-time {
+    min-width: 80px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.event-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.event-title {
+    font-weight: 500;
+}
+
+.event-location {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.event-type-badge {
+    font-size: var(--font-size-xs);
+    background: var(--color-surface);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+}
+
+.event-actions {
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.event-item:hover .event-actions {
+    opacity: 1;
+}
+
+.event-edit {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+}
+
+.empty-state svg {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+</style>
+{% endblock %}

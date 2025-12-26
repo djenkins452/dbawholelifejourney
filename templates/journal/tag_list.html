@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Tags - Journal - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Manage Tags</h1>
+            <p class="page-subtitle">Create custom tags to organize your journal entries.</p>
+        </div>
+        <a href="{% url 'journal:tag_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New Tag
+        </a>
+    </div>
+    
+    {% if tags %}
+    <div class="tags-list">
+        {% for tag in tags %}
+        <div class="tag-item">
+            <div class="tag-info">
+                <span class="tag-name" {% if tag.color %}style="background-color: {{ tag.color }}20; color: {{ tag.color }};"{% endif %}>
+                    {{ tag.name }}
+                </span>
+                <span class="tag-count">{{ tag.journalentry_set.count }} entr{{ tag.journalentry_set.count|pluralize:"y,ies" }}</span>
+            </div>
+            <div class="tag-actions">
+                <form method="post" action="{% url 'journal:tag_delete' tag.pk %}" class="inline-form" onsubmit="return confirm('Delete this tag? Entries will not be deleted.')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm text-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+            </svg>
+        </div>
+        <h2 class="empty-state-title">No tags yet</h2>
+        <p class="empty-state-text">
+            Tags help you organize and find entries quickly. Create your first tag to get started.
+        </p>
+        <a href="{% url 'journal:tag_create' %}" class="btn btn-primary">Create Your First Tag</a>
+    </div>
+    {% endif %}
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'journal:entry_list' %}" class="btn btn-ghost">← Back to Journal</a>
+    </div>
+</div>
+
+<style>
+.tags-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.tag-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.tag-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.tag-name {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    padding: var(--space-1) var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+}
+
+.tag-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.tag-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-danger {
+    color: var(--color-error);
+}
+
+.text-danger:hover {
+    color: var(--color-error);
+    opacity: 0.8;
+}
+</style>
+{% endblock %}

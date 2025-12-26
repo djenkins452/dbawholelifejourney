@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}New Reflection - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <span>/</span>
+        <a href="{% url 'purpose:reflection_list' %}">Reflections</a>
+        <span>/</span>
+        <span>New</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="page-header">
+            <h1 class="page-title">Start a Reflection</h1>
+            <p class="page-subtitle">Take time to look back before moving forward</p>
+        </div>
+        
+        <form method="post" class="form-card">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="id_reflection_type" class="form-label">Type of Reflection</label>
+                <select name="reflection_type" id="id_reflection_type" class="form-select">
+                    {% for value, label in form.fields.reflection_type.choices %}
+                    <option value="{{ value }}" {% if form.reflection_type.value == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="form-help">This determines which prompts you'll receive.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_year" class="form-label">Year</label>
+                <input type="number" name="year" id="id_year" class="form-input"
+                       value="{{ form.year.value|default:'' }}" required min="2020" max="2100"
+                       style="max-width: 150px;">
+                <p class="form-help">The year you're reflecting on.</p>
+            </div>
+            
+            <div class="form-group" id="quarter-group" style="display: none;">
+                <label for="id_quarter" class="form-label">Quarter</label>
+                <select name="quarter" id="id_quarter" class="form-select" style="max-width: 150px;">
+                    <option value="">Select quarter</option>
+                    <option value="1">Q1 (Jan-Mar)</option>
+                    <option value="2">Q2 (Apr-Jun)</option>
+                    <option value="3">Q3 (Jul-Sep)</option>
+                    <option value="4">Q4 (Oct-Dec)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_title" class="form-label">Custom Title <span class="optional-badge">Optional</span></label>
+                <input type="text" name="title" id="id_title" class="form-input"
+                       value="{{ form.title.value|default:'' }}"
+                       placeholder="Leave blank to use default title">
+            </div>
+            
+            <div class="form-actions">
+                <a href="{% url 'purpose:reflection_list' %}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-primary">Begin Reflection</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 500px;
+}
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+}
+
+.optional-badge {
+    font-size: var(--font-size-xs);
+    font-weight: normal;
+    color: var(--color-text-muted);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+
+<script>
+// Show/hide quarter field based on reflection type
+document.getElementById('id_reflection_type').addEventListener('change', function() {
+    const quarterGroup = document.getElementById('quarter-group');
+    if (this.value === 'quarterly') {
+        quarterGroup.style.display = 'block';
+    } else {
+        quarterGroup.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

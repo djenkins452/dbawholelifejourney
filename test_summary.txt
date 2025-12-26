@@ -1,0 +1,40 @@
+============================================================
+TEST SUMMARY REPORT
+============================================================
+
+Timestamp: 2025-12-26 17:19:16
+
+----------------------------------------
+OVERALL RESULTS
+----------------------------------------
+Total Tests:  617
+Passed:       617
+Failed:       0
+Errors:       0
+Pass Rate:    100.0%
+
+----------------------------------------
+RESULTS BY APP
+----------------------------------------
+[PASS] apps.core.tests
+       Passed: 33, Failed: 0, Errors: 0
+[PASS] apps.users
+       Passed: 52, Failed: 0, Errors: 0
+[PASS] apps.dashboard
+       Passed: 57, Failed: 0, Errors: 0
+[PASS] apps.journal
+       Passed: 77, Failed: 0, Errors: 0
+[PASS] apps.faith
+       Passed: 67, Failed: 0, Errors: 0
+[PASS] apps.health
+       Passed: 74, Failed: 0, Errors: 0
+[PASS] apps.life
+       Passed: 165, Failed: 0, Errors: 0
+[PASS] apps.purpose.tests
+       Passed: 67, Failed: 0, Errors: 0
+[PASS] apps.admin_console.tests
+       Passed: 25, Failed: 0, Errors: 0
+
+============================================================
+ALL TESTS PASSED!
+============================================================

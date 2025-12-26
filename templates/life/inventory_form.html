@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Item{% else %}Add Item{% endif %} - Inventory{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:inventory_list' %}">Inventory</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Add{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="form-header">
+            <h1 class="page-title">{% if object %}Edit Item{% else %}Add to Inventory{% endif %}</h1>
+            <p class="page-subtitle">Document your belongings for insurance and peace of mind</p>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data" class="life-form">
+            {% csrf_token %}
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_name" class="form-label">Item Name</label>
+                    <input type="text" name="name" id="id_name" class="form-input" 
+                           value="{{ form.name.value|default:'' }}" required
+                           placeholder="e.g., Samsung 65 inch TV">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_description" class="form-label">Description</label>
+                    <textarea name="description" id="id_description" class="form-textarea" rows="2"
+                              placeholder="Additional details about this item...">{{ form.description.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_category" class="form-label">Category</label>
+                        <input type="text" name="category" id="id_category" class="form-input"
+                               value="{{ form.category.value|default:'' }}" required
+                               placeholder="e.g., Electronics"
+                               list="category-list">
+                        <datalist id="category-list">
+                            <option value="Electronics">
+                            <option value="Furniture">
+                            <option value="Appliances">
+                            <option value="Jewelry">
+                            <option value="Clothing">
+                            <option value="Tools">
+                            <option value="Sports Equipment">
+                            <option value="Musical Instruments">
+                            <option value="Art">
+                            <option value="Collectibles">
+                        </datalist>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_location" class="form-label">Location in Home</label>
+                        <input type="text" name="location" id="id_location" class="form-input"
+                               value="{{ form.location.value|default:'' }}"
+                               placeholder="e.g., Living Room"
+                               list="location-list">
+                        <datalist id="location-list">
+                            <option value="Living Room">
+                            <option value="Bedroom">
+                            <option value="Kitchen">
+                            <option value="Garage">
+                            <option value="Office">
+                            <option value="Basement">
+                            <option value="Attic">
+                        </datalist>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Value & Purchase Info</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_purchase_date" class="form-label">Purchase Date</label>
+                        <input type="date" name="purchase_date" id="id_purchase_date" class="form-input"
+                               value="{{ form.purchase_date.value|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_purchase_price" class="form-label">Purchase Price ($)</label>
+                        <input type="number" name="purchase_price" id="id_purchase_price" class="form-input"
+                               value="{{ form.purchase_price.value|default:'' }}"
+                               step="0.01" min="0" placeholder="0.00">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_estimated_value" class="form-label">Current Estimated Value ($)</label>
+                        <input type="number" name="estimated_value" id="id_estimated_value" class="form-input"
+                               value="{{ form.estimated_value.value|default:'' }}"
+                               step="0.01" min="0" placeholder="0.00">
+                        <p class="form-help">What would it cost to replace today?</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_condition" class="form-label">Condition</label>
+                        <select name="condition" id="id_condition" class="form-select">
+                            <option value="new" {% if form.condition.value == 'new' %}selected{% endif %}>New</option>
+                            <option value="excellent" {% if form.condition.value == 'excellent' %}selected{% endif %}>Excellent</option>
+                            <option value="good" {% if form.condition.value == 'good' or not form.condition.value %}selected{% endif %}>Good</option>
+                            <option value="fair" {% if form.condition.value == 'fair' %}selected{% endif %}>Fair</option>
+                            <option value="poor" {% if form.condition.value == 'poor' %}selected{% endif %}>Poor</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Product Details</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_brand" class="form-label">Brand</label>
+                        <input type="text" name="brand" id="id_brand" class="form-input"
+                               value="{{ form.brand.value|default:'' }}"
+                               placeholder="e.g., Samsung">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_model_number" class="form-label">Model Number</label>
+                        <input type="text" name="model_number" id="id_model_number" class="form-input"
+                               value="{{ form.model_number.value|default:'' }}">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_serial_number" class="form-label">Serial Number</label>
+                    <input type="text" name="serial_number" id="id_serial_number" class="form-input"
+                           value="{{ form.serial_number.value|default:'' }}">
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h2 class="form-section-title">Warranty</h2>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_warranty_expiration" class="form-label">Warranty Expiration</label>
+                        <input type="date" name="warranty_expiration" id="id_warranty_expiration" class="form-input"
+                               value="{{ form.warranty_expiration.value|date:'Y-m-d'|default:'' }}">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_warranty_info" class="form-label">Warranty Details</label>
+                    <textarea name="warranty_info" id="id_warranty_info" class="form-textarea" rows="2"
+                              placeholder="Coverage details, provider contact, etc.">{{ form.warranty_info.value|default:'' }}</textarea>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_notes" class="form-label">Notes</label>
+                    <textarea name="notes" id="id_notes" class="form-textarea" rows="2"
+                              placeholder="Any other information...">{{ form.notes.value|default:'' }}</textarea>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Add Item{% endif %}
+                </button>
+                <a href="{% url 'life:inventory_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 700px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+{% endblock %}

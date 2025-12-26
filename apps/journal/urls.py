@@ -1,16 +1,19 @@
 """
 Journal URLs
 """
-
 from django.urls import path
-
 from . import views
 
 app_name = "journal"
 
 urlpatterns = [
+    # Home (mini-dashboard)
+    path("", views.JournalHomeView.as_view(), name="home"),
+    
     # Entry list views
-    path("", views.EntryListView.as_view(), name="entry_list"),
+    path("entries/", views.EntryListView.as_view(), name="entry_list"),
+    path("page-view/", views.PageView.as_view(), name="page_view"),
+    path("book-view/", views.BookView.as_view(), name="book_view"),
     path("archived/", views.ArchivedEntryListView.as_view(), name="archived_list"),
     path("deleted/", views.DeletedEntryListView.as_view(), name="deleted_list"),
     

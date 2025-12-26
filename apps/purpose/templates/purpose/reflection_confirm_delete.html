@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Reflection - Purpose{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="confirm-delete-card">
+        <h1>Delete Reflection?</h1>
+        <p>Are you sure you want to delete "<strong>{{ object }}</strong>"?</p>
+        <p class="text-muted">This will delete all your responses. This action cannot be undone.</p>
+        
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-actions">
+                <a href="{% url 'purpose:reflection_detail' object.pk %}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-danger">Delete Reflection</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.confirm-delete-card {
+    max-width: 500px;
+    margin: var(--space-8) auto;
+    padding: var(--space-8);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+
+.confirm-delete-card h1 {
+    margin-bottom: var(--space-4);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.btn-danger {
+    background: var(--color-error);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: color-mix(in srgb, var(--color-error) 85%, #000);
+}
+</style>
+{% endblock %}

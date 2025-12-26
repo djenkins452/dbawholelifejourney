@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Task{% else %}New Task{% endif %} - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:task_list' %}">Tasks</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}New{% endif %}</span>
+    </nav>
+    
+    <div class="form-page">
+        <div class="form-header">
+            <h1 class="page-title">{% if object %}Edit Task{% else %}New Task{% endif %}</h1>
+        </div>
+        
+        <form method="post" class="life-form">
+            {% csrf_token %}
+            
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_title" class="form-label">What needs to be done?</label>
+                    <input type="text" name="title" id="id_title" class="form-input form-input-lg" 
+                           value="{{ form.title.value|default:'' }}" required autofocus
+                           placeholder="Enter task...">
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_notes" class="form-label">Notes</label>
+                    <textarea name="notes" id="id_notes" class="form-textarea" rows="3"
+                              placeholder="Any additional details...">{{ form.notes.value|default:'' }}</textarea>
+                </div>
+            </div>
+            
+            <!-- Priority Selection -->
+            <div class="form-section">
+                <label class="form-label">Priority</label>
+                <div class="priority-cards">
+                    <label class="priority-card priority-now {% if form.priority.value == 'now' %}selected{% endif %}">
+                        <input type="radio" name="priority" value="now" {% if form.priority.value == 'now' %}checked{% endif %}>
+                        <div class="priority-content">
+                            <span class="priority-icon">🔴</span>
+                            <span class="priority-name">Now</span>
+                            <span class="priority-desc">Urgent, do today</span>
+                        </div>
+                    </label>
+                    
+                    <label class="priority-card priority-soon {% if form.priority.value == 'soon' %}selected{% endif %}">
+                        <input type="radio" name="priority" value="soon" {% if form.priority.value == 'soon' %}checked{% endif %}>
+                        <div class="priority-content">
+                            <span class="priority-icon">🟡</span>
+                            <span class="priority-name">Soon</span>
+                            <span class="priority-desc">This week</span>
+                        </div>
+                    </label>
+                    
+                    <label class="priority-card priority-someday {% if form.priority.value == 'someday' or not form.priority.value %}selected{% endif %}">
+                        <input type="radio" name="priority" value="someday" {% if form.priority.value == 'someday' or not form.priority.value %}checked{% endif %}>
+                        <div class="priority-content">
+                            <span class="priority-icon">⚪</span>
+                            <span class="priority-name">Someday</span>
+                            <span class="priority-desc">When time allows</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_due_date" class="form-label">Due Date</label>
+                        <input type="date" name="due_date" id="id_due_date" class="form-input"
+                               value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_effort" class="form-label">Effort</label>
+                        <select name="effort" id="id_effort" class="form-select">
+                            <option value="">Not specified</option>
+                            <option value="quick" {% if form.effort.value == 'quick' %}selected{% endif %}>Quick (< 15 min)</option>
+                            <option value="small" {% if form.effort.value == 'small' %}selected{% endif %}>Small (< 1 hour)</option>
+                            <option value="medium" {% if form.effort.value == 'medium' %}selected{% endif %}>Medium (1-3 hours)</option>
+                            <option value="large" {% if form.effort.value == 'large' %}selected{% endif %}>Large (half day+)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_project" class="form-label">Project</label>
+                    <select name="project" id="id_project" class="form-select">
+                        <option value="">No project</option>
+                        {% for project in form.fields.project.queryset %}
+                        <option value="{{ project.pk }}" {% if form.project.value == project.pk|stringformat:"s" %}selected{% endif %}>{{ project.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Recurrence Section -->
+            <div class="form-section">
+                <h2 class="form-section-title">Repeat</h2>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_recurring" id="id_is_recurring"
+                               {% if form.is_recurring.value %}checked{% endif %}
+                               onchange="toggleRecurrenceOptions()">
+                        This is a recurring task
+                    </label>
+                </div>
+                
+                <div id="recurrence-options" class="recurrence-options" style="{% if not form.is_recurring.value %}display: none;{% endif %}">
+                    <div class="form-group">
+                        <label for="id_recurrence_pattern" class="form-label">Repeat Pattern</label>
+                        <select name="recurrence_pattern" id="id_recurrence_pattern" class="form-select">
+                            <option value="daily" {% if form.recurrence_pattern.value == 'daily' %}selected{% endif %}>Daily</option>
+                            <option value="weekly" {% if form.recurrence_pattern.value == 'weekly' %}selected{% endif %}>Weekly</option>
+                            <option value="biweekly" {% if form.recurrence_pattern.value == 'biweekly' %}selected{% endif %}>Every 2 weeks</option>
+                            <option value="monthly" {% if form.recurrence_pattern.value == 'monthly' %}selected{% endif %}>Monthly</option>
+                            <option value="yearly" {% if form.recurrence_pattern.value == 'yearly' %}selected{% endif %}>Yearly</option>
+                            <option value="every_weekday" {% if form.recurrence_pattern.value == 'every_weekday' %}selected{% endif %}>Every weekday (Mon-Fri)</option>
+                        </select>
+                    </div>
+                    
+                    <p class="form-help">
+                        When you complete this task, a new one will automatically be created for the next occurrence.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Create Task{% endif %}
+                </button>
+                <a href="{% url 'life:task_list' %}" class="btn btn-ghost">Cancel</a>
+                {% if object %}
+                <a href="{% url 'life:task_delete' object.pk %}" class="btn btn-ghost text-error ml-auto">Delete</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleRecurrenceOptions() {
+    const isRecurring = document.getElementById('id_is_recurring').checked;
+    const options = document.getElementById('recurrence-options');
+    options.style.display = isRecurring ? 'block' : 'none';
+}
+
+// Priority card selection
+document.querySelectorAll('.priority-card input').forEach(input => {
+    input.addEventListener('change', function() {
+        document.querySelectorAll('.priority-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        this.closest('.priority-card').classList.add('selected');
+    });
+});
+</script>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.form-page {
+    max-width: 600px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-input-lg {
+    font-size: var(--font-size-lg);
+    padding: var(--space-4);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.priority-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+    .priority-cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+.priority-card {
+    position: relative;
+    padding: var(--space-4);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.priority-card input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.priority-card:hover {
+    border-color: var(--color-text-muted);
+}
+
+.priority-card.selected {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+
+.priority-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    text-align: center;
+}
+
+.priority-icon {
+    font-size: 1.5rem;
+}
+
+.priority-name {
+    font-weight: 600;
+}
+
+.priority-desc {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.recurrence-options {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.ml-auto {
+    margin-left: auto;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

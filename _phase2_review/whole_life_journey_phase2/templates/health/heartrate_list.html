@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Heart Rate History - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Heart Rate</h1>
+            <p class="page-subtitle">Track your heart rate over time</p>
+        </div>
+        <a href="{% url 'health:heartrate_create' %}" class="btn btn-primary">Log Heart Rate</a>
+    </div>
+    
+    {% if entries %}
+        <!-- Stats Summary -->
+        {% if resting_avg %}
+        <div class="stats-bar mb-6">
+            <div class="stat-item">
+                <span class="stat-label">Resting Avg</span>
+                <span class="stat-value">{{ resting_avg }} BPM</span>
+            </div>
+            {% if resting_min %}
+            <div class="stat-item">
+                <span class="stat-label">Resting Low</span>
+                <span class="stat-value">{{ resting_min }} BPM</span>
+            </div>
+            {% endif %}
+            {% if resting_max %}
+            <div class="stat-item">
+                <span class="stat-label">Resting High</span>
+                <span class="stat-value">{{ resting_max }} BPM</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <!-- Entry List -->
+        <div class="entry-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>BPM</th>
+                        <th>Context</th>
+                        <th>Notes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                        <tr>
+                            <td>
+                                <span class="entry-date">{{ entry.recorded_at|date:"M j, Y" }}</span>
+                                <span class="entry-time">{{ entry.recorded_at|date:"g:i A" }}</span>
+                            </td>
+                            <td class="entry-value">{{ entry.bpm }}</td>
+                            <td>
+                                <span class="context-badge context-{{ entry.context }}">
+                                    {{ entry.get_context_display }}
+                                </span>
+                            </td>
+                            <td class="entry-notes">{{ entry.notes|truncatewords:10|default:"-" }}</td>
+                            <td class="entry-actions">
+                                <a href="{% url 'health:heartrate_update' entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                                <form method="post" action="{% url 'health:heartrate_delete' entry.pk %}" class="inline-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-ghost btn-sm text-error">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination mt-6">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">← Previous</a>
+                {% endif %}
+                <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next →</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No heart rate entries yet</h2>
+            <p class="empty-state-text">Start tracking your heart rate to monitor cardiovascular health.</p>
+            <a href="{% url 'health:heartrate_create' %}" class="btn btn-primary">Log Your First Reading</a>
+        </div>
+    {% endif %}
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">← Back to Health</a>
+    </div>
+</div>
+
+<style>
+.stats-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-item .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-item .stat-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.entry-table {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.entry-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.entry-table th,
+.entry-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.entry-table th {
+    background: var(--color-surface);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.entry-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.entry-table tbody tr:hover {
+    background: var(--color-surface);
+}
+
+.entry-date {
+    display: block;
+}
+
+.entry-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.entry-value {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.context-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+}
+
+.context-resting,
+.context-morning {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.context-active,
+.context-post_exercise {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+.entry-notes {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.entry-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+
+@media (max-width: 768px) {
+    .entry-table {
+        overflow-x: auto;
+    }
+    
+    .entry-table table {
+        min-width: 600px;
+    }
+}
+</style>
+{% endblock %}

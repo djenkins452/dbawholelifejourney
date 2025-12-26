@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Preferences - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="page-header">
+        <h1 class="page-title">Preferences</h1>
+        <p class="page-subtitle">Customize your Whole Life Journey experience</p>
+    </div>
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <!-- Theme Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">Appearance</h2>
+            <p class="text-muted mb-4">Choose a visual theme that resonates with you.</p>
+            
+            <div class="form-group">
+                <label for="id_theme" class="form-label">Theme</label>
+                <select name="theme" id="id_theme" class="form-select">
+                    {% for value, label in form.fields.theme.choices %}
+                        <option value="{{ value }}" {% if form.theme.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <p class="form-help">Each theme shapes the visual feel of your experience.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_accent_color" class="form-label">Custom Accent Color (Optional)</label>
+                <div class="color-input-wrapper">
+                    <input 
+                        type="color" 
+                        name="accent_color" 
+                        id="id_accent_color" 
+                        class="form-color"
+                        value="{{ form.accent_color.value|default:'#6366f1' }}"
+                    >
+                    <input 
+                        type="text" 
+                        class="form-input form-color-text"
+                        value="{{ form.accent_color.value|default:'' }}"
+                        placeholder="Leave blank for theme default"
+                        readonly
+                    >
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="clearAccentColor()">Clear</button>
+                </div>
+                <p class="form-help">Override the theme's accent color with your own choice.</p>
+            </div>
+            
+            <div class="text-right">
+                <a href="{% url 'users:theme_selection' %}" class="btn btn-secondary btn-sm">
+                    Preview All Themes →
+                </a>
+            </div>
+        </div>
+        
+        <!-- Features Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">Features</h2>
+            <p class="text-muted mb-4">Enable or disable optional features.</p>
+            
+            <div class="toggle-option">
+                <div class="toggle-info">
+                    <h3>Faith Module</h3>
+                    <p class="text-muted text-sm">
+                        Enable Scripture prompts, faith-specific journal categories, 
+                        and Christian encouragement throughout the app.
+                    </p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" name="faith_enabled" {% if form.faith_enabled.value %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            
+            <div class="toggle-option">
+                <div class="toggle-info">
+                    <h3>AI Insights</h3>
+                    <p class="text-muted text-sm">
+                        Enable AI-powered pattern recognition and reflective prompts 
+                        based on your journal entries. AI provides thoughts to consider, 
+                        never medical, financial, or spiritual advice.
+                    </p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" name="ai_enabled" {% if form.ai_enabled.value %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Location Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">Location</h2>
+            <p class="text-muted mb-4">Used for weather context (optional).</p>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_location_city" class="form-label">City</label>
+                    <input 
+                        type="text" 
+                        name="location_city" 
+                        id="id_location_city" 
+                        class="form-input"
+                        value="{{ form.location_city.value|default:'' }}"
+                        placeholder="e.g., Nashville"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_location_country" class="form-label">Country</label>
+                    <input 
+                        type="text" 
+                        name="location_country" 
+                        id="id_location_country" 
+                        class="form-input"
+                        value="{{ form.location_country.value|default:'' }}"
+                        placeholder="e.g., United States"
+                    >
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_timezone" class="form-label">Timezone</label>
+                <select name="timezone" id="id_timezone" class="form-select">
+                    {% for value, label in form.fields.timezone.widget.choices %}
+                        <option value="{{ value }}" {% if form.timezone.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <!-- Save -->
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                Save Preferences
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+.toggle-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.toggle-option:last-child {
+    border-bottom: none;
+}
+
+.toggle-info {
+    flex: 1;
+    padding-right: var(--space-4);
+}
+
+.toggle-info h3 {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-1);
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--color-border);
+    transition: var(--transition-fast);
+    border-radius: var(--radius-full);
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: var(--transition-fast);
+    border-radius: var(--radius-full);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--color-accent);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.color-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.form-color {
+    width: 50px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.form-color-text {
+    flex: 1;
+    max-width: 150px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+document.getElementById('id_accent_color').addEventListener('input', function(e) {
+    document.querySelector('.form-color-text').value = e.target.value;
+});
+
+function clearAccentColor() {
+    document.getElementById('id_accent_color').value = '#6366f1';
+    document.querySelector('.form-color-text').value = '';
+}
+</script>
+{% endblock %}

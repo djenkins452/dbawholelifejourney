@@ -91,11 +91,12 @@
         // Speech recognition instance
         let recognition = null;
         let isListening = false;
-        let finalTranscript = '';
+        let baseText = '';  // Text that existed before we started listening
+        let insertPosition = 0;  // Where we're inserting new text
 
         micButton.addEventListener('click', function(e) {
             e.preventDefault();
-            
+
             if (isListening) {
                 stopListening();
             } else {
@@ -106,48 +107,48 @@
         function startListening() {
             recognition = new SpeechRecognition();
             recognition.lang = CONFIG.language;
-            recognition.continuous = CONFIG.continuous;
+            recognition.continuous = false;  // Disable continuous to avoid duplication
             recognition.interimResults = CONFIG.interimResults;
 
-            finalTranscript = '';
+            // Store the current text and cursor position
+            baseText = field.value;
+            insertPosition = field.selectionStart || field.value.length;
 
             recognition.onstart = function() {
                 isListening = true;
                 micButton.classList.add('listening');
                 field.classList.add('speech-active');
-                field.placeholder = field.dataset.originalPlaceholder || field.placeholder;
-                field.dataset.originalPlaceholder = field.placeholder;
+                if (!field.dataset.originalPlaceholder) {
+                    field.dataset.originalPlaceholder = field.placeholder;
+                }
             };
 
             recognition.onresult = function(event) {
+                let finalTranscript = '';
                 let interimTranscript = '';
-                
-                for (let i = event.resultIndex; i < event.results.length; i++) {
+
+                for (let i = 0; i < event.results.length; i++) {
                     const transcript = event.results[i][0].transcript;
                     if (event.results[i].isFinal) {
-                        finalTranscript += transcript + ' ';
+                        finalTranscript += transcript;
                     } else {
                         interimTranscript += transcript;
                     }
                 }
 
-                // Get current cursor position or end of text
-                const cursorPos = field.selectionStart || field.value.length;
-                const textBefore = field.value.substring(0, cursorPos);
-                const textAfter = field.value.substring(cursorPos);
-                
-                // For textarea, append; for input, replace or append based on content
-                if (field.tagName === 'TEXTAREA') {
-                    // Add space if needed
-                    const needsSpace = textBefore.length > 0 && !textBefore.endsWith(' ') && !textBefore.endsWith('\n');
-                    const spacer = needsSpace ? ' ' : '';
-                    field.value = textBefore + spacer + finalTranscript + interimTranscript + textAfter;
-                } else {
-                    // For input fields, append to existing
-                    const needsSpace = textBefore.length > 0 && !textBefore.endsWith(' ');
-                    const spacer = needsSpace ? ' ' : '';
-                    field.value = textBefore + spacer + finalTranscript + interimTranscript;
-                }
+                // Get text before and after insertion point from original
+                const textBefore = baseText.substring(0, insertPosition);
+                const textAfter = baseText.substring(insertPosition);
+
+                // Add space if needed
+                const needsSpace = textBefore.length > 0 &&
+                    !textBefore.endsWith(' ') &&
+                    !textBefore.endsWith('\n');
+                const spacer = needsSpace ? ' ' : '';
+
+                // Combine: original text before + spacer + spoken text + original text after
+                const spokenText = finalTranscript || interimTranscript;
+                field.value = textBefore + spacer + spokenText + textAfter;
 
                 // Trigger input event for any listeners
                 field.dispatchEvent(new Event('input', { bubbles: true }));
@@ -162,14 +163,8 @@
             };
 
             recognition.onend = function() {
-                if (isListening) {
-                    // Restart if user hasn't stopped manually
-                    try {
-                        recognition.start();
-                    } catch (e) {
-                        stopListening();
-                    }
-                }
+                // Auto-stop when recognition ends (since continuous is disabled)
+                stopListening();
             };
 
             try {

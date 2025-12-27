@@ -189,7 +189,7 @@ _cloudinary_cloud_name = env("CLOUDINARY_CLOUD_NAME", default="")
 _cloudinary_api_key = env("CLOUDINARY_API_KEY", default="")
 _cloudinary_api_secret = env("CLOUDINARY_API_SECRET", default="")
 
-if _cloudinary_cloud_name:
+if _cloudinary_cloud_name and _cloudinary_api_key and _cloudinary_api_secret:
     # Configure cloudinary library directly
     import cloudinary
     cloudinary.config(
@@ -198,6 +198,7 @@ if _cloudinary_cloud_name:
         api_secret=_cloudinary_api_secret,
         secure=True
     )
+    print(f"Cloudinary configured with cloud_name: {_cloudinary_cloud_name}")
 
     # Also set CLOUDINARY_STORAGE for django-cloudinary-storage
     CLOUDINARY_STORAGE = {
@@ -207,6 +208,7 @@ if _cloudinary_cloud_name:
     }
 else:
     # Fall back to local storage if Cloudinary is not configured
+    print(f"Cloudinary NOT configured - cloud_name: '{_cloudinary_cloud_name}', api_key set: {bool(_cloudinary_api_key)}, api_secret set: {bool(_cloudinary_api_secret)}")
     STORAGES["default"] = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     }
@@ -216,6 +218,46 @@ else:
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'cloudinary': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'apps': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
 
 
 # Custom User Model

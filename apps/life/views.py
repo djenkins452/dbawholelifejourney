@@ -5,8 +5,11 @@ The daily operating layer of a person's life.
 Calm, integrated, and quietly powerful.
 """
 
+import logging
 import secrets
 from datetime import timedelta
+
+logger = logging.getLogger(__name__)
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -647,11 +650,16 @@ class PetCreateView(LifeAccessMixin, CreateView):
         'color', 'weight', 'microchip_id', 'veterinarian', 'vet_phone',
         'photo', 'notes'
     ]
-    
+
     def form_valid(self, form):
         form.instance.user = self.request.user
-        messages.success(self.request, f"Welcome, {form.instance.name}!")
-        return super().form_valid(form)
+        try:
+            response = super().form_valid(form)
+            messages.success(self.request, f"Welcome, {form.instance.name}!")
+            return response
+        except Exception as e:
+            logger.exception(f"Error saving pet with photo: {e}")
+            raise
 
 
 class PetUpdateView(LifeAccessMixin, UpdateView):

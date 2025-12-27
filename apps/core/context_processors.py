@@ -12,9 +12,15 @@ def site_context(request):
     """
     Add site-wide context variables.
     """
+    from apps.core.models import SiteConfiguration
+
+    config = SiteConfiguration.get_solo()
+
     return {
-        'site_name': 'Whole Life Journey',
-        'site_tagline': 'A calm space for reflection, growth, and faithful living.',
+        'site_name': config.site_name or 'Whole Life Journey',
+        'site_tagline': config.tagline or 'A calm space for reflection, growth, and faithful living.',
+        'site_logo_url': config.logo.url if config.logo else None,
+        'site_favicon_url': config.favicon.url if config.favicon else None,
     }
 
 

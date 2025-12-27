@@ -24,7 +24,11 @@
         <!-- Header -->
         <div class="chat-header">
             <div class="chat-header-info">
+                {% if site_logo_url %}
+                <img src="{{ site_logo_url }}" alt="{{ site_name }}" class="chat-avatar-logo">
+                {% else %}
                 <img src="{% static 'icons/common/logo.svg' %}" alt="WLJ" class="chat-avatar-logo">
+                {% endif %}
                 <span class="chat-title">WLJ Assistant</span>
             </div>
             <div class="chat-header-actions">

@@ -5,6 +5,7 @@ Users Views - Profile, preferences, and user management.
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import TemplateView, UpdateView, View
@@ -13,6 +14,41 @@ from apps.help.mixins import HelpContextMixin
 
 from .forms import ProfileForm, PreferencesForm
 from .models import TermsAcceptance, UserPreferences
+
+
+# Onboarding Wizard Configuration
+ONBOARDING_STEPS = [
+    {
+        "id": "welcome",
+        "title": "Welcome",
+        "description": "Let's personalize your experience",
+    },
+    {
+        "id": "theme",
+        "title": "Appearance",
+        "description": "Choose your visual theme",
+    },
+    {
+        "id": "modules",
+        "title": "Modules",
+        "description": "Select the areas you want to focus on",
+    },
+    {
+        "id": "ai",
+        "title": "AI Coaching",
+        "description": "Personalize your AI companion",
+    },
+    {
+        "id": "location",
+        "title": "Location",
+        "description": "Set your timezone and location",
+    },
+    {
+        "id": "complete",
+        "title": "All Set",
+        "description": "You're ready to begin",
+    },
+]
 
 
 class ProfileView(HelpContextMixin, LoginRequiredMixin, TemplateView):
@@ -177,15 +213,171 @@ class AcceptTermsView(LoginRequiredMixin, TemplateView):
 
 class OnboardingView(LoginRequiredMixin, TemplateView):
     """
-    Guided onboarding for new users.
-    
-    A simple walkthrough introducing key features:
-    - Dashboard
-    - Journal
-    - Preferences (theme, Faith toggle)
+    Guided onboarding for new users - redirects to wizard.
     """
 
-    template_name = "users/onboarding.html"
+    def get(self, request, *args, **kwargs):
+        # Redirect to the wizard
+        return redirect("users:onboarding_wizard")
+
+
+class OnboardingWizardView(LoginRequiredMixin, TemplateView):
+    """
+    Step-by-step onboarding wizard for new users.
+
+    Walks users through personalization:
+    1. Welcome - Introduction
+    2. Theme - Visual appearance
+    3. Modules - Enable/disable life areas
+    4. AI - Coaching style selection
+    5. Location - Timezone and city
+    6. Complete - Final summary
+    """
+
+    template_name = "users/onboarding_wizard.html"
+
+    def get_current_step(self):
+        """Get the current step from session or URL."""
+        step_id = self.kwargs.get("step", "welcome")
+        # Find step index
+        for i, step in enumerate(ONBOARDING_STEPS):
+            if step["id"] == step_id:
+                return i, step
+        return 0, ONBOARDING_STEPS[0]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        step_index, current_step = self.get_current_step()
+
+        context["steps"] = ONBOARDING_STEPS
+        context["current_step"] = current_step
+        context["current_step_index"] = step_index
+        context["total_steps"] = len(ONBOARDING_STEPS)
+        context["progress_percent"] = int((step_index / (len(ONBOARDING_STEPS) - 1)) * 100)
+
+        # Previous/next step navigation
+        if step_index > 0:
+            context["prev_step"] = ONBOARDING_STEPS[step_index - 1]
+        if step_index < len(ONBOARDING_STEPS) - 1:
+            context["next_step"] = ONBOARDING_STEPS[step_index + 1]
+
+        # Step-specific context
+        prefs = self.request.user.preferences
+
+        if current_step["id"] == "theme":
+            context["themes"] = settings.WLJ_SETTINGS["THEMES"]
+            context["current_theme"] = prefs.theme
+
+        elif current_step["id"] == "modules":
+            context["modules"] = [
+                {"key": "journal_enabled", "name": "Journal", "icon": "📝",
+                 "description": "Daily reflections, guided prompts, and mood tracking.",
+                 "enabled": prefs.journal_enabled},
+                {"key": "faith_enabled", "name": "Faith", "icon": "✝️",
+                 "description": "Scripture reading, prayer requests, and faith milestones.",
+                 "enabled": prefs.faith_enabled},
+                {"key": "health_enabled", "name": "Health", "icon": "❤️",
+                 "description": "Track weight, fasting, heart rate, and blood glucose.",
+                 "enabled": prefs.health_enabled},
+                {"key": "life_enabled", "name": "Life", "icon": "🏠",
+                 "description": "Projects, tasks, calendar, and document storage.",
+                 "enabled": prefs.life_enabled},
+                {"key": "purpose_enabled", "name": "Purpose", "icon": "🧭",
+                 "description": "Annual direction, goals, and seasonal reflections.",
+                 "enabled": prefs.purpose_enabled},
+            ]
+
+        elif current_step["id"] == "ai":
+            context["ai_enabled"] = prefs.ai_enabled
+            context["current_coaching_style"] = prefs.ai_coaching_style
+            try:
+                from apps.ai.models import CoachingStyle
+                context["coaching_styles"] = CoachingStyle.get_active_styles()
+            except:
+                context["coaching_styles"] = []
+
+        elif current_step["id"] == "location":
+            context["current_timezone"] = prefs.timezone
+            context["current_city"] = prefs.location_city
+            context["current_country"] = prefs.location_country
+            context["timezone_choices"] = PreferencesForm().fields["timezone"].choices
+
+        elif current_step["id"] == "complete":
+            # Summary of what was configured
+            context["summary"] = {
+                "theme": settings.WLJ_SETTINGS["THEMES"].get(prefs.theme, {}).get("name", prefs.theme),
+                "modules_enabled": sum([
+                    prefs.journal_enabled,
+                    prefs.faith_enabled,
+                    prefs.health_enabled,
+                    prefs.life_enabled,
+                    prefs.purpose_enabled,
+                ]),
+                "ai_enabled": prefs.ai_enabled,
+                "timezone": prefs.timezone,
+            }
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """Handle step submissions and save preferences."""
+        step_index, current_step = self.get_current_step()
+        prefs = request.user.preferences
+
+        # Process step-specific data
+        if current_step["id"] == "theme":
+            theme = request.POST.get("theme")
+            if theme in settings.WLJ_SETTINGS["THEMES"]:
+                prefs.theme = theme
+                prefs.save(update_fields=["theme", "updated_at"])
+
+        elif current_step["id"] == "modules":
+            # Update module toggles
+            prefs.journal_enabled = request.POST.get("journal_enabled") == "on"
+            prefs.faith_enabled = request.POST.get("faith_enabled") == "on"
+            prefs.health_enabled = request.POST.get("health_enabled") == "on"
+            prefs.life_enabled = request.POST.get("life_enabled") == "on"
+            prefs.purpose_enabled = request.POST.get("purpose_enabled") == "on"
+            prefs.save(update_fields=[
+                "journal_enabled", "faith_enabled", "health_enabled",
+                "life_enabled", "purpose_enabled", "updated_at"
+            ])
+
+        elif current_step["id"] == "ai":
+            prefs.ai_enabled = request.POST.get("ai_enabled") == "on"
+            coaching_style = request.POST.get("ai_coaching_style")
+            if coaching_style:
+                prefs.ai_coaching_style = coaching_style
+            prefs.save(update_fields=["ai_enabled", "ai_coaching_style", "updated_at"])
+
+        elif current_step["id"] == "location":
+            prefs.timezone = request.POST.get("timezone", "UTC")
+            prefs.location_city = request.POST.get("location_city", "")
+            prefs.location_country = request.POST.get("location_country", "")
+            prefs.save(update_fields=[
+                "timezone", "location_city", "location_country", "updated_at"
+            ])
+
+        # Determine next action
+        action = request.POST.get("action", "next")
+
+        if action == "skip":
+            # Skip to next step without saving (already at default values)
+            pass
+
+        if action == "complete" or current_step["id"] == "complete":
+            # Mark onboarding as complete
+            prefs.has_completed_onboarding = True
+            prefs.save(update_fields=["has_completed_onboarding", "updated_at"])
+            messages.success(request, "Welcome to Whole Life Journey!")
+            return redirect("dashboard:home")
+
+        # Navigate to next step
+        if step_index < len(ONBOARDING_STEPS) - 1:
+            next_step = ONBOARDING_STEPS[step_index + 1]
+            return redirect("users:onboarding_wizard_step", step=next_step["id"])
+
+        return redirect("dashboard:home")
 
 
 class CompleteOnboardingView(LoginRequiredMixin, View):
@@ -202,4 +394,4 @@ class CompleteOnboardingView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         # If accessed via GET, just redirect
-        return redirect("users:onboarding")
+        return redirect("users:onboarding_wizard")

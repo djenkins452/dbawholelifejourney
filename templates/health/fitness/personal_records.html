@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Personal Records - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Personal Records</h1>
+            <p class="page-subtitle">Your best lifts and achievements</p>
+        </div>
+    </div>
+
+    {% if prs %}
+        <div class="pr-grid">
+            {% for pr in prs %}
+                <div class="pr-card">
+                    <div class="pr-exercise">{{ pr.exercise.name }}</div>
+                    <div class="pr-stats">
+                        <span class="pr-weight">{{ pr.weight }}lbs</span>
+                        <span class="pr-separator">x</span>
+                        <span class="pr-reps">{{ pr.reps }}</span>
+                    </div>
+                    <div class="pr-meta">
+                        <span class="pr-date">{{ pr.achieved_date|date:"M j, Y" }}</span>
+                        <span class="pr-1rm">Est. 1RM: {{ pr.estimated_1rm|floatformat:0 }}lbs</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+            </div>
+            <h2>No personal records yet</h2>
+            <p>As you log workouts, your best performances will appear here. Keep pushing!</p>
+            <a href="{% url 'health:workout_create' %}" class="btn btn-primary">Log a Workout</a>
+        </div>
+    {% endif %}
+
+    <div class="back-link mt-6">
+        <a href="{% url 'health:fitness_home' %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back to Fitness
+        </a>
+    </div>
+</div>
+
+<style>
+.pr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+
+.pr-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    text-align: center;
+}
+
+.pr-exercise {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+}
+
+.pr-stats {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.pr-weight {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.pr-separator {
+    font-size: var(--font-size-xl);
+    color: var(--color-text-muted);
+}
+
+.pr-reps {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.pr-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.pr-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.pr-1rm {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    font-weight: 500;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.empty-icon svg {
+    width: 48px;
+    height: 48px;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.back-link a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+.back-link a:hover {
+    color: var(--color-accent);
+}
+
+.back-link svg {
+    width: 16px;
+    height: 16px;
+}
+</style>
+{% endblock %}

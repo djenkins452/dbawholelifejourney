@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Fitness Progress - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Progress</h1>
+            <p class="page-subtitle">Track your fitness journey over time</p>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-row mb-6">
+        <div class="stat-card">
+            <span class="stat-value">{{ workouts_30d }}</span>
+            <span class="stat-label">Workouts (30 days)</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ total_volume_30d|default:0 }}</span>
+            <span class="stat-label">Total Volume (lbs)</span>
+        </div>
+    </div>
+
+    <!-- Exercise Selection -->
+    {% if exercises_done %}
+        <div class="progress-section">
+            <h2>Exercise Progress</h2>
+            <p class="section-description">Select an exercise to see your progress over time</p>
+
+            <form method="get" class="exercise-filter">
+                <select name="exercise" onchange="this.form.submit()">
+                    <option value="">Select an exercise...</option>
+                    {% for exercise in exercises_done %}
+                        <option value="{{ exercise.pk }}" {% if selected_exercise.pk == exercise.pk %}selected{% endif %}>
+                            {{ exercise.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            {% if selected_exercise and progress_data %}
+                <div class="progress-chart-container">
+                    <h3>{{ selected_exercise.name }} Progress</h3>
+                    <canvas id="progressChart"></canvas>
+                </div>
+
+                <div class="progress-table">
+                    <h3>Recent Sessions</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Weight</th>
+                                <th>Reps</th>
+                                <th>Volume</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in progress_data|slice:":20" %}
+                                <tr>
+                                    <td>{{ entry.date }}</td>
+                                    <td>{{ entry.weight }}lbs</td>
+                                    <td>{{ entry.reps }}</td>
+                                    <td>{{ entry.volume|floatformat:0 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% elif selected_exercise %}
+                <p class="text-muted">No data for this exercise yet.</p>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <p>Log some workouts to start tracking your progress!</p>
+            <a href="{% url 'health:workout_create' %}" class="btn btn-primary">Log a Workout</a>
+        </div>
+    {% endif %}
+
+    <div class="back-link mt-6">
+        <a href="{% url 'health:fitness_home' %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back to Fitness
+        </a>
+    </div>
+</div>
+
+<style>
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+}
+
+.stat-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    text-align: center;
+}
+
+.stat-card .stat-value {
+    display: block;
+    font-size: var(--font-size-3xl);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.stat-card .stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.progress-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.progress-section h2 {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--space-2) 0;
+}
+
+.section-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.exercise-filter {
+    margin-bottom: var(--space-6);
+}
+
+.exercise-filter select {
+    width: 100%;
+    max-width: 400px;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    font-size: var(--font-size-base);
+}
+
+.progress-chart-container {
+    margin-bottom: var(--space-6);
+}
+
+.progress-chart-container h3 {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.progress-table {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.progress-table h3 {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.progress-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.progress-table th,
+.progress-table td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.progress-table th {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.back-link a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+.back-link a:hover {
+    color: var(--color-accent);
+}
+
+.back-link svg {
+    width: 16px;
+    height: 16px;
+}
+</style>
+
+{% if selected_exercise and progress_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ctx = document.getElementById('progressChart').getContext('2d');
+const data = {{ progress_data|safe }};
+
+// Sort by date
+data.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: data.map(d => d.date),
+        datasets: [{
+            label: 'Weight (lbs)',
+            data: data.map(d => d.weight),
+            borderColor: 'rgb(99, 102, 241)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            fill: true,
+            tension: 0.3
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: false
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

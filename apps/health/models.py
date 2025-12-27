@@ -231,3 +231,328 @@ class GlucoseEntry(UserOwnedModel):
         if self.unit == "mmol/L":
             return float(self.value)
         return float(self.value) / 18.0182
+
+
+# =============================================================================
+# Fitness Tracking Models
+# =============================================================================
+
+
+class Exercise(models.Model):
+    """
+    Admin-configurable exercise library.
+
+    Supports both resistance training and cardio exercises.
+    """
+
+    CATEGORY_CHOICES = [
+        ("resistance", "Resistance Training"),
+        ("cardio", "Cardio"),
+    ]
+
+    name = models.CharField(max_length=100)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    muscle_group = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Primary muscle group (for resistance exercises)",
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["category", "name"]
+        verbose_name = "exercise"
+        verbose_name_plural = "exercises"
+
+    def __str__(self):
+        if self.muscle_group:
+            return f"{self.name} ({self.muscle_group})"
+        return self.name
+
+
+class WorkoutSession(UserOwnedModel):
+    """
+    A single workout session.
+
+    Groups multiple exercises performed in one workout.
+    """
+
+    date = models.DateField()
+    name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Optional name like 'Push Day' or 'Morning Run'",
+    )
+    notes = models.TextField(blank=True)
+    duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Total workout duration in minutes",
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at"]
+        verbose_name = "workout session"
+        verbose_name_plural = "workout sessions"
+
+    def __str__(self):
+        if self.name:
+            return f"{self.name} - {self.date}"
+        return f"Workout on {self.date}"
+
+    @property
+    def exercise_count(self):
+        """Number of exercises in this session."""
+        return self.workout_exercises.count()
+
+    @property
+    def total_sets(self):
+        """Total number of sets across all exercises."""
+        return sum(ex.sets.count() for ex in self.workout_exercises.filter(exercise__category="resistance"))
+
+    @property
+    def total_volume(self):
+        """Total volume (weight x reps) for resistance exercises."""
+        total = 0
+        for workout_ex in self.workout_exercises.filter(exercise__category="resistance"):
+            for s in workout_ex.sets.all():
+                if s.weight and s.reps:
+                    total += float(s.weight) * s.reps
+        return total
+
+
+class WorkoutExercise(models.Model):
+    """
+    An exercise within a workout session.
+
+    Links a workout session to an exercise with ordering.
+    """
+
+    session = models.ForeignKey(
+        WorkoutSession,
+        on_delete=models.CASCADE,
+        related_name="workout_exercises",
+    )
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.PROTECT,
+        related_name="workout_instances",
+    )
+    order = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["order"]
+        verbose_name = "workout exercise"
+        verbose_name_plural = "workout exercises"
+
+    def __str__(self):
+        return f"{self.exercise.name} in {self.session}"
+
+
+class ExerciseSet(models.Model):
+    """
+    Individual set within a resistance exercise.
+
+    Tracks weight, reps, and whether it's a warmup or PR.
+    """
+
+    workout_exercise = models.ForeignKey(
+        WorkoutExercise,
+        on_delete=models.CASCADE,
+        related_name="sets",
+    )
+    set_number = models.PositiveIntegerField()
+    weight = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Weight in pounds",
+    )
+    reps = models.PositiveIntegerField(null=True, blank=True)
+    is_warmup = models.BooleanField(default=False)
+    is_pr = models.BooleanField(
+        default=False,
+        help_text="Personal record for this exercise",
+    )
+    notes = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        ordering = ["set_number"]
+        verbose_name = "exercise set"
+        verbose_name_plural = "exercise sets"
+
+    def __str__(self):
+        weight_str = f"{self.weight}lbs" if self.weight else "bodyweight"
+        return f"Set {self.set_number}: {weight_str} x {self.reps}"
+
+    @property
+    def volume(self):
+        """Calculate volume (weight x reps) for this set."""
+        if self.weight and self.reps:
+            return float(self.weight) * self.reps
+        return 0
+
+
+class CardioDetails(models.Model):
+    """
+    Details specific to cardio exercises.
+
+    Tracks duration, distance, intensity, and heart rate.
+    """
+
+    INTENSITY_CHOICES = [
+        ("easy", "Easy"),
+        ("medium", "Medium"),
+        ("hard", "Hard"),
+    ]
+
+    workout_exercise = models.OneToOneField(
+        WorkoutExercise,
+        on_delete=models.CASCADE,
+        related_name="cardio_details",
+    )
+    duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Duration in minutes",
+    )
+    distance = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Distance in miles",
+    )
+    intensity = models.CharField(
+        max_length=10,
+        choices=INTENSITY_CHOICES,
+        default="medium",
+    )
+    calories_burned = models.PositiveIntegerField(null=True, blank=True)
+    avg_heart_rate = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Average heart rate in BPM",
+    )
+
+    class Meta:
+        verbose_name = "cardio details"
+        verbose_name_plural = "cardio details"
+
+    def __str__(self):
+        parts = []
+        if self.duration_minutes:
+            parts.append(f"{self.duration_minutes} min")
+        if self.distance:
+            parts.append(f"{self.distance} mi")
+        parts.append(self.intensity)
+        return " - ".join(parts)
+
+
+class PersonalRecord(UserOwnedModel):
+    """
+    Track personal records for exercises.
+
+    Records the best performance for each exercise.
+    """
+
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.CASCADE,
+        related_name="personal_records",
+    )
+    weight = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        help_text="Weight in pounds",
+    )
+    reps = models.PositiveIntegerField()
+    achieved_date = models.DateField()
+    workout_session = models.ForeignKey(
+        WorkoutSession,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="personal_records",
+    )
+
+    class Meta:
+        ordering = ["-achieved_date"]
+        verbose_name = "personal record"
+        verbose_name_plural = "personal records"
+
+    def __str__(self):
+        return f"PR: {self.exercise.name} - {self.weight}lbs x {self.reps}"
+
+    @property
+    def estimated_1rm(self):
+        """Estimate 1 rep max using Brzycki formula."""
+        if self.reps == 1:
+            return float(self.weight)
+        return float(self.weight) * (36 / (37 - self.reps))
+
+
+class WorkoutTemplate(UserOwnedModel):
+    """
+    Saved workout routines for quick reuse.
+
+    Users can save their favorite workout structures as templates.
+    """
+
+    name = models.CharField(
+        max_length=100,
+        help_text="Template name like 'Push Day' or 'Leg Day'",
+    )
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "workout template"
+        verbose_name_plural = "workout templates"
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def exercise_count(self):
+        """Number of exercises in this template."""
+        return self.template_exercises.count()
+
+
+class TemplateExercise(models.Model):
+    """
+    Exercise within a workout template.
+
+    Defines the default structure for each exercise in the template.
+    """
+
+    template = models.ForeignKey(
+        WorkoutTemplate,
+        on_delete=models.CASCADE,
+        related_name="template_exercises",
+    )
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.CASCADE,
+        related_name="template_instances",
+    )
+    order = models.PositiveIntegerField(default=0)
+    default_sets = models.PositiveIntegerField(
+        default=3,
+        help_text="Default number of sets for this exercise",
+    )
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["order"]
+        verbose_name = "template exercise"
+        verbose_name_plural = "template exercises"
+
+    def __str__(self):
+        return f"{self.exercise.name} in {self.template.name}"

@@ -25,6 +25,8 @@ from django.views.generic import (
     View,
 )
 
+from apps.help.mixins import HelpContextMixin
+
 from .models import (
     Project,
     Task,
@@ -48,12 +50,13 @@ class LifeAccessMixin(LoginRequiredMixin):
 # Home / Dashboard
 # =============================================================================
 
-class LifeHomeView(LifeAccessMixin, TemplateView):
+class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
     """
     Life module dashboard.
     A calm overview of what matters today.
     """
     template_name = "life/home.html"
+    help_context_id = "LIFE_HOME"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

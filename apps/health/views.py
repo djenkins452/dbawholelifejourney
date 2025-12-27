@@ -24,6 +24,7 @@ from django.http import JsonResponse
 from django.template.loader import render_to_string
 
 from apps.core.utils import get_user_today
+from apps.help.mixins import HelpContextMixin
 
 from .forms import (
     FastingWindowForm,
@@ -48,12 +49,13 @@ from .models import (
 )
 
 
-class HealthHomeView(LoginRequiredMixin, TemplateView):
+class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Health module home - overview of all health metrics.
     """
 
     template_name = "health/home.html"
+    help_context_id = "HEALTH_HOME"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

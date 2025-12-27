@@ -21,6 +21,8 @@ from django.views.generic import (
     View,
 )
 
+from apps.help.mixins import HelpContextMixin
+
 from .models import (
     LifeDomain,
     ReflectionPrompt,
@@ -42,12 +44,13 @@ class PurposeAccessMixin(LoginRequiredMixin):
 # Dashboard / Home
 # =============================================================================
 
-class PurposeHomeView(PurposeAccessMixin, TemplateView):
+class PurposeHomeView(HelpContextMixin, PurposeAccessMixin, TemplateView):
     """
     Purpose module dashboard.
     Shows current direction, active goals, and intentions.
     """
     template_name = "purpose/home.html"
+    help_context_id = "PURPOSE_HOME"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

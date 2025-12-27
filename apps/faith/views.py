@@ -21,6 +21,7 @@ from django.views.generic import (
 )
 
 from apps.core.models import Category
+from apps.help.mixins import HelpContextMixin
 from apps.journal.models import JournalEntry
 from apps.journal.forms import JournalEntryForm
 
@@ -46,12 +47,13 @@ class FaithRequiredMixin(UserPassesTestMixin):
         return redirect("users:preferences")
 
 
-class FaithHomeView(LoginRequiredMixin, FaithRequiredMixin, TemplateView):
+class FaithHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, TemplateView):
     """
     Faith module home - overview of spiritual journey.
     """
 
     template_name = "faith/home.html"
+    help_context_id = "FAITH_HOME"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

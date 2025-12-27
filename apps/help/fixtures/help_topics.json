@@ -94,5 +94,37 @@
       "created_at": "2024-12-27T00:00:00Z",
       "updated_at": "2024-12-27T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 7,
+    "fields": {
+      "context_id": "LIFE_HOME",
+      "help_id": "life-overview",
+      "title": "Life Module Overview",
+      "description": "Manage the daily operating layer of your life.",
+      "content": "## Life Module\n\nOrganize your daily life with these powerful tools:\n\n### Projects\n\nTrack larger initiatives with multiple steps:\n\n1. Click **\"New Project\"** to create a project.\n2. Set status (Active, Paused, Completed).\n3. Add tasks to break down the work.\n4. Track progress as you complete tasks.\n\n### Tasks\n\nManage your to-do list:\n\n1. Create tasks with priority levels (Now, Soon, Later).\n2. Assign due dates for time-sensitive items.\n3. Link tasks to projects for organization.\n4. Mark tasks complete as you finish them.\n\n### Events\n\nTrack important dates and appointments:\n\n1. Add life events with dates and times.\n2. Set reminders for upcoming events.\n3. View your week at a glance.\n\n### Additional Features\n\n- **Inventory** - Track your belongings\n- **Pets** - Manage pet records and care\n- **Recipes** - Save your favorite recipes\n- **Documents** - Store important documents",
+      "app_name": "life",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 8,
+    "fields": {
+      "context_id": "PURPOSE_HOME",
+      "help_id": "purpose-overview",
+      "title": "Purpose Module Overview",
+      "description": "Define your direction and set meaningful goals.",
+      "content": "## Purpose Module\n\nConnect with your deeper motivations and long-term direction:\n\n### Annual Direction\n\nSet your focus for the year:\n\n1. Choose a **Word of the Year** - a guiding theme.\n2. Write your **Core Theme** - what you want to accomplish.\n3. Define your **Focus Areas** - key life domains.\n4. Review and adjust throughout the year.\n\n### Life Goals\n\nSet and track meaningful goals:\n\n1. Click **\"New Goal\"** to create a goal.\n2. Add milestones to break it into steps.\n3. Track progress as you advance.\n4. Celebrate when goals are completed.\n\n### Change Intentions\n\nCapture things you want to change:\n\n1. Record areas for personal growth.\n2. Set intentions for positive change.\n3. Review periodically for accountability.\n\n### Reflection\n\nUse the Purpose module for periodic life reviews to ensure your daily actions align with your deeper values.",
+      "app_name": "purpose",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
   }
 ]

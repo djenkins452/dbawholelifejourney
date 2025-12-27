@@ -24,6 +24,7 @@ from django.views.generic import (
 )
 
 from apps.core.models import Category, Tag
+from apps.help.mixins import HelpContextMixin
 
 from .forms import JournalEntryForm, TagForm
 from .models import JournalEntry, JournalPrompt
@@ -33,7 +34,7 @@ from django.views.generic import TemplateView
 
 
 
-class EntryListView(LoginRequiredMixin, ListView):
+class EntryListView(HelpContextMixin, LoginRequiredMixin, ListView):
     """
     List all active journal entries for the current user.
     """
@@ -42,6 +43,7 @@ class EntryListView(LoginRequiredMixin, ListView):
     template_name = "journal/entry_list.html"
     context_object_name = "entries"
     paginate_by = 20
+    help_context_id = "JOURNAL_ENTRY_LIST"
 
     def get_queryset(self):
         queryset = JournalEntry.objects.filter(user=self.request.user)
@@ -160,7 +162,7 @@ class DeletedEntryListView(LoginRequiredMixin, ListView):
         return JournalEntry.objects.deleted_only().filter(user=self.request.user)
 
 
-class EntryDetailView(LoginRequiredMixin, DetailView):
+class EntryDetailView(HelpContextMixin, LoginRequiredMixin, DetailView):
     """
     View a single journal entry.
     """
@@ -168,13 +170,14 @@ class EntryDetailView(LoginRequiredMixin, DetailView):
     model = JournalEntry
     template_name = "journal/entry_detail.html"
     context_object_name = "entry"
+    help_context_id = "JOURNAL_ENTRY_DETAIL"
 
     def get_queryset(self):
         # Allow viewing archived entries too
         return JournalEntry.objects.include_archived().filter(user=self.request.user)
 
 
-class EntryCreateView(LoginRequiredMixin, CreateView):
+class EntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
     """
     Create a new journal entry.
     """
@@ -183,6 +186,7 @@ class EntryCreateView(LoginRequiredMixin, CreateView):
     form_class = JournalEntryForm
     template_name = "journal/entry_form.html"
     success_url = reverse_lazy("journal:entry_list")
+    help_context_id = "JOURNAL_ENTRY_CREATE"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -481,8 +485,9 @@ class HTMXMoodSelectView(LoginRequiredMixin, TemplateView):
 
 
 
-class JournalHomeView(LoginRequiredMixin, TemplateView):
+class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     template_name = "journal/home.html"
+    help_context_id = "JOURNAL_HOME"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

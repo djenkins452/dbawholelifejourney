@@ -33,8 +33,8 @@ class TermsAcceptanceMiddleware:
     ]
 
     ONBOARDING_PATHS = [
-        "/users/onboarding/",
-        "/users/accept-terms/",
+        "/user/onboarding/",
+        "/user/accept-terms/",
     ]
 
     def __init__(self, get_response):

@@ -23,6 +23,7 @@ class Command(BaseCommand):
             'scripture',
             'prompts',
             'coaching_styles',
+            'ai_prompt_configs',
         ]
 
         for fixture in fixtures:

@@ -22,7 +22,30 @@
     position: fixed;
     bottom: 1.5rem;
     right: 1.5rem;
-    z-index: 999;
+    z-index: 9999;
+}
+
+/* Ensure button is visible on Django admin */
+.help-button-admin {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: #417690 !important;
+    color: white !important;
+    border: none;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    font-size: 24px;
+    font-weight: 700;
+    font-family: Georgia, serif;
+}
+
+.help-button-admin:hover {
+    background: #205067 !important;
+    transform: scale(1.05);
 }
 </style>
 {% endblock %}
@@ -53,12 +76,13 @@ function getAdminHelpContext() {
     return 'ADMIN_GENERAL';
 }
 </script>
+<script src="{% static 'js/help.js' %}"></script>
 {% endblock %}
 
-{% block footer %}
+{% block content %}
 {{ block.super }}
 
-<!-- Admin Help Button -->
+<!-- Admin Help Button - Injected at end of content -->
 <div class="admin-help-wrapper">
     <button
         type="button"
@@ -70,7 +94,7 @@ function getAdminHelpContext() {
         title="Admin Help"
         onclick="openHelpModal(); return false;"
     >
-        <span class="help-icon-text">?</span>
+        ?
     </button>
 </div>
 
@@ -101,7 +125,6 @@ function getAdminHelpContext() {
     </div>
 </dialog>
 
-<script src="{% static 'js/help.js' %}"></script>
 <script>
 // Set the admin help context on page load
 document.addEventListener('DOMContentLoaded', function() {

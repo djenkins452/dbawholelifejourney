@@ -145,11 +145,8 @@ class UserPreferences(models.Model):
         ("minimal", "Minimal / Life Focus"),
     ]
 
-    AI_COACHING_STYLE_CHOICES = [
-        ('gentle', 'Gentle Guide'),
-        ('supportive', 'Supportive Partner'),
-        ('direct', 'Direct Coach'),
-]
+    # AI_COACHING_STYLE_CHOICES - Now loaded dynamically from database
+    # See apps.ai.models.CoachingStyle
 
     TIMEZONE_CHOICES = [
         ("US/Eastern", "US/Eastern"),
@@ -241,10 +238,9 @@ class UserPreferences(models.Model):
     )
 
     ai_coaching_style = models.CharField(
-    max_length=20,
-    choices=AI_COACHING_STYLE_CHOICES,
-    default='supportive',
-    help_text='AI personality style for insights and feedback',
+        max_length=50,
+        default='supportive',
+        help_text='AI coaching style key (loaded from CoachingStyle model)',
     )
 
     # Location for weather (manual entry)

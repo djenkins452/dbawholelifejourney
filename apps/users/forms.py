@@ -179,3 +179,27 @@ class PreferencesForm(forms.ModelForm):
             choices=common_timezones,
             attrs={"class": "form-select"},
         )
+
+        # Load coaching style choices from database
+        try:
+            from apps.ai.models import CoachingStyle
+            coaching_choices = [
+                (style.key, f"{style.name} - {style.description}")
+                for style in CoachingStyle.get_active_styles()
+            ]
+            if coaching_choices:
+                self.fields["ai_coaching_style"].widget = forms.Select(
+                    choices=coaching_choices,
+                    attrs={"class": "form-select"},
+                )
+        except Exception:
+            # Fallback if CoachingStyle table doesn't exist yet
+            fallback_choices = [
+                ('gentle', 'Gentle Guide'),
+                ('supportive', 'Supportive Partner'),
+                ('direct', 'Direct Coach'),
+            ]
+            self.fields["ai_coaching_style"].widget = forms.Select(
+                choices=fallback_choices,
+                attrs={"class": "form-select"},
+            )

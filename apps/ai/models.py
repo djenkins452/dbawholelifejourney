@@ -1,8 +1,102 @@
 """
 AI Models - Store generated insights for caching and history.
 """
+from django.core.cache import cache
 from django.db import models
 from django.conf import settings
+
+
+class CoachingStyle(models.Model):
+    """
+    Database-driven coaching styles for AI personality customization.
+
+    Allows admin to add, edit, or disable coaching styles without code deploys.
+    """
+    key = models.SlugField(
+        max_length=50,
+        unique=True,
+        help_text="Unique identifier (e.g., 'southern_belle', 'texas_rancher')"
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Display name shown to users"
+    )
+    description = models.CharField(
+        max_length=300,
+        help_text="Brief description shown when user selects style"
+    )
+    prompt_instructions = models.TextField(
+        help_text="Full AI prompt instructions for this coaching style"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this style is available for users to select"
+    )
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Use this style as fallback if user's style is unavailable"
+    )
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Order in which styles appear in selection UI"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = "Coaching Style"
+        verbose_name_plural = "Coaching Styles"
+
+    def __str__(self):
+        status = "" if self.is_active else " (inactive)"
+        return f"{self.name}{status}"
+
+    def save(self, *args, **kwargs):
+        # Clear cache when style is updated
+        cache.delete('coaching_styles_all')
+        cache.delete(f'coaching_style_{self.key}')
+
+        # Ensure only one default
+        if self.is_default:
+            CoachingStyle.objects.filter(is_default=True).exclude(pk=self.pk).update(is_default=False)
+
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_active_styles(cls):
+        """Get all active styles, with caching."""
+        cache_key = 'coaching_styles_all'
+        styles = cache.get(cache_key)
+        if styles is None:
+            styles = list(cls.objects.filter(is_active=True))
+            cache.set(cache_key, styles, 3600)  # Cache for 1 hour
+        return styles
+
+    @classmethod
+    def get_by_key(cls, key):
+        """Get a style by key, with caching and fallback."""
+        cache_key = f'coaching_style_{key}'
+        style = cache.get(cache_key)
+        if style is None:
+            style = cls.objects.filter(key=key, is_active=True).first()
+            if style:
+                cache.set(cache_key, style, 3600)
+
+        # Fallback to default if style not found
+        if not style:
+            style = cls.objects.filter(is_default=True, is_active=True).first()
+
+        # Ultimate fallback - get any active style
+        if not style:
+            style = cls.objects.filter(is_active=True).first()
+
+        return style
+
+    @classmethod
+    def get_choices(cls):
+        """Get choices tuple for form fields."""
+        return [(s.key, s.name) for s in cls.get_active_styles()]
 
 
 class AIInsight(models.Model):

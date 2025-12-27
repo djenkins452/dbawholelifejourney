@@ -4,7 +4,7 @@ AI Services for Whole Life Journey - WITH COACHING STYLE SUPPORT
 This module provides AI-powered insights and encouragement based on user data.
 It uses OpenAI's API to generate personalized, meaningful feedback.
 
-UPDATE: Replace your existing apps/ai/services.py with this file.
+Coaching styles are now database-driven for flexibility.
 """
 import logging
 from typing import Optional
@@ -13,6 +13,16 @@ from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+# Fallback coaching style prompt if database is unavailable
+FALLBACK_COACHING_PROMPT = """
+Your communication style is SUPPORTIVE PARTNER:
+- Be warm but balanced—like a trusted friend walking alongside them
+- Gently acknowledge both wins and gaps without judgment
+- Offer encouraging nudges, not demands
+- Celebrate progress genuinely
+- Balance accountability with encouragement
+"""
 
 
 class AIService:
@@ -49,45 +59,17 @@ class AIService:
         return self.client is not None
     
     def _get_coaching_style_prompt(self, style: str) -> str:
-        """Get the coaching style instructions based on user preference."""
-        
-        styles = {
-            'gentle': """
-Your communication style is GENTLE GUIDE:
-- Be soft, nurturing, and extremely patient
-- Never pressure or create urgency
-- Always affirm effort, no matter how small
-- Use phrases like "whenever you're ready", "no pressure", "take your time"
-- Frame suggestions as gentle invitations, not recommendations
-- If noting gaps or struggles, be very tender and validating
-- Focus on self-compassion and grace
-- Celebrate every tiny win as meaningful""",
-            
-            'supportive': """
-Your communication style is SUPPORTIVE PARTNER:
-- Be warm but balanced—like a trusted friend walking alongside them
-- Gently acknowledge both wins and gaps without judgment
-- Offer encouraging nudges, not demands
-- Use phrases like "I noticed...", "you might consider...", "how about..."
-- Celebrate progress genuinely
-- When noting missed goals or gaps, be kind but honest
-- Balance accountability with encouragement
-- Help them see patterns without lecturing""",
-            
-            'direct': """
-Your communication style is DIRECT COACH:
-- Be clear, straightforward, and action-oriented
-- Don't sugarcoat—tell it like it is, but never be cruel
-- Use direct language: "Do this", "You need to...", "Stop waiting and..."
-- Push them toward action
-- Call out excuses gently but firmly
-- Focus on what they CAN control
-- When they've missed goals, acknowledge it directly and redirect to action
-- Keep it brief and punchy—no rambling
-- Challenge them to be their best"""
-        }
-        
-        return styles.get(style, styles['supportive'])
+        """Get the coaching style instructions from database."""
+        try:
+            from .models import CoachingStyle
+            style_obj = CoachingStyle.get_by_key(style)
+            if style_obj:
+                return "\n" + style_obj.prompt_instructions
+        except Exception as e:
+            logger.warning(f"Could not load coaching style from DB: {e}")
+
+        # Fallback if database unavailable
+        return FALLBACK_COACHING_PROMPT
     
     def _get_system_prompt(self, faith_enabled: bool = False, 
                            coaching_style: str = 'supportive') -> str:

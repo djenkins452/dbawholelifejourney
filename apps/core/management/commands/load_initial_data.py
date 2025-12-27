@@ -22,6 +22,7 @@ class Command(BaseCommand):
             ('dashboard', 'encouragements'),
             ('faith', 'scripture'),
             ('journal', 'prompts'),
+            ('ai', 'coaching_styles'),
         ]
 
         for app, fixture in fixtures:

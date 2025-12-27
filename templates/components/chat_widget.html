@@ -24,7 +24,7 @@
         <!-- Header -->
         <div class="chat-header">
             <div class="chat-header-info">
-                <span class="chat-avatar">🤖</span>
+                <img src="{% static 'icons/common/logo.svg' %}" alt="WLJ" class="chat-avatar-logo">
                 <span class="chat-title">WLJ Assistant</span>
             </div>
             <div class="chat-header-actions">
@@ -159,6 +159,14 @@
 
 .chat-avatar {
     font-size: 24px;
+}
+
+.chat-avatar-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: white;
+    padding: 2px;
 }
 
 .chat-title {

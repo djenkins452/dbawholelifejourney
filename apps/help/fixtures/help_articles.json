@@ -11,7 +11,9 @@
             "module": "general",
             "keywords": "getting started, welcome, introduction, overview, features, basics",
             "is_active": true,
-            "sort_order": 1
+            "sort_order": 1,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
         }
     },
     {
@@ -26,7 +28,9 @@
             "module": "dashboard",
             "keywords": "dashboard, home, insights, celebrations, daily, overview, ai",
             "is_active": true,
-            "sort_order": 1
+            "sort_order": 1,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
         }
     },
     {
@@ -41,7 +45,9 @@
             "module": "journal",
             "keywords": "journal, entries, writing, mood, tags, reflection, speech, dictation",
             "is_active": true,
-            "sort_order": 2
+            "sort_order": 2,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
         }
     },
     {
@@ -56,7 +62,9 @@
             "module": "health",
             "keywords": "health, weight, fitness, workout, exercise, heart rate, glucose, fasting, tracking",
             "is_active": true,
-            "sort_order": 3
+            "sort_order": 3,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
         }
     },
     {
@@ -71,7 +79,9 @@
             "module": "faith",
             "keywords": "faith, prayer, prayers, scripture, bible, spiritual, christian, milestones",
             "is_active": true,
-            "sort_order": 4
+            "sort_order": 4,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
         }
     },
     {
@@ -86,7 +96,9 @@
             "module": "settings",
             "keywords": "preferences, settings, theme, color, modules, ai, coaching style, customize",
             "is_active": true,
-            "sort_order": 1
+            "sort_order": 1,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
         }
     },
     {
@@ -101,7 +113,9 @@
             "module": "settings",
             "keywords": "ai, coaching, style, personality, supportive, direct, gentle, mentor, cheerful, calm, accountability",
             "is_active": true,
-            "sort_order": 2
+            "sort_order": 2,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
         }
     },
     {
@@ -116,7 +130,43 @@
             "module": "general",
             "keywords": "missing, hidden, can't find, not showing, disabled, feature, enable",
             "is_active": true,
-            "sort_order": 1
+            "sort_order": 1,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 9,
+        "fields": {
+            "title": "Setting and Tracking Goals",
+            "slug": "goals",
+            "summary": "Learn how to create, manage, and track your personal goals in the Purpose module.",
+            "content": "The Purpose module helps you set meaningful goals and track your progress.\n\n## Creating a Goal\n\n1. Navigate to Purpose > Goals\n2. Click 'New Goal'\n3. Enter a title and description\n4. Set a target date (optional)\n5. Choose a category\n\n## Tracking Progress\n\n- Update your goal progress regularly\n- Add notes about milestones reached\n- View your progress over time\n\n## Goal Categories\n\nOrganize your goals by area of life:\n- Health & Wellness\n- Personal Growth\n- Relationships\n- Career\n- Financial\n- Spiritual\n\n## Tips\n\n- Break large goals into smaller milestones\n- Review and update goals weekly\n- Celebrate when you complete a goal!",
+            "category": 2,
+            "module": "purpose",
+            "keywords": "goals, purpose, tracking, progress, milestones, targets, objectives, set goals",
+            "is_active": true,
+            "sort_order": 5,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 10,
+        "fields": {
+            "title": "Managing Tasks and Projects",
+            "slug": "tasks-projects",
+            "summary": "Organize your work with tasks, projects, and to-do lists in the Life module.",
+            "content": "The Life module includes powerful task and project management tools.\n\n## Creating Tasks\n\n1. Navigate to Life > Tasks\n2. Click 'New Task'\n3. Enter a title and optional description\n4. Set a due date if needed\n5. Assign to a project (optional)\n\n## Projects\n\nGroup related tasks into projects:\n- Create a project with a name and description\n- Add tasks to the project\n- Track project progress\n\n## Task Features\n\n- **Priority levels**: High, Medium, Low\n- **Due dates**: Set deadlines for tasks\n- **Tags**: Organize with custom tags\n- **Notes**: Add details to any task\n\n## Tips\n\n- Review your task list daily\n- Complete small tasks first to build momentum\n- Use projects for multi-step goals",
+            "category": 2,
+            "module": "life",
+            "keywords": "tasks, projects, to-do, todo, list, organize, work, productivity, create task",
+            "is_active": true,
+            "sort_order": 6,
+            "created_at": "2024-12-27T12:00:00Z",
+            "updated_at": "2024-12-27T12:00:00Z"
         }
     }
 ]

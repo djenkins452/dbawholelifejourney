@@ -1,18 +1,13 @@
 {% extends "admin/base.html" %}
-{% load i18n %}
 
 {% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Whole Life Journey{% endblock %}
 
 {% block branding %}
-<div id="site-name">
+<h1 id="site-name">
     <a href="{% url 'admin:index' %}">Whole Life Journey Admin</a>
-    <span style="margin-left: 20px; font-size: 14px;">
-        <a href="https://wholelifejourney.com/admin-console/"
-           style="color: var(--link-fg, #81d4fa); text-decoration: none;">
-            &larr; Back to Admin Console
-        </a>
-    </span>
-</div>
+    &nbsp;&nbsp;|&nbsp;&nbsp;
+    <a href="/admin-console/" style="font-size: 14px; font-weight: normal;">
+        &larr; Back to Admin Console
+    </a>
+</h1>
 {% endblock %}
-
-{% block nav-global %}{% endblock %}

@@ -31,8 +31,14 @@ SECRET_KEY = env("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=False)
 
-# Parse ALLOWED_HOSTS properly (handles comma-separated string)
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+# Allowed hosts for production and development
+ALLOWED_HOSTS = [
+    "wholelifejourney.com",
+    "www.wholelifejourney.com",
+    ".up.railway.app",
+    "localhost",
+    "127.0.0.1",
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -242,7 +248,10 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+    CSRF_TRUSTED_ORIGINS = [
+        "https://wholelifejourney.com",
+        "https://www.wholelifejourney.com",
+    ]
 else:
     # Explicitly disable SSL for local development
     SECURE_SSL_REDIRECT = False

@@ -430,6 +430,7 @@
 <script>
 const API_KEY = '{{ api_key }}';
 const API_BASE = 'https://rest.api.bible/v1';
+const DEFAULT_TRANSLATION = '{{ default_translation }}';
 
 let currentBibleId = '';
 let currentBookId = '';
@@ -439,6 +440,7 @@ let booksData = [];
 
 // Debug: Check if API key is present
 console.log('Bible API Key present:', API_KEY ? 'Yes' : 'No (missing!)');
+console.log('Default translation:', DEFAULT_TRANSLATION || 'Not set');
 
 // Show/hide loading
 function showLoading(message) {
@@ -463,41 +465,60 @@ function hideError() {
 // Fetch available Bibles
 async function fetchBibles() {
     const versionSelect = document.getElementById('bible-version');
-    
+
     if (!API_KEY) {
         versionSelect.innerHTML = '<option value="">API Key not configured</option>';
         showError('Bible API key is not configured. Please add BIBLE_API_KEY to your settings.');
         return;
     }
-    
+
     try {
         console.log('Fetching Bibles...');
         const response = await fetch(`${API_BASE}/bibles?language=eng`, {
             headers: { 'api-key': API_KEY }
         });
-        
+
         if (!response.ok) {
             throw new Error(`API returned ${response.status}: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
-        console.log('Bibles loaded:', data.data?.length || 0);
-        
-        versionSelect.innerHTML = '<option value="">Select Translation</option>';
-        
         const bibles = data.data || [];
-        
-        // Sort by name
+
+        // Deduplicate by abbreviation (some translations have multiple entries)
+        const seen = new Set();
+        const uniqueBibles = [];
         bibles.sort((a, b) => a.name.localeCompare(b.name));
-        
-        bibles.forEach(bible => {
+
+        for (const bible of bibles) {
+            const key = bible.abbreviation || bible.name;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueBibles.push(bible);
+            }
+        }
+
+        console.log('Bibles loaded:', uniqueBibles.length, '(deduplicated from', bibles.length, ')');
+
+        versionSelect.innerHTML = '<option value="">Select Translation</option>';
+
+        uniqueBibles.forEach(bible => {
             const option = document.createElement('option');
             option.value = bible.id;
             option.textContent = `${bible.abbreviation} - ${bible.name}`;
+            // Preselect user's default translation
+            if (DEFAULT_TRANSLATION && bible.id === DEFAULT_TRANSLATION) {
+                option.selected = true;
+            }
             versionSelect.appendChild(option);
         });
-        
+
         versionSelect.disabled = false;
+
+        // If default translation was selected, load its books
+        if (DEFAULT_TRANSLATION && versionSelect.value === DEFAULT_TRANSLATION) {
+            fetchBooks(DEFAULT_TRANSLATION);
+        }
     } catch (error) {
         console.error('Error fetching Bibles:', error);
         versionSelect.innerHTML = '<option value="">Error loading translations</option>';

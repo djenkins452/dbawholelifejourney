@@ -270,6 +270,14 @@ class UserPreferences(models.Model):
         help_text="List of user's hobbies/interests for personalization",
     )
 
+    # Faith settings
+    default_bible_translation = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Default Bible translation ID for Scripture lookup (e.g., 'de4e12af7f28f599-02' for KJV)",
+    )
+
     # Onboarding status
     has_completed_onboarding = models.BooleanField(default=False)
 

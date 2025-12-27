@@ -74,7 +74,7 @@ class PreferencesView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Google Calendar integration status
         try:
             from apps.life.models import GoogleCalendarCredential
@@ -84,7 +84,10 @@ class PreferencesView(LoginRequiredMixin, UpdateView):
         except:
             context['google_calendar_connected'] = False
             context['google_calendar_name'] = None
-        
+
+        # Bible API key for faith settings
+        context['api_key'] = getattr(settings, 'BIBLE_API_KEY', '')
+
         return context
 
     def form_valid(self, form):

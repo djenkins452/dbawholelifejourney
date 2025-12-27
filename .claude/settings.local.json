@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git merge:*)",
+      "Bash(python manage.py makemigrations:*)",
+      "Bash(.venvScriptsactivate)",
+      "Bash(.venvScriptspython.exe manage.py makemigrations users --name add_default_bible_translation)",
+      "Bash(\".venv/Scripts/python.exe\" manage.py makemigrations users --name add_default_bible_translation)",
+      "Bash(dir \"C:\\dbawholelifejourney\\.venv\\Scripts\"\")",
+      "Bash(/c/dbawholelifejourney/venv/Scripts/python.exe:*)",
+      "Bash(cat:*)"
     ]
   }
 }

@@ -101,6 +101,8 @@ class PreferencesForm(forms.ModelForm):
             "location_city",
             "location_country",
             "timezone",
+            # Faith
+            "default_bible_translation",
         ]
         widgets = {
             "theme": forms.Select(attrs={
@@ -154,6 +156,7 @@ class PreferencesForm(forms.ModelForm):
             "timezone": forms.Select(attrs={
                 "class": "form-select",
             }),
+            "default_bible_translation": forms.HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):

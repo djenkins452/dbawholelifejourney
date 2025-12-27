@@ -176,6 +176,8 @@ class ScriptureListView(LoginRequiredMixin, FaithRequiredMixin, ListView):
         context["selected_book"] = self.request.GET.get("book", "")
         # Add API key for Bible API
         context["api_key"] = getattr(settings, 'BIBLE_API_KEY', '')
+        # User's default translation preference
+        context["default_translation"] = self.request.user.preferences.default_bible_translation
         return context
 
 

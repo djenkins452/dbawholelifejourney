@@ -305,6 +305,22 @@
             </div>
         </div>
         
+        <!-- Faith Settings Section (shown when Faith module is enabled) -->
+        <div class="card mb-6" id="faith-settings-section" {% if not form.faith_enabled.value %}style="display: none;"{% endif %}>
+            <h2 class="card-title">Faith Settings</h2>
+            <p class="text-muted mb-4">Configure your Faith module preferences.</p>
+
+            <div class="form-group">
+                <label for="bible-translation-select" class="form-label">Default Bible Translation</label>
+                <select id="bible-translation-select" class="form-select">
+                    <option value="">Loading translations...</option>
+                </select>
+                <input type="hidden" name="default_bible_translation" id="id_default_bible_translation"
+                       value="{{ form.default_bible_translation.value|default:'' }}">
+                <p class="form-help">This translation will be pre-selected when you look up Scripture. You can still change it on the Scripture page.</p>
+            </div>
+        </div>
+
         <!-- Location Section -->
         <div class="card mb-6">
             <h2 class="card-title">Location</h2>
@@ -810,6 +826,96 @@ document.querySelectorAll('.coaching-style-card input[type="radio"]').forEach(ra
             this.closest('.coaching-style-card').classList.add('selected');
         }
     });
+});
+
+// Faith settings section visibility
+const faithToggle = document.querySelector('input[name="faith_enabled"]');
+if (faithToggle) {
+    faithToggle.addEventListener('change', function() {
+        const faithSection = document.getElementById('faith-settings-section');
+        if (faithSection) {
+            faithSection.style.display = this.checked ? 'block' : 'none';
+        }
+    });
+}
+
+// Bible translation loading for preferences
+const BIBLE_API_KEY = '{{ api_key }}';
+const savedTranslation = document.getElementById('id_default_bible_translation')?.value || '';
+
+async function loadBibleTranslations() {
+    const select = document.getElementById('bible-translation-select');
+    if (!select) return;
+
+    // Check if we have API key
+    if (!BIBLE_API_KEY) {
+        select.innerHTML = '<option value="">API not configured</option>';
+        return;
+    }
+
+    try {
+        const response = await fetch('https://rest.api.bible/v1/bibles?language=eng', {
+            headers: { 'api-key': BIBLE_API_KEY }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load translations');
+        }
+
+        const data = await response.json();
+        const bibles = data.data || [];
+
+        // Sort and deduplicate by abbreviation
+        const seen = new Set();
+        const uniqueBibles = [];
+        bibles.sort((a, b) => a.name.localeCompare(b.name));
+
+        for (const bible of bibles) {
+            const key = bible.abbreviation || bible.name;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueBibles.push(bible);
+            }
+        }
+
+        select.innerHTML = '<option value="">Select a translation</option>';
+        uniqueBibles.forEach(bible => {
+            const option = document.createElement('option');
+            option.value = bible.id;
+            option.textContent = `${bible.abbreviation} - ${bible.name}`;
+            if (bible.id === savedTranslation) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+
+        // Sync select with hidden input
+        select.addEventListener('change', function() {
+            document.getElementById('id_default_bible_translation').value = this.value;
+        });
+
+    } catch (error) {
+        console.error('Error loading Bible translations:', error);
+        select.innerHTML = '<option value="">Error loading translations</option>';
+    }
+}
+
+// Load translations when page loads (if faith section visible)
+document.addEventListener('DOMContentLoaded', function() {
+    const faithSection = document.getElementById('faith-settings-section');
+    if (faithSection && faithSection.style.display !== 'none') {
+        loadBibleTranslations();
+    }
+
+    // Also load when faith is toggled on
+    const faithToggle = document.querySelector('input[name="faith_enabled"]');
+    if (faithToggle) {
+        faithToggle.addEventListener('change', function() {
+            if (this.checked) {
+                loadBibleTranslations();
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

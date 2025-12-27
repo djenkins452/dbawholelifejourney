@@ -652,14 +652,19 @@ class PetCreateView(LifeAccessMixin, CreateView):
     ]
 
     def form_valid(self, form):
+        import traceback
         form.instance.user = self.request.user
         try:
             response = super().form_valid(form)
             messages.success(self.request, f"Welcome, {form.instance.name}!")
             return response
         except Exception as e:
-            logger.exception(f"Error saving pet with photo: {e}")
-            raise
+            # Temporarily show full error for debugging
+            error_details = traceback.format_exc()
+            logger.error(f"Error saving pet: {error_details}")
+            messages.error(self.request, f"Upload error: {str(e)}")
+            messages.error(self.request, f"Details: {error_details[:500]}")
+            return self.form_invalid(form)
 
 
 class PetUpdateView(LifeAccessMixin, UpdateView):

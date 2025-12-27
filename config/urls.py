@@ -7,7 +7,19 @@ The main URL dispatcher that routes to all app-specific URLs.
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.http import FileResponse, Http404
 from django.urls import include, path
+from django.views.static import serve
+import os
+
+
+def serve_media(request, path):
+    """Serve media files in production (for Railway ephemeral storage)."""
+    file_path = os.path.join(settings.MEDIA_ROOT, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(open(file_path, 'rb'))
+    raise Http404("Media file not found")
+
 
 urlpatterns = [
     # Admin
@@ -34,9 +46,17 @@ urlpatterns = [
     path('purpose/', include('apps.purpose.urls')),
 ]
 
-# Serve media files in development
+# Serve media files
+# In development, Django serves them via static() helper
+# In production, we use a custom view since static() only works with DEBUG=True
+# Note: Railway has ephemeral storage - files are lost on redeploy
+# Consider S3/Cloudinary for persistent media storage in the future
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    urlpatterns += [
+        path('media/<path:path>', serve_media, name='serve_media'),
+    ]
 
 # Custom admin site configuration
 admin.site.site_header = "Whole Life Journey Admin"

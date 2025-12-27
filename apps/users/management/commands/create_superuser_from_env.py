@@ -28,17 +28,11 @@ class Command(BaseCommand):
             )
             return
 
-        # Check if user already exists
-        existing_user = User.objects.filter(email=email).first()
-        if existing_user:
-            # Update password for existing user
-            existing_user.set_password(password)
-            existing_user.save()
+        # Check if user already exists - skip if so (don't reset password)
+        if User.objects.filter(email=email).exists():
             self.stdout.write(
-                self.style.SUCCESS(f'Updated password for superuser: {email}')
+                self.style.SUCCESS(f'Superuser {email} already exists, skipping')
             )
-            # Ensure preferences exist
-            UserPreferences.objects.get_or_create(user=existing_user)
             return
 
         # Create superuser

@@ -109,6 +109,7 @@
             recognition.lang = CONFIG.language;
             recognition.continuous = false;  // Disable continuous to avoid duplication
             recognition.interimResults = CONFIG.interimResults;
+            recognition.maxAlternatives = 1;  // Only get best result
 
             // Store the current text and cursor position
             baseText = field.value;

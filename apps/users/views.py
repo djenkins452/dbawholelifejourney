@@ -9,16 +9,19 @@ from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import TemplateView, UpdateView, View
 
+from apps.help.mixins import HelpContextMixin
+
 from .forms import ProfileForm, PreferencesForm
 from .models import TermsAcceptance, UserPreferences
 
 
-class ProfileView(LoginRequiredMixin, TemplateView):
+class ProfileView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Display user profile information.
     """
 
     template_name = "users/profile.html"
+    help_context_id = "SETTINGS_PROFILE"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -43,7 +46,7 @@ class ProfileView(LoginRequiredMixin, TemplateView):
         return context
 
 
-class ProfileEditView(LoginRequiredMixin, UpdateView):
+class ProfileEditView(HelpContextMixin, LoginRequiredMixin, UpdateView):
     """
     Edit user profile (name, email, avatar).
     """
@@ -51,6 +54,7 @@ class ProfileEditView(LoginRequiredMixin, UpdateView):
     template_name = "users/profile_edit.html"
     form_class = ProfileForm
     success_url = reverse_lazy("users:profile")
+    help_context_id = "SETTINGS_PROFILE_EDIT"
 
     def get_object(self):
         return self.request.user
@@ -60,7 +64,7 @@ class ProfileEditView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class PreferencesView(LoginRequiredMixin, UpdateView):
+class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
     """
     Edit user preferences (theme, Faith toggle, AI toggle, location).
     """
@@ -68,6 +72,7 @@ class PreferencesView(LoginRequiredMixin, UpdateView):
     template_name = "users/preferences.html"
     form_class = PreferencesForm
     success_url = reverse_lazy("users:preferences")
+    help_context_id = "SETTINGS_PREFERENCES"
 
     def get_object(self):
         return self.request.user.preferences

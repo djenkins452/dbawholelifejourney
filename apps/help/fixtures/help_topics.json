@@ -126,5 +126,21 @@
       "created_at": "2024-12-27T00:00:00Z",
       "updated_at": "2024-12-27T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 9,
+    "fields": {
+      "context_id": "SETTINGS_PROFILE",
+      "help_id": "profile-overview",
+      "title": "Your Profile",
+      "description": "View and manage your account information.",
+      "content": "## Your Profile\n\nView your account details and activity summary.\n\n### Profile Information\n\nYour profile displays:\n- **Name** - Your display name throughout the app\n- **Email** - Your login email address\n- **Avatar** - Your profile picture\n- **Member since** - When you joined\n\n### Activity Summary\n\nQuick stats show your engagement:\n- Journal entries created\n- Prayer requests (if Faith enabled)\n- Health measurements logged\n\n### Editing Your Profile\n\nClick **\"Edit Profile\"** to update:\n- Your name\n- Email address\n- Profile picture (avatar)\n\n### Account Security\n\nTo change your password, use the password reset option from the login page.",
+      "app_name": "users",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
   }
 ]

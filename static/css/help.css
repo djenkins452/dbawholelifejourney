@@ -41,6 +41,13 @@
     height: 20px;
 }
 
+.help-icon-text {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    font-family: Georgia, "Times New Roman", serif;
+}
+
 /* Navigation placement */
 .nav-help {
     display: flex;
@@ -330,6 +337,10 @@
 .help-button-admin .help-icon {
     width: 24px;
     height: 24px;
+}
+
+.help-button-admin .help-icon-text {
+    font-size: 24px;
 }
 
 /* =============================================================================

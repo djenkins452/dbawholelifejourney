@@ -39,6 +39,7 @@ from .views import (
     PetDetailView,
     PetCreateView,
     PetUpdateView,
+    PetDeleteView,
     # Pet Records
     PetRecordCreateView,
     PetRecordUpdateView,
@@ -116,7 +117,8 @@ urlpatterns = [
     path("pets/new/", PetCreateView.as_view(), name="pet_create"),
     path("pets/<int:pk>/", PetDetailView.as_view(), name="pet_detail"),
     path("pets/<int:pk>/edit/", PetUpdateView.as_view(), name="pet_update"),
-    
+    path("pets/<int:pk>/delete/", PetDeleteView.as_view(), name="pet_delete"),
+
     # Pet Records
     path("pets/<int:pet_pk>/records/new/", PetRecordCreateView.as_view(), name="pet_record_create"),
     path("pets/records/<int:pk>/edit/", PetRecordUpdateView.as_view(), name="pet_record_update"),

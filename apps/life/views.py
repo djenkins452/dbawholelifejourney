@@ -672,9 +672,25 @@ class PetUpdateView(LifeAccessMixin, UpdateView):
         'color', 'weight', 'microchip_id', 'veterinarian', 'vet_phone',
         'photo', 'notes', 'is_active', 'passed_date'
     ]
-    
+
     def get_queryset(self):
         return Pet.objects.filter(user=self.request.user)
+
+
+class PetDeleteView(LifeAccessMixin, DeleteView):
+    """Delete a pet."""
+    model = Pet
+    template_name = "life/pet_confirm_delete.html"
+    success_url = reverse_lazy('life:pet_list')
+
+    def get_queryset(self):
+        return Pet.objects.filter(user=self.request.user)
+
+    def form_valid(self, form):
+        pet_name = self.object.name
+        response = super().form_valid(form)
+        messages.success(self.request, f"{pet_name} has been removed.")
+        return response
 
 
 # =============================================================================

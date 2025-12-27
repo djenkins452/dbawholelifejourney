@@ -51,6 +51,7 @@
                 <div class="pet-actions mt-4">
                     <a href="{% url 'life:pet_update' pet.pk %}" class="btn btn-secondary">Edit</a>
                     <a href="{% url 'life:pet_record_create' pet.pk %}" class="btn btn-primary">Add Record</a>
+                    <a href="{% url 'life:pet_delete' pet.pk %}" class="btn btn-ghost btn-danger">Delete</a>
                 </div>
             </div>
         </div>
@@ -445,6 +446,15 @@
 
 .vet-phone a {
     color: var(--color-accent);
+}
+
+.btn-danger {
+    color: var(--color-error);
+}
+
+.btn-danger:hover {
+    background: var(--color-error);
+    color: white;
 }
 </style>
 {% endblock %}

@@ -28,7 +28,7 @@
             <span class="word-label">Word of the Year</span>
             <h2 class="word-value">{{ current_direction.word_of_year }}</h2>
             {% if current_direction.word_explanation %}
-            <p class="word-explanation">{{ current_direction.word_explanation|truncatewords:30 }}</p>
+            <p class="word-explanation">{{ current_direction.word_explanation }}</p>
             {% endif %}
         </div>
         
@@ -193,27 +193,30 @@
 
 .word-of-year {
     text-align: center;
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-8);
+    padding: var(--space-4) 0;
 }
 
 .word-label {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-base);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    opacity: 0.8;
+    letter-spacing: 0.15em;
+    opacity: 0.85;
 }
 
 .word-value {
-    font-size: 3rem;
+    font-size: 4rem;
     font-weight: 700;
-    margin: var(--space-2) 0;
+    margin: var(--space-3) 0;
     text-transform: capitalize;
 }
 
 .word-explanation {
     opacity: 0.9;
-    max-width: 600px;
+    max-width: 800px;
     margin: 0 auto;
+    font-size: var(--font-size-lg);
+    line-height: 1.6;
 }
 
 .anchor-quote {
@@ -318,7 +321,11 @@
     }
     
     .word-value {
-        font-size: 2rem;
+        font-size: 2.5rem;
+    }
+
+    .word-explanation {
+        font-size: var(--font-size-base);
     }
 }
 

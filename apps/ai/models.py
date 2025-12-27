@@ -177,6 +177,128 @@ class AIInsight(models.Model):
         return timezone.now() < self.valid_until
 
 
+class AIPromptConfig(models.Model):
+    """
+    Database-driven AI prompt configuration.
+
+    Allows admin to customize the AI system prompts, response length,
+    and guidance without code changes.
+    """
+    PROMPT_TYPES = [
+        ('system_base', 'System Base Prompt'),
+        ('daily_insight', 'Daily Dashboard Insight'),
+        ('weekly_summary', 'Weekly Journal Summary'),
+        ('journal_reflection', 'Journal Entry Reflection'),
+        ('goal_progress', 'Goal Progress Feedback'),
+        ('health_encouragement', 'Health Encouragement'),
+        ('prayer_encouragement', 'Prayer Encouragement'),
+        ('accountability_nudge', 'Accountability Nudge'),
+        ('celebration', 'Celebration Message'),
+        ('faith_context', 'Faith Context Addition'),
+    ]
+
+    prompt_type = models.CharField(
+        max_length=30,
+        choices=PROMPT_TYPES,
+        unique=True,
+        help_text="Type of prompt this configuration applies to"
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Friendly name for this configuration"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Internal notes about this prompt configuration"
+    )
+
+    # The actual prompt content
+    system_instructions = models.TextField(
+        help_text="Main instructions for the AI. Use {variables} for dynamic content."
+    )
+
+    # Response control
+    min_sentences = models.PositiveIntegerField(
+        default=2,
+        help_text="Minimum number of sentences in response"
+    )
+    max_sentences = models.PositiveIntegerField(
+        default=4,
+        help_text="Maximum number of sentences in response"
+    )
+    max_tokens = models.PositiveIntegerField(
+        default=150,
+        help_text="Maximum tokens for API response"
+    )
+
+    # Additional guidance
+    tone_guidance = models.TextField(
+        blank=True,
+        help_text="Additional tone/style guidance (e.g., 'Be warm but not preachy')"
+    )
+    things_to_avoid = models.TextField(
+        blank=True,
+        help_text="Things the AI should NOT do (e.g., 'Never shame the user')"
+    )
+    example_responses = models.TextField(
+        blank=True,
+        help_text="Example good responses for this prompt type"
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this configuration is currently in use"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['prompt_type']
+        verbose_name = "AI Prompt Configuration"
+        verbose_name_plural = "AI Prompt Configurations"
+
+    def __str__(self):
+        return f"{self.name} ({self.get_prompt_type_display()})"
+
+    def save(self, *args, **kwargs):
+        # Clear cache when config is updated
+        cache.delete(f'ai_prompt_config_{self.prompt_type}')
+        cache.delete('ai_prompt_configs_all')
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_config(cls, prompt_type):
+        """Get configuration for a prompt type, with caching."""
+        cache_key = f'ai_prompt_config_{prompt_type}'
+        config = cache.get(cache_key)
+        if config is None:
+            config = cls.objects.filter(prompt_type=prompt_type, is_active=True).first()
+            if config:
+                cache.set(cache_key, config, 3600)  # Cache for 1 hour
+        return config
+
+    def get_full_prompt(self) -> str:
+        """Build the complete prompt with all guidance."""
+        parts = [self.system_instructions]
+
+        # Add sentence guidance
+        if self.min_sentences == self.max_sentences:
+            parts.append(f"\nResponse length: Exactly {self.min_sentences} sentences.")
+        else:
+            parts.append(f"\nResponse length: {self.min_sentences}-{self.max_sentences} sentences.")
+
+        # Add tone guidance
+        if self.tone_guidance:
+            parts.append(f"\nTone guidance: {self.tone_guidance}")
+
+        # Add things to avoid
+        if self.things_to_avoid:
+            parts.append(f"\nIMPORTANT - Avoid: {self.things_to_avoid}")
+
+        return "\n".join(parts)
+
+
 class AIUsageLog(models.Model):
     """
     Track AI API usage for monitoring and cost management.

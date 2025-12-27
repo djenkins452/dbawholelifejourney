@@ -12,6 +12,12 @@ import environ
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 
+# Log OpenAI configuration status at startup
+if OPENAI_API_KEY:
+    print(f"OpenAI configured with model: {OPENAI_MODEL}")
+else:
+    print("OpenAI NOT configured - OPENAI_API_KEY not set")
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 

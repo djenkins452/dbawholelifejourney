@@ -58,8 +58,9 @@ class LifeHomeView(LifeAccessMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        today = timezone.now().date()
-        
+        from apps.core.utils import get_user_today
+        today = get_user_today(user)
+
         # Active projects
         context['active_projects'] = Project.objects.filter(
             user=user,
@@ -338,9 +339,10 @@ class CalendarView(LifeAccessMixin, TemplateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+        from apps.core.utils import get_user_today
+
         # Get month/year from query params or use current
-        today = timezone.now().date()
+        today = get_user_today(self.request.user)
         year = int(self.request.GET.get('year', today.year))
         month = int(self.request.GET.get('month', today.month))
         
@@ -859,23 +861,25 @@ class MaintenanceLogListView(LifeAccessMixin, ListView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        from apps.core.utils import get_user_today
         user_logs = MaintenanceLog.objects.filter(user=self.request.user)
-        
+
         # Get unique areas for filter
         context['areas'] = user_logs.values_list(
             'area', flat=True
         ).distinct().order_by('area')
-        
+
         # Total spent
         context['total_spent'] = user_logs.aggregate(
             total=Sum('cost')
         )['total'] or 0
-        
+
         # Upcoming follow-ups
+        today = get_user_today(self.request.user)
         context['upcoming_followups'] = user_logs.filter(
-            follow_up_date__gte=timezone.now().date()
+            follow_up_date__gte=today
         ).order_by('follow_up_date')[:5]
-        
+
         return context
 
 
@@ -985,20 +989,22 @@ class DocumentListView(LifeAccessMixin, ListView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+        from apps.core.utils import get_user_today
+
         # Category choices for filter
         context['categories'] = Document.CATEGORY_CHOICES
-        
+
         # Expiring soon
-        thirty_days = timezone.now().date() + timedelta(days=30)
+        today = get_user_today(self.request.user)
+        thirty_days = today + timedelta(days=30)
         context['expiring_soon'] = Document.objects.filter(
             user=self.request.user,
             is_archived=False,
             expiration_date__isnull=False,
             expiration_date__lte=thirty_days,
-            expiration_date__gte=timezone.now().date()
+            expiration_date__gte=today
         ).count()
-        
+
         return context
 
 

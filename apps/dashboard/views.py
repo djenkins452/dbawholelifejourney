@@ -101,8 +101,10 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     
     def _gather_comprehensive_data(self, user, prefs):
         """Gather all user data for AI analysis."""
-        now = timezone.now()
-        today = now.date()
+        from apps.core.utils import get_user_today, get_user_now
+
+        now = get_user_now(user)
+        today = get_user_today(user)
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
         

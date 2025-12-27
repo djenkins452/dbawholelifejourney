@@ -191,8 +191,9 @@ class EntryCreateView(LoginRequiredMixin, CreateView):
 
     def get_initial(self):
         initial = super().get_initial()
-        # Default entry_date to today
-        initial["entry_date"] = date.today()
+        # Default entry_date to today (in user's timezone)
+        from apps.core.utils import get_user_today
+        initial["entry_date"] = get_user_today(self.request.user)
         # Title will be set dynamically based on date (handled in form/template)
         initial["title"] = ""
         
@@ -212,10 +213,11 @@ class EntryCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        
+
         # If title is empty, default to the entry_date
         if not form.instance.title:
-            entry_date = form.cleaned_data.get('entry_date', date.today())
+            from apps.core.utils import get_user_today
+            entry_date = form.cleaned_data.get('entry_date', get_user_today(self.request.user))
             form.instance.title = entry_date.strftime("%A, %B %d, %Y")
         
         messages.success(self.request, "Journal entry created.")
@@ -485,13 +487,14 @@ class JournalHomeView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        
+
         from .models import JournalEntry, Tag
-        
-        now = timezone.now()
+        from apps.core.utils import get_user_today, get_user_now
+
+        now = get_user_now(user)
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
-        today = now.date()
+        today = get_user_today(user)
         
         entries = JournalEntry.objects.filter(user=user)
         

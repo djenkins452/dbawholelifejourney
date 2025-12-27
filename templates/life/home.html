@@ -88,7 +88,7 @@
                                 <span class="task-project">{{ task.project.title }}</span>
                             {% endif %}
                         </div>
-                        {% if task.is_overdue %}
+                        {% if task.due_date and task.due_date < user_today %}
                             <span class="task-overdue">Overdue</span>
                         {% endif %}
                     </li>

@@ -211,7 +211,9 @@ Match your response to your coaching style."""
             context_parts.append(f"Journaled {user_data['journal_count_week']} times this week")
         
         if user_data.get('last_journal_date'):
-            days_ago = (timezone.now().date() - user_data['last_journal_date']).days
+            # Use user's today if provided in user_data, otherwise fall back to UTC
+            today = user_data.get('today', timezone.now().date())
+            days_ago = (today - user_data['last_journal_date']).days
             if days_ago == 0:
                 context_parts.append("Wrote in journal today")
             elif days_ago == 1:

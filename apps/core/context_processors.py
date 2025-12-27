@@ -5,6 +5,7 @@ These add variables to every template context.
 """
 
 from django.conf import settings
+from django.utils import timezone
 
 
 def site_context(request):
@@ -43,7 +44,10 @@ def theme_context(request):
             context['health_enabled'] = prefs.health_enabled
             context['life_enabled'] = prefs.life_enabled
             context['purpose_enabled'] = prefs.purpose_enabled
+            # User's "today" in their timezone (for date comparisons in templates)
+            from apps.core.utils import get_user_today
+            context['user_today'] = get_user_today(request.user)
         except Exception:
             pass
-    
+
     return context

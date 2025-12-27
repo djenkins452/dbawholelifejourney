@@ -91,7 +91,7 @@
                             </div>
                             <div class="task-meta">
                                 {% if task.due_date %}
-                                <span class="task-due {% if task.is_overdue %}overdue{% endif %}">{{ task.due_date|date:"M j" }}</span>
+                                <span class="task-due {% if task.due_date < user_today %}overdue{% endif %}">{{ task.due_date|date:"M j" }}</span>
                                 {% endif %}
                                 <span class="priority-badge priority-{{ task.priority }}">{{ task.get_priority_display }}</span>
                                 <a href="{% url 'life:task_update' task.pk %}" class="task-edit">Edit</a>
@@ -129,7 +129,7 @@
                         
                         {% if project.target_date %}
                         <dt>Target</dt>
-                        <dd class="{% if project.is_overdue %}overdue{% endif %}">{{ project.target_date|date:"M j, Y" }}</dd>
+                        <dd class="{% if project.target_date < user_today and project.status == 'active' %}overdue{% endif %}">{{ project.target_date|date:"M j, Y" }}</dd>
                         {% endif %}
                         
                         {% if project.completed_date %}

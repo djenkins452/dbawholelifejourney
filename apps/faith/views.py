@@ -87,7 +87,8 @@ class FaithHomeView(LoginRequiredMixin, FaithRequiredMixin, TemplateView):
 
     def get_todays_verse(self):
         """Get today's verse, or a random one if none assigned."""
-        today = date.today()
+        from apps.core.utils import get_user_today
+        today = get_user_today(self.request.user)
         
         # Try to get assigned verse for today
         try:
@@ -119,8 +120,9 @@ class TodaysVerseView(LoginRequiredMixin, FaithRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        today = date.today()
-        
+        from apps.core.utils import get_user_today
+        today = get_user_today(self.request.user)
+
         try:
             daily = DailyVerse.objects.get(date=today)
             context["daily_verse"] = daily
@@ -130,7 +132,7 @@ class TodaysVerseView(LoginRequiredMixin, FaithRequiredMixin, TemplateView):
             verses = ScriptureVerse.objects.filter(is_active=True)
             if verses.exists():
                 context["verse"] = random.choice(list(verses))
-        
+
         return context
 
 
@@ -505,7 +507,8 @@ class ReflectionCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
 
     def get_initial(self):
         initial = super().get_initial()
-        initial["entry_date"] = date.today()
+        from apps.core.utils import get_user_today
+        initial["entry_date"] = get_user_today(self.request.user)
         initial["title"] = ""
         return initial
 
@@ -516,10 +519,11 @@ class ReflectionCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        
+
         # If title is empty, default to the entry_date
         if not form.instance.title:
-            entry_date = form.cleaned_data.get('entry_date', date.today())
+            from apps.core.utils import get_user_today
+            entry_date = form.cleaned_data.get('entry_date', get_user_today(self.request.user))
             form.instance.title = entry_date.strftime("%A, %B %d, %Y")
         
         # Save first to get the instance

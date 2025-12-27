@@ -155,10 +155,11 @@ class DashboardAI:
     def _gather_user_data(self) -> dict:
         """Gather user data for daily insight generation."""
         from apps.journal.models import JournalEntry
-        
-        now = timezone.now()
+        from apps.core.utils import get_user_today, get_user_now
+
+        now = get_user_now(self.user)
         week_ago = now - timedelta(days=7)
-        today = now.date()
+        today = get_user_today(self.user)
         
         # Journal stats
         entries = JournalEntry.objects.filter(user=self.user)
@@ -297,11 +298,12 @@ class DashboardAI:
         entries = JournalEntry.objects.filter(
             user=self.user
         ).order_by('-entry_date').values_list('entry_date', flat=True).distinct()[:30]
-        
+
         if not entries:
             return 0
-        
-        today = timezone.now().date()
+
+        from apps.core.utils import get_user_today
+        today = get_user_today(self.user)
         streak = 0
         expected_date = today
         

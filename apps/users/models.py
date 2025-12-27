@@ -188,7 +188,7 @@ class UserPreferences(models.Model):
     
     # Faith Module
     faith_enabled = models.BooleanField(
-        default=False,
+        default=True,
         help_text="Enable Faith module with Scripture, prayers, and faith-aware content",
     )
     

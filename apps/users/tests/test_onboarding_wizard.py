@@ -311,3 +311,66 @@ class OnboardingLegacyRedirectTest(TestCase):
         """Legacy /onboarding/ URL redirects to wizard."""
         response = self.client.get(reverse("users:onboarding"))
         self.assertRedirects(response, reverse("users:onboarding_wizard"))
+
+
+class OnboardingMiddlewareTest(TestCase):
+    """Tests for middleware enforcement of onboarding completion."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123"
+        )
+        # Accept terms
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0")
+        )
+
+    def test_incomplete_onboarding_redirects_to_wizard(self):
+        """User with incomplete onboarding is redirected to wizard."""
+        self.user.preferences.has_completed_onboarding = False
+        self.user.preferences.save()
+        self.client.login(email="test@example.com", password="testpass123")
+
+        response = self.client.get(reverse("dashboard:home"))
+        self.assertRedirects(response, reverse("users:onboarding_wizard"))
+
+    def test_complete_onboarding_allows_access(self):
+        """User with completed onboarding can access dashboard."""
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+        self.client.login(email="test@example.com", password="testpass123")
+
+        response = self.client.get(reverse("dashboard:home"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_onboarding_pages_accessible_during_onboarding(self):
+        """Onboarding pages are accessible when onboarding is incomplete."""
+        self.user.preferences.has_completed_onboarding = False
+        self.user.preferences.save()
+        self.client.login(email="test@example.com", password="testpass123")
+
+        # Wizard start page
+        response = self.client.get(reverse("users:onboarding_wizard"))
+        self.assertEqual(response.status_code, 200)
+
+        # Wizard step pages
+        response = self.client.get(
+            reverse("users:onboarding_wizard_step", kwargs={"step": "theme"})
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_admin_exempt_from_onboarding(self):
+        """Admin pages are exempt from onboarding check."""
+        self.user.preferences.has_completed_onboarding = False
+        self.user.preferences.save()
+        self.user.is_staff = True
+        self.user.save()
+        self.client.login(email="test@example.com", password="testpass123")
+
+        response = self.client.get("/admin/")
+        # Should not redirect to onboarding (might redirect to admin login)
+        self.assertNotEqual(response.url if response.status_code == 302 else "",
+                          reverse("users:onboarding_wizard"))

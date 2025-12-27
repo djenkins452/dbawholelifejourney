@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CoachingStyle, AIInsight, AIUsageLog
+from .models import CoachingStyle, AIInsight, AIUsageLog, AIPromptConfig
 
 
 @admin.register(CoachingStyle)
@@ -45,3 +45,38 @@ class AIUsageLogAdmin(admin.ModelAdmin):
     search_fields = ['user__email', 'endpoint']
     readonly_fields = ['created_at']
     date_hierarchy = 'created_at'
+
+
+@admin.register(AIPromptConfig)
+class AIPromptConfigAdmin(admin.ModelAdmin):
+    list_display = ['name', 'prompt_type', 'min_sentences', 'max_sentences', 'is_active', 'updated_at']
+    list_filter = ['prompt_type', 'is_active']
+    list_editable = ['is_active']
+    search_fields = ['name', 'system_instructions']
+    readonly_fields = ['created_at', 'updated_at']
+
+    fieldsets = (
+        (None, {
+            'fields': ('prompt_type', 'name', 'description')
+        }),
+        ('Prompt Instructions', {
+            'fields': ('system_instructions',),
+            'description': 'The main instructions sent to the AI. You can use {variables} for dynamic content.'
+        }),
+        ('Response Length', {
+            'fields': (('min_sentences', 'max_sentences'), 'max_tokens'),
+            'description': 'Control how long the AI responses should be.'
+        }),
+        ('Additional Guidance', {
+            'fields': ('tone_guidance', 'things_to_avoid', 'example_responses'),
+            'classes': ('collapse',),
+            'description': 'Fine-tune the AI behavior with additional guidance.'
+        }),
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

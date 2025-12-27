@@ -10,6 +10,17 @@
     <a href="/admin-console/" style="font-size: 14px; font-weight: normal;">
         &larr; Back to Admin Console
     </a>
+    &nbsp;&nbsp;
+    <button
+        type="button"
+        class="admin-header-help-btn"
+        id="help-trigger"
+        data-help-context="ADMIN_GENERAL"
+        data-help-type="admin"
+        aria-label="Get admin help for this page"
+        title="Admin Help"
+        onclick="openHelpModal(); return false;"
+    >?</button>
 </h1>
 {% endblock %}
 
@@ -17,35 +28,29 @@
 {{ block.super }}
 <link rel="stylesheet" href="{% static 'css/help.css' %}">
 <style>
-/* Admin help button positioning */
-.admin-help-wrapper {
-    position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    z-index: 9999;
-}
-
-/* Ensure button is visible on Django admin */
-.help-button-admin {
-    display: flex !important;
+/* Admin header help button - inline with branding */
+.admin-header-help-btn {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
-    height: 48px;
-    background: #417690 !important;
-    color: white !important;
+    width: 24px;
+    height: 24px;
+    background: #417690;
+    color: white;
     border: none;
     border-radius: 50%;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     cursor: pointer;
-    font-size: 24px;
+    font-size: 14px;
     font-weight: 700;
     font-family: Georgia, serif;
+    vertical-align: middle;
+    margin-left: 8px;
+    text-decoration: none;
 }
 
-.help-button-admin:hover {
-    background: #205067 !important;
-    transform: scale(1.05);
+.admin-header-help-btn:hover {
+    background: #205067;
+    transform: scale(1.1);
 }
 </style>
 {% endblock %}
@@ -81,22 +86,6 @@ function getAdminHelpContext() {
 
 {% block content %}
 {{ block.super }}
-
-<!-- Admin Help Button - Injected at end of content -->
-<div class="admin-help-wrapper">
-    <button
-        type="button"
-        class="help-button help-button-admin"
-        id="help-trigger"
-        data-help-context="ADMIN_GENERAL"
-        data-help-type="admin"
-        aria-label="Get admin help for this page"
-        title="Admin Help"
-        onclick="openHelpModal(); return false;"
-    >
-        ?
-    </button>
-</div>
 
 <!-- Help Modal -->
 <dialog id="help-modal" class="help-modal">

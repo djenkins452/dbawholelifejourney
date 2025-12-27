@@ -1,0 +1,56 @@
+{% comment %}
+Context-Aware Help Button Component
+
+Usage in templates:
+{% include "components/help_button.html" with help_context_id="DASHBOARD_HOME" %}
+
+Or set in the page's base block:
+{% block help_context %}DASHBOARD_HOME{% endblock %}
+{% endcomment %}
+
+{% load static %}
+
+<!-- Help Button -->
+<button
+    type="button"
+    class="help-button"
+    id="help-trigger"
+    data-help-context="{{ help_context_id|default:'GENERAL' }}"
+    data-help-type="{{ help_type|default:'user' }}"
+    aria-label="Get help for this page"
+    title="Help"
+    onclick="openHelpModal()"
+>
+    <svg class="help-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+</button>
+
+<!-- Help Modal -->
+<dialog id="help-modal" class="help-modal">
+    <div class="help-modal-content">
+        <header class="help-modal-header">
+            <h2 id="help-modal-title">Help</h2>
+            <button type="button" class="help-modal-close" onclick="closeHelpModal()" aria-label="Close help">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </header>
+
+        <div id="help-modal-body" class="help-modal-body">
+            <div class="help-loading">
+                <div class="help-loading-spinner"></div>
+                <p>Loading help...</p>
+            </div>
+        </div>
+
+        <footer id="help-modal-footer" class="help-modal-footer" hidden>
+            <h3>Related Topics</h3>
+            <ul id="help-related-topics"></ul>
+        </footer>
+    </div>
+</dialog>

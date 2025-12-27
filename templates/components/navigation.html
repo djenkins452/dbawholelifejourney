@@ -98,6 +98,26 @@
                 {% endif %}
             </ul>
             
+            <!-- Help button -->
+            <div class="nav-help">
+                <button
+                    type="button"
+                    class="help-button"
+                    id="help-trigger"
+                    data-help-context="{{ help_context_id|default:'GENERAL' }}"
+                    data-help-type="user"
+                    aria-label="Get help for this page"
+                    title="Help"
+                    onclick="openHelpModal()"
+                >
+                    <svg class="help-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                </button>
+            </div>
+
             <!-- User menu -->
             <div class="nav-user">
                 <button 

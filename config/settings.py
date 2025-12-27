@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "apps.life",
     'apps.purpose',
     'apps.ai',
+    'apps.help',
 ]
 
 MIDDLEWARE = [

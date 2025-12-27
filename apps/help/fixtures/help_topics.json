@@ -1,0 +1,98 @@
+[
+  {
+    "model": "help.helptopic",
+    "pk": 1,
+    "fields": {
+      "context_id": "DASHBOARD_HOME",
+      "help_id": "dashboard-overview",
+      "title": "Dashboard Overview",
+      "description": "Your personalized command center for tracking your whole life journey.",
+      "content": "## Welcome to Your Dashboard\n\nThe Dashboard is your personal command center. It provides:\n\n- **Daily insights** personalized to your activity\n- **Quick stats** showing your progress\n- **Gentle nudges** when you've been away too long\n- **Celebrations** for your achievements\n\n### Quick Stats\n\nAt the top of your dashboard, you'll see quick stats including:\n- Journal streak (consecutive days of journaling)\n- Active goals\n- Tasks completed today\n- Active prayer requests (if Faith module is enabled)\n\n### AI Insights\n\nIf you have AI features enabled in your Preferences, you'll see personalized insights based on your recent activity.\n\n### Getting Started\n\n1. Click on any module in the navigation to explore that area.\n2. Use the quick action buttons to create new entries.\n3. Check back daily to build your streaks!",
+      "app_name": "dashboard",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 2,
+    "fields": {
+      "context_id": "GENERAL",
+      "help_id": "general-navigation",
+      "title": "Getting Around the App",
+      "description": "Learn how to navigate Whole Life Journey.",
+      "content": "## Navigating Whole Life Journey\n\n### Main Navigation\n\nUse the top navigation bar to access different modules:\n\n1. **Dashboard** - Your home base with daily insights\n2. **Journal** - Record your thoughts and reflections\n3. **Faith** - Track prayers, scripture, and spiritual milestones\n4. **Health** - Monitor weight, fasting, and fitness\n5. **Life** - Manage projects, tasks, and events\n6. **Purpose** - Set goals and annual directions\n\n### User Menu\n\nClick your avatar in the top-right corner to access:\n- **Profile** - Update your name and avatar\n- **Preferences** - Customize themes, modules, and AI settings\n- **Sign Out** - Log out of your account\n\n### Help System\n\nClick the **?** icon in the navigation for context-specific help on any page.\n\n### Mobile Navigation\n\nOn mobile devices, tap the menu icon (☰) to open the navigation drawer.",
+      "app_name": "core",
+      "order": 0,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 3,
+    "fields": {
+      "context_id": "JOURNAL_HOME",
+      "help_id": "journal-overview",
+      "title": "Journal Overview",
+      "description": "Track your daily thoughts, moods, and reflections.",
+      "content": "## Your Journal\n\nThe Journal module helps you build a daily reflection practice.\n\n### Creating an Entry\n\n1. Click the **\"New Entry\"** button in the top-right corner.\n2. Enter a title for your entry.\n3. Select your current mood from the dropdown.\n4. Write your thoughts in the body field.\n5. (Optional) Add categories to organize your entry.\n6. Click **\"Save\"** to create your entry.\n\n### Viewing Entries\n\nYour entries are displayed in reverse chronological order (newest first).\n\n- Click on any entry title to view the full content.\n- Use the calendar view to see entries by date.\n- Filter entries by mood or category.\n\n### Journal Streaks\n\nBuild a journaling habit! Your dashboard shows how many consecutive days you've written entries.\n\n### Tips for Journaling\n\n- Write at the same time each day to build a habit.\n- Don't worry about length—even a few sentences count.\n- Use the mood tracker to notice patterns over time.",
+      "app_name": "journal",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 4,
+    "fields": {
+      "context_id": "HEALTH_HOME",
+      "help_id": "health-overview",
+      "title": "Health Tracking Overview",
+      "description": "Monitor your physical wellness journey.",
+      "content": "## Health Module\n\nTrack your physical wellness with these features:\n\n### Weight Tracking\n\n1. Click **\"Log Weight\"** to record a new measurement.\n2. Enter your weight and the date/time.\n3. View your progress on the weight chart.\n\n### Fasting\n\n1. Click **\"Start Fast\"** to begin a fasting window.\n2. Click **\"End Fast\"** when you break your fast.\n3. View your fasting history and patterns.\n\n### Glucose (Blood Sugar)\n\n1. Click **\"Log Glucose\"** to record a reading.\n2. Note whether it's fasting, post-meal, or random.\n3. Track patterns over time.\n\n### Fitness\n\n1. Log workouts with type, duration, and notes.\n2. Track your exercise consistency.\n3. View workout history.",
+      "app_name": "health",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 5,
+    "fields": {
+      "context_id": "FAITH_HOME",
+      "help_id": "faith-overview",
+      "title": "Faith Module Overview",
+      "description": "Nurture your spiritual life with prayer tracking and scripture reflection.",
+      "content": "## Faith Module\n\nGrow in your spiritual journey with these tools:\n\n### Prayer Requests\n\n1. Click **\"New Prayer\"** to add a prayer request.\n2. Set priority (Normal or Urgent).\n3. Mark prayers as answered when God responds.\n4. View your answered prayer history.\n\n### Faith Milestones\n\nRecord significant spiritual moments:\n- Salvation\n- Baptism\n- Answered prayers\n- Spiritual insights\n- Community moments\n\n### Scripture\n\nReflect on Bible passages:\n1. Search for verses by reference.\n2. Save favorite passages.\n3. Add personal notes and reflections.\n\n### Daily Encouragement\n\nFaith-specific encouragements appear on your dashboard when this module is enabled.",
+      "app_name": "faith",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 6,
+    "fields": {
+      "context_id": "SETTINGS_PREFERENCES",
+      "help_id": "preferences-overview",
+      "title": "Preferences Overview",
+      "description": "Customize your Whole Life Journey experience.",
+      "content": "## Preferences\n\nPersonalize your experience with these settings:\n\n### Theme\n\nChoose a visual theme that matches your style:\n- **Minimal** - Clean and focused\n- **Faith** - Warm, spiritually grounded\n- **Sports** - Bold and performance-driven\n- **Nature** - Calm and organic\n- **Outdoors** - Adventurous and expansive\n\n### Accent Color\n\nPick a custom accent color for buttons and highlights.\n\n### Module Toggles\n\nEnable or disable modules based on what matters to you:\n- Journal\n- Faith\n- Health\n- Life\n- Purpose\n\n### AI Settings\n\n- Enable/disable AI-powered insights\n- Choose a coaching style (Supportive, Direct, Gentle, etc.)\n\n### Timezone\n\nSet your timezone for accurate streak tracking and date displays.",
+      "app_name": "users",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  }
+]

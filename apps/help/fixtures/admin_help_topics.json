@@ -1,0 +1,114 @@
+[
+  {
+    "model": "help.adminhelptopic",
+    "pk": 1,
+    "fields": {
+      "context_id": "ADMIN_DASHBOARD",
+      "help_id": "admin-dashboard-overview",
+      "title": "Django Admin Overview",
+      "description": "Navigate the Django admin interface.",
+      "content": "## Django Admin\n\nThe Django Admin provides direct database access for system configuration.\n\n### Available Sections\n\n- **AI** - Configure AI prompts and coaching styles\n- **Core** - Site configuration, themes, and choice options\n- **Help** - Manage help topics for users and admins\n- **Users** - User account management\n- **Content Models** - Journal, Faith, Health, etc.\n\n### Common Tasks\n\n1. **Edit Site Settings** - Core → Site Configuration\n2. **Modify AI Prompts** - AI → AI Prompt Configs\n3. **Add Coaching Styles** - AI → Coaching Styles\n4. **Manage Themes** - Core → Themes\n\n### Back to Admin Console\n\nClick **\"Back to Admin Console\"** in the header to return to the user-friendly admin interface.",
+      "category": "Getting Started",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 2,
+    "fields": {
+      "context_id": "ADMIN_AI_PROMPTS",
+      "help_id": "admin-ai-prompts",
+      "title": "Configuring AI Prompts",
+      "description": "Customize how AI generates content throughout the app.",
+      "content": "## AI Prompt Configuration\n\nAI Prompt Configs control how the AI generates content for different features.\n\n### Prompt Types\n\n1. **daily_insight** - Dashboard daily insights\n2. **weekly_summary** - Weekly reflection summaries\n3. **journal_reflection** - Journal entry reflections\n4. **prayer_encouragement** - Faith module encouragements\n5. **goal_motivation** - Purpose module motivational messages\n6. **health_insight** - Health tracking insights\n7. **gratitude_prompt** - Gratitude prompts\n8. **celebration** - Achievement celebrations\n9. **accountability** - Gentle accountability nudges\n10. **scripture_reflection** - Scripture reflection prompts\n\n### Editing a Prompt\n\n1. Click on the prompt type you want to edit.\n2. Modify the **System Prompt** to change AI behavior.\n3. Adjust **Max Tokens** to control response length.\n4. Set **Sentence Count** for approximate response size.\n5. Add **Tone Guidance** for style adjustments.\n6. List **Things to Avoid** to prevent unwanted content.\n7. Click **Save**.\n\n### Testing Changes\n\nAfter saving, test the prompt by using the relevant feature in the app.",
+      "category": "AI Configuration",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 3,
+    "fields": {
+      "context_id": "ADMIN_COACHING_STYLES",
+      "help_id": "admin-coaching-styles",
+      "title": "Managing Coaching Styles",
+      "description": "Configure AI personality options for users.",
+      "content": "## Coaching Styles\n\nCoaching Styles define the AI's personality when communicating with users.\n\n### Default Styles\n\n1. **Supportive Partner** - Warm, encouraging, celebrates wins\n2. **Direct Coach** - Clear, action-focused, no fluff\n3. **Gentle Guide** - Soft, patient, nurturing\n4. **Tough Love** - Honest, challenging, pushes boundaries\n5. **Wise Mentor** - Thoughtful, asks questions, shares wisdom\n6. **Cheerleader** - High energy, enthusiastic, motivating\n7. **Calm Advisor** - Measured, balanced, grounded\n\n### Adding a New Style\n\n1. Click **\"Add Coaching Style\"** in the top-right.\n2. Enter a **Name** (displayed to users).\n3. Enter a **Slug** (unique identifier, lowercase with dashes).\n4. Write a **Description** (shown in preferences).\n5. Write **Prompt Instructions** (guides AI behavior).\n6. Choose an **Icon** (emoji or icon class).\n7. Set **Sort Order** for display position.\n8. Check **Is Active** to make it available.\n9. Click **Save**.\n\n### Editing Prompt Instructions\n\nThe prompt instructions are appended to all AI requests when a user selects that style. Write clear personality guidelines.",
+      "category": "AI Configuration",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 4,
+    "fields": {
+      "context_id": "ADMIN_SITE_CONFIG",
+      "help_id": "admin-site-config",
+      "title": "Site Configuration",
+      "description": "Configure site-wide settings.",
+      "content": "## Site Configuration\n\nThe Site Configuration model is a singleton—only one instance exists.\n\n### Branding Settings\n\n- **Site Name** - Displayed in browser title and headers\n- **Tagline** - Shown on landing page\n- **Logo** - Upload a custom logo (200x64 recommended)\n- **Favicon** - Upload a favicon (32x32 PNG)\n\n### Feature Toggles\n\n- **Allow Registration** - Enable/disable new user signups\n- **Require Email Verification** - Force email confirmation\n- **Faith Enabled by Default** - Default for new users\n\n### Theme Settings\n\n- **Default Theme** - Theme assigned to new users\n\n### Footer & Legal\n\n- **Footer Text** - Copyright text\n- **Privacy Policy URL** - Link to privacy policy\n- **Terms URL** - Link to terms of service\n\n### Saving Changes\n\nAfter making changes, click **Save**. Changes take effect immediately but may be cached for up to 1 hour.",
+      "category": "System Settings",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 5,
+    "fields": {
+      "context_id": "ADMIN_THEMES",
+      "help_id": "admin-themes",
+      "title": "Managing Themes",
+      "description": "Create and edit visual themes.",
+      "content": "## Theme Management\n\nThemes control the app's visual appearance with customizable colors.\n\n### Theme Properties\n\n- **Slug** - Unique identifier (e.g., 'minimal')\n- **Name** - Display name\n- **Description** - Brief description of the theme's feel\n\n### Color Settings\n\nEach theme has light and dark mode colors:\n\n**Light Mode:**\n- Primary, Secondary, Accent colors\n- Text, Text Muted colors\n- Background, Surface, Border colors\n\n**Dark Mode:**\n- Same properties with 'dark_' prefix\n\n### Creating a Theme\n\n1. Click **\"Add Theme\"**.\n2. Enter slug, name, and description.\n3. Set all color values (hex format, e.g., #6366f1).\n4. Set sort order.\n5. Check **Is Active** to make available.\n6. Check **Is Default** if this should be the default.\n7. Click **Save**.\n\n### Color Picker Tips\n\n- Use consistent color families\n- Ensure text colors have good contrast\n- Test in both light and dark contexts",
+      "category": "System Settings",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 6,
+    "fields": {
+      "context_id": "ADMIN_HELP_TOPICS",
+      "help_id": "admin-help-topics",
+      "title": "Managing User Help Topics",
+      "description": "Create and edit help content for users.",
+      "content": "## User Help Topics\n\nHelp Topics provide context-aware assistance to users.\n\n### How It Works\n\n1. Each page has a **HELP_CONTEXT_ID** (e.g., DASHBOARD_HOME).\n2. When users click the **?** button, the system fetches the matching help topic.\n3. Help content is displayed in a modal.\n\n### Creating a Help Topic\n\n1. Click **\"Add Help Topic\"**.\n2. Enter **Context ID** - Must match the template's HELP_CONTEXT_ID exactly.\n3. Enter **Help ID** - URL-friendly slug.\n4. Write a clear **Title**.\n5. Write a brief **Description**.\n6. Write detailed **Content** using Markdown formatting.\n7. Set the **App Name** for organization.\n8. Set **Order** for sorting within the app.\n9. Click **Save**.\n\n### Markdown Formatting\n\nContent supports Markdown:\n- `## Heading` for headers\n- `**bold**` for emphasis\n- `1. Item` for numbered lists\n- `- Item` for bullet lists\n- `` `code` `` for inline code\n\n### Related Topics\n\nLink related help topics so users can explore further.",
+      "category": "Help System",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 7,
+    "fields": {
+      "context_id": "ADMIN_GENERAL",
+      "help_id": "admin-general",
+      "title": "General Admin Help",
+      "description": "Basic help for Django admin pages.",
+      "content": "## Django Admin Help\n\nThis is the Django Admin interface for Whole Life Journey.\n\n### Navigation\n\n- Use the sidebar to navigate between sections.\n- Click on any model name to view its records.\n- Click **\"Add\"** buttons to create new records.\n\n### Common Actions\n\n- **Search** - Use the search box to find records.\n- **Filter** - Use sidebar filters to narrow results.\n- **Bulk Actions** - Select records and use the action dropdown.\n- **Export** - Some models support data export.\n\n### Need More Help?\n\nFor specific help on a section, navigate to that section and click the **?** button again.\n\n### Admin Console\n\nFor a more user-friendly admin experience, click **\"Back to Admin Console\"** in the header.",
+      "category": "Getting Started",
+      "order": 0,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  }
+]

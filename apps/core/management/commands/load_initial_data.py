@@ -24,6 +24,8 @@ class Command(BaseCommand):
             'prompts',
             'coaching_styles',
             'ai_prompt_configs',
+            'help_topics',
+            'admin_help_topics',
         ]
 
         for fixture in fixtures:

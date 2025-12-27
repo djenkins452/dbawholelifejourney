@@ -21,13 +21,15 @@ from django.http import HttpResponse, JsonResponse
 from django.conf import settings
 
 from .models import DailyEncouragement
+from apps.help.mixins import HelpContextMixin
 
 
-class DashboardView(LoginRequiredMixin, TemplateView):
+class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     AI-Driven Dashboard - Your personalized command center.
     """
     template_name = "dashboard/home.html"
+    help_context_id = "DASHBOARD_HOME"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

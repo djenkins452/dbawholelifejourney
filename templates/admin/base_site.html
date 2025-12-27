@@ -1,4 +1,5 @@
 {% extends "admin/base.html" %}
+{% load static %}
 
 {% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Whole Life Journey{% endblock %}
 
@@ -10,4 +11,108 @@
         &larr; Back to Admin Console
     </a>
 </h1>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/help.css' %}">
+<style>
+/* Admin help button positioning */
+.admin-help-wrapper {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 999;
+}
+</style>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script>
+// Determine admin help context from URL
+function getAdminHelpContext() {
+    const path = window.location.pathname;
+
+    // Map admin URLs to HELP_CONTEXT_IDs
+    if (path.includes('/admin/ai/aipromptconfig/')) return 'ADMIN_AI_PROMPTS';
+    if (path.includes('/admin/ai/coachingstyle/')) return 'ADMIN_COACHING_STYLES';
+    if (path.includes('/admin/ai/')) return 'ADMIN_AI';
+    if (path.includes('/admin/core/siteconfiguration/')) return 'ADMIN_SITE_CONFIG';
+    if (path.includes('/admin/core/theme/')) return 'ADMIN_THEMES';
+    if (path.includes('/admin/core/choicecategory/')) return 'ADMIN_CHOICE_CATEGORIES';
+    if (path.includes('/admin/core/choiceoption/')) return 'ADMIN_CHOICE_OPTIONS';
+    if (path.includes('/admin/help/helptopic/')) return 'ADMIN_HELP_TOPICS';
+    if (path.includes('/admin/help/adminhelptopic/')) return 'ADMIN_ADMIN_HELP_TOPICS';
+    if (path.includes('/admin/users/')) return 'ADMIN_USERS';
+    if (path.includes('/admin/journal/')) return 'ADMIN_JOURNAL';
+    if (path.includes('/admin/faith/')) return 'ADMIN_FAITH';
+    if (path.includes('/admin/health/')) return 'ADMIN_HEALTH';
+    if (path === '/admin/' || path === '/admin') return 'ADMIN_DASHBOARD';
+
+    return 'ADMIN_GENERAL';
+}
+</script>
+{% endblock %}
+
+{% block footer %}
+{{ block.super }}
+
+<!-- Admin Help Button -->
+<div class="admin-help-wrapper">
+    <button
+        type="button"
+        class="help-button help-button-admin"
+        id="help-trigger"
+        data-help-context="ADMIN_GENERAL"
+        data-help-type="admin"
+        aria-label="Get admin help for this page"
+        title="Admin Help"
+        onclick="openHelpModal()"
+    >
+        <svg class="help-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+    </button>
+</div>
+
+<!-- Help Modal -->
+<dialog id="help-modal" class="help-modal">
+    <div class="help-modal-content">
+        <header class="help-modal-header">
+            <h2 id="help-modal-title">Admin Help</h2>
+            <button type="button" class="help-modal-close" onclick="closeHelpModal()" aria-label="Close help">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </header>
+
+        <div id="help-modal-body" class="help-modal-body">
+            <div class="help-loading">
+                <div class="help-loading-spinner"></div>
+                <p>Loading help...</p>
+            </div>
+        </div>
+
+        <footer id="help-modal-footer" class="help-modal-footer" hidden>
+            <h3>Related Topics</h3>
+            <ul id="help-related-topics"></ul>
+        </footer>
+    </div>
+</dialog>
+
+<script src="{% static 'js/help.js' %}"></script>
+<script>
+// Set the admin help context on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const trigger = document.getElementById('help-trigger');
+    if (trigger) {
+        trigger.dataset.helpContext = getAdminHelpContext();
+    }
+});
+</script>
 {% endblock %}

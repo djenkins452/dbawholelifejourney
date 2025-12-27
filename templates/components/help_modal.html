@@ -1,0 +1,33 @@
+{% comment %}
+Help Modal Component
+
+This is the modal dialog only (button is in navigation.html).
+Include this once in base.html.
+{% endcomment %}
+
+<!-- Help Modal -->
+<dialog id="help-modal" class="help-modal">
+    <div class="help-modal-content">
+        <header class="help-modal-header">
+            <h2 id="help-modal-title">Help</h2>
+            <button type="button" class="help-modal-close" onclick="closeHelpModal()" aria-label="Close help">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </header>
+
+        <div id="help-modal-body" class="help-modal-body">
+            <div class="help-loading">
+                <div class="help-loading-spinner"></div>
+                <p>Loading help...</p>
+            </div>
+        </div>
+
+        <footer id="help-modal-footer" class="help-modal-footer" hidden>
+            <h3>Related Topics</h3>
+            <ul id="help-related-topics"></ul>
+        </footer>
+    </div>
+</dialog>

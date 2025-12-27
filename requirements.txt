@@ -20,6 +20,9 @@ pillow>=10.4.0
 # HTMX Integration
 django-htmx>=1.19.0
 
+# Markdown Support (for help system)
+markdown>=3.7
+
 # Time Zone Support
 pytz>=2024.1
 

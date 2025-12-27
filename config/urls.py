@@ -44,6 +44,8 @@ urlpatterns = [
     path("life/", include("apps.life.urls")),
     # Purpose
     path('purpose/', include('apps.purpose.urls')),
+    # Help System
+    path('help/', include('apps.help.urls', namespace='help')),
 ]
 
 # Serve media files

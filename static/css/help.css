@@ -1,0 +1,355 @@
+/**
+ * Context-Aware Help System Styles
+ *
+ * Provides styling for:
+ * - Help button (?) in navigation
+ * - Help modal dialog
+ * - Help content formatting
+ */
+
+/* =============================================================================
+   HELP BUTTON
+   ============================================================================= */
+
+.help-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: var(--radius-full, 50%);
+    background: transparent;
+    color: var(--color-text-muted, #6b7280);
+    cursor: pointer;
+    transition: all var(--transition-fast, 150ms ease);
+}
+
+.help-button:hover {
+    background: var(--color-surface, #f3f4f6);
+    color: var(--color-accent, #6366f1);
+}
+
+.help-button:focus {
+    outline: 2px solid var(--color-accent, #6366f1);
+    outline-offset: 2px;
+}
+
+.help-icon {
+    width: 20px;
+    height: 20px;
+}
+
+/* Navigation placement */
+.nav-help {
+    display: flex;
+    align-items: center;
+    margin-right: 0.5rem;
+}
+
+/* =============================================================================
+   HELP MODAL
+   ============================================================================= */
+
+.help-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    z-index: 1000;
+}
+
+.help-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.help-modal[open] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.help-modal-content {
+    width: 100%;
+    max-width: 600px;
+    max-height: 80vh;
+    margin: 1rem;
+    background: var(--color-background, #ffffff);
+    border-radius: var(--radius-lg, 0.5rem);
+    box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Header */
+.help-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+    background: var(--color-surface, #f3f4f6);
+}
+
+.help-modal-header h2 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-text, #374151);
+}
+
+.help-modal-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-full, 50%);
+    background: transparent;
+    color: var(--color-text-muted, #6b7280);
+    cursor: pointer;
+    transition: all var(--transition-fast, 150ms ease);
+}
+
+.help-modal-close:hover {
+    background: var(--color-border, #e5e7eb);
+    color: var(--color-text, #374151);
+}
+
+.help-modal-close svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Body */
+.help-modal-body {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+    color: var(--color-text, #374151);
+    line-height: 1.6;
+}
+
+/* Loading state */
+.help-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: var(--color-text-muted, #6b7280);
+}
+
+.help-loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--color-border, #e5e7eb);
+    border-top-color: var(--color-accent, #6366f1);
+    border-radius: 50%;
+    animation: help-spin 0.8s linear infinite;
+    margin-bottom: 1rem;
+}
+
+@keyframes help-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Help content formatting */
+.help-content h1,
+.help-content h2,
+.help-content h3 {
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text, #374151);
+}
+
+.help-content h1 { font-size: 1.5rem; }
+.help-content h2 { font-size: 1.25rem; }
+.help-content h3 { font-size: 1.125rem; }
+
+.help-content p {
+    margin-bottom: 1rem;
+}
+
+.help-content ol,
+.help-content ul {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+
+.help-content li {
+    margin-bottom: 0.5rem;
+}
+
+.help-content ol {
+    list-style-type: decimal;
+}
+
+.help-content ul {
+    list-style-type: disc;
+}
+
+.help-content code {
+    padding: 0.125rem 0.375rem;
+    background: var(--color-surface, #f3f4f6);
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.875em;
+}
+
+.help-content pre {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: var(--color-surface, #f3f4f6);
+    border-radius: var(--radius-lg, 0.5rem);
+    overflow-x: auto;
+}
+
+.help-content pre code {
+    padding: 0;
+    background: transparent;
+}
+
+.help-content strong {
+    font-weight: 600;
+}
+
+.help-content blockquote {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    border-left: 4px solid var(--color-accent, #6366f1);
+    background: var(--color-surface, #f3f4f6);
+    font-style: italic;
+}
+
+/* Description text */
+.help-description {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+    color: var(--color-text-muted, #6b7280);
+    font-size: 0.9375rem;
+}
+
+/* Not found state */
+.help-not-found {
+    text-align: center;
+    padding: 2rem;
+    color: var(--color-text-muted, #6b7280);
+}
+
+.help-not-found svg {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* Footer with related topics */
+.help-modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--color-border, #e5e7eb);
+    background: var(--color-surface, #f3f4f6);
+}
+
+.help-modal-footer h3 {
+    margin: 0 0 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-muted, #6b7280);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.help-modal-footer ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.help-modal-footer li {
+    margin: 0;
+}
+
+.help-related-link {
+    display: inline-block;
+    padding: 0.375rem 0.75rem;
+    background: var(--color-background, #ffffff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-full, 9999px);
+    color: var(--color-accent, #6366f1);
+    font-size: 0.875rem;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all var(--transition-fast, 150ms ease);
+}
+
+.help-related-link:hover {
+    background: var(--color-accent, #6366f1);
+    border-color: var(--color-accent, #6366f1);
+    color: white;
+}
+
+/* =============================================================================
+   ADMIN HELP STYLES
+   ============================================================================= */
+
+/* Override for Django admin */
+.help-button-admin {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 48px;
+    height: 48px;
+    background: var(--color-accent, #417690);
+    color: white;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 999;
+}
+
+.help-button-admin:hover {
+    background: #205067;
+    color: white;
+    transform: scale(1.05);
+}
+
+.help-button-admin .help-icon {
+    width: 24px;
+    height: 24px;
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+
+@media (max-width: 640px) {
+    .help-modal-content {
+        max-height: 90vh;
+        margin: 0;
+        border-radius: 0;
+    }
+
+    .help-modal-body {
+        padding: 1rem;
+    }
+
+    .help-button-admin {
+        bottom: 1rem;
+        right: 1rem;
+        width: 44px;
+        height: 44px;
+    }
+}

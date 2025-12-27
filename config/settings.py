@@ -184,15 +184,29 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # Cloudinary Configuration
-# Set CLOUDINARY_URL environment variable in Railway (format: cloudinary://API_KEY:API_SECRET@CLOUD_NAME)
-CLOUDINARY_STORAGE = {
-    "CLOUD_NAME": env("CLOUDINARY_CLOUD_NAME", default=""),
-    "API_KEY": env("CLOUDINARY_API_KEY", default=""),
-    "API_SECRET": env("CLOUDINARY_API_SECRET", default=""),
-}
+# Requires CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET env vars
+_cloudinary_cloud_name = env("CLOUDINARY_CLOUD_NAME", default="")
+_cloudinary_api_key = env("CLOUDINARY_API_KEY", default="")
+_cloudinary_api_secret = env("CLOUDINARY_API_SECRET", default="")
 
-# Fall back to local storage if Cloudinary is not configured
-if not CLOUDINARY_STORAGE["CLOUD_NAME"]:
+if _cloudinary_cloud_name:
+    # Configure cloudinary library directly
+    import cloudinary
+    cloudinary.config(
+        cloud_name=_cloudinary_cloud_name,
+        api_key=_cloudinary_api_key,
+        api_secret=_cloudinary_api_secret,
+        secure=True
+    )
+
+    # Also set CLOUDINARY_STORAGE for django-cloudinary-storage
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": _cloudinary_cloud_name,
+        "API_KEY": _cloudinary_api_key,
+        "API_SECRET": _cloudinary_api_secret,
+    }
+else:
+    # Fall back to local storage if Cloudinary is not configured
     STORAGES["default"] = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     }

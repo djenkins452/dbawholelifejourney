@@ -25,6 +25,11 @@ class CoachingStyle(models.Model):
         max_length=300,
         help_text="Brief description shown when user selects style"
     )
+    icon = models.CharField(
+        max_length=10,
+        default="🤝",
+        help_text="Emoji icon displayed in the UI"
+    )
     prompt_instructions = models.TextField(
         help_text="Full AI prompt instructions for this coaching style"
     )

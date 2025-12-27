@@ -248,59 +248,31 @@
                 </p>
                 
                 <div class="coaching-style-options">
-                    <label class="coaching-style-card {% if form.ai_coaching_style.value == 'gentle' %}selected{% endif %}">
-                        <input type="radio" name="ai_coaching_style" value="gentle" 
-                               {% if form.ai_coaching_style.value == 'gentle' %}checked{% endif %}>
+                    {% for style in coaching_styles %}
+                    <label class="coaching-style-card {% if form.ai_coaching_style.value == style.key or not form.ai_coaching_style.value and style.is_default %}selected{% endif %}">
+                        <input type="radio" name="ai_coaching_style" value="{{ style.key }}"
+                               {% if form.ai_coaching_style.value == style.key or not form.ai_coaching_style.value and style.is_default %}checked{% endif %}>
                         <div class="card-content">
-                            <div class="card-icon">🌱</div>
+                            <div class="card-icon">{{ style.icon }}</div>
                             <div class="card-text">
-                                <div class="card-title">Gentle Guide</div>
-                                <div class="card-description">
-                                    Soft, encouraging, nurturing. Never pressures, always supportive. 
-                                    Perfect if you need kindness and patience.
-                                </div>
-                                <div class="card-example">
-                                    <em>"Whenever you're ready, your journal is here. No pressure—even a single sentence counts."</em>
-                                </div>
+                                <div class="card-title">{{ style.name }}</div>
+                                <div class="card-description">{{ style.description }}</div>
                             </div>
                         </div>
                     </label>
-                    
-                    <label class="coaching-style-card {% if form.ai_coaching_style.value == 'supportive' or not form.ai_coaching_style.value %}selected{% endif %}">
-                        <input type="radio" name="ai_coaching_style" value="supportive" 
-                               {% if form.ai_coaching_style.value == 'supportive' or not form.ai_coaching_style.value %}checked{% endif %}>
+                    {% empty %}
+                    <!-- Fallback if no styles in database -->
+                    <label class="coaching-style-card selected">
+                        <input type="radio" name="ai_coaching_style" value="supportive" checked>
                         <div class="card-content">
                             <div class="card-icon">🤝</div>
                             <div class="card-text">
                                 <div class="card-title">Supportive Partner</div>
-                                <div class="card-description">
-                                    Balanced warmth with gentle accountability. Celebrates wins, 
-                                    nudges on gaps. A trusted friend walking with you.
-                                </div>
-                                <div class="card-example">
-                                    <em>"It's been 5 days since you wrote. Life gets busy! Want to take 2 minutes now?"</em>
-                                </div>
+                                <div class="card-description">Balanced warmth with gentle accountability.</div>
                             </div>
                         </div>
                     </label>
-                    
-                    <label class="coaching-style-card {% if form.ai_coaching_style.value == 'direct' %}selected{% endif %}">
-                        <input type="radio" name="ai_coaching_style" value="direct" 
-                               {% if form.ai_coaching_style.value == 'direct' %}checked{% endif %}>
-                        <div class="card-content">
-                            <div class="card-icon">🎯</div>
-                            <div class="card-text">
-                                <div class="card-title">Direct Coach</div>
-                                <div class="card-description">
-                                    Straightforward, action-oriented. Calls things out clearly 
-                                    and pushes you forward. For those who want real talk.
-                                </div>
-                                <div class="card-example">
-                                    <em>"5 days without journaling. You said this matters. Open it up—write one thing you're grateful for. Go."</em>
-                                </div>
-                            </div>
-                        </div>
-                    </label>
+                    {% endfor %}
                 </div>
             </div>
         </div>
@@ -697,9 +669,27 @@
 }
 
 .coaching-style-options {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: var(--space-3);
+}
+
+@media (min-width: 640px) {
+    .coaching-style-options {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .coaching-style-options {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 1280px) {
+    .coaching-style-options {
+        grid-template-columns: repeat(4, 1fr);
+    }
 }
 
 .coaching-style-card {
@@ -732,14 +722,14 @@
 
 .card-content {
     display: flex;
-    gap: var(--space-3);
-    align-items: flex-start;
+    flex-direction: column;
+    text-align: center;
 }
 
 .card-icon {
     font-size: 2rem;
     line-height: 1;
-    flex-shrink: 0;
+    margin: 0 auto var(--space-2);
 }
 
 .card-text {
@@ -757,40 +747,6 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
     line-height: var(--line-height-relaxed);
-    margin-bottom: var(--space-2);
-}
-
-.card-example {
-    padding: var(--space-3);
-    background: var(--color-surface);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-    border-left: 3px solid var(--color-accent);
-}
-
-@media (min-width: 1024px) {
-    .coaching-style-options {
-        flex-direction: row;
-    }
-    
-    .coaching-style-card {
-        flex: 1;
-    }
-    
-    .card-content {
-        flex-direction: column;
-        text-align: center;
-    }
-    
-    .card-icon {
-        font-size: 2.5rem;
-        margin: 0 auto var(--space-2);
-    }
-    
-    .card-example {
-        text-align: left;
-    }
 }
 </style>
 

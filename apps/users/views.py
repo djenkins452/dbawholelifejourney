@@ -88,6 +88,13 @@ class PreferencesView(LoginRequiredMixin, UpdateView):
         # Bible API key for faith settings
         context['api_key'] = getattr(settings, 'BIBLE_API_KEY', '')
 
+        # AI Coaching styles from database
+        try:
+            from apps.ai.models import CoachingStyle
+            context['coaching_styles'] = CoachingStyle.get_active_styles()
+        except:
+            context['coaching_styles'] = []
+
         return context
 
     def form_valid(self, form):

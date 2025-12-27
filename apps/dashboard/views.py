@@ -65,8 +65,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         return context
     
     def _get_greeting(self):
-        """Get time-appropriate greeting."""
-        hour = timezone.now().hour
+        """Get time-appropriate greeting in user's timezone."""
+        import pytz
+        user_tz = pytz.timezone(self.request.user.preferences.timezone)
+        user_time = timezone.now().astimezone(user_tz)
+        hour = user_time.hour
         if hour < 12:
             return "Good morning"
         elif hour < 17:

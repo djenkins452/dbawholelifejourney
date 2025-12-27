@@ -329,3 +329,214 @@ class AdminEdgeCaseTest(AdminTestMixin, TestCase):
         """User list works with single user."""
         response = self.client.get(reverse('admin_console:user_list'))
         self.assertEqual(response.status_code, 200)
+
+
+# =============================================================================
+# 9. TEST HISTORY VIEWS TESTS
+# =============================================================================
+
+class TestRunListViewTest(AdminTestMixin, TestCase):
+    """Tests for test run list view."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.login_admin()
+
+    def test_test_run_list_loads(self):
+        """Test run list page loads."""
+        response = self.client.get(reverse('admin_console:test_run_list'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_test_run_list_requires_staff(self):
+        """Test run list requires staff status."""
+        regular_user = self.create_user()
+        self.login_user()
+        response = self.client.get(reverse('admin_console:test_run_list'))
+        self.assertEqual(response.status_code, 302)
+
+    def test_test_run_list_has_context(self):
+        """Test run list has expected context."""
+        response = self.client.get(reverse('admin_console:test_run_list'))
+        self.assertIn('test_runs', response.context)
+        self.assertIn('total_runs', response.context)
+        self.assertIn('passed_runs', response.context)
+        self.assertIn('failed_runs', response.context)
+        self.assertIn('debug', response.context)
+
+    def test_test_run_list_shows_test_runs(self):
+        """Test run list shows test runs."""
+        from apps.core.models import TestRun
+
+        # Create test runs
+        TestRun.objects.create(
+            status='passed',
+            total_tests=10,
+            passed=10,
+            failed=0,
+            errors=0,
+            duration_seconds=5.0
+        )
+        TestRun.objects.create(
+            status='failed',
+            total_tests=10,
+            passed=8,
+            failed=2,
+            errors=0,
+            duration_seconds=6.0
+        )
+
+        response = self.client.get(reverse('admin_console:test_run_list'))
+        self.assertEqual(response.context['total_runs'], 2)
+        self.assertEqual(response.context['passed_runs'], 1)
+        self.assertEqual(response.context['failed_runs'], 1)
+
+    def test_empty_test_run_list(self):
+        """Test run list handles no runs."""
+        response = self.client.get(reverse('admin_console:test_run_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['total_runs'], 0)
+
+
+class TestRunDetailViewTest(AdminTestMixin, TestCase):
+    """Tests for test run detail view."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.login_admin()
+
+    def test_test_run_detail_loads(self):
+        """Test run detail page loads."""
+        from apps.core.models import TestRun
+
+        test_run = TestRun.objects.create(
+            status='passed',
+            total_tests=10,
+            passed=10
+        )
+
+        response = self.client.get(
+            reverse('admin_console:test_run_detail', kwargs={'pk': test_run.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_test_run_detail_has_context(self):
+        """Test run detail has test_run in context."""
+        from apps.core.models import TestRun
+
+        test_run = TestRun.objects.create(
+            status='passed',
+            total_tests=10,
+            passed=10
+        )
+
+        response = self.client.get(
+            reverse('admin_console:test_run_detail', kwargs={'pk': test_run.pk})
+        )
+        self.assertEqual(response.context['test_run'], test_run)
+        self.assertIn('details', response.context)
+
+    def test_test_run_detail_with_details(self):
+        """Test run detail shows app details."""
+        from apps.core.models import TestRun, TestRunDetail
+        import json
+
+        test_run = TestRun.objects.create(
+            status='failed',
+            total_tests=10,
+            passed=8,
+            failed=2
+        )
+        TestRunDetail.objects.create(
+            test_run=test_run,
+            app_name='journal',
+            passed=5,
+            failed=1,
+            total=6,
+            failed_tests=json.dumps(['test_something'])
+        )
+
+        response = self.client.get(
+            reverse('admin_console:test_run_detail', kwargs={'pk': test_run.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        details = list(response.context['details'])
+        self.assertEqual(len(details), 1)
+        self.assertEqual(details[0].app_name, 'journal')
+
+
+class TestRunDeleteViewTest(AdminTestMixin, TestCase):
+    """Tests for test run delete view."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.login_admin()
+
+    def test_test_run_delete_page_loads(self):
+        """Test run delete confirmation page loads."""
+        from apps.core.models import TestRun
+
+        test_run = TestRun.objects.create(
+            status='passed',
+            total_tests=10,
+            passed=10
+        )
+
+        response = self.client.get(
+            reverse('admin_console:test_run_delete', kwargs={'pk': test_run.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_test_run_delete_works(self):
+        """Test run can be deleted."""
+        from apps.core.models import TestRun
+
+        test_run = TestRun.objects.create(
+            status='passed',
+            total_tests=10,
+            passed=10
+        )
+        pk = test_run.pk
+
+        response = self.client.post(
+            reverse('admin_console:test_run_delete', kwargs={'pk': pk})
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(TestRun.objects.filter(pk=pk).exists())
+
+
+class RunTestsViewTest(AdminTestMixin, TestCase):
+    """Tests for run tests view."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.login_admin()
+
+    def test_run_tests_requires_staff(self):
+        """Run tests requires staff status."""
+        regular_user = self.create_user()
+        self.login_user()
+        response = self.client.get(reverse('admin_console:run_tests'))
+        self.assertEqual(response.status_code, 302)
+
+    def test_run_tests_blocked_in_production(self):
+        """Run tests is blocked when DEBUG=False."""
+        from django.test import override_settings
+
+        with override_settings(DEBUG=False):
+            response = self.client.get(reverse('admin_console:run_tests'))
+            # Should redirect to test run list with error message
+            self.assertEqual(response.status_code, 302)
+            self.assertRedirects(response, reverse('admin_console:test_run_list'))
+
+    def test_run_tests_url_exists(self):
+        """Run tests URL exists and is accessible to staff."""
+        # Note: We don't actually run the tests in this test
+        # Just verify the URL resolves and view can be accessed
+        from django.urls import resolve
+
+        resolved = resolve('/admin-console/tests/run/')
+        self.assertEqual(resolved.view_name, 'admin_console:run_tests')

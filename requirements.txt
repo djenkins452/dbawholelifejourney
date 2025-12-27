@@ -23,6 +23,9 @@ django-htmx>=1.19.0
 # Time Zone Support
 pytz>=2024.1
 
+# Date utilities
+python-dateutil>=2.8.2
+
 # Production Server
 gunicorn>=23.0.0
 

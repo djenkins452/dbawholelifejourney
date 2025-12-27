@@ -199,9 +199,9 @@ class CategoryCreateView(AdminRequiredMixin, CreateView):
     """Create a new category."""
     model = Category
     template_name = "admin_console/category_form.html"
-    fields = ['name', 'slug', 'description', 'icon', 'color']
+    fields = ['name', 'slug', 'description', 'icon', 'order']
     success_url = reverse_lazy('admin_console:category_list')
-    
+
     def form_valid(self, form):
         messages.success(self.request, f"Category '{form.instance.name}' created successfully.")
         return super().form_valid(form)
@@ -211,7 +211,7 @@ class CategoryUpdateView(AdminRequiredMixin, UpdateView):
     """Edit a category."""
     model = Category
     template_name = "admin_console/category_form.html"
-    fields = ['name', 'slug', 'description', 'icon', 'color']
+    fields = ['name', 'slug', 'description', 'icon', 'order']
     success_url = reverse_lazy('admin_console:category_list')
     
     def form_valid(self, form):

@@ -278,29 +278,99 @@ class AIServiceTest(AITestMixin, TestCase):
         service.client = MagicMock()
         self.assertTrue(service.is_available)
 
-    def test_coaching_style_gentle(self):
-        """Gentle coaching style returns appropriate prompt."""
+    def test_coaching_style_from_database(self):
+        """Coaching style loads from database when available."""
+        from apps.ai.models import CoachingStyle
+        from django.core.cache import cache
+
+        # Create a coaching style in database
+        CoachingStyle.objects.create(
+            key='test_db_style',
+            name='Test DB Style',
+            description='A database-driven style',
+            prompt_instructions='You are a TEST DATABASE COACH. Be database-driven.',
+            is_active=True
+        )
+        cache.delete('coaching_style_test_db_style')
+
+        prompt = self.service._get_coaching_style_prompt('test_db_style')
+        self.assertIn('TEST DATABASE COACH', prompt)
+        self.assertIn('database-driven', prompt)
+
+    def test_coaching_style_fallback_when_no_db_styles(self):
+        """Coaching style falls back to SUPPORTIVE PARTNER when no DB styles exist."""
+        from apps.ai.models import CoachingStyle
+        from django.core.cache import cache
+
+        # Ensure no styles exist in DB
+        CoachingStyle.objects.all().delete()
+        cache.delete('coaching_styles_all')
+        cache.delete('coaching_style_gentle')
+        cache.delete('coaching_style_supportive')
+        cache.delete('coaching_style_direct')
+        cache.delete('coaching_style_unknown')
+
+        # All styles should fall back to the same SUPPORTIVE PARTNER prompt
+        prompt = self.service._get_coaching_style_prompt('gentle')
+        self.assertIn('SUPPORTIVE PARTNER', prompt)
+        self.assertIn('balanced', prompt.lower())
+
+        prompt = self.service._get_coaching_style_prompt('supportive')
+        self.assertIn('SUPPORTIVE PARTNER', prompt)
+
+        prompt = self.service._get_coaching_style_prompt('direct')
+        self.assertIn('SUPPORTIVE PARTNER', prompt)
+
+        prompt = self.service._get_coaching_style_prompt('unknown')
+        self.assertIn('SUPPORTIVE PARTNER', prompt)
+
+    def test_coaching_style_uses_db_style_when_available(self):
+        """Coaching style uses database style when available."""
+        from apps.ai.models import CoachingStyle
+        from django.core.cache import cache
+
+        # Clear any existing styles
+        CoachingStyle.objects.all().delete()
+        cache.delete('coaching_styles_all')
+
+        # Create a 'gentle' style in the database
+        CoachingStyle.objects.create(
+            key='gentle',
+            name='Gentle Guide',
+            description='A nurturing approach',
+            prompt_instructions='You are a GENTLE GUIDE. Be nurturing with no pressure.',
+            is_active=True
+        )
+        cache.delete('coaching_style_gentle')
+
         prompt = self.service._get_coaching_style_prompt('gentle')
         self.assertIn('GENTLE GUIDE', prompt)
         self.assertIn('nurturing', prompt.lower())
         self.assertIn('no pressure', prompt.lower())
 
-    def test_coaching_style_supportive(self):
-        """Supportive coaching style returns appropriate prompt."""
-        prompt = self.service._get_coaching_style_prompt('supportive')
-        self.assertIn('SUPPORTIVE PARTNER', prompt)
-        self.assertIn('balanced', prompt.lower())
+    def test_coaching_style_falls_back_to_default_when_key_not_found(self):
+        """When a specific key isn't found, use the default style."""
+        from apps.ai.models import CoachingStyle
+        from django.core.cache import cache
 
-    def test_coaching_style_direct(self):
-        """Direct coaching style returns appropriate prompt."""
-        prompt = self.service._get_coaching_style_prompt('direct')
-        self.assertIn('DIRECT COACH', prompt)
-        self.assertIn('straightforward', prompt.lower())
+        # Clear any existing styles
+        CoachingStyle.objects.all().delete()
+        cache.delete('coaching_styles_all')
 
-    def test_coaching_style_default(self):
-        """Unknown coaching style defaults to supportive."""
-        prompt = self.service._get_coaching_style_prompt('unknown')
-        self.assertIn('SUPPORTIVE PARTNER', prompt)
+        # Create a default style
+        CoachingStyle.objects.create(
+            key='default_style',
+            name='Default Style',
+            description='The default',
+            prompt_instructions='You are the DEFAULT STYLE coach.',
+            is_active=True,
+            is_default=True
+        )
+        cache.delete('coaching_style_missing')
+
+        # Request a style that doesn't exist - should get the default
+        prompt = self.service._get_coaching_style_prompt('missing')
+        self.assertIn('DEFAULT STYLE', prompt)
 
     def test_system_prompt_without_faith(self):
         """System prompt without faith context."""
@@ -858,3 +928,230 @@ class AIIntegrationTest(AITestMixin, TestCase):
         self.assertEqual(entries[0]['title'], 'Test Entry')
         self.assertEqual(entries[0]['mood'], 'happy')
         self.assertIn('body', entries[0])
+
+
+# =============================================================================
+# 8. COACHING STYLE MODEL TESTS
+# =============================================================================
+
+class CoachingStyleModelTest(AITestMixin, TestCase):
+    """Tests for the CoachingStyle model (database-driven coaching styles)."""
+
+    def setUp(self):
+        from apps.ai.models import CoachingStyle
+        self.CoachingStyle = CoachingStyle
+        # Clear any existing coaching styles
+        CoachingStyle.objects.all().delete()
+
+    def test_create_coaching_style(self):
+        """Can create a coaching style."""
+        style = self.CoachingStyle.objects.create(
+            key='test_style',
+            name='Test Style',
+            description='A test coaching style',
+            prompt_instructions='Be helpful and kind.'
+        )
+        self.assertEqual(style.key, 'test_style')
+        self.assertEqual(style.name, 'Test Style')
+        self.assertTrue(style.is_active)
+        self.assertFalse(style.is_default)
+
+    def test_coaching_style_str_representation(self):
+        """Coaching style has readable string representation."""
+        style = self.CoachingStyle.objects.create(
+            key='friendly',
+            name='Friendly Coach',
+            description='A friendly coaching style',
+            prompt_instructions='Be friendly.'
+        )
+        self.assertEqual(str(style), 'Friendly Coach')
+
+    def test_inactive_style_str_representation(self):
+        """Inactive coaching style shows status in string."""
+        style = self.CoachingStyle.objects.create(
+            key='inactive_style',
+            name='Inactive Coach',
+            description='An inactive style',
+            prompt_instructions='Be inactive.',
+            is_active=False
+        )
+        self.assertEqual(str(style), 'Inactive Coach (inactive)')
+
+    def test_unique_key_constraint(self):
+        """Coaching style keys must be unique."""
+        self.CoachingStyle.objects.create(
+            key='unique_key',
+            name='First Style',
+            description='First',
+            prompt_instructions='First'
+        )
+        with self.assertRaises(Exception):
+            self.CoachingStyle.objects.create(
+                key='unique_key',
+                name='Second Style',
+                description='Second',
+                prompt_instructions='Second'
+            )
+
+    def test_default_sort_order(self):
+        """Coaching styles have default sort order of 0."""
+        style = self.CoachingStyle.objects.create(
+            key='sorted',
+            name='Sorted Style',
+            description='Has sort order',
+            prompt_instructions='Sorted'
+        )
+        self.assertEqual(style.sort_order, 0)
+
+    def test_ordering_by_sort_order_then_name(self):
+        """Coaching styles are ordered by sort_order, then name."""
+        style_b = self.CoachingStyle.objects.create(
+            key='style_b', name='B Style', description='B',
+            prompt_instructions='B', sort_order=1
+        )
+        style_a = self.CoachingStyle.objects.create(
+            key='style_a', name='A Style', description='A',
+            prompt_instructions='A', sort_order=1
+        )
+        style_first = self.CoachingStyle.objects.create(
+            key='style_first', name='First Style', description='First',
+            prompt_instructions='First', sort_order=0
+        )
+
+        styles = list(self.CoachingStyle.objects.all())
+        self.assertEqual(styles[0], style_first)
+        self.assertEqual(styles[1], style_a)
+        self.assertEqual(styles[2], style_b)
+
+    def test_only_one_default_allowed(self):
+        """Only one coaching style can be marked as default."""
+        style1 = self.CoachingStyle.objects.create(
+            key='default1', name='Default 1', description='First default',
+            prompt_instructions='First', is_default=True
+        )
+        style2 = self.CoachingStyle.objects.create(
+            key='default2', name='Default 2', description='Second default',
+            prompt_instructions='Second', is_default=True
+        )
+
+        # Refresh style1 from database
+        style1.refresh_from_db()
+        self.assertFalse(style1.is_default)
+        self.assertTrue(style2.is_default)
+
+    def test_get_active_styles(self):
+        """get_active_styles returns only active styles."""
+        active = self.CoachingStyle.objects.create(
+            key='active', name='Active', description='Active',
+            prompt_instructions='Active', is_active=True
+        )
+        inactive = self.CoachingStyle.objects.create(
+            key='inactive', name='Inactive', description='Inactive',
+            prompt_instructions='Inactive', is_active=False
+        )
+
+        # Clear cache to ensure fresh query
+        from django.core.cache import cache
+        cache.delete('coaching_styles_all')
+
+        active_styles = self.CoachingStyle.get_active_styles()
+        self.assertEqual(len(active_styles), 1)
+        self.assertEqual(active_styles[0].key, 'active')
+
+    def test_get_by_key_returns_style(self):
+        """get_by_key returns the correct style."""
+        style = self.CoachingStyle.objects.create(
+            key='findme', name='Find Me', description='Findable',
+            prompt_instructions='Found', is_active=True
+        )
+
+        from django.core.cache import cache
+        cache.delete('coaching_style_findme')
+
+        found = self.CoachingStyle.get_by_key('findme')
+        self.assertIsNotNone(found)
+        self.assertEqual(found.key, 'findme')
+
+    def test_get_by_key_falls_back_to_default(self):
+        """get_by_key falls back to default style if key not found."""
+        default_style = self.CoachingStyle.objects.create(
+            key='the_default', name='Default', description='Default style',
+            prompt_instructions='Default', is_active=True, is_default=True
+        )
+
+        from django.core.cache import cache
+        cache.delete('coaching_style_nonexistent')
+
+        found = self.CoachingStyle.get_by_key('nonexistent')
+        self.assertIsNotNone(found)
+        self.assertEqual(found.key, 'the_default')
+
+    def test_get_by_key_falls_back_to_any_active(self):
+        """get_by_key falls back to any active style if no default."""
+        any_style = self.CoachingStyle.objects.create(
+            key='any_active', name='Any Active', description='Any',
+            prompt_instructions='Any', is_active=True, is_default=False
+        )
+
+        from django.core.cache import cache
+        cache.delete('coaching_style_missing')
+
+        found = self.CoachingStyle.get_by_key('missing')
+        self.assertIsNotNone(found)
+        self.assertEqual(found.key, 'any_active')
+
+    def test_get_by_key_returns_none_if_no_styles(self):
+        """get_by_key returns None if no styles exist."""
+        from django.core.cache import cache
+        cache.delete('coaching_style_empty')
+
+        found = self.CoachingStyle.get_by_key('empty')
+        self.assertIsNone(found)
+
+    def test_get_choices_returns_tuples(self):
+        """get_choices returns list of (key, name) tuples."""
+        self.CoachingStyle.objects.create(
+            key='choice1', name='Choice One', description='1',
+            prompt_instructions='1', is_active=True
+        )
+        self.CoachingStyle.objects.create(
+            key='choice2', name='Choice Two', description='2',
+            prompt_instructions='2', is_active=True
+        )
+
+        from django.core.cache import cache
+        cache.delete('coaching_styles_all')
+
+        choices = self.CoachingStyle.get_choices()
+        self.assertEqual(len(choices), 2)
+        self.assertIn(('choice1', 'Choice One'), choices)
+        self.assertIn(('choice2', 'Choice Two'), choices)
+
+    def test_save_clears_cache(self):
+        """Saving a coaching style clears the cache."""
+        from django.core.cache import cache
+
+        # Create and cache a style
+        style = self.CoachingStyle.objects.create(
+            key='cached', name='Cached', description='Cached',
+            prompt_instructions='Cached', is_active=True
+        )
+        cache.set('coaching_styles_all', [style])
+        cache.set('coaching_style_cached', style)
+
+        # Modify and save
+        style.name = 'Updated'
+        style.save()
+
+        # Cache should be cleared
+        self.assertIsNone(cache.get('coaching_styles_all'))
+        self.assertIsNone(cache.get('coaching_style_cached'))
+
+    def test_timestamps_auto_set(self):
+        """created_at and updated_at are automatically set."""
+        style = self.CoachingStyle.objects.create(
+            key='timestamps', name='Timestamps', description='Time',
+            prompt_instructions='Time'
+        )
+        self.assertIsNotNone(style.created_at)
+        self.assertIsNotNone(style.updated_at)

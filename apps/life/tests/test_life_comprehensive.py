@@ -658,7 +658,180 @@ class LifeDeleteTest(LifeTestMixin, TestCase):
         project = self.create_project(self.user)
         task = self.create_task(self.user, project=project)
         task_pk = task.pk
-        
+
         project.delete()
-        
+
         self.assertFalse(Task.objects.filter(pk=task_pk).exists())
+
+
+# =============================================================================
+# 11. LIFE DASHBOARD STATS TESTS
+# =============================================================================
+
+class LifeDashboardStatsTest(LifeTestMixin, TestCase):
+    """Tests for Life dashboard quick stats."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.login_user()
+
+    def test_life_home_has_stats_context(self):
+        """Life home includes stats in context."""
+        response = self.client.get(reverse('life:home'))
+        self.assertIn('stats', response.context)
+
+    def test_stats_includes_active_projects_count(self):
+        """Stats includes active projects count."""
+        self.create_project(self.user, status='active')
+        self.create_project(self.user, status='active')
+        self.create_project(self.user, status='completed')
+
+        response = self.client.get(reverse('life:home'))
+        self.assertEqual(response.context['stats']['active_projects'], 2)
+
+    def test_stats_includes_pending_tasks_count(self):
+        """Stats includes pending (incomplete) tasks count."""
+        self.create_task(self.user, is_completed=False)
+        self.create_task(self.user, is_completed=False)
+        self.create_task(self.user, is_completed=True)
+
+        response = self.client.get(reverse('life:home'))
+        self.assertEqual(response.context['stats']['pending_tasks'], 2)
+
+    def test_stats_includes_completed_tasks_count(self):
+        """Stats includes completed tasks count."""
+        self.create_task(self.user, is_completed=True)
+        self.create_task(self.user, is_completed=True)
+        self.create_task(self.user, is_completed=False)
+
+        response = self.client.get(reverse('life:home'))
+        self.assertEqual(response.context['stats']['completed_tasks'], 2)
+
+    def test_stats_includes_inventory_items_count(self):
+        """Stats includes inventory items count."""
+        from apps.life.models import InventoryItem
+
+        InventoryItem.objects.create(
+            user=self.user,
+            name='Item 1',
+            category='electronics'
+        )
+        InventoryItem.objects.create(
+            user=self.user,
+            name='Item 2',
+            category='furniture'
+        )
+
+        response = self.client.get(reverse('life:home'))
+        self.assertEqual(response.context['stats']['inventory_items'], 2)
+
+    def test_stats_includes_pets_count(self):
+        """Stats includes active pets count."""
+        from apps.life.models import Pet
+
+        Pet.objects.create(
+            user=self.user,
+            name='Fluffy',
+            species='cat',
+            is_active=True
+        )
+        Pet.objects.create(
+            user=self.user,
+            name='Rover',
+            species='dog',
+            is_active=True
+        )
+        Pet.objects.create(
+            user=self.user,
+            name='Old Pet',
+            species='fish',
+            is_active=False
+        )
+
+        response = self.client.get(reverse('life:home'))
+        self.assertEqual(response.context['stats']['pets'], 2)
+
+    def test_stats_includes_maintenance_logs_count(self):
+        """Stats includes maintenance logs count."""
+        from apps.life.models import MaintenanceLog
+
+        MaintenanceLog.objects.create(
+            user=self.user,
+            title='Oil Change',
+            log_type='repair',
+            date=date.today()
+        )
+        MaintenanceLog.objects.create(
+            user=self.user,
+            title='HVAC Service',
+            log_type='maintenance',
+            date=date.today()
+        )
+
+        response = self.client.get(reverse('life:home'))
+        self.assertEqual(response.context['stats']['maintenance_logs'], 2)
+
+    def test_stats_includes_recipes_count(self):
+        """Stats includes recipes count."""
+        from apps.life.models import Recipe
+
+        Recipe.objects.create(
+            user=self.user,
+            title='Spaghetti',
+            ingredients='pasta, sauce',
+            instructions='cook'
+        )
+        Recipe.objects.create(
+            user=self.user,
+            title='Salad',
+            ingredients='lettuce, tomato',
+            instructions='mix'
+        )
+
+        response = self.client.get(reverse('life:home'))
+        self.assertEqual(response.context['stats']['recipes'], 2)
+
+    def test_stats_zero_when_no_data(self):
+        """Stats show zero when no data exists."""
+        response = self.client.get(reverse('life:home'))
+        stats = response.context['stats']
+
+        self.assertEqual(stats['active_projects'], 0)
+        self.assertEqual(stats['pending_tasks'], 0)
+        self.assertEqual(stats['completed_tasks'], 0)
+        self.assertEqual(stats['inventory_items'], 0)
+        self.assertEqual(stats['pets'], 0)
+        self.assertEqual(stats['maintenance_logs'], 0)
+        self.assertEqual(stats['recipes'], 0)
+
+    def test_stats_user_isolation(self):
+        """Stats only count current user's data."""
+        other_user = self.create_user(email='other@example.com')
+
+        # Create data for other user
+        self.create_project(other_user, status='active')
+        self.create_task(other_user, is_completed=True)
+
+        # Create data for current user
+        self.create_project(self.user, status='active')
+
+        response = self.client.get(reverse('life:home'))
+        stats = response.context['stats']
+
+        # Should only see current user's data
+        self.assertEqual(stats['active_projects'], 1)
+        self.assertEqual(stats['completed_tasks'], 0)
+
+    def test_overdue_tasks_count(self):
+        """Dashboard includes overdue tasks count."""
+        past_date = date.today() - timedelta(days=5)
+        future_date = date.today() + timedelta(days=5)
+
+        self.create_task(self.user, due_date=past_date, is_completed=False)
+        self.create_task(self.user, due_date=past_date, is_completed=False)
+        self.create_task(self.user, due_date=future_date, is_completed=False)
+        self.create_task(self.user, due_date=past_date, is_completed=True)
+
+        response = self.client.get(reverse('life:home'))
+        self.assertEqual(response.context['overdue_tasks'], 2)

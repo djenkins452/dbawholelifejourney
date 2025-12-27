@@ -98,8 +98,11 @@ class LifeHomeView(LifeAccessMixin, TemplateView):
         context['stats'] = {
             'active_projects': Project.objects.filter(user=user, status='active').count(),
             'pending_tasks': Task.objects.filter(user=user, is_completed=False).count(),
+            'completed_tasks': Task.objects.filter(user=user, is_completed=True).count(),
             'inventory_items': InventoryItem.objects.filter(user=user).count(),
             'pets': Pet.objects.filter(user=user, is_active=True).count(),
+            'maintenance_logs': MaintenanceLog.objects.filter(user=user).count(),
+            'recipes': Recipe.objects.filter(user=user).count(),
         }
         
         # Overdue tasks

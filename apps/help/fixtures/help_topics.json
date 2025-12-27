@@ -142,5 +142,69 @@
       "created_at": "2024-12-27T00:00:00Z",
       "updated_at": "2024-12-27T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 10,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_HOME",
+      "help_id": "admin-console-overview",
+      "title": "Admin Console Overview",
+      "description": "Manage your Whole Life Journey site.",
+      "content": "## Admin Console\n\nWelcome to the Admin Console - your central hub for site management.\n\n### Quick Stats\n\nThe dashboard shows key metrics:\n- Total users\n- Total journal entries\n- Active themes\n- Categories defined\n\n### Management Sections\n\n**Site Configuration**\nControl site-wide settings like branding, registration options, and default theme.\n\n**Themes**\nCreate and customize visual themes with light and dark mode colors.\n\n**Categories**\nManage content categories for organizing journal entries.\n\n**Users**\nView and manage user accounts.\n\n**Choice Categories**\nDefine dropdown options used throughout the app.\n\n**Test History** (Dev only)\nView test run history and results.\n\n### Django Admin\n\nFor advanced database access, click **\"Django Admin\"** to access the full Django admin interface.",
+      "app_name": "admin_console",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 11,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_SITE_CONFIG",
+      "help_id": "admin-console-site-config",
+      "title": "Site Configuration",
+      "description": "Configure site-wide settings and branding.",
+      "content": "## Site Configuration\n\nControl your site's appearance and behavior.\n\n### Branding\n\n- **Site Name** - Displayed in the browser title bar and headers\n- **Tagline** - Shown on the landing page\n- **Logo** - Upload a custom logo (recommended: 200x64 pixels)\n- **Favicon** - Your browser tab icon (32x32 PNG)\n\n### Registration Settings\n\n- **Allow Registration** - Enable or disable new user signups\n- **Require Email Verification** - Force users to verify their email\n- **Faith Enabled by Default** - Whether new users have Faith module enabled\n\n### Default Theme\n\nSelect which theme new users will see by default.\n\n### Footer & Legal\n\n- **Footer Text** - Copyright notice\n- **Privacy Policy URL** - Link to your privacy policy\n- **Terms URL** - Link to your terms of service\n\n### Saving Changes\n\nClick **Save Configuration** at the bottom. Changes take effect immediately.",
+      "app_name": "admin_console",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 12,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_THEMES",
+      "help_id": "admin-console-themes",
+      "title": "Theme Management",
+      "description": "Create and customize visual themes.",
+      "content": "## Theme Management\n\nThemes control the visual appearance of your site.\n\n### Theme Properties\n\n- **Name** - Displayed to users in preferences\n- **Slug** - Unique identifier (lowercase, no spaces)\n- **Description** - Brief description of the theme's style\n- **Sort Order** - Display position in theme picker\n\n### Color Settings\n\nEach theme has colors for both light and dark modes:\n\n**Primary Colors**\n- Primary - Main brand color\n- Secondary - Supporting color\n- Accent - Highlight color for buttons, links\n\n**Text Colors**\n- Text - Main body text\n- Text Muted - Secondary/subdued text\n\n**Background Colors**\n- Background - Page background\n- Surface - Card/panel backgrounds\n- Border - Lines and dividers\n\n### Creating a Theme\n\n1. Click **\"Add Theme\"**\n2. Fill in the name, slug, and description\n3. Set all color values using hex codes (#ffffff)\n4. Check **Active** to make it available to users\n5. Click **Save**\n\n### Tips\n\n- Test themes in both light and dark mode\n- Ensure good contrast for accessibility\n- Preview changes before activating",
+      "app_name": "admin_console",
+      "order": 3,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 13,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_USERS",
+      "help_id": "admin-console-users",
+      "title": "User Management",
+      "description": "View and manage user accounts.",
+      "content": "## User Management\n\nView and manage all user accounts.\n\n### User List\n\nThe user list shows:\n- Name and email\n- Staff/admin status\n- Date joined\n- Last login\n\n### User Details\n\nClick on a user to view:\n- Account information\n- Activity statistics\n- Preference settings\n\n### Staff Status\n\nUsers with **Staff** status can:\n- Access the Admin Console\n- Access the Django Admin\n- Manage site content\n\n### Creating Users\n\nTo create new admin users, use the Django Admin interface.\n\n### Security Notes\n\n- Only grant staff access to trusted users\n- Review user activity periodically\n- Use strong passwords",
+      "app_name": "admin_console",
+      "order": 4,
+      "is_active": true,
+      "created_at": "2024-12-27T00:00:00Z",
+      "updated_at": "2024-12-27T00:00:00Z"
+    }
   }
 ]

@@ -22,6 +22,7 @@ from django.views.generic import (
 
 from apps.core.models import Category, SiteConfiguration, Theme
 from apps.core.models import ChoiceCategory, ChoiceOption
+from apps.help.mixins import HelpContextMixin
 
 
 class AdminRequiredMixin(UserPassesTestMixin):
@@ -35,11 +36,12 @@ class AdminRequiredMixin(UserPassesTestMixin):
         return redirect('dashboard:home')
 
 
-class AdminDashboardView(AdminRequiredMixin, TemplateView):
+class AdminDashboardView(HelpContextMixin, AdminRequiredMixin, TemplateView):
     """
     Main admin dashboard - overview of site management options.
     """
     template_name = "admin_console/dashboard.html"
+    help_context_id = "ADMIN_CONSOLE_HOME"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -63,11 +65,12 @@ class AdminDashboardView(AdminRequiredMixin, TemplateView):
 # Site Configuration Views
 # ============================================================
 
-class SiteConfigView(AdminRequiredMixin, TemplateView):
+class SiteConfigView(HelpContextMixin, AdminRequiredMixin, TemplateView):
     """
     Edit site configuration (singleton).
     """
     template_name = "admin_console/site_config.html"
+    help_context_id = "ADMIN_CONSOLE_SITE_CONFIG"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -112,11 +115,12 @@ class SiteConfigView(AdminRequiredMixin, TemplateView):
 # Theme Management Views
 # ============================================================
 
-class ThemeListView(AdminRequiredMixin, ListView):
+class ThemeListView(HelpContextMixin, AdminRequiredMixin, ListView):
     """List all themes."""
     model = Theme
     template_name = "admin_console/theme_list.html"
     context_object_name = "themes"
+    help_context_id = "ADMIN_CONSOLE_THEMES"
     
     def get_queryset(self):
         return Theme.objects.all().order_by('sort_order', 'name')
@@ -234,11 +238,12 @@ class CategoryDeleteView(AdminRequiredMixin, DeleteView):
 # User Management Views (Basic)
 # ============================================================
 
-class UserListView(AdminRequiredMixin, ListView):
+class UserListView(HelpContextMixin, AdminRequiredMixin, ListView):
     """List all users."""
     template_name = "admin_console/user_list.html"
     context_object_name = "users"
     paginate_by = 50
+    help_context_id = "ADMIN_CONSOLE_USERS"
     
     def get_queryset(self):
         from apps.users.models import User

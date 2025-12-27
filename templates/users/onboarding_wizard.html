@@ -1,0 +1,1063 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Welcome to Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <!-- Progress Bar -->
+    <div class="wizard-progress">
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{ progress_percent }}%"></div>
+        </div>
+        <div class="progress-steps">
+            {% for step in steps %}
+            <div class="progress-step {% if forloop.counter0 < current_step_index %}completed{% elif forloop.counter0 == current_step_index %}active{% endif %}">
+                <div class="step-dot">
+                    {% if forloop.counter0 < current_step_index %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {% else %}
+                    {{ forloop.counter }}
+                    {% endif %}
+                </div>
+                <span class="step-label">{{ step.title }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Step Content -->
+    <div class="wizard-content">
+        <form method="post" class="wizard-form">
+            {% csrf_token %}
+
+            {% if current_step.id == "welcome" %}
+            <!-- WELCOME STEP -->
+            <div class="step-panel" data-step="welcome">
+                <div class="step-header text-center">
+                    <div class="welcome-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="80" height="80">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                            <path d="M2 17l10 5 10-5"/>
+                            <path d="M2 12l10 5 10-5"/>
+                        </svg>
+                    </div>
+                    <h1>Welcome to Whole Life Journey</h1>
+                    <p class="step-subtitle">This is your personal space to reflect, track what matters, and grow at your own pace.</p>
+                </div>
+
+                <div class="welcome-message">
+                    <p>In just a few moments, we'll help you personalize your experience.</p>
+                    <p>You'll choose how the app looks, which areas of life you want to focus on, and how you'd like to receive encouragement.</p>
+                    <div class="welcome-reassurance">
+                        <div class="reassurance-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4"/>
+                                <path d="M12 8h.01"/>
+                            </svg>
+                        </div>
+                        <p><strong>Everything is optional.</strong> You can skip any step, and you can change any setting later from your preferences.</p>
+                    </div>
+                </div>
+            </div>
+
+            {% elif current_step.id == "theme" %}
+            <!-- THEME STEP -->
+            <div class="step-panel" data-step="theme">
+                <div class="step-header">
+                    <h1>Choose Your Look</h1>
+                    <p class="step-subtitle">Select a visual theme that feels right for you. Each theme shapes the colors and mood of your experience.</p>
+                </div>
+
+                <div class="theme-grid">
+                    {% for key, theme in themes.items %}
+                    <label class="theme-card {% if key == current_theme %}selected{% endif %}">
+                        <input type="radio" name="theme" value="{{ key }}" {% if key == current_theme %}checked{% endif %}>
+                        <div class="theme-preview" style="--theme-primary: {{ theme.primary }}; --theme-secondary: {{ theme.secondary }}; --theme-accent: {{ theme.accent }};">
+                            <div class="preview-header"></div>
+                            <div class="preview-sidebar"></div>
+                            <div class="preview-content">
+                                <div class="preview-card"></div>
+                                <div class="preview-card"></div>
+                            </div>
+                        </div>
+                        <div class="theme-info">
+                            <h3>{{ theme.name }}</h3>
+                            <p>{{ theme.description }}</p>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% elif current_step.id == "modules" %}
+            <!-- MODULES STEP -->
+            <div class="step-panel" data-step="modules">
+                <div class="step-header">
+                    <h1>Choose Your Focus Areas</h1>
+                    <p class="step-subtitle">Enable the areas of life you want to track. You don't need to use everything—start with what matters most to you right now.</p>
+                </div>
+
+                <div class="modules-grid">
+                    {% for module in modules %}
+                    <label class="module-card {% if module.enabled %}selected{% endif %}">
+                        <input type="checkbox" name="{{ module.key }}" {% if module.enabled %}checked{% endif %}>
+                        <div class="module-content">
+                            <div class="module-icon">{{ module.icon }}</div>
+                            <div class="module-text">
+                                <h3>{{ module.name }}</h3>
+                                <p>{{ module.description }}</p>
+                            </div>
+                            <div class="module-toggle">
+                                <div class="toggle-track">
+                                    <div class="toggle-thumb"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <div class="modules-tip">
+                    <p>You can always enable or disable modules later from your preferences.</p>
+                </div>
+            </div>
+
+            {% elif current_step.id == "ai" %}
+            <!-- AI COACHING STEP -->
+            <div class="step-panel" data-step="ai">
+                <div class="step-header">
+                    <h1>AI Coaching</h1>
+                    <p class="step-subtitle">If you'd like, the app can offer gentle insights and encouragement based on what you write. Choose how you'd like it to communicate.</p>
+                </div>
+
+                <div class="ai-toggle-section">
+                    <label class="ai-toggle-card {% if ai_enabled %}enabled{% endif %}">
+                        <div class="ai-toggle-content">
+                            <div class="ai-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                                    <path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/>
+                                    <circle cx="7.5" cy="14.5" r="1.5"/>
+                                    <circle cx="16.5" cy="14.5" r="1.5"/>
+                                </svg>
+                            </div>
+                            <div class="ai-text">
+                                <h3>Enable AI Insights</h3>
+                                <p>Get personalized encouragement and pattern recognition based on your journey.</p>
+                            </div>
+                            <div class="ai-switch">
+                                <input type="checkbox" name="ai_enabled" id="ai_enabled" {% if ai_enabled %}checked{% endif %}>
+                                <label for="ai_enabled" class="toggle-switch">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="coaching-styles-section {% if not ai_enabled %}hidden{% endif %}" id="coaching-styles">
+                    <h2>Choose Your Coaching Voice</h2>
+                    <p class="section-subtitle">Each voice has a different personality. Pick the one that feels most supportive to you.</p>
+
+                    <div class="coaching-grid">
+                        {% for style in coaching_styles %}
+                        <label class="coaching-card {% if style.key == current_coaching_style or style.is_default and not current_coaching_style %}selected{% endif %}">
+                            <input type="radio" name="ai_coaching_style" value="{{ style.key }}"
+                                   {% if style.key == current_coaching_style or style.is_default and not current_coaching_style %}checked{% endif %}>
+                            <div class="coaching-content">
+                                <div class="coaching-icon">{{ style.icon }}</div>
+                                <h3>{{ style.name }}</h3>
+                                <p>{{ style.description }}</p>
+                            </div>
+                        </label>
+                        {% empty %}
+                        <label class="coaching-card selected">
+                            <input type="radio" name="ai_coaching_style" value="supportive" checked>
+                            <div class="coaching-content">
+                                <div class="coaching-icon">🤝</div>
+                                <h3>Supportive Partner</h3>
+                                <p>Balanced warmth with gentle accountability.</p>
+                            </div>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="ai-note">
+                    <p>AI provides thoughts to consider—never medical, financial, or spiritual advice. You can turn this off anytime.</p>
+                </div>
+            </div>
+
+            {% elif current_step.id == "location" %}
+            <!-- LOCATION STEP -->
+            <div class="step-panel" data-step="location">
+                <div class="step-header">
+                    <h1>Set Your Location</h1>
+                    <p class="step-subtitle">This helps us show timestamps correctly and can enable features like local weather.</p>
+                </div>
+
+                <div class="location-form">
+                    <div class="form-group">
+                        <label for="timezone" class="form-label">Timezone</label>
+                        <select name="timezone" id="timezone" class="form-select">
+                            {% for value, label in timezone_choices %}
+                            <option value="{{ value }}" {% if value == current_timezone %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="form-help">So your journal entries and timestamps show the correct time.</p>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="location_city" class="form-label">City (optional)</label>
+                            <input type="text" name="location_city" id="location_city" class="form-input"
+                                   value="{{ current_city }}" placeholder="e.g., Nashville">
+                        </div>
+                        <div class="form-group">
+                            <label for="location_country" class="form-label">State/Country (optional)</label>
+                            <input type="text" name="location_country" id="location_country" class="form-input"
+                                   value="{{ current_country }}" placeholder="e.g., Tennessee, US">
+                        </div>
+                    </div>
+
+                    <p class="location-privacy">Your location is never shared. It's only used to personalize your experience.</p>
+                </div>
+            </div>
+
+            {% elif current_step.id == "complete" %}
+            <!-- COMPLETE STEP -->
+            <div class="step-panel" data-step="complete">
+                <div class="step-header text-center">
+                    <div class="complete-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="80" height="80">
+                            <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                    </div>
+                    <h1>You're All Set!</h1>
+                    <p class="step-subtitle">Your Whole Life Journey is ready. Here's a quick summary of your choices.</p>
+                </div>
+
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="summary-icon">🎨</div>
+                        <div class="summary-text">
+                            <h3>Theme</h3>
+                            <p>{{ summary.theme }}</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon">📦</div>
+                        <div class="summary-text">
+                            <h3>Modules</h3>
+                            <p>{{ summary.modules_enabled }} active</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon">🤖</div>
+                        <div class="summary-text">
+                            <h3>AI Coaching</h3>
+                            <p>{% if summary.ai_enabled %}Enabled{% else %}Disabled{% endif %}</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon">🌍</div>
+                        <div class="summary-text">
+                            <h3>Timezone</h3>
+                            <p>{{ summary.timezone }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="complete-message">
+                    <p>Remember: everything can be changed anytime from your preferences. There's no rush, no right way to do this. Just begin.</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Navigation Buttons -->
+            <div class="wizard-nav">
+                {% if prev_step %}
+                <a href="{% url 'users:onboarding_wizard_step' step=prev_step.id %}" class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                    Back
+                </a>
+                {% else %}
+                <div></div>
+                {% endif %}
+
+                <div class="nav-right">
+                    {% if current_step.id != "complete" and current_step.id != "welcome" %}
+                    <button type="submit" name="action" value="skip" class="btn btn-ghost">
+                        Skip
+                    </button>
+                    {% endif %}
+
+                    {% if current_step.id == "complete" %}
+                    <button type="submit" name="action" value="complete" class="btn btn-primary btn-lg">
+                        Go to Dashboard
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                    {% else %}
+                    <button type="submit" name="action" value="next" class="btn btn-primary">
+                        {% if current_step.id == "welcome" %}Get Started{% else %}Continue{% endif %}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+/* Wizard Container */
+.wizard-container {
+    min-height: calc(100vh - 120px);
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-4);
+}
+
+/* Progress Bar */
+.wizard-progress {
+    margin-bottom: var(--space-8);
+}
+
+.progress-bar {
+    height: 4px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--space-4);
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-accent);
+    transition: width 0.3s ease;
+}
+
+.progress-steps {
+    display: flex;
+    justify-content: space-between;
+}
+
+.progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.step-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    transition: all 0.2s ease;
+}
+
+.step-dot svg {
+    width: 16px;
+    height: 16px;
+}
+
+.progress-step.completed .step-dot {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+}
+
+.progress-step.active .step-dot {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.step-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+.progress-step.active .step-label,
+.progress-step.completed .step-label {
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+@media (max-width: 640px) {
+    .step-label {
+        display: none;
+    }
+
+    .step-dot {
+        width: 28px;
+        height: 28px;
+    }
+}
+
+/* Wizard Content */
+.wizard-content {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border);
+    padding: var(--space-8);
+}
+
+@media (max-width: 640px) {
+    .wizard-content {
+        padding: var(--space-6) var(--space-4);
+    }
+}
+
+/* Step Header */
+.step-header {
+    margin-bottom: var(--space-8);
+}
+
+.step-header.text-center {
+    text-align: center;
+}
+
+.step-header h1 {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-2);
+}
+
+.step-subtitle {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-lg);
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* Welcome Step */
+.welcome-icon {
+    margin: 0 auto var(--space-6);
+    width: 80px;
+    height: 80px;
+    color: var(--color-accent);
+}
+
+.welcome-message {
+    max-width: 500px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.welcome-message p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+    line-height: var(--line-height-relaxed);
+}
+
+.welcome-reassurance {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    text-align: left;
+    margin-top: var(--space-6);
+}
+
+.reassurance-icon {
+    color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.welcome-reassurance p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+}
+
+/* Theme Step */
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--space-4);
+}
+
+.theme-card {
+    cursor: pointer;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.theme-card:hover {
+    border-color: var(--color-accent);
+}
+
+.theme-card.selected {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.theme-card input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.theme-preview {
+    height: 120px;
+    background: var(--theme-secondary);
+    position: relative;
+    overflow: hidden;
+}
+
+.preview-header {
+    height: 24px;
+    background: var(--theme-primary);
+}
+
+.preview-sidebar {
+    position: absolute;
+    left: 0;
+    top: 24px;
+    bottom: 0;
+    width: 40px;
+    background: color-mix(in srgb, var(--theme-primary) 10%, var(--theme-secondary));
+}
+
+.preview-content {
+    position: absolute;
+    left: 50px;
+    top: 34px;
+    right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.preview-card {
+    height: 30px;
+    background: white;
+    border-radius: 4px;
+    border-left: 3px solid var(--theme-accent);
+}
+
+.theme-info {
+    padding: var(--space-4);
+}
+
+.theme-info h3 {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-1);
+}
+
+.theme-info p {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* Modules Step */
+.modules-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.module-card {
+    cursor: pointer;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    transition: all 0.2s ease;
+}
+
+.module-card:hover {
+    border-color: var(--color-accent);
+}
+
+.module-card.selected {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+
+.module-card input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.module-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.module-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.module-text {
+    flex: 1;
+}
+
+.module-text h3 {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-1);
+}
+
+.module-text p {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.module-toggle {
+    flex-shrink: 0;
+}
+
+.toggle-track {
+    width: 48px;
+    height: 28px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    position: relative;
+    transition: background 0.2s ease;
+}
+
+.module-card.selected .toggle-track {
+    background: var(--color-accent);
+}
+
+.toggle-thumb {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: var(--radius-full);
+    top: 4px;
+    left: 4px;
+    transition: transform 0.2s ease;
+}
+
+.module-card.selected .toggle-thumb {
+    transform: translateX(20px);
+}
+
+.modules-tip {
+    text-align: center;
+    margin-top: var(--space-6);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* AI Step */
+.ai-toggle-section {
+    margin-bottom: var(--space-6);
+}
+
+.ai-toggle-card {
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    transition: all 0.2s ease;
+}
+
+.ai-toggle-card.enabled {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+
+.ai-toggle-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.ai-icon {
+    color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.ai-text {
+    flex: 1;
+}
+
+.ai-text h3 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-1);
+}
+
+.ai-text p {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.ai-switch {
+    flex-shrink: 0;
+}
+
+.ai-switch input {
+    display: none;
+}
+
+.ai-switch .toggle-switch {
+    display: block;
+    width: 48px;
+    height: 28px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.ai-switch input:checked + .toggle-switch {
+    background: var(--color-accent);
+}
+
+.ai-switch .toggle-slider {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: var(--radius-full);
+    top: 4px;
+    left: 4px;
+    transition: transform 0.2s ease;
+}
+
+.ai-switch input:checked + .toggle-switch .toggle-slider {
+    transform: translateX(20px);
+}
+
+.coaching-styles-section {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.coaching-styles-section.hidden {
+    display: none;
+}
+
+.coaching-styles-section h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-2);
+}
+
+.section-subtitle {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+
+.coaching-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-3);
+}
+
+.coaching-card {
+    cursor: pointer;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.coaching-card:hover {
+    border-color: var(--color-accent);
+}
+
+.coaching-card.selected {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+
+.coaching-card input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.coaching-icon {
+    font-size: 2rem;
+    margin-bottom: var(--space-2);
+}
+
+.coaching-content h3 {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-1);
+}
+
+.coaching-content p {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.ai-note {
+    margin-top: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+
+.ai-note p {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* Location Step */
+.location-form {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.form-group {
+    margin-bottom: var(--space-5);
+}
+
+.form-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+}
+
+.form-input,
+.form-select {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+.form-input:focus,
+.form-select:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.form-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 480px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.location-privacy {
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-6);
+}
+
+/* Complete Step */
+.complete-icon {
+    margin: 0 auto var(--space-6);
+    width: 80px;
+    height: 80px;
+    color: var(--color-success, #10b981);
+}
+
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-8);
+}
+
+.summary-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+}
+
+.summary-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.summary-text h3 {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.summary-text p {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    margin: 0;
+}
+
+.complete-message {
+    text-align: center;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.complete-message p {
+    color: var(--color-text-muted);
+    line-height: var(--line-height-relaxed);
+}
+
+/* Navigation */
+.wizard-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.nav-right {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    font-size: var(--font-size-base);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: var(--color-accent);
+    color: white;
+}
+
+.btn-primary:hover {
+    filter: brightness(1.1);
+}
+
+.btn-secondary {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover {
+    background: var(--color-background);
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--color-text-muted);
+}
+
+.btn-ghost:hover {
+    color: var(--color-text);
+}
+
+.btn-lg {
+    padding: var(--space-4) var(--space-6);
+    font-size: var(--font-size-lg);
+}
+
+.btn svg {
+    width: 16px;
+    height: 16px;
+}
+</style>
+
+<script>
+// AI Toggle visibility
+document.addEventListener('DOMContentLoaded', function() {
+    const aiToggle = document.getElementById('ai_enabled');
+    const coachingSection = document.getElementById('coaching-styles');
+    const aiCard = document.querySelector('.ai-toggle-card');
+
+    if (aiToggle && coachingSection) {
+        aiToggle.addEventListener('change', function() {
+            if (this.checked) {
+                coachingSection.classList.remove('hidden');
+                aiCard.classList.add('enabled');
+            } else {
+                coachingSection.classList.add('hidden');
+                aiCard.classList.remove('enabled');
+            }
+        });
+    }
+
+    // Module card toggle state
+    document.querySelectorAll('.module-card input').forEach(input => {
+        input.addEventListener('change', function() {
+            this.closest('.module-card').classList.toggle('selected', this.checked);
+        });
+    });
+
+    // Theme card selection
+    document.querySelectorAll('.theme-card input').forEach(input => {
+        input.addEventListener('change', function() {
+            document.querySelectorAll('.theme-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            if (this.checked) {
+                this.closest('.theme-card').classList.add('selected');
+            }
+        });
+    });
+
+    // Coaching card selection
+    document.querySelectorAll('.coaching-card input').forEach(input => {
+        input.addEventListener('change', function() {
+            document.querySelectorAll('.coaching-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            if (this.checked) {
+                this.closest('.coaching-card').classList.add('selected');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if editing %}Edit{% else %}Create{% endif %} Template - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">{% if editing %}Edit{% else %}Create{% endif %} Workout Template</h1>
+    </div>
+
+    <form method="post" class="template-form" id="templateForm">
+        {% csrf_token %}
+
+        <!-- Basic Info -->
+        <div class="form-section">
+            <div class="form-group">
+                <label for="name">Template Name</label>
+                <input type="text" name="name" id="name" value="{{ template.name|default:'' }}" placeholder="e.g., Push Day, Leg Day, HIIT Session" required>
+            </div>
+            <div class="form-group">
+                <label for="description">Description (optional)</label>
+                <textarea name="description" id="description" rows="2" placeholder="Brief description of this workout routine">{{ template.description|default:'' }}</textarea>
+            </div>
+        </div>
+
+        <!-- Exercise Selection -->
+        <div class="form-section">
+            <h2>Exercises</h2>
+            <p class="form-help">Add the exercises you want in this template</p>
+
+            <div id="exerciseContainer">
+                {% if template_exercises %}
+                    {% for te in template_exercises %}
+                        <div class="template-exercise-row" data-exercise-id="{{ te.exercise.pk }}">
+                            <input type="hidden" name="exercise_id" value="{{ te.exercise.pk }}">
+                            <span class="exercise-name">{{ te.exercise.name }}</span>
+                            {% if te.exercise.category == "resistance" %}
+                                <div class="default-sets">
+                                    <label>Default sets:</label>
+                                    <input type="number" name="exercise_{{ te.exercise.pk }}_default_sets" value="{{ te.default_sets }}" min="1" max="10">
+                                </div>
+                            {% endif %}
+                            <button type="button" class="remove-btn" onclick="removeExercise(this)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <!-- Add Exercise UI -->
+            <div class="add-exercise-section">
+                <div class="exercise-selector">
+                    <select id="exerciseSelect" class="exercise-dropdown">
+                        <option value="">Select an exercise to add...</option>
+                        <optgroup label="Resistance Training">
+                            {% regroup resistance_exercises by muscle_group as muscle_groups %}
+                            {% for group in muscle_groups %}
+                                <optgroup label="  {{ group.grouper }}">
+                                    {% for exercise in group.list %}
+                                        <option value="{{ exercise.pk }}" data-category="resistance" data-name="{{ exercise.name }}">{{ exercise.name }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Cardio">
+                            {% for exercise in cardio_exercises %}
+                                <option value="{{ exercise.pk }}" data-category="cardio" data-name="{{ exercise.name }}">{{ exercise.name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                    </select>
+                    <button type="button" class="btn btn-secondary" onclick="addExercise()">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="form-actions">
+            <a href="{% url 'health:template_list' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">{% if editing %}Save Changes{% else %}Create Template{% endif %}</button>
+        </div>
+    </form>
+</div>
+
+<style>
+.template-form {
+    max-width: 700px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+
+.form-section h2 {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--space-2) 0;
+}
+
+.form-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    font-size: var(--font-size-base);
+}
+
+#exerciseContainer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.template-exercise-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.template-exercise-row .exercise-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.default-sets {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.default-sets label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.default-sets input {
+    width: 60px;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.remove-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+}
+
+.remove-btn:hover {
+    background: var(--color-error);
+    color: white;
+}
+
+.remove-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.add-exercise-section {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.exercise-selector {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.exercise-dropdown {
+    flex: 1;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+.btn-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: var(--space-2);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+    .template-exercise-row {
+        flex-wrap: wrap;
+    }
+
+    .default-sets {
+        width: 100%;
+        margin-top: var(--space-2);
+    }
+
+    .exercise-selector {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script>
+function addExercise() {
+    const select = document.getElementById('exerciseSelect');
+    const exerciseId = select.value;
+    const option = select.options[select.selectedIndex];
+    const exerciseName = option.dataset.name;
+    const category = option.dataset.category;
+
+    if (!exerciseId) {
+        alert('Please select an exercise');
+        return;
+    }
+
+    const container = document.getElementById('exerciseContainer');
+
+    // Check if exercise already added
+    if (container.querySelector(`[data-exercise-id="${exerciseId}"]`)) {
+        alert('This exercise is already added');
+        return;
+    }
+
+    let html = `
+        <div class="template-exercise-row" data-exercise-id="${exerciseId}">
+            <input type="hidden" name="exercise_id" value="${exerciseId}">
+            <span class="exercise-name">${exerciseName}</span>
+    `;
+
+    if (category === 'resistance') {
+        html += `
+            <div class="default-sets">
+                <label>Default sets:</label>
+                <input type="number" name="exercise_${exerciseId}_default_sets" value="3" min="1" max="10">
+            </div>
+        `;
+    }
+
+    html += `
+            <button type="button" class="remove-btn" onclick="removeExercise(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', html);
+
+    // Reset select
+    select.value = '';
+}
+
+function removeExercise(btn) {
+    btn.closest('.template-exercise-row').remove();
+}
+</script>
+{% endblock %}

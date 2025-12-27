@@ -144,7 +144,7 @@
                 </h2>
                 <a href="{% url 'health:glucose_create' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
-            
+
             {% if latest_glucose %}
                 <div class="metric-display">
                     <span class="metric-value">{{ latest_glucose.value }}</span>
@@ -152,11 +152,11 @@
                 </div>
                 <p class="metric-context">{{ latest_glucose.get_context_display }}</p>
                 <p class="metric-date">{{ latest_glucose.recorded_at|date:"M j" }}</p>
-                
+
                 {% if avg_fasting_glucose %}
                     <p class="metric-avg">Avg fasting: {{ avg_fasting_glucose }} {{ latest_glucose.unit }}</p>
                 {% endif %}
-                
+
                 <a href="{% url 'health:glucose_list' %}" class="card-link">View history</a>
             {% else %}
                 <p class="text-muted">No glucose logged yet.</p>
@@ -164,6 +164,27 @@
                     Log your first reading
                 </a>
             {% endif %}
+        </div>
+
+        <!-- Fitness Card -->
+        <div class="health-card fitness-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6.5 6.5L17.5 17.5M6.5 17.5L17.5 6.5"/>
+                        <rect x="3" y="10" width="4" height="4" rx="1"/>
+                        <rect x="17" y="10" width="4" height="4" rx="1"/>
+                    </svg>
+                    Fitness
+                </h2>
+                <a href="{% url 'health:workout_create' %}" class="btn btn-primary btn-sm">Log Workout</a>
+            </div>
+
+            <div class="fitness-quick-stats">
+                <p class="fitness-stat">Track your workouts, cardio, and strength training</p>
+            </div>
+
+            <a href="{% url 'health:fitness_home' %}" class="card-link">Go to Fitness</a>
         </div>
     </div>
 </div>

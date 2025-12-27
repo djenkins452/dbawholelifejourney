@@ -20,6 +20,11 @@ from django.views.generic import (
     View,
 )
 
+from django.http import JsonResponse
+from django.template.loader import render_to_string
+
+from apps.core.utils import get_user_today
+
 from .forms import (
     FastingWindowForm,
     GlucoseEntryForm,
@@ -27,7 +32,20 @@ from .forms import (
     QuickWeightForm,
     WeightEntryForm,
 )
-from .models import FastingWindow, GlucoseEntry, HeartRateEntry, WeightEntry
+from .models import (
+    CardioDetails,
+    Exercise,
+    ExerciseSet,
+    FastingWindow,
+    GlucoseEntry,
+    HeartRateEntry,
+    PersonalRecord,
+    TemplateExercise,
+    WeightEntry,
+    WorkoutExercise,
+    WorkoutSession,
+    WorkoutTemplate,
+)
 
 
 class HealthHomeView(LoginRequiredMixin, TemplateView):
@@ -514,7 +532,7 @@ class QuickLogView(LoginRequiredMixin, TemplateView):
 
     def post(self, request, *args, **kwargs):
         log_type = request.POST.get("type")
-        
+
         if log_type == "weight":
             form = QuickWeightForm(request.POST)
             if form.is_valid():
@@ -522,5 +540,671 @@ class QuickLogView(LoginRequiredMixin, TemplateView):
                 entry.user = request.user
                 entry.save()
                 messages.success(request, "Weight logged!")
-        
+
         return redirect("dashboard:home")
+
+
+# =============================================================================
+# Fitness Views
+# =============================================================================
+
+
+class FitnessHomeView(LoginRequiredMixin, TemplateView):
+    """
+    Fitness module home - overview of workouts and progress.
+    """
+
+    template_name = "health/fitness/home.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = get_user_today(user)
+        week_ago = today - timedelta(days=7)
+
+        # Recent workouts
+        context["recent_workouts"] = WorkoutSession.objects.filter(
+            user=user
+        ).select_related("user")[:5]
+
+        # This week's workout count
+        context["workouts_this_week"] = WorkoutSession.objects.filter(
+            user=user,
+            date__gte=week_ago,
+        ).count()
+
+        # User's templates
+        context["templates"] = WorkoutTemplate.objects.filter(user=user)[:5]
+
+        # Recent PRs
+        context["recent_prs"] = PersonalRecord.objects.filter(
+            user=user
+        ).select_related("exercise")[:5]
+
+        # Exercises for quick add
+        context["exercises"] = Exercise.objects.filter(is_active=True)
+
+        return context
+
+
+class WorkoutListView(LoginRequiredMixin, ListView):
+    """
+    List all workout sessions.
+    """
+
+    model = WorkoutSession
+    template_name = "health/fitness/workout_list.html"
+    context_object_name = "workouts"
+    paginate_by = 20
+
+    def get_queryset(self):
+        return WorkoutSession.objects.filter(user=self.request.user)
+
+
+class WorkoutDetailView(LoginRequiredMixin, TemplateView):
+    """
+    View a completed workout session.
+    """
+
+    template_name = "health/fitness/workout_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        workout = get_object_or_404(
+            WorkoutSession.objects.filter(user=self.request.user),
+            pk=self.kwargs["pk"],
+        )
+        context["workout"] = workout
+        context["workout_exercises"] = workout.workout_exercises.select_related(
+            "exercise"
+        ).prefetch_related("sets", "cardio_details")
+        return context
+
+
+class WorkoutCreateView(LoginRequiredMixin, TemplateView):
+    """
+    Create a new workout session.
+    """
+
+    template_name = "health/fitness/workout_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = get_user_today(user)
+
+        # Pre-populate date with today
+        context["date"] = today
+
+        # Get exercises grouped by category
+        context["resistance_exercises"] = Exercise.objects.filter(
+            category="resistance", is_active=True
+        ).order_by("muscle_group", "name")
+        context["cardio_exercises"] = Exercise.objects.filter(
+            category="cardio", is_active=True
+        ).order_by("name")
+
+        # User's templates for quick start
+        context["templates"] = WorkoutTemplate.objects.filter(user=user)
+
+        # Check if starting from a template
+        template_id = self.request.GET.get("template")
+        if template_id:
+            try:
+                template = WorkoutTemplate.objects.get(pk=template_id, user=user)
+                context["from_template"] = template
+            except WorkoutTemplate.DoesNotExist:
+                pass
+
+        # Check if copying a previous workout
+        copy_id = self.request.GET.get("copy")
+        if copy_id:
+            try:
+                copy_from = WorkoutSession.objects.get(pk=copy_id, user=user)
+                context["copy_from"] = copy_from
+            except WorkoutSession.DoesNotExist:
+                pass
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        today = get_user_today(user)
+
+        # Create workout session
+        workout = WorkoutSession.objects.create(
+            user=user,
+            date=request.POST.get("date") or today,
+            name=request.POST.get("name", ""),
+            notes=request.POST.get("notes", ""),
+        )
+
+        # Process exercises
+        exercise_ids = request.POST.getlist("exercise_id")
+        for idx, exercise_id in enumerate(exercise_ids):
+            try:
+                exercise = Exercise.objects.get(pk=exercise_id)
+                workout_exercise = WorkoutExercise.objects.create(
+                    session=workout,
+                    exercise=exercise,
+                    order=idx,
+                )
+
+                if exercise.category == "resistance":
+                    # Process sets for this exercise
+                    set_idx = 1
+                    while True:
+                        weight_key = f"exercise_{exercise_id}_set_{set_idx}_weight"
+                        reps_key = f"exercise_{exercise_id}_set_{set_idx}_reps"
+
+                        if weight_key not in request.POST:
+                            break
+
+                        weight = request.POST.get(weight_key)
+                        reps = request.POST.get(reps_key)
+
+                        if weight or reps:
+                            ExerciseSet.objects.create(
+                                workout_exercise=workout_exercise,
+                                set_number=set_idx,
+                                weight=Decimal(weight) if weight else None,
+                                reps=int(reps) if reps else None,
+                            )
+                        set_idx += 1
+
+                elif exercise.category == "cardio":
+                    # Process cardio details
+                    duration = request.POST.get(f"exercise_{exercise_id}_duration")
+                    distance = request.POST.get(f"exercise_{exercise_id}_distance")
+                    intensity = request.POST.get(
+                        f"exercise_{exercise_id}_intensity", "medium"
+                    )
+
+                    CardioDetails.objects.create(
+                        workout_exercise=workout_exercise,
+                        duration_minutes=int(duration) if duration else None,
+                        distance=Decimal(distance) if distance else None,
+                        intensity=intensity,
+                    )
+
+            except Exercise.DoesNotExist:
+                continue
+
+        messages.success(request, "Workout logged!")
+        return redirect("health:workout_detail", pk=workout.pk)
+
+
+class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
+    """
+    Edit an existing workout session.
+    """
+
+    template_name = "health/fitness/workout_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        workout = get_object_or_404(
+            WorkoutSession.objects.filter(user=user),
+            pk=self.kwargs["pk"],
+        )
+        context["workout"] = workout
+        context["workout_exercises"] = workout.workout_exercises.select_related(
+            "exercise"
+        ).prefetch_related("sets", "cardio_details")
+        context["date"] = workout.date
+        context["editing"] = True
+
+        # Get exercises grouped by category
+        context["resistance_exercises"] = Exercise.objects.filter(
+            category="resistance", is_active=True
+        ).order_by("muscle_group", "name")
+        context["cardio_exercises"] = Exercise.objects.filter(
+            category="cardio", is_active=True
+        ).order_by("name")
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+
+        workout = get_object_or_404(
+            WorkoutSession.objects.filter(user=user),
+            pk=self.kwargs["pk"],
+        )
+
+        # Update basic info
+        workout.date = request.POST.get("date") or workout.date
+        workout.name = request.POST.get("name", "")
+        workout.notes = request.POST.get("notes", "")
+        workout.save()
+
+        # Clear existing exercises and recreate
+        workout.workout_exercises.all().delete()
+
+        # Process exercises (same as create)
+        exercise_ids = request.POST.getlist("exercise_id")
+        for idx, exercise_id in enumerate(exercise_ids):
+            try:
+                exercise = Exercise.objects.get(pk=exercise_id)
+                workout_exercise = WorkoutExercise.objects.create(
+                    session=workout,
+                    exercise=exercise,
+                    order=idx,
+                )
+
+                if exercise.category == "resistance":
+                    set_idx = 1
+                    while True:
+                        weight_key = f"exercise_{exercise_id}_set_{set_idx}_weight"
+                        reps_key = f"exercise_{exercise_id}_set_{set_idx}_reps"
+
+                        if weight_key not in request.POST:
+                            break
+
+                        weight = request.POST.get(weight_key)
+                        reps = request.POST.get(reps_key)
+
+                        if weight or reps:
+                            ExerciseSet.objects.create(
+                                workout_exercise=workout_exercise,
+                                set_number=set_idx,
+                                weight=Decimal(weight) if weight else None,
+                                reps=int(reps) if reps else None,
+                            )
+                        set_idx += 1
+
+                elif exercise.category == "cardio":
+                    duration = request.POST.get(f"exercise_{exercise_id}_duration")
+                    distance = request.POST.get(f"exercise_{exercise_id}_distance")
+                    intensity = request.POST.get(
+                        f"exercise_{exercise_id}_intensity", "medium"
+                    )
+
+                    CardioDetails.objects.create(
+                        workout_exercise=workout_exercise,
+                        duration_minutes=int(duration) if duration else None,
+                        distance=Decimal(distance) if distance else None,
+                        intensity=intensity,
+                    )
+
+            except Exercise.DoesNotExist:
+                continue
+
+        messages.success(request, "Workout updated!")
+        return redirect("health:workout_detail", pk=workout.pk)
+
+
+class WorkoutDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a workout session.
+    """
+
+    def post(self, request, pk):
+        workout = get_object_or_404(
+            WorkoutSession.objects.filter(user=request.user),
+            pk=pk,
+        )
+        workout.soft_delete()
+        messages.success(request, "Workout deleted.")
+        return redirect("health:fitness_home")
+
+
+class WorkoutCopyView(LoginRequiredMixin, View):
+    """
+    Copy a previous workout as a new session.
+    """
+
+    def get(self, request, pk):
+        return redirect(f"{reverse_lazy('health:workout_create')}?copy={pk}")
+
+
+# Workout Templates
+
+
+class TemplateListView(LoginRequiredMixin, ListView):
+    """
+    List workout templates.
+    """
+
+    model = WorkoutTemplate
+    template_name = "health/fitness/template_list.html"
+    context_object_name = "templates"
+
+    def get_queryset(self):
+        return WorkoutTemplate.objects.filter(user=self.request.user)
+
+
+class TemplateCreateView(LoginRequiredMixin, TemplateView):
+    """
+    Create a new workout template.
+    """
+
+    template_name = "health/fitness/template_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        context["resistance_exercises"] = Exercise.objects.filter(
+            category="resistance", is_active=True
+        ).order_by("muscle_group", "name")
+        context["cardio_exercises"] = Exercise.objects.filter(
+            category="cardio", is_active=True
+        ).order_by("name")
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+
+        template = WorkoutTemplate.objects.create(
+            user=user,
+            name=request.POST.get("name", ""),
+            description=request.POST.get("description", ""),
+        )
+
+        # Process exercises
+        exercise_ids = request.POST.getlist("exercise_id")
+        for idx, exercise_id in enumerate(exercise_ids):
+            try:
+                exercise = Exercise.objects.get(pk=exercise_id)
+                default_sets = request.POST.get(
+                    f"exercise_{exercise_id}_default_sets", 3
+                )
+                TemplateExercise.objects.create(
+                    template=template,
+                    exercise=exercise,
+                    order=idx,
+                    default_sets=int(default_sets) if default_sets else 3,
+                )
+            except Exercise.DoesNotExist:
+                continue
+
+        messages.success(request, f"Template '{template.name}' created!")
+        return redirect("health:template_list")
+
+
+class TemplateDetailView(LoginRequiredMixin, TemplateView):
+    """
+    View a workout template.
+    """
+
+    template_name = "health/fitness/template_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        template = get_object_or_404(
+            WorkoutTemplate.objects.filter(user=self.request.user),
+            pk=self.kwargs["pk"],
+        )
+        context["template"] = template
+        context["template_exercises"] = template.template_exercises.select_related(
+            "exercise"
+        )
+        return context
+
+
+class TemplateUpdateView(LoginRequiredMixin, TemplateView):
+    """
+    Edit a workout template.
+    """
+
+    template_name = "health/fitness/template_form.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        template = get_object_or_404(
+            WorkoutTemplate.objects.filter(user=self.request.user),
+            pk=self.kwargs["pk"],
+        )
+        context["template"] = template
+        context["template_exercises"] = template.template_exercises.select_related(
+            "exercise"
+        )
+        context["editing"] = True
+
+        context["resistance_exercises"] = Exercise.objects.filter(
+            category="resistance", is_active=True
+        ).order_by("muscle_group", "name")
+        context["cardio_exercises"] = Exercise.objects.filter(
+            category="cardio", is_active=True
+        ).order_by("name")
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+
+        template = get_object_or_404(
+            WorkoutTemplate.objects.filter(user=user),
+            pk=self.kwargs["pk"],
+        )
+
+        template.name = request.POST.get("name", "")
+        template.description = request.POST.get("description", "")
+        template.save()
+
+        # Clear and recreate exercises
+        template.template_exercises.all().delete()
+
+        exercise_ids = request.POST.getlist("exercise_id")
+        for idx, exercise_id in enumerate(exercise_ids):
+            try:
+                exercise = Exercise.objects.get(pk=exercise_id)
+                default_sets = request.POST.get(
+                    f"exercise_{exercise_id}_default_sets", 3
+                )
+                TemplateExercise.objects.create(
+                    template=template,
+                    exercise=exercise,
+                    order=idx,
+                    default_sets=int(default_sets) if default_sets else 3,
+                )
+            except Exercise.DoesNotExist:
+                continue
+
+        messages.success(request, f"Template '{template.name}' updated!")
+        return redirect("health:template_detail", pk=template.pk)
+
+
+class TemplateDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a workout template.
+    """
+
+    def post(self, request, pk):
+        template = get_object_or_404(
+            WorkoutTemplate.objects.filter(user=request.user),
+            pk=pk,
+        )
+        name = template.name
+        template.soft_delete()
+        messages.success(request, f"Template '{name}' deleted.")
+        return redirect("health:template_list")
+
+
+class UseTemplateView(LoginRequiredMixin, View):
+    """
+    Start a new workout from a template.
+    """
+
+    def get(self, request, pk):
+        return redirect(f"{reverse_lazy('health:workout_create')}?template={pk}")
+
+
+# Personal Records
+
+
+class PersonalRecordsView(LoginRequiredMixin, TemplateView):
+    """
+    View personal records.
+    """
+
+    template_name = "health/fitness/personal_records.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Get PRs grouped by exercise
+        prs = PersonalRecord.objects.filter(user=user).select_related("exercise")
+
+        # Group by exercise
+        pr_by_exercise = {}
+        for pr in prs:
+            if pr.exercise.name not in pr_by_exercise:
+                pr_by_exercise[pr.exercise.name] = pr
+            elif pr.estimated_1rm > pr_by_exercise[pr.exercise.name].estimated_1rm:
+                pr_by_exercise[pr.exercise.name] = pr
+
+        context["prs"] = sorted(
+            pr_by_exercise.values(), key=lambda x: x.exercise.name
+        )
+        return context
+
+
+# Progress Tracking
+
+
+class ProgressView(LoginRequiredMixin, TemplateView):
+    """
+    View workout progress and statistics.
+    """
+
+    template_name = "health/fitness/progress.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = get_user_today(user)
+
+        # Workout frequency
+        last_30_days = today - timedelta(days=30)
+        context["workouts_30d"] = WorkoutSession.objects.filter(
+            user=user,
+            date__gte=last_30_days,
+        ).count()
+
+        # Total volume last 30 days
+        workouts = WorkoutSession.objects.filter(
+            user=user,
+            date__gte=last_30_days,
+        )
+        total_volume = sum(w.total_volume for w in workouts)
+        context["total_volume_30d"] = round(total_volume)
+
+        # Get unique exercises the user has done
+        exercise_ids = (
+            WorkoutExercise.objects.filter(session__user=user)
+            .values_list("exercise_id", flat=True)
+            .distinct()
+        )
+        context["exercises_done"] = Exercise.objects.filter(
+            pk__in=exercise_ids, category="resistance"
+        ).order_by("name")
+
+        # Selected exercise progress
+        exercise_id = self.request.GET.get("exercise")
+        if exercise_id:
+            try:
+                exercise = Exercise.objects.get(pk=exercise_id)
+                context["selected_exercise"] = exercise
+
+                # Get all sets for this exercise
+                workout_exercises = WorkoutExercise.objects.filter(
+                    session__user=user,
+                    exercise=exercise,
+                ).select_related("session")
+
+                progress_data = []
+                for we in workout_exercises:
+                    for s in we.sets.all():
+                        if s.weight and s.reps:
+                            progress_data.append(
+                                {
+                                    "date": we.session.date.isoformat(),
+                                    "weight": float(s.weight),
+                                    "reps": s.reps,
+                                    "volume": s.volume,
+                                }
+                            )
+
+                context["progress_data"] = progress_data
+
+            except Exercise.DoesNotExist:
+                pass
+
+        return context
+
+
+# HTMX Endpoints
+
+
+def exercise_list_json(request):
+    """
+    Return exercises as JSON for autocomplete.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"exercises": []})
+
+    category = request.GET.get("category", "")
+    exercises = Exercise.objects.filter(is_active=True)
+
+    if category:
+        exercises = exercises.filter(category=category)
+
+    data = [
+        {
+            "id": e.id,
+            "name": e.name,
+            "category": e.category,
+            "muscle_group": e.muscle_group,
+        }
+        for e in exercises
+    ]
+
+    return JsonResponse({"exercises": data})
+
+
+def add_exercise_htmx(request, workout_pk=None):
+    """
+    HTMX endpoint to add an exercise row to workout form.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    exercise_id = request.POST.get("exercise_id")
+    if not exercise_id:
+        return JsonResponse({"error": "No exercise selected"}, status=400)
+
+    try:
+        exercise = Exercise.objects.get(pk=exercise_id)
+    except Exercise.DoesNotExist:
+        return JsonResponse({"error": "Exercise not found"}, status=404)
+
+    html = render_to_string(
+        "health/fitness/partials/exercise_row.html",
+        {"exercise": exercise, "set_count": 3},
+        request=request,
+    )
+
+    return JsonResponse({"html": html})
+
+
+def add_set_htmx(request, exercise_id):
+    """
+    HTMX endpoint to add a set row to an exercise.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    set_number = int(request.POST.get("set_number", 1))
+
+    html = render_to_string(
+        "health/fitness/partials/set_row.html",
+        {"exercise_id": exercise_id, "set_number": set_number},
+        request=request,
+    )
+
+    return JsonResponse({"html": html})

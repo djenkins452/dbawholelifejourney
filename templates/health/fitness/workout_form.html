@@ -1,0 +1,540 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if editing %}Edit{% else %}Log{% endif %} Workout - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">{% if editing %}Edit{% else %}Log{% endif %} Workout</h1>
+    </div>
+
+    <form method="post" class="workout-form" id="workoutForm">
+        {% csrf_token %}
+
+        <!-- Basic Info -->
+        <div class="form-section">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="date">Date</label>
+                    <input type="date" name="date" id="date" value="{{ date|date:'Y-m-d' }}" required>
+                </div>
+                <div class="form-group flex-2">
+                    <label for="name">Workout Name (optional)</label>
+                    <input type="text" name="name" id="name" value="{{ workout.name|default:'' }}" placeholder="e.g., Push Day, Morning Run">
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Start from Template -->
+        {% if templates and not editing %}
+            <div class="quick-start-section">
+                <span class="section-label">Quick start from template:</span>
+                <div class="template-chips">
+                    {% for template in templates %}
+                        <a href="?template={{ template.pk }}" class="template-chip {% if from_template.pk == template.pk %}active{% endif %}">
+                            {{ template.name }}
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Exercise Selection -->
+        <div class="form-section">
+            <h2>Exercises</h2>
+
+            <div id="exerciseContainer">
+                {% if from_template %}
+                    <!-- Pre-populate from template -->
+                    {% for te in from_template.template_exercises.all %}
+                        {% include "health/fitness/partials/exercise_row.html" with exercise=te.exercise set_count=te.default_sets %}
+                    {% endfor %}
+                {% elif copy_from %}
+                    <!-- Pre-populate from copied workout -->
+                    {% for we in copy_from.workout_exercises.all %}
+                        {% include "health/fitness/partials/exercise_row.html" with exercise=we.exercise existing_sets=we.sets.all is_cardio=we.exercise.category|add:""|lower|slice:":6"|make_list|first cardio_details=we.cardio_details %}
+                    {% endfor %}
+                {% elif workout_exercises %}
+                    <!-- Existing workout exercises (editing) -->
+                    {% for we in workout_exercises %}
+                        {% include "health/fitness/partials/exercise_row.html" with exercise=we.exercise existing_sets=we.sets.all cardio_details=we.cardio_details %}
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <!-- Add Exercise UI -->
+            <div class="add-exercise-section">
+                <div class="exercise-selector">
+                    <select id="exerciseSelect" class="exercise-dropdown">
+                        <option value="">Select an exercise...</option>
+                        <optgroup label="Resistance Training">
+                            {% regroup resistance_exercises by muscle_group as muscle_groups %}
+                            {% for group in muscle_groups %}
+                                <optgroup label="  {{ group.grouper }}">
+                                    {% for exercise in group.list %}
+                                        <option value="{{ exercise.pk }}" data-category="resistance">{{ exercise.name }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Cardio">
+                            {% for exercise in cardio_exercises %}
+                                <option value="{{ exercise.pk }}" data-category="cardio">{{ exercise.name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                    </select>
+                    <button type="button" class="btn btn-secondary" onclick="addExercise()">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add Exercise
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-section">
+            <div class="form-group">
+                <label for="notes">Workout Notes (optional)</label>
+                <textarea name="notes" id="notes" rows="3" placeholder="How did it feel? Any observations?">{{ workout.notes|default:'' }}</textarea>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="form-actions">
+            <a href="{% if editing %}{% url 'health:workout_detail' workout.pk %}{% else %}{% url 'health:fitness_home' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">{% if editing %}Save Changes{% else %}Log Workout{% endif %}</button>
+        </div>
+    </form>
+</div>
+
+<!-- Exercise Row Template (for JS) -->
+<template id="resistanceTemplate">
+    <div class="exercise-row" data-exercise-id="EXERCISE_ID">
+        <input type="hidden" name="exercise_id" value="EXERCISE_ID">
+        <div class="exercise-header">
+            <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <button type="button" class="remove-btn" onclick="removeExercise(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="sets-container">
+            <div class="set-row">
+                <span class="set-number">Set 1</span>
+                <div class="set-inputs">
+                    <input type="number" name="exercise_EXERCISE_ID_set_1_weight" placeholder="Weight" step="0.5" class="weight-input">
+                    <span class="input-suffix">lbs</span>
+                    <input type="number" name="exercise_EXERCISE_ID_set_1_reps" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                </div>
+            </div>
+            <div class="set-row">
+                <span class="set-number">Set 2</span>
+                <div class="set-inputs">
+                    <input type="number" name="exercise_EXERCISE_ID_set_2_weight" placeholder="Weight" step="0.5" class="weight-input">
+                    <span class="input-suffix">lbs</span>
+                    <input type="number" name="exercise_EXERCISE_ID_set_2_reps" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                </div>
+            </div>
+            <div class="set-row">
+                <span class="set-number">Set 3</span>
+                <div class="set-inputs">
+                    <input type="number" name="exercise_EXERCISE_ID_set_3_weight" placeholder="Weight" step="0.5" class="weight-input">
+                    <span class="input-suffix">lbs</span>
+                    <input type="number" name="exercise_EXERCISE_ID_set_3_reps" placeholder="Reps" class="reps-input">
+                    <span class="input-suffix">reps</span>
+                </div>
+            </div>
+        </div>
+        <button type="button" class="add-set-btn" onclick="addSet(this)">+ Add Set</button>
+    </div>
+</template>
+
+<template id="cardioTemplate">
+    <div class="exercise-row cardio-row" data-exercise-id="EXERCISE_ID">
+        <input type="hidden" name="exercise_id" value="EXERCISE_ID">
+        <div class="exercise-header">
+            <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <button type="button" class="remove-btn" onclick="removeExercise(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="cardio-inputs">
+            <div class="cardio-field">
+                <label>Duration</label>
+                <div class="input-with-suffix">
+                    <input type="number" name="exercise_EXERCISE_ID_duration" placeholder="0">
+                    <span class="input-suffix">min</span>
+                </div>
+            </div>
+            <div class="cardio-field">
+                <label>Distance</label>
+                <div class="input-with-suffix">
+                    <input type="number" name="exercise_EXERCISE_ID_distance" step="0.1" placeholder="0">
+                    <span class="input-suffix">mi</span>
+                </div>
+            </div>
+            <div class="cardio-field">
+                <label>Intensity</label>
+                <select name="exercise_EXERCISE_ID_intensity">
+                    <option value="easy">Easy</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</template>
+
+<style>
+.workout-form {
+    max-width: 800px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+
+.form-section h2 {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.form-row {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.form-group {
+    flex: 1;
+}
+
+.form-group.flex-2 {
+    flex: 2;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    font-size: var(--font-size-base);
+}
+
+.quick-start-section {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.section-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.template-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.template-chip {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    text-decoration: none;
+    color: inherit;
+}
+
+.template-chip:hover,
+.template-chip.active {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+#exerciseContainer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.exercise-row {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+}
+
+.exercise-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.exercise-name {
+    font-size: var(--font-size-base);
+    margin: 0;
+}
+
+.remove-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+}
+
+.remove-btn:hover {
+    background: var(--color-error);
+    color: white;
+}
+
+.remove-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.sets-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.set-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.set-number {
+    min-width: 50px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.set-inputs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.weight-input,
+.reps-input {
+    width: 80px;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.input-suffix {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.add-set-btn {
+    margin-top: var(--space-2);
+    padding: var(--space-2);
+    background: none;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+}
+
+.add-set-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.cardio-inputs {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.cardio-field {
+    flex: 1;
+    min-width: 120px;
+}
+
+.cardio-field label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.input-with-suffix {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.input-with-suffix input {
+    flex: 1;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.cardio-field select {
+    width: 100%;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.add-exercise-section {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.exercise-selector {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.exercise-dropdown {
+    flex: 1;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+.btn-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: var(--space-2);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        flex-direction: column;
+    }
+
+    .set-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .exercise-selector {
+        flex-direction: column;
+    }
+
+    .cardio-inputs {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script>
+function addExercise() {
+    const select = document.getElementById('exerciseSelect');
+    const exerciseId = select.value;
+    const exerciseName = select.options[select.selectedIndex].text;
+    const category = select.options[select.selectedIndex].dataset.category;
+
+    if (!exerciseId) {
+        alert('Please select an exercise');
+        return;
+    }
+
+    const container = document.getElementById('exerciseContainer');
+
+    // Check if exercise already added
+    if (container.querySelector(`[data-exercise-id="${exerciseId}"]`)) {
+        alert('This exercise is already added');
+        return;
+    }
+
+    let template;
+    if (category === 'cardio') {
+        template = document.getElementById('cardioTemplate').innerHTML;
+    } else {
+        template = document.getElementById('resistanceTemplate').innerHTML;
+    }
+
+    // Replace placeholders
+    template = template.replace(/EXERCISE_ID/g, exerciseId);
+    template = template.replace(/EXERCISE_NAME/g, exerciseName);
+
+    container.insertAdjacentHTML('beforeend', template);
+
+    // Reset select
+    select.value = '';
+}
+
+function removeExercise(btn) {
+    btn.closest('.exercise-row').remove();
+}
+
+function addSet(btn) {
+    const container = btn.previousElementSibling;
+    const setCount = container.querySelectorAll('.set-row').length + 1;
+    const exerciseId = btn.closest('.exercise-row').dataset.exerciseId;
+
+    const setHtml = `
+        <div class="set-row">
+            <span class="set-number">Set ${setCount}</span>
+            <div class="set-inputs">
+                <input type="number" name="exercise_${exerciseId}_set_${setCount}_weight" placeholder="Weight" step="0.5" class="weight-input">
+                <span class="input-suffix">lbs</span>
+                <input type="number" name="exercise_${exerciseId}_set_${setCount}_reps" placeholder="Reps" class="reps-input">
+                <span class="input-suffix">reps</span>
+            </div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', setHtml);
+}
+</script>
+{% endblock %}

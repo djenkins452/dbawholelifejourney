@@ -1,0 +1,89 @@
+{% comment %}
+Exercise row partial for workout form.
+Used when pre-populating from template, copying a workout, or editing.
+
+Variables:
+- exercise: The Exercise object
+- set_count: Number of default sets (from template)
+- existing_sets: QuerySet of existing sets (from copy or edit)
+- cardio_details: CardioDetails object (for cardio exercises)
+{% endcomment %}
+
+<div class="exercise-row {% if exercise.category == 'cardio' %}cardio-row{% endif %}" data-exercise-id="{{ exercise.pk }}">
+    <input type="hidden" name="exercise_id" value="{{ exercise.pk }}">
+    <div class="exercise-header">
+        <h3 class="exercise-name">{{ exercise.name }}</h3>
+        <button type="button" class="remove-btn" onclick="removeExercise(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+
+    {% if exercise.category == "resistance" %}
+        <div class="sets-container">
+            {% if existing_sets %}
+                {% for set in existing_sets %}
+                    <div class="set-row">
+                        <span class="set-number">Set {{ set.set_number }}</span>
+                        <div class="set-inputs">
+                            <input type="number" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_weight"
+                                   value="{{ set.weight|default:'' }}" placeholder="Weight" step="0.5" class="weight-input">
+                            <span class="input-suffix">lbs</span>
+                            <input type="number" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_reps"
+                                   value="{{ set.reps|default:'' }}" placeholder="Reps" class="reps-input">
+                            <span class="input-suffix">reps</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                {% with default_sets=set_count|default:3 %}
+                    {% for i in "123456789"|make_list %}
+                        {% if forloop.counter <= default_sets %}
+                            <div class="set-row">
+                                <span class="set-number">Set {{ forloop.counter }}</span>
+                                <div class="set-inputs">
+                                    <input type="number" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_weight"
+                                           placeholder="Weight" step="0.5" class="weight-input">
+                                    <span class="input-suffix">lbs</span>
+                                    <input type="number" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_reps"
+                                           placeholder="Reps" class="reps-input">
+                                    <span class="input-suffix">reps</span>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endwith %}
+            {% endif %}
+        </div>
+        <button type="button" class="add-set-btn" onclick="addSet(this)">+ Add Set</button>
+    {% else %}
+        <div class="cardio-inputs">
+            <div class="cardio-field">
+                <label>Duration</label>
+                <div class="input-with-suffix">
+                    <input type="number" name="exercise_{{ exercise.pk }}_duration"
+                           value="{{ cardio_details.duration_minutes|default:'' }}" placeholder="0">
+                    <span class="input-suffix">min</span>
+                </div>
+            </div>
+            <div class="cardio-field">
+                <label>Distance</label>
+                <div class="input-with-suffix">
+                    <input type="number" name="exercise_{{ exercise.pk }}_distance"
+                           value="{{ cardio_details.distance|default:'' }}" step="0.1" placeholder="0">
+                    <span class="input-suffix">mi</span>
+                </div>
+            </div>
+            <div class="cardio-field">
+                <label>Intensity</label>
+                <select name="exercise_{{ exercise.pk }}_intensity">
+                    <option value="easy" {% if cardio_details.intensity == "easy" %}selected{% endif %}>Easy</option>
+                    <option value="medium" {% if cardio_details.intensity == "medium" or not cardio_details %}selected{% endif %}>Medium</option>
+                    <option value="hard" {% if cardio_details.intensity == "hard" %}selected{% endif %}>Hard</option>
+                </select>
+            </div>
+        </div>
+    {% endif %}
+</div>

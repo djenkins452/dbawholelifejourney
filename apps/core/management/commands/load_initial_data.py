@@ -38,6 +38,7 @@ class Command(BaseCommand):
             'populate_choices',
             'populate_themes',
             'setup_purpose_defaults',
+            'populate_exercises',
         ]
 
         for cmd in commands:

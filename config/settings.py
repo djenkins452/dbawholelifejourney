@@ -56,6 +56,8 @@ INSTALLED_APPS = [
     "crispy_forms",
     "crispy_tailwind",
     "django_htmx",
+    "cloudinary",
+    "cloudinary_storage",
     # Local apps
     "apps.core",
     "apps.users",
@@ -172,13 +174,28 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
     },
 }
 
 # Media files (user uploads)
+# Cloudinary handles media in production, local filesystem in development
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Cloudinary Configuration
+# Set CLOUDINARY_URL environment variable in Railway (format: cloudinary://API_KEY:API_SECRET@CLOUD_NAME)
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": env("CLOUDINARY_CLOUD_NAME", default=""),
+    "API_KEY": env("CLOUDINARY_API_KEY", default=""),
+    "API_SECRET": env("CLOUDINARY_API_SECRET", default=""),
+}
+
+# Fall back to local storage if Cloudinary is not configured
+if not CLOUDINARY_STORAGE["CLOUD_NAME"]:
+    STORAGES["default"] = {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    }
 
 
 # Default primary key field type

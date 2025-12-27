@@ -206,6 +206,12 @@ class FastingListView(LoginRequiredMixin, ListView):
             user=self.request.user,
             ended_at__isnull=True,
         ).first()
+        # Get user's timezone for template display
+        try:
+            tz_name = self.request.user.preferences.timezone or "UTC"
+            context["user_timezone"] = pytz.timezone(tz_name)
+        except Exception:
+            context["user_timezone"] = pytz.UTC
         return context
 
 

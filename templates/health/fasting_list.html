@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% load tz %}
 
 {% block title %}Fasting History - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
+{% timezone user_timezone %}
 <div class="container">
     <div class="page-header flex justify-between items-center">
         <div>
@@ -224,4 +226,5 @@
     color: var(--color-error);
 }
 </style>
+{% endtimezone %}
 {% endblock %}

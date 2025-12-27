@@ -16,19 +16,19 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('Loading initial system data...\n')
 
-        # Load fixtures
+        # Load fixtures (Django finds them by name in app fixtures directories)
         fixtures = [
-            ('core', 'categories'),
-            ('dashboard', 'encouragements'),
-            ('faith', 'scripture'),
-            ('journal', 'prompts'),
-            ('ai', 'coaching_styles'),
+            'categories',
+            'encouragements',
+            'scripture',
+            'prompts',
+            'coaching_styles',
         ]
 
-        for app, fixture in fixtures:
+        for fixture in fixtures:
             try:
-                self.stdout.write(f'  Loading {app}/{fixture}...')
-                call_command('loaddata', f'{app}/{fixture}', verbosity=0)
+                self.stdout.write(f'  Loading {fixture}...')
+                call_command('loaddata', fixture, verbosity=0)
                 self.stdout.write(self.style.SUCCESS(' OK'))
             except Exception as e:
                 self.stdout.write(self.style.WARNING(f' Skipped ({e})'))

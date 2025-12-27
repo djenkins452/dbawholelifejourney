@@ -101,4 +101,119 @@ Just say: **"Read CLAUDE.md and continue"** - this gives full project context.
 - `@patch` for mocking external services (AI, APIs)
 
 ---
+
+## Context-Aware Help System
+
+### Role When Working on Help Features
+When working on help system tasks, act as a **Senior Technical Documentation Architect & Context-Aware UX Help Systems Designer**. This means:
+- Write precise, click-by-click user guides
+- Design context-aware help that maps directly to screens
+- Structure documentation for both humans AND AI chatbots
+- Think in systems, not pages—documentation is part of the product
+- Create documentation that stays accurate as software evolves
+
+### Overview
+The application has a "?" help icon in the upper-right corner that provides context-aware help. This is NOT marketing content—it is authoritative user guidance with exact, step-by-step instructions.
+
+### Core Principle: HELP_CONTEXT_ID
+Every page declares a stable identifier called `HELP_CONTEXT_ID`. The help system uses this to show the exact relevant documentation—no searching, no guessing.
+
+**How it works:**
+1. User clicks "?" icon
+2. System reads the page's `HELP_CONTEXT_ID`
+3. Looks up that ID in the help index
+4. Opens the exact matching help section
+
+### HELP_CONTEXT_ID Naming Convention
+Format: `{APP}_{SCREEN}` or `{APP}_{ENTITY}_{ACTION}`
+
+Examples:
+- `DASHBOARD_HOME`
+- `HEALTH_ROOT`
+- `HEALTH_WORKOUT_LIST`
+- `HEALTH_WORKOUT_CREATE`
+- `HEALTH_WORKOUT_EDIT`
+- `JOURNAL_ENTRY_LIST`
+- `JOURNAL_ENTRY_EDIT`
+- `FAITH_ROOT`
+- `SETTINGS_PREFERENCES`
+
+### Implementation Details
+Each page exposes its context via:
+- Django template variable: `{% with help_context_id="HEALTH_ROOT" %}`
+- HTML data attribute: `data-help-context="HEALTH_ROOT"`
+- JavaScript variable: `window.HELP_CONTEXT_ID = "HEALTH_ROOT"`
+
+### Documentation File Structure
+```
+docs/
+├── help/
+│   ├── index.json          # Maps HELP_CONTEXT_ID → file + HELP_ID
+│   ├── dashboard.md        # Dashboard help content
+│   ├── health.md           # Health app help content
+│   ├── journal.md          # Journal app help content
+│   ├── faith.md            # Faith app help content
+│   └── ...
+└── system/                 # Technical/system documentation
+```
+
+### Help Index Format (index.json)
+```json
+{
+  "DASHBOARD_HOME": { "file": "dashboard.md", "help_id": "dashboard-overview" },
+  "HEALTH_ROOT": { "file": "health.md", "help_id": "health-overview" },
+  "HEALTH_WORKOUT_CREATE": { "file": "health.md", "help_id": "health-log-workout" }
+}
+```
+
+### Help Entry Format (STRICT)
+Each help entry in documentation files MUST include:
+
+```markdown
+## [HELP_ID: health-log-workout]
+**Title:** How to Log a Workout
+**Context:** HEALTH_WORKOUT_CREATE screen
+**Description:** Record your exercise activities with duration, type, and notes.
+
+### Steps
+1. Click "Health" in the left navigation menu.
+2. Click the "Log Workout" button in the top-right corner.
+3. Select a workout type from the dropdown (e.g., "Running", "Weight Training").
+4. Enter the duration in minutes.
+5. (Optional) Add notes about your workout.
+6. Click "Save" to record your workout.
+
+### Notes
+- Workouts are displayed in reverse chronological order.
+- You can edit a workout by clicking on it in the list.
+```
+
+### Writing Rules for Help Content
+1. **Start each step with an action verb** (Click, Enter, Select, Navigate)
+2. **Reference exact UI labels** in quotes (e.g., Click "Save")
+3. **Be exact**—a chatbot will read these verbatim
+4. **No vague or interpretive text**
+5. **No summaries**—full step-by-step instructions
+6. **Do NOT invent UI elements**—if unsure, ASK
+
+### Chatbot Compatibility
+These docs are designed to be read by a future chatbot that will:
+- Search by HELP_CONTEXT_ID, HELP_ID, and titles
+- Return step-by-step instructions verbatim
+- Provide exact answers, not summaries
+
+### Change Management Rule (MANDATORY)
+When ANY feature is added, changed, or removed:
+1. Update the relevant help documentation immediately
+2. Add or update HELP_CONTEXT_ID mappings in index.json
+3. Never leave outdated steps in documentation
+4. **Documentation changes are part of the feature, not a follow-up task**
+
+### Help System Files (when implemented)
+- `docs/help/index.json` - Central mapping of HELP_CONTEXT_ID → documentation
+- `docs/help/*.md` - Help content files organized by app/feature
+- `templates/components/help_button.html` - The "?" icon component
+- `static/js/help.js` - JavaScript for reading context and displaying help
+
+---
 *Last updated: 2024-12-27*

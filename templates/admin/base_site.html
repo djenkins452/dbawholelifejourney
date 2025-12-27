@@ -52,6 +52,29 @@
     background: #205067;
     transform: scale(1.1);
 }
+
+/* Ensure help modal appears above Django admin */
+#help-modal {
+    z-index: 10000 !important;
+    position: fixed !important;
+}
+
+#help-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+#help-modal[open] {
+    display: flex !important;
+}
+
+#help-modal .help-modal-content {
+    background: white;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
 </style>
 {% endblock %}
 

@@ -1,0 +1,62 @@
+[
+    {
+        "model": "help.helpcategory",
+        "pk": 1,
+        "fields": {
+            "name": "Getting Started",
+            "slug": "getting-started",
+            "description": "Learn the basics of Whole Life Journey and get up and running quickly.",
+            "icon": "\ud83d\ude80",
+            "sort_order": 1,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helpcategory",
+        "pk": 2,
+        "fields": {
+            "name": "Features",
+            "slug": "features",
+            "description": "Detailed guides for all the features in the app.",
+            "icon": "\u2728",
+            "sort_order": 2,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helpcategory",
+        "pk": 3,
+        "fields": {
+            "name": "Settings & Preferences",
+            "slug": "settings-preferences",
+            "description": "Customize the app to work the way you want.",
+            "icon": "\u2699\ufe0f",
+            "sort_order": 3,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helpcategory",
+        "pk": 4,
+        "fields": {
+            "name": "Troubleshooting",
+            "slug": "troubleshooting",
+            "description": "Solutions to common issues and problems.",
+            "icon": "\ud83d\udd27",
+            "sort_order": 4,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.helpcategory",
+        "pk": 5,
+        "fields": {
+            "name": "FAQ",
+            "slug": "faq",
+            "description": "Frequently asked questions about Whole Life Journey.",
+            "icon": "\u2753",
+            "sort_order": 5,
+            "is_active": true
+        }
+    }
+]

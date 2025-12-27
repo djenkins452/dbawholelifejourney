@@ -1,0 +1,122 @@
+[
+    {
+        "model": "help.helparticle",
+        "pk": 1,
+        "fields": {
+            "title": "Welcome to Whole Life Journey",
+            "slug": "welcome",
+            "summary": "Get started with your personal life operating system for reflection, growth, and intentional living.",
+            "content": "Whole Life Journey is your personal space for reflection, growth, and faithful living. Here's what you can do:\n\n## Core Features\n\n- **Dashboard**: Your daily hub showing insights, celebrations, and what needs attention\n- **Journal**: Record your thoughts, moods, and reflections\n- **Health**: Track weight, fitness, heart rate, and more\n- **Faith**: Manage prayers, scripture, and spiritual milestones\n- **Life**: Organize projects, tasks, documents, and recipes\n- **Purpose**: Set goals and track your progress\n\n## Getting Started\n\n1. Visit your Dashboard to see today's insights\n2. Write your first journal entry\n3. Customize your preferences in Settings\n4. Enable or disable modules based on your needs",
+            "category": 1,
+            "module": "general",
+            "keywords": "getting started, welcome, introduction, overview, features, basics",
+            "is_active": true,
+            "sort_order": 1
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 2,
+        "fields": {
+            "title": "Using the Dashboard",
+            "slug": "using-dashboard",
+            "summary": "Your Dashboard is the central hub showing daily insights, celebrations, and important updates.",
+            "content": "The Dashboard is your home base in Whole Life Journey. Here's what you'll find:\n\n## Today's Insight\n\nAn AI-generated insight based on your recent activities and entries. This is personalized to your coaching style preference.\n\n## Celebrations\n\nRecognition of your achievements, streaks, and milestones. We believe in celebrating progress!\n\n## Accountability Nudges\n\nGentle reminders about goals and habits that need attention.\n\n## Quick Actions\n\nFast access to common tasks like creating a journal entry or logging health data.\n\n## Tips\n\n- Check your dashboard daily for fresh insights\n- The insights adapt to your selected coaching style\n- Click on any card to dive deeper into that area",
+            "category": 2,
+            "module": "dashboard",
+            "keywords": "dashboard, home, insights, celebrations, daily, overview, ai",
+            "is_active": true,
+            "sort_order": 1
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 3,
+        "fields": {
+            "title": "Writing Journal Entries",
+            "slug": "journal-entries",
+            "summary": "Learn how to create, edit, and organize your journal entries for meaningful reflection.",
+            "content": "The Journal module helps you capture your thoughts, track your mood, and reflect on your experiences.\n\n## Creating an Entry\n\n1. Click 'New Entry' from the Journal page\n2. Add a title (optional) and your content\n3. Select your current mood\n4. Add tags to organize your entries\n5. Use speech-to-text if you prefer talking\n\n## Features\n\n- **Mood Tracking**: Select how you're feeling with each entry\n- **Tags**: Organize entries by topic, project, or theme\n- **Speech-to-Text**: Dictate your entries using voice\n- **AI Reflections**: Get insights on your entries (if AI is enabled)\n\n## Tips\n\n- Write regularly, even if just a few sentences\n- Use tags consistently to find entries later\n- Review past entries to see your growth",
+            "category": 2,
+            "module": "journal",
+            "keywords": "journal, entries, writing, mood, tags, reflection, speech, dictation",
+            "is_active": true,
+            "sort_order": 2
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 4,
+        "fields": {
+            "title": "Health Tracking",
+            "slug": "health-tracking",
+            "summary": "Track your weight, fitness activities, heart rate, and other health metrics.",
+            "content": "The Health module helps you monitor and improve your physical wellness.\n\n## Available Trackers\n\n- **Weight**: Log your weight and see trends over time\n- **Fitness**: Record workouts and activities\n- **Heart Rate**: Track resting and active heart rate\n- **Glucose**: Monitor blood sugar levels\n- **Fasting**: Track intermittent fasting windows\n\n## Logging Data\n\n1. Navigate to Health\n2. Select the metric you want to log\n3. Enter your data and save\n\n## Viewing Trends\n\nEach tracker shows your historical data with charts and statistics to help you understand your progress.\n\n## Tips\n\n- Log consistently at the same time each day\n- Use the notes field for context (how you felt, what you ate, etc.)\n- Check weekly and monthly trends to see patterns",
+            "category": 2,
+            "module": "health",
+            "keywords": "health, weight, fitness, workout, exercise, heart rate, glucose, fasting, tracking",
+            "is_active": true,
+            "sort_order": 3
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 5,
+        "fields": {
+            "title": "Faith Module",
+            "slug": "faith-module",
+            "summary": "Manage your prayer life, scripture study, and spiritual milestones.",
+            "content": "The Faith module supports your spiritual journey with tools for prayer, scripture, and milestone tracking.\n\n## Features\n\n- **Prayer List**: Track prayer requests and mark them as answered\n- **Scripture**: Save meaningful verses and passages\n- **Milestones**: Record important spiritual moments\n\n## Managing Prayers\n\n1. Add prayers with a description and optional category\n2. Mark prayers as 'answered' when God responds\n3. Archive prayers you no longer need to see daily\n\n## Scripture Tracking\n\nSave verses that speak to you, add notes, and organize by topic.\n\n## Enabling/Disabling\n\nThe Faith module can be enabled or disabled in Preferences. If you don't use this feature, simply turn it off to simplify your experience.",
+            "category": 2,
+            "module": "faith",
+            "keywords": "faith, prayer, prayers, scripture, bible, spiritual, christian, milestones",
+            "is_active": true,
+            "sort_order": 4
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 6,
+        "fields": {
+            "title": "Customizing Your Preferences",
+            "slug": "preferences",
+            "summary": "Personalize Whole Life Journey with themes, modules, AI coaching styles, and more.",
+            "content": "Preferences let you customize how the app looks and works for you.\n\n## Theme & Appearance\n\n- Choose from multiple color themes\n- Select a custom accent color\n- Themes work in both light and dark mode\n\n## Module Toggles\n\nEnable or disable features you don't need:\n- Faith Module\n- AI Features\n- And more\n\n## AI Coaching Style\n\nIf AI is enabled, choose how the AI communicates with you:\n- Supportive Partner\n- Direct Coach\n- Gentle Guide\n- Wise Mentor\n- Cheerful Friend\n- Calm Companion\n- Accountability Partner\n\n## Location & Timezone\n\nSet your location and timezone for accurate scheduling and weather.\n\n## Accessing Preferences\n\nClick your profile icon in the navigation, then select 'Preferences'.",
+            "category": 3,
+            "module": "settings",
+            "keywords": "preferences, settings, theme, color, modules, ai, coaching style, customize",
+            "is_active": true,
+            "sort_order": 1
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 7,
+        "fields": {
+            "title": "AI Coaching Styles Explained",
+            "slug": "ai-coaching-styles",
+            "summary": "Understand the different AI coaching personalities and choose the one that fits you best.",
+            "content": "The AI coach adapts its communication style based on your preference. Here are the available styles:\n\n## Supportive Partner\n\nWarm and encouraging. Celebrates your wins and provides gentle guidance when you struggle.\n\n## Direct Coach\n\nBrief and action-oriented. Gets straight to the point with clear instructions.\n\n## Gentle Guide\n\nPatient and nurturing. Takes time to explain things and never rushes you.\n\n## Wise Mentor\n\nThoughtful and reflective. Offers wisdom and encourages deeper thinking.\n\n## Cheerful Friend\n\nUpbeat and energetic. Keeps things fun and positive.\n\n## Calm Companion\n\nSteady and peaceful. Provides a grounding presence without adding pressure.\n\n## Accountability Partner\n\nMotivating and focused. Helps you stay on track with your goals.\n\n## Changing Your Style\n\nGo to Preferences, scroll to AI Settings, and select your preferred style.",
+            "category": 3,
+            "module": "settings",
+            "keywords": "ai, coaching, style, personality, supportive, direct, gentle, mentor, cheerful, calm, accountability",
+            "is_active": true,
+            "sort_order": 2
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 8,
+        "fields": {
+            "title": "Why Can't I See Certain Features?",
+            "slug": "hidden-features",
+            "summary": "Some features may be disabled in your preferences or require specific settings.",
+            "content": "If you can't find a feature, here are some things to check:\n\n## Module Toggles\n\nFeatures like Faith and AI are optional and can be disabled. Check Preferences to enable them.\n\n## AI Features\n\nAI-powered insights require:\n1. AI to be enabled in Preferences\n2. A valid OpenAI API key (for self-hosted instances)\n\n## Faith Module\n\nThe Faith module (prayers, scripture, milestones) is optional. Enable it in Preferences if you'd like to use it.\n\n## Navigation\n\nSome features are accessed through sub-menus or the Life module dropdown.\n\n## Still Can't Find It?\n\nUse the chat button to ask the WLJ Assistant for help locating specific features.",
+            "category": 4,
+            "module": "general",
+            "keywords": "missing, hidden, can't find, not showing, disabled, feature, enable",
+            "is_active": true,
+            "sort_order": 1
+        }
+    }
+]

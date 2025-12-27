@@ -7,7 +7,10 @@ from django.urls import reverse
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-from apps.help.models import HelpTopic, AdminHelpTopic
+from apps.help.models import (
+    HelpTopic, AdminHelpTopic,
+    HelpCategory, HelpArticle, HelpConversation, HelpMessage
+)
 
 User = get_user_model()
 
@@ -248,3 +251,249 @@ class HelpSearchAPIViewTests(BaseHelpViewTest):
 
         self.assertEqual(len(data['results']), 0)
         self.assertIn('error', data)
+
+
+# =============================================================================
+# WLJ ASSISTANT CHAT BOT VIEW TESTS
+# =============================================================================
+
+
+class HelpCenterViewTest(BaseHelpViewTest):
+    """Tests for the Help Center view."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123"
+        )
+        self._accept_terms(self.user)
+        self.category = HelpCategory.objects.create(
+            name="Getting Started",
+            slug="getting-started"
+        )
+
+    def test_help_center_requires_login(self):
+        """Test help center requires authentication."""
+        response = self.client.get(reverse('help:center'))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('login', response.url.lower())
+
+    def test_help_center_authenticated(self):
+        """Test help center loads for authenticated user."""
+        self.client.login(email="test@example.com", password="testpass123")
+        response = self.client.get(reverse('help:center'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Help Center")
+
+    def test_help_center_shows_categories(self):
+        """Test help center displays categories."""
+        self.client.login(email="test@example.com", password="testpass123")
+        response = self.client.get(reverse('help:center'))
+        self.assertContains(response, "Getting Started")
+
+
+class HelpArticleViewTest(BaseHelpViewTest):
+    """Tests for the Help Article view."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123"
+        )
+        self._accept_terms(self.user)
+        self.category = HelpCategory.objects.create(
+            name="Features",
+            slug="features"
+        )
+        self.article = HelpArticle.objects.create(
+            title="Using the Journal",
+            slug="using-journal",
+            summary="Learn to use the journal",
+            content="Full article content here...",
+            category=self.category
+        )
+
+    def test_article_view_requires_login(self):
+        """Test article view requires authentication."""
+        response = self.client.get(reverse('help:article', kwargs={'slug': 'using-journal'}))
+        self.assertEqual(response.status_code, 302)
+
+    def test_article_view_shows_content(self):
+        """Test article view displays article content."""
+        self.client.login(email="test@example.com", password="testpass123")
+        response = self.client.get(reverse('help:article', kwargs={'slug': 'using-journal'}))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Using the Journal")
+        self.assertContains(response, "Full article content here")
+
+    def test_article_view_404_for_inactive(self):
+        """Test inactive articles return 404."""
+        self.article.is_active = False
+        self.article.save()
+
+        self.client.login(email="test@example.com", password="testpass123")
+        response = self.client.get(reverse('help:article', kwargs={'slug': 'using-journal'}))
+        self.assertEqual(response.status_code, 404)
+
+
+class ChatAPITest(BaseHelpViewTest):
+    """Tests for Chat API endpoints."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123"
+        )
+        self._accept_terms(self.user)
+        self.article = HelpArticle.objects.create(
+            title="Using the Journal",
+            slug="using-journal",
+            summary="Learn to use the journal",
+            content="Full content...",
+            keywords="journal, entries"
+        )
+
+    def test_chat_start_requires_login(self):
+        """Test chat start requires authentication."""
+        response = self.client.post(
+            reverse('help:chat_start'),
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_chat_start_creates_conversation(self):
+        """Test chat start creates a new conversation."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        response = self.client.post(
+            reverse('help:chat_start'),
+            data=json.dumps({'module': 'dashboard', 'url': '/dashboard/'}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertIn('conversation_id', data)
+        self.assertIn('message', data)
+        self.assertIn('WLJ assistant', data['message'])
+
+        # Verify conversation was created
+        conversation = HelpConversation.objects.get(id=data['conversation_id'])
+        self.assertEqual(conversation.user, self.user)
+        self.assertEqual(conversation.context_module, 'dashboard')
+
+    def test_chat_message_requires_conversation(self):
+        """Test chat message requires a valid conversation."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        response = self.client.post(
+            reverse('help:chat_message'),
+            data=json.dumps({'message': 'Hello'}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_chat_message_sends_and_receives(self):
+        """Test sending a message and receiving a response."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        # Start conversation
+        start_response = self.client.post(
+            reverse('help:chat_start'),
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        conversation_id = json.loads(start_response.content)['conversation_id']
+
+        # Send message
+        response = self.client.post(
+            reverse('help:chat_message'),
+            data=json.dumps({
+                'conversation_id': conversation_id,
+                'message': 'How do I use the journal?'
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertIn('message', data)
+
+        # Verify messages were saved
+        conversation = HelpConversation.objects.get(id=conversation_id)
+        # Welcome message + user message + assistant response = 3
+        self.assertEqual(conversation.messages.count(), 3)
+
+    def test_chat_end_deletes_conversation(self):
+        """Test ending chat deletes the conversation."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        # Start conversation
+        start_response = self.client.post(
+            reverse('help:chat_start'),
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        conversation_id = json.loads(start_response.content)['conversation_id']
+
+        # End conversation
+        response = self.client.post(
+            reverse('help:chat_end'),
+            data=json.dumps({
+                'conversation_id': conversation_id,
+                'send_email': False
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+
+        # Verify conversation was deleted
+        self.assertFalse(HelpConversation.objects.filter(id=conversation_id).exists())
+
+    def test_chat_search(self):
+        """Test search endpoint."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        response = self.client.get(
+            reverse('help:chat_search'),
+            {'q': 'journal'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertIn('results', data)
+        self.assertTrue(len(data['results']) > 0)
+
+    def test_chat_search_short_query(self):
+        """Test search with short query returns empty."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        response = self.client.get(
+            reverse('help:chat_search'),
+            {'q': 'a'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['results'], [])
+
+    def test_chat_suggestions(self):
+        """Test suggestions endpoint."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        response = self.client.get(
+            reverse('help:chat_suggestions'),
+            {'module': 'journal'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertIn('suggestions', data)

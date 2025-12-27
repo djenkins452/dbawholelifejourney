@@ -113,5 +113,10 @@
     {% if user.is_authenticated %}
     {% include "components/help_modal.html" %}
     {% endif %}
+
+    <!-- WLJ Assistant Chat Widget -->
+    {% if user.is_authenticated %}
+    {% include "components/chat_widget.html" %}
+    {% endif %}
 </body>
 </html>

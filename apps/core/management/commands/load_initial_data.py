@@ -26,6 +26,8 @@ class Command(BaseCommand):
             'ai_prompt_configs',
             'help_topics',
             'admin_help_topics',
+            'help_categories',
+            'help_articles',
         ]
 
         for fixture in fixtures:

@@ -3,8 +3,14 @@ Tests for Help System Models
 """
 from django.test import TestCase
 from django.core.cache import cache
+from django.contrib.auth import get_user_model
 
-from apps.help.models import HelpTopic, AdminHelpTopic
+from apps.help.models import (
+    HelpTopic, AdminHelpTopic,
+    HelpCategory, HelpArticle, HelpConversation, HelpMessage
+)
+
+User = get_user_model()
 
 
 class HelpTopicModelTests(TestCase):
@@ -159,3 +165,222 @@ class AdminHelpTopicModelTests(TestCase):
 
         topics = AdminHelpTopic.get_all_active()
         self.assertEqual(len(topics), 2)
+
+
+# =============================================================================
+# WLJ ASSISTANT CHAT BOT MODEL TESTS
+# =============================================================================
+
+
+class HelpCategoryModelTest(TestCase):
+    """Tests for the HelpCategory model."""
+
+    def test_create_category(self):
+        """Test creating a help category."""
+        category = HelpCategory.objects.create(
+            name="Getting Started",
+            slug="getting-started",
+            description="Learn the basics",
+            icon="R"  # Use simple character for test
+        )
+        self.assertEqual(str(category), "Getting Started")
+        self.assertEqual(category.slug, "getting-started")
+        self.assertTrue(category.is_active)
+
+    def test_category_ordering(self):
+        """Test categories are ordered by sort_order."""
+        cat1 = HelpCategory.objects.create(name="Second", slug="second", sort_order=2)
+        cat2 = HelpCategory.objects.create(name="First", slug="first", sort_order=1)
+        cat3 = HelpCategory.objects.create(name="Third", slug="third", sort_order=3)
+
+        categories = list(HelpCategory.objects.all())
+        self.assertEqual(categories[0], cat2)
+        self.assertEqual(categories[1], cat1)
+        self.assertEqual(categories[2], cat3)
+
+    def test_get_active_categories(self):
+        """Test getting only active categories."""
+        cache.clear()
+        active = HelpCategory.objects.create(name="Active", slug="active", is_active=True)
+        inactive = HelpCategory.objects.create(name="Inactive", slug="inactive", is_active=False)
+
+        active_categories = HelpCategory.get_active_categories()
+        self.assertIn(active, active_categories)
+        self.assertNotIn(inactive, active_categories)
+
+
+class HelpArticleModelTest(TestCase):
+    """Tests for the HelpArticle model."""
+
+    def setUp(self):
+        self.category = HelpCategory.objects.create(
+            name="Features",
+            slug="features"
+        )
+
+    def test_create_article(self):
+        """Test creating a help article."""
+        article = HelpArticle.objects.create(
+            title="Using the Journal",
+            slug="using-journal",
+            summary="Learn to use the journal",
+            content="Full content here...",
+            category=self.category,
+            module="journal",
+            keywords="journal, entries, writing"
+        )
+        self.assertEqual(str(article), "Using the Journal")
+        self.assertEqual(article.module, "journal")
+        self.assertTrue(article.is_active)
+
+    def test_keywords_list(self):
+        """Test parsing keywords into a list."""
+        article = HelpArticle.objects.create(
+            title="Test",
+            slug="test",
+            summary="Test",
+            content="Content",
+            keywords="journal, entries, WRITING, mood "
+        )
+        keywords = article.keywords_list
+        self.assertEqual(keywords, ["journal", "entries", "writing", "mood"])
+
+    def test_keywords_list_empty(self):
+        """Test keywords_list with no keywords."""
+        article = HelpArticle.objects.create(
+            title="Test",
+            slug="test",
+            summary="Test",
+            content="Content",
+            keywords=""
+        )
+        self.assertEqual(article.keywords_list, [])
+
+    def test_get_by_module(self):
+        """Test getting articles by module."""
+        cache.clear()
+        journal_article = HelpArticle.objects.create(
+            title="Journal Help",
+            slug="journal-help",
+            summary="Help for journal",
+            content="Content",
+            module="journal"
+        )
+        health_article = HelpArticle.objects.create(
+            title="Health Help",
+            slug="health-help",
+            summary="Help for health",
+            content="Content",
+            module="health"
+        )
+
+        journal_articles = HelpArticle.get_by_module("journal")
+        self.assertIn(journal_article, journal_articles)
+        self.assertNotIn(health_article, journal_articles)
+
+
+class HelpConversationModelTest(TestCase):
+    """Tests for the HelpConversation model."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123"
+        )
+
+    def test_create_conversation(self):
+        """Test creating a conversation."""
+        conversation = HelpConversation.objects.create(
+            user=self.user,
+            context_module="dashboard",
+            context_url="/dashboard/"
+        )
+        self.assertEqual(conversation.user, self.user)
+        self.assertEqual(conversation.context_module, "dashboard")
+        self.assertEqual(conversation.message_count, 0)
+
+    def test_message_count(self):
+        """Test message count property."""
+        conversation = HelpConversation.objects.create(user=self.user)
+
+        # Add messages
+        HelpMessage.objects.create(
+            conversation=conversation,
+            content="Hello",
+            is_user=True
+        )
+        HelpMessage.objects.create(
+            conversation=conversation,
+            content="Hi there!",
+            is_user=False
+        )
+
+        self.assertEqual(conversation.message_count, 2)
+
+    def test_get_messages_for_email(self):
+        """Test formatting messages for email."""
+        conversation = HelpConversation.objects.create(user=self.user)
+
+        HelpMessage.objects.create(
+            conversation=conversation,
+            content="How do I use the journal?",
+            is_user=True
+        )
+        HelpMessage.objects.create(
+            conversation=conversation,
+            content="Here's how to use the journal...",
+            is_user=False
+        )
+
+        email_text = conversation.get_messages_for_email()
+        self.assertIn("You:", email_text)
+        self.assertIn("WLJ Assistant:", email_text)
+        self.assertIn("How do I use the journal?", email_text)
+
+
+class HelpMessageModelTest(TestCase):
+    """Tests for the HelpMessage model."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123"
+        )
+        self.conversation = HelpConversation.objects.create(user=self.user)
+
+    def test_create_user_message(self):
+        """Test creating a user message."""
+        message = HelpMessage.objects.create(
+            conversation=self.conversation,
+            content="How do I track my weight?",
+            is_user=True
+        )
+        self.assertTrue(message.is_user)
+        self.assertIn("User:", str(message))
+
+    def test_create_assistant_message(self):
+        """Test creating an assistant message."""
+        message = HelpMessage.objects.create(
+            conversation=self.conversation,
+            content="You can track your weight in the Health module.",
+            is_user=False
+        )
+        self.assertFalse(message.is_user)
+        self.assertIn("Assistant:", str(message))
+
+    def test_message_ordering(self):
+        """Test messages are ordered by creation time."""
+        msg1 = HelpMessage.objects.create(
+            conversation=self.conversation,
+            content="First",
+            is_user=True
+        )
+        msg2 = HelpMessage.objects.create(
+            conversation=self.conversation,
+            content="Second",
+            is_user=False
+        )
+
+        messages = list(self.conversation.messages.all())
+        self.assertEqual(messages[0], msg1)
+        self.assertEqual(messages[1], msg2)

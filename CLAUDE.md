@@ -28,6 +28,9 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Step-by-step onboarding wizard:** New 6-step wizard for new users (Welcome, Theme, Modules, AI Coaching, Location, Complete)
+- **Onboarding enforcement:** Middleware enforces onboarding completion - users redirected to wizard until complete
+- **Intro transcript:** Created `docs/intro_transcript.md` - narration script for voiceover/video explaining the app
 - **Database-driven AI prompts:** AIPromptConfig model allows admin control of all AI prompt types (10 types) via Django admin at /admin/ai/aipromptconfig/
 - **Database-driven coaching styles:** CoachingStyle model with 7 styles, editable via Django admin, with icon field for UI
 - **Django admin improvements:** Added "Back to Admin Console" link in header, fixed capitalization (AI Insights, AI Usage Logs)
@@ -99,6 +102,46 @@ Just say: **"Read CLAUDE.md and continue"** - this gives full project context.
 - Factory pattern for creating test objects
 - `setUp()` for common test fixtures
 - `@patch` for mocking external services (AI, APIs)
+
+---
+
+## Onboarding Wizard
+
+### Overview
+New users are guided through a 6-step onboarding wizard before accessing the app. The wizard collects preferences and personalizes the experience.
+
+### Flow
+1. **User signs up** → `UserPreferences` created with `has_completed_onboarding = False`
+2. **User accepts terms** → Redirected to onboarding wizard
+3. **Middleware enforces** → Until `has_completed_onboarding = True`, user is redirected to wizard
+4. **User completes wizard** → Flag set to `True`, user proceeds to dashboard
+
+### Steps (6 total)
+| Step | URL | Saves |
+|------|-----|-------|
+| Welcome | `/user/onboarding/start/` | Nothing |
+| Theme | `/user/onboarding/step/theme/` | `theme` |
+| Modules | `/user/onboarding/step/modules/` | Module toggles |
+| AI | `/user/onboarding/step/ai/` | `ai_enabled`, `ai_coaching_style` |
+| Location | `/user/onboarding/step/location/` | `timezone`, `location_city`, `location_country` |
+| Complete | `/user/onboarding/step/complete/` | `has_completed_onboarding = True` |
+
+### Key Files
+- `apps/users/views.py` - `OnboardingWizardView`, `ONBOARDING_STEPS` configuration
+- `apps/users/middleware.py` - `TermsAcceptanceMiddleware` enforces onboarding
+- `templates/users/onboarding_wizard.html` - Wizard UI template
+- `apps/users/tests/test_onboarding_wizard.py` - Comprehensive tests (30+ tests)
+- `docs/intro_transcript.md` - Narration transcript for voiceover/video
+
+### Testing the Wizard
+- **New user**: Sign up → Accept terms → Wizard starts
+- **Reset existing user**: Set `has_completed_onboarding = False` in Django Admin (`/admin/users/userpreferences/`)
+- **Direct access**: Visit `/user/onboarding/start/` while logged in
+
+### URL Note
+The users app is mounted at `/user/` (singular), not `/users/`. Middleware paths must match:
+- `/user/onboarding/` - Onboarding paths
+- `/user/accept-terms/` - Terms acceptance
 
 ---
 
@@ -216,4 +259,4 @@ When ANY feature is added, changed, or removed:
 - `static/js/help.js` - JavaScript for reading context and displaying help
 
 ---
-*Last updated: 2024-12-27*
+*Last updated: 2025-12-27*

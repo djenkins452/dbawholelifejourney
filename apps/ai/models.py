@@ -164,7 +164,9 @@ class AIInsight(models.Model):
             models.Index(fields=['user', 'insight_type', '-created_at']),
             models.Index(fields=['user', 'valid_until']),
         ]
-    
+        verbose_name = "AI Insight"
+        verbose_name_plural = "AI Insights"
+
     def __str__(self):
         return f"{self.get_insight_type_display()} for {self.user} ({self.created_at.date()})"
     
@@ -326,9 +328,11 @@ class AIUsageLog(models.Model):
     error_message = models.TextField(blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-created_at']
-    
+        verbose_name = "AI Usage Log"
+        verbose_name_plural = "AI Usage Logs"
+
     def __str__(self):
         return f"{self.endpoint} - {self.user} - {self.total_tokens} tokens"

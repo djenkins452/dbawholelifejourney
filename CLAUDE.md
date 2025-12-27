@@ -71,10 +71,34 @@
 - Prefers descriptive merge commit messages, not auto-generated ones
 
 ## Session Instructions
-At the end of a session or when asked, update this file by:
+
+### Starting a New Session
+Just say: **"Read CLAUDE.md and continue"** - this gives full project context.
+
+### End of Session Tasks (Do Automatically)
 1. Run `git log --oneline -20` to see recent commits
 2. Update the "Recent Fixes Applied" section between the HTML comments
-3. Commit and push the changes
+3. Commit and push CLAUDE.md changes with descriptive merge message
+
+### After Making Code Changes
+1. Run tests: `python manage.py test` or `python run_tests.py`
+2. If new features were added, check if tests exist in `apps/<app>/tests/`
+3. If tests are missing, create them following existing test patterns
+4. Update CLAUDE.md if significant new functionality was added
+
+## Testing
+- **Run all tests:** `python manage.py test` or `python run_tests.py`
+- **Run specific app tests:** `python manage.py test apps.<app_name>`
+- **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)
+- **Test runner:** `run_tests.py` provides enhanced output with summaries
+- **Current test count:** ~700+ tests across all apps
+
+### Test Patterns Used
+- `TestCase` for database tests
+- `SimpleTestCase` for non-DB tests
+- Factory pattern for creating test objects
+- `setUp()` for common test fixtures
+- `@patch` for mocking external services (AI, APIs)
 
 ---
 *Last updated: 2024-12-27*

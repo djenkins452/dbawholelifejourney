@@ -300,7 +300,20 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
             context["current_timezone"] = prefs.timezone
             context["current_city"] = prefs.location_city
             context["current_country"] = prefs.location_country
-            context["timezone_choices"] = PreferencesForm().fields["timezone"].choices
+            # Common timezone choices
+            context["timezone_choices"] = [
+                ("UTC", "UTC"),
+                ("US/Eastern", "US Eastern"),
+                ("US/Central", "US Central"),
+                ("US/Mountain", "US Mountain"),
+                ("US/Pacific", "US Pacific"),
+                ("Europe/London", "London"),
+                ("Europe/Paris", "Paris"),
+                ("Europe/Berlin", "Berlin"),
+                ("Asia/Tokyo", "Tokyo"),
+                ("Asia/Shanghai", "Shanghai"),
+                ("Australia/Sydney", "Sydney"),
+            ]
 
         elif current_step["id"] == "complete":
             # Summary of what was configured

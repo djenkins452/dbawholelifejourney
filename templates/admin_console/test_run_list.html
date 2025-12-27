@@ -1,9 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Test History - Admin Console
-</div>
-{% endblock %}
+{% block title %}Test History - Admin Console{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -130,7 +128,16 @@
         {% else %}
         <div class="p-8 text-center text-muted">
             <p>No test runs recorded yet.</p>
-            <p class="text-sm mt-2">Run <code class="bg-surface px-2 py-1 rounded">python run_tests.py</code> to generate test history.</p>
+            {% if debug %}
+            <p class="mt-4">
+                <a href="{% url 'admin_console:run_tests' %}" class="btn btn-primary">
+                    Run Tests Now
+                </a>
+            </p>
+            <p class="text-xs mt-3 text-muted">
+                Or run manually: <code class="bg-surface px-2 py-1 rounded">python run_tests.py</code>
+            </p>
+            {% endif %}
         </div>
         {% endif %}
     </div>

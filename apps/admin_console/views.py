@@ -386,17 +386,21 @@ class TestRunListView(AdminRequiredMixin, ListView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        from django.conf import settings
         from apps.core.models import TestRun
-        
+
         # Get stats
         runs = TestRun.objects.all()
         context['total_runs'] = runs.count()
         context['passed_runs'] = runs.filter(status='passed').count()
         context['failed_runs'] = runs.filter(status__in=['failed', 'error']).count()
-        
+
         # Latest run
         context['latest_run'] = runs.first()
-        
+
+        # Pass debug flag for conditional display
+        context['debug'] = settings.DEBUG
+
         return context
 
 
@@ -431,11 +435,49 @@ class TestRunDeleteView(AdminRequiredMixin, DeleteView):
     """Delete a test run and its details."""
     template_name = "admin_console/test_run_confirm_delete.html"
     success_url = reverse_lazy('admin_console:test_run_list')
-    
+
     def get_queryset(self):
         from apps.core.models import TestRun
         return TestRun.objects.all()
-    
+
     def form_valid(self, form):
         messages.success(self.request, f"Test run from {self.object.run_at.strftime('%Y-%m-%d %H:%M')} deleted.")
         return super().form_valid(form)
+
+
+class RunTestsView(AdminRequiredMixin, View):
+    """Run tests and redirect to results (dev only)."""
+
+    def get(self, request):
+        from django.conf import settings
+        import subprocess
+        import sys
+
+        # Only allow in DEBUG mode
+        if not settings.DEBUG:
+            messages.error(request, "Test execution is only available in development mode.")
+            return redirect('admin_console:test_run_list')
+
+        try:
+            # Run the test script
+            result = subprocess.run(
+                [sys.executable, 'run_tests.py'],
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+                cwd=settings.BASE_DIR
+            )
+
+            if result.returncode == 0:
+                messages.success(request, "Tests completed successfully! Results have been recorded.")
+            else:
+                messages.warning(request, f"Tests completed with failures. Check the results below.")
+
+        except subprocess.TimeoutExpired:
+            messages.error(request, "Test execution timed out after 5 minutes.")
+        except FileNotFoundError:
+            messages.error(request, "Could not find run_tests.py script.")
+        except Exception as e:
+            messages.error(request, f"Error running tests: {str(e)}")
+
+        return redirect('admin_console:test_run_list')

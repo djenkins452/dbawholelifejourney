@@ -27,7 +27,12 @@
       "Bash(python manage.py:*)",
       "Bash(test:*)",
       "Bash(python manage.py migrate:*)",
-      "Bash(python manage.py showmigrations:*)"
+      "Bash(python manage.py showmigrations:*)",
+      "Bash(set SECRET_KEY=dev-secret-key-for-testing)",
+      "Bash(cmd /c \".venv\\Scripts\\activate && set SECRET_KEY=dev-secret-key-for-testing && python manage.py makemigrations users --name add_biometric_login\")",
+      "Bash(powershell -Command \"cd C:\\dbawholelifejourney; $env:SECRET_KEY=''dev-secret-key''; .\\.venv\\Scripts\\Activate.ps1; python manage.py makemigrations users --name add_biometric_login\")",
+      "Bash(powershell -Command \"$env:SECRET_KEY=''dev-secret-key''; cd ''C:\\Users\\danny\\.claude-worktrees\\dbawholelifejourney\\bold-fermat''; python manage.py makemigrations users --name add_biometric_login\")",
+      "Bash(powershell -NoProfile -Command:*)"
     ]
   }
 }

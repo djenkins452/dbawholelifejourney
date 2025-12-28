@@ -407,6 +407,47 @@
             </div>
         </div>
 
+        <!-- Security Section -->
+        <div class="card mb-6" id="security-section">
+            <h2 class="card-title">Security</h2>
+            <p class="text-muted mb-4">Manage login and authentication options.</p>
+
+            <div class="toggle-option" id="biometric-option">
+                <div class="toggle-info">
+                    <div class="module-header">
+                        <span class="module-icon">🔐</span>
+                        <h4>Biometric Login</h4>
+                        {% if form.biometric_login_enabled.value %}<span class="module-status status-active">Enabled</span>{% endif %}
+                    </div>
+                    <p class="text-muted text-sm" id="biometric-description">
+                        Use Face ID, Touch ID, or device biometrics for quick, secure login on this device.
+                        <span id="biometric-support-status"></span>
+                    </p>
+                    <div id="biometric-credentials-list" class="mt-3" style="display: none;">
+                        <!-- Registered devices will be listed here -->
+                    </div>
+                </div>
+                <div id="biometric-toggle-wrapper">
+                    <label class="toggle-switch" id="biometric-toggle-label">
+                        <input type="checkbox" name="biometric_login_enabled" id="biometric_toggle" {% if form.biometric_login_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="biometric-setup-section" style="display: none;" class="mt-4 p-4 bg-surface border rounded-md">
+                <h4 class="text-base font-semibold mb-2">Set Up Biometric Login</h4>
+                <p class="text-muted text-sm mb-3">
+                    To enable biometric login, we'll register this device's biometric authenticator.
+                    Your biometric data never leaves your device.
+                </p>
+                <button type="button" id="register-biometric-btn" class="btn btn-primary btn-sm">
+                    Register This Device
+                </button>
+                <p id="biometric-status-message" class="text-sm mt-2" style="display: none;"></p>
+            </div>
+        </div>
+
         <!-- Integrations Section -->
         <div class="card mb-6">
             <h2 class="card-title">Integrations</h2>
@@ -928,4 +969,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+<script src="{% static 'js/biometric.js' %}"></script>
 {% endblock %}

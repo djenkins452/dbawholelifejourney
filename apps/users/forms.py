@@ -106,6 +106,8 @@ class PreferencesForm(forms.ModelForm):
             "default_bible_translation",
             # Notifications
             "show_whats_new",
+            # Security
+            "biometric_login_enabled",
         ]
         widgets = {
             "theme": forms.Select(attrs={
@@ -165,6 +167,10 @@ class PreferencesForm(forms.ModelForm):
             "default_bible_translation": forms.HiddenInput(),
             # Notifications
             "show_whats_new": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            # Security
+            "biometric_login_enabled": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
         }

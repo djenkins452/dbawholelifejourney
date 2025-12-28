@@ -64,3 +64,8 @@ else:
 admin.site.site_header = "Whole Life Journey Admin"
 admin.site.site_title = "WLJ Admin"
 admin.site.index_title = "Administration"
+
+
+# Custom error handlers
+handler404 = 'apps.core.views.custom_404'
+handler500 = 'apps.core.views.custom_500'

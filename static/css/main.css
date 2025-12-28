@@ -379,6 +379,29 @@ a:hover {
     .nav-user-name {
         display: inline;
     }
+
+    /* User dropdown - position within mobile menu */
+    .nav-user-dropdown {
+        position: static;
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        margin-top: 0;
+        background: transparent;
+    }
+
+    .nav-user-dropdown:not([hidden]) {
+        display: block;
+    }
+
+    .nav-user-link {
+        padding: var(--space-3) var(--space-4);
+        padding-left: calc(var(--space-4) + 40px); /* Indent under avatar */
+    }
+
+    .nav-user-divider {
+        margin: var(--space-1) var(--space-4);
+    }
 }
 
 /* User menu */

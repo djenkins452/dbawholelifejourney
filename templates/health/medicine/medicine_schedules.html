@@ -86,13 +86,16 @@
 
             <div class="form-group">
                 <label>Days of Week</label>
-                <div class="days-selector">
-                    {% for value, label in form.days.field.choices %}
-                    <label class="day-checkbox">
-                        <input type="checkbox" name="days" value="{{ value }}" {% if value|stringformat:"s" in form.initial.days %}checked{% endif %}>
-                        <span>{{ label }}</span>
-                    </label>
-                    {% endfor %}
+                <div class="days-selector-container">
+                    <button type="button" class="btn-daily" id="selectDaily">Daily</button>
+                    <div class="days-selector">
+                        {% for value, label in form.days.field.choices %}
+                        <label class="day-checkbox">
+                            <input type="checkbox" name="days" value="{{ value }}" {% if value|stringformat:"s" in form.initial.days %}checked{% endif %}>
+                            <span>{{ label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
 
@@ -211,6 +214,34 @@
     margin-top: var(--space-1);
 }
 
+.days-selector-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.btn-daily {
+    align-self: flex-start;
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    color: var(--color-accent);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-daily:hover {
+    background: var(--color-accent);
+    color: white;
+}
+
+.btn-daily.active {
+    background: var(--color-accent);
+    color: white;
+}
+
 .days-selector {
     display: flex;
     flex-wrap: wrap;
@@ -256,4 +287,30 @@
     }
 }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dailyBtn = document.getElementById('selectDaily');
+    const dayCheckboxes = document.querySelectorAll('.days-selector input[type="checkbox"]');
+
+    function updateDailyButtonState() {
+        const allChecked = Array.from(dayCheckboxes).every(cb => cb.checked);
+        dailyBtn.classList.toggle('active', allChecked);
+    }
+
+    dailyBtn.addEventListener('click', function() {
+        const allChecked = Array.from(dayCheckboxes).every(cb => cb.checked);
+        dayCheckboxes.forEach(cb => cb.checked = !allChecked);
+        updateDailyButtonState();
+    });
+
+    // Update button state when individual days are clicked
+    dayCheckboxes.forEach(cb => {
+        cb.addEventListener('change', updateDailyButtonState);
+    });
+
+    // Set initial state
+    updateDailyButtonState();
+});
+</script>
 {% endblock %}

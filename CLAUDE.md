@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Task undo link:** Added "Undo" link next to completed tasks so users can easily revert accidental completions without navigating to Completed filter
 - **Journal prompts migration:** Data migration (`0003_load_journal_prompts.py`) to load 20 journal prompts into production database. Fixes "no prompts available" issue.
 - **ChatGPT journal import:** Management command (`import_chatgpt_journal`) and data migration to import journal entries from ChatGPT JSON exports
 - **Step-by-step onboarding wizard:** New 6-step wizard for new users (Welcome, Theme, Modules, AI Coaching, Location, Complete)

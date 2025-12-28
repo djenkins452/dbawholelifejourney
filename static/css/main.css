@@ -355,11 +355,32 @@ a:hover {
 
     .help-button {
         width: 100%;
+        height: auto;
         display: flex;
         align-items: center;
         justify-content: flex-start;
         gap: var(--space-2);
         padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-md);
+        background: transparent;
+        border: none;
+    }
+
+    .help-button:hover {
+        background: var(--color-surface);
+    }
+
+    /* Keep the ? in a circle on mobile */
+    .help-button .help-icon-text {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 50%;
+        flex-shrink: 0;
     }
 
     /* User menu - show name on mobile */

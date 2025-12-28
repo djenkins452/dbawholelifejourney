@@ -30,41 +30,48 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     template_name = "dashboard/home.html"
     help_context_id = "DASHBOARD_HOME"
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        user = self.request.user
-        prefs = user.preferences
-        
-        # Basic info
-        context["current_date"] = timezone.now()
-        context["greeting"] = self._get_greeting()
-        context["faith_enabled"] = prefs.faith_enabled
-        
-        # Get daily encouragement (fallback if AI unavailable)
-        context["encouragement"] = self._get_daily_encouragement(prefs.faith_enabled)
-        
-        # Gather all user data for AI
-        user_data = self._gather_comprehensive_data(user, prefs)
-        context["user_data"] = user_data
-        
-        # AI Insights (if enabled)
-        context["ai_enabled"] = prefs.ai_enabled
-        if prefs.ai_enabled:
-            context["ai_insights"] = self._get_ai_insights(user, prefs, user_data)
-        else:
-            context["ai_insights"] = None
 
-        # Quick stats for the header
-        context["quick_stats"] = self._get_quick_stats(user_data)
-        
-        # Module enabled flags for conditional display
-        context["journal_enabled"] = prefs.journal_enabled
-        context["health_enabled"] = prefs.health_enabled
-        context["life_enabled"] = prefs.life_enabled
-        context["purpose_enabled"] = prefs.purpose_enabled
-        
-        return context
+    def get_context_data(self, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            context = super().get_context_data(**kwargs)
+            user = self.request.user
+            prefs = user.preferences
+
+            # Basic info
+            context["current_date"] = timezone.now()
+            context["greeting"] = self._get_greeting()
+            context["faith_enabled"] = prefs.faith_enabled
+
+            # Get daily encouragement (fallback if AI unavailable)
+            context["encouragement"] = self._get_daily_encouragement(prefs.faith_enabled)
+
+            # Gather all user data for AI
+            user_data = self._gather_comprehensive_data(user, prefs)
+            context["user_data"] = user_data
+
+            # AI Insights (if enabled)
+            context["ai_enabled"] = prefs.ai_enabled
+            if prefs.ai_enabled:
+                context["ai_insights"] = self._get_ai_insights(user, prefs, user_data)
+            else:
+                context["ai_insights"] = None
+
+            # Quick stats for the header
+            context["quick_stats"] = self._get_quick_stats(user_data)
+
+            # Module enabled flags for conditional display
+            context["journal_enabled"] = prefs.journal_enabled
+            context["health_enabled"] = prefs.health_enabled
+            context["life_enabled"] = prefs.life_enabled
+            context["purpose_enabled"] = prefs.purpose_enabled
+
+            return context
+        except Exception as e:
+            logger.error(f"Dashboard error for user {self.request.user.email}: {e}", exc_info=True)
+            raise
     
     def _get_greeting(self):
         """Get time-appropriate greeting in user's timezone."""
@@ -821,25 +828,74 @@ class ConfigureDashboardView(LoginRequiredMixin, TemplateView):
             return HttpResponse(status=400)
 
 
+class DashboardDebugView(LoginRequiredMixin, View):
+    """Temporary debug endpoint to diagnose dashboard errors."""
+
+    def get(self, request, *args, **kwargs):
+        import traceback
+        errors = []
+        data = {}
+
+        try:
+            user = request.user
+            prefs = user.preferences
+            data['user'] = user.email
+            data['prefs_ok'] = True
+        except Exception as e:
+            errors.append(f"Prefs error: {e}")
+            data['prefs_ok'] = False
+
+        # Test each data gathering method
+        try:
+            from apps.core.utils import get_user_today
+            today = get_user_today(user)
+            data['today'] = str(today)
+        except Exception as e:
+            errors.append(f"get_user_today error: {e}")
+
+        try:
+            from apps.health.models import Medicine, WorkoutSession, PersonalRecord
+            data['medicine_count'] = Medicine.objects.filter(user=user).count()
+            data['workout_count'] = WorkoutSession.objects.filter(user=user).count()
+            data['pr_count'] = PersonalRecord.objects.filter(user=user).count()
+        except Exception as e:
+            errors.append(f"Health models error: {e}\n{traceback.format_exc()}")
+
+        try:
+            from apps.scan.models import ScanLog
+            data['scan_count'] = ScanLog.objects.filter(user=user).count()
+        except Exception as e:
+            errors.append(f"Scan models error: {e}\n{traceback.format_exc()}")
+
+        try:
+            from apps.journal.models import JournalEntry
+            data['journal_count'] = JournalEntry.objects.filter(user=user).count()
+        except Exception as e:
+            errors.append(f"Journal models error: {e}\n{traceback.format_exc()}")
+
+        data['errors'] = errors
+        return JsonResponse(data)
+
+
 class WeightChartDataView(LoginRequiredMixin, View):
     """API endpoint for weight chart data."""
-    
+
     def get(self, request, *args, **kwargs):
         from apps.health.models import WeightEntry
-        
+
         days = int(request.GET.get('days', 30))
         since = timezone.now() - timedelta(days=days)
-        
+
         entries = WeightEntry.objects.filter(
             user=request.user,
             recorded_at__gte=since
         ).order_by('recorded_at')
-        
+
         data = {
             'labels': [e.recorded_at.strftime('%b %d') for e in entries],
             'values': [float(e.value_in_lb) for e in entries],
         }
-        
+
         return JsonResponse(data)
 
 

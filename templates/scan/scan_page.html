@@ -917,8 +917,15 @@
 
             // Attach action tracking
             actionButtons.querySelectorAll('[data-action]').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    trackAction(this.dataset.action);
+                btn.addEventListener('click', function(e) {
+                    const actionId = this.dataset.action;
+                    trackAction(actionId);
+
+                    // Handle Skip button - reset to camera view
+                    if (actionId === 'skip') {
+                        e.preventDefault();
+                        resetToCamera();
+                    }
                 });
             });
         }

@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Project Add Task default:** When adding a task from within a project, the project dropdown now auto-selects that project. After creating, redirects back to the project detail page.
 - **Dev environment dependency check:** Added `check_dependencies.py` script to verify all required packages are installed in venv. Run `python check_dependencies.py` to check, or `python check_dependencies.py --install` to auto-install missing packages.
 - **Missing packages fix:** Installed `cloudinary`, `django-cloudinary-storage`, and `markdown` packages that were in requirements.txt but missing from venv.
 - **Task undo link:** Added "Undo" link next to completed tasks so users can easily revert accidental completions without navigating to Completed filter

@@ -193,10 +193,12 @@ class LifeEventModelTest(TestCase):
     
     def test_event_is_today(self):
         """is_today returns True for today's events."""
+        from django.utils import timezone
+        # Use timezone.now().date() to match the model's is_today logic
         event = LifeEvent.objects.create(
             user=self.user,
             title='Today Event',
-            start_date=date.today()
+            start_date=timezone.now().date()
         )
         self.assertTrue(event.is_today)
     

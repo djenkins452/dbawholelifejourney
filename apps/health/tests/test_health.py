@@ -144,7 +144,7 @@ class GlucoseEntryModelTest(TestCase):
 
 class HealthViewTest(TestCase):
     """Tests for health module views."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -152,8 +152,9 @@ class HealthViewTest(TestCase):
             password='testpass123'
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.client.login(email='test@example.com', password='testpass123')
-    
+
     def _accept_terms(self, user):
         try:
             from apps.users.models import TermsAcceptance
@@ -164,6 +165,11 @@ class HealthViewTest(TestCase):
             )
         except (ImportError, Exception):
             pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_health_home_requires_login(self):
         """Health home requires authentication."""
@@ -212,7 +218,7 @@ class HealthViewTest(TestCase):
 
 class HealthDataIsolationTest(TestCase):
     """Tests to ensure users can only see their own health data."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user_a = User.objects.create_user(
@@ -225,7 +231,9 @@ class HealthDataIsolationTest(TestCase):
         )
         self._accept_terms(self.user_a)
         self._accept_terms(self.user_b)
-        
+        self._complete_onboarding(self.user_a)
+        self._complete_onboarding(self.user_b)
+
         # Create weight entries for each user
         self.weight_a = WeightEntry.objects.create(
             user=self.user_a,
@@ -237,7 +245,7 @@ class HealthDataIsolationTest(TestCase):
             value=Decimal('165.0'),
             unit='lb'
         )
-    
+
     def _accept_terms(self, user):
         try:
             from apps.users.models import TermsAcceptance
@@ -248,6 +256,11 @@ class HealthDataIsolationTest(TestCase):
             )
         except (ImportError, Exception):
             pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_user_a_sees_only_their_weights(self):
         """User A only sees their own weight entries."""

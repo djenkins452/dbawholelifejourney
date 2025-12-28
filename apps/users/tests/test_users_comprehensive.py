@@ -32,14 +32,20 @@ class UsersTestMixin:
         return User.objects.create_user(email=email, password=password, **kwargs)
     
     def create_user_with_terms(self, email='test@example.com', password='testpass123'):
-        """Create user with terms accepted."""
+        """Create user with terms accepted and onboarding completed."""
         user = self.create_user(email=email, password=password)
         self._accept_terms(user)
+        self._complete_onboarding(user)
         return user
-    
+
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(user=user, terms_version='1.0')
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def login_user(self, email='test@example.com', password='testpass123'):
         return self.client.login(email=email, password=password)

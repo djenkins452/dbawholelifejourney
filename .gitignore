@@ -84,3 +84,6 @@ npm-debug.log
 *.bak
 *.tmp
 *.temp
+
+# Import files (personal data)
+chatgpt_journal_import.json

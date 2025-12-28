@@ -373,7 +373,7 @@ Located in `apps/life/tests/test_views.py`:
 - `test_completed_task_shows_undo_link` - Verify Undo link appears for completed tasks
 - `test_incomplete_task_no_undo_link` - Verify no Undo link for incomplete tasks
 
-### Running Tests
+### Running Tests (Local Development)
 ```bash
 # Run task-related tests
 python run_tests.py apps.life.tests.test_views.TaskViewTest
@@ -381,6 +381,8 @@ python run_tests.py apps.life.tests.test_views.TaskViewTest
 # Run all life app tests
 python run_tests.py apps.life.tests
 ```
+
+**Note:** Railway has no shell access. All tests must be run locally before pushing to main. Railway auto-deploys on push.
 
 ---
 *Last updated: 2025-12-27*

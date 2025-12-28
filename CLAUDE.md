@@ -471,4 +471,49 @@ python run_tests.py apps.life.tests
 **Note:** Railway has no shell access. All tests must be run locally before pushing to main. Railway auto-deploys on push.
 
 ---
-*Last updated: 2025-12-27*
+
+## User-Specific Saved Verses
+
+### Overview
+Users can save Scripture verses to their personal library. Each user's saved verses are private and not shared with other users.
+
+### The Bug (Fixed)
+Previously, saved Scripture verses were stored in a global `ScriptureVerse` table with no user association. This meant:
+- When Danny saved a verse, all users could see it
+- Heather saw Danny's saved verses when she logged in for the first time
+- This was a data leak / privacy issue
+
+### The Fix
+Created a new `SavedVerse` model that extends `UserOwnedModel` (which includes a `user` foreign key):
+- Each saved verse now belongs to a specific user
+- The Scripture list view filters by `user=request.user`
+- New verses are created with the current user assigned
+
+### Key Files
+- `apps/faith/models.py` - `SavedVerse` model (line 174+)
+- `apps/faith/views.py` - `ScriptureListView` and `ScriptureSaveView` updated to use `SavedVerse`
+- `apps/faith/admin.py` - `SavedVerseAdmin` for admin interface
+- `apps/faith/migrations/0002_add_saved_verse_model.py` - Creates the SavedVerse table
+- `apps/faith/migrations/0003_migrate_existing_verses_to_danny.py` - Data migration to assign existing verses to Danny
+
+### Data Migration
+The data migration (`0003_migrate_existing_verses_to_danny.py`) copies all existing `ScriptureVerse` entries to the new `SavedVerse` table and assigns them to `dannyjenkins71@gmail.com`. This preserves Danny's saved verses while ensuring new users start with an empty library.
+
+### Tests
+Located in `apps/faith/tests/test_saved_verses.py`:
+- `test_saved_verse_belongs_to_user` - Verify SavedVerse has user field
+- `test_user_only_sees_own_saved_verses` - Verify data isolation
+- `test_save_verse_assigns_to_current_user` - Verify new verses assigned correctly
+- `test_other_user_cannot_see_saved_verses` - Verify privacy between users
+
+### Running Tests
+```bash
+# Run saved verses tests
+python manage.py test apps.faith.tests.test_saved_verses
+
+# Run all faith app tests
+python manage.py test apps.faith
+```
+
+---
+*Last updated: 2025-12-28*

@@ -109,7 +109,12 @@
     {% else %}
     <div class="empty-state">
         <p class="text-muted">No scheduled doses for today.</p>
+        {% if active_count > 0 %}
+        <p class="text-muted mt-2">Your medicines may not have schedules set, or none are scheduled for today.</p>
+        <a href="{% url 'health:medicine_list' %}" class="btn btn-secondary mt-4">Manage Medicines</a>
+        {% else %}
         <a href="{% url 'health:medicine_create' %}" class="btn btn-primary mt-4">Add Your First Medicine</a>
+        {% endif %}
     </div>
     {% endif %}
 

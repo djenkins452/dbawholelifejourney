@@ -258,6 +258,14 @@
     cursor: pointer;
     color: var(--color-text-muted);
     flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+    /* Ensure the clickable area is easy to hit */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Prevent double-tap zoom on mobile */
+    touch-action: manipulation;
 }
 
 .task-checkbox:hover {
@@ -271,6 +279,8 @@
 .task-checkbox svg {
     width: 24px;
     height: 24px;
+    /* Ensure SVG doesn't capture pointer events separately */
+    pointer-events: none;
 }
 
 .task-content {

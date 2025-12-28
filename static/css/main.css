@@ -852,3 +852,56 @@ a:hover {
 .breadcrumb a:hover {
     text-decoration: underline;
 }
+
+/* ==========================================================================
+   Pull-to-Refresh
+   ========================================================================== */
+
+#pull-to-refresh-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    transform: translateY(-100%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.ptr-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.ptr-icon {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.2s ease;
+}
+
+.ptr-text {
+    font-weight: 500;
+}
+
+#pull-to-refresh-indicator.ptr-ready .ptr-content {
+    color: var(--color-accent);
+}
+
+#pull-to-refresh-indicator.ptr-refreshing .ptr-icon {
+    animation: ptr-spin 1s linear infinite;
+}
+
+@keyframes ptr-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}

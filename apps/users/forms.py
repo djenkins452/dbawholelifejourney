@@ -96,6 +96,7 @@ class PreferencesForm(forms.ModelForm):
             "habits_enabled",
             # AI
             "ai_enabled",
+            "ai_data_consent",
             'ai_coaching_style',
             # Location
             "location_city",
@@ -142,6 +143,9 @@ class PreferencesForm(forms.ModelForm):
                 "class": "form-checkbox",
             }),
             "ai_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "ai_data_consent": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
             # Location

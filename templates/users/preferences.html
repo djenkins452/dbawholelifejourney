@@ -227,21 +227,40 @@
         <div class="card mb-6">
             <h2 class="card-title">AI Features</h2>
             <p class="text-muted mb-4">AI-powered insights and encouragement for your journey.</p>
-            
+
             <div class="toggle-option">
                 <div class="toggle-info">
                     <div class="module-header">
                         <span class="module-icon">🤖</span>
                         <h4>AI Insights</h4>
-                        <span class="module-status status-active">Active</span>
+                        {% if form.ai_enabled.value %}<span class="module-status status-active">Active</span>{% endif %}
                     </div>
                     <p class="text-muted text-sm">
-                        AI-powered pattern recognition, personalized encouragement, and reflective prompts based on your journey. 
+                        AI-powered pattern recognition, personalized encouragement, and reflective prompts based on your journey.
                         AI provides thoughts to consider — never medical, financial, or spiritual advice.
                     </p>
                 </div>
                 <label class="toggle-switch">
                     <input type="checkbox" name="ai_enabled" id="ai_enabled_toggle" {% if form.ai_enabled.value %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="toggle-option" id="ai-data-consent-option" {% if not form.ai_enabled.value %}style="display: none;"{% endif %}>
+                <div class="toggle-info">
+                    <div class="module-header">
+                        <span class="module-icon">🔒</span>
+                        <h4>AI Data Processing Consent</h4>
+                        {% if form.ai_data_consent.value %}<span class="module-status status-active">Granted</span>{% endif %}
+                    </div>
+                    <p class="text-muted text-sm">
+                        <strong>Required for AI features.</strong> I consent to having my personal data (journal entries, health metrics, goals, etc.)
+                        processed by AI to provide personalized insights. Data is sent to OpenAI's API for analysis.
+                        Images from camera scanning are processed in real-time and <strong>never stored</strong>.
+                    </p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" name="ai_data_consent" id="ai_data_consent_toggle" {% if form.ai_data_consent.value %}checked{% endif %}>
                     <span class="toggle-slider"></span>
                 </label>
             </div>
@@ -768,13 +787,16 @@ function clearAccentColor() {
     document.getElementById('accent_color_text').value = '';
 }
 
-// AI coaching style toggle visibility
+// AI coaching style and data consent toggle visibility
 document.getElementById('ai_enabled_toggle').addEventListener('change', function() {
     const coachingSection = document.getElementById('ai-coaching-section');
+    const dataConsentOption = document.getElementById('ai-data-consent-option');
     if (this.checked) {
         coachingSection.classList.remove('hidden');
+        if (dataConsentOption) dataConsentOption.style.display = 'flex';
     } else {
         coachingSection.classList.add('hidden');
+        if (dataConsentOption) dataConsentOption.style.display = 'none';
     }
 });
 

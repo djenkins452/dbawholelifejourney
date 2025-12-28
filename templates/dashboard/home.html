@@ -316,7 +316,7 @@
     <section class="medicine-schedule-section">
         <div class="section-header">
             <h2 class="section-title">Today's Medicines</h2>
-            <a href="{% url 'health:medicine_tracker' %}" class="section-link">Open Tracker</a>
+            <a href="{% url 'health:medicine_home' %}" class="section-link">Open Tracker</a>
         </div>
         <div class="medicine-schedule-list">
             {% for item in user_data.todays_medicine_schedule %}

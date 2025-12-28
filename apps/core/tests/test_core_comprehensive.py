@@ -705,3 +705,359 @@ class AISourceTrackingModelTests(CoreTestMixin, TestCase):
         )
         self.assertTrue(workout.was_created_by_ai)
         self.assertEqual(workout.created_via, 'ai_camera')
+
+
+# =============================================================================
+# WHAT'S NEW / RELEASE NOTES TESTS
+# =============================================================================
+
+class ReleaseNoteModelTest(CoreTestMixin, TestCase):
+    """Tests for the ReleaseNote model."""
+
+    def setUp(self):
+        from apps.core.models import ReleaseNote
+        self.ReleaseNote = ReleaseNote
+        # Clear existing release notes for clean test state
+        self.ReleaseNote.objects.all().delete()
+
+    def test_create_release_note(self):
+        """Can create a release note with required fields."""
+        note = self.ReleaseNote.objects.create(
+            title='New Feature',
+            description='A wonderful new feature.',
+            release_date=date.today(),
+        )
+        self.assertEqual(note.title, 'New Feature')
+        self.assertEqual(note.entry_type, 'feature')  # default
+        self.assertTrue(note.is_published)  # default
+
+    def test_entry_type_choices(self):
+        """Release notes have correct entry type choices."""
+        self.assertEqual(self.ReleaseNote.TYPE_FEATURE, 'feature')
+        self.assertEqual(self.ReleaseNote.TYPE_FIX, 'fix')
+        self.assertEqual(self.ReleaseNote.TYPE_ENHANCEMENT, 'enhancement')
+        self.assertEqual(self.ReleaseNote.TYPE_SECURITY, 'security')
+
+    def test_get_published_returns_only_published(self):
+        """get_published() only returns published notes."""
+        published = self.ReleaseNote.objects.create(
+            title='Published',
+            description='Visible',
+            release_date=date.today(),
+            is_published=True,
+        )
+        unpublished = self.ReleaseNote.objects.create(
+            title='Unpublished',
+            description='Hidden',
+            release_date=date.today(),
+            is_published=False,
+        )
+        result = self.ReleaseNote.get_published()
+        self.assertIn(published, result)
+        self.assertNotIn(unpublished, result)
+
+    def test_get_published_ordering(self):
+        """get_published() orders by release_date descending."""
+        old = self.ReleaseNote.objects.create(
+            title='Old',
+            description='Earlier',
+            release_date=date.today() - timedelta(days=7),
+        )
+        new = self.ReleaseNote.objects.create(
+            title='New',
+            description='Recent',
+            release_date=date.today(),
+        )
+        result = list(self.ReleaseNote.get_published())
+        self.assertEqual(result[0], new)
+        self.assertEqual(result[1], old)
+
+    def test_get_icon_for_feature(self):
+        """Feature notes have sparkle icon."""
+        note = self.ReleaseNote.objects.create(
+            title='Feature',
+            description='New',
+            release_date=date.today(),
+            entry_type='feature',
+        )
+        self.assertEqual(note.get_icon(), '✨')
+
+    def test_get_icon_for_fix(self):
+        """Fix notes have wrench icon."""
+        note = self.ReleaseNote.objects.create(
+            title='Fix',
+            description='Bug fixed',
+            release_date=date.today(),
+            entry_type='fix',
+        )
+        self.assertEqual(note.get_icon(), '🔧')
+
+    def test_get_icon_for_enhancement(self):
+        """Enhancement notes have rocket icon."""
+        note = self.ReleaseNote.objects.create(
+            title='Enhancement',
+            description='Improved',
+            release_date=date.today(),
+            entry_type='enhancement',
+        )
+        self.assertEqual(note.get_icon(), '🚀')
+
+    def test_get_icon_for_security(self):
+        """Security notes have lock icon."""
+        note = self.ReleaseNote.objects.create(
+            title='Security',
+            description='Secured',
+            release_date=date.today(),
+            entry_type='security',
+        )
+        self.assertEqual(note.get_icon(), '🔒')
+
+    def test_str_representation(self):
+        """String representation includes title and date."""
+        note = self.ReleaseNote.objects.create(
+            title='Test Note',
+            description='Description',
+            release_date=date(2025, 12, 28),
+        )
+        self.assertIn('Test Note', str(note))
+        self.assertIn('2025-12-28', str(note))
+
+
+class UserReleaseNoteViewModelTest(CoreTestMixin, TestCase):
+    """Tests for the UserReleaseNoteView tracking model."""
+
+    def setUp(self):
+        from apps.core.models import UserReleaseNoteView
+        self.UserReleaseNoteView = UserReleaseNoteView
+        self.user = self.create_user()
+
+    def test_mark_viewed_creates_record(self):
+        """mark_viewed creates a new record for first-time view."""
+        self.assertEqual(self.UserReleaseNoteView.objects.count(), 0)
+        self.UserReleaseNoteView.mark_viewed(self.user)
+        self.assertEqual(self.UserReleaseNoteView.objects.count(), 1)
+
+    def test_mark_viewed_updates_existing(self):
+        """mark_viewed updates timestamp on subsequent views."""
+        first_view = self.UserReleaseNoteView.mark_viewed(self.user)
+        first_time = first_view.last_viewed_at
+
+        # Small delay to ensure different timestamp
+        import time
+        time.sleep(0.1)
+
+        second_view = self.UserReleaseNoteView.mark_viewed(self.user)
+        self.assertEqual(self.UserReleaseNoteView.objects.count(), 1)
+        self.assertGreater(second_view.last_viewed_at, first_time)
+
+    def test_str_representation(self):
+        """String representation includes user email."""
+        view = self.UserReleaseNoteView.mark_viewed(self.user)
+        self.assertIn(self.user.email, str(view))
+
+
+class ReleaseNoteUnseenTest(CoreTestMixin, TestCase):
+    """Tests for getting unseen release notes for a user."""
+
+    def setUp(self):
+        from apps.core.models import ReleaseNote, UserReleaseNoteView
+        self.ReleaseNote = ReleaseNote
+        self.UserReleaseNoteView = UserReleaseNoteView
+        self.ReleaseNote.objects.all().delete()
+        self.user = self.create_user()
+
+    def test_new_user_sees_all_notes(self):
+        """New user with no view history sees all notes (up to limit)."""
+        for i in range(5):
+            self.ReleaseNote.objects.create(
+                title=f'Note {i}',
+                description='Test',
+                release_date=date.today(),
+            )
+        unseen = self.ReleaseNote.get_unseen_for_user(self.user)
+        self.assertEqual(len(list(unseen)), 5)
+
+    def test_user_sees_only_new_notes_after_viewing(self):
+        """User only sees notes created after their last view."""
+        old_note = self.ReleaseNote.objects.create(
+            title='Old Note',
+            description='Seen',
+            release_date=date.today() - timedelta(days=1),
+        )
+        # Mark as viewed
+        self.UserReleaseNoteView.mark_viewed(self.user)
+
+        # Create new note after viewing
+        new_note = self.ReleaseNote.objects.create(
+            title='New Note',
+            description='Unseen',
+            release_date=date.today(),
+        )
+
+        unseen = list(self.ReleaseNote.get_unseen_for_user(self.user))
+        self.assertIn(new_note, unseen)
+        self.assertNotIn(old_note, unseen)
+
+    def test_opted_out_user_sees_nothing(self):
+        """User who opted out of What's New sees no notes."""
+        self.ReleaseNote.objects.create(
+            title='Note',
+            description='Test',
+            release_date=date.today(),
+        )
+        # Opt out
+        self.user.preferences.show_whats_new = False
+        self.user.preferences.save()
+
+        unseen = self.ReleaseNote.get_unseen_for_user(self.user)
+        self.assertEqual(len(list(unseen)), 0)
+
+
+class WhatsNewViewsTest(CoreTestMixin, TestCase):
+    """Tests for What's New API endpoints."""
+
+    def setUp(self):
+        from apps.core.models import ReleaseNote, UserReleaseNoteView
+        self.ReleaseNote = ReleaseNote
+        self.UserReleaseNoteView = UserReleaseNoteView
+        self.ReleaseNote.objects.all().delete()
+        self.user = self.create_user()
+        self.client = Client()
+        self.login_user()
+
+    def test_check_endpoint_requires_auth(self):
+        """Check endpoint requires authentication."""
+        self.client.logout()
+        response = self.client.get(reverse('core:whats_new_check'))
+        self.assertEqual(response.status_code, 302)  # Redirect to login
+
+    def test_check_endpoint_returns_json(self):
+        """Check endpoint returns JSON response."""
+        response = self.client.get(reverse('core:whats_new_check'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_check_endpoint_no_unseen(self):
+        """Check endpoint returns has_unseen=False when no notes."""
+        response = self.client.get(reverse('core:whats_new_check'))
+        data = response.json()
+        self.assertFalse(data['has_unseen'])
+        self.assertEqual(data['count'], 0)
+        self.assertEqual(data['notes'], [])
+
+    def test_check_endpoint_with_unseen(self):
+        """Check endpoint returns unseen notes."""
+        self.ReleaseNote.objects.create(
+            title='Test Feature',
+            description='A new feature',
+            release_date=date.today(),
+        )
+        response = self.client.get(reverse('core:whats_new_check'))
+        data = response.json()
+        self.assertTrue(data['has_unseen'])
+        self.assertEqual(data['count'], 1)
+        self.assertEqual(data['notes'][0]['title'], 'Test Feature')
+
+    def test_check_endpoint_note_fields(self):
+        """Check endpoint returns all expected note fields."""
+        self.ReleaseNote.objects.create(
+            title='Feature',
+            description='Description',
+            entry_type='feature',
+            release_date=date.today(),
+            is_major=True,
+            learn_more_url='https://example.com',
+        )
+        response = self.client.get(reverse('core:whats_new_check'))
+        note = response.json()['notes'][0]
+        self.assertIn('id', note)
+        self.assertIn('title', note)
+        self.assertIn('description', note)
+        self.assertIn('entry_type', note)
+        self.assertIn('type_display', note)
+        self.assertIn('icon', note)
+        self.assertIn('release_date', note)
+        self.assertIn('is_major', note)
+        self.assertIn('learn_more_url', note)
+
+    def test_dismiss_endpoint_requires_auth(self):
+        """Dismiss endpoint requires authentication."""
+        self.client.logout()
+        response = self.client.post(reverse('core:whats_new_dismiss'))
+        self.assertEqual(response.status_code, 302)
+
+    def test_dismiss_endpoint_marks_viewed(self):
+        """Dismiss endpoint marks notes as viewed."""
+        self.assertEqual(self.UserReleaseNoteView.objects.count(), 0)
+        response = self.client.post(reverse('core:whats_new_dismiss'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.UserReleaseNoteView.objects.count(), 1)
+
+    def test_dismiss_endpoint_returns_success(self):
+        """Dismiss endpoint returns success JSON."""
+        response = self.client.post(reverse('core:whats_new_dismiss'))
+        data = response.json()
+        self.assertTrue(data['success'])
+
+    def test_list_view_requires_auth(self):
+        """List view requires authentication."""
+        self.client.logout()
+        response = self.client.get(reverse('core:whats_new_list'))
+        self.assertEqual(response.status_code, 302)
+
+    def test_list_view_shows_notes(self):
+        """List view displays release notes."""
+        self.ReleaseNote.objects.create(
+            title='Test Note',
+            description='For listing',
+            release_date=date.today(),
+        )
+        response = self.client.get(reverse('core:whats_new_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Test Note')
+
+    def test_list_view_context_has_notes(self):
+        """List view passes release_notes to template context."""
+        response = self.client.get(reverse('core:whats_new_list'))
+        self.assertIn('release_notes', response.context)
+
+
+class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
+    """Tests for What's New preference toggle."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.client = Client()
+        self.login_user()
+
+    def test_show_whats_new_default_true(self):
+        """show_whats_new defaults to True for new users."""
+        self.assertTrue(self.user.preferences.show_whats_new)
+
+    def test_show_whats_new_in_preferences_form(self):
+        """show_whats_new field is in preferences form."""
+        response = self.client.get(reverse('users:preferences'))
+        self.assertContains(response, 'show_whats_new')
+
+    def test_can_disable_whats_new(self):
+        """User can disable What's New popup via preferences."""
+        response = self.client.post(reverse('users:preferences'), {
+            'theme': 'minimal',
+            'timezone': 'US/Eastern',
+            # show_whats_new not included = unchecked = False
+        })
+        self.user.preferences.refresh_from_db()
+        self.assertFalse(self.user.preferences.show_whats_new)
+
+    def test_can_enable_whats_new(self):
+        """User can enable What's New popup via preferences."""
+        self.user.preferences.show_whats_new = False
+        self.user.preferences.save()
+
+        response = self.client.post(reverse('users:preferences'), {
+            'theme': 'minimal',
+            'timezone': 'US/Eastern',
+            'show_whats_new': 'on',
+        })
+        self.user.preferences.refresh_from_db()
+        self.assertTrue(self.user.preferences.show_whats_new)

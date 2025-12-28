@@ -382,12 +382,36 @@
                 </select>
             </div>
         </div>
-        
+
+        <!-- Notifications Section -->
+        <div class="card mb-6">
+            <h2 class="card-title">Notifications</h2>
+            <p class="text-muted mb-4">Control how the app communicates with you.</p>
+
+            <div class="toggle-option">
+                <div class="toggle-info">
+                    <div class="module-header">
+                        <span class="module-icon">📢</span>
+                        <h4>What's New Updates</h4>
+                        {% if form.show_whats_new.value %}<span class="module-status status-active">Active</span>{% endif %}
+                    </div>
+                    <p class="text-muted text-sm">
+                        Show a popup when new features, improvements, or fixes are released.
+                        You can always view all updates from the <a href="{% url 'core:whats_new_list' %}">What's New</a> page.
+                    </p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" name="show_whats_new" {% if form.show_whats_new.value %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
         <!-- Integrations Section -->
         <div class="card mb-6">
             <h2 class="card-title">Integrations</h2>
             <p class="text-muted mb-4">Connect external services to enhance your experience.</p>
-            
+
             <div class="integration-item">
                 <div class="integration-icon">
                     <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">

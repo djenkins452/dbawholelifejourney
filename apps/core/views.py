@@ -6,8 +6,15 @@ apps/core/views.py
 import logging
 
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from django.views.generic import TemplateView
+from django.views import View
+from django.views.decorators.http import require_POST
+from django.views.generic import ListView, TemplateView
+
+from .models import ReleaseNote, UserReleaseNoteView
 
 logger = logging.getLogger(__name__)
 
@@ -81,3 +88,76 @@ def custom_500(request):
     """
     logger.error(f"500 error occurred for path: {request.path}")
     return render(request, '500.html', status=500)
+
+
+# =============================================================================
+# WHAT'S NEW / RELEASE NOTES VIEWS
+# =============================================================================
+
+
+class WhatsNewCheckView(LoginRequiredMixin, View):
+    """
+    API endpoint to check if there are unseen release notes.
+
+    Returns JSON with:
+    - has_unseen: boolean
+    - count: number of unseen notes
+    - notes: list of unseen notes (title, description, type, date)
+
+    Used by JavaScript to decide whether to show the popup.
+    """
+
+    def get(self, request, *args, **kwargs):
+        unseen_notes = ReleaseNote.get_unseen_for_user(request.user)
+
+        # Convert to list for JSON
+        notes_data = [
+            {
+                'id': note.id,
+                'title': note.title,
+                'description': note.description,
+                'entry_type': note.entry_type,
+                'type_display': note.get_entry_type_display(),
+                'icon': note.get_icon(),
+                'release_date': note.release_date.isoformat(),
+                'is_major': note.is_major,
+                'learn_more_url': note.learn_more_url,
+            }
+            for note in unseen_notes
+        ]
+
+        return JsonResponse({
+            'has_unseen': len(notes_data) > 0,
+            'count': len(notes_data),
+            'notes': notes_data,
+        })
+
+
+class WhatsNewDismissView(LoginRequiredMixin, View):
+    """
+    API endpoint to mark release notes as seen.
+
+    Called when user dismisses the What's New popup.
+    Updates the user's last-viewed timestamp.
+    """
+
+    def post(self, request, *args, **kwargs):
+        UserReleaseNoteView.mark_viewed(request.user)
+        return JsonResponse({'success': True})
+
+
+class WhatsNewListView(LoginRequiredMixin, ListView):
+    """
+    Full page view of all release notes.
+
+    Users can view the complete history of release notes here.
+    Accessible via link in the footer or from settings.
+    """
+
+    model = ReleaseNote
+    template_name = 'core/whats_new_list.html'
+    context_object_name = 'release_notes'
+    paginate_by = 20
+
+    def get_queryset(self):
+        return ReleaseNote.get_published()

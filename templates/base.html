@@ -103,11 +103,17 @@
     <!-- Scripts -->
     <script src="{% static 'js/main.js' %}"></script>
     <script src="{% static 'js/help.js' %}"></script>
+    <script src="{% static 'js/whats_new.js' %}"></script>
     {% block extra_js %}{% endblock %}
 
     <!-- Help Modal (user-facing pages) -->
     {% if user.is_authenticated %}
     {% include "components/help_modal.html" %}
+    {% endif %}
+
+    <!-- What's New Modal (user-facing pages) -->
+    {% if user.is_authenticated %}
+    {% include "components/whats_new_modal.html" %}
     {% endif %}
 
     <!-- WLJ Assistant Chat Widget -->

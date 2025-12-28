@@ -289,6 +289,12 @@ class UserPreferences(models.Model):
     # Onboarding status
     has_completed_onboarding = models.BooleanField(default=False)
 
+    # What's New popup preference
+    show_whats_new = models.BooleanField(
+        default=True,
+        help_text="Show 'What's New' popup when new features are released",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

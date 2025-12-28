@@ -1008,3 +1008,163 @@ class CameraScan(UserOwnedModel):
         if reference_id:
             self.action_reference_id = reference_id
         self.save(update_fields=['action_taken', 'action_reference_type', 'action_reference_id', 'updated_at'])
+
+
+# =============================================================================
+# RELEASE NOTE / WHAT'S NEW MODELS
+# =============================================================================
+
+
+class ReleaseNote(models.Model):
+    """
+    A single "What's New" entry shown to users after deployment.
+
+    Each entry represents a feature, fix, or enhancement that should be
+    communicated to users. Entries are shown in a popup modal when users
+    log in after new entries are published.
+    """
+
+    # Entry types for categorization and icons
+    TYPE_FEATURE = 'feature'
+    TYPE_FIX = 'fix'
+    TYPE_ENHANCEMENT = 'enhancement'
+    TYPE_SECURITY = 'security'
+
+    TYPE_CHOICES = [
+        (TYPE_FEATURE, 'New Feature'),
+        (TYPE_FIX, 'Bug Fix'),
+        (TYPE_ENHANCEMENT, 'Enhancement'),
+        (TYPE_SECURITY, 'Security Update'),
+    ]
+
+    # Content
+    title = models.CharField(
+        max_length=200,
+        help_text="Short, descriptive title (e.g., 'AI Camera Scanning')",
+    )
+    description = models.TextField(
+        help_text="Brief description of what's new. Keep it user-friendly.",
+    )
+    entry_type = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        default=TYPE_FEATURE,
+        help_text="Type of release note for categorization and display",
+    )
+
+    # Versioning and ordering
+    version = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Optional version number (e.g., '1.2.0')",
+    )
+    release_date = models.DateField(
+        help_text="Date this was released/deployed",
+    )
+
+    # Visibility control
+    is_published = models.BooleanField(
+        default=True,
+        help_text="Only published entries are shown to users",
+    )
+    is_major = models.BooleanField(
+        default=False,
+        help_text="Mark as major update for visual emphasis",
+    )
+
+    # Optional link to more info
+    learn_more_url = models.URLField(
+        blank=True,
+        help_text="Optional link to documentation or blog post",
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-release_date', '-created_at']
+        verbose_name = "Release Note"
+        verbose_name_plural = "Release Notes"
+
+    def __str__(self):
+        return f"{self.title} ({self.release_date})"
+
+    @classmethod
+    def get_published(cls):
+        """Get all published release notes, ordered by date descending."""
+        return cls.objects.filter(is_published=True).order_by('-release_date', '-created_at')
+
+    @classmethod
+    def get_unseen_for_user(cls, user):
+        """
+        Get release notes the user hasn't seen yet.
+
+        Returns notes published after the user's last view, or all notes
+        if the user has never viewed any.
+        """
+        from apps.users.models import UserPreferences
+
+        # Check if user has opted out of What's New
+        try:
+            prefs = user.preferences
+            if not prefs.show_whats_new:
+                return cls.objects.none()
+        except UserPreferences.DoesNotExist:
+            pass
+
+        # Get user's last seen timestamp
+        last_seen = UserReleaseNoteView.objects.filter(user=user).first()
+
+        if last_seen:
+            # Only notes published after last seen
+            return cls.get_published().filter(
+                created_at__gt=last_seen.last_viewed_at
+            )
+        else:
+            # New user - show all published notes (up to a reasonable limit)
+            return cls.get_published()[:10]
+
+    def get_icon(self):
+        """Return an emoji icon based on entry type."""
+        icons = {
+            self.TYPE_FEATURE: '✨',
+            self.TYPE_FIX: '🔧',
+            self.TYPE_ENHANCEMENT: '🚀',
+            self.TYPE_SECURITY: '🔒',
+        }
+        return icons.get(self.entry_type, '📌')
+
+
+class UserReleaseNoteView(models.Model):
+    """
+    Track when a user last viewed the What's New popup.
+
+    This is a simple timestamp model - we track when the user last
+    dismissed the popup, then show only notes created after that time.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='release_note_view',
+    )
+    last_viewed_at = models.DateTimeField(
+        help_text="When the user last dismissed the What's New popup",
+    )
+
+    class Meta:
+        verbose_name = "User Release Note View"
+        verbose_name_plural = "User Release Note Views"
+
+    def __str__(self):
+        return f"{self.user.email} - last viewed {self.last_viewed_at}"
+
+    @classmethod
+    def mark_viewed(cls, user):
+        """Mark that the user has viewed all current release notes."""
+        obj, created = cls.objects.update_or_create(
+            user=user,
+            defaults={'last_viewed_at': timezone.now()}
+        )
+        return obj

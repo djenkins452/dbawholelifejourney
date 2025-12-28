@@ -36,6 +36,18 @@
                 <span class="stat-value">{{ quick_stats.active_prayers }}</span>
             </div>
             {% endif %}
+            {% if health_enabled and quick_stats.medicine_doses_today > 0 %}
+            <div class="quick-stat" title="Medicines: {{ quick_stats.medicine_doses_taken }}/{{ quick_stats.medicine_doses_today }} taken">
+                <span class="stat-icon">💊</span>
+                <span class="stat-value">{{ quick_stats.medicine_doses_taken }}/{{ quick_stats.medicine_doses_today }}</span>
+            </div>
+            {% endif %}
+            {% if health_enabled and quick_stats.workouts_week > 0 %}
+            <div class="quick-stat" title="Workouts This Week">
+                <span class="stat-icon">💪</span>
+                <span class="stat-value">{{ quick_stats.workouts_week }}</span>
+            </div>
+            {% endif %}
         </div>
     </header>
     
@@ -94,6 +106,38 @@
                 <span class="nudge-icon">🎯</span>
                 <div class="nudge-text">
                     <span class="nudge-message">No active goals set. What are you working toward?</span>
+                </div>
+            </div>
+            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+            {% elif nudge.type == 'medicine' %}
+            <div class="nudge-content">
+                <span class="nudge-icon">💊</span>
+                <div class="nudge-text">
+                    <span class="nudge-message">{{ nudge.count }} medicine dose{{ nudge.count|pluralize }} pending today.</span>
+                </div>
+            </div>
+            <a href="{{ nudge.action_url }}" class="btn btn-primary btn-sm">{{ nudge.action_text }}</a>
+            {% elif nudge.type == 'medicine_adherence' %}
+            <div class="nudge-content">
+                <span class="nudge-icon">📉</span>
+                <div class="nudge-text">
+                    <span class="nudge-message">Medicine adherence at {{ nudge.adherence }}% this week.</span>
+                </div>
+            </div>
+            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+            {% elif nudge.type == 'refill' %}
+            <div class="nudge-content">
+                <span class="nudge-icon">🔔</span>
+                <div class="nudge-text">
+                    <span class="nudge-message">{{ nudge.count }} medicine{{ nudge.count|pluralize }} need{{ nudge.count|pluralize:"s," }} refill.</span>
+                </div>
+            </div>
+            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+            {% elif nudge.type == 'workout' %}
+            <div class="nudge-content">
+                <span class="nudge-icon">🏋️</span>
+                <div class="nudge-text">
+                    <span class="nudge-message">It's been {{ nudge.days }} days since your last workout.</span>
                 </div>
             </div>
             <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
@@ -266,7 +310,79 @@
             {% endif %}
         </div>
     </section>
-    
+
+    <!-- Today's Medicine Schedule (if health enabled and has medicines) -->
+    {% if health_enabled and user_data.todays_medicine_schedule %}
+    <section class="medicine-schedule-section">
+        <div class="section-header">
+            <h2 class="section-title">Today's Medicines</h2>
+            <a href="{% url 'health:medicine_tracker' %}" class="section-link">Open Tracker</a>
+        </div>
+        <div class="medicine-schedule-list">
+            {% for item in user_data.todays_medicine_schedule %}
+            <div class="medicine-schedule-item {% if item.taken %}taken{% elif item.missed %}missed{% elif item.skipped %}skipped{% endif %}">
+                <div class="medicine-time">{{ item.schedule.scheduled_time|time:"g:i A" }}</div>
+                <div class="medicine-info">
+                    <span class="medicine-name">{{ item.medicine.name }}</span>
+                    <span class="medicine-dose">{{ item.medicine.dose }}</span>
+                </div>
+                <div class="medicine-status">
+                    {% if item.taken %}
+                    <span class="status-badge status-taken">✓ Taken</span>
+                    {% elif item.missed %}
+                    <span class="status-badge status-missed">✗ Missed</span>
+                    {% elif item.skipped %}
+                    <span class="status-badge status-skipped">— Skipped</span>
+                    {% else %}
+                    <span class="status-badge status-pending">Pending</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Recent Workouts (if health enabled and has workouts) -->
+    {% if health_enabled and user_data.recent_workouts %}
+    <section class="recent-workouts-section">
+        <div class="section-header">
+            <h2 class="section-title">Recent Workouts</h2>
+            <a href="{% url 'health:workout_list' %}" class="section-link">View All</a>
+        </div>
+        <div class="workouts-list">
+            {% for workout in user_data.recent_workouts %}
+            <a href="{% url 'health:workout_detail' workout.pk %}" class="workout-item">
+                <div class="workout-date">
+                    <span class="date-month">{{ workout.date|date:"M" }}</span>
+                    <span class="date-day">{{ workout.date|date:"j" }}</span>
+                </div>
+                <div class="workout-info">
+                    <span class="workout-name">{% if workout.name %}{{ workout.name }}{% else %}Workout{% endif %}</span>
+                    <span class="workout-meta">
+                        {{ workout.exercise_count }} exercise{{ workout.exercise_count|pluralize }}
+                        {% if workout.duration_minutes %} • {{ workout.duration_minutes }} min{% endif %}
+                    </span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% if user_data.recent_prs %}
+        <div class="recent-prs">
+            <h3 class="subsection-title">Recent PRs</h3>
+            {% for pr in user_data.recent_prs %}
+            <div class="pr-item">
+                <span class="pr-icon">🏆</span>
+                <span class="pr-exercise">{{ pr.exercise.name }}</span>
+                <span class="pr-details">{{ pr.weight }}lbs × {{ pr.reps }}</span>
+                <span class="pr-date">{{ pr.achieved_date|date:"M j" }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
     <!-- Upcoming Events (if any) -->
     {% if life_enabled and user_data.upcoming_events %}
     <section class="upcoming-section">

@@ -440,42 +440,350 @@
         flex-direction: column;
         align-items: flex-start;
     }
-    
+
     .quick-stats {
         width: 100%;
         justify-content: flex-start;
+        flex-wrap: wrap;
     }
-    
+
     .ai-insight-hero {
         padding: var(--space-4);
     }
-    
+
     .ai-insight-text {
         font-size: var(--font-size-base);
     }
-    
+
     .nudge-card {
         flex-direction: column;
         align-items: flex-start;
     }
-    
+
     .nudge-card .btn {
         width: 100%;
     }
-    
+
     .quick-actions-grid {
         grid-template-columns: repeat(3, 1fr);
     }
-    
+
     .quick-action-card {
         padding: var(--space-3);
     }
-    
+
     .action-icon {
         font-size: 1.25rem;
     }
-    
+
     .action-label {
         font-size: var(--font-size-xs);
+    }
+}
+
+/* =============================================================================
+   NEW NUDGE TYPES (Medicine, Workout, Refill)
+   ============================================================================= */
+
+.nudge-medicine {
+    border-left: 3px solid #ef4444;  /* Red for urgency */
+}
+
+.nudge-medicine_adherence {
+    border-left: 3px solid #f97316;  /* Orange for warning */
+}
+
+.nudge-refill {
+    border-left: 3px solid #eab308;  /* Yellow for attention */
+}
+
+.nudge-workout {
+    border-left: 3px solid #10b981;  /* Green for health */
+}
+
+/* =============================================================================
+   NEW CELEBRATION TYPES (Medicine, Workout, Scan)
+   ============================================================================= */
+
+.celebration-medicine {
+    border-left: 3px solid #06b6d4;  /* Cyan for medicine */
+}
+
+.celebration-workout {
+    border-left: 3px solid #22c55e;  /* Green for fitness */
+}
+
+.celebration-scan {
+    border-left: 3px solid #8b5cf6;  /* Purple for AI/camera */
+}
+
+/* =============================================================================
+   SECTION HEADER (with link)
+   ============================================================================= */
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header .section-title {
+    margin-bottom: 0;
+}
+
+.section-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.section-link:hover {
+    text-decoration: underline;
+}
+
+/* =============================================================================
+   TODAY'S MEDICINE SCHEDULE
+   ============================================================================= */
+
+.medicine-schedule-section {
+    margin-bottom: var(--space-6);
+}
+
+.medicine-schedule-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.medicine-schedule-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.medicine-schedule-item.taken {
+    background: color-mix(in srgb, #22c55e 8%, var(--color-surface));
+    border-color: color-mix(in srgb, #22c55e 30%, var(--color-border));
+}
+
+.medicine-schedule-item.missed {
+    background: color-mix(in srgb, #ef4444 8%, var(--color-surface));
+    border-color: color-mix(in srgb, #ef4444 30%, var(--color-border));
+}
+
+.medicine-schedule-item.skipped {
+    background: color-mix(in srgb, #6b7280 8%, var(--color-surface));
+    border-color: var(--color-border);
+    opacity: 0.7;
+}
+
+.medicine-time {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    min-width: 70px;
+    color: var(--color-text-muted);
+}
+
+.medicine-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.medicine-name {
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.medicine-dose {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.medicine-status {
+    flex-shrink: 0;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    border-radius: var(--radius-full);
+}
+
+.status-taken {
+    background: color-mix(in srgb, #22c55e 15%, transparent);
+    color: #16a34a;
+}
+
+.status-missed {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
+    color: #dc2626;
+}
+
+.status-skipped {
+    background: color-mix(in srgb, #6b7280 15%, transparent);
+    color: #4b5563;
+}
+
+.status-pending {
+    background: color-mix(in srgb, #3b82f6 15%, transparent);
+    color: #2563eb;
+}
+
+/* =============================================================================
+   RECENT WORKOUTS
+   ============================================================================= */
+
+.recent-workouts-section {
+    margin-bottom: var(--space-6);
+}
+
+.workouts-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.workout-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.workout-item:hover {
+    border-color: var(--color-accent);
+    background: var(--color-background);
+}
+
+.workout-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 48px;
+    padding: var(--space-2);
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+}
+
+.workout-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.workout-name {
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.workout-meta {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Recent PRs subsection */
+.recent-prs {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.subsection-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.pr-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.pr-item:last-child {
+    border-bottom: none;
+}
+
+.pr-icon {
+    font-size: var(--font-size-base);
+}
+
+.pr-exercise {
+    flex: 1;
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.pr-details {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.pr-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* =============================================================================
+   RESPONSIVE - NEW SECTIONS
+   ============================================================================= */
+
+@media (max-width: 640px) {
+    .medicine-schedule-item {
+        flex-wrap: wrap;
+    }
+
+    .medicine-time {
+        min-width: auto;
+    }
+
+    .medicine-status {
+        width: 100%;
+        margin-top: var(--space-2);
+    }
+
+    .pr-item {
+        flex-wrap: wrap;
+    }
+
+    .pr-exercise {
+        order: 1;
+        width: 100%;
+        margin-bottom: var(--space-1);
+    }
+
+    .pr-icon {
+        order: 0;
+    }
+
+    .pr-details {
+        order: 2;
+        flex: 1;
+    }
+
+    .pr-date {
+        order: 3;
     }
 }

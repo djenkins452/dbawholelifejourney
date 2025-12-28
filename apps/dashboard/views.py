@@ -109,32 +109,36 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         today = get_user_today(user)
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
-        
+
         data = {
             "today": today,
             "week_ago": week_ago,
         }
-        
+
         # Journal data
         if prefs.journal_enabled:
             data.update(self._get_journal_data(user, today, week_ago, month_ago))
-        
+
         # Faith data
         if prefs.faith_enabled:
             data.update(self._get_faith_data(user))
-        
+
         # Health data
         if prefs.health_enabled:
             data.update(self._get_health_data(user, today, month_ago))
-        
+
         # Life data
         if prefs.life_enabled:
             data.update(self._get_life_data(user, today))
-        
+
         # Purpose data
         if prefs.purpose_enabled:
             data.update(self._get_purpose_data(user))
-        
+
+        # Scan data (if AI enabled - scan requires AI)
+        if prefs.ai_enabled:
+            data.update(self._get_scan_data(user, today, week_ago))
+
         return data
     
     def _get_journal_data(self, user, today, week_ago, month_ago):
@@ -217,12 +221,17 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     
     def _get_health_data(self, user, today, month_ago):
         """Get health-related data."""
-        from apps.health.models import WeightEntry, FastingWindow, GlucoseEntry
-        
+        from apps.health.models import (
+            WeightEntry, FastingWindow, GlucoseEntry,
+            Medicine, MedicineLog, MedicineSchedule,
+            WorkoutSession, PersonalRecord
+        )
+        from datetime import datetime, timedelta as dt_timedelta
+
         # Weight
         weights = WeightEntry.objects.filter(user=user)
         latest_weight = weights.order_by('-recorded_at').first()
-        
+
         weight_change = None
         weight_trend = None
         if latest_weight and weights.count() >= 2:
@@ -233,7 +242,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if month_ago_weight:
                 weight_change = round(latest_weight.value_in_lb - month_ago_weight.value_in_lb, 1)
                 weight_trend = 'down' if weight_change < 0 else 'up' if weight_change > 0 else 'stable'
-        
+
         # Fasting
         fasting = FastingWindow.objects.filter(user=user)
         active_fast = fasting.filter(ended_at__isnull=True).first()
@@ -241,11 +250,93 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             ended_at__isnull=False,
             started_at__gte=month_ago
         ).count()
-        
+
         # Glucose
         glucose = GlucoseEntry.objects.filter(user=user)
         latest_glucose = glucose.order_by('-recorded_at').first()
-        
+
+        # =====================
+        # Medicine Tracking
+        # =====================
+        active_medicines = Medicine.objects.filter(
+            user=user,
+            medicine_status=Medicine.STATUS_ACTIVE
+        )
+
+        # Today's medicine schedule
+        today_weekday = today.weekday()
+        todays_schedules = []
+        for medicine in active_medicines.filter(is_prn=False):
+            for schedule in medicine.schedules.filter(is_active=True):
+                if schedule.applies_to_day(today_weekday):
+                    # Check if this dose was taken today
+                    log = MedicineLog.objects.filter(
+                        medicine=medicine,
+                        schedule=schedule,
+                        scheduled_date=today
+                    ).first()
+                    todays_schedules.append({
+                        'medicine': medicine,
+                        'schedule': schedule,
+                        'log': log,
+                        'taken': log is not None and log.log_status in ['taken', 'late'],
+                        'missed': log is not None and log.log_status == 'missed',
+                        'skipped': log is not None and log.log_status == 'skipped',
+                    })
+
+        # Sort by scheduled time
+        todays_schedules.sort(key=lambda x: x['schedule'].scheduled_time)
+
+        # Medicine adherence for the week
+        week_ago_date = today - timedelta(days=7)
+        medicine_logs_week = MedicineLog.objects.filter(
+            user=user,
+            scheduled_date__gte=week_ago_date,
+            scheduled_date__lte=today
+        )
+        taken_count = medicine_logs_week.filter(log_status__in=['taken', 'late']).count()
+        missed_count = medicine_logs_week.filter(log_status='missed').count()
+        total_scheduled = taken_count + missed_count
+        adherence_rate = round((taken_count / total_scheduled) * 100) if total_scheduled > 0 else None
+
+        # Medicines needing refill
+        needs_refill = active_medicines.filter(
+            current_supply__isnull=False,
+            current_supply__lte=models.F('refill_threshold')
+        )
+
+        # =====================
+        # Workout Tracking
+        # =====================
+        week_ago_date = today - timedelta(days=7)
+
+        # Workouts this week
+        workouts_week = WorkoutSession.objects.filter(
+            user=user,
+            date__gte=week_ago_date,
+            date__lte=today
+        )
+
+        # Recent workouts (last 3)
+        recent_workouts = WorkoutSession.objects.filter(
+            user=user
+        ).order_by('-date')[:3]
+
+        # Recent PRs (last 30 days)
+        recent_prs = PersonalRecord.objects.filter(
+            user=user,
+            achieved_date__gte=today - timedelta(days=30)
+        ).order_by('-achieved_date')[:3]
+
+        # Workout streak (consecutive days with workouts)
+        workout_streak = self._calculate_workout_streak(user, today)
+
+        # Last workout date
+        last_workout = WorkoutSession.objects.filter(user=user).order_by('-date').first()
+        days_since_workout = None
+        if last_workout:
+            days_since_workout = (today - last_workout.date).days
+
         return {
             "latest_weight": latest_weight,
             "weight_change": weight_change,
@@ -255,8 +346,110 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "fasting_active": active_fast is not None,
             "completed_fasts_month": completed_fasts_month,
             "latest_glucose": latest_glucose,
+            # Medicine data
+            "active_medicines": active_medicines.count(),
+            "todays_medicine_schedule": todays_schedules,
+            "medicine_doses_today": len(todays_schedules),
+            "medicine_doses_taken_today": sum(1 for s in todays_schedules if s['taken']),
+            "medicine_adherence_rate": adherence_rate,
+            "medicines_need_refill": list(needs_refill),
+            "medicines_need_refill_count": needs_refill.count(),
+            # Workout data
+            "workouts_this_week": workouts_week.count(),
+            "recent_workouts": list(recent_workouts),
+            "recent_prs": list(recent_prs),
+            "workout_streak": workout_streak,
+            "days_since_workout": days_since_workout,
+            "last_workout": last_workout,
         }
-    
+
+    def _calculate_workout_streak(self, user, today):
+        """Calculate consecutive days with workouts."""
+        from apps.health.models import WorkoutSession
+
+        workout_dates = WorkoutSession.objects.filter(
+            user=user
+        ).order_by('-date').values_list('date', flat=True).distinct()[:60]
+
+        if not workout_dates:
+            return 0
+
+        streak = 0
+        expected_date = today
+
+        for workout_date in workout_dates:
+            if workout_date == expected_date:
+                streak += 1
+                expected_date -= timedelta(days=1)
+            elif workout_date < expected_date:
+                break
+
+        return streak
+
+    def _get_scan_data(self, user, today, week_ago):
+        """Get scan/camera activity data."""
+        from apps.scan.models import ScanLog
+
+        # Scans this week
+        scans_week = ScanLog.objects.filter(
+            user=user,
+            created_at__gte=week_ago,
+            status=ScanLog.STATUS_SUCCESS
+        )
+
+        # Category breakdown
+        category_counts = {}
+        for scan in scans_week:
+            if scan.category:
+                category_counts[scan.category] = category_counts.get(scan.category, 0) + 1
+
+        # Most scanned category
+        top_category = None
+        if category_counts:
+            top_category = max(category_counts, key=category_counts.get)
+
+        # Recent scans with actions taken
+        recent_scans = ScanLog.objects.filter(
+            user=user,
+            status=ScanLog.STATUS_SUCCESS
+        ).exclude(action_taken='').order_by('-created_at')[:5]
+
+        # Items logged via scan (entries created via AI camera this week)
+        from apps.core.models import UserOwnedModel
+        from apps.journal.models import JournalEntry
+        from apps.health.models import Medicine, WorkoutSession
+
+        ai_camera_entries = JournalEntry.objects.filter(
+            user=user,
+            created_via='ai_camera',
+            created_at__gte=week_ago
+        ).count()
+
+        ai_camera_medicines = Medicine.objects.filter(
+            user=user,
+            created_via='ai_camera',
+            created_at__gte=week_ago
+        ).count()
+
+        ai_camera_workouts = WorkoutSession.objects.filter(
+            user=user,
+            created_via='ai_camera',
+            created_at__gte=week_ago
+        ).count()
+
+        total_items_from_scan = ai_camera_entries + ai_camera_medicines + ai_camera_workouts
+
+        return {
+            "scans_this_week": scans_week.count(),
+            "scan_category_counts": category_counts,
+            "top_scan_category": top_category,
+            "recent_scans_with_action": list(recent_scans),
+            "items_from_scan_week": total_items_from_scan,
+            "ai_camera_entries": ai_camera_entries,
+            "ai_camera_medicines": ai_camera_medicines,
+            "ai_camera_workouts": ai_camera_workouts,
+        }
+
     def _get_life_data(self, user, today):
         """Get life-related data."""
         from apps.life.models import Project, Task, LifeEvent
@@ -352,7 +545,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     def _check_for_celebrations(self, user_data):
         """Check for things worth celebrating."""
         celebrations = []
-        
+
         # Journal streak
         streak = user_data.get("journal_streak", 0)
         if streak >= 7:
@@ -363,11 +556,11 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             })
         elif streak >= 3:
             celebrations.append({
-                "type": "streak", 
+                "type": "streak",
                 "title": f"📝 {streak} Days in a Row!",
                 "detail": "Keep the momentum going."
             })
-        
+
         # Tasks completed today
         completed = user_data.get("completed_tasks_today", 0)
         if completed >= 5:
@@ -382,7 +575,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "title": f"✓ {completed} Tasks Completed",
                 "detail": "Solid progress today."
             })
-        
+
         # Weight trend
         if user_data.get("weight_trend") == "down" and user_data.get("weight_change"):
             celebrations.append({
@@ -390,7 +583,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "title": f"📉 Down {abs(user_data['weight_change'])} lbs",
                 "detail": "Your consistency is paying off."
             })
-        
+
         # Answered prayers
         if user_data.get("recent_answered_prayer"):
             celebrations.append({
@@ -398,13 +591,87 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "title": "🙏 Prayer Answered",
                 "detail": "God is faithful."
             })
-        
+
+        # Medicine adherence - perfect adherence
+        adherence = user_data.get("medicine_adherence_rate")
+        if adherence is not None and adherence >= 95:
+            celebrations.append({
+                "type": "medicine",
+                "title": "💊 Perfect Medicine Adherence!",
+                "detail": f"{adherence}% adherence this week. Keep it up!"
+            })
+        elif adherence is not None and adherence >= 80:
+            celebrations.append({
+                "type": "medicine",
+                "title": f"💊 {adherence}% Adherence",
+                "detail": "Great job staying on track with your medicines."
+            })
+
+        # All medicines taken today
+        doses_today = user_data.get("medicine_doses_today", 0)
+        taken_today = user_data.get("medicine_doses_taken_today", 0)
+        if doses_today > 0 and taken_today == doses_today:
+            celebrations.append({
+                "type": "medicine",
+                "title": "✅ All Doses Taken Today!",
+                "detail": "You've taken all your scheduled medicines."
+            })
+
+        # Workout streak
+        workout_streak = user_data.get("workout_streak", 0)
+        if workout_streak >= 5:
+            celebrations.append({
+                "type": "workout",
+                "title": f"💪 {workout_streak}-Day Workout Streak!",
+                "detail": "Your dedication is inspiring."
+            })
+        elif workout_streak >= 3:
+            celebrations.append({
+                "type": "workout",
+                "title": f"🏋️ {workout_streak} Days of Workouts!",
+                "detail": "Building strong habits."
+            })
+
+        # Recent PRs
+        recent_prs = user_data.get("recent_prs", [])
+        if recent_prs:
+            pr = recent_prs[0]  # Most recent PR
+            celebrations.append({
+                "type": "workout",
+                "title": f"🏆 New PR: {pr.exercise.name}!",
+                "detail": f"{pr.weight}lbs x {pr.reps} reps"
+            })
+
+        # Workouts this week
+        workouts_week = user_data.get("workouts_this_week", 0)
+        if workouts_week >= 5:
+            celebrations.append({
+                "type": "workout",
+                "title": f"🔥 {workouts_week} Workouts This Week!",
+                "detail": "Outstanding fitness commitment."
+            })
+        elif workouts_week >= 3:
+            celebrations.append({
+                "type": "workout",
+                "title": f"💪 {workouts_week} Workouts This Week",
+                "detail": "Staying active and strong."
+            })
+
+        # AI Camera usage
+        items_from_scan = user_data.get("items_from_scan_week", 0)
+        if items_from_scan >= 5:
+            celebrations.append({
+                "type": "scan",
+                "title": f"📷 {items_from_scan} Items Logged via Camera!",
+                "detail": "Smart use of the AI camera feature."
+            })
+
         return celebrations[:3]  # Max 3 celebrations
     
     def _check_for_nudges(self, user_data, prefs):
         """Check for gentle accountability nudges."""
         nudges = []
-        
+
         # Journal gap
         days_since = user_data.get("days_since_journal")
         if days_since and days_since >= 3:
@@ -414,7 +681,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "action_url": "/journal/new/",
                 "action_text": "Write Now"
             })
-        
+
         # Overdue tasks
         overdue = user_data.get("overdue_tasks", 0)
         if overdue > 0:
@@ -424,7 +691,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "action_url": "/life/tasks/",
                 "action_text": "View Tasks"
             })
-        
+
         # No active goals (if purpose enabled)
         if prefs.purpose_enabled and user_data.get("active_goals", 0) == 0:
             nudges.append({
@@ -432,7 +699,49 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "action_url": "/purpose/goals/new/",
                 "action_text": "Set a Goal"
             })
-        
+
+        # Missed medicine doses today (high priority)
+        doses_today = user_data.get("medicine_doses_today", 0)
+        taken_today = user_data.get("medicine_doses_taken_today", 0)
+        pending_doses = doses_today - taken_today
+        if pending_doses > 0:
+            nudges.append({
+                "type": "medicine",
+                "count": pending_doses,
+                "action_url": "/health/medicine/tracker/",
+                "action_text": "Open Tracker"
+            })
+
+        # Low medicine adherence this week
+        adherence = user_data.get("medicine_adherence_rate")
+        if adherence is not None and adherence < 70:
+            nudges.append({
+                "type": "medicine_adherence",
+                "adherence": adherence,
+                "action_url": "/health/medicine/",
+                "action_text": "View Schedule"
+            })
+
+        # Medicines needing refill
+        refill_count = user_data.get("medicines_need_refill_count", 0)
+        if refill_count > 0:
+            nudges.append({
+                "type": "refill",
+                "count": refill_count,
+                "action_url": "/health/medicine/",
+                "action_text": "Check Refills"
+            })
+
+        # Workout gap
+        days_since_workout = user_data.get("days_since_workout")
+        if days_since_workout and days_since_workout >= 5:
+            nudges.append({
+                "type": "workout",
+                "days": days_since_workout,
+                "action_url": "/health/workouts/",
+                "action_text": "Log Workout"
+            })
+
         return nudges[:2]  # Max 2 nudges
     
     def _get_quick_stats(self, user_data):
@@ -442,6 +751,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "active_goals": user_data.get("active_goals", 0),
             "tasks_today": user_data.get("completed_tasks_today", 0),
             "active_prayers": user_data.get("active_prayers", 0),
+            # Medicine stats
+            "medicine_doses_today": user_data.get("medicine_doses_today", 0),
+            "medicine_doses_taken": user_data.get("medicine_doses_taken_today", 0),
+            "medicine_adherence": user_data.get("medicine_adherence_rate"),
+            # Workout stats
+            "workouts_week": user_data.get("workouts_this_week", 0),
+            "workout_streak": user_data.get("workout_streak", 0),
         }
 
 

@@ -846,7 +846,13 @@
         }
     }
 
+    // Store scan image key for passing to create views
+    let currentScanImageKey = null;
+
     function showResults(data) {
+        // Store scan image key for appending to action URLs
+        currentScanImageKey = data.scan_image_key || null;
+
         // Update category display
         resultIcon.innerHTML = categoryIcons[data.top_category] || categoryIcons.unknown;
         resultCategory.textContent = formatCategory(data.top_category);
@@ -894,8 +900,14 @@
                         </button>
                     `;
                 } else {
+                    // Append scan_image_key to action URLs so views can retrieve the scanned image
+                    let actionUrl = action.url;
+                    if (currentScanImageKey && actionUrl && actionUrl.length > 0) {
+                        const separator = actionUrl.includes('?') ? '&' : '?';
+                        actionUrl = `${actionUrl}${separator}scan_image_key=${encodeURIComponent(currentScanImageKey)}`;
+                    }
                     return `
-                        <a href="${escapeHtml(action.url)}" class="action-btn ${index === 0 ? 'action-btn-primary' : ''}"
+                        <a href="${escapeHtml(actionUrl)}" class="action-btn ${index === 0 ? 'action-btn-primary' : ''}"
                            data-action="${escapeHtml(action.id)}">
                             ${escapeHtml(action.label)}
                         </a>

@@ -506,14 +506,136 @@ class DataIsolationTest(TestCase):
     def test_user_cannot_delete_other_users_event(self):
         """User A cannot delete User B's event."""
         self.client.login(email='usera@example.com', password='testpass123')
-        
+
         # Try to delete User B's event
         response = self.client.post(
             reverse('life:event_delete', kwargs={'pk': self.event_b.pk})
         )
-        
+
         # Should get 404
         self.assertEqual(response.status_code, 404)
-        
+
         # Event should still exist
         self.assertTrue(LifeEvent.objects.filter(pk=self.event_b.pk).exists())
+
+
+class InventoryCreateFromScanTest(TestCase):
+    """Tests for creating inventory items from AI Camera scan with image attachment."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email='test@example.com',
+            password='testpass123'
+        )
+        self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
+        self.client.login(email='test@example.com', password='testpass123')
+
+    def _accept_terms(self, user):
+        """Helper to accept terms for a user."""
+        try:
+            from apps.users.models import TermsAcceptance
+            from django.conf import settings
+            TermsAcceptance.objects.create(
+                user=user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+            )
+        except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Helper to complete onboarding for a user."""
+        try:
+            user.preferences.has_completed_onboarding = True
+            user.preferences.save()
+        except Exception:
+            pass
+
+    def test_inventory_create_with_scan_image_key_attaches_photo(self):
+        """Creating inventory item with scan_image_key attaches the scanned image."""
+        from apps.life.models import InventoryItem, InventoryPhoto
+        import base64
+
+        # Create a small test image (1x1 red pixel JPEG)
+        # This is a minimal valid JPEG
+        test_image_base64 = (
+            '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsL'
+            'DBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/'
+            '2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIy'
+            'MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QA'
+            'FQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QA'
+            'FQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oA'
+            'DAMBAAIRAxEAPwCwAB//2Q=='
+        )
+        test_image_data = f'data:image/jpeg;base64,{test_image_base64}'
+
+        # Store the image in session (simulating what ScanAnalyzeView does)
+        session = self.client.session
+        scan_image_key = 'scan_image_test-request-id'
+        session[scan_image_key] = test_image_data
+        session.save()
+
+        # Create inventory item with scan parameters
+        response = self.client.post(
+            reverse('life:inventory_create') + f'?source=ai_camera&name=Test+Mouse&category=Electronics&scan_image_key={scan_image_key}',
+            {
+                'name': 'Test Mouse',
+                'category': 'Electronics',
+                'condition': 'good',
+            }
+        )
+
+        # Check item was created
+        self.assertTrue(InventoryItem.objects.filter(user=self.user, name='Test Mouse').exists())
+        item = InventoryItem.objects.get(user=self.user, name='Test Mouse')
+
+        # Check photo was attached
+        self.assertTrue(item.photos.exists())
+        photo = item.photos.first()
+        self.assertTrue(photo.is_primary)
+        self.assertIn('AI Camera', photo.caption)
+
+        # Check session was cleaned up
+        session = self.client.session
+        self.assertNotIn(scan_image_key, session)
+
+    def test_inventory_create_without_scan_image_key_works_normally(self):
+        """Creating inventory item without scan_image_key works without photo attachment."""
+        from apps.life.models import InventoryItem
+
+        response = self.client.post(
+            reverse('life:inventory_create') + '?source=ai_camera&name=Test+Keyboard&category=Electronics',
+            {
+                'name': 'Test Keyboard',
+                'category': 'Electronics',
+                'condition': 'good',
+            }
+        )
+
+        # Check item was created
+        self.assertTrue(InventoryItem.objects.filter(user=self.user, name='Test Keyboard').exists())
+        item = InventoryItem.objects.get(user=self.user, name='Test Keyboard')
+
+        # Check no photo was attached (no image key provided)
+        self.assertFalse(item.photos.exists())
+
+    def test_inventory_create_with_invalid_scan_image_key_still_creates_item(self):
+        """Creating inventory item with invalid/missing scan_image_key still creates the item."""
+        from apps.life.models import InventoryItem
+
+        response = self.client.post(
+            reverse('life:inventory_create') + '?source=ai_camera&name=Test+Monitor&category=Electronics&scan_image_key=nonexistent_key',
+            {
+                'name': 'Test Monitor',
+                'category': 'Electronics',
+                'condition': 'good',
+            }
+        )
+
+        # Check item was created despite invalid image key
+        self.assertTrue(InventoryItem.objects.filter(user=self.user, name='Test Monitor').exists())
+        item = InventoryItem.objects.get(user=self.user, name='Test Monitor')
+
+        # Check no photo was attached (key not in session)
+        self.assertFalse(item.photos.exists())

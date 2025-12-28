@@ -562,8 +562,54 @@ class InventoryCreateView(LifeAccessMixin, CreateView):
         source = self.request.GET.get('source')
         if source == 'ai_camera':
             form.instance.created_via = InventoryItem.CREATED_VIA_AI_CAMERA
+
+        # Save the item first
+        response = super().form_valid(form)
+
+        # Check if there's a scanned image to attach
+        scan_image_key = self.request.GET.get('scan_image_key')
+        if scan_image_key and scan_image_key in self.request.session:
+            try:
+                self._attach_scanned_image(self.object, scan_image_key)
+            except Exception as e:
+                logger.warning(f"Failed to attach scanned image: {e}")
+                # Don't fail the whole operation if image attachment fails
+
         messages.success(self.request, f"'{form.instance.name}' added to inventory.")
-        return super().form_valid(form)
+        return response
+
+    def _attach_scanned_image(self, item, scan_image_key):
+        """Attach scanned image from session as InventoryPhoto."""
+        import base64
+        from django.core.files.base import ContentFile
+
+        image_data = self.request.session.get(scan_image_key)
+        if not image_data:
+            return
+
+        # Remove data URI prefix if present (e.g., "data:image/jpeg;base64,")
+        if ',' in image_data:
+            image_data = image_data.split(',', 1)[1]
+
+        # Decode base64 to bytes
+        image_bytes = base64.b64decode(image_data)
+
+        # Create ContentFile for ImageField
+        image_file = ContentFile(image_bytes, name=f'scan_{item.pk}.jpg')
+
+        # Create InventoryPhoto
+        InventoryPhoto.objects.create(
+            item=item,
+            image=image_file,
+            caption='Captured via AI Camera Scan',
+            is_primary=True
+        )
+
+        # Clean up session (image no longer needed)
+        del self.request.session[scan_image_key]
+        self.request.session.modified = True
+
+        logger.info(f"Attached scanned image to inventory item {item.pk}")
 
 
 class InventoryUpdateView(LifeAccessMixin, UpdateView):

@@ -186,6 +186,13 @@
                 <span class="action-label">Add Goal</span>
             </a>
             {% endif %}
+
+            {% if ai_enabled %}
+            <a href="{% url 'scan:home' %}" class="quick-action-card">
+                <span class="action-icon">📷</span>
+                <span class="action-label">Scan</span>
+            </a>
+            {% endif %}
         </div>
     </section>
     

@@ -1,11 +1,12 @@
 /**
  * Whole Life Journey - Main JavaScript
- * 
+ *
  * Minimal, purposeful JavaScript for:
  * - Navigation interactions
  * - User menu toggle
  * - Message dismissal
  * - HTMX enhancements
+ * - Pull-to-refresh on mobile
  */
 
 // ==========================================================================
@@ -217,15 +218,125 @@ function previewTheme(themeName) {
 document.addEventListener('DOMContentLoaded', function() {
     const bodyTextarea = document.querySelector('textarea[name="body"]');
     const wordCountDisplay = document.getElementById('word-count');
-    
+
     if (bodyTextarea && wordCountDisplay) {
         function updateWordCount() {
             const text = bodyTextarea.value.trim();
             const words = text ? text.split(/\s+/).length : 0;
             wordCountDisplay.textContent = words + ' word' + (words !== 1 ? 's' : '');
         }
-        
+
         bodyTextarea.addEventListener('input', updateWordCount);
         updateWordCount();
     }
 });
+
+// ==========================================================================
+// Pull-to-Refresh (Mobile)
+// ==========================================================================
+
+(function() {
+    // Only enable on touch devices
+    if (!('ontouchstart' in window)) return;
+
+    let startY = 0;
+    let currentY = 0;
+    let isPulling = false;
+    let refreshIndicator = null;
+    const THRESHOLD = 80; // Pixels to pull before triggering refresh
+
+    // Create the refresh indicator element
+    function createRefreshIndicator() {
+        const indicator = document.createElement('div');
+        indicator.id = 'pull-to-refresh-indicator';
+        indicator.innerHTML = `
+            <div class="ptr-content">
+                <svg class="ptr-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6"/>
+                    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                </svg>
+                <span class="ptr-text">Pull to refresh</span>
+            </div>
+        `;
+        document.body.insertBefore(indicator, document.body.firstChild);
+        return indicator;
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        refreshIndicator = createRefreshIndicator();
+    });
+
+    // Touch start - record starting position
+    document.addEventListener('touchstart', function(e) {
+        // Only trigger if at top of page and not in a scrollable element
+        if (window.scrollY === 0) {
+            const target = e.target;
+            // Don't trigger on inputs, textareas, or scrollable containers
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' ||
+                target.closest('.nav-menu.open') || target.closest('[data-no-ptr]')) {
+                return;
+            }
+            startY = e.touches[0].pageY;
+            isPulling = true;
+        }
+    }, { passive: true });
+
+    // Touch move - track pull distance
+    document.addEventListener('touchmove', function(e) {
+        if (!isPulling || !refreshIndicator) return;
+
+        currentY = e.touches[0].pageY;
+        const pullDistance = currentY - startY;
+
+        // Only show indicator when pulling down
+        if (pullDistance > 0 && window.scrollY === 0) {
+            const progress = Math.min(pullDistance / THRESHOLD, 1);
+            const translateY = Math.min(pullDistance * 0.5, THRESHOLD);
+
+            refreshIndicator.style.transform = `translateY(${translateY}px)`;
+            refreshIndicator.style.opacity = progress;
+
+            // Update text based on threshold
+            const textEl = refreshIndicator.querySelector('.ptr-text');
+            const iconEl = refreshIndicator.querySelector('.ptr-icon');
+
+            if (pullDistance >= THRESHOLD) {
+                textEl.textContent = 'Release to refresh';
+                iconEl.style.transform = 'rotate(180deg)';
+                refreshIndicator.classList.add('ptr-ready');
+            } else {
+                textEl.textContent = 'Pull to refresh';
+                iconEl.style.transform = `rotate(${progress * 180}deg)`;
+                refreshIndicator.classList.remove('ptr-ready');
+            }
+        }
+    }, { passive: true });
+
+    // Touch end - trigger refresh if threshold met
+    document.addEventListener('touchend', function() {
+        if (!isPulling || !refreshIndicator) return;
+
+        const pullDistance = currentY - startY;
+
+        if (pullDistance >= THRESHOLD && window.scrollY === 0) {
+            // Show refreshing state
+            refreshIndicator.classList.add('ptr-refreshing');
+            refreshIndicator.querySelector('.ptr-text').textContent = 'Refreshing...';
+
+            // Reload the page
+            setTimeout(function() {
+                window.location.reload();
+            }, 300);
+        } else {
+            // Reset indicator
+            refreshIndicator.style.transform = 'translateY(0)';
+            refreshIndicator.style.opacity = '0';
+            refreshIndicator.classList.remove('ptr-ready');
+        }
+
+        isPulling = false;
+        startY = 0;
+        currentY = 0;
+    }, { passive: true });
+})();

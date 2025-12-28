@@ -301,7 +301,7 @@
                 <div class="module-icon">🧭</div>
                 <div class="module-info">
                     <h3>Purpose</h3>
-                    <p>{% if user_data.word_of_year %}{{ user_data.word_of_year }}{% else %}Set your direction{% endif %}</p>
+                    <p>{% if user_data.annual_direction %}{{ user_data.word_of_year|default:"Direction set" }}{% else %}Set your direction{% endif %}</p>
                 </div>
                 <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 18l6-6-6-6"/>

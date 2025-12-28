@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Test suite onboarding fixes:** Fixed 185+ test failures caused by onboarding middleware. All test setups now call `_complete_onboarding()` to set `has_completed_onboarding = True`. Additional fixes: journal prompt filter test accounts for migration-loaded prompts, event is_today test uses timezone-aware dates, dashboard streak test uses `get_user_today()`, cache test uses LocMemCache. All 857 tests now pass.
 - **User-specific saved verses:** Fixed bug where saved Scripture verses were shared across all users. Created new `SavedVerse` model with user ownership. Data migration assigns existing verses to Danny's account. Each user now has their own private Scripture library.
 - **Project Add Task default:** When adding a task from within a project, the project dropdown now auto-selects that project. After creating, redirects back to the project detail page.
 - **Dev environment dependency check:** Added `check_dependencies.py` script to verify all required packages are installed in venv. Run `python check_dependencies.py` to check, or `python check_dependencies.py --install` to auto-install missing packages.
@@ -134,7 +135,7 @@ These packages are sometimes missing from the venv:
 - **Run specific app tests:** `python manage.py test apps.<app_name>`
 - **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)
 - **Test runner:** `run_tests.py` provides enhanced output with summaries
-- **Current test count:** ~800+ tests across all apps
+- **Current test count:** 857 tests across all apps (as of 2025-12-27)
 
 ### Test Patterns Used
 - `TestCase` for database tests
@@ -142,6 +143,48 @@ These packages are sometimes missing from the venv:
 - Factory pattern for creating test objects
 - `setUp()` for common test fixtures
 - `@patch` for mocking external services (AI, APIs)
+
+### CRITICAL: Test User Setup Pattern
+**All test users MUST have onboarding completed** or tests will fail with 302 redirects. The onboarding middleware enforces `has_completed_onboarding = True` before users can access protected pages.
+
+Every test mixin or setUp that creates users should include:
+
+```python
+def create_user(self, email='test@example.com', password='testpass123'):
+    """Create a test user with terms accepted and onboarding completed."""
+    user = User.objects.create_user(email=email, password=password)
+    self._accept_terms(user)
+    self._complete_onboarding(user)
+    return user
+
+def _accept_terms(self, user):
+    from apps.users.models import TermsAcceptance
+    TermsAcceptance.objects.create(user=user, terms_version='1.0')
+
+def _complete_onboarding(self, user):
+    """Mark user onboarding as complete."""
+    user.preferences.has_completed_onboarding = True
+    user.preferences.save()
+```
+
+### Test Files with User Mixins
+These files contain test mixins that create users. If adding new tests, use these patterns:
+- `apps/users/tests/test_users_comprehensive.py` - `UserTestMixin`
+- `apps/dashboard/tests/test_dashboard_comprehensive.py` - `DashboardTestMixin`
+- `apps/journal/tests/test_journal_comprehensive.py` - `JournalTestMixin`
+- `apps/faith/tests/test_faith_comprehensive.py` - `FaithTestMixin`
+- `apps/health/tests/test_health_comprehensive.py` - `HealthTestMixin`
+- `apps/life/tests/test_life_comprehensive.py` - `LifeTestMixin`
+- `apps/purpose/tests/test_purpose_comprehensive.py` - `PurposeTestMixin`
+- `apps/admin_console/tests/test_admin_console.py` - `AdminTestMixin`
+- `apps/ai/tests/test_ai_comprehensive.py` - `AITestMixin`
+- `apps/core/tests/test_core_comprehensive.py` - `CoreTestMixin`
+
+### Common Test Gotchas
+1. **302 redirects instead of 200:** User not marked as onboarding complete
+2. **Count assertions failing:** Data migrations may pre-load records (e.g., 20 journal prompts)
+3. **Date comparisons failing:** Use `timezone.now().date()` or `get_user_today(user)` instead of `date.today()`
+4. **Cache tests failing:** Test settings use DummyCache; use `@override_settings` with LocMemCache
 
 ---
 
@@ -516,4 +559,4 @@ python manage.py test apps.faith
 ```
 
 ---
-*Last updated: 2025-12-28*
+*Last updated: 2025-12-27*

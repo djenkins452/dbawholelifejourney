@@ -71,13 +71,13 @@
                     <span class="schedule-label">{{ schedule.label }}</span>
                     {% endif %}
                     <span class="schedule-days">
-                        {% for day in "0123456" %}
-                            {% if day in schedule.days_of_week %}
-                            <span class="day-dot active" title="{{ "Mon,Tue,Wed,Thu,Fri,Sat,Sun"|make_list|slice:day|first }}">{{ "MTWTFSS"|make_list|slice:day|last }}</span>
-                            {% else %}
-                            <span class="day-dot">{{ "MTWTFSS"|make_list|slice:day|last }}</span>
-                            {% endif %}
-                        {% endfor %}
+                        <span class="day-dot {% if '0' in schedule.days_of_week %}active{% endif %}" title="Monday">M</span>
+                        <span class="day-dot {% if '1' in schedule.days_of_week %}active{% endif %}" title="Tuesday">T</span>
+                        <span class="day-dot {% if '2' in schedule.days_of_week %}active{% endif %}" title="Wednesday">W</span>
+                        <span class="day-dot {% if '3' in schedule.days_of_week %}active{% endif %}" title="Thursday">T</span>
+                        <span class="day-dot {% if '4' in schedule.days_of_week %}active{% endif %}" title="Friday">F</span>
+                        <span class="day-dot {% if '5' in schedule.days_of_week %}active{% endif %}" title="Saturday">S</span>
+                        <span class="day-dot {% if '6' in schedule.days_of_week %}active{% endif %}" title="Sunday">S</span>
                     </span>
                 </div>
                 {% endfor %}

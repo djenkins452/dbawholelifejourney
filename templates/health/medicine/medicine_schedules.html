@@ -46,13 +46,13 @@
                     {% endif %}
                 </div>
                 <div class="schedule-days">
-                    {% for day in "0123456" %}
-                        {% if day in schedule.days_of_week %}
-                        <span class="day-badge active">{{ "MTWTFSS"|make_list|slice:day|last }}</span>
-                        {% else %}
-                        <span class="day-badge">{{ "MTWTFSS"|make_list|slice:day|last }}</span>
-                        {% endif %}
-                    {% endfor %}
+                    <span class="day-badge {% if '0' in schedule.days_of_week %}active{% endif %}">M</span>
+                    <span class="day-badge {% if '1' in schedule.days_of_week %}active{% endif %}">T</span>
+                    <span class="day-badge {% if '2' in schedule.days_of_week %}active{% endif %}">W</span>
+                    <span class="day-badge {% if '3' in schedule.days_of_week %}active{% endif %}">T</span>
+                    <span class="day-badge {% if '4' in schedule.days_of_week %}active{% endif %}">F</span>
+                    <span class="day-badge {% if '5' in schedule.days_of_week %}active{% endif %}">S</span>
+                    <span class="day-badge {% if '6' in schedule.days_of_week %}active{% endif %}">S</span>
                 </div>
                 <form method="post" action="{% url 'health:medicine_schedule_delete' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="delete-form">
                     {% csrf_token %}

@@ -4,9 +4,9 @@
 
 {% block content %}
 <div class="content-container">
-    <nav class="breadcrumb mb-6">
+    <nav class="breadcrumb mb-4">
         <a href="{% url 'journal:entry_list' %}">Journal</a>
-        <span class="breadcrumb-separator">›</span>
+        <span>/</span>
         <span>{{ entry.title|truncatewords:5 }}</span>
     </nav>
     
@@ -114,23 +114,6 @@
 </div>
 
 <style>
-.breadcrumb {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-}
-
-.breadcrumb a {
-    color: var(--color-text-muted);
-}
-
-.breadcrumb a:hover {
-    color: var(--color-accent);
-}
-
-.breadcrumb-separator {
-    margin: 0 var(--space-2);
-}
-
 .entry-detail {
     background: var(--color-background);
 }

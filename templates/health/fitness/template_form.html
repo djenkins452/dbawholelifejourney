@@ -5,6 +5,16 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:fitness_home' %}">Fitness</a>
+        <span>/</span>
+        <a href="{% url 'health:template_list' %}">Templates</a>
+        <span>/</span>
+        <span>{% if editing %}Edit{% else %}New{% endif %}</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">{% if editing %}Edit{% else %}Create{% endif %} Workout Template</h1>
     </div>

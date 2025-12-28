@@ -4,6 +4,12 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'journal:entry_list' %}">Journal</a>
+        <span>/</span>
+        <span>Archived</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">Archived Entries</h1>
         <p class="page-subtitle">Entries you've chosen to hide but keep</p>

@@ -4,6 +4,14 @@
 
 {% block content %}
 <div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'journal:entry_list' %}">Journal</a>
+        <span>/</span>
+        <a href="{% url 'journal:tag_list' %}">Tags</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}New{% endif %}</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">{% if object %}Edit Tag{% else %}Create New Tag{% endif %}</h1>
         <p class="page-subtitle">Tags help you organize and find entries quickly.</p>

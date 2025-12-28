@@ -4,6 +4,12 @@
 
 {% block content %}
 <div class="book-view-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'journal:entry_list' %}">Journal</a>
+        <span>/</span>
+        <span>Book View</span>
+    </nav>
+
     <div class="book-header">
         <div>
             <h1 class="book-title">Your Journal</h1>

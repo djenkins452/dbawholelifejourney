@@ -5,6 +5,16 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:fitness_home' %}">Fitness</a>
+        <span>/</span>
+        <a href="{% url 'health:workout_list' %}">Workouts</a>
+        <span>/</span>
+        <span>{{ workout.name|default:"Workout"|truncatewords:3 }}</span>
+    </nav>
+
     <div class="page-header">
         <div>
             <h1 class="page-title">{{ workout.name|default:"Workout" }}</h1>

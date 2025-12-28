@@ -4,11 +4,11 @@
 
 {% block content %}
 <div class="content-container">
-    <nav class="breadcrumb mb-6">
+    <nav class="breadcrumb mb-4">
         <a href="{% url 'faith:home' %}">Faith</a>
-        <span class="breadcrumb-separator">›</span>
+        <span>/</span>
         <a href="{% url 'faith:prayer_list' %}">Prayer Requests</a>
-        <span class="breadcrumb-separator">›</span>
+        <span>/</span>
         <span>{{ prayer.title|truncatewords:5 }}</span>
     </nav>
     

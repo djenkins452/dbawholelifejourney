@@ -324,9 +324,10 @@ document.addEventListener('DOMContentLoaded', function() {
             refreshIndicator.classList.add('ptr-refreshing');
             refreshIndicator.querySelector('.ptr-text').textContent = 'Refreshing...';
 
-            // Reload the page
+            // Reload the page with cache bust
             setTimeout(function() {
-                window.location.reload();
+                // Force reload bypassing cache
+                window.location.reload(true);
             }, 300);
         } else {
             // Reset indicator

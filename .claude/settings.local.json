@@ -33,7 +33,8 @@
       "Bash(powershell -Command \"cd C:\\dbawholelifejourney; $env:SECRET_KEY=''dev-secret-key''; .\\.venv\\Scripts\\Activate.ps1; python manage.py makemigrations users --name add_biometric_login\")",
       "Bash(powershell -Command \"$env:SECRET_KEY=''dev-secret-key''; cd ''C:\\Users\\danny\\.claude-worktrees\\dbawholelifejourney\\bold-fermat''; python manage.py makemigrations users --name add_biometric_login\")",
       "Bash(powershell -NoProfile -Command:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git branch:*)"
     ]
   }
 }

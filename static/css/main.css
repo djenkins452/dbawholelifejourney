@@ -315,7 +315,7 @@ a:hover {
     .nav-mobile-toggle {
         display: flex;
     }
-    
+
     .nav-menu {
         display: none;
         position: absolute;
@@ -328,13 +328,56 @@ a:hover {
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     .nav-menu.open {
         display: flex;
     }
-    
+
     .nav-links {
         flex-direction: column;
+    }
+
+    /* Ensure nav link text is visible on mobile */
+    .nav-link {
+        width: 100%;
+        padding: var(--space-3) var(--space-4);
+    }
+
+    .nav-link span {
+        display: inline;
+    }
+
+    /* Help button - show text on mobile */
+    .nav-help {
+        width: 100%;
+        margin-top: var(--space-2);
+    }
+
+    .help-button {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-4);
+    }
+
+    /* User menu - show name on mobile */
+    .nav-user {
+        width: 100%;
+        margin-top: var(--space-2);
+        border-top: 1px solid var(--color-border);
+        padding-top: var(--space-2);
+    }
+
+    .nav-user-button {
+        width: 100%;
+        justify-content: flex-start;
+        padding: var(--space-3) var(--space-4);
+    }
+
+    .nav-user-name {
+        display: inline;
     }
 }
 

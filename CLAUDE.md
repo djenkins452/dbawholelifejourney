@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Backup and Disaster Recovery Playbook:** Added comprehensive BACKUP.md document for backup, restore, and disaster recovery operations. Includes complete inventory of all models and data types, GitHub-based backup strategy, database restore procedures, environment reconstruction steps, and security guidelines. Designed to be executable by Claude instances without human intervention.
 - **Edit/Delete saved Scripture verses:** Added ability to edit and delete saved Scripture verses from the Scripture Library. Each verse card now has Edit and Delete buttons. Edit page allows modifying reference, text, translation, themes, and personal notes. Delete uses soft-delete. All actions are user-scoped for security.
 - **Test suite onboarding fixes:** Fixed 185+ test failures caused by onboarding middleware. All test setups now call `_complete_onboarding()` to set `has_completed_onboarding = True`. Additional fixes: journal prompt filter test accounts for migration-loaded prompts, event is_today test uses timezone-aware dates, dashboard streak test uses `get_user_today()`, cache test uses LocMemCache. All 857 tests now pass.
 - **User-specific saved verses:** Fixed bug where saved Scripture verses were shared across all users. Created new `SavedVerse` model with user ownership. Data migration assigns existing verses to Danny's account. Each user now has their own private Scripture library.
@@ -61,6 +62,7 @@
 <!-- RECENT_FIXES_END -->
 
 ## Important Files
+- `BACKUP.md` - Comprehensive backup and disaster recovery playbook
 - `Procfile` - Railway deployment startup command
 - `check_dependencies.py` - Verifies all required packages are installed in venv
 - `run_tests.py` - Enhanced test runner with database history and output files

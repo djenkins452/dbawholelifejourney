@@ -502,26 +502,65 @@ class LifeBusinessLogicTest(LifeTestMixin, TestCase):
         self.assertEqual(incomplete_tasks.count(), 1)
     
     def test_filter_tasks_by_priority(self):
-        """Can filter tasks by priority."""
-        now_task = self.create_task(self.user, priority='now')
-        someday_task = self.create_task(self.user, priority='someday')
-        
+        """Can filter tasks by priority (priority is auto-calculated from due date)."""
+        # Now = due today or overdue
+        now_task = self.create_task(self.user, due_date=date.today())
+        # Someday = no due date or > 7 days away
+        someday_task = self.create_task(self.user)  # No due date = someday
+
         now_tasks = Task.objects.filter(user=self.user, priority='now')
         self.assertEqual(now_tasks.count(), 1)
+        someday_tasks = Task.objects.filter(user=self.user, priority='someday')
+        self.assertEqual(someday_tasks.count(), 1)
     
     def test_filter_overdue_tasks(self):
         """Can filter overdue tasks."""
         overdue = self.create_task(
-            self.user, 
+            self.user,
             due_date=date.today() - timedelta(days=5)
         )
         future = self.create_task(
-            self.user, 
+            self.user,
             due_date=date.today() + timedelta(days=5)
         )
-        
+
         overdue_tasks = [t for t in Task.objects.filter(user=self.user) if t.is_overdue]
         self.assertEqual(len(overdue_tasks), 1)
+
+    def test_priority_auto_calculated_now_for_today(self):
+        """Task due today gets 'now' priority automatically."""
+        task = self.create_task(self.user, due_date=date.today())
+        self.assertEqual(task.priority, 'now')
+
+    def test_priority_auto_calculated_now_for_overdue(self):
+        """Overdue task gets 'now' priority automatically."""
+        task = self.create_task(self.user, due_date=date.today() - timedelta(days=3))
+        self.assertEqual(task.priority, 'now')
+
+    def test_priority_auto_calculated_soon_within_7_days(self):
+        """Task due within 7 days gets 'soon' priority automatically."""
+        task = self.create_task(self.user, due_date=date.today() + timedelta(days=5))
+        self.assertEqual(task.priority, 'soon')
+
+    def test_priority_auto_calculated_someday_more_than_7_days(self):
+        """Task due more than 7 days away gets 'someday' priority automatically."""
+        task = self.create_task(self.user, due_date=date.today() + timedelta(days=10))
+        self.assertEqual(task.priority, 'someday')
+
+    def test_priority_auto_calculated_someday_no_due_date(self):
+        """Task with no due date gets 'someday' priority automatically."""
+        task = self.create_task(self.user)
+        self.assertEqual(task.priority, 'someday')
+
+    def test_priority_recalculated_on_due_date_change(self):
+        """Priority is recalculated when due date changes."""
+        task = self.create_task(self.user, due_date=date.today() + timedelta(days=10))
+        self.assertEqual(task.priority, 'someday')
+
+        # Change due date to today
+        task.due_date = date.today()
+        task.save()
+        self.assertEqual(task.priority, 'now')
 
 
 # =============================================================================

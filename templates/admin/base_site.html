@@ -115,24 +115,26 @@
 <script src="{% static 'js/help.js' %}"></script>
 <script>
 // Determine admin help context from URL
+// Uses app-specific paths to work with configurable admin URL prefix
 function getAdminHelpContext() {
     const path = window.location.pathname;
 
-    // Map admin URLs to HELP_CONTEXT_IDs
-    if (path.includes('/admin/ai/aipromptconfig/')) return 'ADMIN_AI_PROMPTS';
-    if (path.includes('/admin/ai/coachingstyle/')) return 'ADMIN_COACHING_STYLES';
-    if (path.includes('/admin/ai/')) return 'ADMIN_AI';
-    if (path.includes('/admin/core/siteconfiguration/')) return 'ADMIN_SITE_CONFIG';
-    if (path.includes('/admin/core/theme/')) return 'ADMIN_THEMES';
-    if (path.includes('/admin/core/choicecategory/')) return 'ADMIN_CHOICE_CATEGORIES';
-    if (path.includes('/admin/core/choiceoption/')) return 'ADMIN_CHOICE_OPTIONS';
-    if (path.includes('/admin/help/helptopic/')) return 'ADMIN_HELP_TOPICS';
-    if (path.includes('/admin/help/adminhelptopic/')) return 'ADMIN_ADMIN_HELP_TOPICS';
-    if (path.includes('/admin/users/')) return 'ADMIN_USERS';
-    if (path.includes('/admin/journal/')) return 'ADMIN_JOURNAL';
-    if (path.includes('/admin/faith/')) return 'ADMIN_FAITH';
-    if (path.includes('/admin/health/')) return 'ADMIN_HEALTH';
-    if (path === '/admin/' || path === '/admin') return 'ADMIN_DASHBOARD';
+    // Map admin URLs to HELP_CONTEXT_IDs (match on app-specific paths)
+    if (path.includes('/ai/aipromptconfig/')) return 'ADMIN_AI_PROMPTS';
+    if (path.includes('/ai/coachingstyle/')) return 'ADMIN_COACHING_STYLES';
+    if (path.includes('/ai/')) return 'ADMIN_AI';
+    if (path.includes('/core/siteconfiguration/')) return 'ADMIN_SITE_CONFIG';
+    if (path.includes('/core/theme/')) return 'ADMIN_THEMES';
+    if (path.includes('/core/choicecategory/')) return 'ADMIN_CHOICE_CATEGORIES';
+    if (path.includes('/core/choiceoption/')) return 'ADMIN_CHOICE_OPTIONS';
+    if (path.includes('/help/helptopic/')) return 'ADMIN_HELP_TOPICS';
+    if (path.includes('/help/adminhelptopic/')) return 'ADMIN_ADMIN_HELP_TOPICS';
+    if (path.includes('/users/')) return 'ADMIN_USERS';
+    if (path.includes('/journal/')) return 'ADMIN_JOURNAL';
+    if (path.includes('/faith/')) return 'ADMIN_FAITH';
+    if (path.includes('/health/')) return 'ADMIN_HEALTH';
+    // Check if we're on the admin dashboard (path ends with admin prefix + /)
+    if (path.match(/\/[^/]+\/$/) && document.querySelector('#site-name')) return 'ADMIN_DASHBOARD';
 
     return 'ADMIN_GENERAL';
 }

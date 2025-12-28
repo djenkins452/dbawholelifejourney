@@ -326,8 +326,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Reload the page with cache bust
             setTimeout(function() {
-                // Force reload bypassing cache
-                window.location.reload(true);
+                // Force hard reload by adding timestamp to URL
+                var url = window.location.href;
+                // Remove any existing cache bust parameter
+                url = url.replace(/[?&]_reload=\d+/, '');
+                // Add new cache bust parameter
+                var separator = url.indexOf('?') === -1 ? '?' : '&';
+                window.location.href = url + separator + '_reload=' + Date.now();
             }, 300);
         } else {
             // Reset indicator

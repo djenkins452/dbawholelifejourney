@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Full System Audit (2025-12-28):** Comprehensive security and code quality audit. Fixed 2 CRITICAL issues (open redirect vulnerability, hardcoded API key) and 5 HIGH priority issues (bare except clauses, XSS risk, unsafe IP extraction, missing error pages, console-only logging). System health score improved from 7.2/10 to 8.5/10. Created SYSTEM_AUDIT_REPORT.md and SYSTEM_REVIEW.md for ongoing audit tracking. All 888 tests pass.
 - **Edit/Delete saved Scripture verses:** Added ability to edit and delete saved Scripture verses from the Scripture Library. Each verse card now has Edit and Delete buttons. Edit page allows modifying reference, text, translation, themes, and personal notes. Delete uses soft-delete. All actions are user-scoped for security.
 - **Test suite onboarding fixes:** Fixed 185+ test failures caused by onboarding middleware. All test setups now call `_complete_onboarding()` to set `has_completed_onboarding = True`. Additional fixes: journal prompt filter test accounts for migration-loaded prompts, event is_today test uses timezone-aware dates, dashboard streak test uses `get_user_today()`, cache test uses LocMemCache. All 857 tests now pass.
 - **User-specific saved verses:** Fixed bug where saved Scripture verses were shared across all users. Created new `SavedVerse` model with user ownership. Data migration assigns existing verses to Danny's account. Each user now has their own private Scripture library.
@@ -64,6 +65,10 @@
 - `Procfile` - Railway deployment startup command
 - `check_dependencies.py` - Verifies all required packages are installed in venv
 - `run_tests.py` - Enhanced test runner with database history and output files
+- `SYSTEM_AUDIT_REPORT.md` - Full system audit findings and remediation status
+- `SYSTEM_REVIEW.md` - Repeatable audit process and known issues tracking
+- `apps/core/utils.py` - Shared utilities including `is_safe_redirect_url()`, `get_safe_redirect_url()`
+- `apps/core/views.py` - Core views including custom 404/500 error handlers
 - `apps/core/management/commands/load_initial_data.py` - System data loading (fixtures + populate commands)
 - `apps/users/management/commands/create_superuser_from_env.py` - Superuser creation
 - `apps/journal/management/commands/import_chatgpt_journal.py` - One-time ChatGPT journal import
@@ -75,6 +80,8 @@
 - `apps/journal/fixtures/prompts.json` - Journal prompts fixture (20 prompts)
 - `apps/<app>/fixtures/<name>.json` - Reference data fixtures
 - `templates/admin/base_site.html` - Custom Django admin branding with Admin Console link
+- `templates/404.html` - Custom 404 error page
+- `templates/500.html` - Custom 500 error page
 
 ## AI Configuration (via Django Admin)
 - **AI Prompt Configurations** (/admin/ai/aipromptconfig/): 10 prompt types controlling system instructions, sentence counts, max tokens, tone guidance, and things to avoid
@@ -136,7 +143,7 @@ These packages are sometimes missing from the venv:
 - **Run specific app tests:** `python manage.py test apps.<app_name>`
 - **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)
 - **Test runner:** `run_tests.py` provides enhanced output with summaries
-- **Current test count:** 857 tests across all apps (as of 2025-12-27)
+- **Current test count:** 888 tests across all apps (as of 2025-12-28)
 
 ### Test Patterns Used
 - `TestCase` for database tests
@@ -560,4 +567,84 @@ python manage.py test apps.faith
 ```
 
 ---
-*Last updated: 2025-12-27*
+
+## System Audit & Security
+
+### Overview
+A comprehensive system audit was conducted on 2025-12-28. The audit evaluated security, code quality, error handling, and maintainability. All CRITICAL and HIGH priority issues have been fixed.
+
+### Current Health Score: 8.5/10
+
+### Audit Documents
+- `SYSTEM_AUDIT_REPORT.md` - Full findings with remediation status
+- `SYSTEM_REVIEW.md` - Repeatable audit process with checklists
+
+### Security Fixes Applied (2025-12-28)
+
+#### CRITICAL Issues (Fixed)
+1. **Open Redirect Vulnerability** - Created `is_safe_redirect_url()` and `get_safe_redirect_url()` utilities in `apps/core/utils.py`. Fixed 3 vulnerable locations.
+2. **Hardcoded API Key** - Removed hardcoded Bible API key from `config/settings.py`. Now uses environment variable only.
+
+#### HIGH Priority Issues (Fixed)
+1. **Bare except clauses (10+ locations)** - Replaced with specific exception types in:
+   - `apps/users/views.py`
+   - `apps/ai/dashboard_ai.py`
+   - `apps/admin_console/views.py`
+   - `run_tests.py`
+
+2. **XSS Risk in HTMX Response** - Added `django.utils.html.escape()` to `RandomPromptView` in `apps/journal/views.py`
+
+3. **Unsafe Client IP Extraction** - Added validation and documentation to `get_client_ip()` in `apps/users/views.py`
+
+4. **Missing Custom Error Pages** - Created:
+   - `templates/404.html` - User-friendly 404 page
+   - `templates/500.html` - User-friendly 500 page
+   - Custom error handlers in `config/urls.py` and `apps/core/views.py`
+
+5. **Console-Only Logging** - Added persistent logging in `config/settings.py`:
+   - `logs/error.log` - RotatingFileHandler (5MB, 5 backups)
+   - `logs/app.log` - RotatingFileHandler (10MB, 3 backups)
+   - AdminEmailHandler for critical errors
+
+### Security Tests
+Located in `apps/core/tests/test_core_comprehensive.py`:
+- `SafeRedirectUrlTests` - 14 tests for redirect URL validation
+- Tests cover: relative URLs, same-host URLs, external URLs, protocol-relative URLs, javascript: URLs
+
+### Running Security Tests
+```bash
+# Run safe redirect tests
+python manage.py test apps.core.tests.test_core_comprehensive.SafeRedirectUrlTests
+
+# Run all core tests
+python manage.py test apps.core.tests
+```
+
+### Audit Checklist (Quick Check)
+Run these commands to check for common issues:
+```bash
+# Check for bare except clauses
+grep -rn "except:" apps/ --include="*.py" | grep -v "except Exception"
+
+# Check for |safe filter usage
+grep -rn "|safe" templates/
+
+# Check for hardcoded emails
+grep -rn "@.*\.com" apps/ --include="*.py" | grep -v test
+
+# Check for TODO/FIXME
+grep -rn "TODO\|FIXME\|HACK\|XXX" apps/ --include="*.py"
+
+# Run full test suite
+python run_tests.py
+```
+
+### Remaining Issues (Medium/Low Priority)
+- Error dashboard widget (no admin visibility for errors)
+- Health check endpoint (no `/health/` endpoint)
+- Input validation improvements (timezone, year/month, file uploads)
+- Large file splitting (views.py files over 500 lines)
+- 29 backup files to clean up
+
+---
+*Last updated: 2025-12-28*

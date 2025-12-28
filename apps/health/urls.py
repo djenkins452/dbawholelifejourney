@@ -52,6 +52,7 @@ urlpatterns = [
     path("medicine/<int:pk>/complete/", views.MedicineCompleteView.as_view(), name="medicine_complete"),
     path("medicine/<int:pk>/schedules/", views.MedicineSchedulesView.as_view(), name="medicine_schedules"),
     path("medicine/<int:medicine_pk>/schedules/<int:schedule_pk>/delete/", views.MedicineScheduleDeleteView.as_view(), name="medicine_schedule_delete"),
+    path("medicine/<int:medicine_pk>/schedules/<int:schedule_pk>/activate/", views.MedicineScheduleActivateView.as_view(), name="medicine_schedule_activate"),
     path("medicine/<int:pk>/supply/", views.MedicineUpdateSupplyView.as_view(), name="medicine_update_supply"),
     path("medicine/<int:pk>/take/<int:schedule_pk>/", views.MedicineTakeView.as_view(), name="medicine_take"),
     path("medicine/<int:pk>/skip/<int:schedule_pk>/", views.MedicineSkipView.as_view(), name="medicine_skip"),

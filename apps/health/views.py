@@ -1624,6 +1624,26 @@ class MedicineScheduleDeleteView(LoginRequiredMixin, View):
         return redirect("health:medicine_schedules", pk=medicine_pk)
 
 
+class MedicineScheduleActivateView(LoginRequiredMixin, View):
+    """
+    Activate an inactive schedule.
+    """
+
+    def post(self, request, medicine_pk, schedule_pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=medicine_pk,
+        )
+        schedule = get_object_or_404(
+            medicine.schedules.all(),
+            pk=schedule_pk,
+        )
+        schedule.is_active = True
+        schedule.save()
+        messages.success(request, "Schedule activated.")
+        return redirect("health:medicine_schedules", pk=medicine_pk)
+
+
 class MedicineTakeView(LoginRequiredMixin, View):
     """
     Mark a scheduled dose as taken.

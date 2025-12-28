@@ -46,18 +46,26 @@
                     {% endif %}
                 </div>
                 <div class="schedule-days">
+                    <span class="day-badge {% if '6' in schedule.days_of_week %}active{% endif %}">S</span>
                     <span class="day-badge {% if '0' in schedule.days_of_week %}active{% endif %}">M</span>
                     <span class="day-badge {% if '1' in schedule.days_of_week %}active{% endif %}">T</span>
                     <span class="day-badge {% if '2' in schedule.days_of_week %}active{% endif %}">W</span>
                     <span class="day-badge {% if '3' in schedule.days_of_week %}active{% endif %}">T</span>
                     <span class="day-badge {% if '4' in schedule.days_of_week %}active{% endif %}">F</span>
                     <span class="day-badge {% if '5' in schedule.days_of_week %}active{% endif %}">S</span>
-                    <span class="day-badge {% if '6' in schedule.days_of_week %}active{% endif %}">S</span>
                 </div>
-                <form method="post" action="{% url 'health:medicine_schedule_delete' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="delete-form">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this schedule?');">Remove</button>
-                </form>
+                <div class="schedule-actions">
+                    {% if not schedule.is_active %}
+                    <form method="post" action="{% url 'health:medicine_schedule_activate' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary btn-sm">Activate</button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="{% url 'health:medicine_schedule_delete' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="delete-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this schedule?');">Remove</button>
+                    </form>
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -274,6 +282,15 @@
 
 .delete-form {
     display: inline;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.schedule-actions {
+    display: flex;
+    gap: var(--space-2);
 }
 
 @media (max-width: 640px) {

@@ -29,6 +29,8 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Dev environment dependency check:** Added `check_dependencies.py` script to verify all required packages are installed in venv. Run `python check_dependencies.py` to check, or `python check_dependencies.py --install` to auto-install missing packages.
+- **Missing packages fix:** Installed `cloudinary`, `django-cloudinary-storage`, and `markdown` packages that were in requirements.txt but missing from venv.
 - **Task undo link:** Added "Undo" link next to completed tasks so users can easily revert accidental completions without navigating to Completed filter
 - **Journal prompts migration:** Data migration (`0003_load_journal_prompts.py`) to load 20 journal prompts into production database. Fixes "no prompts available" issue.
 - **ChatGPT journal import:** Management command (`import_chatgpt_journal`) and data migration to import journal entries from ChatGPT JSON exports
@@ -56,6 +58,8 @@
 
 ## Important Files
 - `Procfile` - Railway deployment startup command
+- `check_dependencies.py` - Verifies all required packages are installed in venv
+- `run_tests.py` - Enhanced test runner with database history and output files
 - `apps/core/management/commands/load_initial_data.py` - System data loading (fixtures + populate commands)
 - `apps/users/management/commands/create_superuser_from_env.py` - Superuser creation
 - `apps/journal/management/commands/import_chatgpt_journal.py` - One-time ChatGPT journal import
@@ -96,12 +100,39 @@ Just say: **"Read CLAUDE.md and continue"** - this gives full project context.
 3. If tests are missing, create them following existing test patterns
 4. Update CLAUDE.md if significant new functionality was added
 
+## Development Setup
+
+### First-Time Setup
+```bash
+# Create and activate virtual environment
+python -m venv venv
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # Linux/Mac
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify all dependencies are installed
+python check_dependencies.py
+```
+
+### Quick Dependency Check
+If the dev server fails to start with `ModuleNotFoundError`, run:
+```bash
+python check_dependencies.py --install
+```
+
+### Common Missing Packages
+These packages are sometimes missing from the venv:
+- `cloudinary` and `django-cloudinary-storage` - Media file storage
+- `markdown` - Help system rendering
+
 ## Testing
 - **Run all tests:** `python manage.py test` or `python run_tests.py`
 - **Run specific app tests:** `python manage.py test apps.<app_name>`
 - **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)
 - **Test runner:** `run_tests.py` provides enhanced output with summaries
-- **Current test count:** ~700+ tests across all apps
+- **Current test count:** ~800+ tests across all apps
 
 ### Test Patterns Used
 - `TestCase` for database tests

@@ -349,4 +349,38 @@ python manage.py test apps.journal
 ```
 
 ---
+
+## Task Undo Feature
+
+### Overview
+When a task is accidentally marked as complete, users can now easily undo the action using an "Undo" link that appears next to completed tasks.
+
+### How It Works
+1. User marks a task complete by clicking the checkbox
+2. Task shows as completed (strikethrough, faded)
+3. An "Undo" link appears next to the completed task
+4. Clicking "Undo" toggles the task back to active
+
+### Implementation
+- **Template:** `templates/life/task_list.html` (lines 94-100) - Undo form with button
+- **View:** `apps/life/views.py` - `TaskToggleView` handles both complete and undo
+- **Model:** `apps/life/models.py` - `Task.mark_incomplete()` method clears completion
+
+### Tests
+Located in `apps/life/tests/test_views.py`:
+- `test_task_toggle_completes_task` - Verify toggle marks task complete
+- `test_task_toggle_uncompletes_task` - Verify toggle marks task incomplete (undo)
+- `test_completed_task_shows_undo_link` - Verify Undo link appears for completed tasks
+- `test_incomplete_task_no_undo_link` - Verify no Undo link for incomplete tasks
+
+### Running Tests
+```bash
+# Run task-related tests
+python run_tests.py apps.life.tests.test_views.TaskViewTest
+
+# Run all life app tests
+python run_tests.py apps.life.tests
+```
+
+---
 *Last updated: 2025-12-27*

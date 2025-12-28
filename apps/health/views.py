@@ -30,7 +30,12 @@ from .forms import (
     FastingWindowForm,
     GlucoseEntryForm,
     HeartRateEntryForm,
+    MedicineForm,
+    MedicineLogForm,
+    MedicineScheduleForm,
+    PRNDoseForm,
     QuickWeightForm,
+    UpdateSupplyForm,
     WeightEntryForm,
 )
 from .models import (
@@ -40,6 +45,9 @@ from .models import (
     FastingWindow,
     GlucoseEntry,
     HeartRateEntry,
+    Medicine,
+    MedicineLog,
+    MedicineSchedule,
     PersonalRecord,
     TemplateExercise,
     WeightEntry,
@@ -113,7 +121,58 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if fasting_glucose.exists():
                 avg = fasting_glucose.aggregate(avg=Avg("value"))["avg"]
                 context["avg_fasting_glucose"] = round(avg, 1)
-        
+
+        # Medicine summary
+        today = get_user_today(user)
+        active_medicines = Medicine.objects.filter(
+            user=user,
+            medicine_status=Medicine.STATUS_ACTIVE,
+        )
+        context["medicine_count"] = active_medicines.count()
+
+        if active_medicines.exists():
+            # Count today's scheduled doses
+            total_scheduled = 0
+            taken_count = 0
+            overdue_count = 0
+
+            for medicine in active_medicines.filter(is_prn=False):
+                for schedule in medicine.schedules.filter(is_active=True):
+                    if schedule.applies_to_day(today.weekday()):
+                        total_scheduled += 1
+                        log = MedicineLog.objects.filter(
+                            medicine=medicine,
+                            schedule=schedule,
+                            scheduled_date=today,
+                        ).first()
+
+                        if log and log.log_status in [
+                            MedicineLog.STATUS_TAKEN,
+                            MedicineLog.STATUS_LATE,
+                        ]:
+                            taken_count += 1
+                        elif not log or log.log_status not in [
+                            MedicineLog.STATUS_TAKEN,
+                            MedicineLog.STATUS_LATE,
+                            MedicineLog.STATUS_SKIPPED,
+                        ]:
+                            # Check if overdue
+                            from datetime import datetime, timedelta as td
+                            scheduled_dt = datetime.combine(today, schedule.scheduled_time)
+                            grace_minutes = medicine.grace_period_minutes
+                            deadline = scheduled_dt + td(minutes=grace_minutes)
+                            now_naive = now.replace(tzinfo=None) if now.tzinfo else now
+                            if now_naive > deadline:
+                                overdue_count += 1
+
+            context["medicine_scheduled_today"] = total_scheduled
+            context["medicine_taken_today"] = taken_count
+            context["medicine_overdue"] = overdue_count
+
+            # Check for low supply
+            low_supply = [m for m in active_medicines if m.needs_refill]
+            context["medicine_low_supply"] = len(low_supply)
+
         return context
 
 
@@ -1210,3 +1269,681 @@ def add_set_htmx(request, exercise_id):
     )
 
     return JsonResponse({"html": html})
+
+
+# =============================================================================
+# Medicine Views
+# =============================================================================
+
+
+class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    Medicine module home - daily tracker and overview.
+    """
+
+    template_name = "health/medicine/home.html"
+    help_context_id = "HEALTH_MEDICINE_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = get_user_today(user)
+        now = timezone.now()
+
+        # Get active medicines
+        active_medicines = Medicine.objects.filter(
+            user=user,
+            medicine_status=Medicine.STATUS_ACTIVE,
+        )
+        context["active_medicines"] = active_medicines
+        context["active_count"] = active_medicines.count()
+
+        # Get today's scheduled doses
+        today_schedules = []
+        for medicine in active_medicines.filter(is_prn=False):
+            for schedule in medicine.schedules.filter(is_active=True):
+                if schedule.applies_to_day(today.weekday()):
+                    # Check if there's already a log for this dose today
+                    log = MedicineLog.objects.filter(
+                        medicine=medicine,
+                        schedule=schedule,
+                        scheduled_date=today,
+                    ).first()
+
+                    today_schedules.append({
+                        "medicine": medicine,
+                        "schedule": schedule,
+                        "log": log,
+                        "is_taken": log and log.log_status in [
+                            MedicineLog.STATUS_TAKEN,
+                            MedicineLog.STATUS_LATE,
+                        ],
+                        "is_overdue": self._is_overdue(schedule, log, now, today, medicine),
+                    })
+
+        # Sort by time
+        today_schedules.sort(key=lambda x: x["schedule"].scheduled_time)
+        context["today_schedules"] = today_schedules
+
+        # Calculate today's stats
+        total_scheduled = len(today_schedules)
+        taken_count = sum(1 for s in today_schedules if s["is_taken"])
+        context["total_scheduled_today"] = total_scheduled
+        context["taken_today"] = taken_count
+        context["pending_today"] = total_scheduled - taken_count
+
+        # Check for overdue
+        overdue = [s for s in today_schedules if s["is_overdue"]]
+        context["overdue_doses"] = overdue
+        context["has_overdue"] = len(overdue) > 0
+
+        # Check for low supply medicines
+        low_supply = [m for m in active_medicines if m.needs_refill]
+        context["low_supply_medicines"] = low_supply
+        context["has_low_supply"] = len(low_supply) > 0
+
+        # PRN medicines taken today
+        prn_today = MedicineLog.objects.filter(
+            user=user,
+            scheduled_date=today,
+            is_prn_dose=True,
+            log_status__in=[MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE],
+        ).select_related("medicine")
+        context["prn_doses_today"] = prn_today
+
+        return context
+
+    def _is_overdue(self, schedule, log, now, today, medicine):
+        """Check if a scheduled dose is overdue."""
+        if log and log.log_status in [
+            MedicineLog.STATUS_TAKEN,
+            MedicineLog.STATUS_LATE,
+            MedicineLog.STATUS_SKIPPED,
+        ]:
+            return False
+
+        from datetime import datetime, timedelta
+        scheduled_dt = datetime.combine(today, schedule.scheduled_time)
+        grace_minutes = medicine.grace_period_minutes
+        deadline = scheduled_dt + timedelta(minutes=grace_minutes)
+
+        now_naive = now.replace(tzinfo=None) if now.tzinfo else now
+        return now_naive > deadline
+
+
+class MedicineListView(LoginRequiredMixin, ListView):
+    """
+    List all medicines.
+    """
+
+    model = Medicine
+    template_name = "health/medicine/medicine_list.html"
+    context_object_name = "medicines"
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Medicine.objects.filter(user=self.request.user)
+
+        # Filter by status if specified
+        status = self.request.GET.get("status", "active")
+        if status == "active":
+            queryset = queryset.filter(medicine_status=Medicine.STATUS_ACTIVE)
+        elif status == "paused":
+            queryset = queryset.filter(medicine_status=Medicine.STATUS_PAUSED)
+        elif status == "completed":
+            queryset = queryset.filter(medicine_status=Medicine.STATUS_COMPLETED)
+        # "all" shows everything
+
+        return queryset.prefetch_related("schedules")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["current_status"] = self.request.GET.get("status", "active")
+
+        # Counts for each status
+        all_medicines = Medicine.objects.filter(user=self.request.user)
+        context["active_count"] = all_medicines.filter(
+            medicine_status=Medicine.STATUS_ACTIVE
+        ).count()
+        context["paused_count"] = all_medicines.filter(
+            medicine_status=Medicine.STATUS_PAUSED
+        ).count()
+        context["completed_count"] = all_medicines.filter(
+            medicine_status=Medicine.STATUS_COMPLETED
+        ).count()
+
+        return context
+
+
+class MedicineDetailView(LoginRequiredMixin, TemplateView):
+    """
+    View medicine details and history.
+    """
+
+    template_name = "health/medicine/medicine_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=self.request.user),
+            pk=self.kwargs["pk"],
+        )
+        context["medicine"] = medicine
+        context["schedules"] = medicine.schedules.all()
+
+        # Recent logs
+        context["recent_logs"] = MedicineLog.objects.filter(
+            medicine=medicine
+        ).order_by("-scheduled_date", "-scheduled_time")[:30]
+
+        # Adherence stats for last 7 days
+        today = get_user_today(self.request.user)
+        week_ago = today - timedelta(days=7)
+        week_logs = MedicineLog.objects.filter(
+            medicine=medicine,
+            scheduled_date__gte=week_ago,
+            scheduled_date__lte=today,
+        )
+        taken = week_logs.filter(
+            log_status__in=[MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE]
+        ).count()
+        total = week_logs.count()
+        context["week_taken"] = taken
+        context["week_total"] = total
+        context["week_adherence"] = round(taken / total * 100) if total > 0 else 0
+
+        return context
+
+
+class MedicineCreateView(LoginRequiredMixin, CreateView):
+    """
+    Add a new medicine.
+    """
+
+    model = Medicine
+    form_class = MedicineForm
+    template_name = "health/medicine/medicine_form.html"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        messages.success(self.request, f"Added {form.instance.name} to your medicines.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("health:medicine_schedules", kwargs={"pk": self.object.pk})
+
+
+class MedicineUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Edit a medicine.
+    """
+
+    model = Medicine
+    form_class = MedicineForm
+    template_name = "health/medicine/medicine_form.html"
+
+    def get_queryset(self):
+        return Medicine.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Updated {form.instance.name}.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("health:medicine_detail", kwargs={"pk": self.object.pk})
+
+
+class MedicineDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a medicine.
+    """
+
+    def post(self, request, pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        name = medicine.name
+        medicine.soft_delete()
+        messages.success(request, f"Deleted {name}.")
+        return redirect("health:medicine_list")
+
+
+class MedicinePauseView(LoginRequiredMixin, View):
+    """
+    Pause a medicine temporarily.
+    """
+
+    def post(self, request, pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        reason = request.POST.get("reason", "")
+        medicine.pause(reason)
+        messages.success(
+            request,
+            f"Paused {medicine.name}. You can resume it anytime."
+        )
+        return redirect("health:medicine_detail", pk=pk)
+
+
+class MedicineResumeView(LoginRequiredMixin, View):
+    """
+    Resume a paused medicine.
+    """
+
+    def post(self, request, pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        medicine.resume()
+        messages.success(request, f"Resumed {medicine.name}.")
+        return redirect("health:medicine_detail", pk=pk)
+
+
+class MedicineCompleteView(LoginRequiredMixin, View):
+    """
+    Mark a medicine course as completed.
+    """
+
+    def post(self, request, pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        medicine.complete()
+        messages.success(
+            request,
+            f"Marked {medicine.name} as completed. Great job!"
+        )
+        return redirect("health:medicine_list")
+
+
+class MedicineSchedulesView(LoginRequiredMixin, TemplateView):
+    """
+    Manage schedules for a medicine.
+    """
+
+    template_name = "health/medicine/medicine_schedules.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=self.request.user),
+            pk=self.kwargs["pk"],
+        )
+        context["medicine"] = medicine
+        context["schedules"] = medicine.schedules.all()
+        context["form"] = MedicineScheduleForm()
+        return context
+
+    def post(self, request, pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        form = MedicineScheduleForm(request.POST)
+        if form.is_valid():
+            schedule = form.save(commit=False)
+            schedule.medicine = medicine
+            schedule.save()
+            messages.success(request, "Added schedule.")
+        else:
+            messages.error(request, "Please fix the errors below.")
+        return redirect("health:medicine_schedules", pk=pk)
+
+
+class MedicineScheduleDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a medicine schedule.
+    """
+
+    def post(self, request, medicine_pk, schedule_pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=medicine_pk,
+        )
+        schedule = get_object_or_404(
+            medicine.schedules.all(),
+            pk=schedule_pk,
+        )
+        schedule.delete()
+        messages.success(request, "Removed schedule.")
+        return redirect("health:medicine_schedules", pk=medicine_pk)
+
+
+class MedicineTakeView(LoginRequiredMixin, View):
+    """
+    Mark a scheduled dose as taken.
+    """
+
+    def post(self, request, pk, schedule_pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        schedule = get_object_or_404(
+            medicine.schedules.all(),
+            pk=schedule_pk,
+        )
+        today = get_user_today(request.user)
+
+        # Get or create the log entry
+        log, created = MedicineLog.objects.get_or_create(
+            user=request.user,
+            medicine=medicine,
+            schedule=schedule,
+            scheduled_date=today,
+            defaults={
+                "scheduled_time": schedule.scheduled_time,
+                "is_prn_dose": False,
+            }
+        )
+
+        # Mark as taken
+        log.mark_taken()
+
+        # Decrease supply if tracked
+        if medicine.current_supply is not None and medicine.current_supply > 0:
+            medicine.current_supply -= 1
+            medicine.save(update_fields=["current_supply", "updated_at"])
+
+        messages.success(request, f"Marked {medicine.name} as taken.")
+
+        # Return to referring page or home
+        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        return redirect(next_url)
+
+
+class MedicineSkipView(LoginRequiredMixin, View):
+    """
+    Mark a scheduled dose as skipped.
+    """
+
+    def post(self, request, pk, schedule_pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        schedule = get_object_or_404(
+            medicine.schedules.all(),
+            pk=schedule_pk,
+        )
+        today = get_user_today(request.user)
+        reason = request.POST.get("reason", "")
+
+        # Get or create the log entry
+        log, created = MedicineLog.objects.get_or_create(
+            user=request.user,
+            medicine=medicine,
+            schedule=schedule,
+            scheduled_date=today,
+            defaults={
+                "scheduled_time": schedule.scheduled_time,
+                "is_prn_dose": False,
+            }
+        )
+
+        # Mark as skipped
+        log.mark_skipped(reason)
+
+        messages.info(request, f"Skipped {medicine.name} for today.")
+        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        return redirect(next_url)
+
+
+class MedicineUndoView(LoginRequiredMixin, View):
+    """
+    Undo a taken/skipped dose (set back to pending).
+    """
+
+    def post(self, request, pk, schedule_pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        schedule = get_object_or_404(
+            medicine.schedules.all(),
+            pk=schedule_pk,
+        )
+        today = get_user_today(request.user)
+
+        log = get_object_or_404(
+            MedicineLog.objects.filter(
+                medicine=medicine,
+                schedule=schedule,
+                scheduled_date=today,
+            )
+        )
+
+        # If it was taken, restore supply
+        if log.log_status in [MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE]:
+            if medicine.current_supply is not None:
+                medicine.current_supply += 1
+                medicine.save(update_fields=["current_supply", "updated_at"])
+
+        # Delete the log entry to reset
+        log.delete()
+
+        messages.info(request, f"Undid {medicine.name} for today.")
+        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        return redirect(next_url)
+
+
+class PRNLogView(LoginRequiredMixin, TemplateView):
+    """
+    Log a PRN (as-needed) dose.
+    """
+
+    template_name = "health/medicine/prn_log.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["form"] = PRNDoseForm(user=self.request.user)
+        return context
+
+    def post(self, request, *args, **kwargs):
+        form = PRNDoseForm(request.POST, user=request.user)
+        if form.is_valid():
+            medicine = form.cleaned_data["medicine"]
+            today = get_user_today(request.user)
+
+            # Create the log
+            log = MedicineLog.objects.create(
+                user=request.user,
+                medicine=medicine,
+                scheduled_date=today,
+                taken_at=timezone.now(),
+                log_status=MedicineLog.STATUS_TAKEN,
+                is_prn_dose=True,
+                prn_reason=form.cleaned_data.get("reason", ""),
+                notes=form.cleaned_data.get("notes", ""),
+            )
+
+            # Decrease supply if tracked
+            if medicine.current_supply is not None and medicine.current_supply > 0:
+                medicine.current_supply -= 1
+                medicine.save(update_fields=["current_supply", "updated_at"])
+
+            messages.success(request, f"Logged PRN dose of {medicine.name}.")
+            return redirect("health:medicine_home")
+
+        context = self.get_context_data()
+        context["form"] = form
+        return self.render_to_response(context)
+
+
+class MedicineHistoryView(LoginRequiredMixin, ListView):
+    """
+    View medicine log history.
+    """
+
+    model = MedicineLog
+    template_name = "health/medicine/history.html"
+    context_object_name = "logs"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = MedicineLog.objects.filter(user=self.request.user)
+
+        # Filter by medicine if specified
+        medicine_id = self.request.GET.get("medicine")
+        if medicine_id:
+            queryset = queryset.filter(medicine_id=medicine_id)
+
+        # Filter by date range
+        start_date = self.request.GET.get("start")
+        end_date = self.request.GET.get("end")
+        if start_date:
+            queryset = queryset.filter(scheduled_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(scheduled_date__lte=end_date)
+
+        return queryset.select_related("medicine", "schedule")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["medicines"] = Medicine.objects.filter(user=self.request.user)
+        context["selected_medicine"] = self.request.GET.get("medicine")
+        return context
+
+
+class MedicineAdherenceView(LoginRequiredMixin, TemplateView):
+    """
+    View adherence statistics and trends.
+    """
+
+    template_name = "health/medicine/adherence.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = get_user_today(user)
+
+        # Date range
+        period = self.request.GET.get("period", "week")
+        if period == "week":
+            start_date = today - timedelta(days=7)
+        elif period == "month":
+            start_date = today - timedelta(days=30)
+        else:
+            start_date = today - timedelta(days=7)
+
+        context["period"] = period
+        context["start_date"] = start_date
+        context["end_date"] = today
+
+        # Get all logs in the period
+        logs = MedicineLog.objects.filter(
+            user=user,
+            scheduled_date__gte=start_date,
+            scheduled_date__lte=today,
+            is_prn_dose=False,  # Only count scheduled doses
+        )
+
+        total = logs.count()
+        taken = logs.filter(
+            log_status__in=[MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE]
+        ).count()
+        missed = logs.filter(log_status=MedicineLog.STATUS_MISSED).count()
+        skipped = logs.filter(log_status=MedicineLog.STATUS_SKIPPED).count()
+        late = logs.filter(log_status=MedicineLog.STATUS_LATE).count()
+
+        context["total_scheduled"] = total
+        context["taken_count"] = taken
+        context["missed_count"] = missed
+        context["skipped_count"] = skipped
+        context["late_count"] = late
+        context["adherence_rate"] = round(taken / total * 100) if total > 0 else 0
+
+        # Per-medicine breakdown
+        medicines = Medicine.objects.filter(user=user)
+        medicine_stats = []
+        for medicine in medicines:
+            med_logs = logs.filter(medicine=medicine)
+            med_total = med_logs.count()
+            med_taken = med_logs.filter(
+                log_status__in=[MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE]
+            ).count()
+            if med_total > 0:
+                medicine_stats.append({
+                    "medicine": medicine,
+                    "total": med_total,
+                    "taken": med_taken,
+                    "rate": round(med_taken / med_total * 100),
+                })
+        context["medicine_stats"] = sorted(
+            medicine_stats, key=lambda x: x["rate"]
+        )
+
+        # Daily breakdown for chart
+        daily_data = []
+        current = start_date
+        while current <= today:
+            day_logs = logs.filter(scheduled_date=current)
+            day_total = day_logs.count()
+            day_taken = day_logs.filter(
+                log_status__in=[MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE]
+            ).count()
+            daily_data.append({
+                "date": current.isoformat(),
+                "total": day_total,
+                "taken": day_taken,
+                "rate": round(day_taken / day_total * 100) if day_total > 0 else 100,
+            })
+            current += timedelta(days=1)
+        context["daily_data"] = daily_data
+
+        return context
+
+
+class MedicineUpdateSupplyView(LoginRequiredMixin, View):
+    """
+    Quick update of medicine supply count.
+    """
+
+    def post(self, request, pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk,
+        )
+        form = UpdateSupplyForm(request.POST)
+        if form.is_valid():
+            medicine.current_supply = form.cleaned_data["current_supply"]
+            medicine.save(update_fields=["current_supply", "updated_at"])
+            messages.success(request, f"Updated supply for {medicine.name}.")
+        return redirect("health:medicine_detail", pk=pk)
+
+
+class MedicineQuickLookView(LoginRequiredMixin, TemplateView):
+    """
+    Quick look view - condensed medicine summary for screenshots/sharing.
+    """
+
+    template_name = "health/medicine/quick_look.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Get active medicines only
+        medicines = Medicine.objects.filter(
+            user=user,
+            medicine_status=Medicine.STATUS_ACTIVE,
+        ).prefetch_related("schedules")
+
+        context["medicines"] = medicines
+        context["generated_at"] = timezone.now()
+        return context

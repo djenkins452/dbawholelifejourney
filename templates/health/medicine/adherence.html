@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Medicine Adherence - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <span>/</span>
+        <span>Adherence</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Adherence Report</h1>
+        <p class="page-subtitle">{{ start_date|date:"M j" }} - {{ end_date|date:"M j, Y" }}</p>
+    </div>
+
+    <!-- Period Selector -->
+    <div class="period-selector mb-6">
+        <a href="?period=week" class="period-btn {% if period == 'week' %}active{% endif %}">Last 7 Days</a>
+        <a href="?period=month" class="period-btn {% if period == 'month' %}active{% endif %}">Last 30 Days</a>
+    </div>
+
+    <!-- Overall Stats -->
+    <div class="stats-section mb-6">
+        <div class="adherence-circle">
+            <svg viewBox="0 0 36 36" class="circular-chart">
+                <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path class="circle" stroke-dasharray="{{ adherence_rate }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <text x="18" y="20.35" class="percentage">{{ adherence_rate }}%</text>
+            </svg>
+            <p class="adherence-label">Overall Adherence</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card stat-taken">
+                <span class="stat-value">{{ taken_count }}</span>
+                <span class="stat-label">Taken</span>
+            </div>
+            <div class="stat-card stat-late">
+                <span class="stat-value">{{ late_count }}</span>
+                <span class="stat-label">Late</span>
+            </div>
+            <div class="stat-card stat-missed">
+                <span class="stat-value">{{ missed_count }}</span>
+                <span class="stat-label">Missed</span>
+            </div>
+            <div class="stat-card stat-skipped">
+                <span class="stat-value">{{ skipped_count }}</span>
+                <span class="stat-label">Skipped</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-Medicine Breakdown -->
+    {% if medicine_stats %}
+    <div class="section mb-6">
+        <h2>By Medicine</h2>
+        <div class="medicine-stats-list">
+            {% for stat in medicine_stats %}
+            <div class="medicine-stat-item">
+                <div class="medicine-stat-info">
+                    <a href="{% url 'health:medicine_detail' pk=stat.medicine.pk %}">{{ stat.medicine.name }}</a>
+                    <span class="medicine-stat-detail">{{ stat.taken }}/{{ stat.total }} doses</span>
+                </div>
+                <div class="medicine-stat-bar">
+                    <div class="bar-fill" style="width: {{ stat.rate }}%"></div>
+                </div>
+                <span class="medicine-stat-rate">{{ stat.rate }}%</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Daily Chart -->
+    {% if daily_data %}
+    <div class="section">
+        <h2>Daily Breakdown</h2>
+        <div class="daily-chart">
+            {% for day in daily_data %}
+            <div class="day-bar-container">
+                <div class="day-bar" style="height: {{ day.rate }}%;" title="{{ day.date }}: {{ day.rate }}% ({{ day.taken }}/{{ day.total }})"></div>
+                <span class="day-label">{{ day.date|slice:"5:" }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.period-selector {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.period-btn {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: var(--color-text-muted);
+    transition: all 0.2s ease;
+}
+
+.period-btn:hover {
+    background: var(--color-border);
+}
+
+.period-btn.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.stats-section {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-6);
+    align-items: center;
+    padding: var(--space-6);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.adherence-circle {
+    text-align: center;
+}
+
+.circular-chart {
+    width: 140px;
+    height: 140px;
+}
+
+.circle-bg {
+    fill: none;
+    stroke: var(--color-border);
+    stroke-width: 3;
+}
+
+.circle {
+    fill: none;
+    stroke: var(--color-success, #10b981);
+    stroke-width: 3;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    transition: stroke-dasharray 0.5s ease;
+}
+
+.percentage {
+    fill: var(--color-text);
+    font-size: 0.5em;
+    font-weight: 600;
+    text-anchor: middle;
+}
+
+.adherence-label {
+    margin-top: var(--space-2);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+}
+
+.stat-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+}
+
+.stat-taken {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+}
+
+.stat-late {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+}
+
+.stat-missed {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+}
+
+.stat-skipped {
+    background: var(--color-surface);
+}
+
+.stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.section {
+    padding: var(--space-5);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.section h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+}
+
+.medicine-stats-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.medicine-stat-item {
+    display: grid;
+    grid-template-columns: 1fr 200px 60px;
+    gap: var(--space-4);
+    align-items: center;
+}
+
+.medicine-stat-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.medicine-stat-info a {
+    font-weight: 500;
+}
+
+.medicine-stat-detail {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.medicine-stat-bar {
+    height: 8px;
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.bar-fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: var(--radius-full);
+    transition: width 0.5s ease;
+}
+
+.medicine-stat-rate {
+    font-weight: 600;
+    text-align: right;
+}
+
+.daily-chart {
+    display: flex;
+    gap: var(--space-1);
+    align-items: flex-end;
+    height: 150px;
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.day-bar-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+}
+
+.day-bar {
+    width: 100%;
+    max-width: 30px;
+    background: var(--color-accent);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    min-height: 4px;
+    transition: height 0.3s ease;
+    cursor: pointer;
+}
+
+.day-bar:hover {
+    opacity: 0.8;
+}
+
+.day-label {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+}
+
+@media (max-width: 768px) {
+    .stats-section {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .medicine-stat-item {
+        grid-template-columns: 1fr;
+        gap: var(--space-2);
+    }
+
+    .medicine-stat-bar {
+        width: 100%;
+    }
+
+    .daily-chart {
+        overflow-x: auto;
+    }
+}
+</style>
+{% endblock %}

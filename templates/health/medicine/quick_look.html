@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Quick Look - Medicines - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container quick-look-container">
+    <div class="quick-look-header">
+        <h1>My Medicines</h1>
+        <p class="generated-date">{{ generated_at|date:"F j, Y" }}</p>
+    </div>
+
+    {% if medicines %}
+    <div class="quick-look-list">
+        {% for medicine in medicines %}
+        <div class="quick-look-card">
+            <div class="medicine-name">{{ medicine.name }}</div>
+            <div class="medicine-dose">{{ medicine.dose }}</div>
+            <div class="medicine-frequency">{{ medicine.get_frequency_display }}</div>
+            {% if medicine.schedules.all %}
+            <div class="medicine-times">
+                {% for schedule in medicine.schedules.all %}
+                {{ schedule.scheduled_time|time:"g:i A" }}{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if medicine.purpose %}
+            <div class="medicine-purpose">{{ medicine.purpose }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-center text-muted">No active medicines</p>
+    {% endif %}
+
+    <div class="quick-look-footer">
+        <a href="{% url 'health:medicine_home' %}" class="btn btn-secondary">Back to Medicines</a>
+        <button onclick="window.print()" class="btn btn-primary">Print / Screenshot</button>
+    </div>
+</div>
+
+<style>
+.quick-look-container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: var(--space-6);
+}
+
+.quick-look-header {
+    text-align: center;
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-4);
+    border-bottom: 2px solid var(--color-border);
+}
+
+.quick-look-header h1 {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-2);
+}
+
+.generated-date {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.quick-look-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.quick-look-card {
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.medicine-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-1);
+}
+
+.medicine-dose {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-accent);
+    margin-bottom: var(--space-2);
+}
+
+.medicine-frequency {
+    font-weight: 500;
+    margin-bottom: var(--space-1);
+}
+
+.medicine-times {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.medicine-purpose {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.quick-look-footer {
+    margin-top: var(--space-8);
+    display: flex;
+    justify-content: center;
+    gap: var(--space-3);
+}
+
+@media print {
+    .quick-look-footer {
+        display: none;
+    }
+
+    .quick-look-container {
+        padding: 20px;
+    }
+
+    .quick-look-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}
+</style>
+{% endblock %}

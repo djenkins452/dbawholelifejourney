@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Log PRN Dose - Medicines - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <span>/</span>
+        <span>Log PRN Dose</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Log As-Needed Dose</h1>
+        <p class="page-subtitle">Record a PRN medication you've taken</p>
+    </div>
+
+    <form method="post" class="form-container">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <div class="form-group">
+                <label for="id_medicine">Medicine *</label>
+                {{ form.medicine }}
+                {% if not form.medicine.field.queryset.exists %}
+                <p class="form-help">No PRN medicines found. <a href="{% url 'health:medicine_create' %}">Add a medicine</a> and mark it as "As Needed (PRN)".</p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="id_reason">Reason for Taking</label>
+                {{ form.reason }}
+                <p class="form-help">Why did you take this dose? (e.g., headache, anxiety)</p>
+            </div>
+
+            <div class="form-group">
+                <label for="id_notes">Notes</label>
+                {{ form.notes }}
+                <p class="form-help">Any additional notes about this dose</p>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" {% if not form.medicine.field.queryset.exists %}disabled{% endif %}>Log Dose</button>
+            <a href="{% url 'health:medicine_home' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-container {
+    max-width: 500px;
+}
+
+.form-section {
+    padding: var(--space-5);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-4);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.form-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+{% endblock %}

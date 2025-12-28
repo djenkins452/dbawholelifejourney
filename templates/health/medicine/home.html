@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Medicines - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Daily Medicines</h1>
+            <p class="page-subtitle">Track your medications, one dose at a time</p>
+        </div>
+        <div class="page-actions">
+            <a href="{% url 'health:medicine_quick_look' %}" class="btn btn-secondary btn-sm">Quick Look</a>
+            <a href="{% url 'health:medicine_create' %}" class="btn btn-primary">Add Medicine</a>
+        </div>
+    </div>
+
+    <!-- Alerts Section -->
+    {% if has_overdue or has_low_supply %}
+    <div class="alerts-section mb-6">
+        {% if has_overdue %}
+        <div class="alert alert-warning">
+            <span class="alert-icon">&#9888;</span>
+            <span>You have {{ overdue_doses|length }} overdue dose{{ overdue_doses|length|pluralize }}</span>
+        </div>
+        {% endif %}
+        {% if has_low_supply %}
+        <div class="alert alert-info">
+            <span class="alert-icon">&#128138;</span>
+            <span>{{ low_supply_medicines|length }} medicine{{ low_supply_medicines|length|pluralize }} need{{ low_supply_medicines|length|pluralize:"s," }} a refill</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Today's Stats -->
+    <div class="stats-bar mb-6">
+        <div class="stat-item">
+            <span class="stat-value">{{ taken_today }}/{{ total_scheduled_today }}</span>
+            <span class="stat-label">Taken today</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ pending_today }}</span>
+            <span class="stat-label">Pending</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ active_count }}</span>
+            <span class="stat-label">Active medicines</span>
+        </div>
+    </div>
+
+    <!-- Today's Schedule -->
+    <div class="section-header">
+        <h2>Today's Schedule</h2>
+        {% if prn_doses_today %}
+        <span class="badge badge-info">{{ prn_doses_today|length }} PRN dose{{ prn_doses_today|length|pluralize }} taken</span>
+        {% endif %}
+    </div>
+
+    {% if today_schedules %}
+    <div class="dose-list">
+        {% for item in today_schedules %}
+        <div class="dose-card {% if item.is_taken %}dose-taken{% elif item.is_overdue %}dose-overdue{% endif %}">
+            <div class="dose-time">
+                {{ item.schedule.scheduled_time|time:"g:i A" }}
+                {% if item.schedule.label %}
+                <span class="dose-label">{{ item.schedule.label }}</span>
+                {% endif %}
+            </div>
+            <div class="dose-info">
+                <span class="dose-name">{{ item.medicine.name }}</span>
+                <span class="dose-amount">{{ item.medicine.dose }}</span>
+                {% if item.medicine.purpose %}
+                <span class="dose-purpose">{{ item.medicine.purpose }}</span>
+                {% endif %}
+            </div>
+            <div class="dose-actions">
+                {% if item.is_taken %}
+                <span class="dose-status taken-status">Taken</span>
+                <form method="post" action="{% url 'health:medicine_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <button type="submit" class="btn btn-text btn-sm">Undo</button>
+                </form>
+                {% elif item.log and item.log.log_status == 'skipped' %}
+                <span class="dose-status skipped-status">Skipped</span>
+                <form method="post" action="{% url 'health:medicine_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <button type="submit" class="btn btn-text btn-sm">Undo</button>
+                </form>
+                {% else %}
+                <form method="post" action="{% url 'health:medicine_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <button type="submit" class="btn btn-primary btn-sm">Take</button>
+                </form>
+                <form method="post" action="{% url 'health:medicine_skip' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <button type="submit" class="btn btn-secondary btn-sm">Skip</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p class="text-muted">No scheduled doses for today.</p>
+        <a href="{% url 'health:medicine_create' %}" class="btn btn-primary mt-4">Add Your First Medicine</a>
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="quick-actions mt-8">
+        <a href="{% url 'health:medicine_prn_log' %}" class="action-card">
+            <span class="action-icon">&#128138;</span>
+            <span class="action-text">Log PRN Dose</span>
+        </a>
+        <a href="{% url 'health:medicine_list' %}" class="action-card">
+            <span class="action-icon">&#128203;</span>
+            <span class="action-text">All Medicines</span>
+        </a>
+        <a href="{% url 'health:medicine_history' %}" class="action-card">
+            <span class="action-icon">&#128197;</span>
+            <span class="action-text">History</span>
+        </a>
+        <a href="{% url 'health:medicine_adherence' %}" class="action-card">
+            <span class="action-icon">&#128200;</span>
+            <span class="action-text">Adherence</span>
+        </a>
+    </div>
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.page-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.alerts-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.alert {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+}
+
+.alert-warning {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 40%, transparent);
+}
+
+.alert-info {
+    background: color-mix(in srgb, var(--color-info, #3b82f6) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-info, #3b82f6) 40%, transparent);
+}
+
+.alert-icon {
+    font-size: var(--font-size-lg);
+}
+
+.stats-bar {
+    display: flex;
+    gap: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+}
+
+.badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+}
+
+.badge-info {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+}
+
+.dose-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.dose-card {
+    display: grid;
+    grid-template-columns: 100px 1fr auto;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition: all 0.2s ease;
+}
+
+.dose-card.dose-taken {
+    opacity: 0.7;
+    background: color-mix(in srgb, var(--color-success, #10b981) 5%, var(--color-background));
+    border-color: color-mix(in srgb, var(--color-success, #10b981) 30%, var(--color-border));
+}
+
+.dose-card.dose-overdue {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 10%, var(--color-background));
+    border-color: color-mix(in srgb, var(--color-warning, #f59e0b) 50%, var(--color-border));
+}
+
+.dose-time {
+    display: flex;
+    flex-direction: column;
+    font-weight: 600;
+}
+
+.dose-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-weight: normal;
+}
+
+.dose-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.dose-name {
+    font-weight: 500;
+}
+
+.dose-amount {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.dose-purpose {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.dose-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.dose-status {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.taken-status {
+    background: color-mix(in srgb, var(--color-success, #10b981) 20%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.skipped-status {
+    background: color-mix(in srgb, var(--color-text-muted) 20%, transparent);
+    color: var(--color-text-muted);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.quick-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-4);
+}
+
+.action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: all 0.2s ease;
+}
+
+.action-card:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-2px);
+}
+
+.action-icon {
+    font-size: var(--font-size-2xl);
+}
+
+.action-text {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+@media (max-width: 640px) {
+    .dose-card {
+        grid-template-columns: 1fr;
+        gap: var(--space-2);
+    }
+
+    .dose-time {
+        flex-direction: row;
+        gap: var(--space-2);
+        align-items: center;
+    }
+
+    .dose-actions {
+        margin-top: var(--space-2);
+    }
+
+    .stats-bar {
+        flex-wrap: wrap;
+    }
+}
+</style>
+{% endblock %}

@@ -4,6 +4,14 @@
 
 {% block content %}
 <div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:milestone_list' %}">Milestones</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}New{% endif %}</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Faith Milestone</h1>
         <p class="page-subtitle">Record a significant moment in your journey</p>

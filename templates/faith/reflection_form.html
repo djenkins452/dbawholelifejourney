@@ -4,6 +4,14 @@
 
 {% block content %}
 <div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:reflections' %}">Reflections</a>
+        <span>/</span>
+        <span>{% if is_edit %}Edit{% else %}New{% endif %}</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">{% if is_edit %}Edit Reflection{% else %}New Reflection Entry{% endif %}</h1>
         <p class="page-subtitle">Record your spiritual thoughts and growth</p>

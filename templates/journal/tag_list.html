@@ -4,6 +4,12 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'journal:entry_list' %}">Journal</a>
+        <span>/</span>
+        <span>Tags</span>
+    </nav>
+
     <div class="page-header">
         <div>
             <h1 class="page-title">Manage Tags</h1>

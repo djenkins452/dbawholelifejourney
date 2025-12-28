@@ -6,6 +6,12 @@
 
 {% block content %}
 <div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'users:preferences' %}">Settings</a>
+        <span>/</span>
+        <span>Preferences</span>
+    </nav>
+
     <div class="page-header">
         <div>
             <h1 class="page-title">Preferences</h1>

@@ -18,7 +18,11 @@
       "Bash(find:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nUse site logo from SiteConfiguration in WLJ Assistant chat widget\n\n- Update site_context processor to pull site_name, tagline, logo_url, and\n  favicon_url from SiteConfiguration model instead of hardcoded values\n- Update chat_widget.html to use site_logo_url with fallback to static logo\n- Logo uploaded in Admin Console > Site Configuration now appears in chat header\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git commit -m \"$(cat <<''EOF''\nAdd Cloudinary for persistent media storage\n\n- Add cloudinary and django-cloudinary-storage packages\n- Configure STORAGES to use CloudinaryStorage for media files\n- Add fallback to local FileSystemStorage if Cloudinary not configured\n- Requires CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET env vars\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(railway logs:*)"
+      "Bash(railway logs:*)",
+      "Bash(python manage.py test:*)",
+      "Bash(python run_tests.py:*)",
+      "Bash(ls:*)",
+      "Bash(python manage.py check:*)"
     ]
   }
 }

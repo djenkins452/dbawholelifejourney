@@ -4,6 +4,14 @@
 
 {% block content %}
 <div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:fasting_list' %}">Fasting</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Start{% endif %}</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">{% if object %}Edit Fast{% else %}Start a Fast{% endif %}</h1>
         <p class="page-subtitle">{% if not object %}Begin your fasting window{% endif %}</p>

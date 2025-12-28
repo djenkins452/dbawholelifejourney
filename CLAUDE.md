@@ -28,6 +28,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **ChatGPT journal import:** Management command (`import_chatgpt_journal`) and data migration to import journal entries from ChatGPT JSON exports
 - **Step-by-step onboarding wizard:** New 6-step wizard for new users (Welcome, Theme, Modules, AI Coaching, Location, Complete)
 - **Onboarding enforcement:** Middleware enforces onboarding completion - users redirected to wizard until complete
 - **Intro transcript:** Created `docs/intro_transcript.md` - narration script for voiceover/video explaining the app
@@ -54,6 +55,7 @@
 - `Procfile` - Railway deployment startup command
 - `apps/core/management/commands/load_initial_data.py` - System data loading (fixtures + populate commands)
 - `apps/users/management/commands/create_superuser_from_env.py` - Superuser creation
+- `apps/journal/management/commands/import_chatgpt_journal.py` - One-time ChatGPT journal import
 - `apps/ai/models.py` - AIPromptConfig, CoachingStyle, AIInsight, AIUsageLog models
 - `apps/ai/services.py` - AIService with database-driven prompts
 - `apps/ai/fixtures/ai_prompt_configs.json` - Default AI prompt configurations (10 types)
@@ -257,6 +259,51 @@ When ANY feature is added, changed, or removed:
 - `docs/help/*.md` - Help content files organized by app/feature
 - `templates/components/help_button.html` - The "?" icon component
 - `static/js/help.js` - JavaScript for reading context and displaying help
+
+---
+
+## ChatGPT Journal Import
+
+### Overview
+Management command to import journal entries from ChatGPT JSON exports. Used for one-time data migration from ChatGPT conversations.
+
+### Usage
+```bash
+# Dry run (preview what will be imported)
+python manage.py import_chatgpt_journal export.json --dry-run
+
+# Import for a specific user
+python manage.py import_chatgpt_journal export.json --user=email@example.com
+
+# Import using user ID
+python manage.py import_chatgpt_journal export.json --user-id=1
+```
+
+### Expected JSON Format
+```json
+[
+  {
+    "date": "2025-12-03",
+    "faith": "Faith content or null",
+    "health": "Health content or null",
+    "family": "Family content or null",
+    "work": "Work content or null",
+    "reflection_summary": "Summary text"
+  }
+]
+```
+
+### Key Files
+- `apps/journal/management/commands/import_chatgpt_journal.py` - Management command
+- `apps/journal/migrations/0002_import_chatgpt_journal.py` - One-time data migration (runs on deploy)
+- `apps/journal/tests/test_import_chatgpt_journal.py` - Command tests (15+ tests)
+
+### Features
+- Maps JSON fields to journal categories (Faith, Health, Family, Work)
+- Auto-generates entry titles from dates (e.g., "Wednesday, December 03, 2025")
+- Skips duplicate entries by date
+- Dry-run mode for previewing imports
+- Builds markdown body with section headers
 
 ---
 *Last updated: 2025-12-27*

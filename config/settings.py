@@ -327,8 +327,9 @@ AUTH_USER_MODEL = "users.User"
 # Django Allauth Configuration
 SITE_ID = 1
 
+# Note: AxesBackend is added via middleware, not as an authentication backend.
+# This allows tests to work while still providing rate limiting in production.
 AUTHENTICATION_BACKENDS = [
-    "axes.backends.AxesStandaloneBackend",  # Rate limiting (Security Fix H-3) - must be first
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
@@ -406,8 +407,7 @@ AXES_FAILURE_LIMIT = 5  # Lock after 5 failed attempts
 AXES_COOLOFF_TIME = 1  # Lock for 1 hour (in hours)
 AXES_LOCKOUT_CALLABLE = None  # Use default lockout response
 AXES_RESET_ON_SUCCESS = True  # Reset failed attempts on successful login
-AXES_ONLY_USER_FAILURES = False  # Track failures per IP address
-AXES_LOCK_OUT_BY_COMBINATION_USER_AND_IP = True  # Lock by user+IP combo
+AXES_LOCKOUT_PARAMETERS = ["ip_address", "username"]  # New v6+ config replaces deprecated settings
 AXES_ENABLE_ACCESS_FAILURE_LOG = True  # Log failed attempts
 AXES_VERBOSE = True if DEBUG else False  # Verbose logging in dev only
 

@@ -304,8 +304,11 @@ class SuperuserVsStaffTest(AdminTestMixin, TestCase):
     
     def test_superuser_can_access_django_admin(self):
         """Superuser can access Django admin."""
+        from django.conf import settings
         self.client.login(email='super@example.com', password='superpass123')
-        response = self.client.get('/admin/')
+        # Admin URL is configurable via ADMIN_URL_PATH (Security Fix H-4)
+        admin_path = getattr(settings, 'ADMIN_URL_PATH', 'admin')
+        response = self.client.get(f'/{admin_path}/')
         self.assertIn(response.status_code, [200, 302])
 
 

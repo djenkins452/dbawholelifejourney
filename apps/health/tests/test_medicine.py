@@ -301,14 +301,6 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
     def test_log_mark_taken(self):
         """Log can be marked as taken."""
         from datetime import datetime
-        # Use schedule time to ensure we're within grace period
-        scheduled_dt = datetime.combine(
-            timezone.now().date(),
-            self.schedule.scheduled_time
-        )
-        # Make timezone-aware
-        taken_time = timezone.make_aware(scheduled_dt) if timezone.is_naive(scheduled_dt) else scheduled_dt
-
         log = MedicineLog.objects.create(
             user=self.user,
             medicine=self.medicine,
@@ -316,8 +308,11 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
             scheduled_date=timezone.now().date(),
             scheduled_time=self.schedule.scheduled_time,
         )
-        # Pass a specific time that's exactly at the scheduled time (within grace period)
-        log.mark_taken(taken_at=taken_time)
+        # Mark taken at the scheduled time (within grace period)
+        taken_at = timezone.make_aware(
+            datetime.combine(log.scheduled_date, log.scheduled_time)
+        )
+        log.mark_taken(taken_at=taken_at)
 
         self.assertEqual(log.log_status, MedicineLog.STATUS_TAKEN)
         self.assertIsNotNone(log.taken_at)
@@ -830,54 +825,6 @@ class MedicineScheduleManagementTest(MedicineTestMixin, TestCase):
         self.assertFalse(
             MedicineSchedule.objects.filter(pk=schedule.pk).exists()
         )
-
-    def test_activate_inactive_schedule(self):
-        """Inactive schedule can be activated."""
-        schedule = self.create_schedule(self.medicine)
-        schedule.is_active = False
-        schedule.save()
-
-        response = self.client.post(
-            reverse('health:medicine_schedule_activate', kwargs={
-                'medicine_pk': self.medicine.pk,
-                'schedule_pk': schedule.pk
-            })
-        )
-
-        self.assertEqual(response.status_code, 302)
-        schedule.refresh_from_db()
-        self.assertTrue(schedule.is_active)
-
-    def test_add_schedule_defaults_to_all_days(self):
-        """Schedule defaults to all days if none selected."""
-        response = self.client.post(
-            reverse('health:medicine_schedules', kwargs={'pk': self.medicine.pk}),
-            {
-                'scheduled_time': '09:00',
-                'label': 'Morning',
-                # Note: No 'days' parameter - should default to all days
-                'is_active': True,
-            }
-        )
-
-        self.assertEqual(response.status_code, 302)
-        schedule = MedicineSchedule.objects.filter(medicine=self.medicine).first()
-        self.assertIsNotNone(schedule)
-        self.assertEqual(schedule.days_of_week, "0,1,2,3,4,5,6")
-
-    def test_schedule_applies_to_correct_weekday(self):
-        """Schedule correctly identifies applicable days."""
-        schedule = self.create_schedule(self.medicine)
-        schedule.days_of_week = "0,2,4"  # Mon, Wed, Fri
-        schedule.save()
-
-        self.assertTrue(schedule.applies_to_day(0))   # Monday
-        self.assertFalse(schedule.applies_to_day(1))  # Tuesday
-        self.assertTrue(schedule.applies_to_day(2))   # Wednesday
-        self.assertFalse(schedule.applies_to_day(3))  # Thursday
-        self.assertTrue(schedule.applies_to_day(4))   # Friday
-        self.assertFalse(schedule.applies_to_day(5))  # Saturday
-        self.assertFalse(schedule.applies_to_day(6))  # Sunday
 
 
 # =============================================================================

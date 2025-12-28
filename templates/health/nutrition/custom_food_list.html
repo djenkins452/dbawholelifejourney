@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Foods - Nutrition - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">My Foods</h1>
+            <p class="page-subtitle">Custom foods and recipes</p>
+        </div>
+        <div class="page-actions">
+            <a href="{% url 'health:nutrition_home' %}" class="btn btn-secondary btn-sm">Back</a>
+            <a href="{% url 'health:custom_food_create' %}" class="btn btn-primary">Add Food</a>
+        </div>
+    </div>
+
+    {% if foods %}
+    <div class="foods-list">
+        {% for food in foods %}
+        <div class="food-card">
+            <div class="food-header">
+                <h3 class="food-name">{{ food.name }}</h3>
+                {% if food.is_recipe %}
+                <span class="recipe-badge">Recipe</span>
+                {% endif %}
+            </div>
+            {% if food.description %}
+            <p class="food-desc">{{ food.description|truncatewords:20 }}</p>
+            {% endif %}
+            <div class="food-nutrition">
+                <span class="food-calories">{{ food.calories|floatformat:0 }} cal</span>
+                <span class="food-serving">per {{ food.serving_size }} {{ food.serving_unit }}</span>
+            </div>
+            <div class="food-macros">
+                <span>P: {{ food.protein_g|floatformat:0 }}g</span>
+                <span>C: {{ food.carbohydrates_g|floatformat:0 }}g</span>
+                <span>F: {{ food.fat_g|floatformat:0 }}g</span>
+            </div>
+            <div class="food-actions">
+                <a href="{% url 'health:custom_food_edit' food.pk %}" class="btn btn-text btn-sm">Edit</a>
+                <form method="post" action="{% url 'health:custom_food_delete' food.pk %}" class="inline-form" onsubmit="return confirm('Delete {{ food.name }}?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-text btn-sm btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="pagination mt-6">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary btn-sm">&laquo; Previous</a>
+        {% endif %}
+        <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary btn-sm">Next &raquo;</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <p class="text-muted">No custom foods yet.</p>
+        <p class="text-muted text-sm mt-2">Create custom foods for items you eat regularly.</p>
+        <a href="{% url 'health:custom_food_create' %}" class="btn btn-primary mt-4">Create Your First Food</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+}
+
+.page-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.foods-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+
+.food-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.food-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-2);
+}
+
+.food-name {
+    margin: 0;
+    font-size: var(--font-size-md);
+}
+
+.recipe-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+    border-radius: var(--radius-sm);
+}
+
+.food-desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.food-nutrition {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
+    margin-bottom: var(--space-2);
+}
+
+.food-calories {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.food-serving {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.food-macros {
+    display: flex;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.food-actions {
+    display: flex;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.btn-danger {
+    color: var(--color-error, #ef4444);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.page-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+</style>
+{% endblock %}

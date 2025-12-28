@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Nutrition - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Daily Nutrition</h1>
+            <p class="page-subtitle">{{ today|date:"l, F j, Y" }}</p>
+        </div>
+        <div class="page-actions">
+            <a href="{% url 'health:food_quick_add' %}" class="btn btn-secondary btn-sm">Quick Add</a>
+            <a href="{% url 'health:food_entry_create' %}" class="btn btn-primary">Log Food</a>
+        </div>
+    </div>
+
+    <!-- Daily Summary -->
+    <div class="nutrition-summary mb-6">
+        <div class="summary-card calories-card">
+            <div class="summary-main">
+                <span class="summary-value">{{ total_calories|floatformat:0 }}</span>
+                <span class="summary-label">calories</span>
+            </div>
+            {% if goals and goals.daily_calorie_target %}
+            <div class="summary-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ calorie_progress|default:0 }}%"></div>
+                </div>
+                <span class="progress-text">{{ calorie_progress|default:0 }}% of {{ goals.daily_calorie_target }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="macros-grid">
+            <div class="macro-card protein">
+                <span class="macro-value">{{ total_protein|floatformat:0 }}g</span>
+                <span class="macro-label">Protein</span>
+                {% if goals and goals.daily_protein_target_g %}
+                <div class="macro-progress">
+                    <div class="progress-bar-mini">
+                        <div class="progress-fill" style="width: {{ protein_progress|default:0 }}%"></div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="macro-card carbs">
+                <span class="macro-value">{{ total_carbs|floatformat:0 }}g</span>
+                <span class="macro-label">Carbs</span>
+                {% if goals and goals.daily_carb_target_g %}
+                <div class="macro-progress">
+                    <div class="progress-bar-mini">
+                        <div class="progress-fill" style="width: {{ carb_progress|default:0 }}%"></div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="macro-card fat">
+                <span class="macro-value">{{ total_fat|floatformat:0 }}g</span>
+                <span class="macro-label">Fat</span>
+                {% if goals and goals.daily_fat_target_g %}
+                <div class="macro-progress">
+                    <div class="progress-bar-mini">
+                        <div class="progress-fill" style="width: {{ fat_progress|default:0 }}%"></div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Meals -->
+    <div class="meals-section">
+        <!-- Breakfast -->
+        <div class="meal-group">
+            <div class="meal-header">
+                <h2>Breakfast</h2>
+                <a href="{% url 'health:food_entry_create' %}?meal=breakfast" class="btn btn-text btn-sm">+ Add</a>
+            </div>
+            {% if breakfast_entries %}
+            <div class="food-list">
+                {% for entry in breakfast_entries %}
+                <div class="food-item">
+                    <div class="food-info">
+                        <span class="food-name">{{ entry.food_name }}</span>
+                        {% if entry.food_brand %}<span class="food-brand">{{ entry.food_brand }}</span>{% endif %}
+                        <span class="food-serving">{{ entry.quantity }} {{ entry.serving_unit }}</span>
+                    </div>
+                    <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
+                    <div class="food-actions">
+                        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-sm">No breakfast logged yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Lunch -->
+        <div class="meal-group">
+            <div class="meal-header">
+                <h2>Lunch</h2>
+                <a href="{% url 'health:food_entry_create' %}?meal=lunch" class="btn btn-text btn-sm">+ Add</a>
+            </div>
+            {% if lunch_entries %}
+            <div class="food-list">
+                {% for entry in lunch_entries %}
+                <div class="food-item">
+                    <div class="food-info">
+                        <span class="food-name">{{ entry.food_name }}</span>
+                        {% if entry.food_brand %}<span class="food-brand">{{ entry.food_brand }}</span>{% endif %}
+                        <span class="food-serving">{{ entry.quantity }} {{ entry.serving_unit }}</span>
+                    </div>
+                    <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
+                    <div class="food-actions">
+                        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-sm">No lunch logged yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Dinner -->
+        <div class="meal-group">
+            <div class="meal-header">
+                <h2>Dinner</h2>
+                <a href="{% url 'health:food_entry_create' %}?meal=dinner" class="btn btn-text btn-sm">+ Add</a>
+            </div>
+            {% if dinner_entries %}
+            <div class="food-list">
+                {% for entry in dinner_entries %}
+                <div class="food-item">
+                    <div class="food-info">
+                        <span class="food-name">{{ entry.food_name }}</span>
+                        {% if entry.food_brand %}<span class="food-brand">{{ entry.food_brand }}</span>{% endif %}
+                        <span class="food-serving">{{ entry.quantity }} {{ entry.serving_unit }}</span>
+                    </div>
+                    <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
+                    <div class="food-actions">
+                        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-sm">No dinner logged yet.</p>
+            {% endif %}
+        </div>
+
+        <!-- Snacks -->
+        <div class="meal-group">
+            <div class="meal-header">
+                <h2>Snacks</h2>
+                <a href="{% url 'health:food_entry_create' %}?meal=snack" class="btn btn-text btn-sm">+ Add</a>
+            </div>
+            {% if snack_entries %}
+            <div class="food-list">
+                {% for entry in snack_entries %}
+                <div class="food-item">
+                    <div class="food-info">
+                        <span class="food-name">{{ entry.food_name }}</span>
+                        {% if entry.food_brand %}<span class="food-brand">{{ entry.food_brand }}</span>{% endif %}
+                        <span class="food-serving">{{ entry.quantity }} {{ entry.serving_unit }}</span>
+                    </div>
+                    <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
+                    <div class="food-actions">
+                        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-sm">No snacks logged yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions mt-8">
+        <a href="{% url 'health:food_history' %}" class="action-card">
+            <span class="action-icon">&#128197;</span>
+            <span class="action-text">History</span>
+        </a>
+        <a href="{% url 'health:nutrition_stats' %}" class="action-card">
+            <span class="action-icon">&#128200;</span>
+            <span class="action-text">Stats</span>
+        </a>
+        <a href="{% url 'health:nutrition_goals' %}" class="action-card">
+            <span class="action-icon">&#127919;</span>
+            <span class="action-text">Goals</span>
+        </a>
+        <a href="{% url 'health:custom_food_list' %}" class="action-card">
+            <span class="action-icon">&#128218;</span>
+            <span class="action-text">My Foods</span>
+        </a>
+    </div>
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.page-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.nutrition-summary {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.summary-card {
+    text-align: center;
+    margin-bottom: var(--space-4);
+}
+
+.summary-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.summary-value {
+    font-size: var(--font-size-4xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.summary-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.summary-progress {
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+.progress-bar {
+    height: 8px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--space-1);
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.macros-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+}
+
+.macro-card {
+    text-align: center;
+    padding: var(--space-3);
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+}
+
+.macro-value {
+    display: block;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.macro-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.macro-card.protein .macro-value { color: #ef4444; }
+.macro-card.carbs .macro-value { color: #3b82f6; }
+.macro-card.fat .macro-value { color: #f59e0b; }
+
+.progress-bar-mini {
+    height: 4px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-top: var(--space-2);
+}
+
+.meals-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.meal-group {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.meal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.meal-header h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+}
+
+.food-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.food-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.food-item:last-child {
+    border-bottom: none;
+}
+
+.food-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.food-name {
+    font-weight: 500;
+}
+
+.food-brand {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.food-serving {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.food-calories {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.quick-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-4);
+}
+
+.action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: all 0.2s ease;
+}
+
+.action-card:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-2px);
+}
+
+.action-icon {
+    font-size: var(--font-size-2xl);
+}
+
+.action-text {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+@media (max-width: 640px) {
+    .macros-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-2);
+    }
+
+    .macro-card {
+        padding: var(--space-2);
+    }
+
+    .macro-value {
+        font-size: var(--font-size-lg);
+    }
+}
+</style>
+{% endblock %}

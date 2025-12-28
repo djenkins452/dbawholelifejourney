@@ -234,6 +234,37 @@
 
             <a href="{% url 'health:fitness_home' %}" class="card-link">Go to Fitness</a>
         </div>
+
+        <!-- Nutrition Card -->
+        <div class="health-card nutrition-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L12 6M12 18L12 22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12L6 12M18 12L22 12M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93"/>
+                        <circle cx="12" cy="12" r="4"/>
+                    </svg>
+                    Nutrition
+                </h2>
+                <a href="{% url 'health:food_entry_create' %}" class="btn btn-primary btn-sm">Log Food</a>
+            </div>
+
+            {% if nutrition_today_calories %}
+            <div class="nutrition-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ nutrition_today_calories|floatformat:0 }}</span>
+                    <span class="stat-label">calories today</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ nutrition_today_entries }}</span>
+                    <span class="stat-label">entries</span>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-muted">No food logged today.</p>
+            {% endif %}
+
+            <a href="{% url 'health:nutrition_home' %}" class="card-link">Go to Nutrition</a>
+        </div>
     </div>
 </div>
 
@@ -462,6 +493,28 @@
 }
 
 .medicine-stats .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.nutrition-stats {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.nutrition-stats .stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.nutrition-stats .stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.nutrition-stats .stat-label {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
 }

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Food History - Nutrition - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Food History</h1>
+        <a href="{% url 'health:nutrition_home' %}" class="btn btn-secondary btn-sm">Back to Today</a>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="filters-bar mb-6">
+        <div class="filter-group">
+            <label for="meal">Meal</label>
+            <select name="meal" id="meal" class="form-select">
+                <option value="">All Meals</option>
+                {% for value, label in meal_choices %}
+                <option value="{{ value }}" {% if selected_meal == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="start">From</label>
+            <input type="date" name="start" id="start" value="{{ start_date }}" class="form-input">
+        </div>
+        <div class="filter-group">
+            <label for="end">To</label>
+            <input type="date" name="end" id="end" value="{{ end_date }}" class="form-input">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        {% if selected_meal or start_date or end_date %}
+        <a href="{% url 'health:food_history' %}" class="btn btn-text btn-sm">Clear</a>
+        {% endif %}
+    </form>
+
+    <!-- Entries List -->
+    {% if entries %}
+    <div class="history-list">
+        {% regroup entries by logged_date as entries_by_date %}
+        {% for date_group in entries_by_date %}
+        <div class="date-group">
+            <h2 class="date-header">{{ date_group.grouper|date:"l, F j, Y" }}</h2>
+            <div class="entries-for-date">
+                {% for entry in date_group.list %}
+                <div class="history-entry">
+                    <div class="entry-info">
+                        <span class="entry-meal">{{ entry.get_meal_type_display }}</span>
+                        <span class="entry-name">{{ entry.food_name }}</span>
+                        {% if entry.food_brand %}<span class="entry-brand">{{ entry.food_brand }}</span>{% endif %}
+                    </div>
+                    <div class="entry-macros">
+                        <span class="macro-calories">{{ entry.total_calories|floatformat:0 }} cal</span>
+                        <span class="macro-detail">P: {{ entry.total_protein_g|floatformat:0 }}g</span>
+                        <span class="macro-detail">C: {{ entry.total_carbohydrates_g|floatformat:0 }}g</span>
+                        <span class="macro-detail">F: {{ entry.total_fat_g|floatformat:0 }}g</span>
+                    </div>
+                    <div class="entry-actions">
+                        <a href="{% url 'health:food_entry_detail' entry.pk %}" class="btn btn-text btn-xs">View</a>
+                        <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="pagination mt-6">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if selected_meal %}&meal={{ selected_meal }}{% endif %}{% if start_date %}&start={{ start_date }}{% endif %}{% if end_date %}&end={{ end_date }}{% endif %}" class="btn btn-secondary btn-sm">&laquo; Previous</a>
+        {% endif %}
+        <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if selected_meal %}&meal={{ selected_meal }}{% endif %}{% if start_date %}&start={{ start_date }}{% endif %}{% if end_date %}&end={{ end_date }}{% endif %}" class="btn btn-secondary btn-sm">Next &raquo;</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <p class="text-muted">No food entries found.</p>
+        <a href="{% url 'health:food_entry_create' %}" class="btn btn-primary mt-4">Log Your First Food</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-6);
+}
+
+.filters-bar {
+    display: flex;
+    gap: var(--space-4);
+    align-items: flex-end;
+    flex-wrap: wrap;
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.filter-group label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.date-group {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.date-header {
+    font-size: var(--font-size-md);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    margin: 0;
+}
+
+.entries-for-date {
+    padding: var(--space-2);
+}
+
+.history-entry {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.history-entry:last-child {
+    border-bottom: none;
+}
+
+.entry-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.entry-meal {
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.entry-name {
+    font-weight: 500;
+}
+
+.entry-brand {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.entry-macros {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.macro-calories {
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.macro-detail {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.entry-actions {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.page-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+}
+
+@media (max-width: 640px) {
+    .history-entry {
+        grid-template-columns: 1fr;
+        gap: var(--space-2);
+    }
+
+    .entry-macros {
+        flex-wrap: wrap;
+    }
+
+    .filters-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+</style>
+{% endblock %}

@@ -26,8 +26,12 @@ from django.template.loader import render_to_string
 from apps.core.utils import get_user_today
 from apps.help.mixins import HelpContextMixin
 
+from django.shortcuts import render
+
 from .forms import (
+    CustomFoodForm,
     FastingWindowForm,
+    FoodEntryForm,
     GlucoseEntryForm,
     HeartRateEntryForm,
     MedicineForm,
@@ -40,14 +44,17 @@ from .forms import (
 )
 from .models import (
     CardioDetails,
+    CustomFood,
     Exercise,
     ExerciseSet,
     FastingWindow,
+    FoodEntry,
     GlucoseEntry,
     HeartRateEntry,
     Medicine,
     MedicineLog,
     MedicineSchedule,
+    NutritionGoals,
     PersonalRecord,
     TemplateExercise,
     WeightEntry,
@@ -172,6 +179,17 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Check for low supply
             low_supply = [m for m in active_medicines if m.needs_refill]
             context["medicine_low_supply"] = len(low_supply)
+
+        # Nutrition summary for today
+        from django.db.models import Sum
+        today_entries = FoodEntry.objects.filter(
+            user=user,
+            logged_date=today,
+        )
+        if today_entries.exists():
+            totals = today_entries.aggregate(calories=Sum('total_calories'))
+            context["nutrition_today_calories"] = totals['calories'] or 0
+            context["nutrition_today_entries"] = today_entries.count()
 
         return context
 
@@ -1982,3 +2000,446 @@ class MedicineQuickLookView(LoginRequiredMixin, TemplateView):
         context["medicines"] = medicines
         context["generated_at"] = timezone.now()
         return context
+
+
+# =============================================================================
+# Nutrition / Food Tracking Views
+# =============================================================================
+
+
+class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    Nutrition module home - daily food tracker dashboard.
+    """
+
+    template_name = "health/nutrition/home.html"
+    help_context_id = "NUTRITION_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = get_user_today(user)
+
+        # Today's food entries
+        today_entries = FoodEntry.objects.filter(
+            user=user,
+            logged_date=today,
+        ).order_by('logged_time', 'created_at')
+
+        context["today"] = today
+        context["today_entries"] = today_entries
+
+        # Group entries by meal type
+        context["breakfast_entries"] = today_entries.filter(meal_type=FoodEntry.MEAL_BREAKFAST)
+        context["lunch_entries"] = today_entries.filter(meal_type=FoodEntry.MEAL_LUNCH)
+        context["dinner_entries"] = today_entries.filter(meal_type=FoodEntry.MEAL_DINNER)
+        context["snack_entries"] = today_entries.filter(meal_type=FoodEntry.MEAL_SNACK)
+
+        # Calculate today's totals
+        from django.db.models import Sum
+        totals = today_entries.aggregate(
+            calories=Sum('total_calories'),
+            protein=Sum('total_protein_g'),
+            carbs=Sum('total_carbohydrates_g'),
+            fat=Sum('total_fat_g'),
+            fiber=Sum('total_fiber_g'),
+            sugar=Sum('total_sugar_g'),
+        )
+
+        context["total_calories"] = totals['calories'] or 0
+        context["total_protein"] = totals['protein'] or 0
+        context["total_carbs"] = totals['carbs'] or 0
+        context["total_fat"] = totals['fat'] or 0
+        context["total_fiber"] = totals['fiber'] or 0
+        context["total_sugar"] = totals['sugar'] or 0
+
+        # Get user's nutrition goals
+        goals = NutritionGoals.objects.filter(
+            user=user,
+            effective_until__isnull=True,
+        ).first()
+        context["goals"] = goals
+
+        # Calculate progress percentages if goals exist
+        if goals and goals.daily_calorie_target:
+            context["calorie_progress"] = min(100, int(
+                float(context["total_calories"]) / goals.daily_calorie_target * 100
+            ))
+        if goals and goals.daily_protein_target_g:
+            context["protein_progress"] = min(100, int(
+                float(context["total_protein"]) / goals.daily_protein_target_g * 100
+            ))
+        if goals and goals.daily_carb_target_g:
+            context["carb_progress"] = min(100, int(
+                float(context["total_carbs"]) / goals.daily_carb_target_g * 100
+            ))
+        if goals and goals.daily_fat_target_g:
+            context["fat_progress"] = min(100, int(
+                float(context["total_fat"]) / goals.daily_fat_target_g * 100
+            ))
+
+        # Recent custom foods for quick access
+        context["recent_foods"] = CustomFood.objects.filter(
+            user=user,
+        ).order_by('-updated_at')[:5]
+
+        return context
+
+
+class FoodEntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
+    """
+    Log a new food entry.
+    """
+
+    model = FoodEntry
+    form_class = FoodEntryForm
+    template_name = "health/nutrition/food_entry_form.html"
+    success_url = reverse_lazy("health:nutrition_home")
+    help_context_id = "NUTRITION_ENTRY_CREATE"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def get_initial(self):
+        initial = super().get_initial()
+        # Pre-fill meal type from query param
+        meal_type = self.request.GET.get('meal')
+        if meal_type in dict(FoodEntry.MEAL_CHOICES):
+            initial['meal_type'] = meal_type
+        return initial
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        form.instance.entry_source = FoodEntry.SOURCE_MANUAL
+        messages.success(self.request, "Food logged.")
+        return super().form_valid(form)
+
+
+class FoodEntryUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
+    """
+    Edit a food entry.
+    """
+
+    model = FoodEntry
+    form_class = FoodEntryForm
+    template_name = "health/nutrition/food_entry_form.html"
+    success_url = reverse_lazy("health:nutrition_home")
+    help_context_id = "NUTRITION_ENTRY_EDIT"
+
+    def get_queryset(self):
+        return FoodEntry.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, "Food entry updated.")
+        return super().form_valid(form)
+
+
+class FoodEntryDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a food entry.
+    """
+
+    def post(self, request, pk):
+        entry = get_object_or_404(
+            FoodEntry.objects.filter(user=request.user),
+            pk=pk,
+        )
+        entry.soft_delete()
+        messages.success(request, "Food entry deleted.")
+
+        # Redirect back to referring page or nutrition home
+        next_url = request.POST.get('next', request.META.get('HTTP_REFERER'))
+        if next_url:
+            return redirect(next_url)
+        return redirect("health:nutrition_home")
+
+
+class FoodEntryDetailView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    View details of a food entry.
+    """
+
+    template_name = "health/nutrition/food_entry_detail.html"
+    help_context_id = "NUTRITION_ENTRY_DETAIL"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["entry"] = get_object_or_404(
+            FoodEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk'],
+        )
+        return context
+
+
+class QuickAddFoodView(HelpContextMixin, LoginRequiredMixin, View):
+    """
+    Quick calorie-only food logging.
+    """
+
+    template_name = "health/nutrition/quick_add.html"
+    help_context_id = "NUTRITION_QUICK_ADD"
+
+    def get(self, request):
+        from .forms import QuickAddFoodForm
+        form = QuickAddFoodForm(user=request.user)
+        return render(request, self.template_name, {"form": form})
+
+    def post(self, request):
+        from .forms import QuickAddFoodForm
+        form = QuickAddFoodForm(request.POST, user=request.user)
+        if form.is_valid():
+            # Create a food entry with minimal info
+            entry = FoodEntry.objects.create(
+                user=request.user,
+                food_name=form.cleaned_data['food_name'],
+                quantity=1,
+                serving_size=1,
+                serving_unit="serving",
+                total_calories=form.cleaned_data['calories'],
+                total_protein_g=0,
+                total_carbohydrates_g=0,
+                total_fat_g=0,
+                logged_date=form.cleaned_data['logged_date'],
+                meal_type=form.cleaned_data['meal_type'],
+                entry_source=FoodEntry.SOURCE_QUICK_ADD,
+            )
+            messages.success(request, f"Logged {entry.total_calories} calories.")
+            return redirect("health:nutrition_home")
+        return render(request, self.template_name, {"form": form})
+
+
+class FoodHistoryView(HelpContextMixin, LoginRequiredMixin, ListView):
+    """
+    Historical food log.
+    """
+
+    model = FoodEntry
+    template_name = "health/nutrition/history.html"
+    context_object_name = "entries"
+    paginate_by = 50
+    help_context_id = "NUTRITION_HISTORY"
+
+    def get_queryset(self):
+        qs = FoodEntry.objects.filter(user=self.request.user)
+
+        # Filter by date range
+        start_date = self.request.GET.get('start')
+        end_date = self.request.GET.get('end')
+        if start_date:
+            qs = qs.filter(logged_date__gte=start_date)
+        if end_date:
+            qs = qs.filter(logged_date__lte=end_date)
+
+        # Filter by meal type
+        meal_type = self.request.GET.get('meal')
+        if meal_type:
+            qs = qs.filter(meal_type=meal_type)
+
+        return qs.order_by('-logged_date', '-logged_time')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["meal_choices"] = FoodEntry.MEAL_CHOICES
+        context["selected_meal"] = self.request.GET.get('meal', '')
+        context["start_date"] = self.request.GET.get('start', '')
+        context["end_date"] = self.request.GET.get('end', '')
+        return context
+
+
+class NutritionStatsView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    Nutrition statistics and trends.
+    """
+
+    template_name = "health/nutrition/stats.html"
+    help_context_id = "NUTRITION_STATS"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = get_user_today(user)
+
+        # Get period from query param (default: 7 days)
+        period = self.request.GET.get('period', '7')
+        try:
+            days = int(period)
+        except ValueError:
+            days = 7
+
+        start_date = today - timedelta(days=days - 1)
+        context["period"] = days
+        context["start_date"] = start_date
+        context["end_date"] = today
+
+        # Get entries for period
+        entries = FoodEntry.objects.filter(
+            user=user,
+            logged_date__gte=start_date,
+            logged_date__lte=today,
+        )
+
+        # Daily aggregates
+        from django.db.models import Sum, Avg
+        daily_stats = []
+        current = start_date
+        while current <= today:
+            day_entries = entries.filter(logged_date=current)
+            day_totals = day_entries.aggregate(
+                calories=Sum('total_calories'),
+                protein=Sum('total_protein_g'),
+                carbs=Sum('total_carbohydrates_g'),
+                fat=Sum('total_fat_g'),
+            )
+            daily_stats.append({
+                "date": current,
+                "calories": day_totals['calories'] or 0,
+                "protein": day_totals['protein'] or 0,
+                "carbs": day_totals['carbs'] or 0,
+                "fat": day_totals['fat'] or 0,
+                "entry_count": day_entries.count(),
+            })
+            current += timedelta(days=1)
+
+        context["daily_stats"] = daily_stats
+
+        # Period averages
+        total_entries = entries.count()
+        if total_entries > 0:
+            period_totals = entries.aggregate(
+                calories=Sum('total_calories'),
+                protein=Sum('total_protein_g'),
+                carbs=Sum('total_carbohydrates_g'),
+                fat=Sum('total_fat_g'),
+                fiber=Sum('total_fiber_g'),
+                sugar=Sum('total_sugar_g'),
+            )
+            days_with_entries = len([d for d in daily_stats if d['entry_count'] > 0])
+            if days_with_entries > 0:
+                context["avg_daily_calories"] = int(float(period_totals['calories'] or 0) / days_with_entries)
+                context["avg_daily_protein"] = int(float(period_totals['protein'] or 0) / days_with_entries)
+                context["avg_daily_carbs"] = int(float(period_totals['carbs'] or 0) / days_with_entries)
+                context["avg_daily_fat"] = int(float(period_totals['fat'] or 0) / days_with_entries)
+
+        # Get goals for comparison
+        context["goals"] = NutritionGoals.objects.filter(
+            user=user,
+            effective_until__isnull=True,
+        ).first()
+
+        return context
+
+
+class NutritionGoalsView(HelpContextMixin, LoginRequiredMixin, View):
+    """
+    View and edit nutrition goals.
+    """
+
+    template_name = "health/nutrition/goals.html"
+    help_context_id = "NUTRITION_GOALS"
+
+    def get(self, request):
+        from .forms import NutritionGoalsForm
+        # Get current active goals
+        goals = NutritionGoals.objects.filter(
+            user=request.user,
+            effective_until__isnull=True,
+        ).first()
+        form = NutritionGoalsForm(instance=goals)
+        return render(request, self.template_name, {"form": form, "goals": goals})
+
+    def post(self, request):
+        from .forms import NutritionGoalsForm
+        # Get or create goals
+        goals = NutritionGoals.objects.filter(
+            user=request.user,
+            effective_until__isnull=True,
+        ).first()
+
+        if goals:
+            form = NutritionGoalsForm(request.POST, instance=goals)
+        else:
+            form = NutritionGoalsForm(request.POST)
+
+        if form.is_valid():
+            goal = form.save(commit=False)
+            goal.user = request.user
+            if not goal.effective_from:
+                goal.effective_from = get_user_today(request.user)
+            goal.save()
+            messages.success(request, "Nutrition goals updated.")
+            return redirect("health:nutrition_goals")
+
+        return render(request, self.template_name, {"form": form, "goals": goals})
+
+
+class CustomFoodListView(HelpContextMixin, LoginRequiredMixin, ListView):
+    """
+    List user's custom foods.
+    """
+
+    model = CustomFood
+    template_name = "health/nutrition/custom_food_list.html"
+    context_object_name = "foods"
+    paginate_by = 30
+    help_context_id = "NUTRITION_CUSTOM_FOODS"
+
+    def get_queryset(self):
+        return CustomFood.objects.filter(user=self.request.user)
+
+
+class CustomFoodCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
+    """
+    Create a custom food.
+    """
+
+    model = CustomFood
+    form_class = CustomFoodForm
+    template_name = "health/nutrition/custom_food_form.html"
+    success_url = reverse_lazy("health:custom_food_list")
+    help_context_id = "NUTRITION_CUSTOM_FOOD_CREATE"
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        messages.success(self.request, "Custom food created.")
+        return super().form_valid(form)
+
+
+class CustomFoodUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
+    """
+    Edit a custom food.
+    """
+
+    model = CustomFood
+    form_class = CustomFoodForm
+    template_name = "health/nutrition/custom_food_form.html"
+    success_url = reverse_lazy("health:custom_food_list")
+    help_context_id = "NUTRITION_CUSTOM_FOOD_EDIT"
+
+    def get_queryset(self):
+        return CustomFood.objects.filter(user=self.request.user)
+
+    def form_valid(self, form):
+        messages.success(self.request, "Custom food updated.")
+        return super().form_valid(form)
+
+
+class CustomFoodDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a custom food.
+    """
+
+    def post(self, request, pk):
+        food = get_object_or_404(
+            CustomFood.objects.filter(user=request.user),
+            pk=pk,
+        )
+        food.soft_delete()
+        messages.success(request, f"Deleted '{food.name}'.")
+        return redirect("health:custom_food_list")

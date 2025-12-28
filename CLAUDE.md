@@ -12,7 +12,7 @@
 - OpenAI API for AI coaching features
 
 ## Key Architecture
-- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan
+- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console
 - **User model:** Custom User in apps/users/models.py (email-based auth)
 - **Preferences:** UserPreferences model stores timezone, module toggles, AI settings (coaching_style)
 - **Soft deletes:** Models use soft_delete() method, not hard deletes
@@ -29,10 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
-- **Expanded Camera Scan Module Support (2025-12-28):** Extended AI Camera scan feature to recognize and route items to ALL Life module sections, not just Health/Journal. New categories: `inventory_item` (electronics, tools, furniture, appliances, etc.), `recipe` (cookbook pages, recipe cards), `pet` (animals, pet supplies), `maintenance` (home repair items, filters, parts). Updated OpenAI Vision prompt with detailed category selection guidance and examples. All Life module create views (Inventory, Pet, Recipe, Maintenance, Document) now support query parameter prefill and `source=ai_camera` tracking. 7 new tests for new categories (85 scan tests total, 965 total). When scanning a drill, the AI now correctly identifies it as `inventory_item` and prompts "Add to Inventory" with prefilled name, category, and brand.
-- **AI Camera Source Tracking (2025-12-28):** Added tracking for entries created via AI Camera scan feature. New `created_via` field on `UserOwnedModel` base class with choices: manual, ai_camera, import, api. All scan action URLs now include `source=ai_camera` parameter. Create views (Journal, Medicine, Workout) detect this parameter and set `created_via='ai_camera'`. Detail pages display "📷 AI Camera" badge for AI-created entries. Added `was_created_by_ai` property for template use. 16 new tests covering model fields and URL parameter tracking. Also added AI Data Processing Consent toggle to preferences page (required for AI features).
-- **Medicine Schedule Fixes (2025-12-28):** Fixed critical bug where medicine schedules weren't appearing in Today's Schedule. Root cause: `days_of_week` field was being saved as empty string. Fixes: (1) Added "Daily" button to schedule form for quick all-days selection, (2) Form now defaults to all days if none selected, (3) Data migration `0004_fix_empty_schedule_days.py` fixes existing empty schedules, (4) Added day-of-week indicators (S M T W T F S) on schedule displays, (5) Added Activate button for inactive schedules, (6) Fixed empty state message when medicines exist but no schedules for today. Day display now starts with Sunday.
-- **Camera Scan Feature (2025-12-28):** Added comprehensive Camera Scan feature with OpenAI Vision API integration. Features: browser camera capture (getUserMedia), file upload fallback, multi-format support (JPEG, PNG, WebP), contextual action suggestions, privacy-first design (no image storage), rate limiting, magic bytes validation. Identifies 8 categories: food, medicine, supplement, receipt, document, workout equipment, barcode, unknown. Maps to WLJ modules for quick action. 70 new tests (965 total). See `docs/CAMERA_SCAN_ARCHITECTURE.md` for full architecture.
+- **Food/Nutrition Tracking (2025-12-28):** Added comprehensive Nutrition section to Health module with food logging, macro tracking, daily summaries, and nutrition goals. Features: FoodItem global library (USDA support, barcode scanning, AI recognition ready), CustomFood for user recipes, FoodEntry logging with meal type, location, eating pace, hunger/fullness tracking, DailyNutritionSummary with automatic recalculation and macro percentages, NutritionGoals with calorie/macro targets and dietary preferences. Views: NutritionHomeView (daily dashboard), FoodEntryCreateView/UpdateView, QuickAddFoodView, FoodHistoryView, NutritionStatsView, NutritionGoalsView, CustomFoodListView/CreateView/UpdateView. CameraScan model in apps/core for future AI-powered food recognition. 80 new tests (1045 total).
 - **Medicine Tracking Section (2025-12-28):** Added comprehensive Medicine section to Health module with daily tracker, adherence stats, PRN support, refill tracking, and dashboard integration. Features: Medicine Master List (name, dose, frequency, schedules, prescribing doctor, pharmacy), Daily Tracker with one-tap check-off, Missed/Overdue detection with configurable grace period, History & Adherence views, Quick Look for screenshots, refill alerts, pause/resume without losing history. 77 new tests (965 total).
 - **CSO Security Review & Fixes (2025-12-28):** Comprehensive security review conducted with 21 findings. Critical fixes implemented:
   - C-2: Bible API key removed from frontend, replaced with server-side proxy at `/faith/api/bible/*`
@@ -152,7 +149,7 @@ These packages are sometimes missing from the venv:
 - **Run specific app tests:** `python manage.py test apps.<app_name>`
 - **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)
 - **Test runner:** `run_tests.py` provides enhanced output with summaries
-- **Current test count:** 974 tests across all apps (as of 2025-12-28)
+- **Current test count:** 1045 tests across all apps (as of 2025-12-28)
 
 ### Test Patterns Used
 - `TestCase` for database tests
@@ -191,6 +188,8 @@ These files contain test mixins that create users. If adding new tests, use thes
 - `apps/journal/tests/test_journal_comprehensive.py` - `JournalTestMixin`
 - `apps/faith/tests/test_faith_comprehensive.py` - `FaithTestMixin`
 - `apps/health/tests/test_health_comprehensive.py` - `HealthTestMixin`
+- `apps/health/tests/test_nutrition.py` - `NutritionTestMixin`
+- `apps/health/tests/test_medicine.py` - `MedicineTestMixin`
 - `apps/life/tests/test_life_comprehensive.py` - `LifeTestMixin`
 - `apps/purpose/tests/test_purpose_comprehensive.py` - `PurposeTestMixin`
 - `apps/admin_console/tests/test_admin_console.py` - `AdminTestMixin`
@@ -577,57 +576,6 @@ python manage.py test apps.faith
 
 ---
 
-## AI Camera Source Tracking
-
-### Overview
-Entries created via the AI Camera scan feature are tracked with a `created_via` field, allowing the UI to display a badge indicating the entry was created via AI.
-
-### How It Works
-1. User scans an item with AI Camera (medicine, food, document, etc.)
-2. Vision AI identifies the item and suggests actions
-3. Action URLs include `source=ai_camera` query parameter
-4. Create views detect this parameter and set `created_via='ai_camera'`
-5. Detail pages display "📷 AI Camera" badge for AI-created entries
-
-### Key Files
-- `apps/core/models.py` - `UserOwnedModel` base class with `created_via` field and `was_created_by_ai` property
-- `apps/scan/services/vision.py` - `_add_source_param()` method adds tracking to action URLs
-- `apps/journal/views.py` - `EntryCreateView.form_valid()` checks for `source=ai_camera`
-- `apps/health/views.py` - `MedicineCreateView` and `WorkoutCreateView` also check for source
-- `templates/journal/entry_detail.html` - AI Camera badge display
-- `templates/health/medicine/medicine_detail.html` - AI Camera badge display
-
-### created_via Field Values
-| Value | Display | Usage |
-|-------|---------|-------|
-| `manual` | Manual Entry | Default for user-created entries |
-| `ai_camera` | AI Camera Scan | Entries from Camera Scan feature |
-| `import` | Data Import | Entries from data imports (e.g., ChatGPT) |
-| `api` | API | Entries from external API calls |
-
-### Template Usage
-```html
-{% if entry.was_created_by_ai %}
-    <span class="ai-camera-badge" title="Created via AI Camera Scan">📷 AI Camera</span>
-{% endif %}
-```
-
-### Tests
-- `apps/core/tests/test_core_comprehensive.py:AISourceTrackingModelTests` - 6 tests for model field behavior
-- `apps/scan/tests/test_vision.py:SourceParamTrackingTests` - 10 tests for URL parameter tracking
-
-### Running Tests
-```bash
-# Run AI source tracking tests
-python manage.py test apps.core.tests.test_core_comprehensive.AISourceTrackingModelTests
-python manage.py test apps.scan.tests.test_vision.SourceParamTrackingTests
-
-# Run all scan tests
-python manage.py test apps.scan
-```
-
----
-
 ## System Audit & Security
 
 ### Overview
@@ -705,6 +653,83 @@ python run_tests.py
 - Input validation improvements (timezone, year/month, file uploads)
 - Large file splitting (views.py files over 500 lines)
 - 29 backup files to clean up
+
+---
+
+## Nutrition/Food Tracking
+
+### Overview
+The Nutrition feature allows users to log food consumption, track macros (protein, carbs, fat), set nutrition goals, and view daily/historical stats. It includes support for a global food library, custom user foods/recipes, and is prepared for future AI-powered food recognition via camera scanning.
+
+### Models (`apps/health/models.py`)
+| Model | Description |
+|-------|-------------|
+| `FoodItem` | Global food library (USDA, barcode, AI sources) - shared across all users |
+| `CustomFood` | User-created foods and recipes (user-scoped via `UserOwnedModel`) |
+| `FoodEntry` | Individual food log entry with meal type, location, eating context |
+| `DailyNutritionSummary` | Aggregated daily totals with macro percentages (auto-recalculated) |
+| `NutritionGoals` | User's calorie/macro targets with effective date ranges |
+
+### CameraScan Model (`apps/core/models.py`)
+Foundation for AI-powered scanning (food recognition, barcode scanning, medicine recognition). Fields include:
+- `image` - Uploaded photo
+- `detected_category` - food, packaged_food, medicine, etc.
+- `confidence_score` - AI confidence (0-1)
+- `raw_ai_response` - Full AI response JSON
+- `processing_status` - pending, processing, completed, failed, cancelled
+
+### URL Routes (`/health/nutrition/`)
+| Route | View | Description |
+|-------|------|-------------|
+| `/nutrition/` | `NutritionHomeView` | Daily dashboard with meal breakdown |
+| `/nutrition/add/` | `FoodEntryCreateView` | Full food entry form |
+| `/nutrition/quick-add/` | `QuickAddFoodView` | Simplified calorie-only logging |
+| `/nutrition/entry/<pk>/` | `FoodEntryDetailView` | View entry details |
+| `/nutrition/entry/<pk>/edit/` | `FoodEntryUpdateView` | Edit entry |
+| `/nutrition/entry/<pk>/delete/` | `FoodEntryDeleteView` | Delete entry |
+| `/nutrition/history/` | `FoodHistoryView` | Historical log with date/meal filters |
+| `/nutrition/stats/` | `NutritionStatsView` | Trends and analytics |
+| `/nutrition/goals/` | `NutritionGoalsView` | Set calorie/macro goals |
+| `/nutrition/foods/` | `CustomFoodListView` | List user's custom foods |
+| `/nutrition/foods/add/` | `CustomFoodCreateView` | Create custom food |
+| `/nutrition/foods/<pk>/edit/` | `CustomFoodUpdateView` | Edit custom food |
+| `/nutrition/foods/<pk>/delete/` | `CustomFoodDeleteView` | Delete custom food |
+
+### Key Features
+- **Meal Types**: Breakfast, Lunch, Dinner, Snack
+- **Entry Sources**: Manual, Barcode, Camera, Voice, Quick Add
+- **Location Context**: Home, Restaurant, Work, Travel, Other
+- **Eating Pace**: Rushed, Normal, Slow/Mindful
+- **Hunger/Fullness Tracking**: 1-5 scale before/after eating
+- **Mood Tags**: JSON field for emotional context
+- **Net Carbs**: Auto-calculated (carbs - fiber)
+- **Macro Percentages**: Auto-calculated in DailyNutritionSummary
+
+### Test Files
+- `apps/health/tests/test_nutrition.py` - 80 tests covering:
+  - Model tests (FoodItem, CustomFood, FoodEntry, DailyNutritionSummary, NutritionGoals)
+  - View tests (authentication, CRUD, context data)
+  - Form validation tests
+  - Data isolation tests (users can only see their own data)
+  - Quick add functionality
+
+### Running Nutrition Tests
+```bash
+# Run all nutrition tests
+python manage.py test apps.health.tests.test_nutrition
+
+# Run specific test class
+python manage.py test apps.health.tests.test_nutrition.FoodEntryModelTest
+
+# Run all health tests (includes nutrition, medicine, fitness)
+python manage.py test apps.health
+```
+
+### Future AI Integration Points
+1. **Camera Recognition**: Use `CameraScan` model to upload food photos for AI identification
+2. **Barcode Scanning**: Lookup `FoodItem` by barcode, create if not found
+3. **Voice Input**: Parse natural language food descriptions
+4. **Smart Suggestions**: Based on eating patterns and time of day
 
 ---
 *Last updated: 2025-12-28*

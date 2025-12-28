@@ -295,6 +295,12 @@ class UserPreferences(models.Model):
         help_text="Show 'What's New' popup when new features are released",
     )
 
+    # Biometric/Face ID login preference
+    biometric_login_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable Face ID, Touch ID, or device biometrics for quick login",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -304,6 +310,61 @@ class UserPreferences(models.Model):
 
     def __str__(self):
         return f"Preferences for {self.user.email}"
+
+
+class WebAuthnCredential(models.Model):
+    """
+    Store WebAuthn credentials for biometric login (Face ID, Touch ID, etc).
+
+    Each user can have multiple credentials (e.g., Face ID on phone, Touch ID on laptop).
+    The credential_id and public_key are used to verify authentication assertions.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="webauthn_credentials",
+    )
+
+    # Credential identifiers
+    credential_id = models.BinaryField(
+        help_text="Unique identifier for this credential (from authenticator)",
+    )
+    credential_id_b64 = models.CharField(
+        max_length=500,
+        unique=True,
+        help_text="Base64-encoded credential ID for lookups",
+    )
+
+    # Public key for verification
+    public_key = models.BinaryField(
+        help_text="COSE public key from authenticator",
+    )
+
+    # Sign count for replay attack prevention
+    sign_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Signature counter from authenticator",
+    )
+
+    # Device info for user to identify their credentials
+    device_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="User-friendly name for this device (e.g., 'iPhone 15')",
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "WebAuthn credential"
+        verbose_name_plural = "WebAuthn credentials"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.device_name or 'Unknown device'}"
 
 
 class TermsAcceptance(models.Model):

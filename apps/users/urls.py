@@ -27,4 +27,13 @@ urlpatterns = [
     # Onboarding Wizard (new step-by-step flow)
     path("onboarding/start/", views.OnboardingWizardView.as_view(), name="onboarding_wizard"),
     path("onboarding/step/<str:step>/", views.OnboardingWizardView.as_view(), name="onboarding_wizard_step"),
+
+    # Biometric / WebAuthn Login
+    path("biometric/check/", views.BiometricCheckView.as_view(), name="biometric_check"),
+    path("biometric/credentials/", views.BiometricCredentialsView.as_view(), name="biometric_credentials"),
+    path("biometric/register/begin/", views.BiometricRegisterBeginView.as_view(), name="biometric_register_begin"),
+    path("biometric/register/complete/", views.BiometricRegisterCompleteView.as_view(), name="biometric_register_complete"),
+    path("biometric/login/begin/", views.BiometricLoginBeginView.as_view(), name="biometric_login_begin"),
+    path("biometric/login/complete/", views.BiometricLoginCompleteView.as_view(), name="biometric_login_complete"),
+    path("biometric/delete/<int:credential_id>/", views.BiometricDeleteCredentialView.as_view(), name="biometric_delete"),
 ]

@@ -33,7 +33,7 @@ IMPORTANT RULES:
 1. NEVER identify people or faces. If a person is in the image, ignore them.
 2. NEVER make assumptions about the person's health, weight, or medical conditions.
 3. NEVER provide medical advice. Only identify what you see.
-4. If you see medicine or supplements, just describe what's visible (name, dosage on label).
+4. If you see medicine or supplements, describe what's visible (name, dosage on label) AND look up the common medical purpose of that medication (e.g., "blood pressure control", "cholesterol management", "pain relief", "allergy relief"). Include this purpose in the details.
 5. Be conservative with confidence scores - only use high confidence when clearly visible.
 6. Always respond with valid JSON matching the schema exactly.
 7. Choose the MOST SPECIFIC category that applies. For example, a power tool is "inventory_item", not "unknown".
@@ -92,7 +92,8 @@ Example for a medicine bottle:
       "details": {
         "dosage": "10mg",
         "quantity": "30 tablets",
-        "directions": "Take once daily"
+        "directions": "Take once daily",
+        "purpose": "Blood pressure control"
       },
       "confidence": 0.92
     }
@@ -433,6 +434,8 @@ class VisionService:
                 url_params.append(f'directions={quote(details["directions"])}')
             if details.get('quantity'):
                 url_params.append(f'quantity={quote(details["quantity"])}')
+            if details.get('purpose'):
+                url_params.append(f'purpose={quote(details["purpose"])}')
 
             actions.append({
                 'module': 'Health.Medicine',
@@ -471,6 +474,8 @@ class VisionService:
                 url_params.append(f'directions={quote(details["directions"])}')
             if details.get('quantity'):
                 url_params.append(f'quantity={quote(details["quantity"])}')
+            if details.get('purpose'):
+                url_params.append(f'purpose={quote(details["purpose"])}')
 
             actions.append({
                 'module': 'Health.Medicine',

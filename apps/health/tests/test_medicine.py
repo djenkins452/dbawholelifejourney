@@ -672,6 +672,35 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
         medicine = Medicine.objects.get(name='Manual Medicine')
         self.assertEqual(medicine.created_via, UserOwnedModel.CREATED_VIA_MANUAL)
 
+    def test_medicine_create_prefills_purpose_from_query_param(self):
+        """Medicine create form prefills purpose from query parameter."""
+        response = self.client.get(
+            reverse('health:medicine_create') + '?name=Lisinopril&purpose=Blood%20pressure%20control'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Blood pressure control')
+        form = response.context.get('form')
+        self.assertIsNotNone(form)
+        self.assertEqual(form.initial.get('purpose'), 'Blood pressure control')
+
+    def test_medicine_create_prefills_all_fields_including_purpose(self):
+        """Medicine create form prefills all fields including purpose from AI Camera scan."""
+        url = (
+            reverse('health:medicine_create') +
+            '?name=Metformin&dose=500mg&directions=Take%20twice%20daily%20with%20meals'
+            '&quantity=60%20tablets&purpose=Diabetes%20management&source=ai_camera'
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+        form = response.context.get('form')
+        self.assertIsNotNone(form)
+        self.assertEqual(form.initial.get('name'), 'Metformin')
+        self.assertEqual(form.initial.get('dose'), '500mg')
+        self.assertEqual(form.initial.get('notes'), 'Take twice daily with meals')
+        self.assertEqual(form.initial.get('current_supply'), 60)
+        self.assertEqual(form.initial.get('purpose'), 'Diabetes management')
+
 
 # =============================================================================
 # 6. DAILY TRACKER TESTS

@@ -511,3 +511,43 @@ class SourceParamTrackingTests(TestCase):
 
         self.assertIsNotNone(skip_action)
         self.assertEqual(skip_action['url'], '')
+
+    def test_medicine_actions_include_purpose_in_url(self):
+        """Test that medicine actions include purpose in URL when provided."""
+        items = [{'label': 'Lisinopril', 'details': {
+            'dosage': '10mg',
+            'purpose': 'Blood pressure control'
+        }}]
+        actions = self.service._build_actions('medicine', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('purpose=', action_url)
+        self.assertIn('Blood', action_url)  # URL encoded
+
+    def test_medicine_actions_without_purpose(self):
+        """Test that medicine actions work without purpose."""
+        items = [{'label': 'Aspirin', 'details': {'dosage': '325mg'}}]
+        actions = self.service._build_actions('medicine', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertNotIn('purpose=', action_url)
+
+    def test_supplement_actions_include_purpose_in_url(self):
+        """Test that supplement actions include purpose in URL when provided."""
+        items = [{'label': 'Vitamin D3', 'details': {
+            'dosage': '5000 IU',
+            'purpose': 'Bone health and immune support'
+        }}]
+        actions = self.service._build_actions('supplement', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('purpose=', action_url)
+        self.assertIn('Bone', action_url)  # URL encoded
+
+    def test_supplement_actions_without_purpose(self):
+        """Test that supplement actions work without purpose."""
+        items = [{'label': 'Fish Oil', 'details': {'dosage': '1000mg'}}]
+        actions = self.service._build_actions('supplement', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertNotIn('purpose=', action_url)

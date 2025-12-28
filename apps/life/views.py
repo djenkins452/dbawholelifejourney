@@ -270,7 +270,7 @@ class TaskCreateView(LifeAccessMixin, CreateView):
     """Create a new task."""
     model = Task
     template_name = "life/task_form.html"
-    fields = ['title', 'notes', 'project', 'priority', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern']
+    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern']
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
@@ -318,7 +318,7 @@ class TaskUpdateView(LifeAccessMixin, UpdateView):
     """Edit a task."""
     model = Task
     template_name = "life/task_form.html"
-    fields = ['title', 'notes', 'project', 'priority', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern']
+    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern']
     
     def get_queryset(self):
         return Task.objects.filter(user=self.request.user)
@@ -349,6 +349,7 @@ class TaskToggleView(LifeAccessMixin, View):
 
     def post(self, request, pk):
         task = get_object_or_404(Task, pk=pk, user=request.user)
+        was_completed = task.is_completed
         if task.is_completed:
             task.mark_incomplete()
         else:
@@ -357,6 +358,15 @@ class TaskToggleView(LifeAccessMixin, View):
         # Return to referring page or task list (with open redirect protection)
         from apps.core.utils import get_safe_redirect_url
         next_url = get_safe_redirect_url(request)
+
+        # Add query param to show completion popup if task was just completed
+        if not was_completed:
+            separator = '&' if '?' in (next_url or '') else '?'
+            if next_url:
+                next_url = f"{next_url}{separator}task_completed=1"
+                return redirect(next_url)
+            return redirect(f"{reverse('life:task_list')}?task_completed=1")
+
         if next_url:
             return redirect(next_url)
         return redirect('life:task_list')

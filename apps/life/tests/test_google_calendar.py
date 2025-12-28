@@ -502,12 +502,16 @@ class LifeBusinessLogicTest(LifeTestMixin, TestCase):
         self.assertEqual(incomplete_tasks.count(), 1)
     
     def test_filter_tasks_by_priority(self):
-        """Can filter tasks by priority."""
-        now_task = self.create_task(self.user, priority='now')
-        someday_task = self.create_task(self.user, priority='someday')
-        
+        """Can filter tasks by priority (priority is auto-calculated from due date)."""
+        # Now = due today or overdue
+        now_task = self.create_task(self.user, due_date=date.today())
+        # Someday = no due date or > 7 days away
+        someday_task = self.create_task(self.user)  # No due date = someday
+
         now_tasks = Task.objects.filter(user=self.user, priority='now')
         self.assertEqual(now_tasks.count(), 1)
+        someday_tasks = Task.objects.filter(user=self.user, priority='someday')
+        self.assertEqual(someday_tasks.count(), 1)
     
     def test_filter_overdue_tasks(self):
         """Can filter overdue tasks."""

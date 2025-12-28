@@ -136,27 +136,30 @@ class Project(UserOwnedModel):
 class Task(UserOwnedModel):
     """
     Simple, human-prioritized tasks.
-    
+
     Tasks can stand alone or belong to a project.
-    Clarity over cleverness.
+    Priority is automatically determined based on due date:
+    - Now: Due today or overdue
+    - Soon: Due within 7 days
+    - Someday: No due date or due date > 7 days away
     """
-    
+
     PRIORITY_CHOICES = [
         ('now', 'Now'),
         ('soon', 'Soon'),
         ('someday', 'Someday'),
     ]
-    
+
     EFFORT_CHOICES = [
         ('quick', 'Quick (< 15 min)'),
         ('small', 'Small (< 1 hour)'),
         ('medium', 'Medium (1-3 hours)'),
         ('large', 'Large (half day+)'),
     ]
-    
+
     title = models.CharField(max_length=300)
     notes = models.TextField(blank=True)
-    
+
     # Organization
     project = models.ForeignKey(
         Project,
@@ -165,7 +168,7 @@ class Task(UserOwnedModel):
         null=True,
         blank=True
     )
-    
+
     priority = models.CharField(
         max_length=20,
         choices=PRIORITY_CHOICES,
@@ -176,7 +179,7 @@ class Task(UserOwnedModel):
         choices=EFFORT_CHOICES,
         blank=True
     )
-    
+
     # Dates
     due_date = models.DateField(null=True, blank=True)
     
@@ -228,6 +231,44 @@ class Task(UserOwnedModel):
         if self.due_date and not self.is_completed:
             return self.due_date < timezone.now().date()
         return False
+
+    def calculate_priority(self):
+        """
+        Calculate priority based on due date.
+
+        Returns:
+            str: 'now' if due today or overdue,
+                 'soon' if due within 7 days,
+                 'someday' if no due date or due > 7 days away
+        """
+        from datetime import timedelta
+
+        if not self.due_date:
+            return 'someday'
+
+        today = timezone.now().date()
+        days_until_due = (self.due_date - today).days
+
+        if days_until_due <= 0:
+            # Due today or overdue
+            return 'now'
+        elif days_until_due <= 7:
+            # Due within the next 7 days
+            return 'soon'
+        else:
+            # Due more than 7 days away
+            return 'someday'
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-calculate priority based on due date."""
+        # Auto-calculate priority unless we're only updating specific fields
+        update_fields = kwargs.get('update_fields')
+        if update_fields is None or 'due_date' in update_fields:
+            self.priority = self.calculate_priority()
+            # If update_fields is specified, add priority to it
+            if update_fields is not None and 'priority' not in update_fields:
+                kwargs['update_fields'] = list(update_fields) + ['priority']
+        super().save(*args, **kwargs)
 
 
 # =============================================================================

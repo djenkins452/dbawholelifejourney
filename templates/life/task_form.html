@@ -34,48 +34,21 @@
                               placeholder="Any additional details...">{{ form.notes.value|default:'' }}</textarea>
                 </div>
             </div>
-            
-            <!-- Priority Selection -->
-            <div class="form-section">
-                <label class="form-label">Priority</label>
-                <div class="priority-cards">
-                    <label class="priority-card priority-now {% if form.priority.value == 'now' %}selected{% endif %}">
-                        <input type="radio" name="priority" value="now" {% if form.priority.value == 'now' %}checked{% endif %}>
-                        <div class="priority-content">
-                            <span class="priority-icon">🔴</span>
-                            <span class="priority-name">Now</span>
-                            <span class="priority-desc">Urgent, do today</span>
-                        </div>
-                    </label>
-                    
-                    <label class="priority-card priority-soon {% if form.priority.value == 'soon' %}selected{% endif %}">
-                        <input type="radio" name="priority" value="soon" {% if form.priority.value == 'soon' %}checked{% endif %}>
-                        <div class="priority-content">
-                            <span class="priority-icon">🟡</span>
-                            <span class="priority-name">Soon</span>
-                            <span class="priority-desc">This week</span>
-                        </div>
-                    </label>
-                    
-                    <label class="priority-card priority-someday {% if form.priority.value == 'someday' or not form.priority.value %}selected{% endif %}">
-                        <input type="radio" name="priority" value="someday" {% if form.priority.value == 'someday' or not form.priority.value %}checked{% endif %}>
-                        <div class="priority-content">
-                            <span class="priority-icon">⚪</span>
-                            <span class="priority-name">Someday</span>
-                            <span class="priority-desc">When time allows</span>
-                        </div>
-                    </label>
-                </div>
-            </div>
-            
+
             <div class="form-section">
                 <div class="form-row">
                     <div class="form-group">
                         <label for="id_due_date" class="form-label">Due Date</label>
                         <input type="date" name="due_date" id="id_due_date" class="form-input"
                                value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
+                        <p class="form-help priority-help">
+                            Priority is set automatically based on due date:
+                            <span class="priority-indicator priority-now">Now</span> = due today/overdue,
+                            <span class="priority-indicator priority-soon">Soon</span> = within 7 days,
+                            <span class="priority-indicator priority-someday">Someday</span> = no date or 7+ days
+                        </p>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="id_effort" class="form-label">Effort</label>
                         <select name="effort" id="id_effort" class="form-select">
@@ -150,16 +123,6 @@ function toggleRecurrenceOptions() {
     const options = document.getElementById('recurrence-options');
     options.style.display = isRecurring ? 'block' : 'none';
 }
-
-// Priority card selection
-document.querySelectorAll('.priority-card input').forEach(input => {
-    input.addEventListener('change', function() {
-        document.querySelectorAll('.priority-card').forEach(card => {
-            card.classList.remove('selected');
-        });
-        this.closest('.priority-card').classList.add('selected');
-    });
-});
 </script>
 
 <style>
@@ -199,62 +162,33 @@ document.querySelectorAll('.priority-card input').forEach(input => {
     }
 }
 
-.priority-cards {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-3);
-}
-
-@media (max-width: 640px) {
-    .priority-cards {
-        grid-template-columns: 1fr;
-    }
-}
-
-.priority-card {
-    position: relative;
-    padding: var(--space-4);
-    border: 2px solid var(--color-border);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-}
-
-.priority-card input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.priority-card:hover {
-    border-color: var(--color-text-muted);
-}
-
-.priority-card.selected {
-    border-color: var(--color-accent);
-    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
-}
-
-.priority-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-1);
-    text-align: center;
-}
-
-.priority-icon {
-    font-size: 1.5rem;
-}
-
-.priority-name {
-    font-weight: 600;
-}
-
-.priority-desc {
+.priority-help {
+    margin-top: var(--space-2);
     font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
+    line-height: 1.6;
+}
+
+.priority-indicator {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+}
+
+.priority-indicator.priority-now {
+    background: var(--color-error);
+    color: white;
+}
+
+.priority-indicator.priority-soon {
+    background: #f59e0b;
+    color: white;
+}
+
+.priority-indicator.priority-someday {
+    background: var(--color-text-muted);
+    color: white;
 }
 
 .checkbox-label {

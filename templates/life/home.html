@@ -53,12 +53,15 @@
             <span class="stat-label">Overdue</span>
         </div>
         {% endif %}
+        <div class="stat-item stat-action">
+            <a href="{% url 'life:task_create' %}" class="btn btn-primary">Add Task</a>
+        </div>
     </div>
     
     <div class="life-grid">
         <!-- Now Tasks -->
         <div class="life-card">
-            <div class="card-header flex justify-between items-center">
+            <div class="card-header">
                 <h2>
                     <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"/>
@@ -66,7 +69,6 @@
                     </svg>
                     Now
                 </h2>
-                <a href="{% url 'life:task_create' %}" class="btn btn-primary btn-sm">Add Task</a>
             </div>
             
             {% if now_tasks %}
@@ -371,6 +373,10 @@
 
 .stat-warning .stat-number {
     color: var(--color-error);
+}
+
+.stat-action {
+    margin-left: auto;
 }
 
 .life-grid {

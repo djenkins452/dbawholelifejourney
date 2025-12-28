@@ -22,8 +22,9 @@ def serve_media(request, path):
 
 
 urlpatterns = [
-    # Admin
-    path("admin/", admin.site.urls),
+    # Admin - using custom path for security (H-4)
+    # The path is configurable via ADMIN_URL_PATH env var, defaults to 'wlj-admin'
+    path(f"{settings.ADMIN_URL_PATH}/", admin.site.urls),
     # Authentication (django-allauth)
     path("accounts/", include("allauth.urls")),
     # Core pages (landing, terms, about)

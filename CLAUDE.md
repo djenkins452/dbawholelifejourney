@@ -29,6 +29,13 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **CSO Security Review & Fixes (2025-12-28):** Comprehensive security review conducted with 21 findings. Critical fixes implemented:
+  - C-2: Bible API key removed from frontend, replaced with server-side proxy at `/faith/api/bible/*`
+  - C-3: AI data consent field added to UserPreferences (ai_data_consent, ai_data_consent_date)
+  - H-3: Rate limiting via django-axes (5 attempts, 1 hour lockout)
+  - H-4: Django admin moved to configurable path (default: /wlj-admin/, set via ADMIN_URL_PATH env var)
+  - M-1: SameSite cookie attribute configured (Lax) for CSRF protection
+  - See `SECURITY_REVIEW_REPORT.md` for full report with all 21 findings and remediation roadmap
 - **Django-allauth deprecation warnings fix:** Updated settings.py to use new django-allauth settings format. Replaced deprecated `ACCOUNT_AUTHENTICATION_METHOD`, `ACCOUNT_EMAIL_REQUIRED`, `ACCOUNT_USERNAME_REQUIRED`, and `ACCOUNT_SIGNUP_PASSWORD_ENTER_TWICE` with `ACCOUNT_LOGIN_METHODS` and `ACCOUNT_SIGNUP_FIELDS`. Added `apps/__init__.py` for Python 3.14 module discovery compatibility. All 877 tests pass with zero warnings.
 - **Backup and Disaster Recovery Playbook:** Added comprehensive BACKUP.md document for backup, restore, and disaster recovery operations. Includes complete inventory of all models and data types, GitHub-based backup strategy, database restore procedures, environment reconstruction steps, and security guidelines. Designed to be executable by Claude instances without human intervention.
 - **Edit/Delete saved Scripture verses:** Added ability to edit and delete saved Scripture verses from the Scripture Library. Each verse card now has Edit and Delete buttons. Edit page allows modifying reference, text, translation, themes, and personal notes. Delete uses soft-delete. All actions are user-scoped for security.
@@ -63,6 +70,7 @@
 <!-- RECENT_FIXES_END -->
 
 ## Important Files
+- `SECURITY_REVIEW_REPORT.md` - CSO-level security review with 21 findings and remediation roadmap
 - `BACKUP.md` - Comprehensive backup and disaster recovery playbook
 - `Procfile` - Railway deployment startup command
 - `check_dependencies.py` - Verifies all required packages are installed in venv
@@ -139,7 +147,7 @@ These packages are sometimes missing from the venv:
 - **Run specific app tests:** `python manage.py test apps.<app_name>`
 - **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)
 - **Test runner:** `run_tests.py` provides enhanced output with summaries
-- **Current test count:** 877 tests across all apps (as of 2025-12-28)
+- **Current test count:** 888 tests across all apps (as of 2025-12-28)
 
 ### Test Patterns Used
 - `TestCase` for database tests

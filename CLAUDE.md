@@ -51,7 +51,7 @@
 - **Login page CSS:** Fixed auth_content block in templates/account/base.html
 - **Timezone display:** Fasting list uses {% timezone user_timezone %} tag
 - **Faith module default:** Changed to default=True in UserPreferences
-- **Speech-to-text:** Set continuous: false to prevent duplication
+- **Speech-to-text removed:** Removed speech-to-text feature entirely from the application
 - **Superuser creation:** create_superuser_from_env only creates if user doesn't exist
 - **Footer logo:** Increased size to 200px
 - **Custom domain:** Added support for wholelifejourney.com

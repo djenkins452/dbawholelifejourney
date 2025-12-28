@@ -17,7 +17,7 @@ The Whole Life Journey application is a **well-structured, production-ready Djan
 
 | Priority | Count | Description |
 |----------|-------|-------------|
-| **CRITICAL** | ~~2~~ 1 | ~~Open redirect vulnerability~~✅, hardcoded API key |
+| **CRITICAL** | ~~2~~ 0 | ~~Open redirect vulnerability~~✅, ~~hardcoded API key~~✅ |
 | **HIGH** | 5 | Bare except clauses, missing error logging, XSS risk, file validation |
 | **MEDIUM** | 12 | Hardcoded values, missing input validation, code duplication |
 | **LOW** | 15 | Documentation gaps, large files, minor best practice violations |
@@ -31,14 +31,10 @@ The Whole Life Journey application is a **well-structured, production-ready Djan
 **Issue:** User-controlled `next` parameter used directly in `redirect()` without validation.
 **Resolution:** Created `is_safe_redirect_url()` and `get_safe_redirect_url()` utilities in `apps/core/utils.py` that validate URLs using Django's `url_has_allowed_host_and_scheme()`. Updated all 3 vulnerable locations to use these utilities. Added 14 comprehensive tests for the new utilities.
 
-### 2. CRITICAL: Hardcoded API Key in Source Code
+### 2. ~~CRITICAL: Hardcoded API Key in Source Code~~ ✅ FIXED (2025-12-28)
 **Location:** `config/settings.py:396`
 **Issue:** Bible API key hardcoded as default fallback value.
-```python
-BIBLE_API_KEY = os.environ.get('BIBLE_API_KEY', 'mwa_ZKeSL5nB0VZ_tcRxt')
-```
-**Impact:** API key exposed in version control; can be used to exhaust API quota.
-**Fix:** Remove default value; require explicit environment variable configuration.
+**Resolution:** Removed hardcoded API key; now defaults to empty string. Templates already handle missing key gracefully by showing "API not configured". Updated `.env.example` with documentation on where to get a free API key.
 
 ### 3. HIGH: Bare Exception Handling (10+ Locations)
 **Locations:**

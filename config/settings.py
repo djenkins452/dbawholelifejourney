@@ -392,8 +392,9 @@ WLJ_SETTINGS = {
     "TERMS_VERSION": "1.0",
 }
 
-# Bible API
-BIBLE_API_KEY = os.environ.get('BIBLE_API_KEY', 'mwa_ZKeSL5nB0VZ_tcRxt')
+# Bible API (required for Scripture lookups in Faith module)
+# Get your API key at: https://scripture.api.bible/
+BIBLE_API_KEY = os.environ.get('BIBLE_API_KEY', '')
 
 
 

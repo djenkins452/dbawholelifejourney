@@ -17,7 +17,7 @@ The Whole Life Journey application is a **well-structured, production-ready Djan
 
 | Priority | Count | Description |
 |----------|-------|-------------|
-| **CRITICAL** | 2 | Open redirect vulnerability, hardcoded API key |
+| **CRITICAL** | ~~2~~ 1 | ~~Open redirect vulnerability~~✅, hardcoded API key |
 | **HIGH** | 5 | Bare except clauses, missing error logging, XSS risk, file validation |
 | **MEDIUM** | 12 | Hardcoded values, missing input validation, code duplication |
 | **LOW** | 15 | Documentation gaps, large files, minor best practice violations |
@@ -26,16 +26,10 @@ The Whole Life Journey application is a **well-structured, production-ready Djan
 
 ## TOP RISKS (RANKED BY SEVERITY)
 
-### 1. CRITICAL: Open Redirect Vulnerability
-**Location:** `apps/life/views.py:356-359`
+### 1. ~~CRITICAL: Open Redirect Vulnerability~~ ✅ FIXED (2025-12-28)
+**Location:** `apps/life/views.py:356-359`, `apps/life/views.py:309-312`, `apps/purpose/views.py:343-348`
 **Issue:** User-controlled `next` parameter used directly in `redirect()` without validation.
-```python
-next_url = request.POST.get('next') or request.META.get('HTTP_REFERER')
-if next_url:
-    return redirect(next_url)  # DANGER: No validation
-```
-**Impact:** Attackers can redirect authenticated users to malicious sites for phishing.
-**Fix:** Validate `next_url` using `django.utils.http.url_has_allowed_host_and_scheme()`.
+**Resolution:** Created `is_safe_redirect_url()` and `get_safe_redirect_url()` utilities in `apps/core/utils.py` that validate URLs using Django's `url_has_allowed_host_and_scheme()`. Updated all 3 vulnerable locations to use these utilities. Added 14 comprehensive tests for the new utilities.
 
 ### 2. CRITICAL: Hardcoded API Key in Source Code
 **Location:** `config/settings.py:396`

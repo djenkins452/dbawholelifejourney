@@ -306,8 +306,10 @@ class TaskCreateView(LifeAccessMixin, CreateView):
                 return reverse('life:project_detail', kwargs={'pk': project.pk})
             except (Project.DoesNotExist, ValueError):
                 pass
+        # Check for safe 'next' URL (with open redirect protection)
+        from apps.core.utils import is_safe_redirect_url
         next_url = self.request.GET.get('next')
-        if next_url:
+        if next_url and is_safe_redirect_url(next_url, self.request):
             return next_url
         return reverse_lazy('life:task_list')
 
@@ -344,16 +346,17 @@ class TaskDeleteView(LifeAccessMixin, DeleteView):
 
 class TaskToggleView(LifeAccessMixin, View):
     """Toggle task completion status."""
-    
+
     def post(self, request, pk):
         task = get_object_or_404(Task, pk=pk, user=request.user)
         if task.is_completed:
             task.mark_incomplete()
         else:
             task.mark_complete()
-        
-        # Return to referring page or task list
-        next_url = request.POST.get('next') or request.META.get('HTTP_REFERER')
+
+        # Return to referring page or task list (with open redirect protection)
+        from apps.core.utils import get_safe_redirect_url
+        next_url = get_safe_redirect_url(request)
         if next_url:
             return redirect(next_url)
         return redirect('life:task_list')

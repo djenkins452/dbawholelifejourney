@@ -220,7 +220,7 @@ PRIMARY OBJECTIVES
 
 | Issue | Status | Date Found | Date Fixed |
 |-------|--------|------------|------------|
-| Open redirect in TaskToggleView | OPEN | 2025-12-28 | - |
+| Open redirect in TaskToggleView + 2 others | FIXED | 2025-12-28 | 2025-12-28 |
 | Hardcoded Bible API key | OPEN | 2025-12-28 | - |
 | Bare except clauses (10+) | OPEN | 2025-12-28 | - |
 | No custom error pages | OPEN | 2025-12-28 | - |

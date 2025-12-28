@@ -91,6 +91,13 @@
                         {% endif %}
                         
                         <a href="{% url 'life:task_update' task.pk %}" class="task-edit">Edit</a>
+                        {% if task.is_completed %}
+                        <form method="post" action="{% url 'life:task_toggle' task.pk %}" class="task-undo-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button type="submit" class="task-undo">Undo</button>
+                        </form>
+                        {% endif %}
                     </div>
                 </li>
                 {% endfor %}
@@ -298,6 +305,31 @@
 }
 
 .task-item:hover .task-edit {
+    opacity: 1;
+}
+
+.task-undo-form {
+    display: contents;
+}
+
+.task-undo {
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    opacity: 0.8;
+    transition: opacity var(--transition-fast);
+}
+
+.task-undo:hover {
+    opacity: 1;
+}
+
+/* Show undo button always for completed tasks */
+.task-item.completed .task-undo {
     opacity: 1;
 }
 

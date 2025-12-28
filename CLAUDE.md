@@ -517,4 +517,118 @@ python manage.py test apps.faith
 ```
 
 ---
+
+## Breadcrumb Navigation
+
+### Overview
+Consistent breadcrumb navigation has been added across all non-root pages in the application. Breadcrumbs help users understand their location within the app hierarchy and navigate back to parent pages.
+
+### Global CSS
+Breadcrumb styles are defined globally in `static/css/main.css`:
+```css
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+.breadcrumb a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+.breadcrumb a:hover {
+    text-decoration: underline;
+}
+```
+
+### Breadcrumb Pattern
+All breadcrumbs use the same consistent pattern:
+
+**For list pages:**
+```html
+<nav class="breadcrumb mb-4">
+    <a href="{% url 'app:home' %}">App Name</a>
+    <span>/</span>
+    <span>Section Name</span>
+</nav>
+```
+
+**For detail pages:**
+```html
+<nav class="breadcrumb mb-4">
+    <a href="{% url 'app:home' %}">App Name</a>
+    <span>/</span>
+    <a href="{% url 'app:list' %}">Section</a>
+    <span>/</span>
+    <span>{{ object.title|truncatewords:5 }}</span>
+</nav>
+```
+
+**For form pages:**
+```html
+<nav class="breadcrumb mb-4">
+    <a href="{% url 'app:home' %}">App Name</a>
+    <span>/</span>
+    <a href="{% url 'app:list' %}">Section</a>
+    <span>/</span>
+    <span>{% if object %}Edit{% else %}New{% endif %}</span>
+</nav>
+```
+
+### Pages WITH Breadcrumbs
+All non-root pages now have breadcrumbs:
+
+| App | Templates with Breadcrumbs |
+|-----|---------------------------|
+| Journal | entry_list, entry_form, entry_detail, page_view, book_view, archived_list, deleted_list, prompt_list, tag_list, tag_form |
+| Faith | prayer_list, prayer_form, prayer_detail, answered_prayers, scripture_list, todays_verse, milestone_list, milestone_detail, milestone_form, reflections, reflection_form |
+| Health | weight_list, weight_form, fasting_list, fasting_form, heartrate_list, heartrate_form, glucose_list, glucose_form |
+| Health/Fitness | home, workout_list, workout_detail, workout_form, template_list, template_detail, template_form, personal_records, progress |
+| Life | calendar, task_list, project_list, recipe_list, pet_list, document_list, maintenance_list, inventory_list, google_calendar_settings |
+| Purpose | direction_list, goal_list, intention_list, reflection_list |
+| Users | profile, profile_edit, preferences |
+
+### Pages WITHOUT Breadcrumbs (Root Pages)
+These are module home pages and don't need breadcrumbs:
+- Dashboard home (`/dashboard/`)
+- Journal home (`/journal/`) - NOTE: entry_list serves as home
+- Faith home (`/faith/`)
+- Health home (`/health/`)
+- Life home (`/life/`)
+- Purpose home (`/purpose/`)
+- Onboarding pages
+
+### Key Files
+- `static/css/main.css` - Global breadcrumb CSS (lines 780-800)
+- All template files listed above contain breadcrumb navigation
+
+### Separator Standardization
+All breadcrumbs use `/` as the separator. Previously, some pages used `›` which has been standardized.
+
+### Inline CSS Removal
+Inline breadcrumb CSS was removed from:
+- `templates/life/task_form.html`
+- `templates/life/project_form.html`
+- `templates/journal/entry_detail.html`
+
+### Testing Breadcrumbs
+Breadcrumb navigation is primarily a UI feature. Manual testing:
+1. Navigate to any list page (e.g., `/journal/entries/`)
+2. Verify breadcrumb shows: `Journal / Entries`
+3. Click "Journal" link - should navigate to journal home
+4. Navigate to a form page (e.g., `/life/tasks/create/`)
+5. Verify breadcrumb shows: `Life / Tasks / New`
+6. Click "Tasks" link - should navigate to task list
+
+### Adding Breadcrumbs to New Pages
+When creating new templates:
+1. Add breadcrumb nav element after `{% block content %}` opening div
+2. Use the appropriate pattern (list, detail, or form)
+3. Use `/` separator with `<span>/</span>`
+4. Use `mb-4` class for consistent spacing
+5. Do NOT add inline CSS - use global styles
+
+---
 *Last updated: 2025-12-28*

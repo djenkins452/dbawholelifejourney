@@ -25,7 +25,7 @@ from apps.help.mixins import HelpContextMixin
 from apps.journal.models import JournalEntry
 from apps.journal.forms import JournalEntryForm
 
-from .forms import FaithMilestoneForm, PrayerRequestForm
+from .forms import FaithMilestoneForm, PrayerRequestForm, SavedVerseForm
 from .models import DailyVerse, FaithMilestone, PrayerRequest, SavedVerse, ScriptureVerse
 
 
@@ -267,6 +267,42 @@ class ScriptureSaveView(LoginRequiredMixin, FaithRequiredMixin, View):
 
         messages.success(request, f'"{reference}" saved to your Scripture library.')
         return redirect('faith:scripture_list')
+
+
+class SavedVerseUpdateView(LoginRequiredMixin, FaithRequiredMixin, UpdateView):
+    """
+    Edit a saved Scripture verse.
+    """
+
+    model = SavedVerse
+    form_class = SavedVerseForm
+    template_name = "faith/saved_verse_form.html"
+
+    def get_queryset(self):
+        return SavedVerse.objects.filter(user=self.request.user)
+
+    def get_success_url(self):
+        return reverse_lazy("faith:scripture_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Verse updated.")
+        return super().form_valid(form)
+
+
+class SavedVerseDeleteView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Delete a saved Scripture verse.
+    """
+
+    def post(self, request, pk):
+        verse = get_object_or_404(
+            SavedVerse.objects.filter(user=request.user),
+            pk=pk
+        )
+        reference = verse.reference
+        verse.soft_delete()
+        messages.success(request, f'"{reference}" removed from your Scripture library.')
+        return redirect("faith:scripture_list")
 
 
 # Prayer Request Views

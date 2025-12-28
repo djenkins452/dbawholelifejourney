@@ -25,6 +25,7 @@
 - postgres.railway.internal hostname only available at runtime, NOT build time
 - All DB operations must be in startCommand, not build/release phase
 - System data loaded via `python manage.py load_initial_data` (fixtures + populate commands)
+- **Railway has no shell access** - user cannot run commands manually. All fixes must be done via code changes and redeployment. Use data migrations or modify startup commands in Procfile to fix production data issues.
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->

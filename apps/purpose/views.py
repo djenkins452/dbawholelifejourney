@@ -339,8 +339,10 @@ class GoalToggleStatusView(PurposeAccessMixin, View):
             goal.status = 'active'
             goal.save(update_fields=['status', 'updated_at'])
             messages.success(request, f"Goal '{goal.title}' activated.")
-        
-        next_url = request.POST.get('next') or request.META.get('HTTP_REFERER')
+
+        # Return to referring page or goal list (with open redirect protection)
+        from apps.core.utils import get_safe_redirect_url
+        next_url = get_safe_redirect_url(request)
         if next_url:
             return redirect(next_url)
         return redirect('purpose:goal_list')

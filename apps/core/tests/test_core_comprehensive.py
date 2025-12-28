@@ -491,3 +491,127 @@ class CoreEdgeCaseTest(CoreTestMixin, TestCase):
         """Tag handles unicode characters."""
         tag = self.create_tag(self.user, name='日本語タグ')
         self.assertEqual(tag.name, '日本語タグ')
+
+
+# =============================================================================
+# 7. SAFE REDIRECT UTILITY TESTS
+# =============================================================================
+
+class SafeRedirectUtilsTest(TestCase):
+    """Tests for is_safe_redirect_url and get_safe_redirect_url utilities."""
+
+    def setUp(self):
+        self.factory = None
+        # Create a mock request using Django test client
+        from django.test import RequestFactory
+        self.factory = RequestFactory()
+
+    def _create_request(self, path='/', method='GET', data=None, referer=None, secure=False):
+        """Create a mock request for testing."""
+        if method == 'POST':
+            request = self.factory.post(path, data or {})
+        else:
+            request = self.factory.get(path, data or {})
+
+        if referer:
+            request.META['HTTP_REFERER'] = referer
+
+        # Mock is_secure
+        request.is_secure = lambda: secure
+        return request
+
+    def test_is_safe_redirect_url_allows_relative_paths(self):
+        """Relative URLs starting with / are allowed."""
+        from apps.core.utils import is_safe_redirect_url
+        request = self._create_request()
+
+        self.assertTrue(is_safe_redirect_url('/dashboard/', request))
+        self.assertTrue(is_safe_redirect_url('/life/tasks/', request))
+        self.assertTrue(is_safe_redirect_url('/user/preferences/', request))
+
+    def test_is_safe_redirect_url_blocks_external_urls(self):
+        """External URLs to other hosts are blocked."""
+        from apps.core.utils import is_safe_redirect_url
+        request = self._create_request()
+
+        self.assertFalse(is_safe_redirect_url('https://evil.com/', request))
+        self.assertFalse(is_safe_redirect_url('http://attacker.com/phishing', request))
+        self.assertFalse(is_safe_redirect_url('https://google.com', request))
+
+    def test_is_safe_redirect_url_blocks_protocol_relative_urls(self):
+        """Protocol-relative URLs (//example.com) are blocked."""
+        from apps.core.utils import is_safe_redirect_url
+        request = self._create_request()
+
+        self.assertFalse(is_safe_redirect_url('//evil.com/', request))
+        self.assertFalse(is_safe_redirect_url('//attacker.com/path', request))
+
+    def test_is_safe_redirect_url_blocks_javascript_urls(self):
+        """JavaScript URLs are blocked."""
+        from apps.core.utils import is_safe_redirect_url
+        request = self._create_request()
+
+        self.assertFalse(is_safe_redirect_url('javascript:alert(1)', request))
+        self.assertFalse(is_safe_redirect_url('javascript:void(0)', request))
+
+    def test_is_safe_redirect_url_empty_or_none(self):
+        """Empty or None URLs return False."""
+        from apps.core.utils import is_safe_redirect_url
+        request = self._create_request()
+
+        self.assertFalse(is_safe_redirect_url('', request))
+        self.assertFalse(is_safe_redirect_url(None, request))
+
+    def test_get_safe_redirect_url_from_post(self):
+        """get_safe_redirect_url finds safe URL in POST 'next' parameter."""
+        from apps.core.utils import get_safe_redirect_url
+        request = self._create_request(method='POST', data={'next': '/dashboard/'})
+
+        self.assertEqual(get_safe_redirect_url(request), '/dashboard/')
+
+    def test_get_safe_redirect_url_from_get(self):
+        """get_safe_redirect_url finds safe URL in GET 'next' parameter."""
+        from apps.core.utils import get_safe_redirect_url
+        request = self._create_request(method='GET', data={'next': '/life/tasks/'})
+
+        self.assertEqual(get_safe_redirect_url(request), '/life/tasks/')
+
+    def test_get_safe_redirect_url_from_referer(self):
+        """get_safe_redirect_url uses HTTP_REFERER if no 'next' parameter."""
+        from apps.core.utils import get_safe_redirect_url
+        request = self._create_request(referer='http://testserver/previous-page/')
+
+        self.assertEqual(get_safe_redirect_url(request), 'http://testserver/previous-page/')
+
+    def test_get_safe_redirect_url_blocks_unsafe_next(self):
+        """get_safe_redirect_url rejects unsafe 'next' parameter and returns default."""
+        from apps.core.utils import get_safe_redirect_url
+        request = self._create_request(method='POST', data={'next': 'https://evil.com/'})
+
+        self.assertIsNone(get_safe_redirect_url(request))
+        self.assertEqual(get_safe_redirect_url(request, default_url='/safe/'), '/safe/')
+
+    def test_get_safe_redirect_url_blocks_unsafe_referer(self):
+        """get_safe_redirect_url rejects unsafe HTTP_REFERER and returns default."""
+        from apps.core.utils import get_safe_redirect_url
+        request = self._create_request(referer='https://evil.com/')
+
+        self.assertIsNone(get_safe_redirect_url(request))
+
+    def test_get_safe_redirect_url_returns_default_when_no_url(self):
+        """get_safe_redirect_url returns default_url when no redirect URL found."""
+        from apps.core.utils import get_safe_redirect_url
+        request = self._create_request()
+
+        self.assertIsNone(get_safe_redirect_url(request))
+        self.assertEqual(get_safe_redirect_url(request, default_url='/fallback/'), '/fallback/')
+
+    def test_get_safe_redirect_url_priority_post_over_get(self):
+        """POST 'next' takes priority over GET 'next'."""
+        from apps.core.utils import get_safe_redirect_url
+        # Create request with both POST and GET data
+        request = self.factory.post('/?next=/from-get/', {'next': '/from-post/'})
+        request.is_secure = lambda: False
+
+        result = get_safe_redirect_url(request)
+        self.assertEqual(result, '/from-post/')

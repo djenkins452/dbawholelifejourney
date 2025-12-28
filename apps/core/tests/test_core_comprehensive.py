@@ -615,3 +615,93 @@ class SafeRedirectUtilsTest(TestCase):
 
         result = get_safe_redirect_url(request)
         self.assertEqual(result, '/from-post/')
+
+
+# =============================================================================
+# 8. AI CAMERA SOURCE TRACKING TESTS
+# =============================================================================
+
+class AISourceTrackingModelTests(CoreTestMixin, TestCase):
+    """Tests for created_via field and was_created_by_ai property."""
+
+    def setUp(self):
+        self.user = self.create_user()
+
+    def test_default_created_via_is_manual(self):
+        """New entries have created_via='manual' by default."""
+        from apps.journal.models import JournalEntry
+        entry = JournalEntry.objects.create(
+            user=self.user,
+            title='Test Entry',
+            body='Content',
+            entry_date=date.today()
+        )
+        self.assertEqual(entry.created_via, 'manual')
+
+    def test_was_created_by_ai_false_for_manual(self):
+        """was_created_by_ai returns False for manual entries."""
+        from apps.journal.models import JournalEntry
+        entry = JournalEntry.objects.create(
+            user=self.user,
+            title='Test Entry',
+            body='Content',
+            entry_date=date.today(),
+            created_via='manual'
+        )
+        self.assertFalse(entry.was_created_by_ai)
+
+    def test_was_created_by_ai_true_for_ai_camera(self):
+        """was_created_by_ai returns True for AI camera entries."""
+        from apps.journal.models import JournalEntry
+        entry = JournalEntry.objects.create(
+            user=self.user,
+            title='Test Entry',
+            body='Content',
+            entry_date=date.today(),
+            created_via='ai_camera'
+        )
+        self.assertTrue(entry.was_created_by_ai)
+
+    def test_created_via_choices(self):
+        """Verify all created_via choices work."""
+        from apps.journal.models import JournalEntry
+        from apps.core.models import UserOwnedModel
+
+        for choice_value, _ in UserOwnedModel.CREATED_VIA_CHOICES:
+            entry = JournalEntry.objects.create(
+                user=self.user,
+                title=f'Entry via {choice_value}',
+                body='Content',
+                entry_date=date.today(),
+                created_via=choice_value
+            )
+            self.assertEqual(entry.created_via, choice_value)
+            # Clean up
+            entry.delete()
+
+    def test_medicine_created_via_field(self):
+        """Medicine model has created_via field."""
+        from apps.health.models import Medicine
+        medicine = Medicine.objects.create(
+            user=self.user,
+            name='Test Medicine',
+            dose='10mg',
+            frequency='daily',
+            start_date=date.today(),
+            created_via='ai_camera'
+        )
+        self.assertTrue(medicine.was_created_by_ai)
+        self.assertEqual(medicine.created_via, 'ai_camera')
+
+    def test_workout_created_via_field(self):
+        """WorkoutSession model has created_via field."""
+        from apps.health.models import WorkoutSession
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            name='Morning Run',
+            duration_minutes=30,
+            date=date.today(),
+            created_via='ai_camera'
+        )
+        self.assertTrue(workout.was_created_by_ai)
+        self.assertEqual(workout.created_via, 'ai_camera')

@@ -291,3 +291,99 @@ class ScanResultTests(TestCase):
         d = result.to_dict()
 
         self.assertEqual(d['error'], 'Something went wrong')
+
+
+class SourceParamTrackingTests(TestCase):
+    """Tests for source=ai_camera parameter in action URLs."""
+
+    def setUp(self):
+        self.service = VisionService()
+
+    def test_add_source_param_to_url_without_params(self):
+        """Test adding source param to URL without existing params."""
+        url = '/journal/entry/create/'
+        result = self.service._add_source_param(url)
+        self.assertEqual(result, '/journal/entry/create/?source=ai_camera')
+
+    def test_add_source_param_to_url_with_params(self):
+        """Test adding source param to URL with existing params."""
+        url = '/journal/entry/create/?prefill_title=Test'
+        result = self.service._add_source_param(url)
+        self.assertEqual(result, '/journal/entry/create/?prefill_title=Test&source=ai_camera')
+
+    def test_food_actions_include_source_param(self):
+        """Test that food actions include source=ai_camera in URL."""
+        items = [{'label': 'Grilled Chicken', 'details': {'estimated_calories': '300'}}]
+        actions = self.service._build_actions('food', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('source=ai_camera', action_url)
+
+    def test_medicine_actions_include_source_param(self):
+        """Test that medicine actions include source=ai_camera in URL."""
+        items = [{'label': 'Aspirin 325mg', 'details': {'dosage': '325mg'}}]
+        actions = self.service._build_actions('medicine', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('source=ai_camera', action_url)
+
+    def test_supplement_actions_include_source_param(self):
+        """Test that supplement actions include source=ai_camera in URL."""
+        items = [{'label': 'Vitamin D3', 'details': {}}]
+        actions = self.service._build_actions('supplement', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('source=ai_camera', action_url)
+
+    def test_receipt_actions_include_source_param(self):
+        """Test that receipt actions include source=ai_camera in URL."""
+        items = [{'label': 'Receipt', 'details': {'merchant': 'Walmart'}}]
+        actions = self.service._build_actions('receipt', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('source=ai_camera', action_url)
+
+    def test_document_actions_include_source_param(self):
+        """Test that document actions include source=ai_camera in URL."""
+        items = [{'label': 'Lab Results', 'details': {}}]
+        actions = self.service._build_actions('document', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('source=ai_camera', action_url)
+
+    def test_workout_actions_include_source_param(self):
+        """Test that workout actions include source=ai_camera in URL."""
+        items = [{'label': 'Dumbbells', 'details': {}}]
+        actions = self.service._build_actions('workout_equipment', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('source=ai_camera', action_url)
+
+    def test_unknown_add_note_action_includes_source_param(self):
+        """Test that unknown category 'Add as Journal Note' includes source=ai_camera."""
+        items = []
+        actions = self.service._build_actions('unknown', items)
+
+        # Find the 'add_note' action
+        add_note_action = None
+        for action in actions[0]['actions']:
+            if action['id'] == 'add_note':
+                add_note_action = action
+                break
+
+        self.assertIsNotNone(add_note_action)
+        self.assertIn('source=ai_camera', add_note_action['url'])
+
+    def test_skip_action_has_no_url(self):
+        """Test that skip action has empty URL (no source param needed)."""
+        items = [{'label': 'Test', 'details': {}}]
+        actions = self.service._build_actions('food', items)
+
+        skip_action = None
+        for action in actions[0]['actions']:
+            if action['id'] == 'skip':
+                skip_action = action
+                break
+
+        self.assertIsNotNone(skip_action)
+        self.assertEqual(skip_action['url'], '')

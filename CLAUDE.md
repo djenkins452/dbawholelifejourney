@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **AI Camera Source Tracking (2025-12-28):** Added tracking for entries created via AI Camera scan feature. New `created_via` field on `UserOwnedModel` base class with choices: manual, ai_camera, import, api. All scan action URLs now include `source=ai_camera` parameter. Create views (Journal, Medicine, Workout) detect this parameter and set `created_via='ai_camera'`. Detail pages display "📷 AI Camera" badge for AI-created entries. Added `was_created_by_ai` property for template use. 16 new tests covering model fields and URL parameter tracking. Also added AI Data Processing Consent toggle to preferences page (required for AI features).
 - **Medicine Schedule Fixes (2025-12-28):** Fixed critical bug where medicine schedules weren't appearing in Today's Schedule. Root cause: `days_of_week` field was being saved as empty string. Fixes: (1) Added "Daily" button to schedule form for quick all-days selection, (2) Form now defaults to all days if none selected, (3) Data migration `0004_fix_empty_schedule_days.py` fixes existing empty schedules, (4) Added day-of-week indicators (S M T W T F S) on schedule displays, (5) Added Activate button for inactive schedules, (6) Fixed empty state message when medicines exist but no schedules for today. Day display now starts with Sunday.
 - **Camera Scan Feature (2025-12-28):** Added comprehensive Camera Scan feature with OpenAI Vision API integration. Features: browser camera capture (getUserMedia), file upload fallback, multi-format support (JPEG, PNG, WebP), contextual action suggestions, privacy-first design (no image storage), rate limiting, magic bytes validation. Identifies 8 categories: food, medicine, supplement, receipt, document, workout equipment, barcode, unknown. Maps to WLJ modules for quick action. 70 new tests (965 total). See `docs/CAMERA_SCAN_ARCHITECTURE.md` for full architecture.
 - **Medicine Tracking Section (2025-12-28):** Added comprehensive Medicine section to Health module with daily tracker, adherence stats, PRN support, refill tracking, and dashboard integration. Features: Medicine Master List (name, dose, frequency, schedules, prescribing doctor, pharmacy), Daily Tracker with one-tap check-off, Missed/Overdue detection with configurable grace period, History & Adherence views, Quick Look for screenshots, refill alerts, pause/resume without losing history. 77 new tests (965 total).
@@ -150,7 +151,7 @@ These packages are sometimes missing from the venv:
 - **Run specific app tests:** `python manage.py test apps.<app_name>`
 - **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)
 - **Test runner:** `run_tests.py` provides enhanced output with summaries
-- **Current test count:** 965 tests across all apps (as of 2025-12-28)
+- **Current test count:** 974 tests across all apps (as of 2025-12-28)
 
 ### Test Patterns Used
 - `TestCase` for database tests
@@ -571,6 +572,57 @@ python manage.py test apps.faith.tests.test_saved_verses
 
 # Run all faith app tests
 python manage.py test apps.faith
+```
+
+---
+
+## AI Camera Source Tracking
+
+### Overview
+Entries created via the AI Camera scan feature are tracked with a `created_via` field, allowing the UI to display a badge indicating the entry was created via AI.
+
+### How It Works
+1. User scans an item with AI Camera (medicine, food, document, etc.)
+2. Vision AI identifies the item and suggests actions
+3. Action URLs include `source=ai_camera` query parameter
+4. Create views detect this parameter and set `created_via='ai_camera'`
+5. Detail pages display "📷 AI Camera" badge for AI-created entries
+
+### Key Files
+- `apps/core/models.py` - `UserOwnedModel` base class with `created_via` field and `was_created_by_ai` property
+- `apps/scan/services/vision.py` - `_add_source_param()` method adds tracking to action URLs
+- `apps/journal/views.py` - `EntryCreateView.form_valid()` checks for `source=ai_camera`
+- `apps/health/views.py` - `MedicineCreateView` and `WorkoutCreateView` also check for source
+- `templates/journal/entry_detail.html` - AI Camera badge display
+- `templates/health/medicine/medicine_detail.html` - AI Camera badge display
+
+### created_via Field Values
+| Value | Display | Usage |
+|-------|---------|-------|
+| `manual` | Manual Entry | Default for user-created entries |
+| `ai_camera` | AI Camera Scan | Entries from Camera Scan feature |
+| `import` | Data Import | Entries from data imports (e.g., ChatGPT) |
+| `api` | API | Entries from external API calls |
+
+### Template Usage
+```html
+{% if entry.was_created_by_ai %}
+    <span class="ai-camera-badge" title="Created via AI Camera Scan">📷 AI Camera</span>
+{% endif %}
+```
+
+### Tests
+- `apps/core/tests/test_core_comprehensive.py:AISourceTrackingModelTests` - 6 tests for model field behavior
+- `apps/scan/tests/test_vision.py:SourceParamTrackingTests` - 10 tests for URL parameter tracking
+
+### Running Tests
+```bash
+# Run AI source tracking tests
+python manage.py test apps.core.tests.test_core_comprehensive.AISourceTrackingModelTests
+python manage.py test apps.scan.tests.test_vision.SourceParamTrackingTests
+
+# Run all scan tests
+python manage.py test apps.scan
 ```
 
 ---

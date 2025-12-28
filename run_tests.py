@@ -44,8 +44,8 @@ def get_git_info():
         )
         if result.returncode == 0:
             branch = result.stdout.strip()
-    except:
-        pass
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass  # Git not available or timed out
 
     try:
         result = subprocess.run(
@@ -54,8 +54,8 @@ def get_git_info():
         )
         if result.returncode == 0:
             commit = result.stdout.strip()
-    except:
-        pass
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass  # Git not available or timed out
 
     return branch, commit
 

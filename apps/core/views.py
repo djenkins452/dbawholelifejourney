@@ -1,10 +1,15 @@
 """
 Core Views - Landing page and static content pages.
+
+apps/core/views.py
 """
+import logging
 
 from django.conf import settings
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.views.generic import TemplateView
+
+logger = logging.getLogger(__name__)
 
 
 class LandingPageView(TemplateView):
@@ -52,3 +57,27 @@ class AboutView(TemplateView):
     """
 
     template_name = "core/about.html"
+
+
+# =============================================================================
+# CUSTOM ERROR HANDLERS
+# =============================================================================
+
+def custom_404(request, exception=None):
+    """
+    Custom 404 error handler.
+
+    Returns a user-friendly 404 page without exposing internal details.
+    """
+    return render(request, '404.html', status=404)
+
+
+def custom_500(request):
+    """
+    Custom 500 error handler.
+
+    Logs the error and returns a user-friendly error page.
+    Note: The actual exception is logged by Django's default handler.
+    """
+    logger.error(f"500 error occurred for path: {request.path}")
+    return render(request, '500.html', status=500)

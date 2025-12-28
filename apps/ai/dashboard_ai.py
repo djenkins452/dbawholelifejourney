@@ -3,13 +3,18 @@ Dashboard AI Integration - With Coaching Style Support
 
 This module provides AI-powered insights specifically for the dashboard.
 It handles caching, data gathering, and insight generation.
+
+apps/ai/dashboard_ai.py
 """
+import logging
 from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Count
 
 from .services import ai_service
 from .models import AIInsight
+
+logger = logging.getLogger(__name__)
 
 
 class DashboardAI:
@@ -181,8 +186,8 @@ class DashboardAI:
                 data['active_goals'] = LifeGoal.objects.filter(
                     user=self.user, status='active'
                 ).count()
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not load goals for AI context: {e}")
         
         # Tasks completed today (if Life enabled)
         if self.prefs.life_enabled:
@@ -193,15 +198,15 @@ class DashboardAI:
                     is_completed=True,
                     completed_at__date=today
                 ).count()
-                
+
                 # Overdue tasks
                 data['overdue_tasks'] = Task.objects.filter(
                     user=self.user,
                     is_completed=False,
                     due_date__lt=today
                 ).count()
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not load tasks for AI context: {e}")
         
         # Faith (if enabled)
         if self.faith_enabled:
@@ -210,13 +215,13 @@ class DashboardAI:
                 data['active_prayers'] = PrayerRequest.objects.filter(
                     user=self.user, is_answered=False
                 ).count()
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not load prayers for AI context: {e}")
         
         # Health
         try:
             from apps.health.models import WeightEntry, FastingWindow
-            
+
             # Weight trend
             weights = WeightEntry.objects.filter(user=self.user).order_by('-recorded_at')[:5]
             if weights.count() >= 2:
@@ -227,13 +232,13 @@ class DashboardAI:
                     data['weight_trend'] = 'up'
                 else:
                     data['weight_trend'] = 'stable'
-            
+
             # Active fast
             data['fasting_active'] = FastingWindow.objects.filter(
                 user=self.user, ended_at__isnull=True
             ).exists()
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not load health data for AI context: {e}")
         
         return data
     
@@ -266,8 +271,8 @@ class DashboardAI:
                     updated_at__gte=week_ago
                 ).values_list('title', flat=True)[:3]
                 data['goals_worked_on'] = list(recent_goals)
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not load goals for reflection: {e}")
         
         return data
     

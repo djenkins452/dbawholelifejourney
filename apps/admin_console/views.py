@@ -426,11 +426,11 @@ class TestRunDetailView(AdminRequiredMixin, TemplateView):
         for detail in context['details']:
             try:
                 detail.failed_tests_list = json.loads(detail.failed_tests) if detail.failed_tests else []
-            except:
+            except (json.JSONDecodeError, TypeError):
                 detail.failed_tests_list = []
             try:
                 detail.error_tests_list = json.loads(detail.error_tests) if detail.error_tests else []
-            except:
+            except (json.JSONDecodeError, TypeError):
                 detail.error_tests_list = []
         
         return context

@@ -122,7 +122,8 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
             credential = self.request.user.google_calendar_credential
             context['google_calendar_connected'] = credential.is_connected
             context['google_calendar_name'] = credential.selected_calendar_name
-        except:
+        except (ImportError, GoogleCalendarCredential.DoesNotExist, AttributeError):
+            # Google Calendar not configured or credential doesn't exist
             context['google_calendar_connected'] = False
             context['google_calendar_name'] = None
 
@@ -133,7 +134,10 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         try:
             from apps.ai.models import CoachingStyle
             context['coaching_styles'] = CoachingStyle.get_active_styles()
-        except:
+        except (ImportError, Exception) as e:
+            # CoachingStyle table may not exist yet during migrations
+            import logging
+            logging.getLogger(__name__).debug(f"Could not load coaching styles: {e}")
             context['coaching_styles'] = []
 
         return context
@@ -204,11 +208,26 @@ class AcceptTermsView(LoginRequiredMixin, TemplateView):
         return self.get(request, *args, **kwargs)
 
     def get_client_ip(self, request):
-        """Get the client IP address from the request."""
+        """
+        Get the client IP address from the request.
+
+        Note: X-Forwarded-For can be spoofed by clients. In production behind
+        a trusted proxy (like Railway), the first IP in the chain after the
+        proxy should be trusted. For audit logging purposes, we take the
+        leftmost IP which represents the original client (or spoofed value).
+
+        For stricter security, consider using django-ipware or configuring
+        SECURE_PROXY_HEADER with trusted proxy IPs.
+        """
         x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
         if x_forwarded_for:
-            return x_forwarded_for.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR")
+            # Take the first IP in the chain (original client)
+            # Note: This can be spoofed if not behind a trusted proxy
+            ip = x_forwarded_for.split(",")[0].strip()
+            # Basic validation: check it looks like an IP
+            if ip and len(ip) <= 45:  # Max length for IPv6
+                return ip
+        return request.META.get("REMOTE_ADDR", "unknown")
 
 
 class OnboardingView(LoginRequiredMixin, TemplateView):
@@ -293,7 +312,10 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
             try:
                 from apps.ai.models import CoachingStyle
                 context["coaching_styles"] = CoachingStyle.get_active_styles()
-            except:
+            except (ImportError, Exception) as e:
+                # CoachingStyle table may not exist yet during migrations
+                import logging
+                logging.getLogger(__name__).debug(f"Could not load coaching styles: {e}")
                 context["coaching_styles"] = []
 
         elif current_step["id"] == "location":

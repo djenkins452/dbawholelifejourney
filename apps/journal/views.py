@@ -393,16 +393,23 @@ class RandomPromptView(LoginRequiredMixin, View):
     """
 
     def get(self, request):
+        from django.utils.html import escape
+
         queryset = JournalPrompt.objects.filter(is_active=True)
         if not request.user.preferences.faith_enabled:
             queryset = queryset.filter(is_faith_specific=False)
-        
+
         if queryset.exists():
             prompt = random.choice(list(queryset))
+            # Escape all dynamic content to prevent XSS
+            scripture_html = ''
+            if prompt.scripture_reference:
+                scripture_html = f'<p class="prompt-scripture">{escape(prompt.scripture_reference)}: {escape(prompt.scripture_text or "")}</p>'
+
             return HttpResponse(f"""
                 <div class="prompt-card" id="random-prompt">
-                    <p class="prompt-text">{prompt.text}</p>
-                    {f'<p class="prompt-scripture">{prompt.scripture_reference}: {prompt.scripture_text}</p>' if prompt.scripture_reference else ''}
+                    <p class="prompt-text">{escape(prompt.text)}</p>
+                    {scripture_html}
                     <a href="{reverse_lazy('journal:entry_create')}?prompt={prompt.pk}" class="btn btn-secondary">
                         Write about this
                     </a>

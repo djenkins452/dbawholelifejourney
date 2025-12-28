@@ -1,0 +1,90 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Error - Whole Life Journey</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'icons/common/logo.svg' %}">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <style>
+        .error-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            background: var(--color-bg, #f5f5f5);
+        }
+        .error-code {
+            font-size: 6rem;
+            font-weight: bold;
+            color: #ef4444;
+            margin-bottom: 0.5rem;
+            line-height: 1;
+        }
+        .error-title {
+            font-size: 1.5rem;
+            color: var(--color-text, #333);
+            margin-bottom: 1rem;
+        }
+        .error-message {
+            color: var(--color-text-muted, #666);
+            margin-bottom: 2rem;
+            max-width: 450px;
+        }
+        .error-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--color-accent, #6366f1);
+            color: white;
+        }
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        .btn-secondary {
+            background: var(--color-surface, #fff);
+            color: var(--color-text, #333);
+            border: 1px solid var(--color-border, #ddd);
+        }
+        .btn-secondary:hover {
+            background: var(--color-bg-hover, #f0f0f0);
+        }
+        .error-note {
+            margin-top: 2rem;
+            font-size: 0.875rem;
+            color: var(--color-text-muted, #888);
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-code">500</div>
+        <h1 class="error-title">Something Went Wrong</h1>
+        <p class="error-message">
+            We're sorry, but something unexpected happened on our end.
+            Our team has been notified and we're working to fix it.
+        </p>
+        <div class="error-actions">
+            <a href="/" class="btn btn-primary">Go Home</a>
+            <a href="javascript:location.reload()" class="btn btn-secondary">Try Again</a>
+        </div>
+        <p class="error-note">
+            If this problem persists, please try again later or contact support.
+        </p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,1004 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Scan - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<style>
+    .scan-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .scan-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .scan-header h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .scan-header p {
+        color: var(--color-text-secondary);
+        font-size: 0.9rem;
+    }
+
+    /* Camera states */
+    .scan-state {
+        display: none;
+    }
+
+    .scan-state.active {
+        display: block;
+    }
+
+    /* Consent state */
+    .consent-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+    }
+
+    .consent-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    .consent-card h2 {
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .consent-list {
+        text-align: left;
+        margin: 1.5rem 0;
+        padding-left: 1.5rem;
+    }
+
+    .consent-list li {
+        margin-bottom: 0.75rem;
+        color: var(--color-text-secondary);
+    }
+
+    .consent-list li::marker {
+        color: var(--color-accent);
+    }
+
+    /* Camera preview */
+    .camera-container {
+        position: relative;
+        background: #000;
+        border-radius: 12px;
+        overflow: hidden;
+        aspect-ratio: 4/3;
+        margin-bottom: 1rem;
+    }
+
+    .camera-preview {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .camera-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+    }
+
+    .camera-overlay.hidden {
+        display: none;
+    }
+
+    /* Captured image preview */
+    .preview-container {
+        position: relative;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 1rem;
+    }
+
+    .preview-image {
+        width: 100%;
+        max-height: 400px;
+        object-fit: contain;
+        background: #000;
+    }
+
+    /* Camera controls */
+    .camera-controls {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 1rem;
+    }
+
+    .camera-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.2s, background 0.2s;
+    }
+
+    .camera-btn:hover {
+        transform: scale(1.05);
+    }
+
+    .camera-btn:active {
+        transform: scale(0.95);
+    }
+
+    .camera-btn-capture {
+        background: var(--color-accent);
+        color: white;
+    }
+
+    .camera-btn-secondary {
+        background: var(--color-surface);
+        border: 2px solid var(--color-border);
+        width: 48px;
+        height: 48px;
+    }
+
+    .camera-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    /* File upload fallback */
+    .upload-fallback {
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--color-border);
+        text-align: center;
+    }
+
+    .upload-fallback p {
+        color: var(--color-text-secondary);
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+
+    .file-input-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .file-input-wrapper input[type="file"] {
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        cursor: pointer;
+        width: 100%;
+        height: 100%;
+    }
+
+    /* Loading state */
+    .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid var(--color-border);
+        border-top-color: var(--color-accent);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+        color: var(--color-text-secondary);
+        text-align: center;
+    }
+
+    /* Results state */
+    .results-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+
+    .result-category {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .result-category-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: var(--color-accent);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .result-category-text h3 {
+        font-size: 1.125rem;
+        font-weight: 600;
+    }
+
+    .result-category-text .confidence {
+        font-size: 0.875rem;
+        color: var(--color-text-secondary);
+    }
+
+    .result-items {
+        margin: 1rem 0;
+        padding: 1rem;
+        background: var(--color-bg);
+        border-radius: 8px;
+    }
+
+    .result-item {
+        margin-bottom: 0.75rem;
+    }
+
+    .result-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .result-item-label {
+        font-weight: 500;
+    }
+
+    .result-item-details {
+        font-size: 0.875rem;
+        color: var(--color-text-secondary);
+    }
+
+    .safety-notes {
+        margin: 1rem 0;
+        padding: 1rem;
+        background: #fff3cd;
+        border-radius: 8px;
+        font-size: 0.875rem;
+    }
+
+    .safety-notes-dark {
+        background: #3d3000;
+        color: #ffc107;
+    }
+
+    /* Actions */
+    .action-section {
+        margin-top: 1.5rem;
+    }
+
+    .action-question {
+        font-weight: 500;
+        margin-bottom: 1rem;
+    }
+
+    .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .action-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: var(--color-surface);
+        cursor: pointer;
+        text-decoration: none;
+        color: inherit;
+        transition: border-color 0.2s, background 0.2s;
+    }
+
+    .action-btn:hover {
+        border-color: var(--color-accent);
+        background: var(--color-bg);
+    }
+
+    .action-btn-primary {
+        background: var(--color-accent);
+        color: white;
+        border-color: var(--color-accent);
+    }
+
+    .action-btn-primary:hover {
+        background: color-mix(in srgb, var(--color-accent) 85%, black);
+        color: white;
+    }
+
+    /* Error state */
+    .error-card {
+        background: #fee2e2;
+        border: 1px solid #fecaca;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+    }
+
+    .error-card-dark {
+        background: #3d0000;
+        border-color: #5c0000;
+        color: #fecaca;
+    }
+
+    .error-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Recent scans */
+    .recent-scans {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .recent-scans h2 {
+        font-size: 1rem;
+        color: var(--color-text-secondary);
+        margin-bottom: 1rem;
+    }
+
+    .recent-scan-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+
+    .recent-scan-item:hover {
+        background: var(--color-bg);
+    }
+
+    /* Service unavailable */
+    .service-unavailable {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+    }
+
+    .service-unavailable-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scan-container">
+    <div class="scan-header">
+        <h1>Scan with Camera</h1>
+        <p>Point your camera at food, medicine, supplements, or documents</p>
+    </div>
+
+    {% if not vision_available %}
+    <!-- Service Unavailable -->
+    <div class="service-unavailable">
+        <div class="service-unavailable-icon">&#x1F50D;</div>
+        <h2>Vision Service Unavailable</h2>
+        <p>The scan feature is currently unavailable. Please try again later or contact support.</p>
+    </div>
+
+    {% elif not has_ai_consent %}
+    <!-- Need AI Consent First -->
+    <div class="consent-card">
+        <div class="consent-icon">&#x1F916;</div>
+        <h2>Enable AI Features First</h2>
+        <p>To use the camera scan feature, you need to enable AI features in your preferences.</p>
+        <a href="{% url 'users:preferences' %}" class="btn btn-primary">Go to Preferences</a>
+    </div>
+
+    {% elif not has_scan_consent %}
+    <!-- Scan Consent Required -->
+    <div id="consent-state" class="scan-state active">
+        <div class="consent-card">
+            <div class="consent-icon">&#x1F4F8;</div>
+            <h2>Before You Scan</h2>
+            <p>Here's what happens when you use the camera scan:</p>
+            <ul class="consent-list">
+                <li><strong>Image Processing:</strong> Your photo is sent to AI for analysis</li>
+                <li><strong>No Storage:</strong> Photos are NOT saved unless you choose to</li>
+                <li><strong>Privacy First:</strong> We only log what category was detected, not the image itself</li>
+                <li><strong>Your Control:</strong> You decide what action to take with the results</li>
+            </ul>
+            <form method="post" action="{% url 'scan:consent' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">I Understand, Enable Scanning</button>
+            </form>
+            <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--color-text-secondary);">
+                You can revoke this consent anytime in your privacy settings.
+            </p>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Main Scan Interface -->
+
+    <!-- Camera State -->
+    <div id="camera-state" class="scan-state active">
+        <div class="camera-container">
+            <video id="camera-preview" class="camera-preview" autoplay playsinline></video>
+            <div id="camera-overlay" class="camera-overlay">
+                <span>Starting camera...</span>
+            </div>
+        </div>
+
+        <div class="camera-controls">
+            <button id="btn-switch-camera" class="camera-btn camera-btn-secondary" title="Switch Camera" style="display: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>
+                    <path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="m18 22-3-3 3-3"/>
+                    <path d="m6 2 3 3-3 3"/>
+                </svg>
+            </button>
+
+            <button id="btn-capture" class="camera-btn camera-btn-capture" title="Capture Photo">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="12" r="10"/>
+                </svg>
+            </button>
+
+            <button id="btn-cancel-camera" class="camera-btn camera-btn-secondary" title="Cancel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="upload-fallback">
+            <p>Or upload a photo from your device</p>
+            <div class="file-input-wrapper">
+                <button class="btn btn-ghost">Choose Photo</button>
+                <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" capture="environment">
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview State -->
+    <div id="preview-state" class="scan-state">
+        <div class="preview-container">
+            <img id="preview-image" class="preview-image" alt="Captured image preview">
+        </div>
+
+        <div class="camera-controls">
+            <button id="btn-retake" class="camera-btn camera-btn-secondary" title="Retake">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                </svg>
+            </button>
+
+            <button id="btn-analyze" class="camera-btn camera-btn-capture" title="Analyze">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            </button>
+
+            <button id="btn-cancel-preview" class="camera-btn camera-btn-secondary" title="Cancel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loading-state" class="scan-state">
+        <div class="consent-card">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Analyzing your image...</p>
+            <p class="loading-text" style="font-size: 0.875rem; margin-top: 0.5rem;">This usually takes a few seconds</p>
+        </div>
+    </div>
+
+    <!-- Results State -->
+    <div id="results-state" class="scan-state">
+        <div class="results-card">
+            <div class="result-category">
+                <div id="result-icon" class="result-category-icon">&#x1F4E6;</div>
+                <div class="result-category-text">
+                    <h3 id="result-category">Analyzing...</h3>
+                    <span id="result-confidence" class="confidence"></span>
+                </div>
+            </div>
+
+            <div id="result-items" class="result-items" style="display: none;">
+                <!-- Items will be inserted here -->
+            </div>
+
+            <div id="safety-notes" class="safety-notes" style="display: none;">
+                <!-- Safety notes will be inserted here -->
+            </div>
+
+            <div id="action-section" class="action-section">
+                <p id="action-question" class="action-question"></p>
+                <div id="action-buttons" class="action-buttons">
+                    <!-- Action buttons will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="camera-controls" style="margin-top: 2rem;">
+            <button id="btn-scan-another" class="btn btn-ghost">Scan Another</button>
+        </div>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-state" class="scan-state">
+        <div class="error-card">
+            <div class="error-icon">&#x26A0;</div>
+            <h2 id="error-title">Something went wrong</h2>
+            <p id="error-message">Please try again.</p>
+            <div style="margin-top: 1.5rem;">
+                <button id="btn-retry" class="btn btn-primary">Try Again</button>
+                <button id="btn-cancel-error" class="btn btn-ghost">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    {% if recent_scans %}
+    <!-- Recent Scans -->
+    <div class="recent-scans">
+        <h2>Recent Scans</h2>
+        {% for scan in recent_scans %}
+        <div class="recent-scan-item">
+            <span>{{ scan.get_category_display }}</span>
+            <span style="color: var(--color-text-secondary); font-size: 0.875rem;">
+                {{ scan.created_at|timesince }} ago
+            </span>
+        </div>
+        {% endfor %}
+        <a href="{% url 'scan:history' %}" class="btn btn-ghost" style="margin-top: 1rem;">View All History</a>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    'use strict';
+
+    // Skip if consent not given
+    {% if not has_scan_consent or not vision_available %}
+    return;
+    {% endif %}
+
+    // State management
+    const states = {
+        camera: document.getElementById('camera-state'),
+        preview: document.getElementById('preview-state'),
+        loading: document.getElementById('loading-state'),
+        results: document.getElementById('results-state'),
+        error: document.getElementById('error-state')
+    };
+
+    let currentState = 'camera';
+    let mediaStream = null;
+    let capturedImageData = null;
+    let currentRequestId = null;
+    let facingMode = 'environment'; // Start with rear camera
+
+    // DOM elements
+    const cameraPreview = document.getElementById('camera-preview');
+    const cameraOverlay = document.getElementById('camera-overlay');
+    const previewImage = document.getElementById('preview-image');
+    const fileInput = document.getElementById('file-input');
+
+    // Buttons
+    const btnCapture = document.getElementById('btn-capture');
+    const btnSwitchCamera = document.getElementById('btn-switch-camera');
+    const btnCancelCamera = document.getElementById('btn-cancel-camera');
+    const btnRetake = document.getElementById('btn-retake');
+    const btnAnalyze = document.getElementById('btn-analyze');
+    const btnCancelPreview = document.getElementById('btn-cancel-preview');
+    const btnScanAnother = document.getElementById('btn-scan-another');
+    const btnRetry = document.getElementById('btn-retry');
+    const btnCancelError = document.getElementById('btn-cancel-error');
+
+    // Results elements
+    const resultIcon = document.getElementById('result-icon');
+    const resultCategory = document.getElementById('result-category');
+    const resultConfidence = document.getElementById('result-confidence');
+    const resultItems = document.getElementById('result-items');
+    const safetyNotes = document.getElementById('safety-notes');
+    const actionQuestion = document.getElementById('action-question');
+    const actionButtons = document.getElementById('action-buttons');
+
+    // Error elements
+    const errorTitle = document.getElementById('error-title');
+    const errorMessage = document.getElementById('error-message');
+
+    // Category icons mapping
+    const categoryIcons = {
+        food: '&#x1F35D;',
+        medicine: '&#x1F48A;',
+        supplement: '&#x1F48A;',
+        receipt: '&#x1F9FE;',
+        document: '&#x1F4C4;',
+        workout_equipment: '&#x1F3CB;',
+        barcode: '&#x1F4F1;',
+        unknown: '&#x2753;'
+    };
+
+    // State transitions
+    function setState(newState) {
+        if (states[currentState]) {
+            states[currentState].classList.remove('active');
+        }
+        currentState = newState;
+        if (states[newState]) {
+            states[newState].classList.add('active');
+        }
+    }
+
+    // Camera functions
+    async function startCamera() {
+        try {
+            cameraOverlay.textContent = 'Starting camera...';
+            cameraOverlay.classList.remove('hidden');
+
+            // Stop any existing stream
+            stopCamera();
+
+            const constraints = {
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1280 },
+                    height: { ideal: 960 }
+                }
+            };
+
+            mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+            cameraPreview.srcObject = mediaStream;
+
+            // Check if device has multiple cameras
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+            if (videoDevices.length > 1) {
+                btnSwitchCamera.style.display = 'flex';
+            }
+
+            cameraOverlay.classList.add('hidden');
+
+        } catch (err) {
+            console.error('Camera error:', err);
+            cameraOverlay.textContent = err.name === 'NotAllowedError'
+                ? 'Camera permission denied. Please allow camera access.'
+                : 'Could not access camera. Try uploading a photo instead.';
+        }
+    }
+
+    function stopCamera() {
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+            mediaStream = null;
+        }
+        if (cameraPreview.srcObject) {
+            cameraPreview.srcObject = null;
+        }
+    }
+
+    async function switchCamera() {
+        facingMode = facingMode === 'environment' ? 'user' : 'environment';
+        await startCamera();
+    }
+
+    function capturePhoto() {
+        if (!mediaStream) {
+            showError('Camera not available', 'Please try uploading a photo instead.');
+            return;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = cameraPreview.videoWidth;
+        canvas.height = cameraPreview.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(cameraPreview, 0, 0);
+
+        // Compress to JPEG at 85% quality
+        capturedImageData = canvas.toDataURL('image/jpeg', 0.85);
+        previewImage.src = capturedImageData;
+
+        stopCamera();
+        setState('preview');
+    }
+
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+            showError('Invalid file type', 'Please select a JPEG, PNG, or WebP image.');
+            return;
+        }
+
+        // Validate file size (10MB max)
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            showError('File too large', 'Please select an image under 10MB.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // Compress image before sending
+            compressImage(e.target.result, function(compressedData) {
+                capturedImageData = compressedData;
+                previewImage.src = capturedImageData;
+                stopCamera();
+                setState('preview');
+            });
+        };
+        reader.readAsDataURL(file);
+
+        // Reset file input for re-selection
+        event.target.value = '';
+    }
+
+    function compressImage(dataUrl, callback) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+
+            // Resize if too large (max 1600px on longest side)
+            let width = img.width;
+            let height = img.height;
+            const maxDim = 1600;
+
+            if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                    height = Math.round((height * maxDim) / width);
+                    width = maxDim;
+                } else {
+                    width = Math.round((width * maxDim) / height);
+                    height = maxDim;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Compress to JPEG at 85% quality
+            callback(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = dataUrl;
+    }
+
+    async function analyzeImage() {
+        if (!capturedImageData) {
+            showError('No image', 'Please capture or upload an image first.');
+            return;
+        }
+
+        setState('loading');
+
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || document.cookie.match(/csrftoken=([^;]+)/)?.[1]
+                || '{{ csrf_token }}';
+
+            const response = await fetch('{% url "scan:analyze" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    image: capturedImageData
+                })
+            });
+
+            const data = await response.json();
+            currentRequestId = data.request_id;
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Analysis failed');
+            }
+
+            if (data.error) {
+                showError('Analysis Error', data.error);
+                return;
+            }
+
+            showResults(data);
+
+        } catch (err) {
+            console.error('Analysis error:', err);
+            showError('Analysis Failed', err.message || 'Please try again.');
+        }
+    }
+
+    function showResults(data) {
+        // Update category display
+        resultIcon.innerHTML = categoryIcons[data.top_category] || categoryIcons.unknown;
+        resultCategory.textContent = formatCategory(data.top_category);
+        resultConfidence.textContent = `${Math.round(data.confidence * 100)}% confidence`;
+
+        // Show items
+        if (data.items && data.items.length > 0) {
+            resultItems.innerHTML = data.items.map(item => `
+                <div class="result-item">
+                    <div class="result-item-label">${escapeHtml(item.label)}</div>
+                    ${item.details ? `
+                        <div class="result-item-details">
+                            ${Object.entries(item.details).map(([k, v]) =>
+                                `${formatKey(k)}: ${escapeHtml(String(v))}`
+                            ).join(' | ')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+            resultItems.style.display = 'block';
+        } else {
+            resultItems.style.display = 'none';
+        }
+
+        // Show safety notes
+        if (data.safety_notes && data.safety_notes.length > 0) {
+            safetyNotes.innerHTML = data.safety_notes.map(note =>
+                `<p>&#x26A0; ${escapeHtml(note)}</p>`
+            ).join('');
+            safetyNotes.style.display = 'block';
+        } else {
+            safetyNotes.style.display = 'none';
+        }
+
+        // Show actions
+        if (data.next_best_actions && data.next_best_actions.length > 0) {
+            const firstAction = data.next_best_actions[0];
+            actionQuestion.textContent = firstAction.question;
+
+            actionButtons.innerHTML = firstAction.actions.map((action, index) => {
+                if (action.id === 'skip') {
+                    return `
+                        <button class="action-btn" data-action="${escapeHtml(action.id)}">
+                            ${escapeHtml(action.label)}
+                        </button>
+                    `;
+                } else {
+                    return `
+                        <a href="${escapeHtml(action.url)}" class="action-btn ${index === 0 ? 'action-btn-primary' : ''}"
+                           data-action="${escapeHtml(action.id)}">
+                            ${escapeHtml(action.label)}
+                        </a>
+                    `;
+                }
+            }).join('');
+
+            // Attach action tracking
+            actionButtons.querySelectorAll('[data-action]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    trackAction(this.dataset.action);
+                });
+            });
+        }
+
+        setState('results');
+    }
+
+    function showError(title, message) {
+        errorTitle.textContent = title;
+        errorMessage.textContent = message;
+        setState('error');
+    }
+
+    async function trackAction(actionId) {
+        if (!currentRequestId) return;
+
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || document.cookie.match(/csrftoken=([^;]+)/)?.[1]
+                || '{{ csrf_token }}';
+
+            const formData = new FormData();
+            formData.append('action_id', actionId);
+
+            await fetch(`/scan/action/${currentRequestId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            });
+        } catch (err) {
+            console.error('Failed to track action:', err);
+        }
+    }
+
+    function resetToCamera() {
+        capturedImageData = null;
+        currentRequestId = null;
+        setState('camera');
+        startCamera();
+    }
+
+    // Helper functions
+    function formatCategory(category) {
+        const names = {
+            food: 'Food',
+            medicine: 'Medicine',
+            supplement: 'Supplement',
+            receipt: 'Receipt',
+            document: 'Document',
+            workout_equipment: 'Workout Equipment',
+            barcode: 'Barcode',
+            unknown: 'Unknown'
+        };
+        return names[category] || category;
+    }
+
+    function formatKey(key) {
+        return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Event listeners
+    btnCapture?.addEventListener('click', capturePhoto);
+    btnSwitchCamera?.addEventListener('click', switchCamera);
+    btnCancelCamera?.addEventListener('click', () => {
+        stopCamera();
+        window.history.back();
+    });
+    btnRetake?.addEventListener('click', resetToCamera);
+    btnAnalyze?.addEventListener('click', analyzeImage);
+    btnCancelPreview?.addEventListener('click', resetToCamera);
+    btnScanAnother?.addEventListener('click', resetToCamera);
+    btnRetry?.addEventListener('click', resetToCamera);
+    btnCancelError?.addEventListener('click', () => {
+        stopCamera();
+        window.history.back();
+    });
+    fileInput?.addEventListener('change', handleFileSelect);
+
+    // Initialize camera on page load
+    startCamera();
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', stopCamera);
+
+})();
+</script>
+{% endblock %}

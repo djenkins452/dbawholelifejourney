@@ -1397,10 +1397,95 @@ print(f'Journal entries: {JournalEntry.objects.count()}')
 
 ---
 
+## APPENDIX D: BACKUP REPORT REQUIREMENTS
+
+### Backup Report Deliverable
+
+After any backup, restore, or disaster recovery operation, Claude MUST create or update `BACKUP_REPORT.md` with a detailed report of the operation.
+
+### Report Location
+- File: `BACKUP_REPORT.md` (root of repository)
+- Committed to Git with each backup operation
+- Maintains historical record of all backup activities
+
+### Required Report Sections
+
+```markdown
+# BACKUP_REPORT.md
+
+## Latest Backup Report
+- **Date:** YYYY-MM-DD HH:MM UTC
+- **Operation:** [Backup Verification | Database Export | Disaster Recovery | etc.]
+- **Performed By:** Claude Code (Session ID if available)
+- **Status:** [SUCCESS | PARTIAL | FAILED]
+
+## System State at Time of Backup
+
+### Repository Status
+- Current branch: [branch name]
+- Latest commit: [commit hash] - [commit message]
+- Uncommitted changes: [Yes/No]
+- Backup tag created: [tag name or N/A]
+
+### Database Status
+- Connection: [Verified | Failed]
+- Migration state: [All applied | Pending migrations listed]
+- Table count verification: [PASS/FAIL with counts]
+
+### Fixture Status
+- All fixtures loadable: [Yes/No]
+- Missing fixtures: [list or None]
+
+### Environment Status
+- Django check: [PASS/FAIL]
+- Security warnings: [count]
+- Deployment warnings: [count]
+
+## Verification Results
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Git repository clean | PASS/FAIL | |
+| Migrations consistent | PASS/FAIL | |
+| Fixtures valid | PASS/FAIL | |
+| Django system check | PASS/FAIL | |
+
+## Actions Taken
+1. [Action 1]
+2. [Action 2]
+3. [Action 3]
+
+## Recommendations
+- [Any recommended follow-up actions]
+
+## Historical Reports
+[Previous reports appended below, newest first]
+```
+
+### Report Update Rules
+
+1. **New report prepended** - Latest report always at top
+2. **Historical reports preserved** - Previous reports moved to "Historical Reports" section
+3. **Maximum history** - Keep last 10 reports in file, archive older to releases
+4. **Commit with operation** - Report committed as part of backup commit
+
+### Mandatory Report Triggers
+
+Claude MUST generate a backup report when:
+- Creating a backup tag
+- Performing database export
+- Executing any restore operation
+- Completing disaster recovery
+- Running scheduled backup verification
+- Any operation that modifies backup state
+
+---
+
 ## VERSION HISTORY
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1 | 2025-12-28 | Added Appendix D: Backup Report Requirements |
 | 1.0 | 2025-12-28 | Initial comprehensive backup playbook |
 
 ---

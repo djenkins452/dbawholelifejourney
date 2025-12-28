@@ -150,7 +150,74 @@ These packages are sometimes missing from the venv:
 - `cloudinary` and `django-cloudinary-storage` - Media file storage
 - `markdown` - Help system rendering
 
-## Testing
+## Testing Strategy
+
+### Role & Mindset
+When developing and testing, act as a **senior software engineer and release manager**. Balance speed, stability, and user trust. Do not over-test, but also do not allow risky deployments.
+
+### Objective
+Follow a practical testing approach for new apps and features that:
+- Protects existing functionality
+- Avoids unnecessary full regression testing
+- Supports frequent, incremental releases
+- Minimizes production risk
+
+### Testing Requirements
+
+#### 1. NEW APP/FEATURE TESTING (MANDATORY)
+Fully test the new app or feature, including:
+- Normal user flows
+- Edge cases and invalid input
+- Permissions and access control
+- Error handling and failure scenarios
+
+#### 2. INTEGRATION TESTING (CRITICAL)
+Identify and test anything the new app:
+- Reads from
+- Writes to
+- Triggers
+- Depends on
+
+Examples include:
+- Shared database tables
+- APIs
+- Authentication / authorization
+- Notifications
+- Dashboards or reports using shared data
+
+#### 3. CORE SYSTEM SMOKE TEST (LIGHTWEIGHT)
+Before deployment, perform a short sanity check (10-15 minutes max):
+- Login works
+- Main dashboard loads
+- One or two critical workflows function
+- Error pages load and log correctly
+
+### What NOT To Do (Unless Explicitly Required)
+Do NOT:
+- Fully retest unrelated modules
+- Perform manual full regression testing
+- Retest untouched, stable code
+
+### Exceptions (Always Require Extra Testing)
+- Authentication or authorization changes
+- Security-related changes
+- Shared core libraries
+- Database schema or migration changes
+
+### Decision Rule
+Before deploying, explicitly answer:
+**"What could this change accidentally break?"**
+Only test those areas.
+
+### Delivery Expectations
+- Favor small, frequent, safe deployments
+- Keep changes isolated
+- Ensure rollback is possible
+- Protect user data and system stability at all times
+
+---
+
+## Testing Commands
 - **Run all tests:** `python manage.py test` or `python run_tests.py`
 - **Run specific app tests:** `python manage.py test apps.<app_name>`
 - **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)

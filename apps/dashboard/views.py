@@ -499,12 +499,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     def _get_purpose_data(self, user):
         """Get purpose-related data."""
         from apps.purpose.models import AnnualDirection, LifeGoal, ChangeIntention
-        
+
         current_year = timezone.now().year
-        
+
+        # Look for direction for current year or next year (if planning ahead)
         direction = AnnualDirection.objects.filter(
-            user=user, year=current_year
-        ).first()
+            user=user, year__in=[current_year, current_year + 1]
+        ).order_by('-year').first()
         
         goals = LifeGoal.objects.filter(user=user)
         active_goals = goals.filter(status='active')

@@ -93,7 +93,7 @@
                     <select name="project" id="id_project" class="form-select">
                         <option value="">No project</option>
                         {% for project in form.fields.project.queryset %}
-                        <option value="{{ project.pk }}" {% if form.project.value == project.pk|stringformat:"s" %}selected{% endif %}>{{ project.title }}</option>
+                        <option value="{{ project.pk }}" {% if form.project.value == project.pk|stringformat:"s" or form.initial.project.pk == project.pk %}selected{% endif %}>{{ project.title }}</option>
                         {% endfor %}
                     </select>
                 </div>

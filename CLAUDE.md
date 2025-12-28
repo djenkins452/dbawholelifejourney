@@ -12,7 +12,7 @@
 - OpenAI API for AI coaching features
 
 ## Key Architecture
-- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console
+- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan
 - **User model:** Custom User in apps/users/models.py (email-based auth)
 - **Preferences:** UserPreferences model stores timezone, module toggles, AI settings (coaching_style)
 - **Soft deletes:** Models use soft_delete() method, not hard deletes
@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Dashboard and AI Integration for Medicine, Workout, Scan (2025-12-28):** Comprehensive dashboard enhancements integrating all new modules. Dashboard now shows: Today's Medicine Schedule with status badges (taken/missed/skipped/pending), Recent Workouts with PR highlights, Quick Stats header with medicine doses and workout counts. AI integration updated to gather: medicine adherence rate, active medicines, refill alerts, workout frequency, recent PRs, scan activity. Added celebrations for: perfect medicine adherence (95%+), all doses taken today, workout streaks, new PRs, AI Camera usage. Added nudges for: pending medicine doses, low adherence, refill needs, workout gaps. New CSS for medicine-schedule-section and recent-workouts-section with responsive design. 965 tests passing.
 - **Food/Nutrition Tracking (2025-12-28):** Added comprehensive Nutrition section to Health module with food logging, macro tracking, daily summaries, and nutrition goals. Features: FoodItem global library (USDA support, barcode scanning, AI recognition ready), CustomFood for user recipes, FoodEntry logging with meal type, location, eating pace, hunger/fullness tracking, DailyNutritionSummary with automatic recalculation and macro percentages, NutritionGoals with calorie/macro targets and dietary preferences. Views: NutritionHomeView (daily dashboard), FoodEntryCreateView/UpdateView, QuickAddFoodView, FoodHistoryView, NutritionStatsView, NutritionGoalsView, CustomFoodListView/CreateView/UpdateView. CameraScan model in apps/core for future AI-powered food recognition. 80 new tests (1045 total).
 - **Medicine Tracking Section (2025-12-28):** Added comprehensive Medicine section to Health module with daily tracker, adherence stats, PRN support, refill tracking, and dashboard integration. Features: Medicine Master List (name, dose, frequency, schedules, prescribing doctor, pharmacy), Daily Tracker with one-tap check-off, Missed/Overdue detection with configurable grace period, History & Adherence views, Quick Look for screenshots, refill alerts, pause/resume without losing history. 77 new tests (965 total).
 - **CSO Security Review & Fixes (2025-12-28):** Comprehensive security review conducted with 21 findings. Critical fixes implemented:

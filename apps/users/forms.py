@@ -14,7 +14,7 @@ class ProfileForm(forms.ModelForm):
     """
     Form for editing user profile (name, email, avatar).
     """
-    
+
     # Add a clear avatar checkbox
     clear_avatar = forms.BooleanField(
         required=False,
@@ -45,30 +45,47 @@ class ProfileForm(forms.ModelForm):
         }
         help_texts = {
             "email": "Changing your email will update your login credentials.",
-            "avatar": "Upload a profile picture (JPG, PNG, GIF). Max 2MB.",
+            "avatar": "Upload a profile picture (JPG, PNG, GIF, HEIC). Max 2MB.",
         }
-    
+
     def clean_avatar(self):
         avatar = self.cleaned_data.get('avatar')
-        if avatar:
-            # Check file size (2MB limit)
-            if avatar.size > 2 * 1024 * 1024:
-                raise forms.ValidationError("Image file too large. Maximum size is 2MB.")
-            # Check file type
-            if not avatar.content_type.startswith('image/'):
-                raise forms.ValidationError("Please upload an image file.")
+        if avatar and avatar is not False:
+            # Only validate if a new file was actually uploaded
+            # avatar is False when no new file is selected (keeping existing)
+            if hasattr(avatar, 'size'):
+                # Check file size (2MB limit)
+                if avatar.size > 2 * 1024 * 1024:
+                    raise forms.ValidationError("Image file too large. Maximum size is 2MB.")
+            if hasattr(avatar, 'content_type') and avatar.content_type:
+                # Check file type - allow common image types including HEIC from iPhone
+                allowed_types = (
+                    'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
+                    'image/webp', 'image/heic', 'image/heif',
+                    'application/octet-stream',  # Some browsers don't set content_type
+                )
+                if not avatar.content_type.startswith('image/') and avatar.content_type not in allowed_types:
+                    raise forms.ValidationError("Please upload an image file.")
         return avatar
-    
+
     def save(self, commit=True):
         user = super().save(commit=False)
-        
-        # Handle clear avatar checkbox
+
+        # Handle clear avatar checkbox - explicitly remove avatar
         if self.cleaned_data.get('clear_avatar'):
             # Delete old avatar file if it exists
             if user.avatar:
                 user.avatar.delete(save=False)
             user.avatar = None
-        
+        else:
+            # Check if no new file was uploaded (avatar is False or None)
+            # In this case, preserve the existing avatar
+            avatar_value = self.cleaned_data.get('avatar')
+            if avatar_value is False or avatar_value is None:
+                # Restore the original avatar from the instance
+                if self.instance and self.instance.pk:
+                    user.avatar = self.instance.avatar
+
         if commit:
             user.save()
         return user

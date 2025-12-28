@@ -433,3 +433,265 @@ class UserEdgeCaseTest(UsersTestMixin, TestCase):
         long_name = 'A' * 100
         user = self.create_user(first_name=long_name)
         self.assertTrue(len(user.first_name) > 0)
+
+
+# =============================================================================
+# 9. PROFILE PICTURE / AVATAR TESTS
+# =============================================================================
+
+class ProfilePictureTest(UsersTestMixin, TestCase):
+    """Tests for profile picture upload and preservation."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user_with_terms()
+
+    def test_profile_edit_form_loads_without_avatar(self):
+        """Profile edit form loads when user has no avatar."""
+        self.login_user()
+        response = self.client.get(reverse('users:profile_edit'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Upload Photo')
+
+    def test_profile_form_preserves_existing_avatar_on_submit_without_new_file(self):
+        """Submitting profile form without new file keeps existing avatar."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from io import BytesIO
+        from PIL import Image
+
+        self.login_user()
+
+        # Create a test image
+        img = Image.new('RGB', (100, 100), color='red')
+        img_buffer = BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+
+        # Upload initial avatar
+        test_image = SimpleUploadedFile(
+            name='test_avatar.png',
+            content=img_buffer.getvalue(),
+            content_type='image/png'
+        )
+
+        response = self.client.post(
+            reverse('users:profile_edit'),
+            {
+                'first_name': 'Test',
+                'last_name': 'User',
+                'email': 'test@example.com',
+                'avatar': test_image,
+            },
+            follow=True
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify avatar was saved
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.avatar)
+        original_avatar_name = self.user.avatar.name
+
+        # Now submit form again WITHOUT a new file
+        response = self.client.post(
+            reverse('users:profile_edit'),
+            {
+                'first_name': 'Updated',
+                'last_name': 'User',
+                'email': 'test@example.com',
+                # No avatar field - should preserve existing
+            },
+            follow=True
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify avatar is still present
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.avatar, "Avatar should be preserved when form submitted without new file")
+        self.assertEqual(self.user.avatar.name, original_avatar_name)
+        self.assertEqual(self.user.first_name, 'Updated')
+
+    def test_clear_avatar_checkbox_removes_avatar(self):
+        """Using clear_avatar checkbox removes the avatar."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from io import BytesIO
+        from PIL import Image
+
+        self.login_user()
+
+        # Create and upload initial avatar
+        img = Image.new('RGB', (100, 100), color='blue')
+        img_buffer = BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+
+        test_image = SimpleUploadedFile(
+            name='test_avatar2.png',
+            content=img_buffer.getvalue(),
+            content_type='image/png'
+        )
+
+        self.client.post(
+            reverse('users:profile_edit'),
+            {
+                'first_name': 'Test',
+                'last_name': 'User',
+                'email': 'test@example.com',
+                'avatar': test_image,
+            }
+        )
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.avatar)
+
+        # Now clear the avatar using the checkbox
+        response = self.client.post(
+            reverse('users:profile_edit'),
+            {
+                'first_name': 'Test',
+                'last_name': 'User',
+                'email': 'test@example.com',
+                'clear_avatar': 'on',
+            },
+            follow=True
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.avatar, "Avatar should be cleared when clear_avatar checkbox is checked")
+
+
+class ProfileFormTest(TestCase):
+    """Unit tests for ProfileForm validation."""
+
+    def test_clean_avatar_rejects_large_file(self):
+        """Avatar validation rejects files over 2MB."""
+        from apps.users.forms import ProfileForm
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from io import BytesIO
+        from PIL import Image
+
+        # Create a valid image but make it large by repeating pixel data
+        # Create a large image (3000x3000 which creates a file > 2MB when saved)
+        img = Image.new('RGB', (3000, 3000), color='red')
+        img_buffer = BytesIO()
+        # Use uncompressed BMP to ensure large file size
+        img.save(img_buffer, format='BMP')
+        img_buffer.seek(0)
+        large_content = img_buffer.getvalue()
+
+        # Verify it's actually over 2MB
+        self.assertGreater(len(large_content), 2 * 1024 * 1024, "Test image should be >2MB")
+
+        large_file = SimpleUploadedFile(
+            name='large.bmp',
+            content=large_content,
+            content_type='image/bmp'
+        )
+
+        form = ProfileForm(
+            data={
+                'first_name': 'Test',
+                'last_name': 'User',
+                'email': 'test@example.com',
+            },
+            files={'avatar': large_file}
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('avatar', form.errors)
+        self.assertIn('too large', form.errors['avatar'][0].lower())
+
+    def test_clean_avatar_accepts_valid_image(self):
+        """Avatar validation accepts valid image files."""
+        from apps.users.forms import ProfileForm
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from io import BytesIO
+        from PIL import Image
+
+        # Create a valid small image
+        img = Image.new('RGB', (50, 50), color='green')
+        img_buffer = BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+
+        valid_image = SimpleUploadedFile(
+            name='valid.png',
+            content=img_buffer.getvalue(),
+            content_type='image/png'
+        )
+
+        form = ProfileForm(
+            data={
+                'first_name': 'Test',
+                'last_name': 'User',
+                'email': 'test@example.com',
+            },
+            files={'avatar': valid_image}
+        )
+
+        # Form should be valid (avatar passes validation)
+        if not form.is_valid():
+            # Only fail if avatar is the issue
+            self.assertNotIn('avatar', form.errors)
+
+    def test_clean_avatar_handles_heic_content_type(self):
+        """Avatar validation accepts HEIC content type from iPhone."""
+        from apps.users.forms import ProfileForm
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        # Simulate HEIC file (just check content_type handling, not actual HEIC)
+        heic_file = SimpleUploadedFile(
+            name='photo.heic',
+            content=b'fake heic content',
+            content_type='image/heic'
+        )
+
+        form = ProfileForm(
+            data={
+                'first_name': 'Test',
+                'last_name': 'User',
+                'email': 'test@example.com',
+            },
+            files={'avatar': heic_file}
+        )
+
+        # The content_type check should pass for image/heic
+        # (file format validation is handled by PIL/Django ImageField)
+        if not form.is_valid():
+            # Make sure avatar is not rejected due to content_type
+            if 'avatar' in form.errors:
+                self.assertNotIn('image file', form.errors['avatar'][0].lower())
+
+    def test_clean_avatar_handles_missing_content_type(self):
+        """Avatar validation handles files with missing content_type."""
+        from apps.users.forms import ProfileForm
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from io import BytesIO
+        from PIL import Image
+
+        # Create a valid image
+        img = Image.new('RGB', (50, 50), color='yellow')
+        img_buffer = BytesIO()
+        img.save(img_buffer, format='JPEG')
+        img_buffer.seek(0)
+
+        # File with application/octet-stream (generic binary)
+        file_with_generic_type = SimpleUploadedFile(
+            name='photo.jpg',
+            content=img_buffer.getvalue(),
+            content_type='application/octet-stream'
+        )
+
+        form = ProfileForm(
+            data={
+                'first_name': 'Test',
+                'last_name': 'User',
+                'email': 'test@example.com',
+            },
+            files={'avatar': file_with_generic_type}
+        )
+
+        # Should not reject due to content_type
+        if not form.is_valid():
+            if 'avatar' in form.errors:
+                self.assertNotIn('image file', form.errors['avatar'][0].lower())

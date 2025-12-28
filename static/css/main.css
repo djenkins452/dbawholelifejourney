@@ -377,6 +377,8 @@ a:hover {
         border: 1px solid var(--color-border);
         border-radius: 50%;
         flex-shrink: 0;
+        /* Adjust for font metrics - shift ? slightly right to center visually */
+        padding-left: 2px;
     }
 
     /* User menu - show name on mobile */

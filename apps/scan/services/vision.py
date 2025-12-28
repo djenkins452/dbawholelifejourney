@@ -36,16 +36,37 @@ IMPORTANT RULES:
 4. If you see medicine or supplements, just describe what's visible (name, dosage on label).
 5. Be conservative with confidence scores - only use high confidence when clearly visible.
 6. Always respond with valid JSON matching the schema exactly.
+7. Choose the MOST SPECIFIC category that applies. For example, a power tool is "inventory_item", not "unknown".
 
 CATEGORIES YOU CAN IDENTIFY:
-- food: Meals, snacks, ingredients, beverages
+- food: Meals, snacks, ingredients, beverages (cooked food, raw ingredients, drinks)
 - medicine: Prescription bottles, pill packages, medical devices
 - supplement: Vitamins, supplements, protein powder
 - receipt: Store receipts, invoices, bills
-- document: Lab reports, appointment cards, medical documents, notes
-- workout_equipment: Gym equipment, exercise gear, fitness trackers
-- barcode: Product barcodes, QR codes
-- unknown: When you cannot confidently identify the item
+- document: Lab reports, appointment cards, medical documents, written notes, letters
+- workout_equipment: Gym equipment, exercise gear, fitness trackers, weights, yoga mats
+- inventory_item: Household items, electronics, furniture, appliances, tools, power tools,
+  collectibles, jewelry, musical instruments, art, clothing, sports equipment, gadgets,
+  cameras, computers, TVs, game consoles, kitchen appliances, lawn equipment
+- recipe: Recipes (handwritten or printed), cookbook pages, recipe cards, food packaging with recipes
+- pet: Animals, pets, pet food, pet supplies, pet toys, pet accessories
+- maintenance: Home repair items, HVAC filters, plumbing parts, paint cans, hardware,
+  car parts, appliance manuals, warranty cards, service records
+- barcode: Product barcodes, QR codes (when nothing else is identifiable)
+- unknown: ONLY when you truly cannot identify what the item is
+
+CATEGORY SELECTION GUIDANCE:
+- Tools (drills, saws, hammers) → inventory_item with category "Tools"
+- Electronics (phones, laptops, TVs) → inventory_item with category "Electronics"
+- Furniture (chairs, tables, beds) → inventory_item with category "Furniture"
+- Kitchen appliances → inventory_item with category "Appliances"
+- Jewelry/watches → inventory_item with category "Jewelry"
+- Musical instruments → inventory_item with category "Musical Instruments"
+- Sports gear (not gym equipment) → inventory_item with category "Sports Equipment"
+- Art/collectibles → inventory_item with category "Art" or "Collectibles"
+- Pet food or supplies → pet
+- Recipe on paper/screen → recipe
+- Filter, part, or repair item → maintenance
 
 RESPONSE FORMAT (strict JSON):
 {
@@ -79,6 +100,25 @@ Example for a medicine bottle:
   "safety_notes": ["Always consult your doctor or pharmacist about medications"]
 }
 
+Example for a power tool (inventory item):
+{
+  "top_category": "inventory_item",
+  "confidence": 0.95,
+  "items": [
+    {
+      "label": "DeWalt 20V Cordless Drill",
+      "details": {
+        "brand": "DeWalt",
+        "model": "DCD771C2",
+        "category": "Tools",
+        "condition": "good"
+      },
+      "confidence": 0.95
+    }
+  ],
+  "safety_notes": []
+}
+
 Example for food:
 {
   "top_category": "food",
@@ -90,6 +130,42 @@ Example for food:
         "estimated_calories": "350-450",
         "protein": "high",
         "meal_type": "lunch/dinner"
+      },
+      "confidence": 0.85
+    }
+  ],
+  "safety_notes": []
+}
+
+Example for a pet:
+{
+  "top_category": "pet",
+  "confidence": 0.90,
+  "items": [
+    {
+      "label": "Golden Retriever",
+      "details": {
+        "species": "dog",
+        "breed": "Golden Retriever",
+        "estimated_age": "adult"
+      },
+      "confidence": 0.90
+    }
+  ],
+  "safety_notes": []
+}
+
+Example for a recipe:
+{
+  "top_category": "recipe",
+  "confidence": 0.85,
+  "items": [
+    {
+      "label": "Chocolate Chip Cookies",
+      "details": {
+        "cuisine": "American",
+        "course": "dessert",
+        "servings": "24 cookies"
       },
       "confidence": 0.85
     }
@@ -311,6 +387,8 @@ class VisionService:
         Maps categories to WLJ modules and provides relevant action options.
         All action URLs include source=ai_camera to track AI-created entries.
         """
+        from urllib.parse import quote
+
         actions = []
 
         if category == 'food':
@@ -326,7 +404,7 @@ class VisionService:
                         'id': 'log_food',
                         'label': 'Log to Food Journal',
                         'url': self._add_source_param(
-                            reverse('journal:entry_create') + f'?prefill_title=Food: {food_label}'
+                            reverse('journal:entry_create') + f'?prefill_title=Food: {quote(food_label)}'
                         ),
                         'payload_template': {
                             'category': 'health',
@@ -355,7 +433,7 @@ class VisionService:
                         'id': 'add_medicine',
                         'label': 'Add to My Medicines',
                         'url': self._add_source_param(
-                            reverse('health:medicine_create') + f'?name={med_name}'
+                            reverse('health:medicine_create') + f'?name={quote(med_name)}'
                         ),
                         'payload_template': {
                             'name': med_name,
@@ -384,7 +462,7 @@ class VisionService:
                         'id': 'add_supplement',
                         'label': 'Add to My Supplements',
                         'url': self._add_source_param(
-                            reverse('health:medicine_create') + f'?name={supp_name}&type=supplement'
+                            reverse('health:medicine_create') + f'?name={quote(supp_name)}&type=supplement'
                         ),
                         'payload_template': {
                             'name': supp_name,
@@ -415,7 +493,7 @@ class VisionService:
                         'id': 'save_receipt',
                         'label': 'Add Journal Note',
                         'url': self._add_source_param(
-                            reverse('journal:entry_create') + f'?prefill_title=Receipt from {merchant}'
+                            reverse('journal:entry_create') + f'?prefill_title=Receipt from {quote(merchant)}'
                         ),
                         'payload_template': {
                             'category': 'life',
@@ -435,14 +513,24 @@ class VisionService:
             doc_type = items[0]['label'] if items else 'Document'
 
             actions.append({
-                'module': 'Journal',
+                'module': 'Life.Documents',
                 'question': 'Would you like to save this document?',
                 'actions': [
                     {
                         'id': 'save_document',
+                        'label': 'Save to Documents',
+                        'url': self._add_source_param(
+                            reverse('life:document_create') + f'?name={quote(doc_type)}'
+                        ),
+                        'payload_template': {
+                            'name': doc_type
+                        }
+                    },
+                    {
+                        'id': 'add_journal',
                         'label': 'Add to Journal',
                         'url': self._add_source_param(
-                            reverse('journal:entry_create') + f'?prefill_title={doc_type}'
+                            reverse('journal:entry_create') + f'?prefill_title={quote(doc_type)}'
                         ),
                         'payload_template': {
                             'title': doc_type
@@ -471,6 +559,184 @@ class VisionService:
                         'payload_template': {}
                     },
                     {
+                        'id': 'add_inventory',
+                        'label': 'Add to Inventory',
+                        'url': self._add_source_param(
+                            reverse('life:inventory_create') + f'?name={quote(equipment)}&category=Sports Equipment'
+                        ),
+                        'payload_template': {
+                            'name': equipment,
+                            'category': 'Sports Equipment'
+                        }
+                    },
+                    {
+                        'id': 'skip',
+                        'label': 'Skip',
+                        'url': '',
+                        'payload_template': {}
+                    }
+                ]
+            })
+
+        elif category == 'inventory_item':
+            # Handle household items, electronics, tools, etc.
+            item_name = items[0]['label'] if items else 'item'
+            details = items[0].get('details', {}) if items else {}
+            item_category = details.get('category', 'Electronics')
+            brand = details.get('brand', '')
+            model = details.get('model', '')
+
+            # Build query params for inventory create
+            params = [f'name={quote(item_name)}', f'category={quote(item_category)}']
+            if brand:
+                params.append(f'brand={quote(brand)}')
+            if model:
+                params.append(f'model_number={quote(model)}')
+
+            actions.append({
+                'module': 'Life.Inventory',
+                'question': f'Would you like to add this {item_category.lower()} to your inventory?',
+                'actions': [
+                    {
+                        'id': 'add_inventory',
+                        'label': 'Add to Inventory',
+                        'url': self._add_source_param(
+                            reverse('life:inventory_create') + '?' + '&'.join(params)
+                        ),
+                        'payload_template': {
+                            'name': item_name,
+                            'category': item_category,
+                            'brand': brand,
+                            'model_number': model
+                        }
+                    },
+                    {
+                        'id': 'skip',
+                        'label': 'Skip',
+                        'url': '',
+                        'payload_template': {}
+                    }
+                ]
+            })
+
+        elif category == 'recipe':
+            # Handle recipes from cookbooks, recipe cards, etc.
+            recipe_name = items[0]['label'] if items else 'Recipe'
+            details = items[0].get('details', {}) if items else {}
+            cuisine = details.get('cuisine', '')
+            course = details.get('course', '')
+
+            # Build query params for recipe create
+            params = [f'name={quote(recipe_name)}']
+            if cuisine:
+                params.append(f'cuisine={quote(cuisine)}')
+            if course:
+                params.append(f'course={quote(course)}')
+
+            actions.append({
+                'module': 'Life.Recipes',
+                'question': 'Would you like to save this recipe?',
+                'actions': [
+                    {
+                        'id': 'save_recipe',
+                        'label': 'Save Recipe',
+                        'url': self._add_source_param(
+                            reverse('life:recipe_create') + '?' + '&'.join(params)
+                        ),
+                        'payload_template': {
+                            'name': recipe_name,
+                            'cuisine': cuisine,
+                            'course': course
+                        }
+                    },
+                    {
+                        'id': 'skip',
+                        'label': 'Skip',
+                        'url': '',
+                        'payload_template': {}
+                    }
+                ]
+            })
+
+        elif category == 'pet':
+            # Handle pets and pet-related items
+            pet_label = items[0]['label'] if items else 'Pet'
+            details = items[0].get('details', {}) if items else {}
+            species = details.get('species', '')
+            breed = details.get('breed', '')
+
+            # Build query params for pet create
+            params = [f'name={quote(pet_label)}']
+            if species:
+                params.append(f'species={quote(species)}')
+            if breed:
+                params.append(f'breed={quote(breed)}')
+
+            actions.append({
+                'module': 'Life.Pets',
+                'question': 'Would you like to add this pet to your family?',
+                'actions': [
+                    {
+                        'id': 'add_pet',
+                        'label': 'Add Pet',
+                        'url': self._add_source_param(
+                            reverse('life:pet_create') + '?' + '&'.join(params)
+                        ),
+                        'payload_template': {
+                            'name': pet_label,
+                            'species': species,
+                            'breed': breed
+                        }
+                    },
+                    {
+                        'id': 'add_journal',
+                        'label': 'Add to Journal',
+                        'url': self._add_source_param(
+                            reverse('journal:entry_create') + f'?prefill_title=Pet: {quote(pet_label)}'
+                        ),
+                        'payload_template': {
+                            'title': f'Pet: {pet_label}'
+                        }
+                    },
+                    {
+                        'id': 'skip',
+                        'label': 'Skip',
+                        'url': '',
+                        'payload_template': {}
+                    }
+                ]
+            })
+
+        elif category == 'maintenance':
+            # Handle home/car maintenance items
+            item_name = items[0]['label'] if items else 'Maintenance Item'
+            details = items[0].get('details', {}) if items else {}
+
+            actions.append({
+                'module': 'Life.Maintenance',
+                'question': 'Would you like to log this maintenance item?',
+                'actions': [
+                    {
+                        'id': 'add_maintenance',
+                        'label': 'Log Maintenance',
+                        'url': self._add_source_param(
+                            reverse('life:maintenance_create') + f'?title={quote(item_name)}'
+                        ),
+                        'payload_template': {
+                            'title': item_name
+                        }
+                    },
+                    {
+                        'id': 'add_inventory',
+                        'label': 'Add to Inventory',
+                        'url': self._add_source_param(
+                            reverse('life:inventory_create') + f'?name={quote(item_name)}'
+                        ),
+                        'payload_template': {
+                            'name': item_name
+                        }
+                    },
+                    {
                         'id': 'skip',
                         'label': 'Skip',
                         'url': '',
@@ -488,6 +754,12 @@ class VisionService:
                         'id': 'retry',
                         'label': 'Try Again',
                         'url': reverse('scan:home'),
+                        'payload_template': {}
+                    },
+                    {
+                        'id': 'add_inventory',
+                        'label': 'Add to Inventory',
+                        'url': self._add_source_param(reverse('life:inventory_create')),
                         'payload_template': {}
                     },
                     {

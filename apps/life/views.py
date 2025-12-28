@@ -539,9 +539,29 @@ class InventoryCreateView(LifeAccessMixin, CreateView):
         'warranty_expiration', 'warranty_info', 'notes'
     ]
     success_url = reverse_lazy('life:inventory_list')
-    
+
+    def get_initial(self):
+        """Pre-populate form from query parameters (for AI Camera scan)."""
+        initial = super().get_initial()
+        # Support prefill from Camera Scan feature
+        if self.request.GET.get('name'):
+            initial['name'] = self.request.GET.get('name')
+        if self.request.GET.get('category'):
+            initial['category'] = self.request.GET.get('category')
+        if self.request.GET.get('brand'):
+            initial['brand'] = self.request.GET.get('brand')
+        if self.request.GET.get('model_number'):
+            initial['model_number'] = self.request.GET.get('model_number')
+        if self.request.GET.get('location'):
+            initial['location'] = self.request.GET.get('location')
+        return initial
+
     def form_valid(self, form):
         form.instance.user = self.request.user
+        # Track if created via AI Camera scan
+        source = self.request.GET.get('source')
+        if source == 'ai_camera':
+            form.instance.created_via = InventoryItem.CREATED_VIA_AI_CAMERA
         messages.success(self.request, f"'{form.instance.name}' added to inventory.")
         return super().form_valid(form)
 
@@ -675,8 +695,24 @@ class PetCreateView(LifeAccessMixin, CreateView):
         'photo', 'notes'
     ]
 
+    def get_initial(self):
+        """Pre-populate form from query parameters (for AI Camera scan)."""
+        initial = super().get_initial()
+        # Support prefill from Camera Scan feature
+        if self.request.GET.get('name'):
+            initial['name'] = self.request.GET.get('name')
+        if self.request.GET.get('species'):
+            initial['species'] = self.request.GET.get('species')
+        if self.request.GET.get('breed'):
+            initial['breed'] = self.request.GET.get('breed')
+        return initial
+
     def form_valid(self, form):
         form.instance.user = self.request.user
+        # Track if created via AI Camera scan
+        source = self.request.GET.get('source')
+        if source == 'ai_camera':
+            form.instance.created_via = Pet.CREATED_VIA_AI_CAMERA
         try:
             response = super().form_valid(form)
             messages.success(self.request, f"Welcome, {form.instance.name}!")
@@ -838,9 +874,28 @@ class RecipeCreateView(LifeAccessMixin, CreateView):
         'difficulty', 'category', 'source', 'source_url',
         'image', 'notes', 'is_favorite'
     ]
-    
+
+    def get_initial(self):
+        """Pre-populate form from query parameters (for AI Camera scan)."""
+        initial = super().get_initial()
+        # Support prefill from Camera Scan feature
+        if self.request.GET.get('name'):
+            initial['title'] = self.request.GET.get('name')
+        if self.request.GET.get('cuisine'):
+            initial['category'] = self.request.GET.get('cuisine')
+        if self.request.GET.get('course'):
+            # Could map to category or description
+            course = self.request.GET.get('course')
+            if not initial.get('category'):
+                initial['category'] = course.title() if course else ''
+        return initial
+
     def form_valid(self, form):
         form.instance.user = self.request.user
+        # Track if created via AI Camera scan
+        source = self.request.GET.get('source')
+        if source == 'ai_camera':
+            form.instance.created_via = Recipe.CREATED_VIA_AI_CAMERA
         messages.success(self.request, f"Recipe '{form.instance.title}' saved.")
         return super().form_valid(form)
 
@@ -957,19 +1012,35 @@ class MaintenanceLogCreateView(LifeAccessMixin, CreateView):
         'cost', 'provider', 'provider_contact', 'inventory_item',
         'notes', 'follow_up_date'
     ]
-    
+
+    def get_initial(self):
+        """Pre-populate form from query parameters (for AI Camera scan)."""
+        initial = super().get_initial()
+        # Support prefill from Camera Scan feature
+        if self.request.GET.get('title'):
+            initial['title'] = self.request.GET.get('title')
+        if self.request.GET.get('area'):
+            initial['area'] = self.request.GET.get('area')
+        if self.request.GET.get('log_type'):
+            initial['log_type'] = self.request.GET.get('log_type')
+        return initial
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['inventory_item'].queryset = InventoryItem.objects.filter(
             user=self.request.user
         )
         return form
-    
+
     def form_valid(self, form):
         form.instance.user = self.request.user
+        # Track if created via AI Camera scan
+        source = self.request.GET.get('source')
+        if source == 'ai_camera':
+            form.instance.created_via = MaintenanceLog.CREATED_VIA_AI_CAMERA
         messages.success(self.request, f"Maintenance log '{form.instance.title}' added.")
         return super().form_valid(form)
-    
+
     def get_success_url(self):
         return reverse('life:maintenance_list')
 
@@ -1082,7 +1153,19 @@ class DocumentCreateView(LifeAccessMixin, CreateView):
         'document_date', 'expiration_date',
         'related_inventory_item', 'related_pet', 'notes'
     ]
-    
+
+    def get_initial(self):
+        """Pre-populate form from query parameters (for AI Camera scan)."""
+        initial = super().get_initial()
+        # Support prefill from Camera Scan feature
+        if self.request.GET.get('name'):
+            initial['title'] = self.request.GET.get('name')
+        if self.request.GET.get('title'):
+            initial['title'] = self.request.GET.get('title')
+        if self.request.GET.get('category'):
+            initial['category'] = self.request.GET.get('category')
+        return initial
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['related_inventory_item'].queryset = InventoryItem.objects.filter(
@@ -1092,12 +1175,16 @@ class DocumentCreateView(LifeAccessMixin, CreateView):
             user=self.request.user
         )
         return form
-    
+
     def form_valid(self, form):
         form.instance.user = self.request.user
+        # Track if created via AI Camera scan
+        source = self.request.GET.get('source')
+        if source == 'ai_camera':
+            form.instance.created_via = Document.CREATED_VIA_AI_CAMERA
         messages.success(self.request, f"Document '{form.instance.title}' uploaded.")
         return super().form_valid(form)
-    
+
     def get_success_url(self):
         return reverse('life:document_list')
 

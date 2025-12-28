@@ -214,7 +214,9 @@ class ActionBuildingTests(TestCase):
         actions = self.service._build_actions('document', items)
 
         self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0]['module'], 'Journal')
+        self.assertEqual(actions[0]['module'], 'Life.Documents')
+        # Should offer Save to Documents, Add to Journal, and Skip
+        self.assertEqual(len(actions[0]['actions']), 3)
 
     def test_workout_equipment_actions(self):
         """Test that workout equipment category generates correct actions."""
@@ -246,6 +248,87 @@ class ActionBuildingTests(TestCase):
         self.assertEqual(len(actions), 1)
         # Should still work with generic label
         self.assertIn('meal', actions[0]['question'].lower())
+
+    def test_inventory_item_actions(self):
+        """Test that inventory_item category generates correct actions."""
+        items = [{'label': 'DeWalt Drill', 'details': {'category': 'Tools', 'brand': 'DeWalt'}}]
+        actions = self.service._build_actions('inventory_item', items)
+
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]['module'], 'Life.Inventory')
+        self.assertIn('inventory', actions[0]['question'].lower())
+        # Should have add_inventory and skip
+        action_ids = [a['id'] for a in actions[0]['actions']]
+        self.assertIn('add_inventory', action_ids)
+        self.assertIn('skip', action_ids)
+        # URL should include name and category
+        add_action = [a for a in actions[0]['actions'] if a['id'] == 'add_inventory'][0]
+        self.assertIn('name=DeWalt', add_action['url'])
+        self.assertIn('category=Tools', add_action['url'])
+
+    def test_recipe_actions(self):
+        """Test that recipe category generates correct actions."""
+        items = [{'label': 'Chocolate Chip Cookies', 'details': {'cuisine': 'American', 'course': 'dessert'}}]
+        actions = self.service._build_actions('recipe', items)
+
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]['module'], 'Life.Recipes')
+        self.assertIn('recipe', actions[0]['question'].lower())
+        # Should have save_recipe and skip
+        action_ids = [a['id'] for a in actions[0]['actions']]
+        self.assertIn('save_recipe', action_ids)
+        self.assertIn('skip', action_ids)
+
+    def test_pet_actions(self):
+        """Test that pet category generates correct actions."""
+        items = [{'label': 'Golden Retriever', 'details': {'species': 'dog', 'breed': 'Golden Retriever'}}]
+        actions = self.service._build_actions('pet', items)
+
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]['module'], 'Life.Pets')
+        self.assertIn('pet', actions[0]['question'].lower())
+        # Should have add_pet, add_journal, and skip
+        action_ids = [a['id'] for a in actions[0]['actions']]
+        self.assertIn('add_pet', action_ids)
+        self.assertIn('add_journal', action_ids)
+        self.assertIn('skip', action_ids)
+
+    def test_maintenance_actions(self):
+        """Test that maintenance category generates correct actions."""
+        items = [{'label': 'HVAC Filter', 'details': {}}]
+        actions = self.service._build_actions('maintenance', items)
+
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]['module'], 'Life.Maintenance')
+        self.assertIn('maintenance', actions[0]['question'].lower())
+        # Should have add_maintenance, add_inventory, and skip
+        action_ids = [a['id'] for a in actions[0]['actions']]
+        self.assertIn('add_maintenance', action_ids)
+        self.assertIn('add_inventory', action_ids)
+        self.assertIn('skip', action_ids)
+
+    def test_workout_equipment_includes_inventory_option(self):
+        """Test that workout equipment also offers Add to Inventory."""
+        items = [{'label': 'Dumbbells', 'details': {}}]
+        actions = self.service._build_actions('workout_equipment', items)
+
+        # Should have log_workout, add_inventory, and skip
+        action_ids = [a['id'] for a in actions[0]['actions']]
+        self.assertIn('log_workout', action_ids)
+        self.assertIn('add_inventory', action_ids)
+        self.assertIn('skip', action_ids)
+
+    def test_unknown_includes_inventory_option(self):
+        """Test that unknown category offers Add to Inventory option."""
+        items = []
+        actions = self.service._build_actions('unknown', items)
+
+        # Should have retry, add_inventory, add_note, and skip
+        action_ids = [a['id'] for a in actions[0]['actions']]
+        self.assertIn('retry', action_ids)
+        self.assertIn('add_inventory', action_ids)
+        self.assertIn('add_note', action_ids)
+        self.assertIn('skip', action_ids)
 
 
 class ScanResultTests(TestCase):

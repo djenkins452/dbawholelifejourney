@@ -4,7 +4,7 @@ Faith Admin Configuration
 
 from django.contrib import admin
 
-from .models import DailyVerse, FaithMilestone, PrayerRequest, ScriptureVerse
+from .models import DailyVerse, FaithMilestone, PrayerRequest, SavedVerse, ScriptureVerse
 
 
 @admin.register(ScriptureVerse)
@@ -44,6 +44,23 @@ class PrayerRequestAdmin(admin.ModelAdmin):
     search_fields = ["title", "description", "user__email"]
     raw_id_fields = ["user"]
     date_hierarchy = "created_at"
+
+
+@admin.register(SavedVerse)
+class SavedVerseAdmin(admin.ModelAdmin):
+    list_display = [
+        "reference",
+        "user",
+        "book_name",
+        "chapter",
+        "translation",
+        "created_at",
+    ]
+    list_filter = ["translation", "book_name", "status"]
+    search_fields = ["reference", "text", "user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "created_at"
+    ordering = ["-created_at"]
 
 
 @admin.register(FaithMilestone)

@@ -171,10 +171,67 @@ class PrayerRequest(UserOwnedModel):
         self.save(update_fields=["is_answered", "answered_at", "answer_notes", "updated_at"])
 
 
+class SavedVerse(UserOwnedModel):
+    """
+    User's personal saved Scripture verses.
+
+    Each user has their own collection of saved verses that they've
+    looked up and saved from the Bible API. This ensures saved verses
+    are private to each user.
+    """
+
+    TRANSLATION_CHOICES = [
+        ("ESV", "English Standard Version"),
+        ("NIV", "New International Version"),
+        ("BSB", "Berean Standard Bible"),
+        ("NKJV", "New King James Version"),
+        ("NLT", "New Living Translation"),
+        ("KJV", "King James Version"),
+    ]
+
+    reference = models.CharField(
+        max_length=100,
+        help_text="e.g., 'Philippians 4:6-7'",
+    )
+    text = models.TextField()
+    translation = models.CharField(
+        max_length=10,
+        choices=TRANSLATION_CHOICES,
+        default="ESV",
+    )
+
+    # Book details for ordering
+    book_name = models.CharField(max_length=50)
+    book_order = models.PositiveIntegerField(
+        help_text="Order in the Bible (Genesis=1, Revelation=66)",
+    )
+    chapter = models.PositiveIntegerField()
+    verse_start = models.PositiveIntegerField()
+    verse_end = models.PositiveIntegerField(null=True, blank=True)
+
+    # Personal categorization
+    themes = models.JSONField(
+        default=list,
+        help_text="Personal themes like 'peace', 'trust', 'strength'",
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Personal notes about this verse",
+    )
+
+    class Meta:
+        ordering = ["book_order", "chapter", "verse_start"]
+        verbose_name = "saved verse"
+        verbose_name_plural = "saved verses"
+
+    def __str__(self):
+        return f"{self.reference} ({self.translation})"
+
+
 class FaithMilestone(UserOwnedModel):
     """
     Significant moments in the user's faith journey.
-    
+
     These could be:
     - Salvation date
     - Baptism

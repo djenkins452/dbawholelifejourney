@@ -382,6 +382,59 @@ python manage.py test apps.journal
 
 ---
 
+## Project Add Task Default
+
+### Overview
+When adding a task from within a project detail page, the project dropdown automatically defaults to that project, saving users from manually selecting it each time.
+
+### How It Works
+1. User navigates to a project detail page
+2. User clicks "Add Task" button
+3. Task creation form opens with the project pre-selected
+4. After creating the task, user is redirected back to the project detail page
+
+### Implementation
+- **View:** `apps/life/views.py` - `TaskCreateView` with `get_initial()` and updated `get_success_url()`
+- **Template:** `templates/life/task_form.html` - Project dropdown checks `form.initial.project.pk`
+- **URL Pattern:** `?project=ID` query parameter passed from project detail page
+
+### Key Code Changes
+```python
+# TaskCreateView.get_initial() - Pre-selects project from query param
+def get_initial(self):
+    initial = super().get_initial()
+    project_id = self.request.GET.get('project')
+    if project_id:
+        project = Project.objects.get(pk=project_id, user=self.request.user)
+        initial['project'] = project
+    return initial
+
+# TaskCreateView.get_success_url() - Returns to project after creation
+def get_success_url(self):
+    project_id = self.request.GET.get('project')
+    if project_id:
+        return reverse('life:project_detail', kwargs={'pk': project_id})
+    return reverse_lazy('life:task_list')
+```
+
+### Tests
+Located in `apps/life/tests/test_views.py` (TaskViewTest class):
+- `test_task_create_preselects_project_from_query_param` - Verify project is pre-selected
+- `test_task_create_with_project_redirects_to_project_detail` - Verify redirect after creation
+- `test_task_create_with_invalid_project_id_ignores_param` - Verify invalid IDs are ignored
+- `test_task_create_with_other_users_project_ignores_param` - Verify security (can't use other user's project)
+
+### Running Tests
+```bash
+# Run project add task tests
+python run_tests.py apps.life.tests.test_views.TaskViewTest
+
+# Run all life app view tests
+python run_tests.py apps.life.tests.test_views
+```
+
+---
+
 ## Task Undo Feature
 
 ### Overview

@@ -26,7 +26,7 @@ from apps.journal.models import JournalEntry
 from apps.journal.forms import JournalEntryForm
 
 from .forms import FaithMilestoneForm, PrayerRequestForm
-from .models import DailyVerse, FaithMilestone, PrayerRequest, ScriptureVerse
+from .models import DailyVerse, FaithMilestone, PrayerRequest, SavedVerse, ScriptureVerse
 
 
 class FaithRequiredMixin(UserPassesTestMixin):
@@ -140,38 +140,39 @@ class TodaysVerseView(LoginRequiredMixin, FaithRequiredMixin, TemplateView):
 
 class ScriptureListView(LoginRequiredMixin, FaithRequiredMixin, ListView):
     """
-    Browse all available Scripture verses with Bible API lookup.
+    Browse user's saved Scripture verses with Bible API lookup.
     """
 
-    model = ScriptureVerse
+    model = SavedVerse
     template_name = "faith/scripture_list.html"
     context_object_name = "verses"
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = ScriptureVerse.objects.filter(is_active=True)
-        
+        # Filter by current user's saved verses only
+        queryset = SavedVerse.objects.filter(user=self.request.user)
+
         # Filter by theme (use icontains on the JSON field as string for SQLite compatibility)
         theme = self.request.GET.get("theme")
         if theme:
             # For SQLite, we filter by checking if the theme appears in the JSON string
             queryset = queryset.filter(themes__icontains=theme)
-        
+
         # Filter by book
         book = self.request.GET.get("book")
         if book:
             queryset = queryset.filter(book_name=book)
-        
+
         return queryset
 
     def get_context_data(self, **kwargs):
         from django.conf import settings
         context = super().get_context_data(**kwargs)
-        # Get unique themes for filtering
-        all_verses = ScriptureVerse.objects.filter(is_active=True)
+        # Get unique themes and books for filtering from user's saved verses
+        user_verses = SavedVerse.objects.filter(user=self.request.user)
         themes = set()
         books = set()
-        for verse in all_verses:
+        for verse in user_verses:
             themes.update(verse.themes)
             books.add(verse.book_name)
         context["available_themes"] = sorted(themes)
@@ -197,7 +198,7 @@ class ScriptureDetailView(LoginRequiredMixin, FaithRequiredMixin, DetailView):
 
 class ScriptureSaveView(LoginRequiredMixin, FaithRequiredMixin, View):
     """
-    Save a looked-up Scripture verse to the library.
+    Save a looked-up Scripture verse to the user's personal library.
     """
 
     # Book order mapping for Bible books
@@ -228,10 +229,11 @@ class ScriptureSaveView(LoginRequiredMixin, FaithRequiredMixin, View):
         verse_end = request.POST.get('verse_end', '')
         translation = request.POST.get('translation', '')
         themes_str = request.POST.get('themes', '')
-        
+        notes = request.POST.get('notes', '')
+
         # Parse themes
         themes = [t.strip() for t in themes_str.split(',') if t.strip()]
-        
+
         # Parse verse numbers
         try:
             verse_start_int = int(verse_start) if verse_start else 1
@@ -241,15 +243,16 @@ class ScriptureSaveView(LoginRequiredMixin, FaithRequiredMixin, View):
             verse_start_int = 1
             verse_end_int = None
             chapter_int = 1
-        
+
         # Get book order (default to 1 if not found)
         book_order = self.BOOK_ORDER.get(book_name, 1)
-        
+
         # Extract translation abbreviation from full name (e.g., "KJV - King James Version" -> "KJV")
         translation_abbrev = translation.split(' - ')[0].strip() if ' - ' in translation else translation[:10]
-        
-        # Create the verse
-        verse = ScriptureVerse.objects.create(
+
+        # Create the user's saved verse
+        SavedVerse.objects.create(
+            user=request.user,
             reference=reference,
             text=text,
             book_name=book_name,
@@ -259,10 +262,9 @@ class ScriptureSaveView(LoginRequiredMixin, FaithRequiredMixin, View):
             verse_end=verse_end_int,
             translation=translation_abbrev,
             themes=themes,
-            contexts=[],  # Empty contexts list
-            is_active=True,
+            notes=notes,
         )
-        
+
         messages.success(request, f'"{reference}" saved to your Scripture library.')
         return redirect('faith:scripture_list')
 

@@ -32,6 +32,9 @@
         {% if medicine.is_prn %}
         <span class="badge badge-prn">As Needed (PRN)</span>
         {% endif %}
+        {% if medicine.was_created_by_ai %}
+        <span class="ai-camera-badge" title="Added via AI Camera Scan">📷 AI Camera</span>
+        {% endif %}
         {% if medicine.needs_refill %}
         <div class="refill-warning">
             Low supply: {{ medicine.current_supply }} doses remaining
@@ -255,6 +258,18 @@
     color: var(--color-info, #3b82f6);
     border-radius: var(--radius-sm);
     font-size: var(--font-size-sm);
+}
+
+.ai-camera-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
 }
 
 .refill-warning {

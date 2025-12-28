@@ -131,18 +131,42 @@ class SoftDeleteModel(TimeStampedModel):
 class UserOwnedModel(SoftDeleteModel):
     """
     Abstract model for records that belong to a specific user.
-    
+
     Combines soft delete with user ownership.
     """
+
+    # Creation source tracking - indicates how the entry was created
+    CREATED_VIA_MANUAL = 'manual'
+    CREATED_VIA_AI_CAMERA = 'ai_camera'
+    CREATED_VIA_IMPORT = 'import'
+    CREATED_VIA_API = 'api'
+
+    CREATED_VIA_CHOICES = [
+        (CREATED_VIA_MANUAL, 'Manual Entry'),
+        (CREATED_VIA_AI_CAMERA, 'AI Camera Scan'),
+        (CREATED_VIA_IMPORT, 'Data Import'),
+        (CREATED_VIA_API, 'API'),
+    ]
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="%(class)ss",
     )
+    created_via = models.CharField(
+        max_length=20,
+        choices=CREATED_VIA_CHOICES,
+        default=CREATED_VIA_MANUAL,
+        help_text="How this entry was created",
+    )
 
     class Meta:
         abstract = True
+
+    @property
+    def was_created_by_ai(self):
+        """Check if this entry was created via AI Camera."""
+        return self.created_via == self.CREATED_VIA_AI_CAMERA
 
 
 class Tag(UserOwnedModel):

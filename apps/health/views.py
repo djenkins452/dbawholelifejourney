@@ -1298,6 +1298,10 @@ class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["active_medicines"] = active_medicines
         context["active_count"] = active_medicines.count()
 
+        # DEBUG: Add debug info to context
+        context["debug_today"] = today
+        context["debug_weekday"] = today.weekday()
+
         # Get today's scheduled doses
         today_schedules = []
         for medicine in active_medicines.filter(is_prn=False):

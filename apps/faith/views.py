@@ -36,8 +36,8 @@ from .models import DailyVerse, FaithMilestone, PrayerRequest, SavedVerse, Scrip
 
 logger = logging.getLogger(__name__)
 
-# Bible API base URL
-BIBLE_API_BASE = "https://api.scripture.api.bible/v1"
+# Bible API base URL (api.bible uses rest.api.bible endpoint)
+BIBLE_API_BASE = "https://rest.api.bible/v1"
 
 
 class FaithRequiredMixin(UserPassesTestMixin):

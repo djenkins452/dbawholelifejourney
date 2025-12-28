@@ -300,6 +300,15 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
 
     def test_log_mark_taken(self):
         """Log can be marked as taken."""
+        from datetime import datetime
+        # Use schedule time to ensure we're within grace period
+        scheduled_dt = datetime.combine(
+            timezone.now().date(),
+            self.schedule.scheduled_time
+        )
+        # Make timezone-aware
+        taken_time = timezone.make_aware(scheduled_dt) if timezone.is_naive(scheduled_dt) else scheduled_dt
+
         log = MedicineLog.objects.create(
             user=self.user,
             medicine=self.medicine,
@@ -307,7 +316,8 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
             scheduled_date=timezone.now().date(),
             scheduled_time=self.schedule.scheduled_time,
         )
-        log.mark_taken()
+        # Pass a specific time that's exactly at the scheduled time (within grace period)
+        log.mark_taken(taken_at=taken_time)
 
         self.assertEqual(log.log_status, MedicineLog.STATUS_TAKEN)
         self.assertIsNotNone(log.taken_at)

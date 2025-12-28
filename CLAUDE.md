@@ -12,7 +12,7 @@
 - OpenAI API for AI coaching features
 
 ## Key Architecture
-- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console
+- **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan
 - **User model:** Custom User in apps/users/models.py (email-based auth)
 - **Preferences:** UserPreferences model stores timezone, module toggles, AI settings (coaching_style)
 - **Soft deletes:** Models use soft_delete() method, not hard deletes
@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Camera Scan Feature (2025-12-28):** Added comprehensive Camera Scan feature with OpenAI Vision API integration. Features: browser camera capture (getUserMedia), file upload fallback, multi-format support (JPEG, PNG, WebP), contextual action suggestions, privacy-first design (no image storage), rate limiting, magic bytes validation. Identifies 8 categories: food, medicine, supplement, receipt, document, workout equipment, barcode, unknown. Maps to WLJ modules for quick action. 70 new tests (965 total). See `docs/CAMERA_SCAN_ARCHITECTURE.md` for full architecture.
 - **Medicine Tracking Section (2025-12-28):** Added comprehensive Medicine section to Health module with daily tracker, adherence stats, PRN support, refill tracking, and dashboard integration. Features: Medicine Master List (name, dose, frequency, schedules, prescribing doctor, pharmacy), Daily Tracker with one-tap check-off, Missed/Overdue detection with configurable grace period, History & Adherence views, Quick Look for screenshots, refill alerts, pause/resume without losing history. 77 new tests (965 total).
 - **CSO Security Review & Fixes (2025-12-28):** Comprehensive security review conducted with 21 findings. Critical fixes implemented:
   - C-2: Bible API key removed from frontend, replaced with server-side proxy at `/faith/api/bible/*`

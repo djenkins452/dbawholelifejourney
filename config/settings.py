@@ -11,6 +11,7 @@ import environ
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
 
 # Log OpenAI configuration status at startup
 if OPENAI_API_KEY:
@@ -77,6 +78,7 @@ INSTALLED_APPS = [
     'apps.purpose',
     'apps.ai',
     'apps.help',
+    'apps.scan',
 ]
 
 MIDDLEWARE = [
@@ -468,6 +470,13 @@ WLJ_SETTINGS = {
 # Bible API (required for Scripture lookups in Faith module)
 # Get your API key at: https://scripture.api.bible/
 BIBLE_API_KEY = os.environ.get('BIBLE_API_KEY', '')
+
+# Camera Scan Settings
+# Vision analysis uses OpenAI's vision-capable models
+SCAN_MAX_IMAGE_MB = int(os.environ.get('SCAN_MAX_IMAGE_MB', '10'))
+SCAN_RATE_LIMIT_PER_HOUR = int(os.environ.get('SCAN_RATE_LIMIT_PER_HOUR', '30'))
+SCAN_RATE_LIMIT_IP_PER_HOUR = int(os.environ.get('SCAN_RATE_LIMIT_IP_PER_HOUR', '60'))
+SCAN_REQUEST_TIMEOUT_SECONDS = int(os.environ.get('SCAN_REQUEST_TIMEOUT_SECONDS', '30'))
 
 
 

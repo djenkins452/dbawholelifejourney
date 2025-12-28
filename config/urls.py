@@ -47,6 +47,8 @@ urlpatterns = [
     path('purpose/', include('apps.purpose.urls')),
     # Help System
     path('help/', include('apps.help.urls', namespace='help')),
+    # Camera Scan
+    path('scan/', include('apps.scan.urls', namespace='scan')),
 ]
 
 # Serve media files

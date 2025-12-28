@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Scan History - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'dashboard:home' %}">Dashboard</a>
+        <span>/</span>
+        <a href="{% url 'scan:home' %}">Scan</a>
+        <span>/</span>
+        <span>History</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Scan History</h1>
+        <a href="{% url 'scan:home' %}" class="btn btn-primary">New Scan</a>
+    </div>
+
+    {% if total_scans > 0 %}
+    <!-- Stats -->
+    <div class="stats-row" style="display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;">
+        <div class="stat-card" style="flex: 1; min-width: 150px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; font-weight: 600; color: var(--color-accent);">{{ total_scans }}</div>
+            <div style="color: var(--color-text-secondary); font-size: 0.875rem;">Total Scans</div>
+        </div>
+        {% for cat in category_counts|slice:":4" %}
+        <div class="stat-card" style="flex: 1; min-width: 150px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; font-weight: 600;">{{ cat.count }}</div>
+            <div style="color: var(--color-text-secondary); font-size: 0.875rem;">{{ cat.category|title }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Scan List -->
+    <div class="card">
+        {% if scans %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Confidence</th>
+                    <th>Status</th>
+                    <th>Action Taken</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for scan in scans %}
+                <tr>
+                    <td>
+                        <div>{{ scan.created_at|date:"M d, Y" }}</div>
+                        <div style="font-size: 0.75rem; color: var(--color-text-secondary);">{{ scan.created_at|time:"g:i A" }}</div>
+                    </td>
+                    <td>
+                        {% if scan.category %}
+                        <span class="badge" style="background: var(--color-accent); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
+                            {{ scan.get_category_display }}
+                        </span>
+                        {% else %}
+                        <span style="color: var(--color-text-secondary);">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if scan.confidence %}
+                        {{ scan.confidence|floatformat:0 }}%
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if scan.status == 'success' %}
+                        <span style="color: #22c55e;">Success</span>
+                        {% elif scan.status == 'failed' %}
+                        <span style="color: #ef4444;">Failed</span>
+                        {% elif scan.status == 'timeout' %}
+                        <span style="color: #f59e0b;">Timeout</span>
+                        {% elif scan.status == 'rate_limited' %}
+                        <span style="color: #f59e0b;">Rate Limited</span>
+                        {% else %}
+                        <span style="color: var(--color-text-secondary);">{{ scan.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if scan.action_taken %}
+                        {{ scan.action_taken|title }}
+                        {% else %}
+                        <span style="color: var(--color-text-secondary);">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="text-align: center; padding: 3rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">&#x1F4F7;</div>
+            <h2 style="margin-bottom: 0.5rem;">No scans yet</h2>
+            <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">Start by scanning something with your camera</p>
+            <a href="{% url 'scan:home' %}" class="btn btn-primary">Start Scanning</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .data-table th {
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .data-table tr:last-child td {
+        border-bottom: none;
+    }
+</style>
+{% endblock %}

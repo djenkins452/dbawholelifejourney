@@ -283,6 +283,11 @@ a:hover {
     height: 20px;
 }
 
+/* Hide nav link text on desktop (icon-only), show on mobile */
+.nav-link span {
+    display: none;
+}
+
 .nav-icon {
     width: 24px;
     height: 24px;

@@ -831,6 +831,54 @@ class MedicineScheduleManagementTest(MedicineTestMixin, TestCase):
             MedicineSchedule.objects.filter(pk=schedule.pk).exists()
         )
 
+    def test_activate_inactive_schedule(self):
+        """Inactive schedule can be activated."""
+        schedule = self.create_schedule(self.medicine)
+        schedule.is_active = False
+        schedule.save()
+
+        response = self.client.post(
+            reverse('health:medicine_schedule_activate', kwargs={
+                'medicine_pk': self.medicine.pk,
+                'schedule_pk': schedule.pk
+            })
+        )
+
+        self.assertEqual(response.status_code, 302)
+        schedule.refresh_from_db()
+        self.assertTrue(schedule.is_active)
+
+    def test_add_schedule_defaults_to_all_days(self):
+        """Schedule defaults to all days if none selected."""
+        response = self.client.post(
+            reverse('health:medicine_schedules', kwargs={'pk': self.medicine.pk}),
+            {
+                'scheduled_time': '09:00',
+                'label': 'Morning',
+                # Note: No 'days' parameter - should default to all days
+                'is_active': True,
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+        schedule = MedicineSchedule.objects.filter(medicine=self.medicine).first()
+        self.assertIsNotNone(schedule)
+        self.assertEqual(schedule.days_of_week, "0,1,2,3,4,5,6")
+
+    def test_schedule_applies_to_correct_weekday(self):
+        """Schedule correctly identifies applicable days."""
+        schedule = self.create_schedule(self.medicine)
+        schedule.days_of_week = "0,2,4"  # Mon, Wed, Fri
+        schedule.save()
+
+        self.assertTrue(schedule.applies_to_day(0))   # Monday
+        self.assertFalse(schedule.applies_to_day(1))  # Tuesday
+        self.assertTrue(schedule.applies_to_day(2))   # Wednesday
+        self.assertFalse(schedule.applies_to_day(3))  # Thursday
+        self.assertTrue(schedule.applies_to_day(4))   # Friday
+        self.assertFalse(schedule.applies_to_day(5))  # Saturday
+        self.assertFalse(schedule.applies_to_day(6))  # Sunday
+
 
 # =============================================================================
 # 10. ADHERENCE TESTS

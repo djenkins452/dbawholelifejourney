@@ -1,0 +1,293 @@
+{% comment %}
+What's New Modal Component
+
+Displays new features and updates to users when they log in.
+Include this once in base.html for authenticated users.
+JavaScript in whats_new.js handles showing/hiding and API calls.
+{% endcomment %}
+
+<!-- What's New Modal -->
+<dialog id="whats-new-modal" class="whats-new-modal">
+    <div class="whats-new-modal-content">
+        <header class="whats-new-modal-header">
+            <h2>What's New</h2>
+            <button type="button" class="whats-new-modal-close" onclick="dismissWhatsNew()" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </header>
+
+        <div id="whats-new-modal-body" class="whats-new-modal-body">
+            <!-- Content populated by JavaScript -->
+            <div class="whats-new-loading">
+                <div class="whats-new-loading-spinner"></div>
+                <p>Loading updates...</p>
+            </div>
+        </div>
+
+        <footer class="whats-new-modal-footer">
+            <a href="{% url 'core:whats_new_list' %}" class="whats-new-link">
+                View All Updates
+            </a>
+            <button type="button" class="btn btn-primary" onclick="dismissWhatsNew()">
+                Got it
+            </button>
+        </footer>
+    </div>
+</dialog>
+
+<style>
+/* What's New Modal Styles */
+.whats-new-modal {
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: 0;
+    max-width: 560px;
+    width: 90%;
+    max-height: 80vh;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    background: var(--color-background);
+}
+
+.whats-new-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.whats-new-modal-content {
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+}
+
+.whats-new-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.whats-new-modal-header h2 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+    color: var(--color-text);
+}
+
+.whats-new-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-2);
+    color: var(--color-text-muted);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.whats-new-modal-close:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.whats-new-modal-close svg {
+    width: 20px;
+    height: 20px;
+}
+
+.whats-new-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-4) var(--space-5);
+}
+
+.whats-new-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+}
+
+.whats-new-loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: whats-new-spin 0.8s linear infinite;
+    margin-bottom: var(--space-3);
+}
+
+@keyframes whats-new-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Release Note Items */
+.whats-new-item {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.whats-new-item:last-child {
+    border-bottom: none;
+}
+
+.whats-new-item-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.whats-new-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.whats-new-item-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+}
+
+.whats-new-item-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+}
+
+.whats-new-item-badge {
+    font-size: var(--font-size-xs);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.whats-new-item-badge.badge-feature {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+}
+
+.whats-new-item-badge.badge-fix {
+    background: color-mix(in srgb, #f59e0b 15%, transparent);
+    color: #d97706;
+}
+
+.whats-new-item-badge.badge-enhancement {
+    background: color-mix(in srgb, #10b981 15%, transparent);
+    color: #059669;
+}
+
+.whats-new-item-badge.badge-security {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
+    color: #dc2626;
+}
+
+.whats-new-item-badge.badge-major {
+    background: color-mix(in srgb, #8b5cf6 15%, transparent);
+    color: #7c3aed;
+}
+
+.whats-new-item-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.whats-new-item-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+}
+
+.whats-new-item-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+    margin-top: var(--space-2);
+}
+
+.whats-new-item-link:hover {
+    text-decoration: underline;
+}
+
+/* Empty state */
+.whats-new-empty {
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+}
+
+.whats-new-empty-icon {
+    font-size: 3rem;
+    margin-bottom: var(--space-4);
+}
+
+/* Footer */
+.whats-new-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.whats-new-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.whats-new-link:hover {
+    color: var(--color-accent);
+    text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+    .whats-new-modal {
+        width: 95%;
+        max-height: 90vh;
+    }
+
+    .whats-new-modal-content {
+        max-height: 90vh;
+    }
+
+    .whats-new-modal-header,
+    .whats-new-modal-body,
+    .whats-new-modal-footer {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+    }
+
+    .whats-new-modal-footer {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .whats-new-modal-footer .btn {
+        width: 100%;
+    }
+}
+</style>

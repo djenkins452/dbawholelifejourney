@@ -29,7 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
-- **Dashboard 500 Error Fix & Debug Endpoint (2025-12-28):** Fixed production 500 error on dashboard caused by URL name mismatch (`medicine_tracker` vs `medicine_home`). Added permanent `/dashboard/debug/` endpoint that tests all dashboard methods and template rendering - useful for post-deploy health checks. Added error logging to dashboard view. Root cause: parallel worktree sessions created inconsistent URL references.
+- **What's New Feature (2025-12-28):** Added "What's New" popup system to inform users of new features and updates since their last visit. Models: `ReleaseNote` (title, description, type, release_date, is_major, learn_more_url) and `UserReleaseNoteView` (tracks when user last dismissed popup). Views: `WhatsNewCheckView` (JSON API to check for unseen notes), `WhatsNewDismissView` (marks notes as seen), `WhatsNewListView` (full-page history). Preference toggle `show_whats_new` added to UserPreferences (default: True). Popup appears on login if unseen notes exist. Clean modal UI with type badges (feature/fix/enhancement/security). Admin interface at Django Admin for managing release notes. Data migration loads 14 retroactive entries for existing features. 23 new tests. Files: `apps/core/models.py` (ReleaseNote, UserReleaseNoteView), `apps/core/views.py` (3 views), `templates/components/whats_new_modal.html`, `templates/core/whats_new_list.html`, `static/js/whats_new.js`.
 - **Scan Image Auto-Attachment to Inventory (2025-12-28):** Scanned images are now automatically saved to inventory items created via AI Camera. Flow: (1) Image stored in session after AI analysis, (2) `scan_image_key` passed in action URL, (3) InventoryCreateView retrieves image from session and creates InventoryPhoto. Photo marked as primary with "Captured via AI Camera Scan" caption. Session cleaned up after attachment. 3 new tests for image attachment flow (968 total tests).
 - **Expanded Camera Scan Module Support (2025-12-28):** Extended AI Camera scan feature to recognize and route items to ALL Life module sections, not just Health/Journal. New categories: `inventory_item` (electronics, tools, furniture, appliances, etc.), `recipe` (cookbook pages, recipe cards), `pet` (animals, pet supplies), `maintenance` (home repair items, filters, parts). Updated OpenAI Vision prompt with detailed category selection guidance and examples. All Life module create views (Inventory, Pet, Recipe, Maintenance, Document) now support query parameter prefill and `source=ai_camera` tracking. 7 new tests for new categories.
 - **Dashboard and AI Integration for Medicine, Workout, Scan (2025-12-28):** Comprehensive dashboard enhancements integrating all new modules. Dashboard now shows: Today's Medicine Schedule with status badges (taken/missed/skipped/pending), Recent Workouts with PR highlights, Quick Stats header with medicine doses and workout counts. AI integration updated to gather: medicine adherence rate, active medicines, refill alerts, workout frequency, recent PRs, scan activity. Added celebrations for: perfect medicine adherence (95%+), all doses taken today, workout streaks, new PRs, AI Camera usage. Added nudges for: pending medicine doses, low adherence, refill needs, workout gaps. New CSS for medicine-schedule-section and recent-workouts-section with responsive design.
@@ -215,71 +215,6 @@ Only test those areas.
 - Keep changes isolated
 - Ensure rollback is possible
 - Protect user data and system stability at all times
-
----
-
-## Testing Commands
-
----
-
-## Parallel Worktree Safety
-
-When multiple Claude sessions work in parallel worktrees, they can make conflicting changes to shared files (templates, URLs, views). Follow these rules to prevent production errors.
-
-### Pre-Merge Checklist (MANDATORY)
-Before merging any worktree branch to main:
-
-1. **Pull latest main first:**
-   ```bash
-   cd C:\dbawholelifejourney
-   git pull origin main
-   ```
-
-2. **Merge main into your branch and resolve conflicts:**
-   ```bash
-   git merge main
-   # Resolve any conflicts, especially in shared files
-   ```
-
-3. **Run full test suite:**
-   ```bash
-   python manage.py test
-   ```
-
-4. **Verify URL names match between templates and urls.py:**
-   ```bash
-   # Check for any {% url 'app:name' %} in templates that don't exist
-   python manage.py check
-   ```
-
-5. **Test the dashboard specifically** (it aggregates data from all modules):
-   ```bash
-   python manage.py test apps.dashboard
-   ```
-
-### Post-Deploy Smoke Test (MANDATORY)
-After every deployment to Railway:
-
-1. **Hit the debug endpoint:** `https://wholelifejourney.com/dashboard/debug/`
-   - Verify `"errors": []` (empty array)
-   - Verify `"template_rendered": true`
-
-2. **Load the actual dashboard:** `https://wholelifejourney.com/dashboard/`
-   - Should not show 500 error
-
-3. **Quick module check:** Click into Health, Journal, Life, Faith
-   - Each should load without errors
-
-### Common Parallel Work Pitfalls
-- **URL name mismatches:** One session creates `medicine_home`, another references `medicine_tracker`
-- **Template variable mismatches:** View provides `user_data.medicines`, template expects `user_data.medicine_list`
-- **Migration conflicts:** Two sessions add migrations with same number
-- **Import errors:** One session adds a model, another imports it before migration exists
-
-### If Production Breaks
-1. Check Railway deployment logs for the actual error
-2. Use `/dashboard/debug/` endpoint to isolate the issue
-3. The error is usually a URL mismatch or missing template variable
 
 ---
 
@@ -667,6 +602,93 @@ python run_tests.py apps.life.tests
 ```
 
 **Note:** Railway has no shell access. All tests must be run locally before pushing to main. Railway auto-deploys on push.
+
+---
+
+## What's New Feature
+
+### Overview
+The "What's New" system informs users of new features, fixes, and improvements deployed since their last visit. A popup modal appears when users log in if there are unseen release notes.
+
+### How It Works
+1. **User logs in** → JavaScript calls `/api/whats-new/check/`
+2. **API returns unseen notes** → If `has_unseen: true`, modal displays
+3. **User dismisses modal** → POST to `/api/whats-new/dismiss/` marks notes as seen
+4. **Next login** → Only shows notes created after last dismissal
+
+### Models (`apps/core/models.py`)
+| Model | Description |
+|-------|-------------|
+| `ReleaseNote` | Individual release note entry (title, description, type, release_date, is_major) |
+| `UserReleaseNoteView` | Tracks when user last dismissed the What's New popup |
+
+### Entry Types
+| Type | Icon | Use For |
+|------|------|---------|
+| `feature` | ✨ | New functionality |
+| `fix` | 🔧 | Bug fixes |
+| `enhancement` | 🚀 | Improvements to existing features |
+| `security` | 🔒 | Security updates |
+
+### URL Routes
+| Route | View | Description |
+|-------|------|-------------|
+| `/whats-new/` | `WhatsNewListView` | Full page view of all release notes |
+| `/api/whats-new/check/` | `WhatsNewCheckView` | JSON API - returns unseen notes |
+| `/api/whats-new/dismiss/` | `WhatsNewDismissView` | JSON API - marks notes as seen |
+
+### Adding a New Release Note
+
+**Via Django Admin:**
+1. Navigate to Django Admin → Core → Release Notes
+2. Click "Add Release Note"
+3. Fill in: Title, Description, Entry Type, Release Date
+4. Set `is_published = True` to make visible
+5. Optional: Set `is_major = True` for emphasis
+
+**Via Code (data migration):**
+```python
+ReleaseNote.objects.create(
+    title='New Feature Name',
+    description='User-friendly description of what it does.',
+    entry_type='feature',  # feature, fix, enhancement, security
+    release_date=date(2025, 12, 28),
+    is_published=True,
+    is_major=False,  # True for major updates
+)
+```
+
+### User Preference
+Users can opt out via Preferences → Notifications → "What's New Updates" toggle.
+The preference is stored in `UserPreferences.show_whats_new` (default: True).
+
+### Key Files
+- `apps/core/models.py` - ReleaseNote, UserReleaseNoteView models
+- `apps/core/views.py` - WhatsNewCheckView, WhatsNewDismissView, WhatsNewListView
+- `apps/core/admin.py` - ReleaseNoteAdmin, UserReleaseNoteViewAdmin
+- `templates/components/whats_new_modal.html` - Popup modal template
+- `templates/core/whats_new_list.html` - Full page list template
+- `static/js/whats_new.js` - Client-side popup logic
+- `apps/core/migrations/0008_whats_new_models.py` - Creates ReleaseNote and UserReleaseNoteView tables
+- `apps/core/migrations/0009_load_release_notes.py` - Loads retroactive release notes
+- `apps/users/migrations/0014_add_show_whats_new.py` - Adds show_whats_new preference
+
+### Tests
+Located in `apps/core/tests/test_core_comprehensive.py`:
+- `ReleaseNoteModelTest` - 10 tests for model behavior
+- `UserReleaseNoteViewModelTest` - 3 tests for view tracking
+- `ReleaseNoteUnseenTest` - 3 tests for unseen logic
+- `WhatsNewViewsTest` - 11 tests for API endpoints
+- `WhatsNewPreferenceTest` - 4 tests for preference toggle
+
+### Running Tests
+```bash
+# Run What's New tests only
+python manage.py test apps.core.tests.test_core_comprehensive.ReleaseNoteModelTest apps.core.tests.test_core_comprehensive.UserReleaseNoteViewModelTest apps.core.tests.test_core_comprehensive.ReleaseNoteUnseenTest
+
+# Run all core tests
+python manage.py test apps.core
+```
 
 ---
 

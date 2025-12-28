@@ -104,6 +104,8 @@ class PreferencesForm(forms.ModelForm):
             "timezone",
             # Faith
             "default_bible_translation",
+            # Notifications
+            "show_whats_new",
         ]
         widgets = {
             "theme": forms.Select(attrs={
@@ -161,6 +163,10 @@ class PreferencesForm(forms.ModelForm):
                 "class": "form-select",
             }),
             "default_bible_translation": forms.HiddenInput(),
+            # Notifications
+            "show_whats_new": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
         }
 
     def __init__(self, *args, **kwargs):

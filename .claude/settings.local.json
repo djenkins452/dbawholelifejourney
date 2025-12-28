@@ -25,7 +25,9 @@
       "Bash(python manage.py check:*)",
       "Bash(done)",
       "Bash(python manage.py:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(python manage.py migrate:*)",
+      "Bash(python manage.py showmigrations:*)"
     ]
   }
 }

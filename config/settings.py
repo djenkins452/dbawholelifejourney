@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     # Third-party apps
     "allauth",
     "allauth.account",
+    "axes",  # Rate limiting for authentication (Security Fix H-3)
     "crispy_forms",
     "crispy_tailwind",
     "django_htmx",
@@ -90,6 +91,7 @@ MIDDLEWARE = [
     "allauth.account.middleware.AccountMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "apps.users.middleware.TermsAcceptanceMiddleware",
+    "axes.middleware.AxesMiddleware",  # Rate limiting (Security Fix H-3) - must be last
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -274,6 +276,7 @@ AUTH_USER_MODEL = "users.User"
 SITE_ID = 1
 
 AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",  # Rate limiting (Security Fix H-3) - must be first
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
@@ -335,6 +338,26 @@ else:
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+
+# Cookie SameSite attribute (Security Fix M-1)
+# Prevents CSRF attacks by restricting cookie sending on cross-site requests
+SESSION_COOKIE_SAMESITE = 'Lax'  # 'Lax' allows normal navigation, 'Strict' blocks all cross-site
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Custom Admin URL Path (Security Fix H-4)
+# Moving admin to a non-default path reduces brute force attack surface
+ADMIN_URL_PATH = env("ADMIN_URL_PATH", default="wlj-admin")
+
+# Django Axes Configuration (Security Fix H-3)
+# Rate limiting for authentication to prevent brute force attacks
+AXES_FAILURE_LIMIT = 5  # Lock after 5 failed attempts
+AXES_COOLOFF_TIME = 1  # Lock for 1 hour (in hours)
+AXES_LOCKOUT_CALLABLE = None  # Use default lockout response
+AXES_RESET_ON_SUCCESS = True  # Reset failed attempts on successful login
+AXES_ONLY_USER_FAILURES = False  # Track failures per IP address
+AXES_LOCK_OUT_BY_COMBINATION_USER_AND_IP = True  # Lock by user+IP combo
+AXES_ENABLE_ACCESS_FAILURE_LOG = True  # Log failed attempts
+AXES_VERBOSE = True if DEBUG else False  # Verbose logging in dev only
 
 
 # Whole Life Journey Custom Settings

@@ -487,8 +487,9 @@
 </style>
 
 <script>
-const API_KEY = '{{ api_key }}';
-const API_BASE = 'https://rest.api.bible/v1';
+// Bible API is now accessed via server-side proxy for security
+// The API key is kept server-side and never exposed to the frontend
+const API_PROXY_BASE = '/faith/api/bible';
 const DEFAULT_TRANSLATION = '{{ default_translation }}';
 
 let currentBibleId = '';
@@ -496,9 +497,14 @@ let currentBookId = '';
 let currentChapterId = '';
 let currentVerseData = null;
 let booksData = [];
+let apiConfigured = false;
 
-// Debug: Check if API key is present
-console.log('Bible API Key present:', API_KEY ? 'Yes' : 'No (missing!)');
+// Get CSRF token for POST requests (if needed in future)
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+}
+
+console.log('Bible API: Using secure server-side proxy');
 console.log('Default translation:', DEFAULT_TRANSLATION || 'Not set');
 
 // Show/hide loading
@@ -521,21 +527,25 @@ function hideError() {
     document.getElementById('lookup-error').style.display = 'none';
 }
 
-// Fetch available Bibles
+// Check if API is configured and fetch available Bibles
 async function fetchBibles() {
     const versionSelect = document.getElementById('bible-version');
 
-    if (!API_KEY) {
-        versionSelect.innerHTML = '<option value="">API Key not configured</option>';
-        showError('Bible API key is not configured. Please add BIBLE_API_KEY to your settings.');
-        return;
-    }
-
     try {
-        console.log('Fetching Bibles...');
-        const response = await fetch(`${API_BASE}/bibles?language=eng`, {
-            headers: { 'api-key': API_KEY }
-        });
+        // First check if API is configured (server-side)
+        const statusResponse = await fetch(`${API_PROXY_BASE}/status/`);
+        const statusData = await statusResponse.json();
+
+        if (!statusData.configured) {
+            versionSelect.innerHTML = '<option value="">API not configured</option>';
+            showError('Bible API is not configured. Please contact the administrator.');
+            return;
+        }
+
+        apiConfigured = true;
+        console.log('Fetching Bibles via secure proxy...');
+
+        const response = await fetch(`${API_PROXY_BASE}/bibles/`);
 
         if (!response.ok) {
             throw new Error(`API returned ${response.status}: ${response.statusText}`);
@@ -590,25 +600,23 @@ async function fetchBooks(bibleId) {
     currentBibleId = bibleId;
     const bookSelect = document.getElementById('bible-book');
     const chapterSelect = document.getElementById('bible-chapter');
-    
+
     bookSelect.innerHTML = '<option value="">Loading books...</option>';
     bookSelect.disabled = true;
     chapterSelect.innerHTML = '<option value="">Select book first</option>';
     chapterSelect.disabled = true;
     document.getElementById('lookup-btn').disabled = true;
-    
+
     try {
-        const response = await fetch(`${API_BASE}/bibles/${bibleId}/books`, {
-            headers: { 'api-key': API_KEY }
-        });
-        
+        const response = await fetch(`${API_PROXY_BASE}/bibles/${bibleId}/books/`);
+
         if (!response.ok) {
             throw new Error(`API returned ${response.status}`);
         }
-        
+
         const data = await response.json();
         booksData = data.data || [];
-        
+
         bookSelect.innerHTML = '<option value="">Select Book</option>';
         booksData.forEach(book => {
             const option = document.createElement('option');
@@ -616,7 +624,7 @@ async function fetchBooks(bibleId) {
             option.textContent = book.name;
             bookSelect.appendChild(option);
         });
-        
+
         bookSelect.disabled = false;
     } catch (error) {
         console.error('Error fetching books:', error);
@@ -629,23 +637,21 @@ async function fetchBooks(bibleId) {
 async function fetchChapters(bookId) {
     currentBookId = bookId;
     const chapterSelect = document.getElementById('bible-chapter');
-    
+
     chapterSelect.innerHTML = '<option value="">Loading chapters...</option>';
     chapterSelect.disabled = true;
     document.getElementById('lookup-btn').disabled = true;
-    
+
     try {
-        const response = await fetch(`${API_BASE}/bibles/${currentBibleId}/books/${bookId}/chapters`, {
-            headers: { 'api-key': API_KEY }
-        });
-        
+        const response = await fetch(`${API_PROXY_BASE}/bibles/${currentBibleId}/books/${bookId}/chapters/`);
+
         if (!response.ok) {
             throw new Error(`API returned ${response.status}`);
         }
-        
+
         const data = await response.json();
         const chapters = data.data || [];
-        
+
         chapterSelect.innerHTML = '<option value="">Select Chapter</option>';
         chapters.forEach(chapter => {
             // Skip intro chapters
@@ -656,7 +662,7 @@ async function fetchChapters(bookId) {
                 chapterSelect.appendChild(option);
             }
         });
-        
+
         chapterSelect.disabled = false;
     } catch (error) {
         console.error('Error fetching chapters:', error);
@@ -670,49 +676,48 @@ async function lookupScripture() {
     const chapterId = document.getElementById('bible-chapter').value;
     const verseStart = document.getElementById('verse-start').value;
     const verseEnd = document.getElementById('verse-end').value;
-    
+
     if (!chapterId) {
         alert('Please select a chapter');
         return;
     }
-    
+
     currentChapterId = chapterId;
-    
+
     // Show loading
     document.getElementById('lookup-results').style.display = 'none';
     hideError();
     showLoading('Loading Scripture...');
-    
+
     try {
         let endpoint;
-        let passageId;
-        
+        const queryParams = 'content-type=text&include-notes=false&include-titles=false&include-chapter-numbers=false&include-verse-numbers=true';
+
         if (verseStart) {
             // Specific verse(s)
             const bookChapter = chapterId; // e.g., "GEN.1"
+            let passageId;
             if (verseEnd && verseEnd !== verseStart) {
                 passageId = `${bookChapter}.${verseStart}-${bookChapter}.${verseEnd}`;
             } else {
                 passageId = `${bookChapter}.${verseStart}`;
             }
-            endpoint = `${API_BASE}/bibles/${currentBibleId}/passages/${passageId}?content-type=text&include-notes=false&include-titles=false&include-chapter-numbers=false&include-verse-numbers=true`;
+            endpoint = `${API_PROXY_BASE}/bibles/${currentBibleId}/passages/${passageId}/?${queryParams}`;
         } else {
-            // Whole chapter
-            endpoint = `${API_BASE}/bibles/${currentBibleId}/chapters/${chapterId}?content-type=text&include-notes=false&include-titles=false&include-chapter-numbers=false&include-verse-numbers=true`;
+            // Whole chapter - use verses endpoint for chapter
+            endpoint = `${API_PROXY_BASE}/bibles/${currentBibleId}/passages/${chapterId}/?${queryParams}`;
         }
-        
-        console.log('Fetching:', endpoint);
-        
-        const response = await fetch(endpoint, {
-            headers: { 'api-key': API_KEY }
-        });
-        
+
+        console.log('Fetching via proxy:', endpoint);
+
+        const response = await fetch(endpoint);
+
         if (!response.ok) {
             throw new Error(`API returned ${response.status}`);
         }
-        
+
         const data = await response.json();
-        
+
         if (data.data) {
             displayResults(data.data);
         } else {

@@ -126,8 +126,8 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
             context['google_calendar_connected'] = False
             context['google_calendar_name'] = None
 
-        # Bible API key for faith settings
-        context['api_key'] = getattr(settings, 'BIBLE_API_KEY', '')
+        # NOTE: Bible API key is NO LONGER sent to frontend (Security Fix C-2)
+        # Bible API is now accessed via server-side proxy at /faith/api/bible/
 
         # AI Coaching styles from database
         try:

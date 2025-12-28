@@ -237,6 +237,18 @@ class UserPreferences(models.Model):
         help_text="Enable AI-powered insights and reflections",
     )
 
+    # AI Data Sharing Consent (Security Fix C-3)
+    # Users must explicitly consent to having their data processed by AI
+    ai_data_consent = models.BooleanField(
+        default=False,
+        help_text="User has consented to AI processing of their personal data (journal entries, health data, etc.)",
+    )
+    ai_data_consent_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date when user consented to AI data processing",
+    )
+
     ai_coaching_style = models.CharField(
         max_length=50,
         default='supportive',

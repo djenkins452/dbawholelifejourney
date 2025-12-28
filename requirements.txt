@@ -8,6 +8,7 @@ psycopg2-binary>=2.9.9
 
 # Authentication
 django-allauth>=65.0.0
+django-axes>=6.0.0  # Rate limiting for authentication (Security Fix H-3)
 
 # Forms and Crispy
 django-crispy-forms>=2.3

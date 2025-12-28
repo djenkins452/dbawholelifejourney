@@ -802,23 +802,25 @@ if (faithToggle) {
 }
 
 // Bible translation loading for preferences
-const BIBLE_API_KEY = '{{ api_key }}';
+// Security: API key is kept server-side, accessed via proxy
+const API_PROXY_BASE = '/faith/api/bible';
 const savedTranslation = document.getElementById('id_default_bible_translation')?.value || '';
 
 async function loadBibleTranslations() {
     const select = document.getElementById('bible-translation-select');
     if (!select) return;
 
-    // Check if we have API key
-    if (!BIBLE_API_KEY) {
-        select.innerHTML = '<option value="">API not configured</option>';
-        return;
-    }
-
     try {
-        const response = await fetch('https://rest.api.bible/v1/bibles?language=eng', {
-            headers: { 'api-key': BIBLE_API_KEY }
-        });
+        // First check if API is configured (server-side)
+        const statusResponse = await fetch(`${API_PROXY_BASE}/status/`);
+        const statusData = await statusResponse.json();
+
+        if (!statusData.configured) {
+            select.innerHTML = '<option value="">API not configured</option>';
+            return;
+        }
+
+        const response = await fetch(`${API_PROXY_BASE}/bibles/`);
 
         if (!response.ok) {
             throw new Error('Failed to load translations');

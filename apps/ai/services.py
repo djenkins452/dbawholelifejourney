@@ -47,18 +47,43 @@ FAITH CONTEXT: The user has faith/spirituality enabled. You may:
 class AIService:
     """
     Core AI service for generating insights and encouragement.
-    
+
     This service is designed to be:
     - Warm and encouraging (never judgmental)
     - Faith-aware (respects user's Faith module setting)
     - Privacy-conscious (processes data, doesn't store prompts)
     - Style-adaptive (gentle, supportive, or direct)
+    - Consent-aware (requires explicit user consent for data processing)
+
+    Security Note (C-3): All AI processing methods should verify user consent
+    via check_user_consent() before sending data to external AI services.
     """
-    
+
     def __init__(self):
         self.client = None
         self.model = getattr(settings, 'OPENAI_MODEL', 'gpt-4o-mini')
         self._initialize_client()
+
+    @staticmethod
+    def check_user_consent(user) -> bool:
+        """
+        Check if user has consented to AI data processing.
+
+        Security Fix C-3: User must explicitly consent to having their
+        personal data (journal entries, health metrics, etc.) processed
+        by external AI services (OpenAI).
+
+        Args:
+            user: The User model instance
+
+        Returns:
+            bool: True if user has consented, False otherwise
+        """
+        if not hasattr(user, 'preferences'):
+            return False
+        prefs = user.preferences
+        # Both AI must be enabled AND consent must be given
+        return prefs.ai_enabled and prefs.ai_data_consent
     
     def _initialize_client(self):
         """Initialize OpenAI client if API key is available."""

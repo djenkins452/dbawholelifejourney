@@ -335,12 +335,22 @@ class ScanAnalyzeView(LoginRequiredMixin, View):
                     processing_time_ms=processing_time_ms
                 )
 
-            # Clear image from memory (Python will GC, but be explicit)
+            # Store image in session for potential attachment to created items
+            # This allows the scanned image to be saved to inventory/etc.
+            # Session will auto-expire, and image is only stored temporarily
+            scan_image_key = f'scan_image_{request_id}'
+            request.session[scan_image_key] = image_data  # Keep original with data URI
+            request.session.modified = True
+
+            # Clear local variables from memory (session has its own copy)
             del decoded_data
-            del image_data
             del clean_base64
 
-            return JsonResponse(result.to_dict())
+            # Add scan_image_key to response so frontend can pass it to action URLs
+            response_data = result.to_dict()
+            response_data['scan_image_key'] = scan_image_key
+
+            return JsonResponse(response_data)
 
         except Exception as e:
             processing_time_ms = int((time.time() - start_time) * 1000)

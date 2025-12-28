@@ -18,7 +18,7 @@ User = get_user_model()
 
 class CalendarViewTest(TestCase):
     """Tests for the calendar view."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -27,7 +27,8 @@ class CalendarViewTest(TestCase):
         )
         # Accept terms if required
         self._accept_terms(self.user)
-    
+        self._complete_onboarding(self.user)
+
     def _accept_terms(self, user):
         """Helper to accept terms for a user."""
         try:
@@ -38,6 +39,14 @@ class CalendarViewTest(TestCase):
                 terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
             )
         except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Helper to complete onboarding for a user."""
+        try:
+            user.preferences.has_completed_onboarding = True
+            user.preferences.save()
+        except Exception:
             pass
     
     def test_calendar_requires_login(self):
@@ -77,7 +86,7 @@ class CalendarViewTest(TestCase):
 
 class EventViewTest(TestCase):
     """Tests for event CRUD views."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -85,8 +94,9 @@ class EventViewTest(TestCase):
             password='testpass123'
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.client.login(email='test@example.com', password='testpass123')
-    
+
     def _accept_terms(self, user):
         """Helper to accept terms for a user."""
         try:
@@ -97,6 +107,14 @@ class EventViewTest(TestCase):
                 terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
             )
         except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Helper to complete onboarding for a user."""
+        try:
+            user.preferences.has_completed_onboarding = True
+            user.preferences.save()
+        except Exception:
             pass
     
     def test_event_create_page_loads(self):
@@ -169,7 +187,7 @@ class EventViewTest(TestCase):
 
 class TaskViewTest(TestCase):
     """Tests for task views."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -177,8 +195,9 @@ class TaskViewTest(TestCase):
             password='testpass123'
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.client.login(email='test@example.com', password='testpass123')
-    
+
     def _accept_terms(self, user):
         """Helper to accept terms for a user."""
         try:
@@ -189,6 +208,14 @@ class TaskViewTest(TestCase):
                 terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
             )
         except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Helper to complete onboarding for a user."""
+        try:
+            user.preferences.has_completed_onboarding = True
+            user.preferences.save()
+        except Exception:
             pass
     
     def test_task_list_loads(self):
@@ -253,10 +280,82 @@ class TaskViewTest(TestCase):
         # Count occurrences - there should be no Undo buttons for incomplete tasks
         self.assertNotIn('class="task-undo"', content)
 
+    def test_task_create_preselects_project_from_query_param(self):
+        """Task create form pre-selects project when ?project=ID is passed."""
+        project = Project.objects.create(
+            user=self.user,
+            title='Test Project',
+            status='active'
+        )
+
+        response = self.client.get(
+            reverse('life:task_create') + f'?project={project.pk}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # The form should have the project in initial data
+        self.assertEqual(response.context['form'].initial.get('project'), project)
+
+    def test_task_create_with_project_redirects_to_project_detail(self):
+        """Creating a task from project page redirects back to that project."""
+        project = Project.objects.create(
+            user=self.user,
+            title='Test Project',
+            status='active'
+        )
+
+        response = self.client.post(
+            reverse('life:task_create') + f'?project={project.pk}',
+            {
+                'title': 'Task for Project',
+                'priority': 'soon',
+                'project': project.pk,
+            }
+        )
+
+        # Should redirect to project detail page
+        self.assertRedirects(response, reverse('life:project_detail', kwargs={'pk': project.pk}))
+
+        # Task should be created and linked to project
+        task = Task.objects.get(user=self.user, title='Task for Project')
+        self.assertEqual(task.project, project)
+
+    def test_task_create_with_invalid_project_id_ignores_param(self):
+        """Task create form ignores invalid project IDs."""
+        response = self.client.get(
+            reverse('life:task_create') + '?project=9999'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # The form should not have a project pre-selected
+        self.assertIsNone(response.context['form'].initial.get('project'))
+
+    def test_task_create_with_other_users_project_ignores_param(self):
+        """Task create form ignores project IDs belonging to other users."""
+        other_user = User.objects.create_user(
+            email='other@example.com',
+            password='testpass123'
+        )
+        self._accept_terms(other_user)
+
+        other_project = Project.objects.create(
+            user=other_user,
+            title='Other Project',
+            status='active'
+        )
+
+        response = self.client.get(
+            reverse('life:task_create') + f'?project={other_project.pk}'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # The form should not have the other user's project pre-selected
+        self.assertIsNone(response.context['form'].initial.get('project'))
+
 
 class ProjectViewTest(TestCase):
     """Tests for project views."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -264,8 +363,9 @@ class ProjectViewTest(TestCase):
             password='testpass123'
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.client.login(email='test@example.com', password='testpass123')
-    
+
     def _accept_terms(self, user):
         """Helper to accept terms for a user."""
         try:
@@ -276,6 +376,14 @@ class ProjectViewTest(TestCase):
                 terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
             )
         except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Helper to complete onboarding for a user."""
+        try:
+            user.preferences.has_completed_onboarding = True
+            user.preferences.save()
+        except Exception:
             pass
     
     def test_project_list_loads(self):
@@ -298,7 +406,7 @@ class ProjectViewTest(TestCase):
 
 class DataIsolationTest(TestCase):
     """Tests to ensure users can only see their own data."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user_a = User.objects.create_user(
@@ -309,11 +417,15 @@ class DataIsolationTest(TestCase):
             email='userb@example.com',
             password='testpass123'
         )
-        
+
         # Accept terms for both users
         self._accept_terms(self.user_a)
         self._accept_terms(self.user_b)
-        
+
+        # Complete onboarding for both users
+        self._complete_onboarding(self.user_a)
+        self._complete_onboarding(self.user_b)
+
         # Create data for each user
         self.event_a = LifeEvent.objects.create(
             user=self.user_a,
@@ -325,7 +437,7 @@ class DataIsolationTest(TestCase):
             title='User B Event',
             start_date=date.today()
         )
-        
+
         self.task_a = Task.objects.create(
             user=self.user_a,
             title='User A Task'
@@ -334,7 +446,7 @@ class DataIsolationTest(TestCase):
             user=self.user_b,
             title='User B Task'
         )
-    
+
     def _accept_terms(self, user):
         """Helper to accept terms for a user."""
         try:
@@ -345,6 +457,14 @@ class DataIsolationTest(TestCase):
                 terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
             )
         except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Helper to complete onboarding for a user."""
+        try:
+            user.preferences.has_completed_onboarding = True
+            user.preferences.save()
+        except Exception:
             pass
     
     def test_user_a_sees_only_their_events(self):

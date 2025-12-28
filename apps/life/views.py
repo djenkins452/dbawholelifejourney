@@ -271,20 +271,41 @@ class TaskCreateView(LifeAccessMixin, CreateView):
     model = Task
     template_name = "life/task_form.html"
     fields = ['title', 'notes', 'project', 'priority', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern']
-    
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['project'].queryset = Project.objects.filter(
             user=self.request.user, status='active'
         )
         return form
-    
+
+    def get_initial(self):
+        """Pre-select project if passed via query parameter."""
+        initial = super().get_initial()
+        project_id = self.request.GET.get('project')
+        if project_id:
+            try:
+                # Validate that the project belongs to the current user
+                project = Project.objects.get(pk=project_id, user=self.request.user)
+                initial['project'] = project
+            except (Project.DoesNotExist, ValueError):
+                pass
+        return initial
+
     def form_valid(self, form):
         form.instance.user = self.request.user
         messages.success(self.request, f"Task '{form.instance.title}' created.")
         return super().form_valid(form)
-    
+
     def get_success_url(self):
+        # If we came from a project page, return to that project
+        project_id = self.request.GET.get('project')
+        if project_id:
+            try:
+                project = Project.objects.get(pk=project_id, user=self.request.user)
+                return reverse('life:project_detail', kwargs={'pk': project.pk})
+            except (Project.DoesNotExist, ValueError):
+                pass
         next_url = self.request.GET.get('next')
         if next_url:
             return next_url

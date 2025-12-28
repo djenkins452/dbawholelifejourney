@@ -569,6 +569,111 @@ class MedicineCRUDTest(MedicineTestMixin, TestCase):
 
 
 # =============================================================================
+# 5.5 AI CAMERA SCAN PREFILL TESTS
+# =============================================================================
+
+class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
+    """Tests for AI Camera scan prefilling medicine form."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.login_user()
+
+    def test_medicine_create_prefills_name_from_query_param(self):
+        """Medicine create form prefills name from query parameter."""
+        response = self.client.get(
+            reverse('health:medicine_create') + '?name=Lisinopril%2010mg'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Lisinopril 10mg')
+
+    def test_medicine_create_prefills_dose_from_query_param(self):
+        """Medicine create form prefills dose from query parameter."""
+        response = self.client.get(
+            reverse('health:medicine_create') + '?name=Metformin&dose=500mg'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '500mg')
+
+    def test_medicine_create_prefills_directions_as_notes(self):
+        """Medicine create form prefills directions into notes field."""
+        response = self.client.get(
+            reverse('health:medicine_create') + '?name=Aspirin&directions=Take%20with%20food'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Take with food')
+
+    def test_medicine_create_prefills_quantity_as_supply(self):
+        """Medicine create form extracts quantity into current_supply."""
+        response = self.client.get(
+            reverse('health:medicine_create') + '?name=Vitamin%20D&quantity=30%20tablets'
+        )
+        self.assertEqual(response.status_code, 200)
+        # Check the form initial data
+        form = response.context.get('form')
+        self.assertIsNotNone(form)
+        self.assertEqual(form.initial.get('current_supply'), 30)
+
+    def test_medicine_create_prefills_all_fields_from_scan(self):
+        """Medicine create form prefills all fields from AI Camera scan."""
+        url = (
+            reverse('health:medicine_create') +
+            '?name=Lisinopril&dose=10mg&directions=Take%20once%20daily'
+            '&quantity=90%20tablets&source=ai_camera'
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+        form = response.context.get('form')
+        self.assertIsNotNone(form)
+        self.assertEqual(form.initial.get('name'), 'Lisinopril')
+        self.assertEqual(form.initial.get('dose'), '10mg')
+        self.assertEqual(form.initial.get('notes'), 'Take once daily')
+        self.assertEqual(form.initial.get('current_supply'), 90)
+
+    def test_medicine_create_tracks_ai_camera_source(self):
+        """Medicine created via AI Camera has created_via set correctly."""
+        from apps.core.models import UserOwnedModel
+
+        response = self.client.post(
+            reverse('health:medicine_create') + '?source=ai_camera',
+            {
+                'name': 'AI Scanned Medicine',
+                'dose': '50mg',
+                'frequency': 'daily',
+                'start_date': timezone.now().date().isoformat(),
+                'refill_threshold': 7,
+                'grace_period_minutes': 60,
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+        medicine = Medicine.objects.get(name='AI Scanned Medicine')
+        self.assertEqual(medicine.created_via, UserOwnedModel.CREATED_VIA_AI_CAMERA)
+
+    def test_medicine_create_without_source_defaults_to_manual(self):
+        """Medicine created without source param has manual created_via."""
+        from apps.core.models import UserOwnedModel
+
+        response = self.client.post(
+            reverse('health:medicine_create'),
+            {
+                'name': 'Manual Medicine',
+                'dose': '25mg',
+                'frequency': 'daily',
+                'start_date': timezone.now().date().isoformat(),
+                'refill_threshold': 7,
+                'grace_period_minutes': 60,
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+        medicine = Medicine.objects.get(name='Manual Medicine')
+        self.assertEqual(medicine.created_via, UserOwnedModel.CREATED_VIA_MANUAL)
+
+
+# =============================================================================
 # 6. DAILY TRACKER TESTS
 # =============================================================================
 

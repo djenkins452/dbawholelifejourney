@@ -1490,6 +1490,29 @@ class MedicineCreateView(LoginRequiredMixin, CreateView):
     form_class = MedicineForm
     template_name = "health/medicine/medicine_form.html"
 
+    def get_initial(self):
+        """Pre-populate form from query parameters (for AI Camera scan)."""
+        initial = super().get_initial()
+        # Support prefill from Camera Scan feature
+        if self.request.GET.get('name'):
+            initial['name'] = self.request.GET.get('name')
+        if self.request.GET.get('dose'):
+            initial['dose'] = self.request.GET.get('dose')
+        if self.request.GET.get('purpose'):
+            initial['purpose'] = self.request.GET.get('purpose')
+        if self.request.GET.get('directions'):
+            # Directions can go into notes or be displayed separately
+            initial['notes'] = self.request.GET.get('directions')
+        if self.request.GET.get('quantity'):
+            # Try to extract supply count from quantity like "30 tablets"
+            quantity = self.request.GET.get('quantity', '')
+            if quantity:
+                import re
+                match = re.match(r'^(\d+)', quantity)
+                if match:
+                    initial['current_supply'] = int(match.group(1))
+        return initial
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user

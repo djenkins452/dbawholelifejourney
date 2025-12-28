@@ -425,6 +425,15 @@ class VisionService:
             med_name = items[0]['label'] if items else 'medication'
             details = items[0].get('details', {}) if items else {}
 
+            # Build URL with all available fields
+            url_params = [f'name={quote(med_name)}']
+            if details.get('dosage'):
+                url_params.append(f'dose={quote(details["dosage"])}')
+            if details.get('directions'):
+                url_params.append(f'directions={quote(details["directions"])}')
+            if details.get('quantity'):
+                url_params.append(f'quantity={quote(details["quantity"])}')
+
             actions.append({
                 'module': 'Health.Medicine',
                 'question': 'Would you like to add this medicine?',
@@ -433,7 +442,7 @@ class VisionService:
                         'id': 'add_medicine',
                         'label': 'Add to My Medicines',
                         'url': self._add_source_param(
-                            reverse('health:medicine_create') + f'?name={quote(med_name)}'
+                            reverse('health:medicine_create') + '?' + '&'.join(url_params)
                         ),
                         'payload_template': {
                             'name': med_name,
@@ -454,6 +463,15 @@ class VisionService:
             supp_name = items[0]['label'] if items else 'supplement'
             details = items[0].get('details', {}) if items else {}
 
+            # Build URL with all available fields
+            url_params = [f'name={quote(supp_name)}', 'type=supplement']
+            if details.get('dosage'):
+                url_params.append(f'dose={quote(details["dosage"])}')
+            if details.get('directions'):
+                url_params.append(f'directions={quote(details["directions"])}')
+            if details.get('quantity'):
+                url_params.append(f'quantity={quote(details["quantity"])}')
+
             actions.append({
                 'module': 'Health.Medicine',
                 'question': 'Would you like to add this supplement?',
@@ -462,7 +480,7 @@ class VisionService:
                         'id': 'add_supplement',
                         'label': 'Add to My Supplements',
                         'url': self._add_source_param(
-                            reverse('health:medicine_create') + f'?name={quote(supp_name)}&type=supplement'
+                            reverse('health:medicine_create') + '?' + '&'.join(url_params)
                         ),
                         'payload_template': {
                             'name': supp_name,

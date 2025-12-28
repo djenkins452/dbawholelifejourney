@@ -836,42 +836,73 @@ class DashboardDebugView(LoginRequiredMixin, View):
         errors = []
         data = {}
 
-        try:
-            user = request.user
-            prefs = user.preferences
-            data['user'] = user.email
-            data['prefs_ok'] = True
-        except Exception as e:
-            errors.append(f"Prefs error: {e}")
-            data['prefs_ok'] = False
+        user = request.user
+        prefs = user.preferences
+        data['user'] = user.email
 
-        # Test each data gathering method
-        try:
-            from apps.core.utils import get_user_today
-            today = get_user_today(user)
-            data['today'] = str(today)
-        except Exception as e:
-            errors.append(f"get_user_today error: {e}")
+        # Test the actual DashboardView methods
+        dashboard_view = DashboardView()
+        dashboard_view.request = request
 
         try:
-            from apps.health.models import Medicine, WorkoutSession, PersonalRecord
-            data['medicine_count'] = Medicine.objects.filter(user=user).count()
-            data['workout_count'] = WorkoutSession.objects.filter(user=user).count()
-            data['pr_count'] = PersonalRecord.objects.filter(user=user).count()
+            data['greeting'] = dashboard_view._get_greeting()
         except Exception as e:
-            errors.append(f"Health models error: {e}\n{traceback.format_exc()}")
+            errors.append(f"_get_greeting error: {e}\n{traceback.format_exc()}")
 
         try:
-            from apps.scan.models import ScanLog
-            data['scan_count'] = ScanLog.objects.filter(user=user).count()
+            data['encouragement'] = str(dashboard_view._get_daily_encouragement(prefs.faith_enabled))
         except Exception as e:
-            errors.append(f"Scan models error: {e}\n{traceback.format_exc()}")
+            errors.append(f"_get_daily_encouragement error: {e}\n{traceback.format_exc()}")
 
         try:
-            from apps.journal.models import JournalEntry
-            data['journal_count'] = JournalEntry.objects.filter(user=user).count()
+            user_data = dashboard_view._gather_comprehensive_data(user, prefs)
+            data['user_data_keys'] = list(user_data.keys())
+            # Check specific keys that might cause template errors
+            data['recent_workouts_count'] = len(user_data.get('recent_workouts', []))
+            data['recent_prs_count'] = len(user_data.get('recent_prs', []))
+            data['todays_medicine_count'] = len(user_data.get('todays_medicine_schedule', []))
         except Exception as e:
-            errors.append(f"Journal models error: {e}\n{traceback.format_exc()}")
+            errors.append(f"_gather_comprehensive_data error: {e}\n{traceback.format_exc()}")
+
+        try:
+            if prefs.ai_enabled:
+                ai_insights = dashboard_view._get_ai_insights(user, prefs, user_data)
+                data['ai_insights'] = 'generated' if ai_insights else 'none'
+            else:
+                data['ai_insights'] = 'disabled'
+        except Exception as e:
+            errors.append(f"_get_ai_insights error: {e}\n{traceback.format_exc()}")
+
+        try:
+            quick_stats = dashboard_view._get_quick_stats(user_data)
+            data['quick_stats'] = quick_stats
+        except Exception as e:
+            errors.append(f"_get_quick_stats error: {e}\n{traceback.format_exc()}")
+
+        # Try to render the template
+        try:
+            from django.template.loader import render_to_string
+            context = {
+                'user': user,
+                'current_date': timezone.now(),
+                'greeting': data.get('greeting', 'Hello'),
+                'faith_enabled': prefs.faith_enabled,
+                'encouragement': None,
+                'user_data': user_data if 'user_data_keys' in data else {},
+                'ai_enabled': prefs.ai_enabled,
+                'ai_insights': None,
+                'quick_stats': data.get('quick_stats', {}),
+                'journal_enabled': prefs.journal_enabled,
+                'health_enabled': prefs.health_enabled,
+                'life_enabled': prefs.life_enabled,
+                'purpose_enabled': prefs.purpose_enabled,
+            }
+            html = render_to_string('dashboard/home.html', context, request=request)
+            data['template_rendered'] = True
+            data['template_length'] = len(html)
+        except Exception as e:
+            errors.append(f"Template render error: {e}\n{traceback.format_exc()}")
+            data['template_rendered'] = False
 
         data['errors'] = errors
         return JsonResponse(data)

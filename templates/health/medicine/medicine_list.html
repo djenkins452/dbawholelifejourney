@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Medicines - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <span>/</span>
+        <span>All Medicines</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">My Medicines</h1>
+            <p class="page-subtitle">Manage your medication list</p>
+        </div>
+        <a href="{% url 'health:medicine_create' %}" class="btn btn-primary">Add Medicine</a>
+    </div>
+
+    <!-- Status Filter Tabs -->
+    <div class="filter-tabs mb-6">
+        <a href="?status=active" class="filter-tab {% if current_status == 'active' %}active{% endif %}">
+            Active ({{ active_count }})
+        </a>
+        <a href="?status=paused" class="filter-tab {% if current_status == 'paused' %}active{% endif %}">
+            Paused ({{ paused_count }})
+        </a>
+        <a href="?status=completed" class="filter-tab {% if current_status == 'completed' %}active{% endif %}">
+            Completed ({{ completed_count }})
+        </a>
+        <a href="?status=all" class="filter-tab {% if current_status == 'all' %}active{% endif %}">
+            All
+        </a>
+    </div>
+
+    {% if medicines %}
+    <div class="medicine-list">
+        {% for medicine in medicines %}
+        <div class="medicine-card">
+            <div class="medicine-header">
+                <div class="medicine-title">
+                    <a href="{% url 'health:medicine_detail' pk=medicine.pk %}">{{ medicine.name }}</a>
+                    {% if medicine.is_prn %}
+                    <span class="badge badge-prn">PRN</span>
+                    {% endif %}
+                    {% if medicine.is_paused %}
+                    <span class="badge badge-paused">Paused</span>
+                    {% endif %}
+                </div>
+                <div class="medicine-dose">{{ medicine.dose }}</div>
+            </div>
+
+            <div class="medicine-meta">
+                {% if medicine.purpose %}
+                <span class="meta-item">{{ medicine.purpose }}</span>
+                {% endif %}
+                <span class="meta-item">{{ medicine.get_frequency_display }}</span>
+                {% if medicine.schedules.all %}
+                <span class="meta-item">{{ medicine.schedules.count }} schedule{{ medicine.schedules.count|pluralize }}</span>
+                {% endif %}
+            </div>
+
+            {% if medicine.needs_refill %}
+            <div class="refill-warning">
+                Low supply: {{ medicine.current_supply }} doses remaining
+            </div>
+            {% endif %}
+
+            <div class="medicine-actions">
+                <a href="{% url 'health:medicine_detail' pk=medicine.pk %}" class="btn btn-secondary btn-sm">View</a>
+                <a href="{% url 'health:medicine_update' pk=medicine.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                <a href="{% url 'health:medicine_schedules' pk=medicine.pk %}" class="btn btn-secondary btn-sm">Schedules</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="pagination mt-6">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&status={{ current_status }}" class="btn btn-secondary btn-sm">Previous</a>
+        {% endif %}
+        <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&status={{ current_status }}" class="btn btn-secondary btn-sm">Next</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <h2 class="empty-state-title">No medicines found</h2>
+        {% if current_status == 'active' %}
+        <p class="text-muted">You don't have any active medicines.</p>
+        {% elif current_status == 'paused' %}
+        <p class="text-muted">No paused medicines.</p>
+        {% elif current_status == 'completed' %}
+        <p class="text-muted">No completed medicines.</p>
+        {% else %}
+        <p class="text-muted">Start by adding your first medicine.</p>
+        {% endif %}
+        <a href="{% url 'health:medicine_create' %}" class="btn btn-primary mt-4">Add Medicine</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.filter-tabs {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.filter-tab {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    transition: all 0.2s ease;
+}
+
+.filter-tab:hover {
+    background: var(--color-border);
+}
+
+.filter-tab.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.medicine-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.medicine-card {
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.medicine-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-2);
+}
+
+.medicine-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.medicine-title a {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.medicine-dose {
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.badge-prn {
+    background: color-mix(in srgb, var(--color-info, #3b82f6) 20%, transparent);
+    color: var(--color-info, #3b82f6);
+}
+
+.badge-paused {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 20%, transparent);
+    color: var(--color-warning, #f59e0b);
+}
+
+.medicine-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.meta-item {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.refill-warning {
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-warning, #f59e0b);
+    margin-bottom: var(--space-3);
+}
+
+.medicine-actions {
+    display: flex;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.page-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

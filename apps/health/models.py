@@ -556,3 +556,417 @@ class TemplateExercise(models.Model):
 
     def __str__(self):
         return f"{self.exercise.name} in {self.template.name}"
+
+
+# =============================================================================
+# Medicine Tracking Models
+# =============================================================================
+
+
+class Medicine(UserOwnedModel):
+    """
+    A medicine/medication the user takes regularly or as-needed.
+
+    Tracks the master list of medicines with dosage and scheduling info.
+    Supports both scheduled medicines and PRN (as-needed) medicines.
+    """
+
+    FREQUENCY_CHOICES = [
+        ("daily", "Daily"),
+        ("twice_daily", "Twice Daily"),
+        ("three_daily", "Three Times Daily"),
+        ("four_daily", "Four Times Daily"),
+        ("weekly", "Weekly"),
+        ("biweekly", "Every Two Weeks"),
+        ("monthly", "Monthly"),
+        ("as_needed", "As Needed (PRN)"),
+        ("custom", "Custom Schedule"),
+    ]
+
+    STATUS_ACTIVE = "active"
+    STATUS_PAUSED = "paused"
+    STATUS_COMPLETED = "completed"
+
+    MEDICINE_STATUS_CHOICES = [
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_PAUSED, "Paused"),
+        (STATUS_COMPLETED, "Completed"),
+    ]
+
+    # Basic Info
+    name = models.CharField(
+        max_length=200,
+        help_text="Medicine name (brand or generic)",
+    )
+    purpose = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="What this medicine is for (e.g., 'blood pressure', 'allergies')",
+    )
+
+    # Dosage
+    dose = models.CharField(
+        max_length=100,
+        help_text="Dose amount (e.g., '500mg', '1 tablet', '2 puffs')",
+    )
+
+    # Scheduling
+    frequency = models.CharField(
+        max_length=20,
+        choices=FREQUENCY_CHOICES,
+        default="daily",
+    )
+    is_prn = models.BooleanField(
+        default=False,
+        help_text="Take as-needed (PRN) rather than on a schedule",
+    )
+
+    # Dates
+    start_date = models.DateField(
+        help_text="When you started taking this medicine",
+    )
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Expected end date (optional)",
+    )
+
+    # Medicine status (separate from soft-delete status)
+    medicine_status = models.CharField(
+        max_length=20,
+        choices=MEDICINE_STATUS_CHOICES,
+        default=STATUS_ACTIVE,
+        help_text="Current status of this medicine regimen",
+    )
+    paused_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this medicine was paused",
+    )
+    paused_reason = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Reason for pausing this medicine",
+    )
+
+    # Refill Tracking
+    current_supply = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Current number of doses remaining",
+    )
+    refill_threshold = models.PositiveIntegerField(
+        default=7,
+        help_text="Alert when supply drops to this many days",
+    )
+
+    # Optional Details
+    prescribing_doctor = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Doctor who prescribed this medicine",
+    )
+    pharmacy = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Pharmacy where you fill this prescription",
+    )
+    rx_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Prescription/Rx number",
+    )
+
+    # Instructions & Notes
+    instructions = models.TextField(
+        blank=True,
+        help_text="Special instructions (e.g., 'take with food', 'avoid grapefruit')",
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Personal notes about this medicine",
+    )
+
+    # Grace Period for Missed Doses
+    grace_period_minutes = models.PositiveIntegerField(
+        default=60,
+        help_text="Minutes after scheduled time before marking as overdue",
+    )
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "medicine"
+        verbose_name_plural = "medicines"
+
+    def __str__(self):
+        return f"{self.name} ({self.dose})"
+
+    @property
+    def is_active_medicine(self):
+        """Check if this medicine is actively being taken."""
+        return self.medicine_status == self.STATUS_ACTIVE
+
+    @property
+    def is_paused(self):
+        """Check if this medicine is temporarily paused."""
+        return self.medicine_status == self.STATUS_PAUSED
+
+    @property
+    def needs_refill(self):
+        """Check if supply is low and needs refill."""
+        if self.current_supply is None:
+            return False
+        return self.current_supply <= self.refill_threshold
+
+    @property
+    def doses_per_day(self):
+        """Calculate how many doses per day based on frequency."""
+        frequency_map = {
+            "daily": 1,
+            "twice_daily": 2,
+            "three_daily": 3,
+            "four_daily": 4,
+            "weekly": 0.14,  # Approximately 1/7
+            "biweekly": 0.07,  # Approximately 1/14
+            "monthly": 0.03,  # Approximately 1/30
+            "as_needed": 0,
+            "custom": 0,
+        }
+        return frequency_map.get(self.frequency, 1)
+
+    @property
+    def days_until_empty(self):
+        """Estimate days until supply runs out."""
+        if self.current_supply is None or self.doses_per_day == 0:
+            return None
+        return int(self.current_supply / self.doses_per_day)
+
+    def pause(self, reason=""):
+        """Pause this medicine temporarily."""
+        self.medicine_status = self.STATUS_PAUSED
+        self.paused_at = timezone.now()
+        self.paused_reason = reason
+        self.save(update_fields=["medicine_status", "paused_at", "paused_reason", "updated_at"])
+
+    def resume(self):
+        """Resume a paused medicine."""
+        self.medicine_status = self.STATUS_ACTIVE
+        self.paused_at = None
+        self.paused_reason = ""
+        self.save(update_fields=["medicine_status", "paused_at", "paused_reason", "updated_at"])
+
+    def complete(self):
+        """Mark this medicine course as completed."""
+        self.medicine_status = self.STATUS_COMPLETED
+        self.end_date = timezone.now().date()
+        self.save(update_fields=["medicine_status", "end_date", "updated_at"])
+
+
+class MedicineSchedule(models.Model):
+    """
+    Scheduled times for taking a medicine.
+
+    A medicine can have multiple scheduled times per day.
+    For example, "twice daily" might be 8 AM and 8 PM.
+    """
+
+    medicine = models.ForeignKey(
+        Medicine,
+        on_delete=models.CASCADE,
+        related_name="schedules",
+    )
+
+    scheduled_time = models.TimeField(
+        help_text="Time of day to take this dose",
+    )
+
+    label = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Optional label like 'morning', 'bedtime', 'with dinner'",
+    )
+
+    # Days of week (for weekly/custom schedules)
+    # Stored as comma-separated: "0,1,2,3,4,5,6" for every day
+    # 0=Monday, 6=Sunday (Python weekday convention)
+    days_of_week = models.CharField(
+        max_length=20,
+        default="0,1,2,3,4,5,6",
+        help_text="Days to take this dose (0=Mon, 6=Sun)",
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Is this schedule currently active?",
+    )
+
+    class Meta:
+        ordering = ["scheduled_time"]
+        verbose_name = "medicine schedule"
+        verbose_name_plural = "medicine schedules"
+
+    def __str__(self):
+        time_str = self.scheduled_time.strftime("%I:%M %p")
+        if self.label:
+            return f"{self.medicine.name} at {time_str} ({self.label})"
+        return f"{self.medicine.name} at {time_str}"
+
+    @property
+    def days_list(self):
+        """Return days as a list of integers."""
+        if not self.days_of_week:
+            return []
+        return [int(d) for d in self.days_of_week.split(",") if d.strip()]
+
+    def applies_to_day(self, day_of_week):
+        """Check if this schedule applies to a given day (0=Mon, 6=Sun)."""
+        return day_of_week in self.days_list
+
+
+class MedicineLog(UserOwnedModel):
+    """
+    Log of when medicines were actually taken.
+
+    Records both scheduled doses and PRN (as-needed) doses.
+    """
+
+    STATUS_TAKEN = "taken"
+    STATUS_MISSED = "missed"
+    STATUS_SKIPPED = "skipped"
+    STATUS_LATE = "late"
+
+    LOG_STATUS_CHOICES = [
+        (STATUS_TAKEN, "Taken"),
+        (STATUS_MISSED, "Missed"),
+        (STATUS_SKIPPED, "Skipped"),
+        (STATUS_LATE, "Taken Late"),
+    ]
+
+    medicine = models.ForeignKey(
+        Medicine,
+        on_delete=models.CASCADE,
+        related_name="logs",
+    )
+
+    schedule = models.ForeignKey(
+        MedicineSchedule,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="logs",
+        help_text="Which scheduled dose this log is for",
+    )
+
+    # When the dose was due
+    scheduled_date = models.DateField(
+        help_text="Date this dose was scheduled for",
+    )
+    scheduled_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Time this dose was scheduled for",
+    )
+
+    # When the dose was actually taken
+    taken_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the medicine was actually taken",
+    )
+
+    log_status = models.CharField(
+        max_length=10,
+        choices=LOG_STATUS_CHOICES,
+        default=STATUS_TAKEN,
+    )
+
+    # For PRN doses
+    is_prn_dose = models.BooleanField(
+        default=False,
+        help_text="Was this an as-needed (PRN) dose?",
+    )
+    prn_reason = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Reason for taking PRN dose (e.g., 'headache', 'anxiety')",
+    )
+
+    # Notes about this dose
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about this dose (side effects, observations, etc.)",
+    )
+
+    class Meta:
+        ordering = ["-scheduled_date", "-scheduled_time"]
+        verbose_name = "medicine log"
+        verbose_name_plural = "medicine logs"
+
+    def __str__(self):
+        status = self.get_log_status_display()
+        return f"{self.medicine.name} on {self.scheduled_date} - {status}"
+
+    @property
+    def was_on_time(self):
+        """Check if the dose was taken within the grace period."""
+        if self.log_status != self.STATUS_TAKEN or not self.taken_at:
+            return False
+        if not self.scheduled_time:
+            return True  # PRN doses are always "on time"
+
+        from datetime import datetime, timedelta
+        scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
+        grace_minutes = self.medicine.grace_period_minutes
+        latest_ok = scheduled_dt + timedelta(minutes=grace_minutes)
+
+        # Compare without timezone for simplicity
+        taken_naive = self.taken_at.replace(tzinfo=None) if self.taken_at.tzinfo else self.taken_at
+        return taken_naive <= latest_ok
+
+    @property
+    def minutes_late(self):
+        """Calculate how many minutes late the dose was taken."""
+        if self.log_status not in [self.STATUS_TAKEN, self.STATUS_LATE] or not self.taken_at:
+            return None
+        if not self.scheduled_time:
+            return 0  # PRN doses aren't late
+
+        from datetime import datetime
+        scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
+        taken_naive = self.taken_at.replace(tzinfo=None) if self.taken_at.tzinfo else self.taken_at
+
+        diff = taken_naive - scheduled_dt
+        return max(0, int(diff.total_seconds() / 60))
+
+    def mark_taken(self, taken_at=None):
+        """Mark this dose as taken."""
+        self.taken_at = taken_at or timezone.now()
+
+        # Check if it was late
+        if self.scheduled_time:
+            from datetime import datetime, timedelta
+            scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
+            grace_minutes = self.medicine.grace_period_minutes
+            latest_ok = scheduled_dt + timedelta(minutes=grace_minutes)
+
+            taken_naive = self.taken_at.replace(tzinfo=None) if self.taken_at.tzinfo else self.taken_at
+            if taken_naive > latest_ok:
+                self.log_status = self.STATUS_LATE
+            else:
+                self.log_status = self.STATUS_TAKEN
+        else:
+            self.log_status = self.STATUS_TAKEN
+
+        self.save(update_fields=["taken_at", "log_status", "updated_at"])
+
+    def mark_skipped(self, reason=""):
+        """Mark this dose as intentionally skipped."""
+        self.log_status = self.STATUS_SKIPPED
+        if reason:
+            self.notes = reason
+        self.save(update_fields=["log_status", "notes", "updated_at"])
+
+    def mark_missed(self):
+        """Mark this dose as missed (not taken or skipped)."""
+        self.log_status = self.STATUS_MISSED
+        self.save(update_fields=["log_status", "updated_at"])

@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ medicine.name }} - Medicines - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <span>/</span>
+        <span>{{ medicine.name }}</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ medicine.name }}</h1>
+            <p class="page-subtitle">{{ medicine.dose }}{% if medicine.purpose %} - {{ medicine.purpose }}{% endif %}</p>
+        </div>
+        <div class="page-actions">
+            <a href="{% url 'health:medicine_update' pk=medicine.pk %}" class="btn btn-secondary">Edit</a>
+            <a href="{% url 'health:medicine_schedules' pk=medicine.pk %}" class="btn btn-secondary">Schedules</a>
+        </div>
+    </div>
+
+    <!-- Status and Alerts -->
+    <div class="status-section mb-6">
+        <div class="status-badge status-{{ medicine.medicine_status }}">
+            {{ medicine.get_medicine_status_display }}
+        </div>
+        {% if medicine.is_prn %}
+        <span class="badge badge-prn">As Needed (PRN)</span>
+        {% endif %}
+        {% if medicine.needs_refill %}
+        <div class="refill-warning">
+            Low supply: {{ medicine.current_supply }} doses remaining
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-grid mb-6">
+        <div class="stat-card">
+            <span class="stat-label">7-Day Adherence</span>
+            <span class="stat-value">{{ week_adherence }}%</span>
+            <span class="stat-detail">{{ week_taken }}/{{ week_total }} doses taken</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Supply</span>
+            <span class="stat-value">{% if medicine.current_supply is not None %}{{ medicine.current_supply }}{% else %}--{% endif %}</span>
+            <span class="stat-detail">doses remaining</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Frequency</span>
+            <span class="stat-value">{{ medicine.get_frequency_display }}</span>
+            <span class="stat-detail">{{ schedules|length }} schedule{{ schedules|length|pluralize }}</span>
+        </div>
+    </div>
+
+    <!-- Details Section -->
+    <div class="detail-sections">
+        <div class="detail-section">
+            <h2>Schedule</h2>
+            {% if schedules %}
+            <div class="schedule-list">
+                {% for schedule in schedules %}
+                <div class="schedule-item">
+                    <span class="schedule-time">{{ schedule.scheduled_time|time:"g:i A" }}</span>
+                    {% if schedule.label %}
+                    <span class="schedule-label">{{ schedule.label }}</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No schedules set. <a href="{% url 'health:medicine_schedules' pk=medicine.pk %}">Add schedule</a></p>
+            {% endif %}
+        </div>
+
+        {% if medicine.instructions %}
+        <div class="detail-section">
+            <h2>Instructions</h2>
+            <p>{{ medicine.instructions }}</p>
+        </div>
+        {% endif %}
+
+        {% if medicine.prescribing_doctor or medicine.pharmacy or medicine.rx_number %}
+        <div class="detail-section">
+            <h2>Prescription Details</h2>
+            <dl class="detail-list">
+                {% if medicine.prescribing_doctor %}
+                <div class="detail-item">
+                    <dt>Doctor</dt>
+                    <dd>{{ medicine.prescribing_doctor }}</dd>
+                </div>
+                {% endif %}
+                {% if medicine.pharmacy %}
+                <div class="detail-item">
+                    <dt>Pharmacy</dt>
+                    <dd>{{ medicine.pharmacy }}</dd>
+                </div>
+                {% endif %}
+                {% if medicine.rx_number %}
+                <div class="detail-item">
+                    <dt>Rx Number</dt>
+                    <dd>{{ medicine.rx_number }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+        {% endif %}
+
+        {% if medicine.notes %}
+        <div class="detail-section">
+            <h2>Notes</h2>
+            <p>{{ medicine.notes }}</p>
+        </div>
+        {% endif %}
+
+        <div class="detail-section">
+            <h2>Dates</h2>
+            <dl class="detail-list">
+                <div class="detail-item">
+                    <dt>Started</dt>
+                    <dd>{{ medicine.start_date|date:"M j, Y" }}</dd>
+                </div>
+                {% if medicine.end_date %}
+                <div class="detail-item">
+                    <dt>End Date</dt>
+                    <dd>{{ medicine.end_date|date:"M j, Y" }}</dd>
+                </div>
+                {% endif %}
+                {% if medicine.paused_at %}
+                <div class="detail-item">
+                    <dt>Paused</dt>
+                    <dd>{{ medicine.paused_at|date:"M j, Y" }}{% if medicine.paused_reason %} - {{ medicine.paused_reason }}{% endif %}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+
+    <!-- Update Supply -->
+    <div class="update-supply-section mb-6">
+        <h3>Update Supply</h3>
+        <form method="post" action="{% url 'health:medicine_update_supply' pk=medicine.pk %}" class="supply-form">
+            {% csrf_token %}
+            <input type="number" name="current_supply" value="{{ medicine.current_supply|default:0 }}" min="0" class="form-input">
+            <button type="submit" class="btn btn-secondary btn-sm">Update</button>
+        </form>
+    </div>
+
+    <!-- Recent History -->
+    <div class="history-section">
+        <div class="section-header">
+            <h2>Recent History</h2>
+            <a href="{% url 'health:medicine_history' %}?medicine={{ medicine.pk }}" class="btn btn-text btn-sm">View All</a>
+        </div>
+        {% if recent_logs %}
+        <div class="log-list">
+            {% for log in recent_logs %}
+            <div class="log-item log-{{ log.log_status }}">
+                <span class="log-date">{{ log.scheduled_date|date:"M j" }}</span>
+                <span class="log-time">{% if log.scheduled_time %}{{ log.scheduled_time|time:"g:i A" }}{% else %}PRN{% endif %}</span>
+                <span class="log-status">{{ log.get_log_status_display }}</span>
+                {% if log.taken_at %}
+                <span class="log-taken-time">at {{ log.taken_at|time:"g:i A" }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No log history yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Actions -->
+    <div class="medicine-actions mt-6">
+        {% if medicine.is_active_medicine %}
+        <form method="post" action="{% url 'health:medicine_pause' pk=medicine.pk %}" class="inline-form">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary">Pause Medicine</button>
+        </form>
+        <form method="post" action="{% url 'health:medicine_complete' pk=medicine.pk %}" class="inline-form">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary">Mark Complete</button>
+        </form>
+        {% elif medicine.is_paused %}
+        <form method="post" action="{% url 'health:medicine_resume' pk=medicine.pk %}" class="inline-form">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">Resume Medicine</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{% url 'health:medicine_delete' pk=medicine.pk %}" class="inline-form" onsubmit="return confirm('Are you sure you want to delete {{ medicine.name }}?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Delete</button>
+        </form>
+    </div>
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+}
+
+.page-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.status-section {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.status-badge {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+}
+
+.status-active {
+    background: color-mix(in srgb, var(--color-success, #10b981) 20%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.status-paused {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 20%, transparent);
+    color: var(--color-warning, #f59e0b);
+}
+
+.status-completed {
+    background: color-mix(in srgb, var(--color-text-muted) 20%, transparent);
+    color: var(--color-text-muted);
+}
+
+.badge-prn {
+    padding: var(--space-1) var(--space-2);
+    background: color-mix(in srgb, var(--color-info, #3b82f6) 20%, transparent);
+    color: var(--color-info, #3b82f6);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+}
+
+.refill-warning {
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-warning, #f59e0b);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-4);
+}
+
+.stat-card {
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.stat-detail {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.detail-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.detail-section {
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.detail-section h2 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+}
+
+.schedule-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.schedule-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.schedule-time {
+    font-weight: 500;
+}
+
+.schedule-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.detail-item {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.detail-item dt {
+    font-weight: 500;
+    min-width: 100px;
+    color: var(--color-text-muted);
+}
+
+.update-supply-section {
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.update-supply-section h3 {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+}
+
+.supply-form {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.supply-form input {
+    width: 100px;
+}
+
+.history-section {
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+}
+
+.log-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.log-item {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.log-item.log-taken {
+    background: color-mix(in srgb, var(--color-success, #10b981) 10%, transparent);
+}
+
+.log-item.log-late {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent);
+}
+
+.log-item.log-missed {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 10%, transparent);
+}
+
+.log-item.log-skipped {
+    background: var(--color-surface);
+}
+
+.log-date {
+    font-weight: 500;
+    min-width: 60px;
+}
+
+.log-time {
+    color: var(--color-text-muted);
+    min-width: 80px;
+}
+
+.log-status {
+    font-weight: 500;
+}
+
+.log-taken-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.medicine-actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.btn-danger {
+    background: var(--color-error, #ef4444);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 80%, black);
+}
+</style>
+{% endblock %}

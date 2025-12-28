@@ -11,6 +11,9 @@ from .models import (
     FastingWindow,
     GlucoseEntry,
     HeartRateEntry,
+    Medicine,
+    MedicineLog,
+    MedicineSchedule,
     PersonalRecord,
     TemplateExercise,
     WeightEntry,
@@ -140,3 +143,87 @@ class WorkoutTemplateAdmin(admin.ModelAdmin):
     search_fields = ["user__email", "name"]
     raw_id_fields = ["user"]
     inlines = [TemplateExerciseInline]
+
+
+# =============================================================================
+# Medicine Admin
+# =============================================================================
+
+
+class MedicineScheduleInline(admin.TabularInline):
+    model = MedicineSchedule
+    extra = 1
+
+
+@admin.register(Medicine)
+class MedicineAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "user",
+        "dose",
+        "frequency",
+        "medicine_status",
+        "needs_refill_display",
+        "start_date",
+        "status",
+    ]
+    list_filter = ["medicine_status", "frequency", "is_prn", "status", "start_date"]
+    search_fields = ["user__email", "name", "purpose", "prescribing_doctor"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "start_date"
+    inlines = [MedicineScheduleInline]
+
+    fieldsets = (
+        (None, {
+            "fields": ("user", "name", "purpose", "dose")
+        }),
+        ("Scheduling", {
+            "fields": ("frequency", "is_prn", "start_date", "end_date", "grace_period_minutes")
+        }),
+        ("Status", {
+            "fields": ("medicine_status", "paused_at", "paused_reason")
+        }),
+        ("Refill Tracking", {
+            "fields": ("current_supply", "refill_threshold")
+        }),
+        ("Prescription Details", {
+            "fields": ("prescribing_doctor", "pharmacy", "rx_number"),
+            "classes": ("collapse",)
+        }),
+        ("Notes", {
+            "fields": ("instructions", "notes")
+        }),
+    )
+
+    def needs_refill_display(self, obj):
+        if obj.needs_refill:
+            return "⚠️ Low Supply"
+        if obj.current_supply is not None:
+            return f"{obj.current_supply} doses"
+        return "—"
+    needs_refill_display.short_description = "Supply"
+
+
+@admin.register(MedicineSchedule)
+class MedicineScheduleAdmin(admin.ModelAdmin):
+    list_display = ["medicine", "scheduled_time", "label", "days_of_week", "is_active"]
+    list_filter = ["is_active"]
+    search_fields = ["medicine__name", "label"]
+    raw_id_fields = ["medicine"]
+
+
+@admin.register(MedicineLog)
+class MedicineLogAdmin(admin.ModelAdmin):
+    list_display = [
+        "medicine",
+        "user",
+        "scheduled_date",
+        "scheduled_time",
+        "log_status",
+        "taken_at",
+        "is_prn_dose",
+    ]
+    list_filter = ["log_status", "is_prn_dose", "scheduled_date", "status"]
+    search_fields = ["user__email", "medicine__name", "notes"]
+    raw_id_fields = ["user", "medicine", "schedule"]
+    date_hierarchy = "scheduled_date"

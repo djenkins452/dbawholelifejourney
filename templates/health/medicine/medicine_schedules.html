@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Schedules - {{ medicine.name }} - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <span>/</span>
+        <a href="{% url 'health:medicine_detail' pk=medicine.pk %}">{{ medicine.name }}</a>
+        <span>/</span>
+        <span>Schedules</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Manage Schedules</h1>
+            <p class="page-subtitle">{{ medicine.name }} - {{ medicine.dose }}</p>
+        </div>
+        <a href="{% url 'health:medicine_detail' pk=medicine.pk %}" class="btn btn-secondary">Back to Details</a>
+    </div>
+
+    {% if medicine.is_prn %}
+    <div class="prn-notice mb-6">
+        <p>This is an as-needed (PRN) medicine. Schedules are optional for PRN medicines.</p>
+    </div>
+    {% endif %}
+
+    <!-- Current Schedules -->
+    <div class="section mb-6">
+        <h2>Current Schedules</h2>
+        {% if schedules %}
+        <div class="schedule-list">
+            {% for schedule in schedules %}
+            <div class="schedule-card">
+                <div class="schedule-info">
+                    <span class="schedule-time">{{ schedule.scheduled_time|time:"g:i A" }}</span>
+                    {% if schedule.label %}
+                    <span class="schedule-label">{{ schedule.label }}</span>
+                    {% endif %}
+                    {% if not schedule.is_active %}
+                    <span class="badge badge-inactive">Inactive</span>
+                    {% endif %}
+                </div>
+                <div class="schedule-days">
+                    {% for day in "0123456" %}
+                        {% if day in schedule.days_of_week %}
+                        <span class="day-badge active">{{ "MTWTFSS"|make_list|slice:day|last }}</span>
+                        {% else %}
+                        <span class="day-badge">{{ "MTWTFSS"|make_list|slice:day|last }}</span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                <form method="post" action="{% url 'health:medicine_schedule_delete' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="delete-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this schedule?');">Remove</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No schedules set yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Add New Schedule -->
+    <div class="section">
+        <h2>Add Schedule</h2>
+        <form method="post" class="schedule-form">
+            {% csrf_token %}
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_scheduled_time">Time *</label>
+                    {{ form.scheduled_time }}
+                </div>
+                <div class="form-group">
+                    <label for="id_label">Label</label>
+                    {{ form.label }}
+                    <p class="form-help">e.g., morning, bedtime, with dinner</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Days of Week</label>
+                <div class="days-selector">
+                    {% for value, label in form.days.field.choices %}
+                    <label class="day-checkbox">
+                        <input type="checkbox" name="days" value="{{ value }}" {% if value|stringformat:"s" in form.initial.days %}checked{% endif %}>
+                        <span>{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Add Schedule</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.prn-notice {
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-info, #3b82f6) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-info, #3b82f6) 40%, transparent);
+    border-radius: var(--radius-lg);
+}
+
+.section {
+    padding: var(--space-5);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.section h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+}
+
+.schedule-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.schedule-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.schedule-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+}
+
+.schedule-time {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.schedule-label {
+    color: var(--color-text-muted);
+}
+
+.badge-inactive {
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.schedule-days {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.day-badge {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    background: var(--color-border);
+    color: var(--color-text-muted);
+}
+
+.day-badge.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.schedule-form {
+    max-width: 500px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: var(--space-4);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.form-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.days-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.day-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.day-checkbox:has(input:checked) {
+    background: var(--color-accent);
+    color: white;
+}
+
+.day-checkbox input {
+    display: none;
+}
+
+.form-actions {
+    padding-top: var(--space-4);
+}
+
+.delete-form {
+    display: inline;
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .schedule-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+{% endblock %}

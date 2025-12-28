@@ -40,6 +40,27 @@ urlpatterns = [
     # Quick log (HTMX)
     path("quick-log/", views.QuickLogView.as_view(), name="quick_log"),
 
+    # Medicine
+    path("medicine/", views.MedicineHomeView.as_view(), name="medicine_home"),
+    path("medicine/list/", views.MedicineListView.as_view(), name="medicine_list"),
+    path("medicine/add/", views.MedicineCreateView.as_view(), name="medicine_create"),
+    path("medicine/<int:pk>/", views.MedicineDetailView.as_view(), name="medicine_detail"),
+    path("medicine/<int:pk>/edit/", views.MedicineUpdateView.as_view(), name="medicine_update"),
+    path("medicine/<int:pk>/delete/", views.MedicineDeleteView.as_view(), name="medicine_delete"),
+    path("medicine/<int:pk>/pause/", views.MedicinePauseView.as_view(), name="medicine_pause"),
+    path("medicine/<int:pk>/resume/", views.MedicineResumeView.as_view(), name="medicine_resume"),
+    path("medicine/<int:pk>/complete/", views.MedicineCompleteView.as_view(), name="medicine_complete"),
+    path("medicine/<int:pk>/schedules/", views.MedicineSchedulesView.as_view(), name="medicine_schedules"),
+    path("medicine/<int:medicine_pk>/schedules/<int:schedule_pk>/delete/", views.MedicineScheduleDeleteView.as_view(), name="medicine_schedule_delete"),
+    path("medicine/<int:pk>/supply/", views.MedicineUpdateSupplyView.as_view(), name="medicine_update_supply"),
+    path("medicine/<int:pk>/take/<int:schedule_pk>/", views.MedicineTakeView.as_view(), name="medicine_take"),
+    path("medicine/<int:pk>/skip/<int:schedule_pk>/", views.MedicineSkipView.as_view(), name="medicine_skip"),
+    path("medicine/<int:pk>/undo/<int:schedule_pk>/", views.MedicineUndoView.as_view(), name="medicine_undo"),
+    path("medicine/prn/", views.PRNLogView.as_view(), name="medicine_prn_log"),
+    path("medicine/history/", views.MedicineHistoryView.as_view(), name="medicine_history"),
+    path("medicine/adherence/", views.MedicineAdherenceView.as_view(), name="medicine_adherence"),
+    path("medicine/quick-look/", views.MedicineQuickLookView.as_view(), name="medicine_quick_look"),
+
     # Fitness
     path("fitness/", views.FitnessHomeView.as_view(), name="fitness_home"),
     path("fitness/workouts/", views.WorkoutListView.as_view(), name="workout_list"),

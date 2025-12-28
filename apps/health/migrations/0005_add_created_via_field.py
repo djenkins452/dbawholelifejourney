@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("health", "0003_add_medicine_models"),
+        ("health", "0004_fix_empty_schedule_days"),
     ]
 
     operations = [

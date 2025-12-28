@@ -8,8 +8,9 @@ apps/ai/dashboard_ai.py
 """
 import logging
 from datetime import timedelta
+from django.db import models
 from django.utils import timezone
-from django.db.models import Count
+from django.db.models import Count, F
 
 from .services import ai_service
 from .models import AIInsight
@@ -165,20 +166,20 @@ class DashboardAI:
         now = get_user_now(self.user)
         week_ago = now - timedelta(days=7)
         today = get_user_today(self.user)
-        
+
         # Journal stats
         entries = JournalEntry.objects.filter(user=self.user)
         entries_this_week = entries.filter(created_at__gte=week_ago)
         last_entry = entries.order_by('-entry_date').first()
-        
+
         data = {
             'journal_count_week': entries_this_week.count(),
             'last_journal_date': last_entry.entry_date if last_entry else None,
         }
-        
+
         # Calculate streak
         data['current_streak'] = self._calculate_journal_streak()
-        
+
         # Goals (if Purpose enabled)
         if self.prefs.purpose_enabled:
             try:
@@ -188,7 +189,7 @@ class DashboardAI:
                 ).count()
             except Exception as e:
                 logger.debug(f"Could not load goals for AI context: {e}")
-        
+
         # Tasks completed today (if Life enabled)
         if self.prefs.life_enabled:
             try:
@@ -207,7 +208,7 @@ class DashboardAI:
                 ).count()
             except Exception as e:
                 logger.debug(f"Could not load tasks for AI context: {e}")
-        
+
         # Faith (if enabled)
         if self.faith_enabled:
             try:
@@ -217,8 +218,8 @@ class DashboardAI:
                 ).count()
             except Exception as e:
                 logger.debug(f"Could not load prayers for AI context: {e}")
-        
-        # Health
+
+        # Health - Basic metrics
         try:
             from apps.health.models import WeightEntry, FastingWindow
 
@@ -239,7 +240,95 @@ class DashboardAI:
             ).exists()
         except Exception as e:
             logger.debug(f"Could not load health data for AI context: {e}")
-        
+
+        # Health - Medicine Tracking
+        try:
+            from apps.health.models import Medicine, MedicineLog
+
+            active_medicines = Medicine.objects.filter(
+                user=self.user,
+                medicine_status=Medicine.STATUS_ACTIVE
+            )
+            data['active_medicines_count'] = active_medicines.count()
+
+            # Medicine adherence this week
+            medicine_logs = MedicineLog.objects.filter(
+                user=self.user,
+                scheduled_date__gte=today - timedelta(days=7),
+                scheduled_date__lte=today
+            )
+            taken_count = medicine_logs.filter(log_status__in=['taken', 'late']).count()
+            missed_count = medicine_logs.filter(log_status='missed').count()
+            total = taken_count + missed_count
+            if total > 0:
+                data['medicine_adherence_rate'] = round((taken_count / total) * 100)
+            else:
+                data['medicine_adherence_rate'] = None
+
+            # Medicines needing refill
+            needs_refill = active_medicines.filter(
+                current_supply__isnull=False,
+                current_supply__lte=F('refill_threshold')
+            ).count()
+            data['medicines_need_refill'] = needs_refill
+
+        except Exception as e:
+            logger.debug(f"Could not load medicine data for AI context: {e}")
+
+        # Health - Workout Tracking
+        try:
+            from apps.health.models import WorkoutSession, PersonalRecord
+
+            # Workouts this week
+            workouts_week = WorkoutSession.objects.filter(
+                user=self.user,
+                date__gte=today - timedelta(days=7),
+                date__lte=today
+            ).count()
+            data['workouts_this_week'] = workouts_week
+
+            # Last workout
+            last_workout = WorkoutSession.objects.filter(
+                user=self.user
+            ).order_by('-date').first()
+            if last_workout:
+                data['days_since_workout'] = (today - last_workout.date).days
+            else:
+                data['days_since_workout'] = None
+
+            # Recent PRs (last 30 days)
+            recent_prs = PersonalRecord.objects.filter(
+                user=self.user,
+                achieved_date__gte=today - timedelta(days=30)
+            ).count()
+            data['recent_prs_count'] = recent_prs
+
+        except Exception as e:
+            logger.debug(f"Could not load workout data for AI context: {e}")
+
+        # Scan Activity
+        try:
+            from apps.scan.models import ScanLog
+
+            # Scans this week
+            scans_week = ScanLog.objects.filter(
+                user=self.user,
+                created_at__gte=week_ago,
+                status=ScanLog.STATUS_SUCCESS
+            ).count()
+            data['scans_this_week'] = scans_week
+
+            # Items created via AI camera this week
+            ai_camera_items = JournalEntry.objects.filter(
+                user=self.user,
+                created_via='ai_camera',
+                created_at__gte=week_ago
+            ).count()
+            data['items_from_ai_camera'] = ai_camera_items
+
+        except Exception as e:
+            logger.debug(f"Could not load scan data for AI context: {e}")
+
         return data
     
     def _gather_reflection_data(self) -> dict:

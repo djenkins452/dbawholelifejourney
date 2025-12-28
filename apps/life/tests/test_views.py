@@ -209,10 +209,49 @@ class TaskViewTest(TestCase):
             'title': 'New Task',
             'priority': 'soon',
         })
-        
+
         self.assertTrue(
             Task.objects.filter(user=self.user, title='New Task').exists()
         )
+
+    def test_task_toggle_completes_task(self):
+        """Toggling an incomplete task marks it complete."""
+        task = Task.objects.create(user=self.user, title='Toggle Test', is_completed=False)
+
+        response = self.client.post(reverse('life:task_toggle', kwargs={'pk': task.pk}))
+
+        task.refresh_from_db()
+        self.assertTrue(task.is_completed)
+        self.assertIsNotNone(task.completed_at)
+
+    def test_task_toggle_uncompletes_task(self):
+        """Toggling a completed task marks it incomplete (undo)."""
+        task = Task.objects.create(user=self.user, title='Undo Test', is_completed=True)
+
+        response = self.client.post(reverse('life:task_toggle', kwargs={'pk': task.pk}))
+
+        task.refresh_from_db()
+        self.assertFalse(task.is_completed)
+        self.assertIsNone(task.completed_at)
+
+    def test_completed_task_shows_undo_link(self):
+        """Completed tasks display an Undo link in the task list."""
+        task = Task.objects.create(user=self.user, title='Completed Task', is_completed=True)
+
+        response = self.client.get(reverse('life:task_list') + '?show=all')
+
+        self.assertContains(response, 'Undo')
+        self.assertContains(response, f'action="{reverse("life:task_toggle", kwargs={"pk": task.pk})}"')
+
+    def test_incomplete_task_no_undo_link(self):
+        """Incomplete tasks do not display an Undo link."""
+        task = Task.objects.create(user=self.user, title='Active Task', is_completed=False)
+
+        response = self.client.get(reverse('life:task_list'))
+        content = response.content.decode()
+
+        # Count occurrences - there should be no Undo buttons for incomplete tasks
+        self.assertNotIn('class="task-undo"', content)
 
 
 class ProjectViewTest(TestCase):

@@ -87,4 +87,19 @@ urlpatterns = [
     path("fitness/exercises/", views.exercise_list_json, name="exercise_list_json"),
     path("fitness/add-exercise/", views.add_exercise_htmx, name="add_exercise_htmx"),
     path("fitness/add-set/<int:exercise_id>/", views.add_set_htmx, name="add_set_htmx"),
+
+    # Nutrition / Food Tracking
+    path("nutrition/", views.NutritionHomeView.as_view(), name="nutrition_home"),
+    path("nutrition/add/", views.FoodEntryCreateView.as_view(), name="food_entry_create"),
+    path("nutrition/quick-add/", views.QuickAddFoodView.as_view(), name="food_quick_add"),
+    path("nutrition/entry/<int:pk>/", views.FoodEntryDetailView.as_view(), name="food_entry_detail"),
+    path("nutrition/entry/<int:pk>/edit/", views.FoodEntryUpdateView.as_view(), name="food_entry_edit"),
+    path("nutrition/entry/<int:pk>/delete/", views.FoodEntryDeleteView.as_view(), name="food_entry_delete"),
+    path("nutrition/history/", views.FoodHistoryView.as_view(), name="food_history"),
+    path("nutrition/stats/", views.NutritionStatsView.as_view(), name="nutrition_stats"),
+    path("nutrition/goals/", views.NutritionGoalsView.as_view(), name="nutrition_goals"),
+    path("nutrition/foods/", views.CustomFoodListView.as_view(), name="custom_food_list"),
+    path("nutrition/foods/add/", views.CustomFoodCreateView.as_view(), name="custom_food_create"),
+    path("nutrition/foods/<int:pk>/edit/", views.CustomFoodUpdateView.as_view(), name="custom_food_edit"),
+    path("nutrition/foods/<int:pk>/delete/", views.CustomFoodDeleteView.as_view(), name="custom_food_delete"),
 ]

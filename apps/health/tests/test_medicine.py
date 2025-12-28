@@ -300,6 +300,7 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
 
     def test_log_mark_taken(self):
         """Log can be marked as taken."""
+        from datetime import datetime
         log = MedicineLog.objects.create(
             user=self.user,
             medicine=self.medicine,
@@ -307,7 +308,11 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
             scheduled_date=timezone.now().date(),
             scheduled_time=self.schedule.scheduled_time,
         )
-        log.mark_taken()
+        # Mark taken at the scheduled time (within grace period)
+        taken_at = timezone.make_aware(
+            datetime.combine(log.scheduled_date, log.scheduled_time)
+        )
+        log.mark_taken(taken_at=taken_at)
 
         self.assertEqual(log.log_status, MedicineLog.STATUS_TAKEN)
         self.assertIsNotNone(log.taken_at)

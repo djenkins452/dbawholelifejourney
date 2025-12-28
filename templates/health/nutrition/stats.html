@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Nutrition Stats - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Nutrition Stats</h1>
+        <a href="{% url 'health:nutrition_home' %}" class="btn btn-secondary btn-sm">Back to Today</a>
+    </div>
+
+    <!-- Period Selector -->
+    <div class="period-selector mb-6">
+        <a href="?period=7" class="btn {% if period == 7 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">7 Days</a>
+        <a href="?period=14" class="btn {% if period == 14 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">14 Days</a>
+        <a href="?period=30" class="btn {% if period == 30 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">30 Days</a>
+    </div>
+
+    <!-- Averages Summary -->
+    <div class="averages-grid mb-6">
+        <div class="average-card">
+            <span class="average-value">{{ avg_daily_calories|default:0 }}</span>
+            <span class="average-label">Avg Daily Calories</span>
+            {% if goals and goals.daily_calorie_target %}
+            <span class="average-goal">Goal: {{ goals.daily_calorie_target }}</span>
+            {% endif %}
+        </div>
+        <div class="average-card protein">
+            <span class="average-value">{{ avg_daily_protein|default:0 }}g</span>
+            <span class="average-label">Avg Daily Protein</span>
+            {% if goals and goals.daily_protein_target_g %}
+            <span class="average-goal">Goal: {{ goals.daily_protein_target_g }}g</span>
+            {% endif %}
+        </div>
+        <div class="average-card carbs">
+            <span class="average-value">{{ avg_daily_carbs|default:0 }}g</span>
+            <span class="average-label">Avg Daily Carbs</span>
+            {% if goals and goals.daily_carb_target_g %}
+            <span class="average-goal">Goal: {{ goals.daily_carb_target_g }}g</span>
+            {% endif %}
+        </div>
+        <div class="average-card fat">
+            <span class="average-value">{{ avg_daily_fat|default:0 }}g</span>
+            <span class="average-label">Avg Daily Fat</span>
+            {% if goals and goals.daily_fat_target_g %}
+            <span class="average-goal">Goal: {{ goals.daily_fat_target_g }}g</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Daily Breakdown -->
+    <div class="daily-breakdown">
+        <h2>Daily Breakdown</h2>
+        <p class="text-muted text-sm mb-4">{{ start_date|date:"M j" }} - {{ end_date|date:"M j, Y" }}</p>
+
+        <div class="breakdown-list">
+            {% for day in daily_stats %}
+            <div class="breakdown-row {% if day.entry_count == 0 %}no-data{% endif %}">
+                <span class="breakdown-date">{{ day.date|date:"D, M j" }}</span>
+                <div class="breakdown-bar-container">
+                    {% if day.entry_count > 0 %}
+                    <div class="breakdown-bar" style="width: {% widthratio day.calories goals.daily_calorie_target|default:2000 100 %}%">
+                        <span class="bar-value">{{ day.calories|floatformat:0 }}</span>
+                    </div>
+                    {% else %}
+                    <span class="no-data-text">No data</span>
+                    {% endif %}
+                </div>
+                <div class="breakdown-macros">
+                    {% if day.entry_count > 0 %}
+                    <span>P: {{ day.protein|floatformat:0 }}g</span>
+                    <span>C: {{ day.carbs|floatformat:0 }}g</span>
+                    <span>F: {{ day.fat|floatformat:0 }}g</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Goals Link -->
+    {% if not goals %}
+    <div class="goals-prompt mt-6">
+        <p class="text-muted">Set nutrition goals to track your progress better.</p>
+        <a href="{% url 'health:nutrition_goals' %}" class="btn btn-primary mt-2">Set Goals</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-6);
+}
+
+.period-selector {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.averages-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-4);
+}
+
+.average-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-align: center;
+}
+
+.average-value {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.average-card.protein .average-value { color: #ef4444; }
+.average-card.carbs .average-value { color: #3b82f6; }
+.average-card.fat .average-value { color: #f59e0b; }
+
+.average-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.average-goal {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+}
+
+.daily-breakdown {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.daily-breakdown h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-1);
+}
+
+.breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.breakdown-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 150px;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.breakdown-row:last-child {
+    border-bottom: none;
+}
+
+.breakdown-row.no-data {
+    opacity: 0.5;
+}
+
+.breakdown-date {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.breakdown-bar-container {
+    position: relative;
+    height: 24px;
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.breakdown-bar {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: var(--radius-sm);
+    min-width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: var(--space-2);
+}
+
+.bar-value {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: white;
+}
+
+.no-data-text {
+    position: absolute;
+    left: var(--space-2);
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.breakdown-macros {
+    display: flex;
+    gap: var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.goals-prompt {
+    text-align: center;
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+@media (max-width: 640px) {
+    .breakdown-row {
+        grid-template-columns: 1fr;
+        gap: var(--space-1);
+    }
+
+    .breakdown-macros {
+        justify-content: flex-start;
+    }
+}
+</style>
+{% endblock %}

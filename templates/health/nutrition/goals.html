@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Nutrition Goals - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Nutrition Goals</h1>
+        <a href="{% url 'health:nutrition_home' %}" class="btn btn-secondary btn-sm">Back to Nutrition</a>
+    </div>
+
+    <form method="post" class="form-card">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <h2 class="form-section-title">Daily Targets</h2>
+            <p class="form-section-desc">Set your daily nutrition goals. All fields are optional.</p>
+
+            <div class="form-group">
+                <label for="{{ form.daily_calorie_target.id_for_label }}">Calories</label>
+                {{ form.daily_calorie_target }}
+                <span class="form-hint">Typical range: 1500-2500</span>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.daily_protein_target_g.id_for_label }}">Protein (g)</label>
+                    {{ form.daily_protein_target_g }}
+                    <span class="form-hint">0.8-1g per lb of body weight</span>
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.daily_carb_target_g.id_for_label }}">Carbs (g)</label>
+                    {{ form.daily_carb_target_g }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.daily_fat_target_g.id_for_label }}">Fat (g)</label>
+                    {{ form.daily_fat_target_g }}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.daily_fiber_target_g.id_for_label }}">Fiber (g)</label>
+                {{ form.daily_fiber_target_g }}
+                <span class="form-hint">Recommended: 25-35g</span>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Limits</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.daily_sodium_limit_mg.id_for_label }}">Sodium Limit (mg)</label>
+                    {{ form.daily_sodium_limit_mg }}
+                    <span class="form-hint">Recommended: &lt;2300mg</span>
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.daily_sugar_limit_g.id_for_label }}">Sugar Limit (g)</label>
+                    {{ form.daily_sugar_limit_g }}
+                    <span class="form-hint">Recommended: &lt;50g</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <div class="form-group">
+                <label for="{{ form.notes.id_for_label }}">Notes</label>
+                {{ form.notes }}
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{% url 'health:nutrition_home' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Save Goals</button>
+        </div>
+    </form>
+
+    {% if goals %}
+    <div class="goals-info mt-6">
+        <p class="text-muted text-sm">Goals effective since {{ goals.effective_from|date:"M j, Y" }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    max-width: 600px;
+}
+
+.form-section {
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-section:last-of-type {
+    border-bottom: none;
+}
+
+.form-section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-1);
+}
+
+.form-section-desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-1);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-4);
+}
+
+.form-hint {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: flex-end;
+    padding-top: var(--space-4);
+}
+
+.goals-info {
+    max-width: 600px;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if form.instance.pk %}Edit Food Entry{% else %}Log Food{% endif %} - Nutrition - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">{% if form.instance.pk %}Edit Food Entry{% else %}Log Food{% endif %}</h1>
+    </div>
+
+    <form method="post" class="form-card">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <h2 class="form-section-title">What did you eat?</h2>
+
+            <div class="form-group">
+                <label for="{{ form.food_name.id_for_label }}">Food Name *</label>
+                {{ form.food_name }}
+                {% if form.food_name.errors %}
+                <span class="form-error">{{ form.food_name.errors.0 }}</span>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.food_brand.id_for_label }}">Brand (optional)</label>
+                {{ form.food_brand }}
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.meal_type.id_for_label }}">Meal</label>
+                    {{ form.meal_type }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.logged_date.id_for_label }}">Date</label>
+                    {{ form.logged_date }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.logged_time.id_for_label }}">Time</label>
+                    {{ form.logged_time }}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Serving Size</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.quantity.id_for_label }}">Quantity *</label>
+                    {{ form.quantity }}
+                    <span class="form-hint">Number of servings</span>
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.serving_size.id_for_label }}">Serving Size *</label>
+                    {{ form.serving_size }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.serving_unit.id_for_label }}">Unit *</label>
+                    {{ form.serving_unit }}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Nutrition Facts</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.total_calories.id_for_label }}">Calories *</label>
+                    {{ form.total_calories }}
+                </div>
+            </div>
+
+            <div class="form-row macros-row">
+                <div class="form-group">
+                    <label for="{{ form.total_protein_g.id_for_label }}">Protein (g) *</label>
+                    {{ form.total_protein_g }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.total_carbohydrates_g.id_for_label }}">Carbs (g) *</label>
+                    {{ form.total_carbohydrates_g }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.total_fat_g.id_for_label }}">Fat (g) *</label>
+                    {{ form.total_fat_g }}
+                </div>
+            </div>
+
+            <details class="optional-nutrition">
+                <summary>More nutrition details (optional)</summary>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="{{ form.total_fiber_g.id_for_label }}">Fiber (g)</label>
+                        {{ form.total_fiber_g }}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.total_sugar_g.id_for_label }}">Sugar (g)</label>
+                        {{ form.total_sugar_g }}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.total_saturated_fat_g.id_for_label }}">Sat. Fat (g)</label>
+                        {{ form.total_saturated_fat_g }}
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <details class="form-section context-section">
+            <summary class="form-section-title clickable">Context (optional)</summary>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.location.id_for_label }}">Where?</label>
+                    {{ form.location }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.eating_pace.id_for_label }}">Eating Pace</label>
+                    {{ form.eating_pace }}
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.hunger_level_before.id_for_label }}">Hunger Before (1-5)</label>
+                    {{ form.hunger_level_before }}
+                </div>
+                <div class="form-group">
+                    <label for="{{ form.fullness_level_after.id_for_label }}">Fullness After (1-5)</label>
+                    {{ form.fullness_level_after }}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.notes.id_for_label }}">Notes</label>
+                {{ form.notes }}
+            </div>
+        </details>
+
+        <div class="form-actions">
+            <a href="{% url 'health:nutrition_home' %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">{% if form.instance.pk %}Save Changes{% else %}Log Food{% endif %}</button>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    max-width: 600px;
+}
+
+.form-section {
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-section:last-of-type {
+    border-bottom: none;
+}
+
+.form-section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+}
+
+.form-section-title.clickable {
+    cursor: pointer;
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-1);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-4);
+}
+
+.macros-row {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.form-hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.form-error {
+    color: var(--color-error, #ef4444);
+    font-size: var(--font-size-sm);
+}
+
+.optional-nutrition {
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.optional-nutrition summary {
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.optional-nutrition[open] summary {
+    margin-bottom: var(--space-3);
+}
+
+.context-section {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+}
+
+.context-section summary {
+    cursor: pointer;
+}
+
+.context-section[open] summary {
+    margin-bottom: var(--space-4);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: flex-end;
+    padding-top: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .macros-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

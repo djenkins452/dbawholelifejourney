@@ -6,14 +6,19 @@ from django.contrib import admin
 
 from .models import (
     CardioDetails,
+    CustomFood,
+    DailyNutritionSummary,
     Exercise,
     ExerciseSet,
     FastingWindow,
+    FoodEntry,
+    FoodItem,
     GlucoseEntry,
     HeartRateEntry,
     Medicine,
     MedicineLog,
     MedicineSchedule,
+    NutritionGoals,
     PersonalRecord,
     TemplateExercise,
     WeightEntry,
@@ -227,3 +232,215 @@ class MedicineLogAdmin(admin.ModelAdmin):
     search_fields = ["user__email", "medicine__name", "notes"]
     raw_id_fields = ["user", "medicine", "schedule"]
     date_hierarchy = "scheduled_date"
+
+
+# =============================================================================
+# Nutrition / Food Tracking Admin
+# =============================================================================
+
+
+@admin.register(FoodItem)
+class FoodItemAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "brand",
+        "calories",
+        "protein_g",
+        "carbohydrates_g",
+        "fat_g",
+        "data_source",
+        "is_verified",
+        "is_active",
+    ]
+    list_filter = ["data_source", "is_verified", "is_active", "is_vegan", "is_gluten_free"]
+    search_fields = ["name", "brand", "barcode"]
+    list_editable = ["is_verified", "is_active"]
+    ordering = ["name"]
+
+    fieldsets = (
+        (None, {
+            "fields": ("name", "brand", "description", "barcode")
+        }),
+        ("Source", {
+            "fields": ("data_source", "source_reference", "is_verified")
+        }),
+        ("Serving", {
+            "fields": ("serving_size", "serving_unit", "servings_per_container")
+        }),
+        ("Macronutrients", {
+            "fields": (
+                "calories",
+                ("protein_g", "carbohydrates_g", "fat_g"),
+                ("fiber_g", "sugar_g"),
+                ("saturated_fat_g", "unsaturated_fat_g", "trans_fat_g"),
+            )
+        }),
+        ("Micronutrients", {
+            "fields": (
+                ("sodium_mg", "cholesterol_mg", "potassium_mg"),
+                ("calcium_mg", "iron_mg"),
+                ("vitamin_a_iu", "vitamin_c_mg", "vitamin_d_iu", "vitamin_b12_mcg"),
+            ),
+            "classes": ("collapse",)
+        }),
+        ("Dietary Attributes", {
+            "fields": (
+                ("is_vegan", "is_vegetarian", "is_keto_friendly"),
+                ("is_gluten_free", "is_dairy_free", "is_nut_free"),
+                ("is_low_sodium", "is_low_carb"),
+            ),
+            "classes": ("collapse",)
+        }),
+        ("Status", {
+            "fields": ("is_active",)
+        }),
+    )
+
+
+@admin.register(CustomFood)
+class CustomFoodAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "user",
+        "calories",
+        "protein_g",
+        "carbohydrates_g",
+        "fat_g",
+        "serving_size",
+        "serving_unit",
+        "is_recipe",
+        "status",
+    ]
+    list_filter = ["is_recipe", "status"]
+    search_fields = ["user__email", "name", "description"]
+    raw_id_fields = ["user"]
+    ordering = ["name"]
+
+
+@admin.register(FoodEntry)
+class FoodEntryAdmin(admin.ModelAdmin):
+    list_display = [
+        "food_name",
+        "user",
+        "logged_date",
+        "meal_type",
+        "total_calories",
+        "total_protein_g",
+        "total_carbohydrates_g",
+        "total_fat_g",
+        "entry_source",
+        "status",
+    ]
+    list_filter = ["meal_type", "entry_source", "location", "status", "logged_date"]
+    search_fields = ["user__email", "food_name", "food_brand", "notes"]
+    raw_id_fields = ["user", "food_item", "custom_food"]
+    date_hierarchy = "logged_date"
+    ordering = ["-logged_date", "-logged_time"]
+
+    fieldsets = (
+        (None, {
+            "fields": ("user", "food_name", "food_brand")
+        }),
+        ("Food Reference", {
+            "fields": ("food_item", "custom_food")
+        }),
+        ("Quantity", {
+            "fields": ("quantity", "serving_size", "serving_unit")
+        }),
+        ("Nutrition (totals)", {
+            "fields": (
+                "total_calories",
+                ("total_protein_g", "total_carbohydrates_g", "total_fat_g"),
+                ("total_fiber_g", "total_sugar_g", "total_saturated_fat_g"),
+                ("total_sodium_mg", "total_cholesterol_mg", "total_potassium_mg"),
+            )
+        }),
+        ("Timing", {
+            "fields": ("logged_date", "logged_time", "meal_type")
+        }),
+        ("Context", {
+            "fields": (
+                ("location", "eating_pace"),
+                ("hunger_level_before", "fullness_level_after"),
+                "mood_tags",
+                "notes",
+            ),
+            "classes": ("collapse",)
+        }),
+        ("Tracking", {
+            "fields": ("entry_source", "ai_confidence_score")
+        }),
+    )
+
+
+@admin.register(DailyNutritionSummary)
+class DailyNutritionSummaryAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "summary_date",
+        "total_calories",
+        "total_protein_g",
+        "total_carbohydrates_g",
+        "total_fat_g",
+        "total_entry_count",
+        "calculation_version",
+    ]
+    list_filter = ["summary_date"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "summary_date"
+    ordering = ["-summary_date"]
+
+    readonly_fields = [
+        "calculation_version",
+        "last_recalculated",
+        "protein_percentage",
+        "carb_percentage",
+        "fat_percentage",
+    ]
+
+
+@admin.register(NutritionGoals)
+class NutritionGoalsAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "daily_calorie_target",
+        "daily_protein_target_g",
+        "daily_carb_target_g",
+        "daily_fat_target_g",
+        "effective_from",
+        "effective_until",
+        "status",
+    ]
+    list_filter = ["effective_from", "status"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "effective_from"
+
+    fieldsets = (
+        (None, {
+            "fields": ("user",)
+        }),
+        ("Calorie Target", {
+            "fields": ("daily_calorie_target",)
+        }),
+        ("Macro Targets", {
+            "fields": (
+                ("daily_protein_target_g", "daily_carb_target_g", "daily_fat_target_g"),
+                "daily_fiber_target_g",
+            )
+        }),
+        ("Limits", {
+            "fields": ("daily_sodium_limit_mg", "daily_sugar_limit_g")
+        }),
+        ("Dietary Preferences", {
+            "fields": ("dietary_preferences", "allergies"),
+            "classes": ("collapse",)
+        }),
+        ("Active Period", {
+            "fields": ("effective_from", "effective_until")
+        }),
+        ("Notes", {
+            "fields": ("notes",)
+        }),
+    )

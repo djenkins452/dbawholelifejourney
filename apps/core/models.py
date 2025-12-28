@@ -806,3 +806,181 @@ class TestRunDetail(models.Model):
         elif self.failed > 0:
             return 'failed'
         return 'passed'
+
+
+# =============================================================================
+# CAMERA SCAN MODELS
+# =============================================================================
+
+
+class CameraScan(UserOwnedModel):
+    """
+    Raw camera scan output before classification/action.
+
+    General-purpose intake mechanism for camera-based input. Can detect:
+    - Food items for nutrition tracking
+    - Packaged food with nutrition labels
+    - Medicine bottles
+    - Receipts, documents, etc.
+    """
+
+    # Detected category
+    CATEGORY_FOOD = 'food'
+    CATEGORY_PACKAGED_FOOD = 'packaged_food'
+    CATEGORY_MEDICINE = 'medicine'
+    CATEGORY_SUPPLEMENT = 'supplement'
+    CATEGORY_RECEIPT = 'receipt'
+    CATEGORY_DOCUMENT = 'document'
+    CATEGORY_UNKNOWN = 'unknown'
+
+    CATEGORY_CHOICES = [
+        (CATEGORY_FOOD, 'Food'),
+        (CATEGORY_PACKAGED_FOOD, 'Packaged Food'),
+        (CATEGORY_MEDICINE, 'Medicine'),
+        (CATEGORY_SUPPLEMENT, 'Supplement'),
+        (CATEGORY_RECEIPT, 'Receipt'),
+        (CATEGORY_DOCUMENT, 'Document'),
+        (CATEGORY_UNKNOWN, 'Unknown'),
+    ]
+
+    # Image storage
+    image = models.ImageField(
+        upload_to='camera_scans/%Y/%m/',
+        help_text="Original captured image",
+    )
+
+    # AI classification results
+    detected_category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default=CATEGORY_UNKNOWN,
+    )
+    confidence_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="AI confidence score (0-1)",
+    )
+    raw_ai_response = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Full AI output for audit and reprocessing",
+    )
+
+    # Extracted data
+    extracted_text = models.TextField(
+        blank=True,
+        help_text="OCR results from the image",
+    )
+    extracted_brand = models.CharField(max_length=200, blank=True)
+    extracted_product_name = models.CharField(max_length=200, blank=True)
+    extracted_serving_size = models.CharField(max_length=100, blank=True)
+    extracted_nutrition_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured nutrition facts extracted from the image",
+    )
+    extracted_barcode = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Detected barcode value",
+    )
+
+    # Metadata
+    device_info = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Device/browser info",
+    )
+    lighting_quality = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="AI assessment of image quality (good/fair/poor)",
+    )
+    scanned_at = models.DateTimeField(default=timezone.now)
+
+    # Processing status
+    PROCESSING_STATUS_PENDING = 'pending'
+    PROCESSING_STATUS_PROCESSING = 'processing'
+    PROCESSING_STATUS_COMPLETED = 'completed'
+    PROCESSING_STATUS_FAILED = 'failed'
+    PROCESSING_STATUS_DISCARDED = 'discarded'
+
+    PROCESSING_STATUS_CHOICES = [
+        (PROCESSING_STATUS_PENDING, 'Pending'),
+        (PROCESSING_STATUS_PROCESSING, 'Processing'),
+        (PROCESSING_STATUS_COMPLETED, 'Completed'),
+        (PROCESSING_STATUS_FAILED, 'Failed'),
+        (PROCESSING_STATUS_DISCARDED, 'Discarded'),
+    ]
+    processing_status = models.CharField(
+        max_length=20,
+        choices=PROCESSING_STATUS_CHOICES,
+        default=PROCESSING_STATUS_PENDING,
+    )
+    processing_error = models.TextField(
+        blank=True,
+        help_text="Error message if processing failed",
+    )
+
+    # Action tracking - what was done with this scan
+    action_taken = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Action taken: 'food_logged', 'medicine_added', 'saved', 'discarded'",
+    )
+    action_reference_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Model type created: 'health.FoodEntry', 'health.Medicine'",
+    )
+    action_reference_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="ID of the created record",
+    )
+
+    class Meta:
+        ordering = ['-scanned_at']
+        verbose_name = "camera scan"
+        verbose_name_plural = "camera scans"
+
+    def __str__(self):
+        return f"{self.get_detected_category_display()} scan at {self.scanned_at}"
+
+    def mark_processing(self):
+        """Mark this scan as currently processing."""
+        self.processing_status = self.PROCESSING_STATUS_PROCESSING
+        self.save(update_fields=['processing_status', 'updated_at'])
+
+    def mark_completed(self, category, confidence=None, ai_response=None):
+        """Mark this scan as successfully processed."""
+        self.processing_status = self.PROCESSING_STATUS_COMPLETED
+        self.detected_category = category
+        if confidence is not None:
+            self.confidence_score = confidence
+        if ai_response is not None:
+            self.raw_ai_response = ai_response
+        self.save()
+
+    def mark_failed(self, error_message):
+        """Mark this scan as failed processing."""
+        self.processing_status = self.PROCESSING_STATUS_FAILED
+        self.processing_error = error_message
+        self.save(update_fields=['processing_status', 'processing_error', 'updated_at'])
+
+    def mark_discarded(self):
+        """Mark this scan as discarded by user."""
+        self.processing_status = self.PROCESSING_STATUS_DISCARDED
+        self.action_taken = 'discarded'
+        self.save(update_fields=['processing_status', 'action_taken', 'updated_at'])
+
+    def record_action(self, action, reference_type=None, reference_id=None):
+        """Record what action was taken with this scan."""
+        self.action_taken = action
+        if reference_type:
+            self.action_reference_type = reference_type
+        if reference_id:
+            self.action_reference_id = reference_id
+        self.save(update_fields=['action_taken', 'action_reference_type', 'action_reference_id', 'updated_at'])

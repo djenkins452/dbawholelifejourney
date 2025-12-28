@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Food/Nutrition Tracking (2025-12-28):** Added comprehensive Nutrition section to Health module with food logging, macro tracking, daily summaries, and nutrition goals. Features: FoodItem global library (USDA support, barcode scanning, AI recognition ready), CustomFood for user recipes, FoodEntry logging with meal type, location, eating pace, hunger/fullness tracking, DailyNutritionSummary with automatic recalculation and macro percentages, NutritionGoals with calorie/macro targets and dietary preferences. Views: NutritionHomeView (daily dashboard), FoodEntryCreateView/UpdateView, QuickAddFoodView, FoodHistoryView, NutritionStatsView, NutritionGoalsView, CustomFoodListView/CreateView/UpdateView. CameraScan model in apps/core for future AI-powered food recognition. 80 new tests (1045 total).
 - **Medicine Tracking Section (2025-12-28):** Added comprehensive Medicine section to Health module with daily tracker, adherence stats, PRN support, refill tracking, and dashboard integration. Features: Medicine Master List (name, dose, frequency, schedules, prescribing doctor, pharmacy), Daily Tracker with one-tap check-off, Missed/Overdue detection with configurable grace period, History & Adherence views, Quick Look for screenshots, refill alerts, pause/resume without losing history. 77 new tests (965 total).
 - **CSO Security Review & Fixes (2025-12-28):** Comprehensive security review conducted with 21 findings. Critical fixes implemented:
   - C-2: Bible API key removed from frontend, replaced with server-side proxy at `/faith/api/bible/*`
@@ -148,7 +149,7 @@ These packages are sometimes missing from the venv:
 - **Run specific app tests:** `python manage.py test apps.<app_name>`
 - **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)
 - **Test runner:** `run_tests.py` provides enhanced output with summaries
-- **Current test count:** 965 tests across all apps (as of 2025-12-28)
+- **Current test count:** 1045 tests across all apps (as of 2025-12-28)
 
 ### Test Patterns Used
 - `TestCase` for database tests
@@ -187,6 +188,8 @@ These files contain test mixins that create users. If adding new tests, use thes
 - `apps/journal/tests/test_journal_comprehensive.py` - `JournalTestMixin`
 - `apps/faith/tests/test_faith_comprehensive.py` - `FaithTestMixin`
 - `apps/health/tests/test_health_comprehensive.py` - `HealthTestMixin`
+- `apps/health/tests/test_nutrition.py` - `NutritionTestMixin`
+- `apps/health/tests/test_medicine.py` - `MedicineTestMixin`
 - `apps/life/tests/test_life_comprehensive.py` - `LifeTestMixin`
 - `apps/purpose/tests/test_purpose_comprehensive.py` - `PurposeTestMixin`
 - `apps/admin_console/tests/test_admin_console.py` - `AdminTestMixin`
@@ -650,6 +653,83 @@ python run_tests.py
 - Input validation improvements (timezone, year/month, file uploads)
 - Large file splitting (views.py files over 500 lines)
 - 29 backup files to clean up
+
+---
+
+## Nutrition/Food Tracking
+
+### Overview
+The Nutrition feature allows users to log food consumption, track macros (protein, carbs, fat), set nutrition goals, and view daily/historical stats. It includes support for a global food library, custom user foods/recipes, and is prepared for future AI-powered food recognition via camera scanning.
+
+### Models (`apps/health/models.py`)
+| Model | Description |
+|-------|-------------|
+| `FoodItem` | Global food library (USDA, barcode, AI sources) - shared across all users |
+| `CustomFood` | User-created foods and recipes (user-scoped via `UserOwnedModel`) |
+| `FoodEntry` | Individual food log entry with meal type, location, eating context |
+| `DailyNutritionSummary` | Aggregated daily totals with macro percentages (auto-recalculated) |
+| `NutritionGoals` | User's calorie/macro targets with effective date ranges |
+
+### CameraScan Model (`apps/core/models.py`)
+Foundation for AI-powered scanning (food recognition, barcode scanning, medicine recognition). Fields include:
+- `image` - Uploaded photo
+- `detected_category` - food, packaged_food, medicine, etc.
+- `confidence_score` - AI confidence (0-1)
+- `raw_ai_response` - Full AI response JSON
+- `processing_status` - pending, processing, completed, failed, cancelled
+
+### URL Routes (`/health/nutrition/`)
+| Route | View | Description |
+|-------|------|-------------|
+| `/nutrition/` | `NutritionHomeView` | Daily dashboard with meal breakdown |
+| `/nutrition/add/` | `FoodEntryCreateView` | Full food entry form |
+| `/nutrition/quick-add/` | `QuickAddFoodView` | Simplified calorie-only logging |
+| `/nutrition/entry/<pk>/` | `FoodEntryDetailView` | View entry details |
+| `/nutrition/entry/<pk>/edit/` | `FoodEntryUpdateView` | Edit entry |
+| `/nutrition/entry/<pk>/delete/` | `FoodEntryDeleteView` | Delete entry |
+| `/nutrition/history/` | `FoodHistoryView` | Historical log with date/meal filters |
+| `/nutrition/stats/` | `NutritionStatsView` | Trends and analytics |
+| `/nutrition/goals/` | `NutritionGoalsView` | Set calorie/macro goals |
+| `/nutrition/foods/` | `CustomFoodListView` | List user's custom foods |
+| `/nutrition/foods/add/` | `CustomFoodCreateView` | Create custom food |
+| `/nutrition/foods/<pk>/edit/` | `CustomFoodUpdateView` | Edit custom food |
+| `/nutrition/foods/<pk>/delete/` | `CustomFoodDeleteView` | Delete custom food |
+
+### Key Features
+- **Meal Types**: Breakfast, Lunch, Dinner, Snack
+- **Entry Sources**: Manual, Barcode, Camera, Voice, Quick Add
+- **Location Context**: Home, Restaurant, Work, Travel, Other
+- **Eating Pace**: Rushed, Normal, Slow/Mindful
+- **Hunger/Fullness Tracking**: 1-5 scale before/after eating
+- **Mood Tags**: JSON field for emotional context
+- **Net Carbs**: Auto-calculated (carbs - fiber)
+- **Macro Percentages**: Auto-calculated in DailyNutritionSummary
+
+### Test Files
+- `apps/health/tests/test_nutrition.py` - 80 tests covering:
+  - Model tests (FoodItem, CustomFood, FoodEntry, DailyNutritionSummary, NutritionGoals)
+  - View tests (authentication, CRUD, context data)
+  - Form validation tests
+  - Data isolation tests (users can only see their own data)
+  - Quick add functionality
+
+### Running Nutrition Tests
+```bash
+# Run all nutrition tests
+python manage.py test apps.health.tests.test_nutrition
+
+# Run specific test class
+python manage.py test apps.health.tests.test_nutrition.FoodEntryModelTest
+
+# Run all health tests (includes nutrition, medicine, fitness)
+python manage.py test apps.health
+```
+
+### Future AI Integration Points
+1. **Camera Recognition**: Use `CameraScan` model to upload food photos for AI identification
+2. **Barcode Scanning**: Lookup `FoodItem` by barcode, create if not found
+3. **Voice Input**: Parse natural language food descriptions
+4. **Smart Suggestions**: Based on eating patterns and time of day
 
 ---
 *Last updated: 2025-12-28*

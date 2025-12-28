@@ -970,3 +970,559 @@ class MedicineLog(UserOwnedModel):
         """Mark this dose as missed (not taken or skipped)."""
         self.log_status = self.STATUS_MISSED
         self.save(update_fields=["log_status", "updated_at"])
+
+
+# =============================================================================
+# Food Tracking Models
+# =============================================================================
+
+
+class FoodItem(models.Model):
+    """
+    Global food library - shared reference data, not user-specific.
+
+    Contains nutritional information for common foods that all users can access.
+    Data can come from manual entry, USDA database, barcode scanning, or AI recognition.
+    """
+
+    SOURCE_MANUAL = 'manual'
+    SOURCE_USDA = 'usda'
+    SOURCE_BARCODE = 'barcode'
+    SOURCE_AI = 'ai'
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, 'Manual Entry'),
+        (SOURCE_USDA, 'USDA Database'),
+        (SOURCE_BARCODE, 'Barcode Scan'),
+        (SOURCE_AI, 'AI Recognition'),
+    ]
+
+    # Basic info
+    name = models.CharField(max_length=300)
+    brand = models.CharField(max_length=200, blank=True)
+    description = models.TextField(blank=True)
+    barcode = models.CharField(max_length=50, blank=True, db_index=True)
+
+    # Source & verification
+    data_source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_MANUAL,
+    )
+    source_reference = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="USDA ID, API reference, etc.",
+    )
+    is_verified = models.BooleanField(default=False)
+
+    # Serving information
+    serving_size = models.DecimalField(max_digits=8, decimal_places=2)
+    serving_unit = models.CharField(
+        max_length=50,
+        help_text="e.g., grams, oz, cups, pieces",
+    )
+    servings_per_container = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    # Core Macronutrients (per serving)
+    calories = models.DecimalField(max_digits=8, decimal_places=2)
+    protein_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    carbohydrates_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    fiber_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    sugar_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    fat_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    saturated_fat_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    unsaturated_fat_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    trans_fat_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+
+    # Micronutrients (per serving) - all nullable for flexibility
+    sodium_mg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    cholesterol_mg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    potassium_mg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    calcium_mg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    iron_mg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    vitamin_a_iu = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    vitamin_c_mg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    vitamin_d_iu = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    vitamin_b12_mcg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+
+    # Dietary attributes
+    is_vegan = models.BooleanField(default=False)
+    is_vegetarian = models.BooleanField(default=False)
+    is_keto_friendly = models.BooleanField(default=False)
+    is_gluten_free = models.BooleanField(default=False)
+    is_dairy_free = models.BooleanField(default=False)
+    is_nut_free = models.BooleanField(default=False)
+    is_low_sodium = models.BooleanField(default=False)
+    is_low_carb = models.BooleanField(default=False)
+
+    # Metadata
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "food item"
+        verbose_name_plural = "food items"
+        indexes = [
+            models.Index(fields=['barcode']),
+            models.Index(fields=['name']),
+        ]
+
+    def __str__(self):
+        if self.brand:
+            return f"{self.name} ({self.brand})"
+        return self.name
+
+    @property
+    def net_carbs_g(self):
+        """Calculate net carbs (total carbs - fiber)."""
+        return self.carbohydrates_g - self.fiber_g
+
+
+class CustomFood(UserOwnedModel):
+    """
+    User-created food items (personal recipes, custom entries).
+
+    Each user can create their own custom foods that only they can see and use.
+    """
+
+    name = models.CharField(max_length=300)
+    description = models.TextField(blank=True)
+
+    # Serving info
+    serving_size = models.DecimalField(max_digits=8, decimal_places=2)
+    serving_unit = models.CharField(max_length=50)
+
+    # Macros (per serving)
+    calories = models.DecimalField(max_digits=8, decimal_places=2)
+    protein_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    carbohydrates_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    fiber_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    sugar_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    fat_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    saturated_fat_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+
+    # Optional micronutrients
+    sodium_mg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+
+    # For recipes - link to component foods (future enhancement)
+    is_recipe = models.BooleanField(default=False)
+    recipe_ingredients = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of {food_id, quantity, unit} for recipe ingredients",
+    )
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "custom food"
+        verbose_name_plural = "custom foods"
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def net_carbs_g(self):
+        """Calculate net carbs (total carbs - fiber)."""
+        return self.carbohydrates_g - self.fiber_g
+
+
+class FoodEntry(UserOwnedModel):
+    """
+    Individual food consumption log entry.
+
+    Records what the user ate, when, and in what context.
+    Stores a snapshot of nutritional data at the time of logging for historical accuracy.
+    """
+
+    # Entry source tracking
+    SOURCE_MANUAL = 'manual'
+    SOURCE_BARCODE = 'barcode'
+    SOURCE_CAMERA = 'camera'
+    SOURCE_VOICE = 'voice'
+    SOURCE_QUICK_ADD = 'quick_add'
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, 'Manual Entry'),
+        (SOURCE_BARCODE, 'Barcode Scan'),
+        (SOURCE_CAMERA, 'Camera Recognition'),
+        (SOURCE_VOICE, 'Voice Input'),
+        (SOURCE_QUICK_ADD, 'Quick Add'),
+    ]
+
+    # Meal type
+    MEAL_BREAKFAST = 'breakfast'
+    MEAL_LUNCH = 'lunch'
+    MEAL_DINNER = 'dinner'
+    MEAL_SNACK = 'snack'
+    MEAL_CHOICES = [
+        (MEAL_BREAKFAST, 'Breakfast'),
+        (MEAL_LUNCH, 'Lunch'),
+        (MEAL_DINNER, 'Dinner'),
+        (MEAL_SNACK, 'Snack'),
+    ]
+
+    # Food reference (one of these will be set, or none for quick-add)
+    food_item = models.ForeignKey(
+        FoodItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='entries',
+    )
+    custom_food = models.ForeignKey(
+        CustomFood,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='entries',
+    )
+
+    # Snapshot of food data at time of logging (immutable record)
+    food_name = models.CharField(max_length=300)
+    food_brand = models.CharField(max_length=200, blank=True)
+
+    # Quantity consumed
+    quantity = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=1,
+        help_text="Number of servings",
+    )
+    serving_size = models.DecimalField(max_digits=8, decimal_places=2)
+    serving_unit = models.CharField(max_length=50)
+
+    # Calculated totals (stored, not derived, for historical accuracy)
+    total_calories = models.DecimalField(max_digits=10, decimal_places=2)
+    total_protein_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_carbohydrates_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_fiber_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_sugar_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_fat_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_saturated_fat_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Optional micronutrient totals
+    total_sodium_mg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    total_cholesterol_mg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    total_potassium_mg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    # Timing & context
+    logged_date = models.DateField()
+    logged_time = models.TimeField(null=True, blank=True)
+    meal_type = models.CharField(
+        max_length=20,
+        choices=MEAL_CHOICES,
+        default=MEAL_SNACK,
+    )
+
+    # Location context (WLJ differentiator)
+    LOCATION_HOME = 'home'
+    LOCATION_RESTAURANT = 'restaurant'
+    LOCATION_WORK = 'work'
+    LOCATION_TRAVEL = 'travel'
+    LOCATION_OTHER = 'other'
+    LOCATION_CHOICES = [
+        (LOCATION_HOME, 'Home'),
+        (LOCATION_RESTAURANT, 'Restaurant'),
+        (LOCATION_WORK, 'Work'),
+        (LOCATION_TRAVEL, 'Travel'),
+        (LOCATION_OTHER, 'Other'),
+    ]
+    location = models.CharField(
+        max_length=20,
+        choices=LOCATION_CHOICES,
+        blank=True,
+    )
+
+    # Eating pace context
+    PACE_RUSHED = 'rushed'
+    PACE_NORMAL = 'normal'
+    PACE_SLOW = 'slow'
+    PACE_CHOICES = [
+        (PACE_RUSHED, 'Rushed'),
+        (PACE_NORMAL, 'Normal'),
+        (PACE_SLOW, 'Slow/Mindful'),
+    ]
+    eating_pace = models.CharField(
+        max_length=20,
+        choices=PACE_CHOICES,
+        blank=True,
+    )
+
+    # Hunger/fullness tracking
+    hunger_level_before = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Hunger level before eating (1-5)",
+    )
+    fullness_level_after = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Fullness level after eating (1-5)",
+    )
+
+    # Emotional/contextual tags
+    mood_tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Tags like 'stressed', 'happy', 'tired'",
+    )
+    notes = models.TextField(blank=True)
+
+    # Source tracking
+    entry_source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_MANUAL,
+    )
+    ai_confidence_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="AI confidence score for camera/voice entries",
+    )
+
+    class Meta:
+        ordering = ['-logged_date', '-logged_time', '-created_at']
+        verbose_name = "food entry"
+        verbose_name_plural = "food entries"
+        indexes = [
+            models.Index(fields=['user', 'logged_date']),
+            models.Index(fields=['logged_date', 'meal_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.food_name} ({self.total_calories} cal) on {self.logged_date}"
+
+    def calculate_totals(self):
+        """Calculate total nutrition based on quantity and serving."""
+        source = self.food_item or self.custom_food
+        if not source:
+            return
+
+        multiplier = self.quantity
+        self.total_calories = source.calories * multiplier
+        self.total_protein_g = source.protein_g * multiplier
+        self.total_carbohydrates_g = source.carbohydrates_g * multiplier
+        self.total_fiber_g = source.fiber_g * multiplier
+        self.total_sugar_g = source.sugar_g * multiplier
+        self.total_fat_g = source.fat_g * multiplier
+        self.total_saturated_fat_g = source.saturated_fat_g * multiplier
+
+        # Calculate optional micronutrients if available
+        if hasattr(source, 'sodium_mg') and source.sodium_mg is not None:
+            self.total_sodium_mg = source.sodium_mg * multiplier
+        if hasattr(source, 'cholesterol_mg') and source.cholesterol_mg is not None:
+            self.total_cholesterol_mg = source.cholesterol_mg * multiplier
+        if hasattr(source, 'potassium_mg') and source.potassium_mg is not None:
+            self.total_potassium_mg = source.potassium_mg * multiplier
+
+    @property
+    def total_net_carbs_g(self):
+        """Calculate net carbs (total carbs - fiber)."""
+        return self.total_carbohydrates_g - self.total_fiber_g
+
+
+class DailyNutritionSummary(UserOwnedModel):
+    """
+    Aggregated daily nutrition totals.
+
+    Versioned for potential AI reprocessing and recalculation.
+    Auto-generated from FoodEntry records for a given day.
+    """
+
+    summary_date = models.DateField()
+
+    # Totals
+    total_calories = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_protein_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_carbohydrates_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_fiber_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_sugar_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_fat_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_saturated_fat_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_sodium_mg = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Meal counts
+    breakfast_count = models.PositiveSmallIntegerField(default=0)
+    lunch_count = models.PositiveSmallIntegerField(default=0)
+    dinner_count = models.PositiveSmallIntegerField(default=0)
+    snack_count = models.PositiveSmallIntegerField(default=0)
+
+    # Macro percentages
+    protein_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    carb_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    fat_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    # Versioning for recalculation
+    calculation_version = models.PositiveSmallIntegerField(default=1)
+    last_recalculated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-summary_date']
+        verbose_name = "daily nutrition summary"
+        verbose_name_plural = "daily nutrition summaries"
+        unique_together = ['user', 'summary_date']
+
+    def __str__(self):
+        return f"{self.user.email} - {self.summary_date}: {self.total_calories} cal"
+
+    def recalculate(self):
+        """Recalculate summary from raw FoodEntry records."""
+        from django.db.models import Sum, Count, Q
+
+        entries = FoodEntry.objects.filter(
+            user=self.user,
+            logged_date=self.summary_date,
+            status='active',
+        )
+
+        totals = entries.aggregate(
+            cal=Sum('total_calories'),
+            pro=Sum('total_protein_g'),
+            carb=Sum('total_carbohydrates_g'),
+            fib=Sum('total_fiber_g'),
+            sug=Sum('total_sugar_g'),
+            fat=Sum('total_fat_g'),
+            sat=Sum('total_saturated_fat_g'),
+            sod=Sum('total_sodium_mg'),
+            breakfast=Count('id', filter=Q(meal_type=FoodEntry.MEAL_BREAKFAST)),
+            lunch=Count('id', filter=Q(meal_type=FoodEntry.MEAL_LUNCH)),
+            dinner=Count('id', filter=Q(meal_type=FoodEntry.MEAL_DINNER)),
+            snack=Count('id', filter=Q(meal_type=FoodEntry.MEAL_SNACK)),
+        )
+
+        self.total_calories = totals['cal'] or 0
+        self.total_protein_g = totals['pro'] or 0
+        self.total_carbohydrates_g = totals['carb'] or 0
+        self.total_fiber_g = totals['fib'] or 0
+        self.total_sugar_g = totals['sug'] or 0
+        self.total_fat_g = totals['fat'] or 0
+        self.total_saturated_fat_g = totals['sat'] or 0
+        self.total_sodium_mg = totals['sod'] or 0
+        self.breakfast_count = totals['breakfast']
+        self.lunch_count = totals['lunch']
+        self.dinner_count = totals['dinner']
+        self.snack_count = totals['snack']
+
+        # Calculate macro percentages (protein/carbs = 4 cal/g, fat = 9 cal/g)
+        total_macro_cals = (
+            float(self.total_protein_g) * 4
+            + float(self.total_carbohydrates_g) * 4
+            + float(self.total_fat_g) * 9
+        )
+        if total_macro_cals > 0:
+            self.protein_percentage = (float(self.total_protein_g) * 4 / total_macro_cals) * 100
+            self.carb_percentage = (float(self.total_carbohydrates_g) * 4 / total_macro_cals) * 100
+            self.fat_percentage = (float(self.total_fat_g) * 9 / total_macro_cals) * 100
+
+        self.calculation_version += 1
+        self.save()
+
+    @property
+    def total_entry_count(self):
+        """Total number of food entries for this day."""
+        return self.breakfast_count + self.lunch_count + self.dinner_count + self.snack_count
+
+
+class NutritionGoals(UserOwnedModel):
+    """
+    User's personalized nutrition targets.
+
+    Defines daily calorie, macro, and nutrient goals.
+    Can have multiple goals over time with effective dates.
+    """
+
+    # Calorie target
+    daily_calorie_target = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Daily calorie goal",
+    )
+
+    # Macro targets (grams)
+    daily_protein_target_g = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Daily protein goal in grams",
+    )
+    daily_carb_target_g = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Daily carbohydrate goal in grams",
+    )
+    daily_fat_target_g = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Daily fat goal in grams",
+    )
+    daily_fiber_target_g = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Daily fiber goal in grams",
+    )
+
+    # Limits
+    daily_sodium_limit_mg = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum daily sodium in mg",
+    )
+    daily_sugar_limit_g = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum daily sugar in grams",
+    )
+
+    # Dietary preferences
+    dietary_preferences = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="e.g., ['vegan', 'gluten_free']",
+    )
+    allergies = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="e.g., ['nuts', 'dairy']",
+    )
+
+    # Active period
+    effective_from = models.DateField(
+        help_text="When these goals became active",
+    )
+    effective_until = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When these goals end (null = still active)",
+    )
+
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-effective_from']
+        verbose_name = "nutrition goals"
+        verbose_name_plural = "nutrition goals"
+
+    def __str__(self):
+        return f"{self.user.email} goals from {self.effective_from}"
+
+    @property
+    def is_active(self):
+        """Check if these goals are currently active."""
+        from django.utils import timezone
+        today = timezone.now().date()
+        if self.effective_until:
+            return self.effective_from <= today <= self.effective_until
+        return self.effective_from <= today
+
+    def save(self, *args, **kwargs):
+        """Set default effective_from if not provided."""
+        if not self.effective_from:
+            self.effective_from = timezone.now().date()
+        super().save(*args, **kwargs)

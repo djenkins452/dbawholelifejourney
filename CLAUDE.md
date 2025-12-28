@@ -563,4 +563,84 @@ python manage.py test apps.faith
 ```
 
 ---
+
+## System Audit & Security
+
+### Overview
+A comprehensive system audit was conducted on 2025-12-28. The audit evaluated security, code quality, error handling, and maintainability. All CRITICAL and HIGH priority issues have been fixed.
+
+### Current Health Score: 8.5/10
+
+### Audit Documents
+- `SYSTEM_AUDIT_REPORT.md` - Full findings with remediation status
+- `SYSTEM_REVIEW.md` - Repeatable audit process with checklists
+
+### Security Fixes Applied (2025-12-28)
+
+#### CRITICAL Issues (Fixed)
+1. **Open Redirect Vulnerability** - Created `is_safe_redirect_url()` and `get_safe_redirect_url()` utilities in `apps/core/utils.py`. Fixed 3 vulnerable locations.
+2. **Hardcoded API Key** - Removed hardcoded Bible API key from `config/settings.py`. Now uses environment variable only.
+
+#### HIGH Priority Issues (Fixed)
+1. **Bare except clauses (10+ locations)** - Replaced with specific exception types in:
+   - `apps/users/views.py`
+   - `apps/ai/dashboard_ai.py`
+   - `apps/admin_console/views.py`
+   - `run_tests.py`
+
+2. **XSS Risk in HTMX Response** - Added `django.utils.html.escape()` to `RandomPromptView` in `apps/journal/views.py`
+
+3. **Unsafe Client IP Extraction** - Added validation and documentation to `get_client_ip()` in `apps/users/views.py`
+
+4. **Missing Custom Error Pages** - Created:
+   - `templates/404.html` - User-friendly 404 page
+   - `templates/500.html` - User-friendly 500 page
+   - Custom error handlers in `config/urls.py` and `apps/core/views.py`
+
+5. **Console-Only Logging** - Added persistent logging in `config/settings.py`:
+   - `logs/error.log` - RotatingFileHandler (5MB, 5 backups)
+   - `logs/app.log` - RotatingFileHandler (10MB, 3 backups)
+   - AdminEmailHandler for critical errors
+
+### Security Tests
+Located in `apps/core/tests/test_core_comprehensive.py`:
+- `SafeRedirectUrlTests` - 14 tests for redirect URL validation
+- Tests cover: relative URLs, same-host URLs, external URLs, protocol-relative URLs, javascript: URLs
+
+### Running Security Tests
+```bash
+# Run safe redirect tests
+python manage.py test apps.core.tests.test_core_comprehensive.SafeRedirectUrlTests
+
+# Run all core tests
+python manage.py test apps.core.tests
+```
+
+### Audit Checklist (Quick Check)
+Run these commands to check for common issues:
+```bash
+# Check for bare except clauses
+grep -rn "except:" apps/ --include="*.py" | grep -v "except Exception"
+
+# Check for |safe filter usage
+grep -rn "|safe" templates/
+
+# Check for hardcoded emails
+grep -rn "@.*\.com" apps/ --include="*.py" | grep -v test
+
+# Check for TODO/FIXME
+grep -rn "TODO\|FIXME\|HACK\|XXX" apps/ --include="*.py"
+
+# Run full test suite
+python run_tests.py
+```
+
+### Remaining Issues (Medium/Low Priority)
+- Error dashboard widget (no admin visibility for errors)
+- Health check endpoint (no `/health/` endpoint)
+- Input validation improvements (timezone, year/month, file uploads)
+- Large file splitting (views.py files over 500 lines)
+- 29 backup files to clean up
+
+---
 *Last updated: 2025-12-28*

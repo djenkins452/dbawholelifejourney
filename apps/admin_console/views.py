@@ -45,19 +45,23 @@ class AdminDashboardView(HelpContextMixin, AdminRequiredMixin, TemplateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        from django.conf import settings
         from apps.users.models import User
         from apps.journal.models import JournalEntry
-        
+
         # Stats
         context['total_users'] = User.objects.count()
         context['total_entries'] = JournalEntry.objects.count()
         context['total_themes'] = Theme.objects.filter(is_active=True).count()
         context['total_categories'] = Category.objects.count()
         context['total_choice_categories'] = ChoiceCategory.objects.count()
-        
+
         # Recent activity
         context['recent_users'] = User.objects.order_by('-date_joined')[:5]
-        
+
+        # Admin URL path for Django Admin link
+        context['admin_url_path'] = settings.ADMIN_URL_PATH
+
         return context
 
 

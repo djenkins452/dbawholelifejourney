@@ -48,6 +48,20 @@
     font-family: Georgia, "Times New Roman", serif;
 }
 
+/* Help button text - hidden on desktop, shown on mobile */
+.help-button-text {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .help-button-text {
+        display: inline;
+        font-size: var(--font-size-base, 1rem);
+        font-weight: 500;
+        font-family: var(--font-family-base, system-ui, sans-serif);
+    }
+}
+
 /* Navigation placement */
 .nav-help {
     display: flex;

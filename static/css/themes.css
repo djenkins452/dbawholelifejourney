@@ -210,6 +210,11 @@
 
 .theme-faith .nav-mobile-toggle {
     color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-faith .nav-mobile-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* ==========================================================================
@@ -258,6 +263,11 @@
 
 .theme-sports .nav-mobile-toggle {
     color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-sports .nav-mobile-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* ==========================================================================
@@ -307,6 +317,11 @@
 
 .theme-nature .nav-mobile-toggle {
     color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-nature .nav-mobile-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* ==========================================================================
@@ -355,6 +370,11 @@
 
 .theme-outdoors .nav-mobile-toggle {
     color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-outdoors .nav-mobile-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* ==========================================================================

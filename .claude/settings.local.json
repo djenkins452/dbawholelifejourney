@@ -22,7 +22,10 @@
       "Bash(python manage.py test:*)",
       "Bash(python run_tests.py:*)",
       "Bash(ls:*)",
-      "Bash(python manage.py check:*)"
+      "Bash(python manage.py check:*)",
+      "Bash(done)",
+      "Bash(python manage.py:*)",
+      "Bash(test:*)"
     ]
   }
 }

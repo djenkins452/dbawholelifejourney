@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **User-specific saved verses:** Fixed bug where saved Scripture verses were shared across all users. Created new `SavedVerse` model with user ownership. Data migration assigns existing verses to Danny's account. Each user now has their own private Scripture library.
 - **Project Add Task default:** When adding a task from within a project, the project dropdown now auto-selects that project. After creating, redirects back to the project detail page.
 - **Dev environment dependency check:** Added `check_dependencies.py` script to verify all required packages are installed in venv. Run `python check_dependencies.py` to check, or `python check_dependencies.py --install` to auto-install missing packages.
 - **Missing packages fix:** Installed `cloudinary`, `django-cloudinary-storage`, and `markdown` packages that were in requirements.txt but missing from venv.

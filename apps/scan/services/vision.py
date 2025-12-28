@@ -299,11 +299,17 @@ class VisionService:
             logger.error(f"Scan {request_id} error after {processing_time_ms}ms: {e}")
             return self._error_result(request_id, "An error occurred. Please try again.")
 
+    def _add_source_param(self, url: str) -> str:
+        """Add source=ai_camera to URL to track AI-created entries."""
+        separator = '&' if '?' in url else '?'
+        return f"{url}{separator}source=ai_camera"
+
     def _build_actions(self, category: str, items: list) -> list:
         """
         Build contextual actions based on the identified category.
 
         Maps categories to WLJ modules and provides relevant action options.
+        All action URLs include source=ai_camera to track AI-created entries.
         """
         actions = []
 
@@ -319,7 +325,9 @@ class VisionService:
                     {
                         'id': 'log_food',
                         'label': 'Log to Food Journal',
-                        'url': reverse('journal:entry_create') + f'?prefill_title=Food: {food_label}',
+                        'url': self._add_source_param(
+                            reverse('journal:entry_create') + f'?prefill_title=Food: {food_label}'
+                        ),
                         'payload_template': {
                             'category': 'health',
                             'title': f'Food: {food_label}',
@@ -346,7 +354,9 @@ class VisionService:
                     {
                         'id': 'add_medicine',
                         'label': 'Add to My Medicines',
-                        'url': reverse('health:medicine_create') + f'?name={med_name}',
+                        'url': self._add_source_param(
+                            reverse('health:medicine_create') + f'?name={med_name}'
+                        ),
                         'payload_template': {
                             'name': med_name,
                             'dose': details.get('dosage', ''),
@@ -373,7 +383,9 @@ class VisionService:
                     {
                         'id': 'add_supplement',
                         'label': 'Add to My Supplements',
-                        'url': reverse('health:medicine_create') + f'?name={supp_name}&type=supplement',
+                        'url': self._add_source_param(
+                            reverse('health:medicine_create') + f'?name={supp_name}&type=supplement'
+                        ),
                         'payload_template': {
                             'name': supp_name,
                             'dose': details.get('dosage', ''),
@@ -402,7 +414,9 @@ class VisionService:
                     {
                         'id': 'save_receipt',
                         'label': 'Add Journal Note',
-                        'url': reverse('journal:entry_create') + f'?prefill_title=Receipt from {merchant}',
+                        'url': self._add_source_param(
+                            reverse('journal:entry_create') + f'?prefill_title=Receipt from {merchant}'
+                        ),
                         'payload_template': {
                             'category': 'life',
                             'title': f'Receipt from {merchant}'
@@ -427,7 +441,9 @@ class VisionService:
                     {
                         'id': 'save_document',
                         'label': 'Add to Journal',
-                        'url': reverse('journal:entry_create') + f'?prefill_title={doc_type}',
+                        'url': self._add_source_param(
+                            reverse('journal:entry_create') + f'?prefill_title={doc_type}'
+                        ),
                         'payload_template': {
                             'title': doc_type
                         }
@@ -451,7 +467,7 @@ class VisionService:
                     {
                         'id': 'log_workout',
                         'label': 'Start Workout',
-                        'url': reverse('health:workout_create'),
+                        'url': self._add_source_param(reverse('health:workout_create')),
                         'payload_template': {}
                     },
                     {
@@ -477,7 +493,7 @@ class VisionService:
                     {
                         'id': 'add_note',
                         'label': 'Add as Journal Note',
-                        'url': reverse('journal:entry_create'),
+                        'url': self._add_source_param(reverse('journal:entry_create')),
                         'payload_template': {}
                     },
                     {

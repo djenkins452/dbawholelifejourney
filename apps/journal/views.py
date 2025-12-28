@@ -223,7 +223,13 @@ class EntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
             from apps.core.utils import get_user_today
             entry_date = form.cleaned_data.get('entry_date', get_user_today(self.request.user))
             form.instance.title = entry_date.strftime("%A, %B %d, %Y")
-        
+
+        # Track if created via AI Camera scan
+        source = self.request.GET.get('source')
+        if source == 'ai_camera':
+            from apps.core.models import UserOwnedModel
+            form.instance.created_via = UserOwnedModel.CREATED_VIA_AI_CAMERA
+
         messages.success(self.request, "Journal entry created.")
         return super().form_valid(form)
 

@@ -732,12 +732,20 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
         user = request.user
         today = get_user_today(user)
 
+        # Determine creation source
+        source = request.GET.get('source')
+        created_via = 'manual'
+        if source == 'ai_camera':
+            from apps.core.models import UserOwnedModel
+            created_via = UserOwnedModel.CREATED_VIA_AI_CAMERA
+
         # Create workout session
         workout = WorkoutSession.objects.create(
             user=user,
             date=request.POST.get("date") or today,
             name=request.POST.get("name", ""),
             notes=request.POST.get("notes", ""),
+            created_via=created_via,
         )
 
         # Process exercises
@@ -1471,6 +1479,13 @@ class MedicineCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
+
+        # Track if created via AI Camera scan
+        source = self.request.GET.get('source')
+        if source == 'ai_camera':
+            from apps.core.models import UserOwnedModel
+            form.instance.created_via = UserOwnedModel.CREATED_VIA_AI_CAMERA
+
         messages.success(self.request, f"Added {form.instance.name} to your medicines.")
         return super().form_valid(form)
 

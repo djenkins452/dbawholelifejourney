@@ -70,6 +70,10 @@
                     <span>·</span>
                     <span>Updated {{ entry.updated_at|date:"M j, Y" }}</span>
                 {% endif %}
+                {% if entry.was_created_by_ai %}
+                    <span>·</span>
+                    <span class="ai-camera-badge" title="Created via AI Camera Scan">📷 AI Camera</span>
+                {% endif %}
             </div>
             
             <div class="entry-actions">
@@ -220,6 +224,20 @@
     color: var(--color-text-muted);
     display: flex;
     gap: var(--space-2);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ai-camera-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
 }
 
 .entry-actions {

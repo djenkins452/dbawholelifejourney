@@ -439,6 +439,9 @@ class MedicineScheduleForm(forms.ModelForm):
         instance = super().save(commit=False)
         # Convert selected days to comma-separated string
         days = self.cleaned_data.get("days", [])
+        # If no days selected, default to all days
+        if not days:
+            days = ["0", "1", "2", "3", "4", "5", "6"]
         instance.days_of_week = ",".join(sorted(days))
         if commit:
             instance.save()

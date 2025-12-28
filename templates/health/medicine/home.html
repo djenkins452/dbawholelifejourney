@@ -116,28 +116,6 @@
     </div>
     {% endif %}
 
-    <!-- DEBUG INFO - Remove after fixing -->
-    {% if user.is_superuser %}
-    <div class="debug-info" style="margin-top: 2rem; padding: 1rem; background: #fee; border: 1px solid #f00; border-radius: 8px; font-family: monospace; font-size: 12px;">
-        <strong>DEBUG INFO (superuser only):</strong><br>
-        Today (user timezone): {{ debug_today }}<br>
-        Today weekday: {{ debug_weekday }} (0=Mon, 5=Sat, 6=Sun)<br>
-        Active medicines count: {{ active_count }}<br>
-        <br>
-        {% for medicine in active_medicines %}
-        <div style="margin: 0.5rem 0; padding: 0.5rem; background: #fff;">
-            <strong>{{ medicine.name }}</strong> (is_prn={{ medicine.is_prn }})<br>
-            Schedules:<br>
-            {% for schedule in medicine.schedules.all %}
-            &nbsp;&nbsp;- ID={{ schedule.pk }}, time={{ schedule.scheduled_time }}, is_active={{ schedule.is_active }}, days_of_week="{{ schedule.days_of_week }}"<br>
-            {% empty %}
-            &nbsp;&nbsp;(no schedules)<br>
-            {% endfor %}
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
     <!-- Quick Actions -->
     <div class="quick-actions mt-8">
         <a href="{% url 'health:medicine_prn_log' %}" class="action-card">

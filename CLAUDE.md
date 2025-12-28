@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Test suite onboarding fixes:** Fixed 185+ test failures caused by onboarding middleware. All test setups now call `_complete_onboarding()` to set `has_completed_onboarding = True`. Additional fixes: journal prompt filter test accounts for migration-loaded prompts, event is_today test uses timezone-aware dates, dashboard streak test uses `get_user_today()`, cache test uses LocMemCache. All 857 tests now pass.
 - **User-specific saved verses:** Fixed bug where saved Scripture verses were shared across all users. Created new `SavedVerse` model with user ownership. Data migration assigns existing verses to Danny's account. Each user now has their own private Scripture library.
 - **Project Add Task default:** When adding a task from within a project, the project dropdown now auto-selects that project. After creating, redirects back to the project detail page.
 - **Dev environment dependency check:** Added `check_dependencies.py` script to verify all required packages are installed in venv. Run `python check_dependencies.py` to check, or `python check_dependencies.py --install` to auto-install missing packages.
@@ -51,8 +52,7 @@
 - **Login page CSS:** Fixed auth_content block in templates/account/base.html
 - **Timezone display:** Fasting list uses {% timezone user_timezone %} tag
 - **Faith module default:** Changed to default=True in UserPreferences
-- **Breadcrumb navigation:** Added consistent breadcrumb navigation across all non-root pages. Global CSS in main.css, standardized `/` separator.
-- **Speech-to-text removed:** Removed speech-to-text feature entirely from the application
+- **Speech-to-text:** Set continuous: false to prevent duplication
 - **Superuser creation:** create_superuser_from_env only creates if user doesn't exist
 - **Footer logo:** Increased size to 200px
 - **Custom domain:** Added support for wholelifejourney.com
@@ -135,7 +135,7 @@ These packages are sometimes missing from the venv:
 - **Run specific app tests:** `python manage.py test apps.<app_name>`
 - **Test files location:** `apps/<app>/tests/` (directory) or `apps/<app>/tests.py` (file)
 - **Test runner:** `run_tests.py` provides enhanced output with summaries
-- **Current test count:** ~800+ tests across all apps
+- **Current test count:** 857 tests across all apps (as of 2025-12-27)
 
 ### Test Patterns Used
 - `TestCase` for database tests
@@ -143,6 +143,48 @@ These packages are sometimes missing from the venv:
 - Factory pattern for creating test objects
 - `setUp()` for common test fixtures
 - `@patch` for mocking external services (AI, APIs)
+
+### CRITICAL: Test User Setup Pattern
+**All test users MUST have onboarding completed** or tests will fail with 302 redirects. The onboarding middleware enforces `has_completed_onboarding = True` before users can access protected pages.
+
+Every test mixin or setUp that creates users should include:
+
+```python
+def create_user(self, email='test@example.com', password='testpass123'):
+    """Create a test user with terms accepted and onboarding completed."""
+    user = User.objects.create_user(email=email, password=password)
+    self._accept_terms(user)
+    self._complete_onboarding(user)
+    return user
+
+def _accept_terms(self, user):
+    from apps.users.models import TermsAcceptance
+    TermsAcceptance.objects.create(user=user, terms_version='1.0')
+
+def _complete_onboarding(self, user):
+    """Mark user onboarding as complete."""
+    user.preferences.has_completed_onboarding = True
+    user.preferences.save()
+```
+
+### Test Files with User Mixins
+These files contain test mixins that create users. If adding new tests, use these patterns:
+- `apps/users/tests/test_users_comprehensive.py` - `UserTestMixin`
+- `apps/dashboard/tests/test_dashboard_comprehensive.py` - `DashboardTestMixin`
+- `apps/journal/tests/test_journal_comprehensive.py` - `JournalTestMixin`
+- `apps/faith/tests/test_faith_comprehensive.py` - `FaithTestMixin`
+- `apps/health/tests/test_health_comprehensive.py` - `HealthTestMixin`
+- `apps/life/tests/test_life_comprehensive.py` - `LifeTestMixin`
+- `apps/purpose/tests/test_purpose_comprehensive.py` - `PurposeTestMixin`
+- `apps/admin_console/tests/test_admin_console.py` - `AdminTestMixin`
+- `apps/ai/tests/test_ai_comprehensive.py` - `AITestMixin`
+- `apps/core/tests/test_core_comprehensive.py` - `CoreTestMixin`
+
+### Common Test Gotchas
+1. **302 redirects instead of 200:** User not marked as onboarding complete
+2. **Count assertions failing:** Data migrations may pre-load records (e.g., 20 journal prompts)
+3. **Date comparisons failing:** Use `timezone.now().date()` or `get_user_today(user)` instead of `date.today()`
+4. **Cache tests failing:** Test settings use DummyCache; use `@override_settings` with LocMemCache
 
 ---
 
@@ -517,118 +559,4 @@ python manage.py test apps.faith
 ```
 
 ---
-
-## Breadcrumb Navigation
-
-### Overview
-Consistent breadcrumb navigation has been added across all non-root pages in the application. Breadcrumbs help users understand their location within the app hierarchy and navigate back to parent pages.
-
-### Global CSS
-Breadcrumb styles are defined globally in `static/css/main.css`:
-```css
-.breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-    margin-bottom: var(--space-4);
-}
-.breadcrumb a {
-    color: var(--color-accent);
-    text-decoration: none;
-}
-.breadcrumb a:hover {
-    text-decoration: underline;
-}
-```
-
-### Breadcrumb Pattern
-All breadcrumbs use the same consistent pattern:
-
-**For list pages:**
-```html
-<nav class="breadcrumb mb-4">
-    <a href="{% url 'app:home' %}">App Name</a>
-    <span>/</span>
-    <span>Section Name</span>
-</nav>
-```
-
-**For detail pages:**
-```html
-<nav class="breadcrumb mb-4">
-    <a href="{% url 'app:home' %}">App Name</a>
-    <span>/</span>
-    <a href="{% url 'app:list' %}">Section</a>
-    <span>/</span>
-    <span>{{ object.title|truncatewords:5 }}</span>
-</nav>
-```
-
-**For form pages:**
-```html
-<nav class="breadcrumb mb-4">
-    <a href="{% url 'app:home' %}">App Name</a>
-    <span>/</span>
-    <a href="{% url 'app:list' %}">Section</a>
-    <span>/</span>
-    <span>{% if object %}Edit{% else %}New{% endif %}</span>
-</nav>
-```
-
-### Pages WITH Breadcrumbs
-All non-root pages now have breadcrumbs:
-
-| App | Templates with Breadcrumbs |
-|-----|---------------------------|
-| Journal | entry_list, entry_form, entry_detail, page_view, book_view, archived_list, deleted_list, prompt_list, tag_list, tag_form |
-| Faith | prayer_list, prayer_form, prayer_detail, answered_prayers, scripture_list, todays_verse, milestone_list, milestone_detail, milestone_form, reflections, reflection_form |
-| Health | weight_list, weight_form, fasting_list, fasting_form, heartrate_list, heartrate_form, glucose_list, glucose_form |
-| Health/Fitness | home, workout_list, workout_detail, workout_form, template_list, template_detail, template_form, personal_records, progress |
-| Life | calendar, task_list, project_list, recipe_list, pet_list, document_list, maintenance_list, inventory_list, google_calendar_settings |
-| Purpose | direction_list, goal_list, intention_list, reflection_list |
-| Users | profile, profile_edit, preferences |
-
-### Pages WITHOUT Breadcrumbs (Root Pages)
-These are module home pages and don't need breadcrumbs:
-- Dashboard home (`/dashboard/`)
-- Journal home (`/journal/`) - NOTE: entry_list serves as home
-- Faith home (`/faith/`)
-- Health home (`/health/`)
-- Life home (`/life/`)
-- Purpose home (`/purpose/`)
-- Onboarding pages
-
-### Key Files
-- `static/css/main.css` - Global breadcrumb CSS (lines 780-800)
-- All template files listed above contain breadcrumb navigation
-
-### Separator Standardization
-All breadcrumbs use `/` as the separator. Previously, some pages used `›` which has been standardized.
-
-### Inline CSS Removal
-Inline breadcrumb CSS was removed from:
-- `templates/life/task_form.html`
-- `templates/life/project_form.html`
-- `templates/journal/entry_detail.html`
-
-### Testing Breadcrumbs
-Breadcrumb navigation is primarily a UI feature. Manual testing:
-1. Navigate to any list page (e.g., `/journal/entries/`)
-2. Verify breadcrumb shows: `Journal / Entries`
-3. Click "Journal" link - should navigate to journal home
-4. Navigate to a form page (e.g., `/life/tasks/create/`)
-5. Verify breadcrumb shows: `Life / Tasks / New`
-6. Click "Tasks" link - should navigate to task list
-
-### Adding Breadcrumbs to New Pages
-When creating new templates:
-1. Add breadcrumb nav element after `{% block content %}` opening div
-2. Use the appropriate pattern (list, detail, or form)
-3. Use `/` separator with `<span>/</span>`
-4. Use `mb-4` class for consistent spacing
-5. Do NOT add inline CSS - use global styles
-
----
-*Last updated: 2025-12-28*
+*Last updated: 2025-12-27*

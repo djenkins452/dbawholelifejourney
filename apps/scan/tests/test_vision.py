@@ -410,6 +410,47 @@ class SourceParamTrackingTests(TestCase):
         action_url = actions[0]['actions'][0]['url']
         self.assertIn('source=ai_camera', action_url)
 
+    def test_medicine_actions_include_dose_in_url(self):
+        """Test that medicine actions include dose in URL."""
+        items = [{'label': 'Lisinopril', 'details': {'dosage': '10mg'}}]
+        actions = self.service._build_actions('medicine', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('dose=10mg', action_url)
+
+    def test_medicine_actions_include_directions_in_url(self):
+        """Test that medicine actions include directions in URL."""
+        items = [{'label': 'Metformin', 'details': {
+            'dosage': '500mg',
+            'directions': 'Take with food'
+        }}]
+        actions = self.service._build_actions('medicine', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('directions=', action_url)
+        self.assertIn('Take', action_url)  # URL encoded
+
+    def test_medicine_actions_include_quantity_in_url(self):
+        """Test that medicine actions include quantity in URL."""
+        items = [{'label': 'Aspirin', 'details': {
+            'dosage': '325mg',
+            'quantity': '100 tablets'
+        }}]
+        actions = self.service._build_actions('medicine', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('quantity=', action_url)
+        self.assertIn('100', action_url)
+
+    def test_supplement_actions_include_dose_in_url(self):
+        """Test that supplement actions include dose in URL."""
+        items = [{'label': 'Vitamin D3', 'details': {'dosage': '5000 IU'}}]
+        actions = self.service._build_actions('supplement', items)
+
+        action_url = actions[0]['actions'][0]['url']
+        self.assertIn('dose=', action_url)
+        self.assertIn('5000', action_url)
+
     def test_supplement_actions_include_source_param(self):
         """Test that supplement actions include source=ai_camera in URL."""
         items = [{'label': 'Vitamin D3', 'details': {}}]

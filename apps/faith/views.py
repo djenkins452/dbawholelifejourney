@@ -635,6 +635,12 @@ class BibleAPIProxyMixin:
         except requests.exceptions.Timeout:
             logger.warning(f"Bible API timeout: {endpoint}")
             return False, {"error": "Request timed out"}
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                logger.error("Bible API: Invalid or expired API key")
+                return False, {"error": "Bible API key is invalid or expired. Please contact the administrator."}
+            logger.error(f"Bible API HTTP error: {e}")
+            return False, {"error": f"Bible API error: {e.response.status_code}"}
         except requests.exceptions.RequestException as e:
             logger.error(f"Bible API error: {e}")
             return False, {"error": "Failed to fetch from Bible API"}

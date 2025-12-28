@@ -29,6 +29,7 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **Journal prompts migration:** Data migration (`0003_load_journal_prompts.py`) to load 20 journal prompts into production database. Fixes "no prompts available" issue.
 - **ChatGPT journal import:** Management command (`import_chatgpt_journal`) and data migration to import journal entries from ChatGPT JSON exports
 - **Step-by-step onboarding wizard:** New 6-step wizard for new users (Welcome, Theme, Modules, AI Coaching, Location, Complete)
 - **Onboarding enforcement:** Middleware enforces onboarding completion - users redirected to wizard until complete
@@ -57,10 +58,12 @@
 - `apps/core/management/commands/load_initial_data.py` - System data loading (fixtures + populate commands)
 - `apps/users/management/commands/create_superuser_from_env.py` - Superuser creation
 - `apps/journal/management/commands/import_chatgpt_journal.py` - One-time ChatGPT journal import
+- `apps/journal/migrations/0003_load_journal_prompts.py` - Data migration for 20 journal prompts
 - `apps/ai/models.py` - AIPromptConfig, CoachingStyle, AIInsight, AIUsageLog models
 - `apps/ai/services.py` - AIService with database-driven prompts
 - `apps/ai/fixtures/ai_prompt_configs.json` - Default AI prompt configurations (10 types)
 - `apps/ai/fixtures/coaching_styles.json` - Default coaching styles (7 styles)
+- `apps/journal/fixtures/prompts.json` - Journal prompts fixture (20 prompts)
 - `apps/<app>/fixtures/<name>.json` - Reference data fixtures
 - `templates/admin/base_site.html` - Custom Django admin branding with Admin Console link
 
@@ -305,6 +308,44 @@ python manage.py import_chatgpt_journal export.json --user-id=1
 - Skips duplicate entries by date
 - Dry-run mode for previewing imports
 - Builds markdown body with section headers
+
+---
+
+## Journal Prompts
+
+### Overview
+Journal prompts are curated writing prompts to inspire journal entries. They can be general or category-specific, and faith-specific prompts may include Scripture references.
+
+### Data Source
+Prompts are loaded via data migration `0003_load_journal_prompts.py` which runs automatically on deploy. This ensures prompts exist in production regardless of fixture loading success.
+
+### Prompt Categories
+| Category PK | Name | Example Prompts |
+|-------------|------|-----------------|
+| 1 | Faith | "How have you seen God at work in your life recently?" |
+| 2 | Family | "How can you show love to your family this week?" |
+| 3 | Work | "What's one thing you're learning at work right now?" |
+| 4 | Health | "What does rest look like for you right now?" |
+| 5 | Gratitude | "What are three things you're grateful for today?" |
+| 6 | Growth | "What challenged you today, and how did you respond?" |
+| 7 | Relationships | "Write about someone who made a positive impact on your day." |
+| 8 | Dreams | "What's one step you can take toward a goal this week?" |
+| null | General | "What's weighing on your heart today?" |
+
+### Key Files
+- `apps/journal/models.py` - `JournalPrompt` model
+- `apps/journal/fixtures/prompts.json` - Fixture file (20 prompts)
+- `apps/journal/migrations/0003_load_journal_prompts.py` - Data migration
+- `apps/journal/tests/test_journal_prompts_migration.py` - Migration tests (15+ tests)
+
+### Testing
+```bash
+# Run prompt migration tests
+python manage.py test apps.journal.tests.test_journal_prompts_migration
+
+# Run all journal tests
+python manage.py test apps.journal
+```
 
 ---
 *Last updated: 2025-12-27*

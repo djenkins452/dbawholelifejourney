@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Saved Verse - Faith - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:scripture_list' %}">Scripture</a>
+        <span>/</span>
+        <span>Edit</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Edit Saved Verse</h1>
+    </div>
+
+    <div class="card">
+        <form method="post" class="form">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="id_reference" class="form-label">Reference</label>
+                {{ form.reference }}
+                {% if form.reference.errors %}
+                <p class="form-error">{{ form.reference.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="id_text" class="form-label">Text</label>
+                {{ form.text }}
+                {% if form.text.errors %}
+                <p class="form-error">{{ form.text.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="id_translation" class="form-label">Translation</label>
+                {{ form.translation }}
+                {% if form.translation.errors %}
+                <p class="form-error">{{ form.translation.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="id_themes_text" class="form-label">{{ form.themes_text.label }}</label>
+                {{ form.themes_text }}
+                {% if form.themes_text.help_text %}
+                <p class="form-help">{{ form.themes_text.help_text }}</p>
+                {% endif %}
+                {% if form.themes_text.errors %}
+                <p class="form-error">{{ form.themes_text.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="id_notes" class="form-label">Personal Notes</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                <p class="form-error">{{ form.notes.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a href="{% url 'faith:scripture_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="mt-6">
+        <form method="post" action="{% url 'faith:saved_verse_delete' object.pk %}"
+              onsubmit="return confirm('Are you sure you want to delete this verse from your library?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost text-error">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3,6 5,6 21,6"/>
+                    <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/>
+                    <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+                Delete Verse
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

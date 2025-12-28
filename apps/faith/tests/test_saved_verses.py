@@ -361,3 +361,174 @@ class SavedVerseFilterTest(TestCase):
         # Other user's unique themes should NOT be in filter dropdown
         self.assertNotIn('xyzuniquetheme', content)
         self.assertNotIn('abcspecialtheme', content)
+
+
+class SavedVerseEditTest(TestCase):
+    """Tests for editing saved verses."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='test@example.com',
+            password='testpass123'
+        )
+        setup_user_for_faith(self.user)
+        self.client = Client()
+        self.client.login(email='test@example.com', password='testpass123')
+
+        self.verse = SavedVerse.objects.create(
+            user=self.user,
+            reference='John 3:16',
+            text='For God so loved the world...',
+            translation='ESV',
+            book_name='John',
+            book_order=43,
+            chapter=3,
+            verse_start=16,
+            themes=['love', 'salvation'],
+            notes='Original notes'
+        )
+
+    def test_edit_page_loads(self):
+        """Edit page loads successfully for own verse."""
+        response = self.client.get(reverse('faith:saved_verse_edit', kwargs={'pk': self.verse.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'John 3:16')
+
+    def test_edit_verse_updates_notes(self):
+        """Editing verse updates notes."""
+        response = self.client.post(
+            reverse('faith:saved_verse_edit', kwargs={'pk': self.verse.pk}),
+            {
+                'reference': 'John 3:16',
+                'text': 'For God so loved the world...',
+                'translation': 'ESV',
+                'themes_text': 'love, salvation',
+                'notes': 'Updated notes'
+            }
+        )
+        self.assertRedirects(response, reverse('faith:scripture_list'))
+        self.verse.refresh_from_db()
+        self.assertEqual(self.verse.notes, 'Updated notes')
+
+    def test_edit_verse_updates_themes(self):
+        """Editing verse updates themes."""
+        self.client.post(
+            reverse('faith:saved_verse_edit', kwargs={'pk': self.verse.pk}),
+            {
+                'reference': 'John 3:16',
+                'text': 'For God so loved the world...',
+                'translation': 'ESV',
+                'themes_text': 'love, salvation, hope',
+                'notes': ''
+            }
+        )
+        self.verse.refresh_from_db()
+        self.assertEqual(self.verse.themes, ['love', 'salvation', 'hope'])
+
+    def test_cannot_edit_other_users_verse(self):
+        """Cannot edit another user's verse."""
+        other_user = User.objects.create_user(
+            email='other@example.com',
+            password='testpass123'
+        )
+        setup_user_for_faith(other_user)
+        other_verse = SavedVerse.objects.create(
+            user=other_user,
+            reference='Psalm 23:1',
+            text='The Lord is my shepherd...',
+            translation='NIV',
+            book_name='Psalms',
+            book_order=19,
+            chapter=23,
+            verse_start=1
+        )
+
+        response = self.client.get(reverse('faith:saved_verse_edit', kwargs={'pk': other_verse.pk}))
+        self.assertEqual(response.status_code, 404)
+
+    def test_edit_link_shown_in_list(self):
+        """Edit link is shown for each verse in the list."""
+        response = self.client.get(reverse('faith:scripture_list'))
+        self.assertContains(response, reverse('faith:saved_verse_edit', kwargs={'pk': self.verse.pk}))
+        self.assertContains(response, 'Edit')
+
+
+class SavedVerseDeleteTest(TestCase):
+    """Tests for deleting saved verses."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='test@example.com',
+            password='testpass123'
+        )
+        setup_user_for_faith(self.user)
+        self.client = Client()
+        self.client.login(email='test@example.com', password='testpass123')
+
+        self.verse = SavedVerse.objects.create(
+            user=self.user,
+            reference='John 3:16',
+            text='For God so loved the world...',
+            translation='ESV',
+            book_name='John',
+            book_order=43,
+            chapter=3,
+            verse_start=16,
+            themes=['love', 'salvation']
+        )
+
+    def test_delete_verse(self):
+        """Deleting verse soft-deletes it."""
+        response = self.client.post(reverse('faith:saved_verse_delete', kwargs={'pk': self.verse.pk}))
+        self.assertRedirects(response, reverse('faith:scripture_list'))
+
+        self.verse.refresh_from_db()
+        self.assertTrue(self.verse.is_deleted)
+
+    def test_deleted_verse_not_shown_in_list(self):
+        """Soft-deleted verse is not shown in the list."""
+        self.verse.soft_delete()
+
+        response = self.client.get(reverse('faith:scripture_list'))
+        self.assertNotContains(response, 'John 3:16')
+
+    def test_cannot_delete_other_users_verse(self):
+        """Cannot delete another user's verse."""
+        other_user = User.objects.create_user(
+            email='other@example.com',
+            password='testpass123'
+        )
+        setup_user_for_faith(other_user)
+        other_verse = SavedVerse.objects.create(
+            user=other_user,
+            reference='Psalm 23:1',
+            text='The Lord is my shepherd...',
+            translation='NIV',
+            book_name='Psalms',
+            book_order=19,
+            chapter=23,
+            verse_start=1
+        )
+
+        response = self.client.post(reverse('faith:saved_verse_delete', kwargs={'pk': other_verse.pk}))
+        self.assertEqual(response.status_code, 404)
+
+        # Verify verse was not deleted
+        other_verse.refresh_from_db()
+        self.assertFalse(other_verse.is_deleted)
+
+    def test_delete_button_shown_in_list(self):
+        """Delete button is shown for each verse in the list."""
+        response = self.client.get(reverse('faith:scripture_list'))
+        self.assertContains(response, reverse('faith:saved_verse_delete', kwargs={'pk': self.verse.pk}))
+        self.assertContains(response, 'Delete')
+
+    def test_delete_requires_post(self):
+        """Delete requires POST method (GET should not work)."""
+        # Note: Our view only handles POST, so GET would give 405
+        response = self.client.get(reverse('faith:saved_verse_delete', kwargs={'pk': self.verse.pk}))
+        self.assertEqual(response.status_code, 405)
+
+        # Verify verse was NOT deleted
+        self.verse.refresh_from_db()
+        self.assertFalse(self.verse.is_deleted)

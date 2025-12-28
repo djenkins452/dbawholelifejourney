@@ -1,10 +1,10 @@
 """
-Faith Forms - Prayer requests and milestones.
+Faith Forms - Prayer requests, milestones, and saved verses.
 """
 
 from django import forms
 
-from .models import FaithMilestone, PrayerRequest
+from .models import FaithMilestone, PrayerRequest, SavedVerse
 
 
 class PrayerRequestForm(forms.ModelForm):
@@ -104,3 +104,60 @@ class FaithMilestoneForm(forms.ModelForm):
                 "placeholder": "e.g., Romans 8:28",
             }),
         }
+
+
+class SavedVerseForm(forms.ModelForm):
+    """
+    Form for editing saved Scripture verses.
+    """
+
+    themes_text = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            "class": "form-input",
+            "placeholder": "e.g., faith, hope, love (comma-separated)",
+        }),
+        label="Themes",
+        help_text="Add themes to help organize your verses (comma-separated)",
+    )
+
+    class Meta:
+        model = SavedVerse
+        fields = [
+            "reference",
+            "text",
+            "translation",
+            "notes",
+        ]
+        widgets = {
+            "reference": forms.TextInput(attrs={
+                "class": "form-input",
+            }),
+            "text": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "rows": 4,
+            }),
+            "translation": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "placeholder": "What does this verse mean to you?",
+                "rows": 3,
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Convert themes list to comma-separated string for editing
+        if self.instance and self.instance.pk and self.instance.themes:
+            self.initial["themes_text"] = ", ".join(self.instance.themes)
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Convert comma-separated themes back to list
+        themes_str = self.cleaned_data.get("themes_text", "")
+        instance.themes = [t.strip() for t in themes_str.split(",") if t.strip()]
+        if commit:
+            instance.save()
+        return instance

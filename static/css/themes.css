@@ -358,6 +358,76 @@
 }
 
 /* ==========================================================================
+   Mobile Menu Text Color Fix for Dark-Header Themes
+
+   Themes with dark headers (Faith, Sports, Nature, Outdoors) set nav-link
+   text to white for visibility. But the mobile hamburger menu has a light
+   background, so we need to override the text color to be readable.
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    /* Faith theme - dark blue header, cream background menu */
+    .theme-faith .nav-menu .nav-link,
+    .theme-faith .nav-menu .nav-user-name {
+        color: var(--color-text);
+    }
+
+    .theme-faith .nav-menu .nav-link:hover {
+        color: var(--color-text);
+        background-color: var(--color-surface);
+    }
+
+    .theme-faith .nav-menu .nav-link.active {
+        color: var(--color-accent);
+    }
+
+    /* Sports theme - dark gray header, white background menu */
+    .theme-sports .nav-menu .nav-link,
+    .theme-sports .nav-menu .nav-user-name {
+        color: var(--color-text);
+    }
+
+    .theme-sports .nav-menu .nav-link:hover {
+        color: var(--color-text);
+        background-color: var(--color-surface);
+    }
+
+    .theme-sports .nav-menu .nav-link.active {
+        color: var(--color-accent);
+    }
+
+    /* Nature theme - dark green header, cream background menu */
+    .theme-nature .nav-menu .nav-link,
+    .theme-nature .nav-menu .nav-user-name {
+        color: var(--color-text);
+    }
+
+    .theme-nature .nav-menu .nav-link:hover {
+        color: var(--color-text);
+        background-color: var(--color-surface);
+    }
+
+    .theme-nature .nav-menu .nav-link.active {
+        color: var(--color-accent);
+    }
+
+    /* Outdoors theme - slate header, cream background menu */
+    .theme-outdoors .nav-menu .nav-link,
+    .theme-outdoors .nav-menu .nav-user-name {
+        color: var(--color-text);
+    }
+
+    .theme-outdoors .nav-menu .nav-link:hover {
+        color: var(--color-text);
+        background-color: var(--color-surface);
+    }
+
+    .theme-outdoors .nav-menu .nav-link.active {
+        color: var(--color-accent);
+    }
+}
+
+/* ==========================================================================
    Theme 7: Minimal / Life Focus (Default)
    Quiet, clear, intentional
    ========================================================================== */

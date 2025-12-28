@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, Q, Sum
+from django.db.models import Case, Count, Q, Sum, Value, When
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
@@ -252,14 +252,24 @@ class TaskListView(LifeAccessMixin, ListView):
         if project_id:
             queryset = queryset.filter(project_id=project_id)
         
-        return queryset.select_related('project').order_by(
-            'is_completed', 'priority', 'due_date', '-created_at'
+        # Custom ordering for priority: now=1, soon=2, someday=3
+        # (alphabetically it would be now < someday < soon, which is wrong)
+        priority_order = Case(
+            When(priority='now', then=Value(1)),
+            When(priority='soon', then=Value(2)),
+            When(priority='someday', then=Value(3)),
+            default=Value(4),
         )
+        return queryset.select_related('project').annotate(
+            priority_order=priority_order
+        ).order_by('is_completed', 'priority_order', 'due_date', '-created_at')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        from apps.core.utils import get_user_today
         context['current_show'] = self.request.GET.get('show', 'active')
         context['current_priority'] = self.request.GET.get('priority', '')
+        context['user_today'] = get_user_today(self.request.user)
         context['projects'] = Project.objects.filter(
             user=self.request.user, status='active'
         )

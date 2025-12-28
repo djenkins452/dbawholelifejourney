@@ -283,11 +283,6 @@ a:hover {
     height: 20px;
 }
 
-/* Hide nav link text on desktop (icon-only), show on mobile */
-.nav-link span {
-    display: none;
-}
-
 .nav-icon {
     width: 24px;
     height: 24px;
@@ -342,14 +337,10 @@ a:hover {
         flex-direction: column;
     }
 
-    /* Ensure nav link text is visible on mobile */
+    /* Nav links styling on mobile */
     .nav-link {
         width: 100%;
         padding: var(--space-3) var(--space-4);
-    }
-
-    .nav-link span {
-        display: inline;
     }
 
     /* Help button - show text on mobile */

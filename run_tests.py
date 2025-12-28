@@ -360,6 +360,7 @@ def main():
             'apps.journal',
             'apps.faith',
             'apps.health',
+            'apps.help.tests',
             'apps.life',
             'apps.purpose.tests',  # Need full path due to import issue
             'apps.admin_console.tests',

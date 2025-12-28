@@ -28,8 +28,16 @@
 
 ## Recent Fixes Applied
 <!-- RECENT_FIXES_START -->
+- **OpenAI package:** Added openai to requirements.txt for AI insights functionality
+- **Word of the Year:** Extended section size on Purpose page for better visibility
+- **Pet delete functionality:** Added delete button with visibility fix (border) for user pets
+- **Pet upload error handling:** User-friendly error messages, cleaned up Cloudinary upload handling
+- **Cloudinary integration:** Added Cloudinary for persistent media storage, fixed configuration and initialization
+- **WLJ Assistant chat widget:** Uses site logo from SiteConfiguration, added company logo and timestamp fields to fixtures
+- **Onboarding redirect fix:** Corrected URL paths from /users/ to /user/ to fix redirect loops
 - **Step-by-step onboarding wizard:** New 6-step wizard for new users (Welcome, Theme, Modules, AI Coaching, Location, Complete)
 - **Onboarding enforcement:** Middleware enforces onboarding completion - users redirected to wizard until complete
+- **Context-aware help system:** Added help app with HELP_CONTEXT_ID system for screen-specific documentation
 - **Intro transcript:** Created `docs/intro_transcript.md` - narration script for voiceover/video explaining the app
 - **Database-driven AI prompts:** AIPromptConfig model allows admin control of all AI prompt types (10 types) via Django admin at /admin/ai/aipromptconfig/
 - **Database-driven coaching styles:** CoachingStyle model with 7 styles, editable via Django admin, with icon field for UI
@@ -37,27 +45,21 @@
 - **Life dashboard:** Quick Access tiles now show counts for each section
 - **Test history:** Added dev-only "Run Tests" button, sync_test_results command for pushing local test data to production
 - **Fitness tracking:** Added comprehensive fitness tracking feature
-- **Google Calendar:** Added API dependencies to requirements.txt
-- **Preferences page:** Dynamic coaching style rendering from database with responsive grid layout
-- **Fixture loading:** Fixed to use fixture names without app prefix
-- **Login page CSS:** Fixed auth_content block in templates/account/base.html
-- **Timezone display:** Fasting list uses {% timezone user_timezone %} tag
-- **Faith module default:** Changed to default=True in UserPreferences
-- **Speech-to-text:** Set continuous: false to prevent duplication
-- **Superuser creation:** create_superuser_from_env only creates if user doesn't exist
-- **Footer logo:** Increased size to 200px
-- **Custom domain:** Added support for wholelifejourney.com
-- **Media files:** Fixed serving in production
+- **Test runner:** Updated run_tests.py to include apps.help.tests
 <!-- RECENT_FIXES_END -->
 
 ## Important Files
 - `Procfile` - Railway deployment startup command
+- `run_tests.py` - Enhanced test runner with database history and summary output
 - `apps/core/management/commands/load_initial_data.py` - System data loading (fixtures + populate commands)
 - `apps/users/management/commands/create_superuser_from_env.py` - Superuser creation
+- `apps/users/middleware.py` - TermsAcceptanceMiddleware (onboarding enforcement)
 - `apps/ai/models.py` - AIPromptConfig, CoachingStyle, AIInsight, AIUsageLog models
 - `apps/ai/services.py` - AIService with database-driven prompts
 - `apps/ai/fixtures/ai_prompt_configs.json` - Default AI prompt configurations (10 types)
 - `apps/ai/fixtures/coaching_styles.json` - Default coaching styles (7 styles)
+- `apps/help/` - Context-aware help system (models, services, views, tests)
+- `apps/life/models.py` - Pet model with Cloudinary image upload
 - `apps/<app>/fixtures/<name>.json` - Reference data fixtures
 - `templates/admin/base_site.html` - Custom Django admin branding with Admin Console link
 

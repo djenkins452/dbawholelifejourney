@@ -110,7 +110,7 @@ class ReflectionModelTest(TestCase):
 
 class PurposeViewTest(TestCase):
     """Tests for purpose module views."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -118,16 +118,22 @@ class PurposeViewTest(TestCase):
             password='testpass123'
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         # Enable purpose module
         self.user.preferences.purpose_enabled = True
         self.user.preferences.save()
-    
+
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(
             user=user,
             terms_version='1.0'
         )
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_purpose_home_requires_login(self):
         """Purpose home requires authentication."""
@@ -167,7 +173,7 @@ class PurposeViewTest(TestCase):
 
 class PurposeDataIsolationTest(TestCase):
     """Tests to ensure users can only see their own purpose data."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user_a = User.objects.create_user(
@@ -180,13 +186,15 @@ class PurposeDataIsolationTest(TestCase):
         )
         self._accept_terms(self.user_a)
         self._accept_terms(self.user_b)
-        
+        self._complete_onboarding(self.user_a)
+        self._complete_onboarding(self.user_b)
+
         # Enable purpose module for both users
         self.user_a.preferences.purpose_enabled = True
         self.user_a.preferences.save()
         self.user_b.preferences.purpose_enabled = True
         self.user_b.preferences.save()
-        
+
         # Create goals for each user
         self.goal_a = LifeGoal.objects.create(
             user=self.user_a,
@@ -196,13 +204,18 @@ class PurposeDataIsolationTest(TestCase):
             user=self.user_b,
             title='User B Goal'
         )
-    
+
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(
             user=user,
             terms_version='1.0'
         )
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_user_a_sees_only_their_goals(self):
         """User A only sees their own goals."""

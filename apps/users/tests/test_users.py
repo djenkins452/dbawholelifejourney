@@ -159,7 +159,7 @@ class AuthenticationTest(TestCase):
 
 class PreferencesViewTest(TestCase):
     """Tests for the preferences page."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -177,6 +177,10 @@ class PreferencesViewTest(TestCase):
             )
         except (ImportError, Exception):
             pass  # Terms acceptance might not be required
+
+        # Mark onboarding as complete
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
     
     def test_preferences_requires_login(self):
         """Preferences page requires authentication."""

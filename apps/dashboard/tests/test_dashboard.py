@@ -24,7 +24,8 @@ class DashboardViewTest(TestCase):
             first_name='John'
         )
         self._accept_terms(self.user)
-    
+        self._complete_onboarding(self.user)
+
     def _accept_terms(self, user):
         """Helper to accept terms for a user."""
         try:
@@ -36,6 +37,11 @@ class DashboardViewTest(TestCase):
             )
         except (ImportError, Exception):
             pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_dashboard_requires_login(self):
         """Dashboard requires authentication."""
@@ -112,7 +118,7 @@ class DashboardViewTest(TestCase):
 
 class DashboardContextTest(TestCase):
     """Tests for dashboard context data."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -120,8 +126,9 @@ class DashboardContextTest(TestCase):
             password='testpass123'
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.client.login(email='test@example.com', password='testpass123')
-    
+
     def _accept_terms(self, user):
         """Helper to accept terms for a user."""
         try:
@@ -133,6 +140,11 @@ class DashboardContextTest(TestCase):
             )
         except (ImportError, Exception):
             pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_dashboard_has_greeting_context(self):
         """Dashboard context includes greeting."""

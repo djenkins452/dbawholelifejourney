@@ -136,7 +136,7 @@ class FaithMilestoneModelTest(TestCase):
 
 class FaithViewTest(TestCase):
     """Tests for faith module views."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -144,16 +144,22 @@ class FaithViewTest(TestCase):
             password='testpass123'
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         # Enable faith module
         self.user.preferences.faith_enabled = True
         self.user.preferences.save()
-    
+
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(
             user=user,
             terms_version='1.0'
         )
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_faith_home_requires_login(self):
         """Faith home requires authentication."""
@@ -196,7 +202,7 @@ class FaithViewTest(TestCase):
 
 class FaithDataIsolationTest(TestCase):
     """Tests to ensure users can only see their own faith data."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user_a = User.objects.create_user(
@@ -209,13 +215,15 @@ class FaithDataIsolationTest(TestCase):
         )
         self._accept_terms(self.user_a)
         self._accept_terms(self.user_b)
-        
+        self._complete_onboarding(self.user_a)
+        self._complete_onboarding(self.user_b)
+
         # Enable faith module for both users
         self.user_a.preferences.faith_enabled = True
         self.user_a.preferences.save()
         self.user_b.preferences.faith_enabled = True
         self.user_b.preferences.save()
-        
+
         # Create prayer requests for each user
         self.prayer_a = PrayerRequest.objects.create(
             user=self.user_a,
@@ -225,13 +233,18 @@ class FaithDataIsolationTest(TestCase):
             user=self.user_b,
             title='User B Prayer'
         )
-    
+
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(
             user=user,
             terms_version='1.0'
         )
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_user_a_sees_only_their_prayers(self):
         """User A only sees their own prayers."""

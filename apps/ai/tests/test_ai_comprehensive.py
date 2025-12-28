@@ -35,14 +35,20 @@ class AITestMixin:
     """Common setup for AI tests."""
 
     def create_user(self, email='test@example.com', password='testpass123'):
-        """Create a test user with terms accepted."""
+        """Create a test user with terms accepted and onboarding completed."""
         user = User.objects.create_user(email=email, password=password)
         self._accept_terms(user)
+        self._complete_onboarding(user)
         return user
 
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(user=user, terms_version='1.0')
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
 
     def create_ai_insight(self, user, insight_type='daily', content='Test insight',
                           valid_until=None):

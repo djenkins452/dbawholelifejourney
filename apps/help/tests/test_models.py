@@ -1,7 +1,7 @@
 """
 Tests for Help System Models
 """
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.core.cache import cache
 from django.contrib.auth import get_user_model
 
@@ -96,8 +96,12 @@ class HelpTopicModelTests(TestCase):
                 content="Content"
             )
 
+    @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
     def test_caching(self):
         """Test that topics are cached."""
+        # Clear cache to ensure clean state with LocMemCache
+        cache.clear()
+
         # First call - should hit database
         topic1 = HelpTopic.get_by_context("TEST_CONTEXT")
         self.assertIsNotNone(topic1)

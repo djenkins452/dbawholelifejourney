@@ -30,18 +30,24 @@ User = get_user_model()
 
 class LifeTestMixin:
     """Common setup for life tests."""
-    
+
     def create_user(self, email='test@example.com', password='testpass123'):
-        """Create a test user with terms accepted and life enabled."""
+        """Create a test user with terms accepted, onboarding completed, and life enabled."""
         user = User.objects.create_user(email=email, password=password)
         self._accept_terms(user)
+        self._complete_onboarding(user)
         self._enable_life(user)
         return user
-    
+
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(user=user, terms_version='1.0')
-    
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
     def _enable_life(self, user):
         user.preferences.life_enabled = True
         user.preferences.save()

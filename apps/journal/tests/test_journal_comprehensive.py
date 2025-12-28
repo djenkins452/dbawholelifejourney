@@ -31,16 +31,22 @@ User = get_user_model()
 
 class JournalTestMixin:
     """Common setup for journal tests."""
-    
+
     def create_user(self, email='test@example.com', password='testpass123'):
-        """Create a test user with terms accepted."""
+        """Create a test user with terms accepted and onboarding completed."""
         user = User.objects.create_user(email=email, password=password)
         self._accept_terms(user)
+        self._complete_onboarding(user)
         return user
-    
+
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(user=user, terms_version='1.0')
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def enable_module(self, user, module):
         """Enable a module for a user."""
@@ -199,11 +205,18 @@ class JournalPromptModelTest(JournalTestMixin, TestCase):
     
     def test_filter_active_prompts(self):
         """Can filter to only active prompts."""
-        JournalPrompt.objects.create(text='Active', is_active=True)
-        JournalPrompt.objects.create(text='Inactive', is_active=False)
-        
+        # Get count before creating test prompts (may have prompts from data migration)
+        initial_active_count = JournalPrompt.objects.filter(is_active=True).count()
+
+        JournalPrompt.objects.create(text='Active Test', is_active=True)
+        JournalPrompt.objects.create(text='Inactive Test', is_active=False)
+
         active = JournalPrompt.objects.filter(is_active=True)
-        self.assertEqual(active.count(), 1)
+        # Should have one more active prompt than before
+        self.assertEqual(active.count(), initial_active_count + 1)
+        # Verify our inactive prompt is not in the active set
+        self.assertFalse(active.filter(text='Inactive Test').exists())
+        self.assertTrue(active.filter(text='Active Test').exists())
 
 
 # =============================================================================

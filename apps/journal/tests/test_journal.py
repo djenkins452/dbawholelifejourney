@@ -97,7 +97,7 @@ class JournalPromptModelTest(TestCase):
 
 class JournalEntryViewTest(TestCase):
     """Tests for journal entry views."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
@@ -105,8 +105,9 @@ class JournalEntryViewTest(TestCase):
             password='testpass123'
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.client.login(email='test@example.com', password='testpass123')
-    
+
     def _accept_terms(self, user):
         """Helper to accept terms for a user."""
         try:
@@ -118,6 +119,11 @@ class JournalEntryViewTest(TestCase):
             )
         except (ImportError, Exception):
             pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_entry_list_requires_login(self):
         """Entry list requires authentication."""
@@ -211,7 +217,7 @@ class JournalEntryViewTest(TestCase):
 
 class JournalDataIsolationTest(TestCase):
     """Tests to ensure users can only see their own journal entries."""
-    
+
     def setUp(self):
         self.client = Client()
         self.user_a = User.objects.create_user(
@@ -224,7 +230,9 @@ class JournalDataIsolationTest(TestCase):
         )
         self._accept_terms(self.user_a)
         self._accept_terms(self.user_b)
-        
+        self._complete_onboarding(self.user_a)
+        self._complete_onboarding(self.user_b)
+
         # Create entries for each user
         self.entry_a = JournalEntry.objects.create(
             user=self.user_a,
@@ -238,7 +246,7 @@ class JournalDataIsolationTest(TestCase):
             body='Private content B',
             entry_date=date.today()
         )
-    
+
     def _accept_terms(self, user):
         try:
             from apps.users.models import TermsAcceptance
@@ -249,6 +257,11 @@ class JournalDataIsolationTest(TestCase):
             )
         except (ImportError, Exception):
             pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def test_user_a_sees_only_their_entries(self):
         """User A only sees their own entries."""

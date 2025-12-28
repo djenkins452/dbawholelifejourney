@@ -35,16 +35,22 @@ User = get_user_model()
 
 class DashboardTestMixin:
     """Common setup for dashboard tests."""
-    
+
     def create_user(self, email='test@example.com', password='testpass123'):
-        """Create a test user with terms accepted."""
+        """Create a test user with terms accepted and onboarding completed."""
         user = User.objects.create_user(email=email, password=password)
         self._accept_terms(user)
+        self._complete_onboarding(user)
         return user
-    
+
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(user=user, terms_version='1.0')
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def enable_module(self, user, module):
         """Enable a module for a user (faith, health, journal, life, purpose)."""
@@ -412,8 +418,10 @@ class JournalStreakTest(DashboardTestMixin, TestCase):
     def test_streak_with_consecutive_entries(self):
         """Streak counts consecutive days."""
         from apps.journal.models import JournalEntry
-        
-        today = date.today()
+        from apps.core.utils import get_user_today
+
+        # Use the user's timezone-aware today to match dashboard logic
+        today = get_user_today(self.user)
         # Create entries for last 3 days
         for i in range(3):
             JournalEntry.objects.create(
@@ -422,7 +430,7 @@ class JournalStreakTest(DashboardTestMixin, TestCase):
                 body="Content",
                 entry_date=today - timedelta(days=i)
             )
-        
+
         response = self.client.get(reverse('dashboard:home'))
         user_data = response.context.get('user_data', {})
         self.assertGreaterEqual(user_data.get('journal_streak', 0), 3)

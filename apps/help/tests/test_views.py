@@ -29,6 +29,11 @@ class BaseHelpViewTest(TestCase):
         except (ImportError, Exception):
             pass
 
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
 
 class HelpTopicAPIViewTests(BaseHelpViewTest):
     """Tests for the user help API endpoint."""
@@ -41,6 +46,7 @@ class HelpTopicAPIViewTests(BaseHelpViewTest):
             password="testpass123"
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.topic = HelpTopic.objects.create(
             context_id="TEST_CONTEXT",
             help_id="test-help",
@@ -122,11 +128,13 @@ class AdminHelpTopicAPIViewTests(BaseHelpViewTest):
             password="testpass123"
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.admin_user = User.objects.create_superuser(
             email="admin@example.com",
             password="adminpass123"
         )
         self._accept_terms(self.admin_user)
+        self._complete_onboarding(self.admin_user)
         self.topic = AdminHelpTopic.objects.create(
             context_id="ADMIN_TEST",
             help_id="admin-test",
@@ -194,11 +202,13 @@ class HelpSearchAPIViewTests(BaseHelpViewTest):
             password="testpass123"
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.admin_user = User.objects.create_superuser(
             email="admin@example.com",
             password="adminpass123"
         )
         self._accept_terms(self.admin_user)
+        self._complete_onboarding(self.admin_user)
         HelpTopic.objects.create(
             context_id="SEARCH_TEST_1",
             help_id="search-test-1",
@@ -268,6 +278,7 @@ class HelpCenterViewTest(BaseHelpViewTest):
             password="testpass123"
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.category = HelpCategory.objects.create(
             name="Getting Started",
             slug="getting-started"
@@ -303,6 +314,7 @@ class HelpArticleViewTest(BaseHelpViewTest):
             password="testpass123"
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.category = HelpCategory.objects.create(
             name="Features",
             slug="features"
@@ -348,6 +360,7 @@ class ChatAPITest(BaseHelpViewTest):
             password="testpass123"
         )
         self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
         self.article = HelpArticle.objects.create(
             title="Using the Journal",
             slug="using-journal",

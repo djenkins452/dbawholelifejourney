@@ -28,27 +28,28 @@ User = get_user_model()
 
 class AdminTestMixin:
     """Common setup for admin tests."""
-    
-    def create_user(self, email='user@example.com', password='testpass123', 
+
+    def create_user(self, email='user@example.com', password='testpass123',
                     is_staff=False, is_superuser=False):
-        """Create a test user."""
+        """Create a test user with terms accepted and onboarding completed."""
         user = User.objects.create_user(
-            email=email, 
+            email=email,
             password=password,
             is_staff=is_staff,
             is_superuser=is_superuser
         )
         self._accept_terms(user)
+        self._complete_onboarding(user)
         return user
-    
+
     def create_admin(self, email='admin@example.com', password='adminpass123'):
         """Create a staff user."""
         return self.create_user(
-            email=email, 
-            password=password, 
+            email=email,
+            password=password,
             is_staff=True
         )
-    
+
     def create_superuser(self, email='super@example.com', password='superpass123'):
         """Create a superuser."""
         return self.create_user(
@@ -57,10 +58,15 @@ class AdminTestMixin:
             is_staff=True,
             is_superuser=True
         )
-    
+
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(user=user, terms_version='1.0')
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
     
     def login_admin(self, email='admin@example.com', password='adminpass123'):
         return self.client.login(email=email, password=password)

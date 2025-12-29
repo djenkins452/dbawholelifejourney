@@ -29,6 +29,7 @@ class DashboardAI:
         self.prefs = user.preferences
         self.faith_enabled = self.prefs.faith_enabled
         self.coaching_style = getattr(self.prefs, 'ai_coaching_style', 'supportive')
+        self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
     
     def get_daily_insight(self, force_refresh: bool = False) -> str:
         """
@@ -54,7 +55,8 @@ class DashboardAI:
         content = ai_service.generate_daily_insight(
             user_data,
             self.faith_enabled,
-            self.coaching_style
+            self.coaching_style,
+            self.user_profile
         )
 
         if content:

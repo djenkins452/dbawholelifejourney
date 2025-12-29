@@ -300,8 +300,54 @@
                     {% endfor %}
                 </div>
             </div>
+
+            <!-- AI Personal Profile (shown when AI is enabled and consent given) -->
+            <div id="ai-profile-section" class="ai-profile-section {% if not form.ai_enabled.value or not form.ai_data_consent.value %}hidden{% endif %}">
+                <h3 class="module-section-title mt-6">Personal AI Profile</h3>
+                <p class="text-muted text-sm mb-4">
+                    Help the AI understand you better by sharing relevant details about yourself.
+                    This information personalizes insights, encouragement, and suggestions.
+                    <strong>Only share what you're comfortable with.</strong>
+                </p>
+
+                <div class="form-group">
+                    <label for="id_ai_profile" class="form-label">About You</label>
+                    <textarea
+                        name="ai_profile"
+                        id="id_ai_profile"
+                        class="form-textarea"
+                        rows="6"
+                        maxlength="2000"
+                        placeholder="Tell the AI about yourself to personalize your experience...
+
+Examples:
+• Age and life stage (e.g., 'I'm in my 40s with two teenagers')
+• Family situation (e.g., 'married, work-from-home parent')
+• Health focus (e.g., 'managing blood pressure, trying to lose 20lbs')
+• Faith journey (e.g., 'growing Christian seeking deeper prayer life')
+• Interests (e.g., 'love hiking, cooking, woodworking')
+• Work/career (e.g., 'software developer, often stressed about deadlines')"
+                    >{{ form.ai_profile.value|default:'' }}</textarea>
+                    <div class="form-help-row">
+                        <p class="form-help">This information is used only to personalize AI responses. It is never shared externally.</p>
+                        <span class="char-counter" id="ai-profile-counter">
+                            <span id="ai-profile-length">{{ form.ai_profile.value|length|default:0 }}</span>/2000
+                        </span>
+                    </div>
+                </div>
+
+                <div class="ai-profile-tips">
+                    <h4 class="tips-title">Tips for a great profile:</h4>
+                    <ul class="tips-list">
+                        <li>Be specific about your current life situation and goals</li>
+                        <li>Mention health conditions relevant to your wellness journey</li>
+                        <li>Share your communication preferences (e.g., "I respond well to direct feedback")</li>
+                        <li>Include what motivates you and what you're working on</li>
+                    </ul>
+                </div>
+            </div>
         </div>
-        
+
         <!-- Faith Settings Section (shown when Faith module is enabled) -->
         <div class="card mb-6" id="faith-settings-section" {% if not form.faith_enabled.value %}style="display: none;"{% endif %}>
             <h2 class="card-title">Faith Settings</h2>
@@ -838,6 +884,86 @@
     font-size: var(--font-size-sm);
     line-height: var(--line-height-relaxed);
 }
+
+/* AI Profile Section */
+.ai-profile-section {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.ai-profile-section.hidden {
+    display: none;
+}
+
+.form-textarea {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-relaxed);
+    resize: vertical;
+    min-height: 120px;
+}
+
+.form-textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+.form-textarea::placeholder {
+    color: var(--color-text-muted);
+    opacity: 0.7;
+}
+
+.form-help-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-top: var(--space-2);
+    gap: var(--space-4);
+}
+
+.char-counter {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.ai-profile-tips {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-background));
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.tips-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-2) 0;
+}
+
+.tips-list {
+    margin: 0;
+    padding-left: var(--space-5);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.tips-list li {
+    margin-bottom: var(--space-1);
+}
+
+.tips-list li:last-child {
+    margin-bottom: 0;
+}
 </style>
 
 <script src="{% static 'js/timezone-lookup.js' %}"></script>
@@ -852,7 +978,21 @@ function clearAccentColor() {
     document.getElementById('accent_color_text').value = '';
 }
 
-// AI coaching style and data consent toggle visibility
+// AI coaching style, data consent, and profile toggle visibility
+function updateAIProfileVisibility() {
+    const aiEnabled = document.getElementById('ai_enabled_toggle').checked;
+    const consentEnabled = document.getElementById('ai_data_consent_toggle').checked;
+    const profileSection = document.getElementById('ai-profile-section');
+
+    if (profileSection) {
+        if (aiEnabled && consentEnabled) {
+            profileSection.classList.remove('hidden');
+        } else {
+            profileSection.classList.add('hidden');
+        }
+    }
+}
+
 document.getElementById('ai_enabled_toggle').addEventListener('change', function() {
     const coachingSection = document.getElementById('ai-coaching-section');
     const dataConsentOption = document.getElementById('ai-data-consent-option');
@@ -863,7 +1003,22 @@ document.getElementById('ai_enabled_toggle').addEventListener('change', function
         coachingSection.classList.add('hidden');
         if (dataConsentOption) dataConsentOption.style.display = 'none';
     }
+    updateAIProfileVisibility();
 });
+
+// Data consent toggle also affects profile visibility
+document.getElementById('ai_data_consent_toggle').addEventListener('change', function() {
+    updateAIProfileVisibility();
+});
+
+// Character counter for AI profile
+const aiProfileTextarea = document.getElementById('id_ai_profile');
+const aiProfileLengthSpan = document.getElementById('ai-profile-length');
+if (aiProfileTextarea && aiProfileLengthSpan) {
+    aiProfileTextarea.addEventListener('input', function() {
+        aiProfileLengthSpan.textContent = this.value.length;
+    });
+}
 
 // Coaching style card selection
 document.querySelectorAll('.coaching-style-card input[type="radio"]').forEach(radio => {

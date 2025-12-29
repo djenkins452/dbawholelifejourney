@@ -44,6 +44,17 @@ FAITH CONTEXT: The user has faith/spirituality enabled. You may:
 - But keep it natural—don't force it or be preachy"""
 
 
+# Safe response guidelines when user profile is used
+PROFILE_SAFETY_INSTRUCTIONS = """
+IMPORTANT SAFETY GUIDELINES:
+- Never provide medical, legal, financial, or spiritual advice - only supportive observations
+- If the user mentions health conditions, acknowledge supportively but don't diagnose or prescribe
+- Maintain respectful, encouraging tone aligned with wholesome values
+- If profile content seems concerning, focus on encouragement and suggest professional support
+- Never repeat the user's profile information verbatim in responses
+"""
+
+
 class AIService:
     """
     Core AI service for generating insights and encouragement.
@@ -126,11 +137,18 @@ class AIService:
 
     def _get_system_prompt(self, faith_enabled: bool = False,
                            coaching_style: str = 'supportive',
-                           prompt_type: str = None) -> str:
+                           prompt_type: str = None,
+                           user_profile: str = None) -> str:
         """Get the base system prompt for AI interactions.
 
         If prompt_type is provided and exists in database, uses that config.
         Otherwise falls back to system_base config or hardcoded defaults.
+
+        Args:
+            faith_enabled: Whether faith context should be included
+            coaching_style: The user's preferred coaching style
+            prompt_type: Specific prompt type for database lookup
+            user_profile: User's personal AI profile for personalization
         """
         # Try to get system base config from database
         base_config = self._get_prompt_config('system_base')
@@ -152,26 +170,42 @@ class AIService:
             else:
                 base += FALLBACK_FAITH_CONTEXT
 
+        # Add user profile context if provided
+        if user_profile:
+            from .profile_moderation import build_safe_profile_context
+            profile_context = build_safe_profile_context(user_profile)
+            if profile_context:
+                base += "\n\n" + profile_context
+                base += "\n" + PROFILE_SAFETY_INSTRUCTIONS
+
         return base
 
     def _get_prompt_with_config(self, prompt_type: str, default_prompt: str,
                                 faith_enabled: bool = False,
-                                coaching_style: str = 'supportive') -> tuple:
+                                coaching_style: str = 'supportive',
+                                user_profile: str = None) -> tuple:
         """Get system prompt and max tokens for a specific prompt type.
 
         Returns (system_prompt, max_tokens) tuple.
         Uses database config if available, otherwise uses defaults.
+
+        Args:
+            prompt_type: The type of prompt to load from database
+            default_prompt: Fallback prompt description
+            faith_enabled: Whether faith context should be included
+            coaching_style: The user's preferred coaching style
+            user_profile: User's personal AI profile for personalization
         """
         config = self._get_prompt_config(prompt_type)
 
         if config:
             # Build system prompt with specific instructions from config
-            system = self._get_system_prompt(faith_enabled, coaching_style, prompt_type)
+            system = self._get_system_prompt(faith_enabled, coaching_style, prompt_type, user_profile)
             system += "\n\n" + config.get_full_prompt()
             return (system, config.max_tokens)
         else:
             # Use default system prompt
-            system = self._get_system_prompt(faith_enabled, coaching_style)
+            system = self._get_system_prompt(faith_enabled, coaching_style, user_profile=user_profile)
             return (system, 150)  # Default max tokens
     
     def _call_api(self, system_prompt: str, user_prompt: str, 
@@ -265,14 +299,23 @@ Match your response to your coaching style."""
     
     def generate_daily_insight(self, user_data: dict,
                                faith_enabled: bool = False,
-                               coaching_style: str = 'supportive') -> Optional[str]:
-        """Generate a personalized daily insight for the dashboard."""
+                               coaching_style: str = 'supportive',
+                               user_profile: str = None) -> Optional[str]:
+        """Generate a personalized daily insight for the dashboard.
+
+        Args:
+            user_data: Dictionary of user activity and status data
+            faith_enabled: Whether faith context should be included
+            coaching_style: The user's preferred coaching style
+            user_profile: User's personal AI profile for personalization
+        """
         # Get system prompt and config from database
         system, max_tokens = self._get_prompt_with_config(
             'daily_insight',
             'Generate a personalized dashboard message',
             faith_enabled,
-            coaching_style
+            coaching_style,
+            user_profile
         )
 
         # Build context from available data

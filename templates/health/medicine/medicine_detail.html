@@ -35,7 +35,11 @@
         {% if medicine.was_created_by_ai %}
         <span class="ai-camera-badge" title="Added via AI Camera Scan">📷 AI Camera</span>
         {% endif %}
-        {% if medicine.needs_refill %}
+        {% if medicine.refill_requested %}
+        <div class="refill-requested">
+            Refill Requested{% if medicine.refill_requested_at %} on {{ medicine.refill_requested_at|date:"M j" }}{% endif %}
+        </div>
+        {% elif medicine.needs_refill %}
         <div class="refill-warning">
             Low supply: {{ medicine.current_supply }} doses remaining
         </div>
@@ -161,6 +165,29 @@
             <input type="number" name="current_supply" value="{{ medicine.current_supply|default:0 }}" min="0" class="form-input">
             <button type="submit" class="btn btn-secondary btn-sm">Update</button>
         </form>
+
+        <!-- Refill Request Actions -->
+        {% if medicine.refill_requested %}
+        <div class="refill-actions mt-4">
+            <p class="text-sm text-muted mb-2">
+                Refill was requested{% if medicine.refill_requested_at %} on {{ medicine.refill_requested_at|date:"M j, Y" }}{% endif %}.
+            </p>
+            <form method="post" action="{% url 'health:medicine_clear_refill' pk=medicine.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary btn-sm">Refill Received</button>
+            </form>
+        </div>
+        {% elif medicine.refill_status == 'needed' %}
+        <div class="refill-actions mt-4">
+            <p class="text-sm text-warning mb-2">
+                Supply is low ({{ medicine.current_supply }} remaining).
+            </p>
+            <form method="post" action="{% url 'health:medicine_request_refill' pk=medicine.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning btn-sm">Request Refill</button>
+            </form>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Recent History -->
@@ -278,6 +305,33 @@
     border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
     color: var(--color-warning, #f59e0b);
+}
+
+.refill-requested {
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-info, #3b82f6) 15%, transparent);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-info, #3b82f6);
+    font-weight: 500;
+}
+
+.refill-actions {
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.text-warning {
+    color: var(--color-warning, #f59e0b);
+}
+
+.btn-warning {
+    background: var(--color-warning, #f59e0b);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 80%, black);
 }
 
 .stats-grid {

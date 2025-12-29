@@ -234,6 +234,186 @@ class GlucoseEntry(UserOwnedModel):
         return float(self.value) / 18.0182
 
 
+class BloodPressureEntry(UserOwnedModel):
+    """
+    Blood pressure tracking entry.
+
+    Records systolic and diastolic pressure with context.
+    """
+
+    CONTEXT_CHOICES = [
+        ("resting", "Resting"),
+        ("morning", "Morning (upon waking)"),
+        ("evening", "Evening"),
+        ("post_exercise", "Post-Exercise"),
+        ("stressed", "Stressed"),
+        ("relaxed", "Relaxed"),
+        ("other", "Other"),
+    ]
+
+    ARM_CHOICES = [
+        ("left", "Left Arm"),
+        ("right", "Right Arm"),
+    ]
+
+    POSITION_CHOICES = [
+        ("sitting", "Sitting"),
+        ("standing", "Standing"),
+        ("lying", "Lying Down"),
+    ]
+
+    systolic = models.PositiveIntegerField(
+        help_text="Systolic pressure (top number) in mmHg"
+    )
+    diastolic = models.PositiveIntegerField(
+        help_text="Diastolic pressure (bottom number) in mmHg"
+    )
+    pulse = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Pulse rate (if measured with BP)"
+    )
+    context = models.CharField(
+        max_length=20,
+        choices=CONTEXT_CHOICES,
+        default="resting",
+    )
+    arm = models.CharField(
+        max_length=10,
+        choices=ARM_CHOICES,
+        default="left",
+    )
+    position = models.CharField(
+        max_length=10,
+        choices=POSITION_CHOICES,
+        default="sitting",
+    )
+    recorded_at = models.DateTimeField(default=timezone.now)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+        verbose_name = "blood pressure entry"
+        verbose_name_plural = "blood pressure entries"
+
+    def __str__(self):
+        return f"{self.systolic}/{self.diastolic} mmHg on {self.recorded_at.date()}"
+
+    @property
+    def reading(self):
+        """Return formatted blood pressure reading."""
+        return f"{self.systolic}/{self.diastolic}"
+
+    @property
+    def category(self):
+        """
+        Categorize blood pressure according to AHA guidelines.
+        Returns: normal, elevated, high_stage1, high_stage2, crisis
+        """
+        if self.systolic < 120 and self.diastolic < 80:
+            return "normal"
+        elif self.systolic < 130 and self.diastolic < 80:
+            return "elevated"
+        elif self.systolic < 140 or self.diastolic < 90:
+            return "high_stage1"
+        elif self.systolic < 180 or self.diastolic < 120:
+            return "high_stage2"
+        else:
+            return "crisis"
+
+    @property
+    def category_display(self):
+        """Human-readable category name."""
+        categories = {
+            "normal": "Normal",
+            "elevated": "Elevated",
+            "high_stage1": "High (Stage 1)",
+            "high_stage2": "High (Stage 2)",
+            "crisis": "Hypertensive Crisis",
+        }
+        return categories.get(self.category, "Unknown")
+
+
+class BloodOxygenEntry(UserOwnedModel):
+    """
+    Blood oxygen (SpO2) tracking entry.
+
+    Records oxygen saturation percentage with context.
+    """
+
+    CONTEXT_CHOICES = [
+        ("resting", "Resting"),
+        ("morning", "Morning (upon waking)"),
+        ("active", "Active / Exercise"),
+        ("post_exercise", "Post-Exercise"),
+        ("sleeping", "During Sleep"),
+        ("illness", "While Ill"),
+        ("other", "Other"),
+    ]
+
+    MEASUREMENT_CHOICES = [
+        ("finger", "Finger Pulse Oximeter"),
+        ("wrist", "Wrist Device"),
+        ("ear", "Ear Clip"),
+        ("other", "Other"),
+    ]
+
+    spo2 = models.PositiveIntegerField(
+        help_text="Blood oxygen saturation percentage (SpO2)"
+    )
+    pulse = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Pulse rate (if measured with SpO2)"
+    )
+    context = models.CharField(
+        max_length=20,
+        choices=CONTEXT_CHOICES,
+        default="resting",
+    )
+    measurement_method = models.CharField(
+        max_length=20,
+        choices=MEASUREMENT_CHOICES,
+        default="finger",
+    )
+    recorded_at = models.DateTimeField(default=timezone.now)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+        verbose_name = "blood oxygen entry"
+        verbose_name_plural = "blood oxygen entries"
+
+    def __str__(self):
+        return f"{self.spo2}% SpO2 on {self.recorded_at.date()}"
+
+    @property
+    def category(self):
+        """
+        Categorize blood oxygen level.
+        Returns: normal, low, concerning, critical
+        """
+        if self.spo2 >= 95:
+            return "normal"
+        elif self.spo2 >= 90:
+            return "low"
+        elif self.spo2 >= 85:
+            return "concerning"
+        else:
+            return "critical"
+
+    @property
+    def category_display(self):
+        """Human-readable category name."""
+        categories = {
+            "normal": "Normal",
+            "low": "Low",
+            "concerning": "Concerning",
+            "critical": "Critical",
+        }
+        return categories.get(self.category, "Unknown")
+
+
 # =============================================================================
 # Fitness Tracking Models
 # =============================================================================
@@ -694,6 +874,17 @@ class Medicine(UserOwnedModel):
         help_text="Minutes after scheduled time before marking as overdue",
     )
 
+    # Refill Request Tracking
+    refill_requested = models.BooleanField(
+        default=False,
+        help_text="Has a refill been requested for this medicine?",
+    )
+    refill_requested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the refill was requested",
+    )
+
     class Meta:
         ordering = ["name"]
         verbose_name = "medicine"
@@ -714,10 +905,24 @@ class Medicine(UserOwnedModel):
 
     @property
     def needs_refill(self):
-        """Check if supply is low and needs refill."""
+        """Check if supply is low and needs refill (and refill not already requested)."""
         if self.current_supply is None:
             return False
+        if self.refill_requested:
+            return False  # Already requested, don't show as "needs refill"
         return self.current_supply <= self.refill_threshold
+
+    @property
+    def refill_status(self):
+        """
+        Get the refill status for display.
+        Returns: 'requested', 'needed', or None
+        """
+        if self.refill_requested:
+            return 'requested'
+        if self.current_supply is not None and self.current_supply <= self.refill_threshold:
+            return 'needed'
+        return None
 
     @property
     def doses_per_day(self):
@@ -762,6 +967,18 @@ class Medicine(UserOwnedModel):
         user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
         self.end_date = user_today
         self.save(update_fields=["medicine_status", "end_date", "updated_at"])
+
+    def request_refill(self):
+        """Mark that a refill has been requested."""
+        self.refill_requested = True
+        self.refill_requested_at = timezone.now()
+        self.save(update_fields=["refill_requested", "refill_requested_at", "updated_at"])
+
+    def clear_refill_request(self):
+        """Clear the refill request (e.g., when refill is received)."""
+        self.refill_requested = False
+        self.refill_requested_at = None
+        self.save(update_fields=["refill_requested", "refill_requested_at", "updated_at"])
 
 
 class MedicineSchedule(models.Model):

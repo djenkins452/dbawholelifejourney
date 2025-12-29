@@ -17,6 +17,50 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Medical Updates - Blood Pressure, Blood Oxygen, and Medicine Refill Tracking
+
+Added two new health metrics (Blood Pressure and Blood Oxygen tracking) and a medicine refill request status feature.
+
+**Blood Pressure Tracking:**
+- New `BloodPressureEntry` model with systolic, diastolic, pulse, context, arm, and position fields
+- Automatic categorization according to AHA guidelines (Normal, Elevated, High Stage 1, High Stage 2, Hypertensive Crisis)
+- CRUD views: list, create, update, delete
+- Integrated into Health home page with latest reading and averages
+
+**Blood Oxygen (SpO2) Tracking:**
+- New `BloodOxygenEntry` model with SpO2 percentage, pulse, context, and measurement method fields
+- Automatic categorization (Normal ≥95%, Low 90-94%, Concerning 85-89%, Critical <85%)
+- CRUD views: list, create, update, delete
+- Integrated into Health home page with latest reading and averages
+
+**Medicine Refill Request Status:**
+- New `refill_requested` and `refill_requested_at` fields on Medicine model
+- "Request Refill" button when supply is low
+- "Refill Received" button to clear request status
+- Dashboard shows "Refill Requested" status instead of "needs refill" when request is pending
+- Updated dashboard nudges to differentiate between "needs refill" and "refill requested" medicines
+
+**Files Created:**
+- `templates/health/blood_pressure_list.html`
+- `templates/health/blood_pressure_form.html`
+- `templates/health/blood_oxygen_list.html`
+- `templates/health/blood_oxygen_form.html`
+- `apps/health/migrations/0009_add_blood_pressure_oxygen_and_refill_tracking.py`
+
+**Files Modified:**
+- `apps/health/models.py` - Added BloodPressureEntry, BloodOxygenEntry models; added refill_requested fields to Medicine
+- `apps/health/forms.py` - Added BloodPressureEntryForm, BloodOxygenEntryForm
+- `apps/health/views.py` - Added views for BP, SpO2, and refill request/clear
+- `apps/health/urls.py` - Added URL routes for new features
+- `apps/dashboard/views.py` - Updated nudges for refill_requested status
+- `templates/dashboard/home.html` - Added refill_requested nudge type
+- `templates/health/home.html` - Added Blood Pressure and Blood Oxygen cards
+- `templates/health/medicine/medicine_detail.html` - Added refill request/clear buttons and status display
+
+**Test Status:** All 1250 tests passing
+
+---
+
 ### Dashboard Current Fast Widget
 Added a prominent widget on the dashboard showing the current active fast with a real-time updating timer.
 

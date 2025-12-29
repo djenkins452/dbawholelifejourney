@@ -7,6 +7,8 @@ from django import forms
 from django.utils import timezone
 
 from .models import (
+    BloodOxygenEntry,
+    BloodPressureEntry,
     CustomFood,
     DailyNutritionSummary,
     FastingWindow,
@@ -269,6 +271,121 @@ class GlucoseEntryForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
+        # Always set default for new entries
+        if not self.instance.pk:
+            self.initial["recorded_at"] = get_local_now_string(user)
+
+    def clean_recorded_at(self):
+        """Convert datetime from user's timezone to UTC."""
+        recorded_at = self.cleaned_data.get('recorded_at')
+        return interpret_as_user_timezone(recorded_at, self.user)
+
+
+class BloodPressureEntryForm(forms.ModelForm):
+    """
+    Form for logging blood pressure.
+    """
+
+    class Meta:
+        model = BloodPressureEntry
+        fields = ["systolic", "diastolic", "pulse", "context", "arm", "position", "recorded_at", "notes"]
+        widgets = {
+            "systolic": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Systolic (top)",
+                "min": 60,
+                "max": 250,
+            }),
+            "diastolic": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Diastolic (bottom)",
+                "min": 40,
+                "max": 150,
+            }),
+            "pulse": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Pulse (optional)",
+                "min": 30,
+                "max": 250,
+            }),
+            "context": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "arm": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "position": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "recorded_at": forms.DateTimeInput(attrs={
+                "class": "form-input",
+                "type": "datetime-local",
+            }),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "placeholder": "Any notes? (optional)",
+                "rows": 2,
+            }),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.fields["pulse"].required = False
+        self.fields["notes"].required = False
+        # Always set default for new entries
+        if not self.instance.pk:
+            self.initial["recorded_at"] = get_local_now_string(user)
+
+    def clean_recorded_at(self):
+        """Convert datetime from user's timezone to UTC."""
+        recorded_at = self.cleaned_data.get('recorded_at')
+        return interpret_as_user_timezone(recorded_at, self.user)
+
+
+class BloodOxygenEntryForm(forms.ModelForm):
+    """
+    Form for logging blood oxygen (SpO2).
+    """
+
+    class Meta:
+        model = BloodOxygenEntry
+        fields = ["spo2", "pulse", "context", "measurement_method", "recorded_at", "notes"]
+        widgets = {
+            "spo2": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "SpO2 %",
+                "min": 50,
+                "max": 100,
+            }),
+            "pulse": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Pulse (optional)",
+                "min": 30,
+                "max": 250,
+            }),
+            "context": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "measurement_method": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "recorded_at": forms.DateTimeInput(attrs={
+                "class": "form-input",
+                "type": "datetime-local",
+            }),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "placeholder": "Any notes? (optional)",
+                "rows": 2,
+            }),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.fields["pulse"].required = False
+        self.fields["notes"].required = False
         # Always set default for new entries
         if not self.instance.pk:
             self.initial["recorded_at"] = get_local_now_string(user)

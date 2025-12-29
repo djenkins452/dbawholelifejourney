@@ -29,6 +29,8 @@ from apps.help.mixins import HelpContextMixin
 from django.shortcuts import render
 
 from .forms import (
+    BloodOxygenEntryForm,
+    BloodPressureEntryForm,
     CustomFoodForm,
     FastingWindowForm,
     FoodEntryForm,
@@ -43,6 +45,8 @@ from .forms import (
     WeightEntryForm,
 )
 from .models import (
+    BloodOxygenEntry,
+    BloodPressureEntry,
     CardioDetails,
     CustomFood,
     Exercise,
@@ -128,6 +132,27 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if fasting_glucose.exists():
                 avg = fasting_glucose.aggregate(avg=Avg("value"))["avg"]
                 context["avg_fasting_glucose"] = round(avg, 1)
+
+        # Blood Pressure summary
+        bp_entries = BloodPressureEntry.objects.filter(user=user)
+        if bp_entries.exists():
+            context["latest_blood_pressure"] = bp_entries.first()
+            stats = bp_entries.aggregate(
+                avg_systolic=Avg("systolic"),
+                avg_diastolic=Avg("diastolic"),
+            )
+            if stats["avg_systolic"]:
+                context["avg_systolic"] = round(stats["avg_systolic"])
+            if stats["avg_diastolic"]:
+                context["avg_diastolic"] = round(stats["avg_diastolic"])
+
+        # Blood Oxygen summary
+        bo_entries = BloodOxygenEntry.objects.filter(user=user)
+        if bo_entries.exists():
+            context["latest_blood_oxygen"] = bo_entries.first()
+            avg_spo2 = bo_entries.aggregate(avg=Avg("spo2"))["avg"]
+            if avg_spo2:
+                context["avg_spo2"] = round(avg_spo2)
 
         # Medicine summary
         today = get_user_today(user)
@@ -2506,3 +2531,226 @@ class CustomFoodDeleteView(LoginRequiredMixin, View):
         food.soft_delete()
         messages.success(request, f"Deleted '{food.name}'.")
         return redirect("health:custom_food_list")
+
+
+# =============================================================================
+# Blood Pressure Views
+# =============================================================================
+
+
+class BloodPressureListView(LoginRequiredMixin, ListView):
+    """
+    List blood pressure entries.
+    """
+
+    model = BloodPressureEntry
+    template_name = "health/blood_pressure_list.html"
+    context_object_name = "entries"
+    paginate_by = 30
+
+    def get_queryset(self):
+        return BloodPressureEntry.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        entries = self.get_queryset()
+
+        if entries.exists():
+            context["latest"] = entries.first()
+
+            # Average stats
+            stats = entries.aggregate(
+                avg_systolic=Avg("systolic"),
+                avg_diastolic=Avg("diastolic"),
+                min_systolic=Min("systolic"),
+                max_systolic=Max("systolic"),
+            )
+            context["avg_systolic"] = round(stats["avg_systolic"]) if stats["avg_systolic"] else None
+            context["avg_diastolic"] = round(stats["avg_diastolic"]) if stats["avg_diastolic"] else None
+            context["min_systolic"] = stats["min_systolic"]
+            context["max_systolic"] = stats["max_systolic"]
+
+        return context
+
+
+class BloodPressureCreateView(LoginRequiredMixin, CreateView):
+    """
+    Log a new blood pressure entry.
+    """
+
+    model = BloodPressureEntry
+    form_class = BloodPressureEntryForm
+    template_name = "health/blood_pressure_form.html"
+    success_url = reverse_lazy("health:blood_pressure_list")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        messages.success(self.request, "Blood pressure logged.")
+        return super().form_valid(form)
+
+
+class BloodPressureUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Edit a blood pressure entry.
+    """
+
+    model = BloodPressureEntry
+    form_class = BloodPressureEntryForm
+    template_name = "health/blood_pressure_form.html"
+    success_url = reverse_lazy("health:blood_pressure_list")
+
+    def get_queryset(self):
+        return BloodPressureEntry.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+
+class BloodPressureDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a blood pressure entry.
+    """
+
+    def post(self, request, pk):
+        entry = get_object_or_404(
+            BloodPressureEntry.objects.filter(user=request.user),
+            pk=pk
+        )
+        entry.soft_delete()
+        messages.success(request, "Blood pressure entry deleted.")
+        return redirect("health:blood_pressure_list")
+
+
+# =============================================================================
+# Blood Oxygen Views
+# =============================================================================
+
+
+class BloodOxygenListView(LoginRequiredMixin, ListView):
+    """
+    List blood oxygen (SpO2) entries.
+    """
+
+    model = BloodOxygenEntry
+    template_name = "health/blood_oxygen_list.html"
+    context_object_name = "entries"
+    paginate_by = 30
+
+    def get_queryset(self):
+        return BloodOxygenEntry.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        entries = self.get_queryset()
+
+        if entries.exists():
+            context["latest"] = entries.first()
+
+            # Average stats
+            stats = entries.aggregate(
+                avg_spo2=Avg("spo2"),
+                min_spo2=Min("spo2"),
+                max_spo2=Max("spo2"),
+            )
+            context["avg_spo2"] = round(stats["avg_spo2"]) if stats["avg_spo2"] else None
+            context["min_spo2"] = stats["min_spo2"]
+            context["max_spo2"] = stats["max_spo2"]
+
+        return context
+
+
+class BloodOxygenCreateView(LoginRequiredMixin, CreateView):
+    """
+    Log a new blood oxygen (SpO2) entry.
+    """
+
+    model = BloodOxygenEntry
+    form_class = BloodOxygenEntryForm
+    template_name = "health/blood_oxygen_form.html"
+    success_url = reverse_lazy("health:blood_oxygen_list")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        messages.success(self.request, "Blood oxygen logged.")
+        return super().form_valid(form)
+
+
+class BloodOxygenUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Edit a blood oxygen entry.
+    """
+
+    model = BloodOxygenEntry
+    form_class = BloodOxygenEntryForm
+    template_name = "health/blood_oxygen_form.html"
+    success_url = reverse_lazy("health:blood_oxygen_list")
+
+    def get_queryset(self):
+        return BloodOxygenEntry.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+
+class BloodOxygenDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a blood oxygen entry.
+    """
+
+    def post(self, request, pk):
+        entry = get_object_or_404(
+            BloodOxygenEntry.objects.filter(user=request.user),
+            pk=pk
+        )
+        entry.soft_delete()
+        messages.success(request, "Blood oxygen entry deleted.")
+        return redirect("health:blood_oxygen_list")
+
+
+# =============================================================================
+# Medicine Refill Request Views
+# =============================================================================
+
+
+class MedicineRequestRefillView(LoginRequiredMixin, View):
+    """
+    Mark a medicine as having a refill requested.
+    """
+
+    def post(self, request, pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk
+        )
+        medicine.request_refill()
+        messages.success(request, f"Refill requested for {medicine.name}.")
+        return redirect("health:medicine_detail", pk=medicine.pk)
+
+
+class MedicineClearRefillView(LoginRequiredMixin, View):
+    """
+    Clear the refill request (e.g., when refill is received).
+    """
+
+    def post(self, request, pk):
+        medicine = get_object_or_404(
+            Medicine.objects.filter(user=request.user),
+            pk=pk
+        )
+        medicine.clear_refill_request()
+        messages.success(request, f"Refill request cleared for {medicine.name}.")
+        return redirect("health:medicine_detail", pk=medicine.pk)

@@ -125,6 +125,14 @@
                 </div>
             </div>
             <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+            {% elif nudge.type == 'refill_requested' %}
+            <div class="nudge-content">
+                <span class="nudge-icon">📋</span>
+                <div class="nudge-text">
+                    <span class="nudge-message">Refill requested for {{ nudge.count }} medicine{{ nudge.count|pluralize }}.</span>
+                </div>
+            </div>
+            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
             {% elif nudge.type == 'refill' %}
             <div class="nudge-content">
                 <span class="nudge-icon">🔔</span>

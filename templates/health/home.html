@@ -166,6 +166,81 @@
             {% endif %}
         </div>
 
+        <!-- Blood Pressure Card -->
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    Blood Pressure
+                </h2>
+                <a href="{% url 'health:blood_pressure_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_blood_pressure %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_blood_pressure.reading }}</span>
+                    <span class="metric-unit">mmHg</span>
+                </div>
+                <p class="metric-context">
+                    <span class="category-badge category-{{ latest_blood_pressure.category }}">
+                        {{ latest_blood_pressure.category_display }}
+                    </span>
+                </p>
+                <p class="metric-date">{{ latest_blood_pressure.recorded_at|date:"M j" }}</p>
+
+                {% if avg_systolic %}
+                    <p class="metric-avg">Avg: {{ avg_systolic }}/{{ avg_diastolic }} mmHg</p>
+                {% endif %}
+
+                <a href="{% url 'health:blood_pressure_list' %}" class="card-link">View history</a>
+            {% else %}
+                <p class="text-muted">No blood pressure logged yet.</p>
+                <a href="{% url 'health:blood_pressure_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Log your first reading
+                </a>
+            {% endif %}
+        </div>
+
+        <!-- Blood Oxygen Card -->
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l3 3"/>
+                    </svg>
+                    Blood Oxygen
+                </h2>
+                <a href="{% url 'health:blood_oxygen_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_blood_oxygen %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_blood_oxygen.spo2 }}</span>
+                    <span class="metric-unit">% SpO2</span>
+                </div>
+                <p class="metric-context">
+                    <span class="category-badge category-{{ latest_blood_oxygen.category }}">
+                        {{ latest_blood_oxygen.category_display }}
+                    </span>
+                </p>
+                <p class="metric-date">{{ latest_blood_oxygen.recorded_at|date:"M j" }}</p>
+
+                {% if avg_spo2 %}
+                    <p class="metric-avg">Avg: {{ avg_spo2 }}%</p>
+                {% endif %}
+
+                <a href="{% url 'health:blood_oxygen_list' %}" class="card-link">View history</a>
+            {% else %}
+                <p class="text-muted">No blood oxygen logged yet.</p>
+                <a href="{% url 'health:blood_oxygen_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Log your first reading
+                </a>
+            {% endif %}
+        </div>
+
         <!-- Medicine Card -->
         <div class="health-card medicine-card">
             <div class="card-header">
@@ -474,6 +549,37 @@
 
 .alert-refill .alert-icon {
     background: var(--color-warning, #f59e0b);
+}
+
+.category-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    display: inline-block;
+}
+
+.category-normal {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.category-elevated,
+.category-low {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+.category-high_stage1,
+.category-high_stage2,
+.category-concerning {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+}
+
+.category-crisis,
+.category-critical {
+    background: var(--color-error);
+    color: white;
 }
 
 .medicine-stats {

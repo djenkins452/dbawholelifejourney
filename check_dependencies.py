@@ -1,13 +1,35 @@
 #!/usr/bin/env python
 """
-Dependency Checker for Whole Life Journey
+Whole Life Journey - Dependency Checker
 
-Verifies that all required packages from requirements.txt are installed.
-Run this script to check if your development environment is properly set up.
+Project: Whole Life Journey
+Path: check_dependencies.py
+Purpose: Verify development environment has all required packages installed
+
+Description:
+    A utility script that compares installed packages against requirements.txt
+    to identify missing dependencies. Can optionally auto-install missing
+    packages to quickly set up a development environment.
+
+Key Responsibilities:
+    - Parse requirements.txt to extract package names
+    - Query pip to get list of installed packages
+    - Compare required vs installed and report missing packages
+    - Optionally install missing packages automatically
 
 Usage:
-    python check_dependencies.py
-    python check_dependencies.py --install  # Auto-install missing packages
+    python check_dependencies.py           # Check dependencies
+    python check_dependencies.py --install # Auto-install missing packages
+
+Common Missing Packages:
+    - cloudinary, django-cloudinary-storage: Media file storage
+    - markdown: Help system rendering
+    - psycopg2-binary: PostgreSQL database driver
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 import subprocess

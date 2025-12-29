@@ -1,10 +1,40 @@
-/*
+/**
  * Whole Life Journey - Main Stylesheet
- * 
- * A calm, minimal design system that prioritizes:
- * - Clarity over features
- * - Calm over clever
- * - Respect over pressure
+ *
+ * Project: Whole Life Journey
+ * Path: static/css/main.css
+ * Purpose: Core design system and component styles
+ *
+ * Description:
+ *     The primary stylesheet defining CSS custom properties, typography,
+ *     layouts, form elements, navigation, and reusable component styles.
+ *     Implements a calm, minimal design system.
+ *
+ * Design Principles:
+ *     - Clarity over features
+ *     - Calm over clever
+ *     - Respect over pressure
+ *     - Mobile-first responsive design
+ *
+ * Contents:
+ *     1. CSS Custom Properties (colors, spacing, typography)
+ *     2. Base/Reset styles
+ *     3. Typography
+ *     4. Layout (containers, grids)
+ *     5. Navigation (header, mobile menu)
+ *     6. Forms (inputs, buttons, checkboxes)
+ *     7. Components (cards, modals, messages)
+ *     8. Utilities
+ *
+ * Dependencies:
+ *     - themes.css: Theme-specific color overrides
+ *     - dashboard.css: Dashboard-specific styles
+ *     - help.css: Help modal styles
+ *
+ * Copyright:
+ *     (c) Whole Life Journey. All rights reserved.
+ *     This code is proprietary and may not be copied, modified, or distributed
+ *     without explicit permission.
  */
 
 /* ==========================================================================

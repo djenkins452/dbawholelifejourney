@@ -1,10 +1,27 @@
 """
-Dashboard Models - Supporting models for dashboard functionality.
+Whole Life Journey - Dashboard Models
 
-The Dashboard primarily displays derived data from other modules.
-These models support dashboard-specific features like:
-- Daily encouragement messages
-- Scripture verses (for Faith-enabled users)
+Project: Whole Life Journey
+Path: apps/dashboard/models.py
+Purpose: Supporting models for dashboard-specific features
+
+Description:
+    The Dashboard primarily displays derived data from other modules.
+    These models support dashboard-specific features like curated
+    daily encouragement messages with optional Scripture verses.
+
+Key Models:
+    - DailyEncouragement: Curated messages with themes, Scripture, and targeting
+
+Design Notes:
+    - Most dashboard data comes from other modules (journal, health, faith, etc.)
+    - DailyEncouragement provides fallback content when AI is unavailable
+    - Messages can be targeted to specific days or themes
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.db import models

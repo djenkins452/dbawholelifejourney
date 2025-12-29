@@ -1,5 +1,30 @@
 """
-Users URLs - Profile, preferences, and terms acceptance.
+Whole Life Journey - User URL Configuration
+
+Project: Whole Life Journey
+Path: apps/users/urls.py
+Purpose: URL routing for user profile, preferences, and authentication features
+
+Description:
+    Defines URL patterns for user-related views including profile editing,
+    preferences management, terms acceptance, onboarding wizard, and
+    WebAuthn biometric authentication endpoints.
+
+URL Patterns:
+    - /profile/            : View user profile
+    - /profile/edit/       : Edit profile form
+    - /preferences/        : User preferences page
+    - /accept-terms/       : Terms of service acceptance
+    - /onboarding/*        : Onboarding wizard steps
+    - /biometric/*         : WebAuthn biometric login endpoints
+
+Note:
+    This app is mounted at /user/ (singular) in the main URL configuration.
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.urls import path

@@ -1,10 +1,29 @@
 /**
- * US State Timezone Lookup
- * 
- * Maps US states to their primary timezone.
- * Note: Some states span multiple timezones; this uses the most populous timezone.
- * 
- * Location: static/js/timezone-lookup.js
+ * Whole Life Journey - US State Timezone Lookup
+ *
+ * Project: Whole Life Journey
+ * Path: static/js/timezone-lookup.js
+ * Purpose: Map US states to their primary timezone for onboarding
+ *
+ * Description:
+ *     Provides a lookup table mapping US states to their primary timezone.
+ *     Used during onboarding when users select their state to auto-populate
+ *     the timezone field. For states spanning multiple timezones, uses the
+ *     most populous timezone.
+ *
+ * Usage:
+ *     const tz = STATE_TIMEZONES['California']; // Returns 'US/Pacific'
+ *     const tz = getTimezoneForState('California'); // Returns 'US/Pacific'
+ *
+ * Notes:
+ *     - Some states span multiple timezones (e.g., Indiana, Tennessee)
+ *     - Uses IANA timezone identifiers (US/Eastern, US/Pacific, etc.)
+ *     - Includes District of Columbia and all 50 states
+ *
+ * Copyright:
+ *     (c) Whole Life Journey. All rights reserved.
+ *     This code is proprietary and may not be copied, modified, or distributed
+ *     without explicit permission.
  */
 
 const STATE_TIMEZONES = {

@@ -1,7 +1,34 @@
 """
-Core Context Processors
+Whole Life Journey - Core Context Processors
 
-These add variables to every template context.
+Project: Whole Life Journey
+Path: apps/core/context_processors.py
+Purpose: Add global variables to every template context
+
+Description:
+    Context processors run on every request and inject variables into
+    the template context. This module provides site configuration and
+    user-specific settings like theme and module toggles.
+
+Key Responsibilities:
+    - site_context: Inject site name, tagline, logo, favicon
+    - theme_context: Inject user's theme, accent color, module toggles
+
+Template Variables Provided:
+    - site_name, site_tagline, site_logo_url, site_favicon_url
+    - current_theme, accent_color
+    - journal_enabled, faith_enabled, health_enabled, life_enabled, purpose_enabled
+    - user_today (date in user's timezone for date comparisons)
+
+Dependencies:
+    - apps.core.models.SiteConfiguration for site settings
+    - apps.users.models.UserPreferences for user settings
+    - apps.core.utils.get_user_today for timezone handling
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.conf import settings

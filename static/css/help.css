@@ -1,10 +1,30 @@
 /**
- * Context-Aware Help System Styles
+ * Whole Life Journey - Help System Styles
  *
- * Provides styling for:
- * - Help button (?) in navigation
- * - Help modal dialog
- * - Help content formatting
+ * Project: Whole Life Journey
+ * Path: static/css/help.css
+ * Purpose: Styles for context-aware help button and modal
+ *
+ * Description:
+ *     Provides styling for the help system including the "?" button
+ *     in the navigation bar, the help modal overlay and dialog,
+ *     and content formatting for help documentation.
+ *
+ * Components:
+ *     - Help button (circular ? icon in nav)
+ *     - Help modal (overlay and dialog container)
+ *     - Help content (formatted documentation)
+ *     - Related topics navigation
+ *     - Loading and error states
+ *
+ * Dependencies:
+ *     - main.css: Base CSS custom properties
+ *     - themes.css: Theme-specific colors
+ *
+ * Copyright:
+ *     (c) Whole Life Journey. All rights reserved.
+ *     This code is proprietary and may not be copied, modified, or distributed
+ *     without explicit permission.
  */
 
 /* =============================================================================

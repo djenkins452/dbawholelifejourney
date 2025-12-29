@@ -1,13 +1,42 @@
 """
-Dashboard Views - AI-Driven Command Center
+Whole Life Journey - Dashboard Views
 
-The dashboard is now the AI-powered heart of the app, providing:
-- Personalized daily insights
-- Gentle accountability nudges
-- Pattern recognition and celebrations
-- Weekly reflection summaries
+Project: Whole Life Journey
+Path: apps/dashboard/views.py
+Purpose: AI-powered dashboard displaying personalized insights and module summaries
 
-Individual module pages handle their own stats and actions.
+Description:
+    The DashboardView is the main view after login, providing a personalized
+    command center with AI-driven insights, daily encouragement, module
+    overviews, and wellness celebrations/nudges.
+
+Key Views:
+    - DashboardView: Main dashboard with AI insights and module tiles
+    - RefreshAIInsightsView: HTMX endpoint for refreshing AI content
+    - DashboardStatsView: API endpoint for dashboard statistics
+
+AI Features:
+    - Gathers comprehensive data from all modules (journal, health, faith, life)
+    - Generates personalized insights based on patterns
+    - Provides gentle accountability nudges
+    - Celebrates achievements and streaks
+
+Data Gathering:
+    The _gather_comprehensive_data method collects:
+    - Journal entries (recent, mood patterns, streaks)
+    - Health metrics (weight, heart rate, glucose, workouts, medicine)
+    - Faith data (prayers, scripture, fasting)
+    - Life data (tasks, events, projects)
+    - Purpose data (goals, directions)
+
+Dependencies:
+    - apps.ai.dashboard_ai for AI insight generation
+    - All module models for data aggregation
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 import json
 import random

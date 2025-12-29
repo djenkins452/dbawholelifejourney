@@ -1,5 +1,24 @@
 """
-Users Admin Configuration
+Whole Life Journey - User Admin Configuration
+
+Project: Whole Life Journey
+Path: apps/users/admin.py
+Purpose: Django admin interface configuration for user-related models
+
+Description:
+    Configures the Django admin interface for managing users, their
+    preferences, and terms acceptance records. Provides inline editing
+    of user preferences directly on the user admin page.
+
+Registered Models:
+    - UserAdmin: Custom user admin with preferences inline
+    - UserPreferencesAdmin: Standalone preferences management
+    - TermsAcceptanceAdmin: Terms acceptance history
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.contrib import admin

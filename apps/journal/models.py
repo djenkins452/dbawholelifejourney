@@ -1,5 +1,29 @@
 """
-Journal Models - The core entry model for reflections.
+Whole Life Journey - Journal Models
+
+Project: Whole Life Journey
+Path: apps/journal/models.py
+Purpose: Core data models for journal entries and writing prompts
+
+Description:
+    Defines the JournalEntry model for user reflections and the
+    JournalPrompt model for curated writing inspiration. Entries
+    support categories, tags, mood tracking, and soft delete.
+
+Key Models:
+    - JournalPrompt: Curated prompts with optional Scripture references
+    - JournalEntry: User journal entries with categories, tags, and mood
+
+Design Notes:
+    - JournalEntry extends UserOwnedModel for soft delete and ownership
+    - Entries can have multiple categories and custom tags
+    - Mood is optional and uses predefined choices with emoji
+    - Prompts can be targeted to Faith-enabled users
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.conf import settings

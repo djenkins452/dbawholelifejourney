@@ -1,9 +1,37 @@
 """
-User Models - Custom user and preferences.
+Whole Life Journey - User Models
 
-The User model uses email for authentication (no username).
-UserPreferences stores all personalization settings.
-TermsAcceptance tracks which version of terms the user accepted.
+Project: Whole Life Journey
+Path: apps/users/models.py
+Purpose: Custom user model, preferences, and authentication-related models
+
+Description:
+    Defines the custom User model that uses email for authentication
+    (no username field), UserPreferences for storing all personalization
+    settings, TermsAcceptance for version-tracked terms of service,
+    and WebAuthnCredential for biometric login support.
+
+Key Models:
+    - User: Custom user with email as unique identifier, avatar support
+    - UserManager: Custom manager for email-based user creation
+    - UserPreferences: Theme, modules, AI settings, timezone, notifications
+    - TermsAcceptance: Tracks which terms version each user accepted
+    - WebAuthnCredential: Stores biometric credentials for passwordless login
+
+Design Notes:
+    - User model uses AbstractBaseUser for full customization
+    - UserPreferences is auto-created via signal when User is created
+    - One-to-one relationship between User and UserPreferences
+    - Soft delete via UserOwnedModel is NOT used here (users are not soft-deleted)
+
+Dependencies:
+    - django.contrib.auth.models for authentication base classes
+    - apps.ai.models for CoachingStyle foreign key
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.conf import settings

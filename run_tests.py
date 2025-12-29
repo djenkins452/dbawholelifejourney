@@ -1,17 +1,42 @@
 #!/usr/bin/env python
 """
-Test Runner with Database History and Separate Output Files
+Whole Life Journey - Enhanced Test Runner
 
-Runs Django tests and:
-- Saves results to database (TestRun/TestRunDetail models)
-- Outputs test_summary.txt with current run summary
-- Outputs test_errors.txt with detailed error messages
-- Maintains historical record of all test runs
+Project: Whole Life Journey
+Path: run_tests.py
+Purpose: Run Django tests with database history tracking and detailed output files
+
+Description:
+    An enhanced test runner that provides comprehensive test result tracking,
+    persistence to the database for historical analysis, and detailed output
+    files for debugging failures.
+
+Key Responsibilities:
+    - Execute Django test suite for specified apps or all apps
+    - Parse test output to extract pass/fail/error counts
+    - Save test results to database (TestRun/TestRunDetail models)
+    - Generate test_summary.txt with run overview
+    - Generate test_errors.txt with detailed error messages
+    - Track git branch and commit information with each run
+
+Output Files:
+    - test_summary.txt: Overview of test run results
+    - test_errors.txt: Detailed error messages and tracebacks
 
 Usage:
-    python run_tests.py
-    python run_tests.py apps.life
-    python run_tests.py apps.life apps.users
+    python run_tests.py                    # Run all tests
+    python run_tests.py apps.life          # Run single app
+    python run_tests.py apps.life apps.users  # Run multiple apps
+
+Dependencies:
+    - Django ORM for database access
+    - apps.core.models.TestRun, TestRunDetail for result storage
+    - git for branch/commit tracking
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 import os

@@ -1,11 +1,31 @@
 /**
- * Context-Aware Help System JavaScript
+ * Whole Life Journey - Context-Aware Help System
  *
- * Handles:
- * - Opening/closing the help modal
- * - Fetching help content via API based on HELP_CONTEXT_ID
- * - Displaying help content with Markdown formatting
- * - Related topics navigation
+ * Project: Whole Life Journey
+ * Path: static/js/help.js
+ * Purpose: Client-side JavaScript for the context-aware help modal
+ *
+ * Description:
+ *     Handles the help modal functionality including opening/closing,
+ *     fetching context-specific help content via API, and displaying
+ *     formatted Markdown documentation.
+ *
+ * Key Features:
+ *     - Open/close help modal with keyboard shortcuts
+ *     - Fetch help content based on current HELP_CONTEXT_ID
+ *     - Render Markdown content in modal
+ *     - Related topics navigation
+ *     - Loading states and error handling
+ *
+ * Dependencies:
+ *     - Help modal element with id="help-modal"
+ *     - Help trigger button with id="help-trigger"
+ *     - Server API endpoint for help content
+ *
+ * Copyright:
+ *     (c) Whole Life Journey. All rights reserved.
+ *     This code is proprietary and may not be copied, modified, or distributed
+ *     without explicit permission.
  */
 
 // =============================================================================

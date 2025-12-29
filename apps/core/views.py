@@ -1,7 +1,37 @@
 """
-Core Views - Landing page and static content pages.
+Whole Life Journey - Core Views
 
-apps/core/views.py
+Project: Whole Life Journey
+Path: apps/core/views.py
+Purpose: Landing page, static content pages, and system-wide API endpoints
+
+Description:
+    This module contains views for the public-facing pages (landing, terms,
+    privacy, about), custom error handlers, and the What's New release notes
+    feature API endpoints.
+
+Key Responsibilities:
+    - LandingPageView: Public landing page, redirects authenticated users
+    - TermsOfServiceView: Terms of service with version tracking
+    - PrivacyPolicyView: Privacy policy page
+    - AboutView: About page explaining the app's mission
+    - custom_404/custom_500: User-friendly error pages
+    - WhatsNewCheckView: API to check for unseen release notes
+    - WhatsNewDismissView: API to mark release notes as seen
+    - WhatsNewListView: Full page listing of all release notes
+
+Security Notes:
+    - Error handlers don't expose internal details
+    - Release notes API requires authentication
+
+Dependencies:
+    - django.contrib.auth.mixins for LoginRequiredMixin
+    - apps.core.models for ReleaseNote, UserReleaseNoteView
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 import logging
 

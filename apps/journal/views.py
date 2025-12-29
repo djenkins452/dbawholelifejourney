@@ -1,5 +1,33 @@
 """
-Journal Views - CRUD operations and entry management.
+Whole Life Journey - Journal Views
+
+Project: Whole Life Journey
+Path: apps/journal/views.py
+Purpose: Views for journal entry CRUD operations and management
+
+Description:
+    Provides all views for creating, reading, updating, and deleting
+    journal entries. Includes filtering, searching, prompts, and
+    statistics views.
+
+Key Views:
+    - EntryListView: List entries with category/tag/date filtering
+    - EntryCreateView: Create new journal entry with speech-to-text
+    - EntryDetailView: View a single entry with edit options
+    - EntryUpdateView: Edit an existing entry
+    - EntryDeleteView: Soft delete with confirmation
+    - RandomPromptView: HTMX endpoint for random prompt
+    - JournalStatsView: Statistics and mood patterns
+
+Security Notes:
+    - All views require authentication (LoginRequiredMixin)
+    - Entries are user-scoped in all queries
+    - Random prompt response is HTML-escaped to prevent XSS
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 import random

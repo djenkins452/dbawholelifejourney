@@ -1,5 +1,27 @@
 """
-Users Forms - Profile and preferences editing.
+Whole Life Journey - User Forms
+
+Project: Whole Life Journey
+Path: apps/users/forms.py
+Purpose: Forms for user profile and preferences editing
+
+Description:
+    Provides Django forms for editing user profile information (name, email,
+    avatar) and user preferences (theme, modules, AI settings, etc.).
+
+Key Forms:
+    - ProfileForm: Edit user profile (name, email, avatar)
+    - PreferencesForm: Edit user preferences (theme, modules, AI, timezone)
+
+Validation:
+    - Avatar uploads validated for file type (JPG, PNG, GIF, HEIC, WebP) and size (2MB max)
+    - Email uniqueness enforced by model
+    - Form preserves existing avatar when no new file uploaded
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django import forms

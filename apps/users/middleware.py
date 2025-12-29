@@ -1,5 +1,35 @@
 """
-User Middleware - Enforce terms acceptance and onboarding completion.
+Whole Life Journey - User Middleware
+
+Project: Whole Life Journey
+Path: apps/users/middleware.py
+Purpose: Enforce terms acceptance and onboarding completion for authenticated users
+
+Description:
+    This middleware runs on every request and ensures that authenticated users
+    have accepted the current terms of service and completed the onboarding
+    wizard before they can access the main application.
+
+Key Responsibilities:
+    - TermsAcceptanceMiddleware: Redirect to terms page if not accepted
+    - Redirect to onboarding wizard if not completed
+    - Exempt certain paths (login, logout, admin, static files)
+
+Enforcement Flow:
+    1. Check if user is authenticated
+    2. Skip exempt paths (login, terms, onboarding, static)
+    3. Check terms acceptance - redirect to terms page if needed
+    4. Check onboarding completion - redirect to wizard if needed
+    5. Allow request to proceed
+
+Critical for Testing:
+    All test users must have has_completed_onboarding = True or tests will
+    get 302 redirects instead of expected responses.
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.conf import settings

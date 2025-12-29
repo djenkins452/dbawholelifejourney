@@ -17,6 +17,31 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Blood Pressure & Blood Oxygen Tests Added
+
+Added comprehensive tests for the new Blood Pressure and Blood Oxygen tracking features.
+
+**New Tests (55 tests added):**
+- `BloodPressureModelTest` - 14 tests for model creation, categorization, properties
+- `BloodOxygenModelTest` - 10 tests for model creation, categorization, properties
+- `BloodPressureViewTest` - 7 tests for list, create, update, delete views
+- `BloodOxygenViewTest` - 7 tests for list, create, update, delete views
+- `BloodVitalsDataIsolationTest` - 4 tests ensuring users can only see their own data
+
+**Test Coverage:**
+- Model creation and string representation
+- Category classification (Normal, Elevated, High Stage 1/2, Crisis for BP; Normal, Low, Concerning, Critical for SpO2)
+- Optional fields (pulse, context, arm, position, measurement method)
+- View loading and form submission
+- Data isolation between users
+
+**Files Modified:**
+- `apps/health/tests/test_health_comprehensive.py` - Added 55 new tests
+
+**Test Status:** 97 health comprehensive tests, 346 total health tests, all passing
+
+---
+
 ### What's New Popup Fix and Release Notes Update
 
 Fixed the "What's New" popup not appearing after updates and added release notes for December 29 features.

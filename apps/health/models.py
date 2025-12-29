@@ -12,6 +12,7 @@ from django.db import models
 from django.utils import timezone
 
 from apps.core.models import UserOwnedModel
+from apps.core.utils import get_user_today
 
 
 class WeightEntry(UserOwnedModel):
@@ -758,7 +759,8 @@ class Medicine(UserOwnedModel):
     def complete(self):
         """Mark this medicine course as completed."""
         self.medicine_status = self.STATUS_COMPLETED
-        self.end_date = timezone.now().date()
+        user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+        self.end_date = user_today
         self.save(update_fields=["medicine_status", "end_date", "updated_at"])
 
 
@@ -1515,14 +1517,14 @@ class NutritionGoals(UserOwnedModel):
     @property
     def is_active(self):
         """Check if these goals are currently active."""
-        from django.utils import timezone
-        today = timezone.now().date()
+        user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
         if self.effective_until:
-            return self.effective_from <= today <= self.effective_until
-        return self.effective_from <= today
+            return self.effective_from <= user_today <= self.effective_until
+        return self.effective_from <= user_today
 
     def save(self, *args, **kwargs):
         """Set default effective_from if not provided."""
         if not self.effective_from:
-            self.effective_from = timezone.now().date()
+            user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+            self.effective_from = user_today
         super().save(*args, **kwargs)

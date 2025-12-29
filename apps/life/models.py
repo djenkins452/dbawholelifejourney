@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.models import UserOwnedModel
+from apps.core.utils import get_user_today
 
 import json
 
@@ -110,7 +111,8 @@ class Project(UserOwnedModel):
     @property
     def is_overdue(self):
         if self.target_date and self.status == 'active':
-            return self.target_date < timezone.now().date()
+            user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+            return self.target_date < user_today
         return False
     
     @property
@@ -229,25 +231,31 @@ class Task(UserOwnedModel):
     @property
     def is_overdue(self):
         if self.due_date and not self.is_completed:
-            return self.due_date < timezone.now().date()
+            user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+            return self.due_date < user_today
         return False
 
-    def calculate_priority(self):
+    def calculate_priority(self, user_today=None):
         """
-        Calculate priority based on due date.
+        Calculate priority based on due date using user's timezone.
+
+        Args:
+            user_today: Optional date to use as "today". If not provided,
+                       uses the user's timezone from preferences.
 
         Returns:
             str: 'now' if due today or overdue,
                  'soon' if due within 7 days,
                  'someday' if no due date or due > 7 days away
         """
-        from datetime import timedelta
-
         if not self.due_date:
             return 'someday'
 
-        today = timezone.now().date()
-        days_until_due = (self.due_date - today).days
+        # Use provided today, or calculate from user's timezone
+        if user_today is None:
+            user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+
+        days_until_due = (self.due_date - user_today).days
 
         if days_until_due <= 0:
             # Due today or overdue
@@ -363,11 +371,13 @@ class LifeEvent(UserOwnedModel):
     
     @property
     def is_past(self):
-        return self.start_date < timezone.now().date()
-    
+        user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+        return self.start_date < user_today
+
     @property
     def is_today(self):
-        return self.start_date == timezone.now().date()
+        user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+        return self.start_date == user_today
 
 
 # =============================================================================
@@ -626,10 +636,10 @@ class Pet(UserOwnedModel):
     @property
     def age(self):
         if self.birth_date:
-            today = timezone.now().date()
-            years = today.year - self.birth_date.year
-            if today.month < self.birth_date.month or (
-                today.month == self.birth_date.month and today.day < self.birth_date.day
+            user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+            years = user_today.year - self.birth_date.year
+            if user_today.month < self.birth_date.month or (
+                user_today.month == self.birth_date.month and user_today.day < self.birth_date.day
             ):
                 years -= 1
             return years
@@ -920,14 +930,16 @@ class Document(UserOwnedModel):
         """Check if document expires within 30 days."""
         if self.expiration_date:
             from datetime import timedelta
-            return self.expiration_date <= timezone.now().date() + timedelta(days=30)
+            user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+            return self.expiration_date <= user_today + timedelta(days=30)
         return False
-    
+
     @property
     def is_expired(self):
         """Check if document is expired."""
         if self.expiration_date:
-            return self.expiration_date < timezone.now().date()
+            user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
+            return self.expiration_date < user_today
         return False
     
     @property

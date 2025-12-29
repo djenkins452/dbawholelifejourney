@@ -294,7 +294,42 @@ class PriorityCompleteView(LoginRequiredMixin, View):
     Mark a priority as completed.
     """
 
+    # Positive feedback messages by priority type
+    FEEDBACK_MESSAGES = {
+        'faith': [
+            "Wonderful! Staying grounded in faith strengthens everything else.",
+            "Beautiful! Your spiritual foundation is growing stronger.",
+            "Excellent! Faith first leads to aligned decisions.",
+        ],
+        'purpose': [
+            "Great progress! You're moving toward your bigger goals.",
+            "Fantastic! Each step toward your purpose matters.",
+            "Well done! Purpose-driven action builds lasting momentum.",
+        ],
+        'commitment': [
+            "Awesome! Keeping commitments builds trust with yourself.",
+            "Nice work! Completing what you set out to do feels great.",
+            "Excellent! You're following through on your word.",
+        ],
+        'health': [
+            "Great choice! Taking care of your health empowers everything.",
+            "Well done! Your future self thanks you.",
+            "Fantastic! Health is wealth in every way.",
+        ],
+        'personal': [
+            "Great job! Personal growth compounds over time.",
+            "Excellent! You're becoming who you want to be.",
+            "Nice! Every small step counts.",
+        ],
+        'default': [
+            "Great job! Keep up the momentum.",
+            "Well done! You're making progress.",
+            "Excellent! One step closer to your best self.",
+        ],
+    }
+
     def post(self, request, *args, **kwargs):
+        import random
         priority_id = kwargs.get('priority_id')
 
         try:
@@ -304,7 +339,22 @@ class PriorityCompleteView(LoginRequiredMixin, View):
             )
             priority.mark_complete()
 
-            return JsonResponse({'success': True})
+            # Get appropriate feedback message
+            messages = self.FEEDBACK_MESSAGES.get(
+                priority.priority_type,
+                self.FEEDBACK_MESSAGES['default']
+            )
+            feedback = random.choice(messages)
+
+            return JsonResponse({
+                'success': True,
+                'feedback': feedback,
+                'completed_count': DailyPriority.objects.filter(
+                    user=request.user,
+                    priority_date=priority.priority_date,
+                    is_completed=True
+                ).count()
+            })
 
         except DailyPriority.DoesNotExist:
             return JsonResponse({

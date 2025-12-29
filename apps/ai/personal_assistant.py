@@ -695,21 +695,41 @@ Provide a brief, compassionate assessment."""
         if existing.exists() and not force_refresh:
             return list(existing.values())
 
-        # Clear old priorities if refreshing
+        # On refresh: preserve completed priorities, only regenerate non-completed ones
+        completed_count = 0
+        completed_titles = set()
         if force_refresh:
-            existing.delete()
+            # Keep completed priorities - they represent accomplished work!
+            completed_existing = existing.filter(is_completed=True)
+            completed_count = completed_existing.count()
+            # Track titles of completed priorities to avoid duplicates
+            completed_titles = set(completed_existing.values_list('title', flat=True))
+
+            # Only delete non-completed, non-dismissed priorities
+            existing.filter(is_completed=False).delete()
+
+        # Calculate how many new priorities we need (max 5 total)
+        max_new_priorities = 5 - completed_count
+
+        # If all 5 are already completed, just return what we have
+        if max_new_priorities <= 0:
+            return DailyPriority.objects.filter(
+                user=self.user,
+                priority_date=today,
+                user_dismissed=False
+            ).values()
 
         # Gather context for priority generation
         state = self.assess_current_state()
         context = self._build_priority_context(state)
 
         priorities = []
-        sort_order = 0
+        sort_order = completed_count  # Start after completed priorities
 
         # 1. Faith priority (if enabled and has gaps)
-        if self.faith_enabled:
+        if self.faith_enabled and len(priorities) < max_new_priorities:
             faith_priority = self._generate_faith_priority(state, context)
-            if faith_priority:
+            if faith_priority and faith_priority['title'] not in completed_titles:
                 faith_priority['sort_order'] = sort_order
                 priorities.append(faith_priority)
                 sort_order += 1
@@ -717,19 +737,25 @@ Provide a brief, compassionate assessment."""
         # 2. Purpose/Goal priorities
         purpose_priorities = self._generate_purpose_priorities(state, context)
         for p in purpose_priorities[:2]:  # Max 2 goal priorities
-            p['sort_order'] = sort_order
-            priorities.append(p)
-            sort_order += 1
+            if len(priorities) >= max_new_priorities:
+                break
+            if p['title'] not in completed_titles:
+                p['sort_order'] = sort_order
+                priorities.append(p)
+                sort_order += 1
 
         # 3. Commitment priorities (overdue/due today tasks)
         commitment_priorities = self._generate_commitment_priorities(state)
         for p in commitment_priorities[:2]:  # Max 2 commitment priorities
-            p['sort_order'] = sort_order
-            priorities.append(p)
-            sort_order += 1
+            if len(priorities) >= max_new_priorities:
+                break
+            if p['title'] not in completed_titles:
+                p['sort_order'] = sort_order
+                priorities.append(p)
+                sort_order += 1
 
-        # Limit to 5 priorities total
-        priorities = priorities[:5]
+        # Limit to remaining slots
+        priorities = priorities[:max_new_priorities]
 
         # Save to database
         with transaction.atomic():
@@ -750,7 +776,8 @@ Provide a brief, compassionate assessment."""
 
         return DailyPriority.objects.filter(
             user=self.user,
-            priority_date=today
+            priority_date=today,
+            user_dismissed=False
         ).values()
 
     def _build_priority_context(self, state: Dict) -> Dict:

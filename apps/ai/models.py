@@ -664,6 +664,50 @@ class DailyPriority(models.Model):
         self.completed_at = timezone.now()
         self.save(update_fields=['is_completed', 'completed_at', 'updated_at'])
 
+    @classmethod
+    def get_completion_stats(cls, user, days=7):
+        """
+        Get completion statistics for the user over the specified number of days.
+        Returns dict with completion counts and rates.
+        """
+        from django.utils import timezone
+        from django.db.models import Count, Q
+        from datetime import timedelta
+
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=days - 1)
+
+        priorities = cls.objects.filter(
+            user=user,
+            priority_date__gte=start_date,
+            priority_date__lte=end_date,
+            user_dismissed=False
+        )
+
+        total = priorities.count()
+        completed = priorities.filter(is_completed=True).count()
+
+        # Get daily breakdown
+        daily_stats = priorities.values('priority_date').annotate(
+            total=Count('id'),
+            completed=Count('id', filter=Q(is_completed=True))
+        ).order_by('priority_date')
+
+        # Get stats by type
+        type_stats = priorities.values('priority_type').annotate(
+            total=Count('id'),
+            completed=Count('id', filter=Q(is_completed=True))
+        )
+
+        return {
+            'total': total,
+            'completed': completed,
+            'completion_rate': round((completed / total * 100) if total > 0 else 0, 1),
+            'daily_stats': list(daily_stats),
+            'type_stats': list(type_stats),
+            'days': days,
+        }
+
 
 class TrendAnalysis(models.Model):
     """

@@ -1,3 +1,13 @@
+# ==============================================================================
+# File: vision.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: OpenAI Vision API integration for camera scan feature.
+#              Analyzes images to identify food, medicine, supplements, etc.
+#              and routes to appropriate app modules with pre-filled data.
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2025-12-15
+# Last Updated: 2025-12-29
+# ==============================================================================
 """
 Vision Service - OpenAI Vision API integration for WLJ.
 
@@ -128,15 +138,33 @@ Example for food:
     {
       "label": "Grilled chicken salad",
       "details": {
-        "estimated_calories": "350-450",
-        "protein": "high",
-        "meal_type": "lunch/dinner"
+        "description": "Grilled chicken breast on mixed greens with tomatoes, cucumbers, and light vinaigrette",
+        "estimated_calories": 400,
+        "estimated_protein_g": 35,
+        "estimated_carbs_g": 15,
+        "estimated_fat_g": 22,
+        "estimated_fiber_g": 4,
+        "estimated_sugar_g": 5,
+        "estimated_saturated_fat_g": 4,
+        "serving_size": 1,
+        "serving_unit": "plate",
+        "meal_type": "lunch",
+        "ingredients": ["chicken breast", "mixed greens", "tomatoes", "cucumbers", "vinaigrette"]
       },
       "confidence": 0.85
     }
   ],
   "safety_notes": []
 }
+
+FOOD IDENTIFICATION GUIDELINES:
+When analyzing food images, provide your BEST ESTIMATES for nutritional values based on:
+1. Visual portion size estimation
+2. Common nutritional data for the identified foods
+3. Typical preparation methods visible
+
+Always return numeric values (not ranges) for nutritional estimates. Use your knowledge of food nutrition.
+For meal_type, use: "breakfast", "lunch", "dinner", or "snack" based on what makes sense for the food shown.
 
 Example for a pet:
 {
@@ -395,22 +423,72 @@ class VisionService:
         if category == 'food':
             # Build prefill data from items
             food_label = items[0]['label'] if items else 'meal'
-            calories = items[0].get('details', {}).get('estimated_calories', '') if items else ''
+            details = items[0].get('details', {}) if items else {}
+
+            # Extract nutritional data
+            calories = details.get('estimated_calories', '')
+            protein = details.get('estimated_protein_g', '')
+            carbs = details.get('estimated_carbs_g', '')
+            fat = details.get('estimated_fat_g', '')
+            fiber = details.get('estimated_fiber_g', '')
+            sugar = details.get('estimated_sugar_g', '')
+            sat_fat = details.get('estimated_saturated_fat_g', '')
+            serving_size = details.get('serving_size', 1)
+            serving_unit = details.get('serving_unit', 'serving')
+            meal_type = details.get('meal_type', 'snack')
+            description = details.get('description', '')
+
+            # Build URL params for food entry form
+            url_params = [f'food_name={quote(food_label)}']
+            if calories:
+                url_params.append(f'total_calories={calories}')
+            if protein:
+                url_params.append(f'total_protein_g={protein}')
+            if carbs:
+                url_params.append(f'total_carbohydrates_g={carbs}')
+            if fat:
+                url_params.append(f'total_fat_g={fat}')
+            if fiber:
+                url_params.append(f'total_fiber_g={fiber}')
+            if sugar:
+                url_params.append(f'total_sugar_g={sugar}')
+            if sat_fat:
+                url_params.append(f'total_saturated_fat_g={sat_fat}')
+            if serving_size:
+                url_params.append(f'serving_size={serving_size}')
+            if serving_unit:
+                url_params.append(f'serving_unit={quote(serving_unit)}')
+            if meal_type:
+                url_params.append(f'meal={meal_type}')
+            if description:
+                url_params.append(f'notes={quote(description)}')
+
+            # Set source as camera
+            url_params.append('entry_source=camera')
 
             actions.append({
-                'module': 'Health.FoodLog',
+                'module': 'Health.Nutrition',
                 'question': 'Would you like to log this meal?',
                 'actions': [
                     {
                         'id': 'log_food',
-                        'label': 'Log to Food Journal',
+                        'label': 'Log to Nutrition',
                         'url': self._add_source_param(
-                            reverse('journal:entry_create') + f'?prefill_title=Food: {quote(food_label)}'
+                            reverse('health:food_entry_create') + '?' + '&'.join(url_params)
                         ),
                         'payload_template': {
-                            'category': 'health',
-                            'title': f'Food: {food_label}',
-                            'body': f'Logged meal: {food_label}' + (f' (~{calories} cal)' if calories else '')
+                            'food_name': food_label,
+                            'total_calories': calories,
+                            'total_protein_g': protein,
+                            'total_carbohydrates_g': carbs,
+                            'total_fat_g': fat,
+                            'total_fiber_g': fiber,
+                            'total_sugar_g': sugar,
+                            'total_saturated_fat_g': sat_fat,
+                            'serving_size': serving_size,
+                            'serving_unit': serving_unit,
+                            'meal_type': meal_type,
+                            'notes': description
                         }
                     },
                     {

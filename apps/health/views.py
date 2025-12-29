@@ -2127,15 +2127,55 @@ class FoodEntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
 
     def get_initial(self):
         initial = super().get_initial()
+        GET = self.request.GET
+
         # Pre-fill meal type from query param
-        meal_type = self.request.GET.get('meal')
+        meal_type = GET.get('meal')
         if meal_type in dict(FoodEntry.MEAL_CHOICES):
             initial['meal_type'] = meal_type
+
+        # Pre-fill from camera scan (food recognition)
+        if GET.get('food_name'):
+            initial['food_name'] = GET.get('food_name')
+        if GET.get('food_brand'):
+            initial['food_brand'] = GET.get('food_brand')
+        if GET.get('total_calories'):
+            initial['total_calories'] = GET.get('total_calories')
+        if GET.get('total_protein_g'):
+            initial['total_protein_g'] = GET.get('total_protein_g')
+        if GET.get('total_carbohydrates_g'):
+            initial['total_carbohydrates_g'] = GET.get('total_carbohydrates_g')
+        if GET.get('total_fat_g'):
+            initial['total_fat_g'] = GET.get('total_fat_g')
+        if GET.get('total_fiber_g'):
+            initial['total_fiber_g'] = GET.get('total_fiber_g')
+        if GET.get('total_sugar_g'):
+            initial['total_sugar_g'] = GET.get('total_sugar_g')
+        if GET.get('total_saturated_fat_g'):
+            initial['total_saturated_fat_g'] = GET.get('total_saturated_fat_g')
+        if GET.get('serving_size'):
+            initial['serving_size'] = GET.get('serving_size')
+        if GET.get('serving_unit'):
+            initial['serving_unit'] = GET.get('serving_unit')
+        if GET.get('notes'):
+            initial['notes'] = GET.get('notes')
+
         return initial
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Track if this is from camera scan for display purposes
+        context['from_camera'] = self.request.GET.get('source') == 'ai_camera'
+        return context
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        form.instance.entry_source = FoodEntry.SOURCE_MANUAL
+        # Set entry source based on how user got here
+        entry_source = self.request.GET.get('entry_source', 'manual')
+        if entry_source == 'camera':
+            form.instance.entry_source = FoodEntry.SOURCE_CAMERA
+        else:
+            form.instance.entry_source = FoodEntry.SOURCE_MANUAL
         messages.success(self.request, "Food logged.")
         return super().form_valid(form)
 

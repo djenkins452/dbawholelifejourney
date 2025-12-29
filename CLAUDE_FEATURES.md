@@ -138,7 +138,17 @@ Informs users of new features and updates since their last visit via a popup mod
 1. **User logs in** → JavaScript calls `/api/whats-new/check/`
 2. **API returns unseen notes** → If `has_unseen: true`, modal displays
 3. **User dismisses modal** → POST to `/api/whats-new/dismiss/`
-4. **Next login** → Only shows notes created after last dismissal
+4. **Next login** → Only shows notes with `release_date` after last dismissal
+
+### Popup Cadence
+The popup shows when there are unseen release notes. "Unseen" is determined by:
+- Notes where `release_date > last_seen_date` (notes from days after dismissal), OR
+- Notes where `release_date = last_seen_date AND created_at > last_viewed_at` (notes added same day but after dismissal)
+
+**Note:** The popup uses `release_date` (the logical feature release date) rather than `created_at` (when the DB record was created). This ensures notes added via data migrations display correctly, since their `release_date` represents when the feature was actually deployed.
+
+### User Preference
+Users can disable the popup via Preferences → Notifications → "Show What's New popup" checkbox.
 
 ### Models (`apps/core/models.py`)
 | Model | Description |

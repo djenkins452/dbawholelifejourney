@@ -117,7 +117,10 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
             is_completed=False,
             due_date__lt=today
         ).count()
-        
+
+        # User's today for template date comparisons
+        context['user_today'] = today
+
         return context
 
 
@@ -164,14 +167,25 @@ class ProjectDetailView(LifeAccessMixin, DetailView):
     model = Project
     template_name = "life/project_detail.html"
     context_object_name = "project"
-    
+
     def get_queryset(self):
         return Project.objects.filter(user=self.request.user)
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['tasks'] = self.object.tasks.order_by('is_completed', 'priority', '-created_at')
+        from apps.core.utils import get_user_today
+        # Custom ordering for priority: now=1, soon=2, someday=3
+        priority_order = Case(
+            When(priority='now', then=Value(1)),
+            When(priority='soon', then=Value(2)),
+            When(priority='someday', then=Value(3)),
+            default=Value(4),
+        )
+        context['tasks'] = self.object.tasks.annotate(
+            priority_order=priority_order
+        ).order_by('is_completed', 'priority_order', '-created_at')
         context['events'] = self.object.events.order_by('start_date')[:5]
+        context['user_today'] = get_user_today(self.request.user)
         return context
 
 

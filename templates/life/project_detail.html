@@ -356,6 +356,12 @@
     cursor: pointer;
     color: var(--color-text-muted);
     flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
 }
 
 .task-checkbox:hover {
@@ -369,6 +375,54 @@
 .task-checkbox svg {
     width: 22px;
     height: 22px;
+    pointer-events: none;
+}
+
+/* Task completion popup */
+.task-completion-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+    background: var(--color-background);
+    border: 2px solid #22c55e;
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    cursor: pointer;
+}
+
+.task-completion-popup svg {
+    width: 64px;
+    height: 64px;
+    color: #22c55e;
+}
+
+.task-completion-popup svg circle {
+    stroke-dasharray: 62.83;
+    stroke-dashoffset: 62.83;
+    animation: drawCircle 0.5s ease forwards;
+}
+
+.task-completion-popup svg polyline {
+    stroke-dasharray: 30;
+    stroke-dashoffset: 30;
+    animation: drawCheck 0.3s ease forwards 0.5s;
+}
+
+@keyframes drawCircle {
+    to { stroke-dashoffset: 0; }
+}
+
+@keyframes drawCheck {
+    to { stroke-dashoffset: 0; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
 }
 
 .task-content {
@@ -510,4 +564,33 @@
     color: var(--color-error);
 }
 </style>
+
+{% if request.GET.task_completed %}
+<!-- Task Completion Popup -->
+<div id="task-completion-popup" class="task-completion-popup" onclick="this.remove()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="8 12 11 15 16 9"/>
+    </svg>
+</div>
+<script>
+(function() {
+    const popup = document.getElementById('task-completion-popup');
+    if (popup) {
+        // Auto-hide after 3 seconds
+        setTimeout(function() {
+            popup.style.animation = 'fadeOut 0.3s ease forwards';
+            setTimeout(function() {
+                popup.remove();
+            }, 300);
+        }, 3000);
+
+        // Clean up URL
+        const url = new URL(window.location);
+        url.searchParams.delete('task_completed');
+        window.history.replaceState({}, '', url);
+    }
+})();
+</script>
+{% endif %}
 {% endblock %}

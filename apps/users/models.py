@@ -337,6 +337,36 @@ class UserPreferences(models.Model):
         help_text="Enable Face ID, Touch ID, or device biometrics for quick login",
     )
 
+    # ===================
+    # FASTING PREFERENCES
+    # ===================
+    FASTING_TYPE_CHOICES = [
+        ("16:8", "16:8 Intermittent Fasting"),
+        ("18:6", "18:6 Extended Fast"),
+        ("20:4", "20:4 Warrior Diet"),
+        ("OMAD", "OMAD (One Meal A Day)"),
+        ("24h", "24 Hour Fast"),
+        ("36h", "36 Hour Extended Fast"),
+        ("custom", "Custom"),
+    ]
+
+    FASTING_TYPE_DESCRIPTIONS = {
+        "16:8": "The most popular fasting method. Fast for 16 hours and eat within an 8-hour window. Example: Eat between 12pm-8pm.",
+        "18:6": "A more advanced fast. 18 hours of fasting with a 6-hour eating window. Example: Eat between 1pm-7pm.",
+        "20:4": "Also known as the Warrior Diet. 20 hours fasting with a 4-hour eating window. Example: Eat between 4pm-8pm.",
+        "OMAD": "One Meal A Day. Fast for approximately 23 hours and consume all daily calories in a single meal.",
+        "24h": "A full 24-hour fast, typically done once or twice per week. Example: Dinner to dinner.",
+        "36h": "An extended fast of 36 hours. More advanced, typically done occasionally for deeper benefits.",
+        "custom": "Set your own fasting duration and schedule.",
+    }
+
+    default_fasting_type = models.CharField(
+        max_length=10,
+        choices=FASTING_TYPE_CHOICES,
+        default="16:8",
+        help_text="Your preferred fasting schedule. This will be pre-selected when starting a new fast.",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

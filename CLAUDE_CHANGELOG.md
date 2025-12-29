@@ -17,6 +17,32 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Default Fasting Type Preference
+Added user preference for selecting a default fasting type that pre-populates when starting a new fast.
+
+**Features:**
+- New `default_fasting_type` field in UserPreferences model
+- 7 fasting types with detailed descriptions (16:8, 18:6, 20:4, OMAD, 24h, 36h, Custom)
+- Health Settings section in Preferences page for configuring default fasting type
+- Interactive fasting type cards with descriptions - click to select
+- Start Fast form now pre-selects user's preferred fasting type
+- Improved Start Fast form with visual fasting guide and descriptions
+
+**Files Modified:**
+- `apps/users/models.py` - Added `FASTING_TYPE_CHOICES`, `FASTING_TYPE_DESCRIPTIONS`, and `default_fasting_type` field
+- `apps/users/forms.py` - Added `default_fasting_type` to PreferencesForm
+- `apps/health/views.py` - Updated StartFastView with `get_initial()` and `get_context_data()` methods
+- `templates/users/preferences.html` - Added Health Settings section with fasting type selector
+- `templates/health/fasting_form.html` - Enhanced with fasting type descriptions and interactive cards
+- `apps/users/tests/test_users.py` - Updated test to include new field
+
+**New Migration:**
+- `0018_add_default_fasting_type.py`
+
+**Test Status:** All 470 tests passing
+
+---
+
 ### Dashboard Current Fast Widget
 Added a prominent widget on the dashboard showing the current active fast with a real-time updating timer.
 

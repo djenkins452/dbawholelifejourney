@@ -327,6 +327,20 @@ class StartFastView(LoginRequiredMixin, CreateView):
         kwargs['user'] = self.request.user
         return kwargs
 
+    def get_initial(self):
+        """Pre-select user's default fasting type from preferences."""
+        initial = super().get_initial()
+        if hasattr(self.request.user, 'preferences'):
+            initial['fasting_type'] = self.request.user.preferences.default_fasting_type
+        return initial
+
+    def get_context_data(self, **kwargs):
+        """Add fasting type descriptions to template context."""
+        context = super().get_context_data(**kwargs)
+        from apps.users.models import UserPreferences
+        context['fasting_descriptions'] = UserPreferences.FASTING_TYPE_DESCRIPTIONS
+        return context
+
     def form_valid(self, form):
         # Check for existing active fast
         active = FastingWindow.objects.filter(

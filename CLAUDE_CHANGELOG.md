@@ -1,0 +1,313 @@
+# CLAUDE_CHANGELOG.md
+# ==============================================================================
+# File: CLAUDE_CHANGELOG.md
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Historical record of fixes, migrations, and changes
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2025-12-28
+# Last Updated: 2025-12-28
+# ==============================================================================
+
+# Change History
+
+This file contains the historical record of all fixes, migrations, and significant changes.
+For active development context, see `CLAUDE.md`.
+
+---
+
+## 2025-12-28 Changes
+
+### AI Personal Profile
+Added personal AI profile feature to Preferences. Users can enter details about themselves (age, family, health conditions, interests, goals, etc.) that the AI uses to personalize dashboard insights and coaching messages.
+
+**Features:**
+- New `ai_profile` TextField in UserPreferences model (max 2000 chars)
+- Personal AI Profile section in Preferences page (shown when AI enabled + data consent given)
+- Content moderation via `apps/ai/profile_moderation.py` - blocks prompt injection attempts, harmful content, and sanitizes input
+- Integration with AIService's system prompts - profile wrapped in bounded context with safety guidelines
+
+**Security measures:** regex-based prompt injection detection (16 patterns), harmful content filtering, PII warnings (email, SSN patterns), control character removal, prompt delimiter escaping. Industry best practice: profile passed as bounded user-provided context, never treated as system instructions.
+
+**Files:** `apps/users/models.py`, `apps/users/migrations/0016_add_ai_profile.py`, `apps/ai/profile_moderation.py`, `apps/ai/services.py`, `apps/ai/dashboard_ai.py`, `templates/users/preferences.html`, `apps/ai/tests/test_ai_comprehensive.py` (24 tests).
+
+---
+
+### Profile Picture Save Fix
+Fixed bug where profile picture (avatar) was not being saved for some users (reported by heatherjenkins74@gmail).
+
+**Issues identified:**
+1. The ProfileForm used `FileInput` widget which doesn't preserve existing files when form is resubmitted without a new file - existing avatars were being cleared on any profile update. Fixed by adding logic in `save()` method to restore `self.instance.avatar` when no new file is uploaded.
+2. The `clean_avatar()` method's content_type validation could reject valid images from iPhone (HEIC/HEIF) or browsers that send `application/octet-stream`. Added support for `image/heic`, `image/heif`, `image/webp`, and `application/octet-stream` content types.
+
+**Files:** `apps/users/forms.py` (ProfileForm.clean_avatar, ProfileForm.save), `apps/users/tests/test_users_comprehensive.py` (6 new tests).
+
+---
+
+### AI Camera Medicine Purpose Auto-Fetch
+When scanning a medicine bottle with AI Camera, the OpenAI Vision API now automatically looks up the common medical purpose of the medication (e.g., "blood pressure control", "pain relief", "cholesterol management") and includes it in the action URL. The medicine create form reads this purpose parameter and pre-populates the purpose field.
+
+**Files:** `apps/scan/services/vision.py`, `apps/health/tests/test_medicine.py`, `apps/scan/tests/test_vision.py` (6 new tests).
+
+---
+
+### AI Camera Medicine Form Prefill Fix
+Fixed bug where AI Camera scanned medicine data was not populating the medicine add form.
+
+**Fixes:**
+1. Added `get_initial()` method to `MedicineCreateView` to read query parameters (name, dose, directions, quantity, purpose)
+2. Updated vision service `_build_actions()` to include all extracted fields in the URL
+
+**Files:** `apps/health/views.py`, `apps/scan/services/vision.py` (11 new tests).
+
+---
+
+### Task List Sorting & Single-Click Fix
+Fixed two task list issues:
+1. Task sorting now correctly orders by Now, Soon, Someday instead of alphabetical
+2. Fixed task checkbox requiring double-click to complete
+
+**Files:** `apps/life/views.py`, `templates/life/task_list.html`.
+
+---
+
+### Mobile Menu Toggle Contrast Fix
+Fixed issue where the hamburger menu button lost contrast on dark-header themes (Faith, Sports, Nature, Outdoors).
+
+**Files:** `static/css/themes.css`.
+
+---
+
+### Task Completion Popup & Auto-Priority
+1. Task completion popup - green checkmark appears for 3 seconds when completing a task
+2. Auto-priority based on due date: Now = due today/overdue, Soon = within 7 days, Someday = 7+ days
+
+**Files:** `apps/life/models.py`, `apps/life/views.py`, `templates/life/task_form.html`, `templates/life/task_list.html` (6 new tests).
+
+---
+
+### Biometric/Face ID Login
+Added WebAuthn-based biometric login for mobile devices (Face ID, Touch ID, Windows Hello).
+
+**Models:** `WebAuthnCredential` stores device credentials.
+**Views:** BiometricCheckView, BiometricCredentialsView, BiometricRegisterBeginView/CompleteView, BiometricLoginBeginView/CompleteView, BiometricDeleteCredentialView.
+
+**Files:** `apps/users/models.py`, `apps/users/views.py`, `apps/users/urls.py`, `templates/users/preferences.html`, `templates/account/login.html`, `static/js/biometric.js` (32 new tests).
+
+---
+
+### What's New Feature
+Added "What's New" popup system to inform users of new features since their last visit.
+
+**Models:** `ReleaseNote`, `UserReleaseNoteView`.
+**Views:** WhatsNewCheckView, WhatsNewDismissView, WhatsNewListView.
+
+**Files:** `apps/core/models.py`, `apps/core/views.py`, `templates/components/whats_new_modal.html`, `templates/core/whats_new_list.html`, `static/js/whats_new.js` (23 new tests).
+
+---
+
+### Scan Image Auto-Attachment to Inventory
+Scanned images are now automatically saved to inventory items created via AI Camera.
+
+**Files:** Multiple scan/inventory files (3 new tests).
+
+---
+
+### Expanded Camera Scan Module Support
+Extended AI Camera to recognize: inventory_item, recipe, pet, maintenance categories.
+
+**Files:** Vision service, Life module views (7 new tests).
+
+---
+
+### Dashboard and AI Integration for Medicine, Workout, Scan
+Dashboard now shows: Today's Medicine Schedule, Recent Workouts, Quick Stats. AI integration updated for medicine adherence, workout tracking, scan activity.
+
+---
+
+### Food/Nutrition Tracking
+Added comprehensive Nutrition section with food logging, macro tracking, daily summaries, and nutrition goals.
+
+**Models:** FoodItem, CustomFood, FoodEntry, DailyNutritionSummary, NutritionGoals.
+
+---
+
+### AI Camera Source Tracking
+Added `created_via` field on `UserOwnedModel` base class. Entries from AI Camera marked as `ai_camera`.
+
+**Files:** Multiple files (16 new tests).
+
+---
+
+### Medicine Schedule Fixes
+Fixed critical bug where medicine schedules weren't appearing in Today's Schedule. Added "Daily" button, day-of-week indicators, Activate button.
+
+---
+
+### Camera Scan Feature
+Added comprehensive Camera Scan feature with OpenAI Vision API integration. See `docs/CAMERA_SCAN_ARCHITECTURE.md`.
+
+**Files:** Multiple scan app files (70 new tests).
+
+---
+
+### Medicine Tracking Section
+Added Medicine section to Health module with daily tracker, adherence stats, PRN support, refill tracking (77 new tests).
+
+---
+
+### CSO Security Review & Fixes
+Comprehensive security review with 21 findings. See `SECURITY_REVIEW_REPORT.md`.
+
+**Critical fixes:**
+- C-2: Bible API key removed from frontend
+- C-3: AI data consent field added
+- H-3: Rate limiting via django-axes
+- H-4: Django admin moved to configurable path
+- M-1: SameSite cookie attribute configured
+
+---
+
+### Django-allauth Deprecation Warnings Fix
+Updated settings.py to use new django-allauth settings format.
+
+---
+
+### Backup and Disaster Recovery Playbook
+Added comprehensive BACKUP.md document.
+
+---
+
+### Edit/Delete Saved Scripture Verses
+Added ability to edit and delete saved Scripture verses from the Scripture Library.
+
+---
+
+### Test Suite Onboarding Fixes
+Fixed 185+ test failures caused by onboarding middleware. All test setups now call `_complete_onboarding()`.
+
+---
+
+### User-Specific Saved Verses
+Fixed bug where saved Scripture verses were shared across all users. Created `SavedVerse` model with user ownership.
+
+---
+
+### Project Add Task Default
+When adding a task from within a project, the project dropdown auto-selects that project.
+
+---
+
+### Dev Environment Dependency Check
+Added `check_dependencies.py` script.
+
+---
+
+### Task Undo Link
+Added "Undo" link next to completed tasks.
+
+---
+
+### Journal Prompts Migration
+Data migration (`0003_load_journal_prompts.py`) to load 20 journal prompts.
+
+---
+
+### ChatGPT Journal Import
+Management command (`import_chatgpt_journal`) for one-time data migration from ChatGPT JSON exports.
+
+**Usage:**
+```bash
+python manage.py import_chatgpt_journal export.json --dry-run
+python manage.py import_chatgpt_journal export.json --user=email@example.com
+```
+
+**Expected JSON Format:**
+```json
+[
+  {
+    "date": "2025-12-03",
+    "faith": "Faith content or null",
+    "health": "Health content or null",
+    "family": "Family content or null",
+    "work": "Work content or null",
+    "reflection_summary": "Summary text"
+  }
+]
+```
+
+---
+
+### Step-by-Step Onboarding Wizard
+New 6-step wizard for new users (Welcome, Theme, Modules, AI Coaching, Location, Complete).
+
+---
+
+### Database-Driven AI Prompts
+AIPromptConfig model allows admin control of all AI prompt types (10 types).
+
+---
+
+### Database-Driven Coaching Styles
+CoachingStyle model with 7 styles, editable via Django admin.
+
+---
+
+## Earlier Changes (Pre-2025-12-28)
+
+- Django admin improvements: "Back to Admin Console" link, fixed capitalization
+- Life dashboard: Quick Access tiles show counts
+- Test history: Dev-only "Run Tests" button
+- Fitness tracking: Comprehensive fitness tracking feature
+- Google Calendar: Added API dependencies
+- Preferences page: Dynamic coaching style rendering
+- Fixture loading: Fixed to use fixture names without app prefix
+- Login page CSS: Fixed auth_content block
+- Timezone display: Fasting list uses timezone tag
+- Faith module default: Changed to default=True
+- Speech-to-text: Set continuous: false
+- Superuser creation: Only creates if user doesn't exist
+- Footer logo: Increased size to 200px
+- Custom domain: Added wholelifejourney.com support
+- Media files: Fixed serving in production
+
+---
+
+## Security Audit Details (2025-12-28)
+
+### Current Health Score: 8.5/10
+
+### CRITICAL Issues (Fixed)
+1. **Open Redirect Vulnerability** - Created `is_safe_redirect_url()` and `get_safe_redirect_url()` utilities in `apps/core/utils.py`. Fixed 3 vulnerable locations.
+2. **Hardcoded API Key** - Removed hardcoded Bible API key from `config/settings.py`.
+
+### HIGH Priority Issues (Fixed)
+1. **Bare except clauses (10+ locations)** - Replaced with specific exception types
+2. **XSS Risk in HTMX Response** - Added `django.utils.html.escape()` to `RandomPromptView`
+3. **Unsafe Client IP Extraction** - Added validation to `get_client_ip()`
+4. **Missing Custom Error Pages** - Created `templates/404.html` and `templates/500.html`
+5. **Console-Only Logging** - Added persistent logging with RotatingFileHandler
+
+### Audit Checklist
+```bash
+# Check for bare except clauses
+grep -rn "except:" apps/ --include="*.py" | grep -v "except Exception"
+
+# Check for |safe filter usage
+grep -rn "|safe" templates/
+
+# Check for hardcoded emails
+grep -rn "@.*\.com" apps/ --include="*.py" | grep -v test
+
+# Run full test suite
+python run_tests.py
+```
+
+### Remaining Issues (Medium/Low)
+- Error dashboard widget
+- Health check endpoint
+- Input validation improvements
+- Large file splitting (views.py files over 500 lines)
+
+---
+
+*Last updated: 2025-12-28*

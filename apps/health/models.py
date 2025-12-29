@@ -1200,7 +1200,7 @@ class FoodEntry(UserOwnedModel):
     serving_unit = models.CharField(max_length=50)
 
     # Calculated totals (stored, not derived, for historical accuracy)
-    total_calories = models.DecimalField(max_digits=10, decimal_places=2)
+    total_calories = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_protein_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_carbohydrates_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_fiber_g = models.DecimalField(max_digits=10, decimal_places=2, default=0)

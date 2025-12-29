@@ -23,7 +23,7 @@
     </div>
 
     <!-- Alerts Section -->
-    {% if has_overdue or has_low_supply %}
+    {% if has_overdue or has_low_supply or has_refill_requested %}
     <div class="alerts-section mb-6">
         {% if has_overdue %}
         <div class="alert alert-warning">
@@ -31,10 +31,30 @@
             <span>You have {{ overdue_doses|length }} overdue dose{{ overdue_doses|length|pluralize }}</span>
         </div>
         {% endif %}
+        {% if has_refill_requested %}
+        <div class="alert alert-success">
+            <span class="alert-icon">&#128203;</span>
+            <div class="alert-content">
+                <span>Refill requested for {{ refill_requested_medicines|length }} medicine{{ refill_requested_medicines|length|pluralize }}:</span>
+                <span class="alert-medicines">
+                    {% for medicine in refill_requested_medicines %}
+                    <a href="{% url 'health:medicine_detail' pk=medicine.pk %}" class="medicine-link">{{ medicine.name }}</a>{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                </span>
+            </div>
+        </div>
+        {% endif %}
         {% if has_low_supply %}
         <div class="alert alert-info">
             <span class="alert-icon">&#128138;</span>
-            <span>{{ low_supply_medicines|length }} medicine{{ low_supply_medicines|length|pluralize }} need{{ low_supply_medicines|length|pluralize:"s," }} a refill</span>
+            <div class="alert-content">
+                <span>{{ low_supply_medicines|length }} medicine{{ low_supply_medicines|length|pluralize }} need{{ low_supply_medicines|length|pluralize:"s," }} a refill:</span>
+                <span class="alert-medicines">
+                    {% for medicine in low_supply_medicines %}
+                    <a href="{% url 'health:medicine_detail' pk=medicine.pk %}" class="medicine-link">{{ medicine.name }}</a>{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                </span>
+            </div>
         </div>
         {% endif %}
     </div>
@@ -182,8 +202,33 @@
     border: 1px solid color-mix(in srgb, var(--color-info, #3b82f6) 40%, transparent);
 }
 
+.alert-success {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-success, #10b981) 40%, transparent);
+}
+
 .alert-icon {
     font-size: var(--font-size-lg);
+    flex-shrink: 0;
+}
+
+.alert-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.alert-medicines {
+    font-size: var(--font-size-sm);
+}
+
+.medicine-link {
+    color: var(--color-accent);
+    text-decoration: underline;
+}
+
+.medicine-link:hover {
+    color: var(--color-accent-hover, var(--color-accent));
 }
 
 .stats-bar {

@@ -1686,10 +1686,15 @@ class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["overdue_doses"] = overdue
         context["has_overdue"] = len(overdue) > 0
 
-        # Check for low supply medicines
+        # Check for low supply medicines (needs refill but not yet requested)
         low_supply = [m for m in active_medicines if m.needs_refill]
         context["low_supply_medicines"] = low_supply
         context["has_low_supply"] = len(low_supply) > 0
+
+        # Check for medicines with refill already requested
+        refill_requested = [m for m in active_medicines if m.refill_requested]
+        context["refill_requested_medicines"] = refill_requested
+        context["has_refill_requested"] = len(refill_requested) > 0
 
         # PRN medicines taken today
         prn_today = MedicineLog.objects.filter(
@@ -1712,12 +1717,26 @@ class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             return False
 
         from datetime import datetime, timedelta
+        import pytz
+
+        # Get user's timezone
+        user = self.request.user
+        try:
+            user_tz = pytz.timezone(user.preferences.timezone or 'UTC')
+        except (AttributeError, pytz.UnknownTimeZoneError):
+            user_tz = pytz.UTC
+
+        # Convert current time to user's local time
+        now_local = now.astimezone(user_tz)
+
+        # Create local datetime for the scheduled time
         scheduled_dt = datetime.combine(today, schedule.scheduled_time)
         grace_minutes = medicine.grace_period_minutes
         deadline = scheduled_dt + timedelta(minutes=grace_minutes)
 
-        now_naive = now.replace(tzinfo=None) if now.tzinfo else now
-        return now_naive > deadline
+        # Compare local times (both naive, both in user's local time)
+        now_local_naive = now_local.replace(tzinfo=None)
+        return now_local_naive > deadline
 
 
 class MedicineListView(LoginRequiredMixin, ListView):

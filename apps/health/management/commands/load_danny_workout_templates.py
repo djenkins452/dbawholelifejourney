@@ -188,22 +188,28 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         email = "dannyjenkins71@gmail.com"
 
+        self.stdout.write(f"Loading workout templates for {email}...")
+
         if options["dry_run"]:
             self.stdout.write(self.style.WARNING("\n=== DRY RUN MODE ===\n"))
             self.stdout.write(f"Target user: {email}")
             self._show_plan()
             return
 
-        # Find the user
+        # Find the user (case-insensitive lookup)
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(email__iexact=email)
+            self.stdout.write(f"Found user: {user.email}")
         except User.DoesNotExist:
-            self.stderr.write(
-                self.style.ERROR(f"User with email {email} not found!")
+            # Log but don't fail - this allows the Procfile to continue
+            self.stdout.write(
+                self.style.WARNING(f"User {email} not found. Skipping workout template import.")
             )
             return
-
-        self.stdout.write(f"Found user: {user.email}")
+        except User.MultipleObjectsReturned:
+            # If somehow there are duplicates, use the first one
+            user = User.objects.filter(email__iexact=email).first()
+            self.stdout.write(f"Found user: {user.email}")
 
         with transaction.atomic():
             # Step 1: Ensure all required exercises exist

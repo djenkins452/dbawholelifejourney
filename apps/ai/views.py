@@ -579,23 +579,38 @@ class AssistantDashboardView(LoginRequiredMixin, AssistantMixin, TemplateView):
     """
     template_name = "ai/assistant_dashboard.html"
 
+    def get(self, request, *args, **kwargs):
+        """Override get to add request-level error handling."""
+        try:
+            return super().get(request, *args, **kwargs)
+        except Exception as e:
+            logger.exception(f"Error in AssistantDashboardView for {request.user.email}: {e}")
+            raise
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
         user = self.request.user
-        prefs = user.preferences
+        logger.info(f"AssistantDashboardView.get_context_data called for user: {user.email}")
 
-        context['ai_enabled'] = prefs.ai_enabled
-        context['ai_consent'] = prefs.ai_data_consent
-        context['faith_enabled'] = prefs.faith_enabled
-        context['coaching_style'] = prefs.ai_coaching_style
+        try:
+            prefs = user.preferences
+        except Exception as e:
+            logger.exception(f"Error getting user preferences for {user.email}: {e}")
+            raise
+
+        context['ai_enabled'] = getattr(prefs, 'ai_enabled', False)
+        context['ai_consent'] = getattr(prefs, 'ai_data_consent', False)
+        context['faith_enabled'] = getattr(prefs, 'faith_enabled', False)
+        context['coaching_style'] = getattr(prefs, 'ai_coaching_style', 'supportive')
 
         # Get conversation if exists
         try:
             conversation = AssistantConversation.get_or_create_active(user)
             context['conversation'] = conversation
             context['messages'] = conversation.messages.order_by('created_at')[:50]
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error getting assistant conversation for {user.email}: {e}")
             context['conversation'] = None
             context['messages'] = []
 

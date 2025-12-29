@@ -17,6 +17,24 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Fixed Food Log Delete HTTP 405 Error
+Fixed the delete button on the nutrition home page that was causing HTTP 405 (Method Not Allowed) errors.
+
+**Problem:**
+- Delete buttons were implemented as anchor tags (`<a href="...">`) that sent GET requests
+- The `FoodEntryDeleteView` only accepts POST requests for safety
+- Clicking delete would result in HTTP 405 error
+
+**Solution:**
+- Changed all delete buttons in breakfast, lunch, dinner, and snacks sections from anchor tags to proper POST forms with CSRF tokens
+- Added `.inline-form` CSS class to style the inline form element
+- Updated `.food-actions` CSS to align items properly
+
+**Files Modified:**
+- `templates/health/nutrition/home.html` - Changed delete links to POST forms (4 locations)
+
+---
+
 ### Fasting Edit Feature
 Added ability to edit completed fasts to correct start/end times.
 
@@ -34,6 +52,8 @@ Added ability to edit completed fasts to correct start/end times.
 
 ### Delete Button Added to Nutrition Food Entries
 Added a Delete button next to the Edit button on the nutrition home page for easier food entry management.
+
+**Note:** Initial implementation used anchor tags which caused HTTP 405 errors. See "Fixed Food Log Delete HTTP 405 Error" above for the fix.
 
 **Changes:**
 - Added Delete link with confirmation prompt for all meal sections (Breakfast, Lunch, Dinner, Snacks)

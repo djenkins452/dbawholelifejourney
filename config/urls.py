@@ -84,6 +84,8 @@ urlpatterns = [
     path('help/', include('apps.help.urls', namespace='help')),
     # Camera Scan
     path('scan/', include('apps.scan.urls', namespace='scan')),
+    # AI Personal Assistant
+    path('assistant/', include('apps.ai.urls', namespace='ai')),
 ]
 
 # Serve media files

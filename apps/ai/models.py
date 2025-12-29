@@ -312,21 +312,21 @@ class AIUsageLog(models.Model):
     )
     endpoint = models.CharField(max_length=50)  # e.g., 'journal_reflection', 'daily_insight'
     model_used = models.CharField(max_length=50)  # e.g., 'gpt-4o-mini'
-    
+
     prompt_tokens = models.PositiveIntegerField(default=0)
     completion_tokens = models.PositiveIntegerField(default=0)
     total_tokens = models.PositiveIntegerField(default=0)
-    
+
     # Estimated cost (for monitoring)
     estimated_cost_usd = models.DecimalField(
-        max_digits=10, decimal_places=6, 
+        max_digits=10, decimal_places=6,
         default=0,
         help_text="Estimated cost in USD"
     )
-    
+
     success = models.BooleanField(default=True)
     error_message = models.TextField(blank=True)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -336,3 +336,504 @@ class AIUsageLog(models.Model):
 
     def __str__(self):
         return f"{self.endpoint} - {self.user} - {self.total_tokens} tokens"
+
+
+# =============================================================================
+# DASHBOARD AI PERSONAL ASSISTANT MODELS
+# =============================================================================
+
+class AssistantConversation(models.Model):
+    """
+    Conversation session with the Dashboard AI Personal Assistant.
+
+    Groups related messages together for context continuity.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='assistant_conversations'
+    )
+
+    # Conversation metadata
+    title = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Auto-generated or user-provided conversation title"
+    )
+
+    # Session type
+    SESSION_TYPE_CHOICES = [
+        ('daily_checkin', 'Daily Check-in'),
+        ('reflection', 'Reflection Session'),
+        ('planning', 'Planning Session'),
+        ('accountability', 'Accountability Check'),
+        ('celebration', 'Celebration'),
+        ('general', 'General Conversation'),
+    ]
+    session_type = models.CharField(
+        max_length=20,
+        choices=SESSION_TYPE_CHOICES,
+        default='general'
+    )
+
+    # State tracking
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this conversation is currently active"
+    )
+
+    # Context summary for AI continuity
+    context_summary = models.TextField(
+        blank=True,
+        help_text="AI-generated summary of conversation for continuity"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name = "Assistant Conversation"
+        verbose_name_plural = "Assistant Conversations"
+        indexes = [
+            models.Index(fields=['user', '-updated_at']),
+            models.Index(fields=['user', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.title or self.get_session_type_display()} ({self.created_at.date()})"
+
+    @classmethod
+    def get_or_create_active(cls, user):
+        """Get or create an active conversation for today."""
+        from django.utils import timezone
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(user)
+
+        # Look for active conversation from today
+        conversation = cls.objects.filter(
+            user=user,
+            is_active=True,
+            created_at__date=today
+        ).first()
+
+        if not conversation:
+            conversation = cls.objects.create(
+                user=user,
+                session_type='daily_checkin',
+                is_active=True
+            )
+
+        return conversation
+
+
+class AssistantMessage(models.Model):
+    """
+    Individual message in a Dashboard AI conversation.
+    """
+    conversation = models.ForeignKey(
+        AssistantConversation,
+        on_delete=models.CASCADE,
+        related_name='messages'
+    )
+
+    # Message role
+    ROLE_CHOICES = [
+        ('user', 'User'),
+        ('assistant', 'Assistant'),
+        ('system', 'System'),
+    ]
+    role = models.CharField(
+        max_length=10,
+        choices=ROLE_CHOICES
+    )
+
+    # Message content
+    content = models.TextField()
+
+    # Message type for special handling
+    MESSAGE_TYPE_CHOICES = [
+        ('text', 'Text Message'),
+        ('insight', 'AI Insight'),
+        ('nudge', 'Accountability Nudge'),
+        ('celebration', 'Celebration'),
+        ('action_suggestion', 'Action Suggestion'),
+        ('reflection_prompt', 'Reflection Prompt'),
+        ('scripture', 'Scripture Reference'),
+        ('priority_list', 'Priority List'),
+        ('state_assessment', 'State Assessment'),
+    ]
+    message_type = models.CharField(
+        max_length=20,
+        choices=MESSAGE_TYPE_CHOICES,
+        default='text'
+    )
+
+    # Metadata for special message types (JSON for flexibility)
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional data for message (e.g., action URLs, priorities)"
+    )
+
+    # User feedback
+    was_helpful = models.BooleanField(null=True, blank=True)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = "Assistant Message"
+        verbose_name_plural = "Assistant Messages"
+        indexes = [
+            models.Index(fields=['conversation', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_role_display()}: {self.content[:50]}..."
+
+
+class UserStateSnapshot(models.Model):
+    """
+    Daily snapshot of user's state for AI assessment.
+
+    Captures the state of all user data at a point in time for:
+    - Trend analysis
+    - Pattern detection
+    - Drift identification
+    - Accountability tracking
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='state_snapshots'
+    )
+
+    # Date of snapshot (one per day)
+    snapshot_date = models.DateField()
+
+    # Journal metrics
+    journal_count_total = models.PositiveIntegerField(default=0)
+    journal_count_week = models.PositiveIntegerField(default=0)
+    journal_streak = models.PositiveIntegerField(default=0)
+    dominant_mood = models.CharField(max_length=20, blank=True)
+
+    # Task metrics
+    tasks_completed_today = models.PositiveIntegerField(default=0)
+    tasks_completed_week = models.PositiveIntegerField(default=0)
+    tasks_overdue = models.PositiveIntegerField(default=0)
+    tasks_due_today = models.PositiveIntegerField(default=0)
+
+    # Goal metrics
+    active_goals = models.PositiveIntegerField(default=0)
+    completed_goals_month = models.PositiveIntegerField(default=0)
+    goal_progress_notes = models.TextField(blank=True)
+
+    # Faith metrics (if enabled)
+    active_prayers = models.PositiveIntegerField(default=0)
+    answered_prayers_month = models.PositiveIntegerField(default=0)
+    bible_study_entries_week = models.PositiveIntegerField(default=0)
+
+    # Health metrics
+    weight_current = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    weight_trend = models.CharField(max_length=10, blank=True)  # up, down, stable
+    fasts_completed_week = models.PositiveIntegerField(default=0)
+    workouts_week = models.PositiveIntegerField(default=0)
+    workout_streak = models.PositiveIntegerField(default=0)
+    medicine_adherence = models.PositiveIntegerField(null=True, blank=True)  # percentage
+
+    # Change intention tracking
+    active_intentions = models.PositiveIntegerField(default=0)
+    intention_alignment_score = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="AI-assessed alignment with stated intentions (0-100)"
+    )
+
+    # AI-generated assessments (stored for trend analysis)
+    ai_assessment = models.TextField(
+        blank=True,
+        help_text="AI's assessment of user state this day"
+    )
+    alignment_gaps = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Areas where behavior doesn't match stated intentions"
+    )
+    celebration_worthy = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Achievements worth celebrating"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-snapshot_date']
+        unique_together = ['user', 'snapshot_date']
+        verbose_name = "User State Snapshot"
+        verbose_name_plural = "User State Snapshots"
+        indexes = [
+            models.Index(fields=['user', '-snapshot_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.snapshot_date}"
+
+
+class DailyPriority(models.Model):
+    """
+    AI-suggested daily priorities based on user's goals and current state.
+
+    These are the 3-5 things the AI recommends focusing on today.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='daily_priorities'
+    )
+
+    # Date
+    priority_date = models.DateField()
+
+    # Priority type
+    PRIORITY_TYPE_CHOICES = [
+        ('faith', 'Faith & Spiritual'),
+        ('purpose', 'Purpose & Goals'),
+        ('commitment', 'Existing Commitment'),
+        ('maintenance', 'Maintenance Task'),
+        ('health', 'Health & Wellness'),
+        ('relationship', 'Relationship'),
+        ('work', 'Work & Career'),
+        ('personal', 'Personal Growth'),
+    ]
+    priority_type = models.CharField(
+        max_length=20,
+        choices=PRIORITY_TYPE_CHOICES
+    )
+
+    # Priority content
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    why_important = models.TextField(
+        blank=True,
+        help_text="Connection to user's stated purpose/goals"
+    )
+
+    # Linked items (optional)
+    linked_task_id = models.PositiveIntegerField(null=True, blank=True)
+    linked_goal_id = models.PositiveIntegerField(null=True, blank=True)
+    linked_intention_id = models.PositiveIntegerField(null=True, blank=True)
+
+    # Ordering
+    sort_order = models.PositiveIntegerField(default=0)
+
+    # User interaction
+    is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    user_dismissed = models.BooleanField(default=False)
+
+    # AI generation metadata
+    generated_by_ai = models.BooleanField(default=True)
+    generation_context = models.TextField(blank=True)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['priority_date', 'sort_order']
+        verbose_name = "Daily Priority"
+        verbose_name_plural = "Daily Priorities"
+        indexes = [
+            models.Index(fields=['user', 'priority_date']),
+            models.Index(fields=['user', 'priority_date', 'is_completed']),
+        ]
+
+    def __str__(self):
+        return f"{self.priority_date}: {self.title}"
+
+    def mark_complete(self):
+        """Mark this priority as completed."""
+        from django.utils import timezone
+        self.is_completed = True
+        self.completed_at = timezone.now()
+        self.save(update_fields=['is_completed', 'completed_at', 'updated_at'])
+
+
+class TrendAnalysis(models.Model):
+    """
+    Stores AI-generated trend analysis over time periods.
+
+    Used for weekly/monthly summaries and pattern detection.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='trend_analyses'
+    )
+
+    # Analysis period
+    PERIOD_CHOICES = [
+        ('week', 'Weekly'),
+        ('month', 'Monthly'),
+        ('quarter', 'Quarterly'),
+        ('year', 'Annual'),
+    ]
+    period_type = models.CharField(
+        max_length=10,
+        choices=PERIOD_CHOICES
+    )
+    period_start = models.DateField()
+    period_end = models.DateField()
+
+    # Analysis type
+    ANALYSIS_TYPE_CHOICES = [
+        ('overall', 'Overall Wellness'),
+        ('journal', 'Journaling Patterns'),
+        ('productivity', 'Productivity & Tasks'),
+        ('faith', 'Faith Journey'),
+        ('health', 'Health & Fitness'),
+        ('goals', 'Goal Progress'),
+        ('mood', 'Mood Patterns'),
+    ]
+    analysis_type = models.CharField(
+        max_length=20,
+        choices=ANALYSIS_TYPE_CHOICES
+    )
+
+    # Analysis content
+    summary = models.TextField(
+        help_text="AI-generated summary of the period"
+    )
+    patterns_detected = models.JSONField(
+        default=list,
+        help_text="Patterns identified during this period"
+    )
+    recommendations = models.JSONField(
+        default=list,
+        help_text="AI recommendations based on analysis"
+    )
+    comparison_to_previous = models.TextField(
+        blank=True,
+        help_text="How this period compares to the previous period"
+    )
+
+    # Key metrics
+    metrics = models.JSONField(
+        default=dict,
+        help_text="Key metrics for this period"
+    )
+
+    # User feedback
+    was_helpful = models.BooleanField(null=True, blank=True)
+    user_notes = models.TextField(blank=True)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-period_end', '-created_at']
+        verbose_name = "Trend Analysis"
+        verbose_name_plural = "Trend Analyses"
+        indexes = [
+            models.Index(fields=['user', '-period_end']),
+            models.Index(fields=['user', 'period_type', '-period_end']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.get_analysis_type_display()} ({self.period_start} to {self.period_end})"
+
+
+class ReflectionPromptQueue(models.Model):
+    """
+    Queue of AI-generated reflection prompts for journaling.
+
+    The AI generates personalized prompts based on user's current state,
+    goals, and recent activity. These are queued and shown when appropriate.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='reflection_prompts'
+    )
+
+    # Prompt content
+    prompt_text = models.TextField()
+
+    # Context
+    PROMPT_CONTEXT_CHOICES = [
+        ('morning', 'Morning Reflection'),
+        ('evening', 'Evening Reflection'),
+        ('weekly', 'Weekly Review'),
+        ('goal_related', 'Goal-Related'),
+        ('intention_check', 'Intention Check'),
+        ('gratitude', 'Gratitude'),
+        ('faith', 'Faith & Spiritual'),
+        ('challenge', 'Challenge Processing'),
+        ('celebration', 'Celebration'),
+        ('general', 'General Reflection'),
+    ]
+    prompt_context = models.CharField(
+        max_length=20,
+        choices=PROMPT_CONTEXT_CHOICES,
+        default='general'
+    )
+
+    # Why this prompt
+    relevance_reason = models.TextField(
+        blank=True,
+        help_text="Why this prompt is relevant to the user right now"
+    )
+
+    # Linked to specific data (optional)
+    linked_goal_id = models.PositiveIntegerField(null=True, blank=True)
+    linked_intention_id = models.PositiveIntegerField(null=True, blank=True)
+    linked_entry_id = models.PositiveIntegerField(null=True, blank=True)
+
+    # Queue management
+    is_shown = models.BooleanField(default=False)
+    shown_at = models.DateTimeField(null=True, blank=True)
+    is_used = models.BooleanField(
+        default=False,
+        help_text="Whether user started journaling with this prompt"
+    )
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    # Expiration
+    valid_until = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Some prompts are time-sensitive"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Reflection Prompt"
+        verbose_name_plural = "Reflection Prompts"
+        indexes = [
+            models.Index(fields=['user', 'is_shown', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_prompt_context_display()}: {self.prompt_text[:50]}..."
+
+    def mark_shown(self):
+        """Mark this prompt as shown to the user."""
+        from django.utils import timezone
+        self.is_shown = True
+        self.shown_at = timezone.now()
+        self.save(update_fields=['is_shown', 'shown_at'])
+
+    def mark_used(self):
+        """Mark this prompt as used (user started journaling with it)."""
+        from django.utils import timezone
+        self.is_used = True
+        self.used_at = timezone.now()
+        self.save(update_fields=['is_used', 'used_at'])

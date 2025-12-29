@@ -1,0 +1,823 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Personal Assistant - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Assistant Dashboard Layout */
+.assistant-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 24px;
+    min-height: calc(100vh - 180px);
+}
+
+@media (max-width: 1024px) {
+    .assistant-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Main Content Area */
+.assistant-main {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* AI Status Banner */
+.ai-status-banner {
+    background: var(--color-surface);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--color-border);
+}
+
+.ai-status-banner.disabled {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-color: #f59e0b;
+}
+
+.ai-status-banner .status-icon {
+    font-size: 24px;
+}
+
+.ai-status-banner .status-text h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.ai-status-banner .status-text p {
+    font-size: 14px;
+    color: var(--color-text-muted);
+}
+
+.ai-status-banner .status-action {
+    margin-left: auto;
+}
+
+/* Daily Check-in Card */
+.checkin-card {
+    background: var(--color-background);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--color-border);
+}
+
+.checkin-header {
+    margin-bottom: 20px;
+}
+
+.checkin-greeting {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: 8px;
+}
+
+.checkin-date {
+    font-size: 14px;
+    color: var(--color-text-muted);
+}
+
+.checkin-assessment {
+    background: var(--color-surface);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--color-text);
+}
+
+/* Priorities Section */
+.priorities-section {
+    margin-top: 24px;
+}
+
+.priorities-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.priorities-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.priorities-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.priority-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: var(--color-surface);
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    transition: all 0.2s;
+}
+
+.priority-item:hover {
+    border-color: var(--color-accent);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
+}
+
+.priority-item.completed {
+    opacity: 0.6;
+    background: var(--color-background);
+}
+
+.priority-checkbox {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--color-border);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.priority-checkbox:hover {
+    border-color: var(--color-accent);
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.priority-item.completed .priority-checkbox {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+}
+
+.priority-content {
+    flex: 1;
+}
+
+.priority-type {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-muted);
+    margin-bottom: 4px;
+}
+
+.priority-type.faith { color: #8b5cf6; }
+.priority-type.purpose { color: #6366f1; }
+.priority-type.commitment { color: #ef4444; }
+.priority-type.health { color: #10b981; }
+.priority-type.personal { color: #f59e0b; }
+
+.priority-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-text);
+    margin-bottom: 4px;
+}
+
+.priority-why {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+}
+
+.priority-dismiss {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 4px;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.priority-dismiss:hover {
+    opacity: 1;
+}
+
+/* Celebrations & Nudges */
+.insights-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 768px) {
+    .insights-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.insight-card {
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+}
+
+.insight-card.celebrations {
+    background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+    border-color: #10b981;
+}
+
+.insight-card.nudges {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-color: #f59e0b;
+}
+
+.insight-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.insight-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.insight-item {
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 8px;
+}
+
+/* Chat Sidebar */
+.chat-sidebar {
+    background: var(--color-background);
+    border-radius: 16px;
+    border: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    height: 600px;
+    position: sticky;
+    top: 100px;
+}
+
+.chat-sidebar-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.chat-sidebar-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.chat-sidebar-header p {
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+.chat-messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.chat-message {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.chat-message.user {
+    align-self: flex-end;
+    background: var(--color-accent);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.chat-message.assistant {
+    align-self: flex-start;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-bottom-left-radius: 4px;
+}
+
+.chat-input-container {
+    padding: 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+.chat-input-form {
+    display: flex;
+    gap: 8px;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    font-size: 14px;
+    outline: none;
+    background: var(--color-background);
+}
+
+.chat-input:focus {
+    border-color: var(--color-accent);
+}
+
+.chat-send-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Reflection Prompt */
+.reflection-prompt {
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border: 1px solid #0ea5e9;
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 20px;
+}
+
+.reflection-prompt h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0369a1;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reflection-prompt p {
+    font-size: 15px;
+    color: #0c4a6e;
+    font-style: italic;
+    margin-bottom: 12px;
+}
+
+.reflection-prompt .btn {
+    font-size: 13px;
+}
+
+/* Loading States */
+.loading-skeleton {
+    background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-border) 50%, var(--color-surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.skeleton-text {
+    height: 16px;
+    margin-bottom: 8px;
+}
+
+.skeleton-text.short { width: 40%; }
+.skeleton-text.medium { width: 70%; }
+.skeleton-text.long { width: 90%; }
+
+/* Typing indicator */
+.typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 10px 14px;
+    align-self: flex-start;
+}
+
+.typing-indicator span {
+    width: 8px;
+    height: 8px;
+    background: var(--color-text-muted);
+    border-radius: 50%;
+    animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(1) { animation-delay: 0s; }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
+    30% { transform: translateY(-4px); opacity: 1; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="assistant-container">
+    <!-- Main Content -->
+    <div class="assistant-main">
+        {% if not ai_enabled or not ai_consent %}
+        <!-- AI Not Enabled Banner -->
+        <div class="ai-status-banner disabled">
+            <span class="status-icon">⚠️</span>
+            <div class="status-text">
+                <h3>AI Features Not Enabled</h3>
+                <p>Enable AI features and provide consent in your preferences to unlock your personal assistant.</p>
+            </div>
+            <div class="status-action">
+                <a href="{% url 'users:preferences' %}" class="btn btn-primary btn-sm">Enable AI</a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Daily Check-in Card -->
+        <div class="checkin-card" id="checkin-card">
+            <div class="checkin-header">
+                <h1 class="checkin-greeting" id="greeting">Loading...</h1>
+                <p class="checkin-date" id="current-date"></p>
+            </div>
+
+            <div class="checkin-assessment" id="assessment">
+                <div class="loading-skeleton skeleton-text long"></div>
+                <div class="loading-skeleton skeleton-text medium"></div>
+                <div class="loading-skeleton skeleton-text short"></div>
+            </div>
+
+            <!-- Celebrations & Nudges -->
+            <div class="insights-row" id="insights-row">
+                <div class="insight-card celebrations" id="celebrations-card" style="display: none;">
+                    <h4>🎉 Celebrations</h4>
+                    <div class="insight-list" id="celebrations-list"></div>
+                </div>
+                <div class="insight-card nudges" id="nudges-card" style="display: none;">
+                    <h4>💡 Today's Focus</h4>
+                    <div class="insight-list" id="nudges-list"></div>
+                </div>
+            </div>
+
+            <!-- Priorities -->
+            <div class="priorities-section">
+                <div class="priorities-header">
+                    <h3>Today's Priorities</h3>
+                    <button class="btn btn-outline btn-sm" id="refresh-priorities">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6"></path>
+                            <path d="M1 20v-6h6"></path>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+                <div class="priorities-list" id="priorities-list">
+                    <div class="priority-item">
+                        <div class="loading-skeleton" style="width: 24px; height: 24px; border-radius: 50%;"></div>
+                        <div class="priority-content" style="flex: 1;">
+                            <div class="loading-skeleton skeleton-text short"></div>
+                            <div class="loading-skeleton skeleton-text medium"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reflection Prompt -->
+            <div class="reflection-prompt" id="reflection-prompt" style="display: none;">
+                <h4>📝 Reflection Prompt</h4>
+                <p id="reflection-text"></p>
+                <a href="{% url 'journal:create' %}" class="btn btn-primary btn-sm">Start Journaling</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Sidebar -->
+    <div class="chat-sidebar">
+        <div class="chat-sidebar-header">
+            <h3>Chat with Your Assistant</h3>
+            <p>Ask questions or get personalized guidance</p>
+        </div>
+
+        <div class="chat-messages-container" id="chat-messages">
+            <!-- Messages will be inserted here -->
+        </div>
+
+        <div class="chat-input-container">
+            <form class="chat-input-form" id="chat-form">
+                {% csrf_token %}
+                <input
+                    type="text"
+                    class="chat-input"
+                    id="chat-input"
+                    placeholder="Ask me anything..."
+                    autocomplete="off"
+                    maxlength="2000"
+                    {% if not ai_enabled or not ai_consent %}disabled{% endif %}
+                >
+                <button type="submit" class="chat-send-btn" id="chat-send" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const aiEnabled = {{ ai_enabled|yesno:"true,false" }};
+    const aiConsent = {{ ai_consent|yesno:"true,false" }};
+
+    // Set current date
+    const dateEl = document.getElementById('current-date');
+    const now = new Date();
+    dateEl.textContent = now.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+
+    // CSRF Token
+    function getCsrfToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    }
+
+    // Load opening message
+    async function loadOpening() {
+        if (!aiEnabled || !aiConsent) {
+            document.getElementById('greeting').textContent = 'Welcome back';
+            document.getElementById('assessment').textContent = 'Enable AI features in your preferences to get personalized insights and guidance.';
+            return;
+        }
+
+        try {
+            const response = await fetch('/assistant/api/opening/');
+            const data = await response.json();
+
+            if (data.success) {
+                // Greeting
+                document.getElementById('greeting').textContent = data.greeting;
+
+                // Assessment
+                document.getElementById('assessment').textContent = data.state_summary || 'Ready to help you make the most of today.';
+
+                // Celebrations
+                if (data.celebrations && data.celebrations.length > 0) {
+                    const celebrationsCard = document.getElementById('celebrations-card');
+                    const celebrationsList = document.getElementById('celebrations-list');
+                    celebrationsList.innerHTML = '';
+
+                    data.celebrations.forEach(c => {
+                        const item = document.createElement('div');
+                        item.className = 'insight-item';
+                        item.textContent = c.description || c.title;
+                        celebrationsList.appendChild(item);
+                    });
+
+                    celebrationsCard.style.display = 'block';
+                }
+
+                // Nudges
+                if (data.nudges && data.nudges.length > 0) {
+                    const nudgesCard = document.getElementById('nudges-card');
+                    const nudgesList = document.getElementById('nudges-list');
+                    nudgesList.innerHTML = '';
+
+                    data.nudges.forEach(n => {
+                        const item = document.createElement('div');
+                        item.className = 'insight-item';
+                        item.innerHTML = `${n.message} <a href="${n.action_url}">${n.action_text}</a>`;
+                        nudgesList.appendChild(item);
+                    });
+
+                    nudgesCard.style.display = 'block';
+                }
+
+                // Priorities
+                renderPriorities(data.priorities);
+
+                // Reflection prompt
+                if (data.reflection_prompt) {
+                    document.getElementById('reflection-text').textContent = data.reflection_prompt;
+                    document.getElementById('reflection-prompt').style.display = 'block';
+                }
+
+            } else {
+                document.getElementById('greeting').textContent = 'Welcome back';
+                document.getElementById('assessment').textContent = data.error || 'Something went wrong. Please try again.';
+            }
+
+        } catch (error) {
+            console.error('Error loading opening:', error);
+            document.getElementById('greeting').textContent = 'Welcome back';
+            document.getElementById('assessment').textContent = 'Unable to load your personalized dashboard. Please refresh.';
+        }
+    }
+
+    // Render priorities
+    function renderPriorities(priorities) {
+        const list = document.getElementById('priorities-list');
+        list.innerHTML = '';
+
+        if (!priorities || priorities.length === 0) {
+            list.innerHTML = '<p class="text-muted">No priorities for today. Check back later!</p>';
+            return;
+        }
+
+        priorities.forEach(p => {
+            const item = document.createElement('div');
+            item.className = `priority-item ${p.is_completed ? 'completed' : ''}`;
+            item.dataset.id = p.id;
+
+            item.innerHTML = `
+                <div class="priority-checkbox" onclick="togglePriority(${p.id}, ${p.is_completed})">
+                    ${p.is_completed ? '✓' : ''}
+                </div>
+                <div class="priority-content">
+                    <div class="priority-type ${p.priority_type}">${p.priority_type}</div>
+                    <div class="priority-title">${p.title}</div>
+                    <div class="priority-why">${p.why_important || p.description || ''}</div>
+                </div>
+                <button class="priority-dismiss" onclick="dismissPriority(${p.id})" title="Dismiss">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            `;
+
+            list.appendChild(item);
+        });
+    }
+
+    // Toggle priority completion
+    window.togglePriority = async function(id, currentState) {
+        if (currentState) return; // Don't un-complete
+
+        try {
+            await fetch(`/assistant/api/priorities/${id}/complete/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                }
+            });
+
+            const item = document.querySelector(`.priority-item[data-id="${id}"]`);
+            item.classList.add('completed');
+            item.querySelector('.priority-checkbox').textContent = '✓';
+
+        } catch (error) {
+            console.error('Error completing priority:', error);
+        }
+    };
+
+    // Dismiss priority
+    window.dismissPriority = async function(id) {
+        try {
+            await fetch(`/assistant/api/priorities/${id}/dismiss/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                }
+            });
+
+            const item = document.querySelector(`.priority-item[data-id="${id}"]`);
+            item.remove();
+
+        } catch (error) {
+            console.error('Error dismissing priority:', error);
+        }
+    };
+
+    // Refresh priorities
+    document.getElementById('refresh-priorities').addEventListener('click', async function() {
+        try {
+            const response = await fetch('/assistant/api/priorities/?refresh=true');
+            const data = await response.json();
+            if (data.success) {
+                renderPriorities(data.priorities);
+            }
+        } catch (error) {
+            console.error('Error refreshing priorities:', error);
+        }
+    });
+
+    // Chat functionality
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const chatSend = document.getElementById('chat-send');
+    const chatMessages = document.getElementById('chat-messages');
+
+    chatInput.addEventListener('input', function() {
+        chatSend.disabled = !chatInput.value.trim();
+    });
+
+    chatForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        if (!chatInput.value.trim()) return;
+
+        const message = chatInput.value.trim();
+        chatInput.value = '';
+        chatSend.disabled = true;
+
+        // Add user message
+        addChatMessage(message, true);
+
+        // Show typing
+        showTyping();
+
+        try {
+            const response = await fetch('/assistant/api/chat/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({ message })
+            });
+
+            hideTyping();
+            const data = await response.json();
+
+            if (data.success) {
+                addChatMessage(data.response, false);
+            } else {
+                addChatMessage(data.error || 'Sorry, something went wrong.', false);
+            }
+
+        } catch (error) {
+            hideTyping();
+            console.error('Chat error:', error);
+            addChatMessage('Sorry, I had trouble responding. Please try again.', false);
+        }
+    });
+
+    function addChatMessage(content, isUser) {
+        const msg = document.createElement('div');
+        msg.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
+        msg.textContent = content;
+        chatMessages.appendChild(msg);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function showTyping() {
+        const typing = document.createElement('div');
+        typing.className = 'typing-indicator';
+        typing.id = 'typing';
+        typing.innerHTML = '<span></span><span></span><span></span>';
+        chatMessages.appendChild(typing);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function hideTyping() {
+        const typing = document.getElementById('typing');
+        if (typing) typing.remove();
+    }
+
+    // Load initial data
+    loadOpening();
+
+    // Add welcome message to chat
+    if (aiEnabled && aiConsent) {
+        addChatMessage("I'm here to help you stay aligned with what matters most. Ask me anything about your goals, priorities, or how to make the most of your day.", false);
+    }
+})();
+</script>
+{% endblock %}

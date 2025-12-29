@@ -90,6 +90,7 @@
                     <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
                     <div class="food-actions">
                         <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                        <a href="{% url 'health:food_entry_delete' entry.pk %}" class="btn btn-text btn-xs text-danger" onclick="return confirm('Delete this entry?')">Delete</a>
                     </div>
                 </div>
                 {% endfor %}
@@ -117,6 +118,7 @@
                     <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
                     <div class="food-actions">
                         <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                        <a href="{% url 'health:food_entry_delete' entry.pk %}" class="btn btn-text btn-xs text-danger" onclick="return confirm('Delete this entry?')">Delete</a>
                     </div>
                 </div>
                 {% endfor %}
@@ -144,6 +146,7 @@
                     <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
                     <div class="food-actions">
                         <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                        <a href="{% url 'health:food_entry_delete' entry.pk %}" class="btn btn-text btn-xs text-danger" onclick="return confirm('Delete this entry?')">Delete</a>
                     </div>
                 </div>
                 {% endfor %}
@@ -171,6 +174,7 @@
                     <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
                     <div class="food-actions">
                         <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                        <a href="{% url 'health:food_entry_delete' entry.pk %}" class="btn btn-text btn-xs text-danger" onclick="return confirm('Delete this entry?')">Delete</a>
                     </div>
                 </div>
                 {% endfor %}
@@ -375,6 +379,19 @@
 .food-calories {
     font-weight: 600;
     color: var(--color-accent);
+}
+
+.food-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.text-danger {
+    color: var(--color-danger, #dc2626) !important;
+}
+
+.text-danger:hover {
+    color: #b91c1c !important;
 }
 
 .quick-actions {

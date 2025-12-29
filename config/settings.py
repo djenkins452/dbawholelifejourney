@@ -103,7 +103,6 @@ INSTALLED_APPS = [
     "django_htmx",
     "cloudinary",
     "cloudinary_storage",
-    "django_watchfiles",  # Efficient file watching for autoreload (fixes Python 3.14 StatReloader issue)
     # Local apps
     "apps.core",
     "apps.users",
@@ -118,6 +117,15 @@ INSTALLED_APPS = [
     'apps.help',
     'apps.scan',
 ]
+
+# Development-only: Add django-watchfiles for efficient autoreload (fixes Python 3.14 StatReloader issue)
+# Only loads if DEBUG=True and the package is installed
+if DEBUG:
+    try:
+        import django_watchfiles  # noqa: F401
+        INSTALLED_APPS.insert(0, "django_watchfiles")
+    except ImportError:
+        pass  # Package not installed, use default StatReloader
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

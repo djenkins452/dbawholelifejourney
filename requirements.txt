@@ -43,6 +43,7 @@ gunicorn>=23.0.0
 # Development Tools (optional, remove in production if needed)
 django-debug-toolbar>=4.4.6
 django-extensions>=3.2.3
+django-watchfiles>=1.4.0  # Efficient autoreload (fixes Python 3.14 StatReloader issue)
 
 # Email (Resend)
 resend>=2.4.0

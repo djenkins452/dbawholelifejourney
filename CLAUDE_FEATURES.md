@@ -5,7 +5,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-28
+# Last Updated: 2025-12-29
 # ==============================================================================
 
 # Feature Documentation
@@ -20,10 +20,11 @@ For core project context, see `CLAUDE.md`.
 1. [Onboarding Wizard](#onboarding-wizard)
 2. [Context-Aware Help System](#context-aware-help-system)
 3. [What's New Feature](#whats-new-feature)
-4. [Nutrition/Food Tracking](#nutritionfood-tracking)
-5. [Medicine Tracking](#medicine-tracking)
-6. [Camera Scan Feature](#camera-scan-feature)
-7. [Biometric Login](#biometric-login)
+4. [Dashboard AI Personal Assistant](#dashboard-ai-personal-assistant)
+5. [Nutrition/Food Tracking](#nutritionfood-tracking)
+6. [Medicine Tracking](#medicine-tracking)
+7. [Camera Scan Feature](#camera-scan-feature)
+8. [Biometric Login](#biometric-login)
 
 ---
 
@@ -173,6 +174,94 @@ Informs users of new features and updates since their last visit via a popup mod
 
 ---
 
+## Dashboard AI Personal Assistant
+
+### Overview
+A comprehensive personal life assistant that helps users live the life they said they want to live. This is NOT a chatbot - it anchors all guidance to user's stated Purpose, Goals, intentions, and commitments.
+
+### Core Philosophy
+- **Faith-first prioritization** (for users with faith enabled): Faith → Purpose → Long-term goals → Commitments → Maintenance → Optional
+- **Honors user's journey** - doesn't lecture or give unsolicited advice
+- **Celebrates wins** and progress
+- **Gentle accountability** - nudges without nagging
+- **Personalized reflection prompts** for journaling
+
+### What It Does
+1. **Daily State Assessment** - Evaluates user's current state across all dimensions (journal, tasks, goals, faith, health)
+2. **Priority Generation** - Creates daily priorities following strict ordering based on what matters most to the user
+3. **Trend Analysis** - Weekly/monthly analysis of patterns and progress
+4. **Drift Detection** - Identifies when behavior drifts from stated intentions
+5. **Reflection Prompts** - Generates personalized journaling prompts based on context
+6. **Celebration** - Recognizes completed goals, maintained streaks, answered prayers
+7. **Conversational Interface** - Answers questions about user's own journey and data
+
+### What It Is NOT
+- NOT a generic chatbot
+- Does NOT give unsolicited advice
+- Does NOT lecture or moralize
+- Does NOT claim to know what's best for the user
+- Does NOT suggest what user "should" want
+
+### Models (`apps/ai/models.py`)
+| Model | Description |
+|-------|-------------|
+| `AssistantConversation` | Conversation session with session type (daily_checkin, reflection, planning, etc.) |
+| `AssistantMessage` | Individual message with role (user, assistant, system) |
+| `UserStateSnapshot` | Daily snapshot of user state across all dimensions |
+| `DailyPriority` | AI-suggested priority with source tracking |
+| `TrendAnalysis` | Weekly/monthly trend analysis with patterns |
+| `ReflectionPromptQueue` | Personalized reflection prompts |
+
+### URL Routes (`/assistant/`)
+| Route | View | Description |
+|-------|------|-------------|
+| `/assistant/` | `AssistantDashboardView` | Full-page assistant UI |
+| `/assistant/api/opening/` | `AssistantOpeningView` | Daily check-in message |
+| `/assistant/api/chat/` | `AssistantChatView` | Send/receive messages |
+| `/assistant/api/history/` | `ConversationHistoryView` | Get conversation history |
+| `/assistant/api/feedback/` | `MessageFeedbackView` | Submit message feedback |
+| `/assistant/api/priorities/` | `DailyPrioritiesView` | Get/refresh priorities |
+| `/assistant/api/priorities/<id>/complete/` | `PriorityCompleteView` | Mark priority complete |
+| `/assistant/api/priorities/<id>/dismiss/` | `PriorityDismissView` | Dismiss priority |
+| `/assistant/api/state/` | `StateAssessmentView` | Get current state |
+| `/assistant/api/analysis/weekly/` | `WeeklyAnalysisView` | Weekly trends |
+| `/assistant/api/analysis/monthly/` | `MonthlyAnalysisView` | Monthly trends |
+| `/assistant/api/analysis/drift/` | `DriftDetectionView` | Drift from intentions |
+| `/assistant/api/analysis/goals/` | `GoalProgressView` | Goal progress report |
+| `/assistant/api/reflection/` | `ReflectionPromptView` | Get reflection prompt |
+| `/assistant/api/reflection/used/` | `ReflectionPromptUsedView` | Mark prompt used |
+
+### Key Services
+- `apps/ai/personal_assistant.py` - Core personal assistant logic (~800 lines)
+  - State assessment across all dimensions
+  - Priority generation with faith-first ordering
+  - Opening message generation
+  - Conversation management with context
+
+- `apps/ai/trend_tracking.py` - Trend analysis service (~400 lines)
+  - Weekly/monthly analysis generation
+  - Pattern detection in user behavior
+  - Drift detection from stated intentions
+  - Goal progress reporting
+
+### Prerequisites
+- User must have AI enabled in Preferences (`ai_enabled = True`)
+- User must have AI data consent (`ai_data_consent = True`)
+- Faith features only shown if `faith_enabled = True`
+
+### Key Files
+- `apps/ai/models.py` - 6 new models for Dashboard AI
+- `apps/ai/personal_assistant.py` - Core service
+- `apps/ai/trend_tracking.py` - Trend analysis
+- `apps/ai/views.py` - 16 API endpoints
+- `apps/ai/urls.py` - URL configuration
+- `templates/ai/assistant_dashboard.html` - Full-page UI
+
+### Tests
+`apps/ai/tests/test_personal_assistant.py` - 45 tests
+
+---
+
 ## Nutrition/Food Tracking
 
 ### Overview
@@ -307,4 +396,4 @@ WebAuthn-based biometric login for mobile devices (Face ID, Touch ID, Windows He
 
 ---
 
-*Last updated: 2025-12-28*
+*Last updated: 2025-12-29*

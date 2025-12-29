@@ -5,7 +5,7 @@
 **Deployment:** Railway with PostgreSQL (via DATABASE_URL env var)
 
 ## Related Documentation
-- `CLAUDE_FEATURES.md` - Detailed feature documentation (onboarding, help system, nutrition, medicine, camera scan, biometric login)
+- `CLAUDE_FEATURES.md` - Detailed feature documentation (onboarding, help system, Dashboard AI, nutrition, medicine, camera scan, biometric login)
 - `CLAUDE_CHANGELOG.md` - Historical fixes, migrations, and change history
 - `THIRD_PARTY_SERVICES.md` - Third-party services inventory
 - `SECURITY_REVIEW_REPORT.md` - Security review with 21 findings
@@ -38,8 +38,10 @@
 - `run_tests.py` - Enhanced test runner with database history
 - `check_dependencies.py` - Verifies all required packages
 - `apps/core/management/commands/load_initial_data.py` - System data loading
-- `apps/ai/models.py` - AIPromptConfig, CoachingStyle, AIInsight, AIUsageLog
+- `apps/ai/models.py` - AIPromptConfig, CoachingStyle, AIInsight, AIUsageLog, Dashboard AI models
 - `apps/ai/services.py` - AIService with database-driven prompts
+- `apps/ai/personal_assistant.py` - Dashboard AI Personal Assistant service
+- `apps/ai/trend_tracking.py` - Trend analysis and drift detection
 
 ## AI Configuration (via Django Admin)
 - **AI Prompt Configurations** (/admin/ai/aipromptconfig/): 10 prompt types
@@ -185,4 +187,4 @@ Before deploying: **"What could this change accidentally break?"** Only test tho
 
 *For detailed feature documentation, see `CLAUDE_FEATURES.md`*
 *For historical changes, see `CLAUDE_CHANGELOG.md`*
-*Last updated: 2025-12-28*
+*Last updated: 2025-12-29*

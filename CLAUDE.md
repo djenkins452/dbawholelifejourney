@@ -87,6 +87,7 @@
 <!-- RECENT_FIXES_END -->
 
 ## Important Files
+- `THIRD_PARTY_SERVICES.md` - **KEEP UPDATED** - Comprehensive inventory of all third-party services, APIs, and external integrations
 - `SECURITY_REVIEW_REPORT.md` - CSO-level security review with 21 findings and remediation roadmap
 - `BACKUP.md` - Comprehensive backup and disaster recovery playbook
 - `Procfile` - Railway deployment startup command
@@ -115,6 +116,54 @@
 - User is deploying to Railway with PostgreSQL
 - User's timezone: America/New_York (EST)
 - Prefers descriptive merge commit messages, not auto-generated ones
+
+## Code Style & Documentation Standards
+
+### File Header Comments (MANDATORY)
+Every file created or updated MUST include a consistent documentation header. Match the level of comments already present in other project files. Be consistent and maintain this standard.
+
+**Python File Header Template:**
+```python
+# ==============================================================================
+# File: filename.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Brief description of what this file does
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: YYYY-MM-DD
+# Last Updated: YYYY-MM-DD
+# ==============================================================================
+```
+
+**Markdown File Header Template:**
+```markdown
+# Title
+# ==============================================================================
+# File: FILENAME.md
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Brief description of what this document covers
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: YYYY-MM-DD
+# Last Updated: YYYY-MM-DD
+# ==============================================================================
+```
+
+**JavaScript File Header Template:**
+```javascript
+// ==============================================================================
+// File: filename.js
+// Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+// Description: Brief description of what this file does
+// Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+// Created: YYYY-MM-DD
+// Last Updated: YYYY-MM-DD
+// ==============================================================================
+```
+
+### Third-Party Services Documentation
+When adding, removing, or modifying any third-party service integration:
+1. Update `THIRD_PARTY_SERVICES.md` immediately
+2. Include environment variables, key files, and pricing model
+3. This is part of the change, not a follow-up task
 
 ## Session Instructions
 

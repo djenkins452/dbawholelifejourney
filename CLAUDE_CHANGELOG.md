@@ -17,6 +17,27 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Medicine Refill Status Display and Overdue Dose Timezone Fix
+
+Fixed two issues with the medicine tracking system:
+
+**1. Refill Status Display Improvements:**
+- Added separate green "Refill Requested" alert when medicines have pending refill requests
+- Both "needs refill" and "refill requested" alerts now show clickable medicine name links
+- Users can now easily see which specific medicine needs attention and click to manage it
+
+**2. Overdue Dose Timezone Bug:**
+- Fixed timezone comparison bug in `_is_overdue()` method
+- Was comparing UTC time (from `timezone.now()`) against local scheduled time (naive datetime)
+- For users in EST (UTC-5), this caused doses to show as "overdue" hours early
+- Now properly converts current time to user's local timezone before comparison
+
+**Files Modified:**
+- `apps/health/views.py` - Fixed `_is_overdue()` timezone handling, added `refill_requested_medicines` context
+- `templates/health/medicine/home.html` - Added refill requested alert, medicine name links, new CSS styles
+
+---
+
 ### Blood Pressure & Blood Oxygen Tests Added
 
 Added comprehensive tests for the new Blood Pressure and Blood Oxygen tracking features.

@@ -17,6 +17,31 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Assistant Priorities - Completion Tracking & Positive Feedback
+Fixed issues with the Dashboard AI assistant's "Today's Priorities" feature to properly track completions and provide positive reinforcement.
+
+**Issues Fixed:**
+1. **Refresh button was resetting completion status** - When clicking "Refresh", previously completed priorities were being deleted and regenerated. Now completed priorities are preserved across refreshes.
+2. **No positive feedback for completions** - Added encouraging toast notifications when users complete a priority, with messages tailored to the priority type (faith, purpose, commitment, health, personal).
+3. **Added completion statistics** - New `get_completion_stats()` method on DailyPriority model for analytics tracking.
+
+**How it Works Now:**
+- Completed priorities persist and won't be regenerated on refresh
+- New priorities are generated to fill remaining slots (max 5 total)
+- Duplicate priorities (same title) are avoided
+- Type-specific positive feedback messages appear when completing priorities
+- Completion history is preserved for analytics (completion rate, daily breakdown, type breakdown)
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Updated `generate_daily_priorities()` to preserve completed priorities on refresh
+- `apps/ai/views.py` - Added feedback messages to `PriorityCompleteView` with type-specific encouragement
+- `apps/ai/models.py` - Added `get_completion_stats()` classmethod for analytics
+- `templates/ai/assistant_dashboard.html` - Added completion feedback toast notification with CSS styling
+
+**Test Status:** All 1261 tests passing (including 142 AI tests)
+
+---
+
 ### Delete Button Added to Nutrition Food Entries
 Added a Delete button next to the Edit button on the nutrition home page for easier food entry management.
 

@@ -17,6 +17,35 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### What's New Popup Fix and Release Notes Update
+
+Fixed the "What's New" popup not appearing after updates and added release notes for December 29 features.
+
+**Issue:** The What's New popup was comparing `created_at` (when the database record was created) instead of `release_date` (the logical feature release date). Since release notes are often created via data migrations at deployment time, all notes created in the same deployment had the same `created_at`, causing notes to not show if the user had already dismissed the popup.
+
+**Fix:** Updated `ReleaseNote.get_unseen_for_user()` to use a combined query:
+- Show notes where `release_date > last_seen_date` (notes from future days), OR
+- Show notes where `release_date = last_seen_date AND created_at > last_viewed_at` (notes created same day but after viewing)
+
+**New Release Notes Added (Migration 0011):**
+- Blood Pressure & Blood Oxygen Tracking (major feature)
+- Medicine Refill Request Tracking (enhancement)
+- Default Fasting Type Preference (enhancement)
+- Dashboard Fasting Widget (enhancement)
+- Timezone-Aware Date Defaults (fix)
+
+**Files Modified:**
+- `apps/core/models.py` - Updated `get_unseen_for_user()` method
+- `apps/core/tests/test_core_comprehensive.py` - Fixed tests for required `default_fasting_type` field
+- `apps/ai/tests/test_ai_comprehensive.py` - Fixed test for required `default_fasting_type` field
+
+**New Migration:**
+- `apps/core/migrations/0011_december_29_release_notes.py`
+
+**Test Status:** All 1250 tests passing
+
+---
+
 ### Live Workout Tracking with Done Button and Rest Timer
 
 Added real-time workout tracking with per-set saving and a rest timer between sets. This prevents data loss from unsaved forms during long workout sessions.

@@ -1045,6 +1045,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
             'theme': 'minimal',
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',
+            'default_fasting_type': '16:8',
             # show_whats_new not included = unchecked = False
         })
         self.user.preferences.refresh_from_db()
@@ -1059,6 +1060,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
             'theme': 'minimal',
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',
+            'default_fasting_type': '16:8',
             'show_whats_new': 'on',
         })
         self.user.preferences.refresh_from_db()

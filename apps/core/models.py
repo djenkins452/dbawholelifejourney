@@ -1149,9 +1149,20 @@ class ReleaseNote(models.Model):
         last_seen = UserReleaseNoteView.objects.filter(user=user).first()
 
         if last_seen:
-            # Only notes published after last seen
+            # Show notes the user hasn't seen yet.
+            # We use release_date (not created_at) as the primary filter because
+            # release notes are often created via data migrations at deployment
+            # time, but their logical release_date is when the feature was deployed.
+            #
+            # Logic: Show notes where:
+            # - release_date > last_seen_date (notes from future days), OR
+            # - release_date = last_seen_date AND created_at > last_viewed_at
+            #   (notes created same day but after viewing)
+            from django.db.models import Q
+            last_seen_date = last_seen.last_viewed_at.date()
             return cls.get_published().filter(
-                created_at__gt=last_seen.last_viewed_at
+                Q(release_date__gt=last_seen_date) |
+                Q(release_date=last_seen_date, created_at__gt=last_seen.last_viewed_at)
             )
         else:
             # New user - show all published notes (up to a reasonable limit)
@@ -1173,7 +1184,8 @@ class UserReleaseNoteView(models.Model):
     Track when a user last viewed the What's New popup.
 
     This is a simple timestamp model - we track when the user last
-    dismissed the popup, then show only notes created after that time.
+    dismissed the popup, then show only notes with release_date after
+    the dismissal date.
     """
 
     user = models.OneToOneField(

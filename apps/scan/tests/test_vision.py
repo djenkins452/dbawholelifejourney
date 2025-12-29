@@ -174,11 +174,11 @@ class ActionBuildingTests(TestCase):
 
     def test_food_actions(self):
         """Test that food category generates correct actions."""
-        items = [{'label': 'Grilled Chicken', 'details': {'estimated_calories': '300'}}]
+        items = [{'label': 'Grilled Chicken', 'details': {'estimated_calories': 300}}]
         actions = self.service._build_actions('food', items)
 
         self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0]['module'], 'Health.FoodLog')
+        self.assertEqual(actions[0]['module'], 'Health.Nutrition')
         self.assertIn('log', actions[0]['question'].lower())
         self.assertTrue(len(actions[0]['actions']) >= 2)  # Log + Skip
 

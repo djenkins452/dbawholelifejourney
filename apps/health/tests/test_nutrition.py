@@ -703,6 +703,55 @@ class NutritionViewCRUDTest(NutritionTestMixin, TestCase):
 
         self.assertIn(response.status_code, [200, 302])
 
+    def test_create_food_entry_with_camera_prefill(self):
+        """Food entry form is pre-filled when coming from camera scan."""
+        # Simulate camera scan prefill via URL parameters
+        url = reverse('health:food_entry_create')
+        params = (
+            '?food_name=Grilled%20Chicken%20Salad'
+            '&total_calories=400'
+            '&total_protein_g=35'
+            '&total_carbohydrates_g=15'
+            '&total_fat_g=22'
+            '&total_fiber_g=4'
+            '&serving_size=1'
+            '&serving_unit=plate'
+            '&meal=lunch'
+            '&notes=From%20camera%20scan'
+            '&entry_source=camera'
+            '&source=ai_camera'
+        )
+        response = self.client.get(url + params)
+        self.assertEqual(response.status_code, 200)
+
+        # Check form is pre-filled
+        self.assertContains(response, 'Grilled Chicken Salad')
+        self.assertContains(response, '400')  # calories
+        self.assertContains(response, '35')   # protein
+        # Check from_camera context
+        self.assertTrue(response.context.get('from_camera'))
+
+    def test_create_food_entry_camera_source_saved(self):
+        """Food entry from camera scan saves correct entry_source."""
+        today = timezone.now().date()
+        url = reverse('health:food_entry_create') + '?entry_source=camera'
+        response = self.client.post(url, {
+            'food_name': 'Camera Scanned Food',
+            'serving_size': '1',
+            'serving_unit': 'serving',
+            'quantity': '1',
+            'total_calories': '300',
+            'total_protein_g': '20',
+            'total_carbohydrates_g': '30',
+            'total_fat_g': '10',
+            'logged_date': today.strftime('%Y-%m-%d'),
+            'meal_type': 'lunch',
+        })
+
+        if response.status_code == 302:
+            entry = FoodEntry.objects.get(user=self.user, food_name='Camera Scanned Food')
+            self.assertEqual(entry.entry_source, FoodEntry.SOURCE_CAMERA)
+
 
 # =============================================================================
 # 8. QUICK ADD TESTS

@@ -17,6 +17,31 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Blood Pressure & Blood Oxygen Tests Added
+
+Added comprehensive tests for the new Blood Pressure and Blood Oxygen tracking features.
+
+**New Tests (52 tests added):**
+- `BloodPressureModelTest` - 14 tests for model creation, categorization, properties
+- `BloodOxygenModelTest` - 10 tests for model creation, categorization, properties
+- `BloodPressureViewTest` - 7 tests for list, create, update, delete views
+- `BloodOxygenViewTest` - 7 tests for list, create, update, delete views
+- `BloodVitalsDataIsolationTest` - 4 tests ensuring users can only see their own data
+
+**Test Coverage:**
+- Model creation and string representation
+- Category classification (Normal, Elevated, High Stage 1/2, Crisis for BP; Normal, Low, Concerning, Critical for SpO2)
+- Optional fields (pulse, context, arm, position, measurement method)
+- View loading and form submission
+- Data isolation between users
+
+**Files Modified:**
+- `apps/health/tests/test_health_comprehensive.py` - Added 52 new tests
+
+**Test Status:** 97 health comprehensive tests, 346 total health tests, 1302 total tests, all passing
+
+---
+
 ### Python 3.14 Autoreload Compatibility Issue
 
 **Issue:** Django's autoreload mechanism fails on Python 3.14 due to changes in Python's import system. The error occurs in Django's autoreload subprocess when it tries to re-import apps.

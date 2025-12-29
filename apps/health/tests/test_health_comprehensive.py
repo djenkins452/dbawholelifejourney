@@ -22,7 +22,10 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 import json
 
-from apps.health.models import WeightEntry, FastingWindow, GlucoseEntry
+from apps.health.models import (
+    WeightEntry, FastingWindow, GlucoseEntry,
+    BloodPressureEntry, BloodOxygenEntry
+)
 
 User = get_user_model()
 
@@ -69,6 +72,16 @@ class HealthTestMixin:
     def create_glucose(self, user, value=100, **kwargs):
         """Helper to create a glucose entry."""
         return GlucoseEntry.objects.create(user=user, value=value, **kwargs)
+
+    def create_blood_pressure(self, user, systolic=120, diastolic=80, **kwargs):
+        """Helper to create a blood pressure entry."""
+        return BloodPressureEntry.objects.create(
+            user=user, systolic=systolic, diastolic=diastolic, **kwargs
+        )
+
+    def create_blood_oxygen(self, user, spo2=98, **kwargs):
+        """Helper to create a blood oxygen entry."""
+        return BloodOxygenEntry.objects.create(user=user, spo2=spo2, **kwargs)
 
 
 # =============================================================================
@@ -671,5 +684,357 @@ class HealthDeleteTest(HealthTestMixin, TestCase):
         response = self.client.post(
             reverse('health:glucose_delete', kwargs={'pk': entry.pk})
         )
-        
+
         self.assertIn(response.status_code, [200, 302])
+
+
+# =============================================================================
+# 13. BLOOD PRESSURE MODEL TESTS
+# =============================================================================
+
+class BloodPressureModelTest(HealthTestMixin, TestCase):
+    """Tests for the BloodPressureEntry model."""
+
+    def setUp(self):
+        self.user = self.create_user()
+
+    def test_create_blood_pressure_entry(self):
+        """Blood pressure entry can be created."""
+        entry = self.create_blood_pressure(self.user, systolic=120, diastolic=80)
+        self.assertEqual(entry.systolic, 120)
+        self.assertEqual(entry.diastolic, 80)
+
+    def test_blood_pressure_str(self):
+        """Blood pressure string representation shows reading."""
+        entry = self.create_blood_pressure(self.user, systolic=125, diastolic=82)
+        self.assertIn('125/82', str(entry))
+
+    def test_blood_pressure_reading_property(self):
+        """Blood pressure reading property returns formatted string."""
+        entry = self.create_blood_pressure(self.user, systolic=130, diastolic=85)
+        self.assertEqual(entry.reading, '130/85')
+
+    def test_blood_pressure_category_normal(self):
+        """Normal blood pressure is categorized correctly."""
+        entry = self.create_blood_pressure(self.user, systolic=115, diastolic=75)
+        self.assertEqual(entry.category, 'normal')
+        self.assertEqual(entry.category_display, 'Normal')
+
+    def test_blood_pressure_category_elevated(self):
+        """Elevated blood pressure is categorized correctly."""
+        entry = self.create_blood_pressure(self.user, systolic=125, diastolic=78)
+        self.assertEqual(entry.category, 'elevated')
+        self.assertEqual(entry.category_display, 'Elevated')
+
+    def test_blood_pressure_category_high_stage1(self):
+        """High Stage 1 blood pressure is categorized correctly."""
+        entry = self.create_blood_pressure(self.user, systolic=135, diastolic=85)
+        self.assertEqual(entry.category, 'high_stage1')
+        self.assertEqual(entry.category_display, 'High (Stage 1)')
+
+    def test_blood_pressure_category_high_stage2(self):
+        """High Stage 2 blood pressure is categorized correctly."""
+        entry = self.create_blood_pressure(self.user, systolic=145, diastolic=95)
+        self.assertEqual(entry.category, 'high_stage2')
+        self.assertEqual(entry.category_display, 'High (Stage 2)')
+
+    def test_blood_pressure_category_crisis(self):
+        """Hypertensive crisis is categorized correctly."""
+        entry = self.create_blood_pressure(self.user, systolic=185, diastolic=125)
+        self.assertEqual(entry.category, 'crisis')
+        self.assertEqual(entry.category_display, 'Hypertensive Crisis')
+
+    def test_blood_pressure_with_pulse(self):
+        """Blood pressure can include pulse."""
+        entry = self.create_blood_pressure(self.user, systolic=120, diastolic=80, pulse=72)
+        self.assertEqual(entry.pulse, 72)
+
+    def test_blood_pressure_context(self):
+        """Blood pressure can have context."""
+        entry = self.create_blood_pressure(self.user, context='morning')
+        self.assertEqual(entry.context, 'morning')
+
+    def test_blood_pressure_arm(self):
+        """Blood pressure can specify arm."""
+        entry = self.create_blood_pressure(self.user, arm='right')
+        self.assertEqual(entry.arm, 'right')
+
+    def test_blood_pressure_position(self):
+        """Blood pressure can specify position."""
+        entry = self.create_blood_pressure(self.user, position='standing')
+        self.assertEqual(entry.position, 'standing')
+
+    def test_blood_pressure_ordering(self):
+        """Blood pressure entries are ordered by most recent first."""
+        old = self.create_blood_pressure(self.user, systolic=130, diastolic=85)
+        new = self.create_blood_pressure(self.user, systolic=125, diastolic=82)
+
+        entries = BloodPressureEntry.objects.filter(user=self.user)
+        self.assertEqual(entries[0], new)
+
+
+# =============================================================================
+# 14. BLOOD OXYGEN MODEL TESTS
+# =============================================================================
+
+class BloodOxygenModelTest(HealthTestMixin, TestCase):
+    """Tests for the BloodOxygenEntry model."""
+
+    def setUp(self):
+        self.user = self.create_user()
+
+    def test_create_blood_oxygen_entry(self):
+        """Blood oxygen entry can be created."""
+        entry = self.create_blood_oxygen(self.user, spo2=98)
+        self.assertEqual(entry.spo2, 98)
+
+    def test_blood_oxygen_str(self):
+        """Blood oxygen string representation shows SpO2."""
+        entry = self.create_blood_oxygen(self.user, spo2=97)
+        self.assertIn('97%', str(entry))
+
+    def test_blood_oxygen_category_normal(self):
+        """Normal blood oxygen is categorized correctly."""
+        entry = self.create_blood_oxygen(self.user, spo2=98)
+        self.assertEqual(entry.category, 'normal')
+        self.assertEqual(entry.category_display, 'Normal')
+
+    def test_blood_oxygen_category_low(self):
+        """Low blood oxygen is categorized correctly."""
+        entry = self.create_blood_oxygen(self.user, spo2=92)
+        self.assertEqual(entry.category, 'low')
+        self.assertEqual(entry.category_display, 'Low')
+
+    def test_blood_oxygen_category_concerning(self):
+        """Concerning blood oxygen is categorized correctly."""
+        entry = self.create_blood_oxygen(self.user, spo2=87)
+        self.assertEqual(entry.category, 'concerning')
+        self.assertEqual(entry.category_display, 'Concerning')
+
+    def test_blood_oxygen_category_critical(self):
+        """Critical blood oxygen is categorized correctly."""
+        entry = self.create_blood_oxygen(self.user, spo2=82)
+        self.assertEqual(entry.category, 'critical')
+        self.assertEqual(entry.category_display, 'Critical')
+
+    def test_blood_oxygen_with_pulse(self):
+        """Blood oxygen can include pulse."""
+        entry = self.create_blood_oxygen(self.user, spo2=97, pulse=68)
+        self.assertEqual(entry.pulse, 68)
+
+    def test_blood_oxygen_context(self):
+        """Blood oxygen can have context."""
+        entry = self.create_blood_oxygen(self.user, context='post_exercise')
+        self.assertEqual(entry.context, 'post_exercise')
+
+    def test_blood_oxygen_measurement_method(self):
+        """Blood oxygen can specify measurement method."""
+        entry = self.create_blood_oxygen(self.user, measurement_method='wrist')
+        self.assertEqual(entry.measurement_method, 'wrist')
+
+    def test_blood_oxygen_ordering(self):
+        """Blood oxygen entries are ordered by most recent first."""
+        old = self.create_blood_oxygen(self.user, spo2=96)
+        new = self.create_blood_oxygen(self.user, spo2=98)
+
+        entries = BloodOxygenEntry.objects.filter(user=self.user)
+        self.assertEqual(entries[0], new)
+
+
+# =============================================================================
+# 15. BLOOD PRESSURE VIEW TESTS
+# =============================================================================
+
+class BloodPressureViewTest(HealthTestMixin, TestCase):
+    """Tests for blood pressure views."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.login_user()
+
+    def test_blood_pressure_list_view(self):
+        """Blood pressure list view loads."""
+        response = self.client.get(reverse('health:blood_pressure_list'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_blood_pressure_list_shows_entries(self):
+        """Blood pressure list shows user entries."""
+        self.create_blood_pressure(self.user, systolic=125, diastolic=82)
+        response = self.client.get(reverse('health:blood_pressure_list'))
+        self.assertContains(response, '125')
+
+    def test_blood_pressure_create_view(self):
+        """Blood pressure create view loads."""
+        response = self.client.get(reverse('health:blood_pressure_create'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_blood_pressure_create_post(self):
+        """Blood pressure can be created via POST."""
+        response = self.client.post(
+            reverse('health:blood_pressure_create'),
+            {
+                'systolic': 130,
+                'diastolic': 85,
+                'context': 'resting',
+                'arm': 'left',
+                'position': 'sitting',
+                'recorded_at': '2025-12-29T12:00',
+            }
+        )
+        self.assertIn(response.status_code, [200, 302])
+        if response.status_code == 302:
+            self.assertTrue(BloodPressureEntry.objects.filter(user=self.user).exists())
+
+    def test_blood_pressure_update_view(self):
+        """Blood pressure update view loads."""
+        entry = self.create_blood_pressure(self.user)
+        response = self.client.get(
+            reverse('health:blood_pressure_update', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_blood_pressure_delete(self):
+        """Blood pressure can be deleted."""
+        entry = self.create_blood_pressure(self.user)
+        response = self.client.post(
+            reverse('health:blood_pressure_delete', kwargs={'pk': entry.pk})
+        )
+        self.assertIn(response.status_code, [200, 302])
+
+    def test_blood_pressure_list_context_has_stats(self):
+        """Blood pressure list context includes statistics."""
+        self.create_blood_pressure(self.user, systolic=120, diastolic=80)
+        self.create_blood_pressure(self.user, systolic=130, diastolic=85)
+
+        response = self.client.get(reverse('health:blood_pressure_list'))
+        self.assertEqual(response.status_code, 200)
+        # Verify stats are in context
+        self.assertIn('avg_systolic', response.context)
+
+
+# =============================================================================
+# 16. BLOOD OXYGEN VIEW TESTS
+# =============================================================================
+
+class BloodOxygenViewTest(HealthTestMixin, TestCase):
+    """Tests for blood oxygen views."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.login_user()
+
+    def test_blood_oxygen_list_view(self):
+        """Blood oxygen list view loads."""
+        response = self.client.get(reverse('health:blood_oxygen_list'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_blood_oxygen_list_shows_entries(self):
+        """Blood oxygen list shows user entries."""
+        self.create_blood_oxygen(self.user, spo2=97)
+        response = self.client.get(reverse('health:blood_oxygen_list'))
+        self.assertContains(response, '97')
+
+    def test_blood_oxygen_create_view(self):
+        """Blood oxygen create view loads."""
+        response = self.client.get(reverse('health:blood_oxygen_create'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_blood_oxygen_create_post(self):
+        """Blood oxygen can be created via POST."""
+        response = self.client.post(
+            reverse('health:blood_oxygen_create'),
+            {
+                'spo2': 98,
+                'context': 'resting',
+                'measurement_method': 'finger',
+                'recorded_at': '2025-12-29T12:00',
+            }
+        )
+        self.assertIn(response.status_code, [200, 302])
+        if response.status_code == 302:
+            self.assertTrue(BloodOxygenEntry.objects.filter(user=self.user).exists())
+
+    def test_blood_oxygen_update_view(self):
+        """Blood oxygen update view loads."""
+        entry = self.create_blood_oxygen(self.user)
+        response = self.client.get(
+            reverse('health:blood_oxygen_update', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_blood_oxygen_delete(self):
+        """Blood oxygen can be deleted."""
+        entry = self.create_blood_oxygen(self.user)
+        response = self.client.post(
+            reverse('health:blood_oxygen_delete', kwargs={'pk': entry.pk})
+        )
+        self.assertIn(response.status_code, [200, 302])
+
+    def test_blood_oxygen_list_context_has_stats(self):
+        """Blood oxygen list context includes statistics."""
+        self.create_blood_oxygen(self.user, spo2=97)
+        self.create_blood_oxygen(self.user, spo2=99)
+
+        response = self.client.get(reverse('health:blood_oxygen_list'))
+        self.assertEqual(response.status_code, 200)
+        # Verify stats are in context
+        self.assertIn('avg_spo2', response.context)
+
+
+# =============================================================================
+# 17. BLOOD PRESSURE/OXYGEN DATA ISOLATION TESTS
+# =============================================================================
+
+class BloodVitalsDataIsolationTest(HealthTestMixin, TestCase):
+    """Tests to ensure users can only see their own blood vitals data."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user_a = self.create_user(email='usera@example.com')
+        self.user_b = self.create_user(email='userb@example.com')
+
+        self.bp_a = self.create_blood_pressure(self.user_a, systolic=120, diastolic=80)
+        self.bp_b = self.create_blood_pressure(self.user_b, systolic=140, diastolic=90)
+
+        self.ox_a = self.create_blood_oxygen(self.user_a, spo2=98)
+        self.ox_b = self.create_blood_oxygen(self.user_b, spo2=94)
+
+    def test_user_sees_only_own_blood_pressure(self):
+        """User only sees their own blood pressure entries."""
+        self.client.login(email='usera@example.com', password='testpass123')
+        response = self.client.get(reverse('health:blood_pressure_list'))
+
+        self.assertContains(response, '120')
+        self.assertNotContains(response, '140')
+
+    def test_user_sees_only_own_blood_oxygen(self):
+        """User only sees their own blood oxygen entries."""
+        self.client.login(email='usera@example.com', password='testpass123')
+        response = self.client.get(reverse('health:blood_oxygen_list'))
+
+        self.assertContains(response, '98')
+        self.assertNotContains(response, '94')
+
+    def test_user_cannot_delete_other_users_blood_pressure(self):
+        """User cannot delete another user's blood pressure."""
+        self.client.login(email='usera@example.com', password='testpass123')
+
+        response = self.client.post(
+            reverse('health:blood_pressure_delete', kwargs={'pk': self.bp_b.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(BloodPressureEntry.objects.filter(pk=self.bp_b.pk).exists())
+
+    def test_user_cannot_delete_other_users_blood_oxygen(self):
+        """User cannot delete another user's blood oxygen."""
+        self.client.login(email='usera@example.com', password='testpass123')
+
+        response = self.client.post(
+            reverse('health:blood_oxygen_delete', kwargs={'pk': self.ox_b.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(BloodOxygenEntry.objects.filter(pk=self.ox_b.pk).exists())

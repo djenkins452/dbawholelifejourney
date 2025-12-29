@@ -17,6 +17,45 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Live Workout Tracking with Done Button and Rest Timer
+
+Added real-time workout tracking with per-set saving and a rest timer between sets. This prevents data loss from unsaved forms during long workout sessions.
+
+**Features:**
+- **Done Button per Set** - Each resistance exercise set has a "Done" button that immediately saves to the database
+- **Cardio Done Button** - Cardio exercises also have a Done button to save duration/distance/intensity
+- **Rest Timer** - A countdown timer (0:00 to 1:10) appears after completing a set, helping track rest periods
+  - Timer turns yellow/warning at 60 seconds
+  - Auto-stops at 1 minute 10 seconds (70 seconds)
+- **Visual Feedback** - Saved sets show green checkmark and "Saved" status
+- **Status Banner** - Shows "Workout in progress - sets save automatically" with count of saved sets
+- **Resume Support** - If you reload the page or come back later, in-progress workouts can be resumed
+
+**New AJAX Endpoints:**
+- `POST /health/fitness/api/start-workout/` - Creates new or resumes existing workout session
+- `POST /health/fitness/api/save-set/` - Saves individual set (weight, reps)
+- `POST /health/fitness/api/save-cardio/` - Saves cardio details (duration, distance, intensity)
+- `POST /health/fitness/api/complete-workout/` - Marks workout as completed, calculates duration
+- `GET /health/fitness/api/workout-state/<id>/` - Gets current state of in-progress workout
+
+**How It Works:**
+1. When you start a new workout (or add first exercise), a WorkoutSession is created with `started_at` timestamp
+2. Clicking "Done" on a set immediately saves to database via AJAX (no form submission needed)
+3. The rest timer starts automatically after each set is saved
+4. When you click "Finish Workout", the session is marked complete and duration is calculated
+5. If you have an in-progress workout from today, it resumes automatically
+
+**Files Modified:**
+- `apps/health/views.py` - Added 5 new AJAX view functions
+- `apps/health/urls.py` - Added 5 new URL routes
+- `templates/health/fitness/workout_form.html` - Complete rewrite with Done buttons, rest timer, and AJAX JavaScript
+- `templates/health/fitness/partials/exercise_row.html` - Added Done buttons to server-rendered exercise rows
+- `apps/health/tests/test_fitness.py` - Added 10 new tests for AJAX endpoints
+
+**Test Status:** 63 fitness tests passing (53 original + 10 new AJAX tests), 305 total health tests passing
+
+---
+
 ### Default Entry Dates with User Time Zone
 Added user timezone-aware default dates to all entry forms throughout the application. Previously, some forms defaulted to UTC or had no default at all. Now all date/datetime entry forms default to the user's local date based on their configured timezone.
 

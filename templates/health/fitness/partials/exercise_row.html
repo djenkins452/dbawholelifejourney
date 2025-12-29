@@ -25,7 +25,7 @@ Variables:
         <div class="sets-container">
             {% if existing_sets %}
                 {% for set in existing_sets %}
-                    <div class="set-row">
+                    <div class="set-row" data-set-number="{{ set.set_number }}">
                         <span class="set-number">Set {{ set.set_number }}</span>
                         <div class="set-inputs">
                             <input type="number" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_weight"
@@ -34,14 +34,16 @@ Variables:
                             <input type="number" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_reps"
                                    value="{{ set.reps|default:'' }}" placeholder="Reps" class="reps-input">
                             <span class="input-suffix">reps</span>
+                            <button type="button" class="done-btn" onclick="markSetDone(this, {{ exercise.pk }}, {{ set.set_number }})">Done</button>
                         </div>
+                        <span class="set-saved-indicator" style="display: none;">&#10003;</span>
                     </div>
                 {% endfor %}
             {% else %}
                 {% with default_sets=set_count|default:3 %}
                     {% for i in "123456789"|make_list %}
                         {% if forloop.counter <= default_sets %}
-                            <div class="set-row">
+                            <div class="set-row" data-set-number="{{ forloop.counter }}">
                                 <span class="set-number">Set {{ forloop.counter }}</span>
                                 <div class="set-inputs">
                                     <input type="number" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_weight"
@@ -50,7 +52,9 @@ Variables:
                                     <input type="number" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_reps"
                                            placeholder="Reps" class="reps-input">
                                     <span class="input-suffix">reps</span>
+                                    <button type="button" class="done-btn" onclick="markSetDone(this, {{ exercise.pk }}, {{ forloop.counter }})">Done</button>
                                 </div>
+                                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
                             </div>
                         {% endif %}
                     {% endfor %}
@@ -64,7 +68,7 @@ Variables:
                 <label>Duration</label>
                 <div class="input-with-suffix">
                     <input type="number" name="exercise_{{ exercise.pk }}_duration"
-                           value="{{ cardio_details.duration_minutes|default:'' }}" placeholder="0">
+                           value="{{ cardio_details.duration_minutes|default:'' }}" placeholder="0" class="cardio-duration">
                     <span class="input-suffix">min</span>
                 </div>
             </div>
@@ -72,17 +76,22 @@ Variables:
                 <label>Distance</label>
                 <div class="input-with-suffix">
                     <input type="number" name="exercise_{{ exercise.pk }}_distance"
-                           value="{{ cardio_details.distance|default:'' }}" step="0.1" placeholder="0">
+                           value="{{ cardio_details.distance|default:'' }}" step="0.1" placeholder="0" class="cardio-distance">
                     <span class="input-suffix">mi</span>
                 </div>
             </div>
             <div class="cardio-field">
                 <label>Intensity</label>
-                <select name="exercise_{{ exercise.pk }}_intensity">
+                <select name="exercise_{{ exercise.pk }}_intensity" class="cardio-intensity">
                     <option value="easy" {% if cardio_details.intensity == "easy" %}selected{% endif %}>Easy</option>
                     <option value="medium" {% if cardio_details.intensity == "medium" or not cardio_details %}selected{% endif %}>Medium</option>
                     <option value="hard" {% if cardio_details.intensity == "hard" %}selected{% endif %}>Hard</option>
                 </select>
+            </div>
+            <div class="cardio-field cardio-done-field">
+                <label>&nbsp;</label>
+                <button type="button" class="done-btn cardio-done-btn" onclick="markCardioDone(this, {{ exercise.pk }})">Done</button>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>
     {% endif %}

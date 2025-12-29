@@ -102,6 +102,13 @@ urlpatterns = [
     path("fitness/add-exercise/", views.add_exercise_htmx, name="add_exercise_htmx"),
     path("fitness/add-set/<int:exercise_id>/", views.add_set_htmx, name="add_set_htmx"),
 
+    # Live Workout AJAX Endpoints
+    path("fitness/api/start-workout/", views.start_workout_ajax, name="start_workout_ajax"),
+    path("fitness/api/save-set/", views.save_set_ajax, name="save_set_ajax"),
+    path("fitness/api/save-cardio/", views.save_cardio_ajax, name="save_cardio_ajax"),
+    path("fitness/api/complete-workout/", views.complete_workout_ajax, name="complete_workout_ajax"),
+    path("fitness/api/workout-state/<int:workout_id>/", views.get_workout_state_ajax, name="get_workout_state_ajax"),
+
     # Nutrition / Food Tracking
     path("nutrition/", views.NutritionHomeView.as_view(), name="nutrition_home"),
     path("nutrition/add/", views.FoodEntryCreateView.as_view(), name="food_entry_create"),

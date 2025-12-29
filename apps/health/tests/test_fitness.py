@@ -772,3 +772,298 @@ class FitnessEdgeCaseTest(FitnessTestMixin, TestCase):
         self.assertIsNone(exercise_set.weight)
         self.assertEqual(exercise_set.reps, 20)
         self.assertEqual(exercise_set.volume, 0)
+
+
+# =============================================================================
+# 11. LIVE WORKOUT AJAX ENDPOINTS
+# =============================================================================
+
+import json
+
+
+class LiveWorkoutAjaxTest(FitnessTestMixin, TestCase):
+    """Tests for live workout AJAX endpoints (Done button, rest timer)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.login_user()
+        self.exercise = self.create_exercise()
+
+    def test_start_workout_creates_session(self):
+        """POST to start_workout_ajax creates a new workout session."""
+        response = self.client.post(
+            reverse('health:start_workout_ajax'),
+            data=json.dumps({'name': 'Test Workout'}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('workout_id', data)
+        self.assertFalse(data['is_resumed'])
+
+        # Verify workout created
+        workout = WorkoutSession.objects.get(pk=data['workout_id'])
+        self.assertEqual(workout.user, self.user)
+        self.assertIsNotNone(workout.started_at)
+        self.assertIsNone(workout.completed_at)
+
+    def test_start_workout_resumes_existing(self):
+        """Starting a workout when one exists today resumes it."""
+        # Create an in-progress workout
+        existing = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            started_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            reverse('health:start_workout_ajax'),
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['workout_id'], existing.pk)
+        self.assertTrue(data['is_resumed'])
+
+    def test_start_workout_with_template(self):
+        """Starting workout with template_id uses template name."""
+        template = self.create_template(self.user, name='Push Day')
+
+        response = self.client.post(
+            reverse('health:start_workout_ajax'),
+            data=json.dumps({'template_id': template.pk}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        workout = WorkoutSession.objects.get(pk=data['workout_id'])
+        self.assertEqual(workout.name, 'Push Day')
+
+    def test_save_set_creates_exercise_and_set(self):
+        """save_set_ajax creates WorkoutExercise and ExerciseSet."""
+        # Start a workout
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            started_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            reverse('health:save_set_ajax'),
+            data=json.dumps({
+                'workout_id': workout.pk,
+                'exercise_id': self.exercise.pk,
+                'set_number': 1,
+                'weight': 135,
+                'reps': 10,
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+
+        # Verify set created
+        workout_ex = WorkoutExercise.objects.get(session=workout, exercise=self.exercise)
+        exercise_set = ExerciseSet.objects.get(workout_exercise=workout_ex, set_number=1)
+        self.assertEqual(exercise_set.weight, Decimal('135'))
+        self.assertEqual(exercise_set.reps, 10)
+
+    def test_save_set_updates_existing(self):
+        """save_set_ajax updates an existing set."""
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            started_at=timezone.now(),
+        )
+        workout_ex = WorkoutExercise.objects.create(
+            session=workout,
+            exercise=self.exercise,
+            order=0
+        )
+        existing_set = ExerciseSet.objects.create(
+            workout_exercise=workout_ex,
+            set_number=1,
+            weight=Decimal('100'),
+            reps=8
+        )
+
+        # Update the set
+        response = self.client.post(
+            reverse('health:save_set_ajax'),
+            data=json.dumps({
+                'workout_id': workout.pk,
+                'exercise_id': self.exercise.pk,
+                'set_number': 1,
+                'weight': 135,
+                'reps': 10,
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify updated
+        existing_set.refresh_from_db()
+        self.assertEqual(existing_set.weight, Decimal('135'))
+        self.assertEqual(existing_set.reps, 10)
+
+    def test_save_set_requires_fields(self):
+        """save_set_ajax requires workout_id, exercise_id, set_number."""
+        response = self.client.post(
+            reverse('health:save_set_ajax'),
+            data=json.dumps({'workout_id': 1}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn('error', data)
+
+    def test_save_set_validates_workout_ownership(self):
+        """save_set_ajax rejects workouts belonging to other users."""
+        other_user = self.create_user(email='other@example.com')
+        other_workout = WorkoutSession.objects.create(
+            user=other_user,
+            date=date.today(),
+            started_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            reverse('health:save_set_ajax'),
+            data=json.dumps({
+                'workout_id': other_workout.pk,
+                'exercise_id': self.exercise.pk,
+                'set_number': 1,
+                'weight': 135,
+                'reps': 10,
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_save_cardio_creates_details(self):
+        """save_cardio_ajax creates CardioDetails."""
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            started_at=timezone.now(),
+        )
+        cardio_exercise = self.create_exercise(name='Running', category='cardio')
+
+        response = self.client.post(
+            reverse('health:save_cardio_ajax'),
+            data=json.dumps({
+                'workout_id': workout.pk,
+                'exercise_id': cardio_exercise.pk,
+                'duration': 30,
+                'distance': 3.5,
+                'intensity': 'medium',
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+
+        # Verify cardio created
+        workout_ex = WorkoutExercise.objects.get(session=workout, exercise=cardio_exercise)
+        cardio = CardioDetails.objects.get(workout_exercise=workout_ex)
+        self.assertEqual(cardio.duration_minutes, 30)
+        self.assertEqual(cardio.distance, Decimal('3.5'))
+        self.assertEqual(cardio.intensity, 'medium')
+
+    def test_complete_workout_sets_completed_at(self):
+        """complete_workout_ajax sets completed_at and calculates duration."""
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            started_at=timezone.now() - timedelta(minutes=45),
+        )
+
+        response = self.client.post(
+            reverse('health:complete_workout_ajax'),
+            data=json.dumps({
+                'workout_id': workout.pk,
+                'notes': 'Great workout!',
+                'name': 'Updated Name',
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('redirect_url', data)
+
+        # Verify workout completed
+        workout.refresh_from_db()
+        self.assertIsNotNone(workout.completed_at)
+        self.assertEqual(workout.notes, 'Great workout!')
+        self.assertEqual(workout.name, 'Updated Name')
+        self.assertGreater(workout.duration_minutes, 0)
+
+    def test_get_workout_state_returns_exercises(self):
+        """get_workout_state_ajax returns saved exercises and sets."""
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            name='My Workout',
+            started_at=timezone.now(),
+        )
+        workout_ex = WorkoutExercise.objects.create(
+            session=workout,
+            exercise=self.exercise,
+            order=0
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex,
+            set_number=1,
+            weight=Decimal('135'),
+            reps=10
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex,
+            set_number=2,
+            weight=Decimal('155'),
+            reps=8
+        )
+
+        response = self.client.get(
+            reverse('health:get_workout_state_ajax', kwargs={'workout_id': workout.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['workout_id'], workout.pk)
+        self.assertEqual(data['name'], 'My Workout')
+        self.assertEqual(len(data['exercises']), 1)
+        self.assertEqual(len(data['exercises'][0]['sets']), 2)
+
+    def test_ajax_endpoints_require_authentication(self):
+        """AJAX endpoints return 401 for unauthenticated users."""
+        self.client.logout()
+
+        endpoints = [
+            ('health:start_workout_ajax', 'POST', {}),
+            ('health:save_set_ajax', 'POST', {}),
+            ('health:save_cardio_ajax', 'POST', {}),
+            ('health:complete_workout_ajax', 'POST', {}),
+        ]
+
+        for url_name, method, data in endpoints:
+            if method == 'POST':
+                response = self.client.post(
+                    reverse(url_name),
+                    data=json.dumps(data),
+                    content_type='application/json'
+                )
+            self.assertEqual(response.status_code, 401, f"{url_name} should require auth")

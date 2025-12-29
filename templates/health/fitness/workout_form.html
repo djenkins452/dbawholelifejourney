@@ -17,6 +17,24 @@
 
     <div class="page-header">
         <h1 class="page-title">{% if editing %}Edit{% else %}Log{% endif %} Workout</h1>
+        <!-- Rest Timer Display -->
+        <div id="restTimerContainer" class="rest-timer-container" style="display: none;">
+            <div class="rest-timer">
+                <span class="rest-label">Rest:</span>
+                <span id="restTimerDisplay" class="rest-time">0:00</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workout Status Banner -->
+    <div id="workoutStatusBanner" class="workout-status-banner" style="display: none;">
+        <div class="status-content">
+            <span class="status-icon">&#10003;</span>
+            <span class="status-text">Workout in progress - sets save automatically</span>
+        </div>
+        <div class="sets-saved-count">
+            <span id="setsSavedCount">0</span> sets saved
+        </div>
     </div>
 
     <form method="post" class="workout-form" id="workoutForm">
@@ -42,7 +60,7 @@
                 <span class="section-label">Quick start from template:</span>
                 <div class="template-chips">
                     {% for template in templates %}
-                        <a href="?template={{ template.pk }}" class="template-chip {% if from_template.pk == template.pk %}active{% endif %}">
+                        <a href="?template={{ template.pk }}" class="template-chip {% if from_template.pk == template.pk %}active{% endif %}" data-template-id="{{ template.pk }}">
                             {{ template.name }}
                         </a>
                     {% endfor %}
@@ -116,7 +134,7 @@
         <!-- Submit -->
         <div class="form-actions">
             <a href="{% if editing %}{% url 'health:workout_detail' workout.pk %}{% else %}{% url 'health:fitness_home' %}{% endif %}" class="btn btn-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary">{% if editing %}Save Changes{% else %}Log Workout{% endif %}</button>
+            <button type="submit" class="btn btn-primary" id="finishWorkoutBtn">{% if editing %}Save Changes{% else %}Finish Workout{% endif %}</button>
         </div>
     </form>
 </div>
@@ -135,32 +153,38 @@
             </button>
         </div>
         <div class="sets-container">
-            <div class="set-row">
+            <div class="set-row" data-set-number="1">
                 <span class="set-number">Set 1</span>
                 <div class="set-inputs">
                     <input type="number" name="exercise_EXERCISE_ID_set_1_weight" placeholder="Weight" step="0.5" class="weight-input">
                     <span class="input-suffix">lbs</span>
                     <input type="number" name="exercise_EXERCISE_ID_set_1_reps" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
+                    <button type="button" class="done-btn" onclick="markSetDone(this, EXERCISE_ID, 1)">Done</button>
                 </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
-            <div class="set-row">
+            <div class="set-row" data-set-number="2">
                 <span class="set-number">Set 2</span>
                 <div class="set-inputs">
                     <input type="number" name="exercise_EXERCISE_ID_set_2_weight" placeholder="Weight" step="0.5" class="weight-input">
                     <span class="input-suffix">lbs</span>
                     <input type="number" name="exercise_EXERCISE_ID_set_2_reps" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
+                    <button type="button" class="done-btn" onclick="markSetDone(this, EXERCISE_ID, 2)">Done</button>
                 </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
-            <div class="set-row">
+            <div class="set-row" data-set-number="3">
                 <span class="set-number">Set 3</span>
                 <div class="set-inputs">
                     <input type="number" name="exercise_EXERCISE_ID_set_3_weight" placeholder="Weight" step="0.5" class="weight-input">
                     <span class="input-suffix">lbs</span>
                     <input type="number" name="exercise_EXERCISE_ID_set_3_reps" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
+                    <button type="button" class="done-btn" onclick="markSetDone(this, EXERCISE_ID, 3)">Done</button>
                 </div>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>
         <button type="button" class="add-set-btn" onclick="addSet(this)">+ Add Set</button>
@@ -183,24 +207,29 @@
             <div class="cardio-field">
                 <label>Duration</label>
                 <div class="input-with-suffix">
-                    <input type="number" name="exercise_EXERCISE_ID_duration" placeholder="0">
+                    <input type="number" name="exercise_EXERCISE_ID_duration" placeholder="0" class="cardio-duration">
                     <span class="input-suffix">min</span>
                 </div>
             </div>
             <div class="cardio-field">
                 <label>Distance</label>
                 <div class="input-with-suffix">
-                    <input type="number" name="exercise_EXERCISE_ID_distance" step="0.1" placeholder="0">
+                    <input type="number" name="exercise_EXERCISE_ID_distance" step="0.1" placeholder="0" class="cardio-distance">
                     <span class="input-suffix">mi</span>
                 </div>
             </div>
             <div class="cardio-field">
                 <label>Intensity</label>
-                <select name="exercise_EXERCISE_ID_intensity">
+                <select name="exercise_EXERCISE_ID_intensity" class="cardio-intensity">
                     <option value="easy">Easy</option>
                     <option value="medium" selected>Medium</option>
                     <option value="hard">Hard</option>
                 </select>
+            </div>
+            <div class="cardio-field cardio-done-field">
+                <label>&nbsp;</label>
+                <button type="button" class="done-btn cardio-done-btn" onclick="markCardioDone(this, EXERCISE_ID)">Done</button>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>
     </div>
@@ -209,6 +238,81 @@
 <style>
 .workout-form {
     max-width: 800px;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.rest-timer-container {
+    background: var(--color-surface);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2) var(--space-4);
+}
+
+.rest-timer {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.rest-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.rest-time {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-accent);
+    min-width: 50px;
+}
+
+.rest-timer-container.warning .rest-time {
+    color: var(--color-warning, #f59e0b);
+}
+
+.rest-timer-container.stopped .rest-time {
+    color: var(--color-text-muted);
+}
+
+.workout-status-banner {
+    background: linear-gradient(135deg, var(--color-success-light, #d1fae5), var(--color-background));
+    border: 1px solid var(--color-success, #10b981);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.status-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.status-icon {
+    color: var(--color-success, #10b981);
+    font-weight: bold;
+}
+
+.status-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+}
+
+.sets-saved-count {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-success, #10b981);
 }
 
 .form-section {
@@ -354,6 +458,13 @@
     gap: var(--space-3);
 }
 
+.set-row.set-saved {
+    background: var(--color-success-light, #d1fae5);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    margin: calc(-1 * var(--space-2));
+}
+
 .set-number {
     min-width: 50px;
     font-size: var(--font-size-sm);
@@ -381,6 +492,43 @@
     color: var(--color-text-muted);
 }
 
+.done-btn {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.done-btn:hover {
+    background: var(--color-accent-dark, #0056b3);
+    transform: scale(1.02);
+}
+
+.done-btn:active {
+    transform: scale(0.98);
+}
+
+.done-btn.saved {
+    background: var(--color-success, #10b981);
+}
+
+.done-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.set-saved-indicator {
+    color: var(--color-success, #10b981);
+    font-weight: bold;
+    font-size: var(--font-size-lg);
+    margin-left: var(--space-2);
+}
+
 .add-set-btn {
     margin-top: var(--space-2);
     padding: var(--space-2);
@@ -401,11 +549,24 @@
     display: flex;
     gap: var(--space-4);
     flex-wrap: wrap;
+    align-items: flex-end;
 }
 
 .cardio-field {
     flex: 1;
     min-width: 120px;
+}
+
+.cardio-done-field {
+    flex: 0;
+    min-width: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.cardio-done-btn {
+    white-space: nowrap;
 }
 
 .cardio-field label {
@@ -483,10 +644,282 @@
     .cardio-inputs {
         flex-direction: column;
     }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .rest-timer-container {
+        width: 100%;
+        text-align: center;
+    }
 }
 </style>
 
 <script>
+// Workout state
+let workoutId = {% if workout %}{{ workout.pk }}{% else %}null{% endif %};
+let workoutStarted = {% if workout %}true{% else %}false{% endif %};
+let setsSavedCount = 0;
+let isEditing = {% if editing %}true{% else %}false{% endif %};
+
+// Rest timer state
+let restTimerInterval = null;
+let restTimerSeconds = 0;
+const REST_TIMER_MAX = 70; // 1 minute 10 seconds
+
+// CSRF token for AJAX requests
+function getCSRFToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+// Format seconds as M:SS
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Start the rest timer
+function startRestTimer() {
+    const container = document.getElementById('restTimerContainer');
+    const display = document.getElementById('restTimerDisplay');
+
+    // Reset timer
+    restTimerSeconds = 0;
+    container.style.display = 'block';
+    container.classList.remove('warning', 'stopped');
+
+    // Clear any existing interval
+    if (restTimerInterval) {
+        clearInterval(restTimerInterval);
+    }
+
+    restTimerInterval = setInterval(() => {
+        restTimerSeconds++;
+        display.textContent = formatTime(restTimerSeconds);
+
+        // Warning at 60 seconds
+        if (restTimerSeconds >= 60) {
+            container.classList.add('warning');
+        }
+
+        // Stop at max time
+        if (restTimerSeconds >= REST_TIMER_MAX) {
+            stopRestTimer();
+        }
+    }, 1000);
+}
+
+// Stop the rest timer
+function stopRestTimer() {
+    if (restTimerInterval) {
+        clearInterval(restTimerInterval);
+        restTimerInterval = null;
+    }
+    const container = document.getElementById('restTimerContainer');
+    container.classList.add('stopped');
+}
+
+// Start workout session (creates in DB)
+async function startWorkout(templateId = null) {
+    if (workoutStarted || isEditing) return;
+
+    try {
+        const response = await fetch('/health/fitness/api/start-workout/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                date: document.getElementById('date').value,
+                name: document.getElementById('name').value,
+                template_id: templateId,
+            }),
+        });
+
+        const data = await response.json();
+        if (data.workout_id) {
+            workoutId = data.workout_id;
+            workoutStarted = true;
+            document.getElementById('workoutStatusBanner').style.display = 'flex';
+
+            // If resuming, load saved sets
+            if (data.is_resumed) {
+                await loadWorkoutState();
+            }
+        }
+    } catch (error) {
+        console.error('Failed to start workout:', error);
+    }
+}
+
+// Load existing workout state (for resume)
+async function loadWorkoutState() {
+    if (!workoutId) return;
+
+    try {
+        const response = await fetch(`/health/fitness/api/workout-state/${workoutId}/`);
+        const data = await response.json();
+
+        // Mark saved sets as done
+        for (const exercise of data.exercises) {
+            for (const set of exercise.sets) {
+                const exerciseRow = document.querySelector(`[data-exercise-id="${exercise.exercise_id}"]`);
+                if (exerciseRow) {
+                    const setRow = exerciseRow.querySelector(`[data-set-number="${set.set_number}"]`);
+                    if (setRow) {
+                        // Fill in values
+                        const weightInput = setRow.querySelector('.weight-input');
+                        const repsInput = setRow.querySelector('.reps-input');
+                        if (weightInput && set.weight) weightInput.value = set.weight;
+                        if (repsInput && set.reps) repsInput.value = set.reps;
+
+                        // Mark as saved
+                        markSetAsSaved(setRow);
+                        setsSavedCount++;
+                    }
+                }
+            }
+        }
+        updateSavedCount();
+    } catch (error) {
+        console.error('Failed to load workout state:', error);
+    }
+}
+
+// Mark a set as saved (visual feedback)
+function markSetAsSaved(setRow) {
+    setRow.classList.add('set-saved');
+    const doneBtn = setRow.querySelector('.done-btn');
+    if (doneBtn) {
+        doneBtn.classList.add('saved');
+        doneBtn.textContent = 'Saved';
+    }
+    const indicator = setRow.querySelector('.set-saved-indicator');
+    if (indicator) {
+        indicator.style.display = 'inline';
+    }
+}
+
+// Update saved count display
+function updateSavedCount() {
+    document.getElementById('setsSavedCount').textContent = setsSavedCount;
+}
+
+// Mark a set as done (save to DB)
+async function markSetDone(button, exerciseId, setNumber) {
+    // Start workout if not started
+    if (!workoutStarted && !isEditing) {
+        await startWorkout();
+    }
+
+    const setRow = button.closest('.set-row');
+    const weightInput = setRow.querySelector('.weight-input');
+    const repsInput = setRow.querySelector('.reps-input');
+
+    const weight = weightInput ? weightInput.value : null;
+    const reps = repsInput ? repsInput.value : null;
+
+    // Require at least weight or reps
+    if (!weight && !reps) {
+        alert('Please enter weight or reps before marking as done');
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Saving...';
+
+    try {
+        const response = await fetch('/health/fitness/api/save-set/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                workout_id: workoutId,
+                exercise_id: exerciseId,
+                set_number: setNumber,
+                weight: weight || null,
+                reps: reps || null,
+            }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            markSetAsSaved(setRow);
+            setsSavedCount++;
+            updateSavedCount();
+            startRestTimer();
+        } else {
+            throw new Error(data.error || 'Failed to save');
+        }
+    } catch (error) {
+        console.error('Failed to save set:', error);
+        button.disabled = false;
+        button.textContent = 'Done';
+        alert('Failed to save set. Please try again.');
+    }
+}
+
+// Mark cardio as done
+async function markCardioDone(button, exerciseId) {
+    // Start workout if not started
+    if (!workoutStarted && !isEditing) {
+        await startWorkout();
+    }
+
+    const exerciseRow = button.closest('.exercise-row');
+    const duration = exerciseRow.querySelector('.cardio-duration')?.value;
+    const distance = exerciseRow.querySelector('.cardio-distance')?.value;
+    const intensity = exerciseRow.querySelector('.cardio-intensity')?.value || 'medium';
+
+    if (!duration && !distance) {
+        alert('Please enter duration or distance');
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Saving...';
+
+    try {
+        const response = await fetch('/health/fitness/api/save-cardio/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                workout_id: workoutId,
+                exercise_id: exerciseId,
+                duration: duration || null,
+                distance: distance || null,
+                intensity: intensity,
+            }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            button.classList.add('saved');
+            button.textContent = 'Saved';
+            const indicator = exerciseRow.querySelector('.set-saved-indicator');
+            if (indicator) indicator.style.display = 'inline';
+            setsSavedCount++;
+            updateSavedCount();
+        } else {
+            throw new Error(data.error || 'Failed to save');
+        }
+    } catch (error) {
+        console.error('Failed to save cardio:', error);
+        button.disabled = false;
+        button.textContent = 'Done';
+        alert('Failed to save cardio. Please try again.');
+    }
+}
+
 function addExercise() {
     const select = document.getElementById('exerciseSelect');
     const exerciseId = select.value;
@@ -521,6 +954,11 @@ function addExercise() {
 
     // Reset select
     select.value = '';
+
+    // Start workout if not started (first exercise added)
+    if (!workoutStarted && !isEditing) {
+        startWorkout();
+    }
 }
 
 function removeExercise(btn) {
@@ -533,18 +971,62 @@ function addSet(btn) {
     const exerciseId = btn.closest('.exercise-row').dataset.exerciseId;
 
     const setHtml = `
-        <div class="set-row">
+        <div class="set-row" data-set-number="${setCount}">
             <span class="set-number">Set ${setCount}</span>
             <div class="set-inputs">
                 <input type="number" name="exercise_${exerciseId}_set_${setCount}_weight" placeholder="Weight" step="0.5" class="weight-input">
                 <span class="input-suffix">lbs</span>
                 <input type="number" name="exercise_${exerciseId}_set_${setCount}_reps" placeholder="Reps" class="reps-input">
                 <span class="input-suffix">reps</span>
+                <button type="button" class="done-btn" onclick="markSetDone(this, ${exerciseId}, ${setCount})">Done</button>
             </div>
+            <span class="set-saved-indicator" style="display: none;">&#10003;</span>
         </div>
     `;
 
     container.insertAdjacentHTML('beforeend', setHtml);
 }
+
+// Handle form submission for final save
+document.getElementById('workoutForm').addEventListener('submit', async function(e) {
+    if (workoutStarted && workoutId && !isEditing) {
+        e.preventDefault();
+
+        try {
+            const response = await fetch('/health/fitness/api/complete-workout/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken(),
+                },
+                body: JSON.stringify({
+                    workout_id: workoutId,
+                    notes: document.getElementById('notes').value,
+                    name: document.getElementById('name').value,
+                }),
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                window.location.href = data.redirect_url;
+            } else {
+                throw new Error(data.error || 'Failed to complete workout');
+            }
+        } catch (error) {
+            console.error('Failed to complete workout:', error);
+            alert('Failed to complete workout. Please try again.');
+        }
+    }
+    // If editing or not started, let the form submit normally
+});
+
+// Auto-start workout when template is selected via URL
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const templateId = urlParams.get('template');
+    if (templateId && !isEditing) {
+        startWorkout(templateId);
+    }
+});
 </script>
 {% endblock %}

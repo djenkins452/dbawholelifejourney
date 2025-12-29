@@ -1337,6 +1337,290 @@ def add_set_htmx(request, exercise_id):
 
 
 # =============================================================================
+# Live Workout AJAX Endpoints
+# =============================================================================
+
+
+def start_workout_ajax(request):
+    """
+    Create a new in-progress workout session.
+    Returns the workout ID for subsequent set saves.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    import json
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        data = {}
+
+    user = request.user
+    today = get_user_today(user)
+
+    # Check for existing in-progress workout today
+    existing = WorkoutSession.objects.filter(
+        user=user,
+        date=today,
+        completed_at__isnull=True,
+        started_at__isnull=False,
+    ).first()
+
+    if existing:
+        return JsonResponse({
+            "workout_id": existing.pk,
+            "message": "Resumed existing workout",
+            "is_resumed": True,
+        })
+
+    # Create new workout session
+    template_id = data.get("template_id")
+    template_name = ""
+    if template_id:
+        try:
+            template = WorkoutTemplate.objects.get(pk=template_id, user=user)
+            template_name = template.name
+        except WorkoutTemplate.DoesNotExist:
+            pass
+
+    workout = WorkoutSession.objects.create(
+        user=user,
+        date=data.get("date") or today,
+        name=data.get("name") or template_name,
+        started_at=timezone.now(),
+    )
+
+    return JsonResponse({
+        "workout_id": workout.pk,
+        "message": "Workout started",
+        "is_resumed": False,
+    })
+
+
+def save_set_ajax(request):
+    """
+    Save a single set for an exercise in an in-progress workout.
+    Creates the WorkoutExercise if it doesn't exist.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    user = request.user
+    workout_id = data.get("workout_id")
+    exercise_id = data.get("exercise_id")
+    set_number = data.get("set_number")
+    weight = data.get("weight")
+    reps = data.get("reps")
+
+    if not all([workout_id, exercise_id, set_number]):
+        return JsonResponse({"error": "Missing required fields"}, status=400)
+
+    # Validate workout belongs to user
+    try:
+        workout = WorkoutSession.objects.get(pk=workout_id, user=user)
+    except WorkoutSession.DoesNotExist:
+        return JsonResponse({"error": "Workout not found"}, status=404)
+
+    # Get or create the WorkoutExercise
+    try:
+        exercise = Exercise.objects.get(pk=exercise_id)
+    except Exercise.DoesNotExist:
+        return JsonResponse({"error": "Exercise not found"}, status=404)
+
+    workout_exercise, created = WorkoutExercise.objects.get_or_create(
+        session=workout,
+        exercise=exercise,
+        defaults={"order": workout.workout_exercises.count()},
+    )
+
+    # Create or update the set
+    exercise_set, set_created = ExerciseSet.objects.update_or_create(
+        workout_exercise=workout_exercise,
+        set_number=set_number,
+        defaults={
+            "weight": Decimal(str(weight)) if weight else None,
+            "reps": int(reps) if reps else None,
+        },
+    )
+
+    return JsonResponse({
+        "success": True,
+        "set_id": exercise_set.pk,
+        "workout_exercise_id": workout_exercise.pk,
+        "created": set_created,
+        "message": f"Set {set_number} saved",
+    })
+
+
+def save_cardio_ajax(request):
+    """
+    Save cardio details for an exercise in an in-progress workout.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    user = request.user
+    workout_id = data.get("workout_id")
+    exercise_id = data.get("exercise_id")
+    duration = data.get("duration")
+    distance = data.get("distance")
+    intensity = data.get("intensity", "medium")
+
+    if not all([workout_id, exercise_id]):
+        return JsonResponse({"error": "Missing required fields"}, status=400)
+
+    # Validate workout belongs to user
+    try:
+        workout = WorkoutSession.objects.get(pk=workout_id, user=user)
+    except WorkoutSession.DoesNotExist:
+        return JsonResponse({"error": "Workout not found"}, status=404)
+
+    # Get or create the WorkoutExercise
+    try:
+        exercise = Exercise.objects.get(pk=exercise_id)
+    except Exercise.DoesNotExist:
+        return JsonResponse({"error": "Exercise not found"}, status=404)
+
+    workout_exercise, _ = WorkoutExercise.objects.get_or_create(
+        session=workout,
+        exercise=exercise,
+        defaults={"order": workout.workout_exercises.count()},
+    )
+
+    # Create or update cardio details
+    cardio, created = CardioDetails.objects.update_or_create(
+        workout_exercise=workout_exercise,
+        defaults={
+            "duration_minutes": int(duration) if duration else None,
+            "distance": Decimal(str(distance)) if distance else None,
+            "intensity": intensity,
+        },
+    )
+
+    return JsonResponse({
+        "success": True,
+        "cardio_id": cardio.pk,
+        "workout_exercise_id": workout_exercise.pk,
+        "message": "Cardio saved",
+    })
+
+
+def complete_workout_ajax(request):
+    """
+    Mark a workout as completed.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    user = request.user
+    workout_id = data.get("workout_id")
+    notes = data.get("notes", "")
+    name = data.get("name", "")
+
+    if not workout_id:
+        return JsonResponse({"error": "workout_id required"}, status=400)
+
+    try:
+        workout = WorkoutSession.objects.get(pk=workout_id, user=user)
+    except WorkoutSession.DoesNotExist:
+        return JsonResponse({"error": "Workout not found"}, status=404)
+
+    workout.completed_at = timezone.now()
+    if notes:
+        workout.notes = notes
+    if name:
+        workout.name = name
+
+    # Calculate duration if started_at exists
+    if workout.started_at:
+        duration = workout.completed_at - workout.started_at
+        workout.duration_minutes = int(duration.total_seconds() / 60)
+
+    workout.save()
+
+    return JsonResponse({
+        "success": True,
+        "message": "Workout completed!",
+        "redirect_url": f"/health/fitness/workout/{workout.pk}/",
+    })
+
+
+def get_workout_state_ajax(request, workout_id):
+    """
+    Get current state of a workout (for resuming).
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    user = request.user
+
+    try:
+        workout = WorkoutSession.objects.get(pk=workout_id, user=user)
+    except WorkoutSession.DoesNotExist:
+        return JsonResponse({"error": "Workout not found"}, status=404)
+
+    exercises_data = []
+    for we in workout.workout_exercises.select_related("exercise").prefetch_related("sets"):
+        exercise_info = {
+            "exercise_id": we.exercise.pk,
+            "exercise_name": we.exercise.name,
+            "category": we.exercise.category,
+            "sets": [],
+        }
+        for s in we.sets.all():
+            exercise_info["sets"].append({
+                "set_number": s.set_number,
+                "weight": float(s.weight) if s.weight else None,
+                "reps": s.reps,
+            })
+        if hasattr(we, "cardio_details") and we.cardio_details:
+            exercise_info["cardio"] = {
+                "duration": we.cardio_details.duration_minutes,
+                "distance": float(we.cardio_details.distance) if we.cardio_details.distance else None,
+                "intensity": we.cardio_details.intensity,
+            }
+        exercises_data.append(exercise_info)
+
+    return JsonResponse({
+        "workout_id": workout.pk,
+        "name": workout.name,
+        "date": str(workout.date),
+        "started_at": workout.started_at.isoformat() if workout.started_at else None,
+        "exercises": exercises_data,
+    })
+
+
+# =============================================================================
 # Medicine Views
 # =============================================================================
 

@@ -15,6 +15,17 @@ For active development context, see `CLAUDE.md`.
 
 ---
 
+## 2025-12-29 Changes
+
+### Fix Medicine Tracker Dashboard Link 404
+Fixed incorrect URL in dashboard nudge for medicine tracker. The "Open Tracker" action link was pointing to `/health/medicine/tracker/` which doesn't exist, causing a 404 error.
+
+**Fix:** Changed action_url from `/health/medicine/tracker/` to `/health/medicine/` in the pending medicine doses nudge.
+
+**File:** `apps/dashboard/views.py:748`
+
+---
+
 ## 2025-12-28 Changes
 
 ### Timezone Fix for Task Priorities

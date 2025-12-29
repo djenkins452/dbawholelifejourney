@@ -59,13 +59,14 @@
         {% if object %}
         <div class="form-group">
             <label for="id_ended_at" class="form-label">End Time (optional)</label>
-            <input 
-                type="datetime-local" 
-                name="ended_at" 
-                id="id_ended_at" 
+            <input
+                type="datetime-local"
+                name="ended_at"
+                id="id_ended_at"
                 class="form-input"
-                value="{% if object.ended_at %}{{ object.ended_at|date:'Y-m-d\TH:i' }}{% endif %}"
+                value="{{ form.initial.ended_at|default:'' }}"
             >
+            <p class="form-help">Leave blank if the fast is still active.</p>
         </div>
         {% endif %}
         

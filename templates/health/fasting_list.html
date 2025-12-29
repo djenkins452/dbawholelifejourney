@@ -70,6 +70,7 @@
                         <span class="fast-entry-date">{{ fast.started_at|date:"M j" }}</span>
                     </div>
                     <div class="fast-entry-actions">
+                        <a href="{% url 'health:fasting_update' fast.pk %}" class="btn btn-ghost btn-sm">Edit</a>
                         <form method="post" action="{% url 'health:fasting_delete' fast.pk %}" class="inline-form">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-ghost btn-sm text-error">Delete</button>

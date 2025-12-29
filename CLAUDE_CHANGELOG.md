@@ -17,6 +17,35 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Added Comprehensive Fitness CRUD Tests
+Added comprehensive test suite for fitness module covering workouts and workout templates CRUD operations.
+
+**New Test File:** `apps/health/tests/test_fitness.py` (52 tests)
+
+**Test Coverage:**
+- Exercise model tests (resistance and cardio)
+- WorkoutSession model tests (creation, properties, ordering)
+- WorkoutTemplate model tests (creation, exercise count)
+- Workout CRUD view tests (list, create, detail, update, delete, copy)
+- Template CRUD view tests (list, create, detail, update, delete, use)
+- Data isolation tests (users can only see/modify their own data)
+- Cardio exercise handling tests
+- Fitness home view tests
+- Personal records tracking tests
+- Edge cases and validation tests
+
+**Existing Fitness CRUD Verified:**
+The fitness module already had full CRUD functionality implemented:
+- Workouts: Create, Read (list/detail), Update, Delete
+- Templates: Create, Read (list/detail), Update, Delete
+- Delete buttons available on workout_detail.html and template_detail.html
+- Copy workout feature implemented
+- Use template feature (redirects to create with template prefilled)
+
+**Health Module Total Tests:** 292 tests (all passing)
+
+---
+
 ### Dashboard AI Personal Assistant
 Implemented comprehensive Dashboard AI Personal Assistant feature. This is NOT a chatbot - it's a personal life assistant that helps users live the life they said they want to live, anchoring all guidance to user's stated Purpose, Goals, intentions, and commitments.
 

@@ -168,8 +168,8 @@
             <!-- Coming Soon Modules -->
             <div class="module-section mt-6">
                 <h3 class="module-section-title">Coming Soon</h3>
-                <p class="text-muted text-sm mb-4">These modules are in development. Enable them to be notified when they launch.</p>
-                
+                <p class="text-muted text-sm mb-4">These modules are in development. You'll be notified when they launch.</p>
+
                 <div class="toggle-option disabled">
                     <div class="toggle-info">
                         <div class="module-header">
@@ -182,11 +182,11 @@
                         </p>
                     </div>
                     <label class="toggle-switch">
-                        <input type="checkbox" name="finances_enabled" {% if form.finances_enabled.value %}checked{% endif %}>
+                        <input type="checkbox" name="finances_enabled" disabled>
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
-                
+
                 <div class="toggle-option disabled">
                     <div class="toggle-info">
                         <div class="module-header">
@@ -199,11 +199,11 @@
                         </p>
                     </div>
                     <label class="toggle-switch">
-                        <input type="checkbox" name="relationships_enabled" {% if form.relationships_enabled.value %}checked{% endif %}>
+                        <input type="checkbox" name="relationships_enabled" disabled>
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
-                
+
                 <div class="toggle-option disabled">
                     <div class="toggle-info">
                         <div class="module-header">
@@ -216,7 +216,7 @@
                         </p>
                     </div>
                     <label class="toggle-switch">
-                        <input type="checkbox" name="habits_enabled" {% if form.habits_enabled.value %}checked{% endif %}>
+                        <input type="checkbox" name="habits_enabled" disabled>
                         <span class="toggle-slider"></span>
                     </label>
                 </div>

@@ -255,6 +255,14 @@ class UserPreferences(models.Model):
         help_text='AI coaching style key (loaded from CoachingStyle model)',
     )
 
+    # AI Personal Profile - user-provided context for personalized AI responses
+    ai_profile = models.TextField(
+        blank=True,
+        default='',
+        max_length=2000,
+        help_text='Personal details for AI personalization (age, family, interests, goals, health conditions, etc.)',
+    )
+
     # Location for weather (manual entry)
     location_city = models.CharField(max_length=100, blank=True)
     location_country = models.CharField(max_length=100, blank=True)

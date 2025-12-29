@@ -115,6 +115,7 @@ class PreferencesForm(forms.ModelForm):
             "ai_enabled",
             "ai_data_consent",
             'ai_coaching_style',
+            'ai_profile',
             # Location
             "location_city",
             "location_country",
@@ -168,6 +169,12 @@ class PreferencesForm(forms.ModelForm):
             }),
             "ai_data_consent": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
+            }),
+            "ai_profile": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "rows": 5,
+                "placeholder": "Tell the AI about yourself to personalize your experience...\n\nExamples:\n• Age and life stage (e.g., 'I'm in my 40s with two teenagers')\n• Family situation (e.g., 'married, work-from-home parent')\n• Health focus (e.g., 'managing blood pressure, trying to lose 20lbs')\n• Faith journey (e.g., 'growing Christian seeking deeper prayer life')\n• Interests (e.g., 'love hiking, cooking, woodworking')\n• Work/career (e.g., 'software developer, often stressed about deadlines')",
+                "maxlength": "2000",
             }),
             # Location
             "location_city": forms.TextInput(attrs={

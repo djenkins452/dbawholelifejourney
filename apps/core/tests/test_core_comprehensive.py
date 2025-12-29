@@ -1044,6 +1044,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
         response = self.client.post(reverse('users:preferences'), {
             'theme': 'minimal',
             'timezone': 'US/Eastern',
+            'ai_coaching_style': 'supportive',
             # show_whats_new not included = unchecked = False
         })
         self.user.preferences.refresh_from_db()
@@ -1057,6 +1058,7 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
         response = self.client.post(reverse('users:preferences'), {
             'theme': 'minimal',
             'timezone': 'US/Eastern',
+            'ai_coaching_style': 'supportive',
             'show_whats_new': 'on',
         })
         self.user.preferences.refresh_from_db()

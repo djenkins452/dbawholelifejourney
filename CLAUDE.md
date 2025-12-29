@@ -26,7 +26,8 @@
 - **AI Service:** Database-driven prompts via AIPromptConfig and CoachingStyle models
 
 ## Deployment Notes
-- Always push from the main repository, not from working branches (worktrees)
+- **Claude performs all merges and pushes** - Always merge worktree branches to main and push to GitHub
+- Always push from the main repository (C:\dbawholelifejourney), not from worktrees
 - Use meaningful merge commit messages with `-m` flag when merging to main
 - Procfile runs: migrate → load_initial_data → load_danny_workout_templates → collectstatic → gunicorn
 - postgres.railway.internal hostname only available at runtime, NOT build time

@@ -17,6 +17,26 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Python 3.14 Autoreload Fix (django-watchfiles)
+
+Fixed the Django development server autoreload failing on Python 3.14 with StatReloader.
+
+**Issue:** When running `python manage.py runserver` on Python 3.14, Django's StatReloader fails with an ImportError in the autoreload thread. The error occurs during `apps.populate(settings.INSTALLED_APPS)` when the StatReloader tries to watch files for changes.
+
+**Root Cause:** Python 3.14's import system has changes that are incompatible with Django 5.2's StatReloader mechanism on Windows.
+
+**Solution:** Added `django-watchfiles` which provides an alternative file watcher using the `watchfiles` library (Rust-based, cross-platform). This is more efficient than StatReloader anyway.
+
+**Workaround (without fix):** Run `python manage.py runserver --noreload` to disable autoreload.
+
+**Files Modified:**
+- `config/settings.py` - Added `django_watchfiles` to INSTALLED_APPS
+- `requirements.txt` - Added `django-watchfiles>=1.4.0`
+
+**Verification:** Server now reports "Watching for file changes with WatchfilesReloader" instead of "StatReloader"
+
+---
+
 ### What's New Popup Fix and Release Notes Update
 
 Fixed the "What's New" popup not appearing after updates and added release notes for December 29 features.

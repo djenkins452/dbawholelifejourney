@@ -234,6 +234,7 @@ class PreferencesViewTest(TestCase):
             'timezone': 'US/Eastern',
             'location_city': '',
             'location_country': '',
+            'default_fasting_type': '16:8',
         }, follow=True)  # Follow redirects
         
         # Verify change was saved

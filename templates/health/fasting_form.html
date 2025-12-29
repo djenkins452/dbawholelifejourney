@@ -22,25 +22,38 @@
         
         <div class="form-group">
             <label for="id_fasting_type" class="form-label">Fasting Type</label>
-            <select name="fasting_type" id="id_fasting_type" class="form-select">
+            <select name="fasting_type" id="id_fasting_type" class="form-select" onchange="updateFastingDescription()">
                 {% for value, label in form.fields.fasting_type.choices %}
-                    <option value="{{ value }}" {% if form.fasting_type.value == value %}selected{% endif %}>
+                    <option value="{{ value }}" {% if form.fasting_type.value == value or form.initial.fasting_type == value %}selected{% endif %}>
                         {{ label }}
                     </option>
                 {% endfor %}
             </select>
             <p class="form-help">Choose the type of fast you're doing.</p>
         </div>
-        
+
+        <div class="fasting-description-box" id="fasting-description">
+            <p id="fasting-description-text">Select a fasting type to see its description.</p>
+        </div>
+
         <div class="fasting-types-info">
-            <h3>Common Fasting Schedules</h3>
-            <ul>
-                <li><strong>16:8</strong> — Fast 16 hours, eat within 8 hours (most common)</li>
-                <li><strong>18:6</strong> — Fast 18 hours, eat within 6 hours</li>
-                <li><strong>20:4</strong> — Fast 20 hours, eat within 4 hours</li>
-                <li><strong>OMAD</strong> — One meal a day (~23 hour fast)</li>
-                <li><strong>24h / 36h</strong> — Extended fasts</li>
-            </ul>
+            <h3>Fasting Schedule Guide</h3>
+            <div class="fasting-type-cards">
+                {% for type_code, description in fasting_descriptions.items %}
+                <div class="fasting-type-card" data-type="{{ type_code }}">
+                    <strong class="fasting-type-name">{{ type_code }}</strong>
+                    <p class="fasting-type-desc">{{ description }}</p>
+                </div>
+                {% empty %}
+                <ul>
+                    <li><strong>16:8</strong> — Fast 16 hours, eat within 8 hours (most common)</li>
+                    <li><strong>18:6</strong> — Fast 18 hours, eat within 6 hours</li>
+                    <li><strong>20:4</strong> — Fast 20 hours, eat within 4 hours</li>
+                    <li><strong>OMAD</strong> — One meal a day (~23 hour fast)</li>
+                    <li><strong>24h / 36h</strong> — Extended fasts</li>
+                </ul>
+                {% endfor %}
+            </div>
         </div>
         
         <div class="form-group">
@@ -91,16 +104,73 @@
 </div>
 
 <style>
+.fasting-description-box {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, #10b981 10%, var(--color-surface)) 0%,
+        var(--color-surface) 100%);
+    border: 1px solid color-mix(in srgb, #10b981 30%, var(--color-border));
+    border-left: 4px solid #10b981;
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.fasting-description-box p {
+    margin: 0;
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+}
+
 .fasting-types-info {
     background: var(--color-surface);
     padding: var(--space-4);
     border-radius: var(--radius-md);
     margin-bottom: var(--space-6);
+    border: 1px solid var(--color-border);
 }
 
 .fasting-types-info h3 {
     font-size: var(--font-size-sm);
-    margin-bottom: var(--space-2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.fasting-type-cards {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.fasting-type-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    transition: all var(--transition-fast);
+}
+
+.fasting-type-card:hover {
+    border-color: #10b981;
+}
+
+.fasting-type-card.active {
+    border-color: #10b981;
+    background: color-mix(in srgb, #10b981 5%, var(--color-background));
+}
+
+.fasting-type-name {
+    display: block;
+    font-size: var(--font-size-base);
+    color: #059669;
+    margin-bottom: var(--space-1);
+}
+
+.fasting-type-desc {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    line-height: 1.4;
 }
 
 .fasting-types-info ul {
@@ -121,5 +191,56 @@
     padding-top: var(--space-6);
     border-top: 1px solid var(--color-border);
 }
+
+@media (min-width: 768px) {
+    .fasting-type-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
 </style>
+
+<script>
+// Fasting type descriptions from server
+const fastingDescriptions = {
+    {% for type_code, description in fasting_descriptions.items %}
+    "{{ type_code }}": "{{ description|escapejs }}",
+    {% endfor %}
+};
+
+function updateFastingDescription() {
+    const select = document.getElementById('id_fasting_type');
+    const descBox = document.getElementById('fasting-description-text');
+    const selectedType = select.value;
+
+    // Update description text
+    if (fastingDescriptions[selectedType]) {
+        descBox.textContent = fastingDescriptions[selectedType];
+    } else {
+        descBox.textContent = 'Select a fasting type to see its description.';
+    }
+
+    // Highlight the corresponding card
+    document.querySelectorAll('.fasting-type-card').forEach(card => {
+        if (card.dataset.type === selectedType) {
+            card.classList.add('active');
+        } else {
+            card.classList.remove('active');
+        }
+    });
+}
+
+// Make cards clickable to select fasting type
+document.querySelectorAll('.fasting-type-card').forEach(card => {
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', function() {
+        const type = this.dataset.type;
+        const select = document.getElementById('id_fasting_type');
+        select.value = type;
+        updateFastingDescription();
+    });
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', updateFastingDescription);
+</script>
 {% endblock %}

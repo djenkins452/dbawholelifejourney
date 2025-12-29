@@ -148,6 +148,8 @@ class PreferencesForm(forms.ModelForm):
             "show_whats_new",
             # Security
             "biometric_login_enabled",
+            # Health
+            "default_fasting_type",
         ]
         widgets = {
             "theme": forms.Select(attrs={
@@ -218,6 +220,10 @@ class PreferencesForm(forms.ModelForm):
             # Security
             "biometric_login_enabled": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
+            }),
+            # Health
+            "default_fasting_type": forms.Select(attrs={
+                "class": "form-select",
             }),
         }
 

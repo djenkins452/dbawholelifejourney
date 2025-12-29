@@ -17,6 +17,31 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Food Recognition from Camera Scan
+Enhanced the camera scan feature to recognize food and extract detailed nutritional information.
+
+**Changes:**
+- Updated vision service prompt to request detailed nutritional estimates (calories, protein, carbs, fat, fiber, sugar, saturated fat, serving size/unit, meal type)
+- Changed food scan routing from journal entry to nutrition log form (`health:food_entry_create`)
+- Added URL parameter prefilling for all nutritional fields in `FoodEntryCreateView`
+- Set `entry_source` to 'camera' when coming from AI scan
+- Added `from_camera` context variable for potential UI customization
+
+**Files Modified:**
+- `apps/scan/services/vision.py` - Enhanced food example in prompt, updated `_build_actions` for food
+- `apps/health/views.py` - Updated `FoodEntryCreateView.get_initial()` and `form_valid()`
+- `apps/scan/tests/test_vision.py` - Updated test for new module name
+- `apps/health/tests/test_nutrition.py` - Added 2 new tests for camera prefill
+
+**Flow:**
+1. User takes picture of food
+2. AI recognizes food and estimates nutritional values
+3. User clicks "Log to Nutrition"
+4. Food entry form opens with all fields pre-filled
+5. User confirms or adjusts values and saves
+
+---
+
 ### Added Comprehensive Fitness CRUD Tests
 Added comprehensive test suite for fitness module covering workouts and workout templates CRUD operations.
 

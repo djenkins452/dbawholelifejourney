@@ -168,9 +168,18 @@ class FastingWindowForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["ended_at"].required = False
         self.user = user
-        
-        # Set timezone-aware default for started_at
-        if not self.instance.pk:
+
+        if self.instance.pk:
+            # Editing existing - convert UTC times to user's local timezone for display
+            user_tz = get_user_timezone(user)
+            if self.instance.started_at:
+                local_started = self.instance.started_at.astimezone(user_tz)
+                self.initial["started_at"] = local_started.strftime("%Y-%m-%dT%H:%M")
+            if self.instance.ended_at:
+                local_ended = self.instance.ended_at.astimezone(user_tz)
+                self.initial["ended_at"] = local_ended.strftime("%Y-%m-%dT%H:%M")
+        else:
+            # New entry - set current time as default
             self.initial["started_at"] = get_local_now_string(user)
     
     def clean_started_at(self):

@@ -119,7 +119,7 @@ python check_dependencies.py --install
 ### Commands
 - **Run all tests:** `python manage.py test` or `python run_tests.py`
 - **Run specific app:** `python manage.py test apps.<app_name>`
-- **Current test count:** 1045 tests (as of 2025-12-28)
+- **Current test count:** 1162 tests (as of 2025-12-28)
 
 ### CRITICAL: Test User Setup Pattern
 **All test users MUST have onboarding completed** or tests fail with 302 redirects.

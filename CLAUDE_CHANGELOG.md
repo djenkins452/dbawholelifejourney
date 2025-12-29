@@ -17,6 +17,23 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-28 Changes
 
+### Timezone Fix for Task Priorities
+Fixed critical bug where task priority calculation (Now/Soon/Someday) was using UTC timezone instead of the user's configured timezone. This caused tasks to show incorrect priorities for users in different timezones.
+
+**Fixed properties/methods:**
+- `Task.calculate_priority()`: Now uses `get_user_today(self.user)` to calculate priority based on user's timezone
+- `Task.is_overdue`: Uses user's timezone
+- `Project.is_overdue`: Uses user's timezone
+- `LifeEvent.is_past/is_today`: Uses user's timezone
+- `Pet.age`: Uses user's timezone
+- `Document.is_expiring_soon/is_expired`: Uses user's timezone
+- `Medicine.complete()`: Uses user's timezone for end_date
+- `NutritionGoals.is_active/save()`: Uses user's timezone
+
+**Files:** `apps/life/models.py`, `apps/health/models.py`
+
+---
+
 ### AI Personal Profile
 Added personal AI profile feature to Preferences. Users can enter details about themselves (age, family, health conditions, interests, goals, etc.) that the AI uses to personalize dashboard insights and coaching messages.
 

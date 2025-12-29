@@ -64,8 +64,11 @@ def theme_context(request):
         'health_enabled': True,
         'life_enabled': True,
         'purpose_enabled': True,
+        # AI flags - defaults
+        'ai_enabled': False,
+        'ai_data_consent': False,
     }
-    
+
     if request.user.is_authenticated:
         try:
             prefs = request.user.preferences
@@ -77,6 +80,9 @@ def theme_context(request):
             context['health_enabled'] = prefs.health_enabled
             context['life_enabled'] = prefs.life_enabled
             context['purpose_enabled'] = prefs.purpose_enabled
+            # AI toggles
+            context['ai_enabled'] = prefs.ai_enabled
+            context['ai_data_consent'] = prefs.ai_data_consent
             # User's "today" in their timezone (for date comparisons in templates)
             from apps.core.utils import get_user_today
             context['user_today'] = get_user_today(request.user)

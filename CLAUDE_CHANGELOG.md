@@ -5,7 +5,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-28
+# Last Updated: 2025-12-29
 # ==============================================================================
 
 # Change History
@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md`.
 ---
 
 ## 2025-12-29 Changes
+
+### Workout Templates Data Load
+Created a one-time data loading command to import 10 workout templates for dannyjenkins71@gmail.com based on a 4-week workout program (Week 1&3 and Week 2&4 variations).
+
+**New Files:**
+- `apps/health/management/commands/load_danny_workout_templates.py`
+
+**Creates:**
+- 20 additional exercises (Box Squat, KB Lunges, Ab Crunch Machine, etc.)
+- 10 workout templates (5 for Week 1&3, 5 for Week 2&4)
+  - Monday Strength, Tuesday Cardio, Wednesday Strength, Thursday Cardio, Friday Strength
+
+**Procfile updated** to run command on deploy (idempotent - safe to run multiple times)
+
+**CLAUDE.md updated** with "One-Time Data Loading Pattern" documentation for Railway deployments (no shell access)
+
+---
 
 ### Fix Medicine Tracker Dashboard Link 404
 Fixed incorrect URL in dashboard nudge for medicine tracker. The "Open Tracker" action link was pointing to `/health/medicine/tracker/` which doesn't exist, causing a 404 error.

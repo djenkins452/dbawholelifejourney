@@ -28,10 +28,20 @@
 ## Deployment Notes
 - Always push from the main repository, not from working branches (worktrees)
 - Use meaningful merge commit messages with `-m` flag when merging to main
-- Procfile runs: migrate → load_initial_data → collectstatic → gunicorn
+- Procfile runs: migrate → load_initial_data → load_danny_workout_templates → collectstatic → gunicorn
 - postgres.railway.internal hostname only available at runtime, NOT build time
 - All DB operations must be in startCommand, not build/release phase
 - **Railway has no shell access** - All fixes must be done via code changes and redeployment
+
+### One-Time Data Loading Pattern (Railway)
+Since Railway has NO shell/console access, one-time data loading must be done via Procfile:
+
+1. Create an idempotent management command (uses `get_or_create`, checks for existing records)
+2. Add the command to Procfile startup chain (after migrate, before collectstatic)
+3. The command runs on every deploy but only creates data if it doesn't exist
+4. After confirmed working, optionally remove from Procfile to save startup time
+
+**Example:** `load_danny_workout_templates` - loads workout templates for a specific user, safe to run multiple times.
 
 ## Important Files
 - `Procfile` - Railway deployment startup command
@@ -185,4 +195,4 @@ Before deploying: **"What could this change accidentally break?"** Only test tho
 
 *For detailed feature documentation, see `CLAUDE_FEATURES.md`*
 *For historical changes, see `CLAUDE_CHANGELOG.md`*
-*Last updated: 2025-12-28*
+*Last updated: 2025-12-29*

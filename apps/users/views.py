@@ -1,5 +1,45 @@
 """
-Users Views - Profile, preferences, and user management.
+Whole Life Journey - User Views
+
+Project: Whole Life Journey
+Path: apps/users/views.py
+Purpose: Profile, preferences, onboarding wizard, and biometric login views
+
+Description:
+    Provides all user-facing views for account management including profile
+    editing, preferences configuration, the onboarding wizard for new users,
+    and WebAuthn biometric authentication endpoints.
+
+Key Views:
+    - ProfileView: Display and edit user profile information
+    - ProfileUpdateView: Handle profile form submission
+    - PreferencesView: User settings (theme, modules, AI, notifications)
+    - OnboardingWizardView: 6-step wizard for new user setup
+    - AcceptTermsView: Terms of service acceptance
+    - Biometric views: Registration, login, credential management
+
+Onboarding Steps:
+    1. Welcome - Introduction
+    2. Theme - Visual appearance selection
+    3. Modules - Choose which features to enable
+    4. AI - Configure AI coaching preferences
+    5. Location - Set timezone and location
+    6. Complete - Finalize and redirect to dashboard
+
+Security Notes:
+    - All views require authentication (LoginRequiredMixin)
+    - Biometric endpoints validate WebAuthn signatures
+    - IP address logging uses validated extraction
+
+Dependencies:
+    - apps.help.mixins for HelpContextMixin
+    - apps.ai.models for CoachingStyle options
+    - apps.users.models for User, UserPreferences, WebAuthnCredential
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.conf import settings

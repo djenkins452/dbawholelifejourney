@@ -1,10 +1,39 @@
 /**
- * Biometric Login (WebAuthn) Integration
+ * Whole Life Journey - Biometric Login (WebAuthn)
  *
- * Enables Face ID, Touch ID, and device biometrics for quick login.
- * Uses the Web Authentication API (WebAuthn) for secure, passwordless authentication.
+ * Project: Whole Life Journey
+ * Path: static/js/biometric.js
+ * Purpose: WebAuthn-based biometric authentication (Face ID, Touch ID, Windows Hello)
  *
- * Biometric data never leaves the device - only cryptographic signatures are sent.
+ * Description:
+ *     Enables passwordless login using device biometrics through the Web Authentication
+ *     API (WebAuthn). Supports Face ID on iOS, Touch ID on Mac, Windows Hello, and
+ *     other platform authenticators.
+ *
+ * Key Features:
+ *     - Device capability detection
+ *     - Credential registration flow (linking device to account)
+ *     - Authentication flow (passwordless login)
+ *     - Base64URL encoding/decoding for WebAuthn data
+ *
+ * Security Notes:
+ *     - Biometric data NEVER leaves the device
+ *     - Only cryptographic signatures are sent to server
+ *     - Uses public key cryptography for verification
+ *     - Credential IDs are device-specific
+ *
+ * Browser Support:
+ *     - Chrome 67+, Firefox 60+, Safari 13+, Edge 79+
+ *     - Requires HTTPS (except localhost)
+ *
+ * Dependencies:
+ *     - Web Authentication API (navigator.credentials)
+ *     - Server endpoints at /user/biometric/*
+ *
+ * Copyright:
+ *     (c) Whole Life Journey. All rights reserved.
+ *     This code is proprietary and may not be copied, modified, or distributed
+ *     without explicit permission.
  */
 
 (function() {

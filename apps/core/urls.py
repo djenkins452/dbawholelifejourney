@@ -1,5 +1,27 @@
 """
-Core URLs - Landing page and static pages.
+Whole Life Journey - Core URL Configuration
+
+Project: Whole Life Journey
+Path: apps/core/urls.py
+Purpose: URL routing for core pages and API endpoints
+
+Description:
+    Defines URL patterns for the core app including the landing page,
+    static content pages (terms, privacy, about), and the What's New
+    release notes feature.
+
+URL Patterns:
+    - /                   : Landing page (redirects to dashboard if authenticated)
+    - /terms/            : Terms of Service
+    - /privacy/          : Privacy Policy
+    - /about/            : About page
+    - /whats-new/        : Full release notes list
+    - /api/whats-new/*   : Release notes API endpoints
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.urls import path

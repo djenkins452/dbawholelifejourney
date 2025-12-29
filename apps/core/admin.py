@@ -1,5 +1,24 @@
 """
-Core Admin Configuration
+Whole Life Journey - Core Admin Configuration
+
+Project: Whole Life Journey
+Path: apps/core/admin.py
+Purpose: Django admin interface configuration for core models
+
+Description:
+    Configures the Django admin interface for core models including
+    categories, tags, and the What's New release notes system.
+
+Registered Models:
+    - CategoryAdmin: Journal entry categories
+    - TagAdmin: User-defined tags for organizing content
+    - ReleaseNoteAdmin: What's New entries management
+    - UserReleaseNoteViewAdmin: Read-only view of user's seen notes
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.contrib import admin

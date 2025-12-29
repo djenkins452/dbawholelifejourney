@@ -1,8 +1,33 @@
 /**
- * What's New Feature - JavaScript
+ * Whole Life Journey - What's New Feature
  *
- * Handles checking for unseen release notes and displaying the modal.
- * Runs on page load for authenticated users.
+ * Project: Whole Life Journey
+ * Path: static/js/whats_new.js
+ * Purpose: Display release notes popup for new features and updates
+ *
+ * Description:
+ *     Checks for unseen release notes on page load and displays a modal popup
+ *     to inform users of new features, bug fixes, and enhancements.
+ *
+ * Key Features:
+ *     - Check for unseen notes via API on page load
+ *     - Display modal with release note cards
+ *     - Mark notes as seen when user dismisses modal
+ *     - Respects user's "show_whats_new" preference
+ *
+ * API Endpoints:
+ *     - GET /api/whats-new/check/   : Check for unseen notes
+ *     - POST /api/whats-new/dismiss/: Mark notes as seen
+ *
+ * Dependencies:
+ *     - Modal element with id="whats-new-modal"
+ *     - Modal body with id="whats-new-modal-body"
+ *     - CSRF token for POST requests
+ *
+ * Copyright:
+ *     (c) Whole Life Journey. All rights reserved.
+ *     This code is proprietary and may not be copied, modified, or distributed
+ *     without explicit permission.
  */
 
 (function() {

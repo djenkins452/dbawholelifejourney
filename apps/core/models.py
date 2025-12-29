@@ -1,10 +1,42 @@
 """
-Core Models - Base models inherited by other apps.
+Whole Life Journey - Core Models
 
-These abstract models provide common functionality:
-- Timestamps (created_at, updated_at)
-- Soft delete with 30-day retention
-- User ownership
+Project: Whole Life Journey
+Path: apps/core/models.py
+Purpose: Abstract base models and system-wide data models
+
+Description:
+    This module defines abstract base classes that provide common functionality
+    to all other models in the application, plus system-wide concrete models
+    for site configuration, theming, and feature tracking.
+
+Key Responsibilities:
+    - TimeStampedModel: Auto-updating created_at/updated_at timestamps
+    - SoftDeleteModel: Soft delete with 30-day retention before hard delete
+    - UserOwnedModel: User ownership with created_via tracking for AI features
+    - SiteConfiguration: Singleton for site-wide settings
+    - Theme: Database-driven theme configuration
+    - ChoiceCategory/ChoiceOption: Dynamic dropdown options for forms
+    - TestRun/TestRunDetail: Test execution history tracking
+    - CameraScan: Raw camera input for AI processing
+    - ReleaseNote: What's New feature content
+
+Design Patterns:
+    - Soft Delete: Records are marked deleted rather than removed, with 30-day
+      retention before permanent deletion. Managers filter deleted records
+      by default.
+    - Singleton: SiteConfiguration uses pk=1 enforcement for single instance
+    - Caching: Theme and choice lookups use Django cache for performance
+
+Dependencies:
+    - django.conf.settings for AUTH_USER_MODEL and WLJ_SETTINGS
+    - django.core.cache for performance optimization
+    - django.utils.timezone for datetime handling
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.conf import settings

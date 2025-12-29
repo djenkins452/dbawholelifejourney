@@ -1,7 +1,32 @@
 /**
- * AI-Driven Dashboard Styles
- * 
- * Styles for the AI-powered dashboard (templates/dashboard/home.html)
+ * Whole Life Journey - Dashboard Styles
+ *
+ * Project: Whole Life Journey
+ * Path: static/css/dashboard.css
+ * Purpose: Styles for the AI-powered dashboard and module tiles
+ *
+ * Description:
+ *     Dashboard-specific styles for the main landing page including
+ *     greeting header, AI insight sections, module tiles, celebrations,
+ *     and accountability nudges.
+ *
+ * Sections:
+ *     - Header (greeting, date, quick stats)
+ *     - AI Insights section
+ *     - Daily encouragement
+ *     - Module tiles (Journal, Health, Faith, Life, Purpose)
+ *     - Celebrations and nudges
+ *     - Medicine schedule section
+ *     - Recent workouts section
+ *
+ * Dependencies:
+ *     - main.css: Base styles and CSS custom properties
+ *     - themes.css: Theme-specific colors
+ *
+ * Copyright:
+ *     (c) Whole Life Journey. All rights reserved.
+ *     This code is proprietary and may not be copied, modified, or distributed
+ *     without explicit permission.
  */
 
 /* =============================================================================

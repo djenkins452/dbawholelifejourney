@@ -1,14 +1,37 @@
-/*
+/**
  * Whole Life Journey - Theme Styles
- * 
- * Six themes that shape the visual experience:
- * 1. Light - Clean, bright, modern
- * 2. Dark - Easy on the eyes, modern dark mode
- * 3. Faith - Peaceful, grounded, spiritually respectful
- * 4. Sports - Goal-driven, disciplined, focused
- * 5. Nature - Warm, calming, emotionally safe
- * 6. Outdoors - Curious, expansive, journey-focused
- * 7. Minimal - Quiet, clear, intentional (default)
+ *
+ * Project: Whole Life Journey
+ * Path: static/css/themes.css
+ * Purpose: Visual theme definitions with color palette overrides
+ *
+ * Description:
+ *     Defines seven themes that users can select to personalize their
+ *     experience. Each theme overrides CSS custom properties to change
+ *     colors throughout the application.
+ *
+ * Available Themes:
+ *     1. Minimal - Quiet, clear, intentional (default)
+ *     2. Light - Clean, bright, modern
+ *     3. Dark - Easy on the eyes, modern dark mode
+ *     4. Faith - Peaceful, grounded, spiritually respectful
+ *     5. Sports - Goal-driven, disciplined, focused
+ *     6. Nature - Warm, calming, emotionally safe
+ *     7. Outdoors - Curious, expansive, journey-focused
+ *
+ * Usage:
+ *     Themes are applied via data attribute on <body>:
+ *     <body data-theme="faith">
+ *
+ * Notes:
+ *     - Dark-header themes (Faith, Sports, Nature, Outdoors) have special
+ *       header styling with white text
+ *     - Mobile menu toggle contrast is handled for dark-header themes
+ *
+ * Copyright:
+ *     (c) Whole Life Journey. All rights reserved.
+ *     This code is proprietary and may not be copied, modified, or distributed
+ *     without explicit permission.
  */
 
 /* ==========================================================================

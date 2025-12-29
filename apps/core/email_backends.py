@@ -1,8 +1,33 @@
 """
-Custom Email Backend for Resend.
+Whole Life Journey - Resend Email Backend
 
-Resend is a modern email API that's simple to use and has a generous free tier.
-This backend integrates Resend with Django's email system.
+Project: Whole Life Journey
+Path: apps/core/email_backends.py
+Purpose: Custom Django email backend using Resend API
+
+Description:
+    Implements a Django email backend that sends emails through the Resend API.
+    Resend is a modern email API with a generous free tier that's ideal for
+    transactional emails like password resets and notifications.
+
+Key Responsibilities:
+    - Convert Django EmailMessage objects to Resend API format
+    - Handle plain text and HTML emails
+    - Support CC, BCC, and reply-to headers
+    - Fail gracefully if API key not configured
+
+Configuration:
+    Set RESEND_API_KEY in settings/environment variables.
+    Set EMAIL_BACKEND = "apps.core.email_backends.ResendEmailBackend"
+
+Dependencies:
+    - resend: Resend Python SDK (pip install resend)
+    - django.core.mail.backends.base.BaseEmailBackend
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.conf import settings

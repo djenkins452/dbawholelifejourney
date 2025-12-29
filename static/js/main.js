@@ -1,12 +1,31 @@
 /**
  * Whole Life Journey - Main JavaScript
  *
- * Minimal, purposeful JavaScript for:
- * - Navigation interactions
- * - User menu toggle
- * - Message dismissal
- * - HTMX enhancements
- * - Pull-to-refresh on mobile
+ * Project: Whole Life Journey
+ * Path: static/js/main.js
+ * Purpose: Core JavaScript for navigation, UI interactions, and HTMX enhancements
+ *
+ * Description:
+ *     Provides essential JavaScript functionality for the application including
+ *     navigation menu toggles, user menu interactions, message dismissal,
+ *     speech-to-text support, and HTMX response handling.
+ *
+ * Key Features:
+ *     - Mobile navigation toggle (hamburger menu)
+ *     - User dropdown menu with click-outside-to-close
+ *     - Flash message auto-dismiss
+ *     - Speech-to-text for journal entries
+ *     - Pull-to-refresh on mobile devices
+ *     - HTMX request/response handling
+ *
+ * Dependencies:
+ *     - HTMX (optional, for dynamic content loading)
+ *     - Web Speech API (optional, for speech-to-text)
+ *
+ * Copyright:
+ *     (c) Whole Life Journey. All rights reserved.
+ *     This code is proprietary and may not be copied, modified, or distributed
+ *     without explicit permission.
  */
 
 // ==========================================================================

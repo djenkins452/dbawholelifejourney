@@ -1,7 +1,42 @@
 """
-URL configuration for Whole Life Journey.
+Whole Life Journey - Main URL Configuration
 
-The main URL dispatcher that routes to all app-specific URLs.
+Project: Whole Life Journey
+Path: config/urls.py
+Purpose: Central URL routing for all application modules
+
+Description:
+    This is the root URL configuration that dispatches requests to all
+    app-specific URL patterns. It defines the main entry points for each
+    module and configures Django admin, authentication, and media serving.
+
+Key Responsibilities:
+    - Route requests to appropriate app URL configurations
+    - Configure Django admin at a custom secure path
+    - Include django-allauth authentication URLs
+    - Serve media files in both development and production
+    - Define custom 404/500 error handlers
+
+URL Namespaces:
+    - core: Landing page, terms, about pages
+    - users: Profile, preferences, onboarding
+    - dashboard: Main dashboard and widgets
+    - journal: Journal entries and prompts
+    - faith: Scripture, prayer, devotionals
+    - health: Fitness, nutrition, medicine tracking
+    - life: Tasks, projects, inventory, events
+    - purpose: Goals, vision, direction
+    - help: Context-aware help system
+    - scan: AI Camera scanning feature
+
+Security Notes:
+    - Admin URL uses configurable path (ADMIN_URL_PATH) to reduce attack surface
+    - Custom error handlers for consistent user experience
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.conf import settings

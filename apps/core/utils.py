@@ -1,7 +1,34 @@
 """
-Core Utilities - Shared helper functions across the app.
+Whole Life Journey - Core Utilities
 
-apps/core/utils.py
+Project: Whole Life Journey
+Path: apps/core/utils.py
+Purpose: Shared helper functions used across all application modules
+
+Description:
+    This module provides common utility functions that are used by multiple
+    apps. Includes timezone handling for users and security utilities
+    for safe URL redirects.
+
+Key Functions:
+    - get_user_today: Get today's date in user's configured timezone
+    - get_user_now: Get current datetime in user's timezone
+    - is_safe_redirect_url: Validate URLs to prevent open redirect attacks
+    - get_safe_redirect_url: Extract safe redirect URL from request
+
+Security Notes:
+    The redirect URL functions prevent open redirect vulnerabilities by
+    validating that URLs are either relative or to the same host. This
+    protects against attackers using our site to redirect to malicious sites.
+
+Dependencies:
+    - pytz: Timezone handling
+    - django.utils.http.url_has_allowed_host_and_scheme: URL validation
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 import pytz

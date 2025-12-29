@@ -1,7 +1,44 @@
 """
-Django settings for Whole Life Journey.
+Whole Life Journey - Django Settings Configuration
 
-A personal life operating system built with calm, clarity, and intention.
+Project: Whole Life Journey
+Path: config/settings.py
+Purpose: Central Django configuration for the personal wellness/journaling application
+
+Description:
+    This file contains all Django settings for the Whole Life Journey application.
+    It configures database connections, authentication, static/media files, security
+    settings, logging, third-party integrations, and application-specific options.
+
+Key Responsibilities:
+    - Configure Django core settings (installed apps, middleware, templates)
+    - Database configuration (PostgreSQL for production, SQLite for development)
+    - Authentication via django-allauth with email-based login
+    - Static files served via WhiteNoise, media files via Cloudinary
+    - Security settings (HTTPS, CSRF, rate limiting via django-axes)
+    - OpenAI API integration for AI coaching features
+    - Cloudinary integration for user-uploaded media
+    - Logging configuration with rotating file handlers
+
+Dependencies:
+    - django-environ: Environment variable parsing
+    - django-allauth: Authentication system
+    - django-axes: Rate limiting for login attempts
+    - whitenoise: Static file serving
+    - cloudinary: Media file storage
+    - openai: AI coaching features
+
+Environment Variables Required:
+    - SECRET_KEY: Django secret key (required)
+    - DATABASE_URL: PostgreSQL connection string (optional, defaults to SQLite)
+    - OPENAI_API_KEY: OpenAI API key for AI features
+    - CLOUDINARY_*: Cloud storage credentials
+    - BIBLE_API_KEY: API.Bible key for Scripture lookups
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 import os

@@ -1,5 +1,21 @@
 """
-Dashboard Admin Configuration
+Whole Life Journey - Dashboard Admin Configuration
+
+Project: Whole Life Journey
+Path: apps/dashboard/admin.py
+Purpose: Django admin interface configuration for dashboard models
+
+Description:
+    Configures the Django admin interface for managing dashboard models,
+    primarily the DailyEncouragement messages.
+
+Registered Models:
+    - DailyEncouragementAdmin: Manage curated encouragement messages
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
 """
 
 from django.contrib import admin

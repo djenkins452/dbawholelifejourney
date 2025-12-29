@@ -17,6 +17,21 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Fasting Edit Feature
+Added ability to edit completed fasts to correct start/end times.
+
+**Files Modified:**
+- `templates/health/fasting_list.html` - Added Edit button to completed fasts in history
+- `apps/health/forms.py` - Updated `FastingWindowForm` to convert UTC times to user's local timezone when editing
+- `templates/health/fasting_form.html` - Fixed end time field to use proper timezone-aware initial values
+
+**Functionality:**
+- Users can now edit any completed fast from the fasting history list
+- Start time and end time fields display in user's local timezone
+- Times are correctly converted back to UTC when saved
+
+---
+
 ### Delete Button Added to Nutrition Food Entries
 Added a Delete button next to the Edit button on the nutrition home page for easier food entry management.
 

@@ -103,15 +103,38 @@ When adding/modifying any third-party service: Update `THIRD_PARTY_SERVICES.md` 
 ### Starting a New Session
 Say: **"Read CLAUDE.md and continue"** - this gives full project context.
 
+### MANDATORY: Documentation Updates
+**After ANY code changes, you MUST update the relevant documentation files:**
+
+1. **`CLAUDE_CHANGELOG.md`** - Update for ANY changes made during the session
+   - Add new section with date if needed
+   - Document what changed, files modified, and why
+   - Include migration names if any were created
+
+2. **`CLAUDE_FEATURES.md`** - Update when modifying or adding features
+   - Camera Scan, Nutrition, Medicine, Dashboard AI, etc.
+   - Keep feature documentation current with actual functionality
+
+3. **`CLAUDE.md`** - Update when:
+   - Test count changes significantly
+   - New apps or major architecture changes
+   - New deployment patterns or important files
+
+4. **`THIRD_PARTY_SERVICES.md`** - Update when adding/modifying external services
+
+**DO NOT wait for user to ask** - update documentation automatically as part of completing each task.
+
 ### End of Session Tasks
 1. Run `git log --oneline -20` to see recent commits
-2. Update `CLAUDE_CHANGELOG.md` with any new fixes
-3. Commit and push changes with descriptive message
+2. Update `CLAUDE_CHANGELOG.md` with any new fixes (if not already done)
+3. Verify all .md files are current
+4. Commit and push changes with descriptive message
 
 ### After Making Code Changes
 1. Run tests: `python manage.py test` or `python run_tests.py`
 2. If new features, check if tests exist in `apps/<app>/tests/`
 3. Create missing tests following existing patterns
+4. **Update relevant .md documentation files**
 
 ## Development Setup
 

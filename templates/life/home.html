@@ -435,15 +435,21 @@
 }
 
 .task-checkbox-form {
-    display: contents;
+    /* Remove display: contents which can cause click issues */
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0;
 }
 
 .task-checkbox {
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
     background: none;
     border: none;
-    padding: 0;
+    padding: 4px;
+    margin: 0;
     cursor: pointer;
     color: var(--color-text-muted);
     transition: color var(--transition-fast);
@@ -453,16 +459,24 @@
     align-items: center;
     justify-content: center;
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
 }
 
 .task-checkbox:hover {
     color: var(--color-accent);
 }
 
+.task-checkbox:active {
+    transform: scale(0.95);
+}
+
 .task-checkbox svg {
     width: 20px;
     height: 20px;
     pointer-events: none;
+    display: block;
 }
 
 /* Task completion popup */

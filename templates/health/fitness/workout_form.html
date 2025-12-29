@@ -17,12 +17,13 @@
 
     <div class="page-header">
         <h1 class="page-title">{% if editing %}Edit{% else %}Log{% endif %} Workout</h1>
-        <!-- Rest Timer Display -->
-        <div id="restTimerContainer" class="rest-timer-container" style="display: none;">
-            <div class="rest-timer">
-                <span class="rest-label">Rest:</span>
-                <span id="restTimerDisplay" class="rest-time">0:00</span>
-            </div>
+    </div>
+
+    <!-- Floating Rest Timer (fixed position, visible from anywhere on page) -->
+    <div id="restTimerContainer" class="rest-timer-container" style="display: none;">
+        <div class="rest-timer">
+            <span class="rest-label">Rest:</span>
+            <span id="restTimerDisplay" class="rest-time">0:00</span>
         </div>
     </div>
 
@@ -249,10 +250,15 @@
 }
 
 .rest-timer-container {
+    position: fixed;
+    bottom: var(--space-4);
+    right: var(--space-4);
     background: var(--color-surface);
     border: 2px solid var(--color-accent);
     border-radius: var(--radius-lg);
-    padding: var(--space-2) var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
 }
 
 .rest-timer {
@@ -267,11 +273,16 @@
 }
 
 .rest-time {
-    font-size: var(--font-size-xl);
+    font-size: var(--font-size-2xl, 1.5rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--color-accent);
-    min-width: 50px;
+    min-width: 60px;
+}
+
+.rest-timer-container.warning {
+    border-color: var(--color-warning, #f59e0b);
+    animation: pulse-warning 1s ease-in-out infinite;
 }
 
 .rest-timer-container.warning .rest-time {
@@ -280,6 +291,11 @@
 
 .rest-timer-container.stopped .rest-time {
     color: var(--color-text-muted);
+}
+
+@keyframes pulse-warning {
+    0%, 100% { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+    50% { box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4); }
 }
 
 .workout-status-banner {
@@ -651,8 +667,14 @@
     }
 
     .rest-timer-container {
-        width: 100%;
+        bottom: var(--space-3);
+        right: var(--space-3);
+        left: var(--space-3);
         text-align: center;
+    }
+
+    .rest-time {
+        font-size: var(--font-size-3xl, 1.875rem);
     }
 }
 </style>

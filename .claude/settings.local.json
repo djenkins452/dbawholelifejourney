@@ -35,7 +35,9 @@
       "Bash(powershell -NoProfile -Command:*)",
       "Bash(curl:*)",
       "Bash(git branch:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(python -c:*)",
+      "Bash(python manage.py shell:*)"
     ]
   }
 }

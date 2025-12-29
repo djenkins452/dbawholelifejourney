@@ -90,7 +90,10 @@
                     <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
                     <div class="food-actions">
                         <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
-                        <a href="{% url 'health:food_entry_delete' entry.pk %}" class="btn btn-text btn-xs text-danger" onclick="return confirm('Delete this entry?')">Delete</a>
+                        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this entry?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-text btn-xs text-danger">Delete</button>
+                        </form>
                     </div>
                 </div>
                 {% endfor %}
@@ -118,7 +121,10 @@
                     <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
                     <div class="food-actions">
                         <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
-                        <a href="{% url 'health:food_entry_delete' entry.pk %}" class="btn btn-text btn-xs text-danger" onclick="return confirm('Delete this entry?')">Delete</a>
+                        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this entry?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-text btn-xs text-danger">Delete</button>
+                        </form>
                     </div>
                 </div>
                 {% endfor %}
@@ -146,7 +152,10 @@
                     <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
                     <div class="food-actions">
                         <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
-                        <a href="{% url 'health:food_entry_delete' entry.pk %}" class="btn btn-text btn-xs text-danger" onclick="return confirm('Delete this entry?')">Delete</a>
+                        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this entry?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-text btn-xs text-danger">Delete</button>
+                        </form>
                     </div>
                 </div>
                 {% endfor %}
@@ -174,7 +183,10 @@
                     <div class="food-calories">{{ entry.total_calories|floatformat:0 }} cal</div>
                     <div class="food-actions">
                         <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
-                        <a href="{% url 'health:food_entry_delete' entry.pk %}" class="btn btn-text btn-xs text-danger" onclick="return confirm('Delete this entry?')">Delete</a>
+                        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this entry?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-text btn-xs text-danger">Delete</button>
+                        </form>
                     </div>
                 </div>
                 {% endfor %}
@@ -384,6 +396,13 @@
 .food-actions {
     display: flex;
     gap: var(--space-2);
+    align-items: center;
+}
+
+.inline-form {
+    display: inline;
+    margin: 0;
+    padding: 0;
 }
 
 .text-danger {

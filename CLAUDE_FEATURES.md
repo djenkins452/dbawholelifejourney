@@ -295,9 +295,14 @@ Log food consumption, track macros, set nutrition goals, view daily/historical s
 - **Hunger/Fullness Tracking**: 1-5 scale
 - **Net Carbs**: Auto-calculated (carbs - fiber)
 - **Macro Percentages**: Auto-calculated in DailyNutritionSummary
+- **Quick Edit/Delete**: Edit and Delete buttons on nutrition home for each entry
+- **All Nutritional Fields Optional**: Can log food without knowing exact macros
+
+### Camera Scan Integration
+Food entries can be pre-filled from camera scans. See [Camera Scan Feature](#camera-scan-feature) for details.
 
 ### Tests
-`apps/health/tests/test_nutrition.py` - 80 tests
+`apps/health/tests/test_nutrition.py` - 81 tests
 
 ---
 
@@ -349,17 +354,44 @@ OpenAI Vision API integration for scanning items and routing to appropriate modu
 - Rate limiting
 - Magic bytes validation
 
+### Food Recognition (Enhanced 2025-12-29)
+When food is detected, the system:
+
+1. **For Packaged/Branded Foods** (protein bars, snacks, drinks):
+   - Identifies brand name and full product name
+   - Looks up ACTUAL nutritional data from AI knowledge base
+   - Returns accurate calories, protein, carbs, fat, fiber, sugar, saturated fat
+   - Includes standard serving size from nutrition label
+
+2. **For Home-Cooked/Restaurant Food**:
+   - Estimates portion size visually
+   - Uses common nutritional data for identified foods
+   - Considers typical preparation methods visible
+
+3. **Data Pre-filled to Form**:
+   - Food Name (product name or description)
+   - Brand (for packaged foods)
+   - All macros (calories, protein, carbs, fat)
+   - Fiber, sugar, saturated fat
+   - Serving size and unit
+   - Meal type (breakfast, lunch, dinner, snack)
+   - Notes (description)
+
+4. **Entry Source Tracking**:
+   - `entry_source = 'camera'` set automatically
+   - `source=ai_camera` added to URL for tracking
+
 ### Architecture
 See `docs/CAMERA_SCAN_ARCHITECTURE.md` for full details.
 
 ### Key Files
-- `apps/scan/views.py` - CameraScanView
-- `apps/scan/services/vision.py` - OpenAI Vision integration
-- `templates/scan/camera.html` - Camera UI
-- `static/js/camera.js` - Camera JavaScript
+- `apps/scan/views.py` - ScanHomeView, ScanAnalyzeView
+- `apps/scan/services/vision.py` - OpenAI Vision integration, `_build_actions()`
+- `apps/health/views.py` - FoodEntryCreateView (accepts prefill params)
+- `templates/scan/scan_page.html` - Camera UI
 
 ### Tests
-`apps/scan/tests/` - 70 tests
+`apps/scan/tests/` - 93 tests
 
 ---
 

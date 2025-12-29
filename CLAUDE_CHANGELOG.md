@@ -17,7 +17,39 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
-### Food Recognition from Camera Scan
+### Delete Button Added to Nutrition Food Entries
+Added a Delete button next to the Edit button on the nutrition home page for easier food entry management.
+
+**Changes:**
+- Added Delete link with confirmation prompt for all meal sections (Breakfast, Lunch, Dinner, Snacks)
+- Added CSS styling for `.text-danger` class and `.food-actions` layout
+
+**Files Modified:**
+- `templates/health/nutrition/home.html` - Added delete buttons and styling
+
+---
+
+### Enhanced Food Recognition for Packaged/Branded Foods
+Enhanced the camera scan feature to recognize branded/packaged foods and look up actual nutritional data.
+
+**Changes:**
+- Updated vision prompt with examples for packaged foods (e.g., Aloha protein bars)
+- AI now looks up actual nutritional data from its knowledge base for recognized brands
+- Added brand field extraction and URL parameter passing
+- Made all nutritional fields optional in `FoodEntryForm` (calories, protein, carbs, fat, etc.)
+- Added `default=0` to `total_calories` field in FoodEntry model
+
+**Files Modified:**
+- `apps/scan/services/vision.py` - Enhanced prompt with branded food examples, updated `_build_actions`
+- `apps/health/forms.py` - Made nutritional fields optional
+- `apps/health/models.py` - Added default=0 to total_calories
+
+**New Migration:**
+- `0008_make_total_calories_default_zero.py`
+
+---
+
+### Food Recognition from Camera Scan (Initial Implementation)
 Enhanced the camera scan feature to recognize food and extract detailed nutritional information.
 
 **Changes:**
@@ -35,9 +67,9 @@ Enhanced the camera scan feature to recognize food and extract detailed nutritio
 
 **Flow:**
 1. User takes picture of food
-2. AI recognizes food and estimates nutritional values
+2. AI recognizes food and estimates nutritional values (or looks up branded food data)
 3. User clicks "Log to Nutrition"
-4. Food entry form opens with all fields pre-filled
+4. Food entry form opens with all fields pre-filled (name, brand, calories, macros, serving info)
 5. User confirms or adjusts values and saves
 
 ---

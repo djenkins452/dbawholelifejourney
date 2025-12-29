@@ -23,8 +23,9 @@ For core project context, see `CLAUDE.md`.
 4. [Dashboard AI Personal Assistant](#dashboard-ai-personal-assistant)
 5. [Nutrition/Food Tracking](#nutritionfood-tracking)
 6. [Medicine Tracking](#medicine-tracking)
-7. [Camera Scan Feature](#camera-scan-feature)
-8. [Biometric Login](#biometric-login)
+7. [Vitals Tracking](#vitals-tracking)
+8. [Camera Scan Feature](#camera-scan-feature)
+9. [Biometric Login](#biometric-login)
 
 ---
 
@@ -320,21 +321,101 @@ Daily tracker, adherence stats, PRN support, refill tracking, dashboard integrat
 - Missed/Overdue detection with configurable grace period
 - History & Adherence views
 - Quick Look for screenshots
-- Refill alerts
+- Refill alerts with request tracking
 - Pause/resume without losing history
 
+### Refill Request Status (Added 2025-12-29)
+Users can mark a medicine as "refill requested" to track that they've already called in/submitted a refill:
+
+1. When supply is low, medicine detail page shows "Request Refill" button
+2. Clicking it sets `refill_requested=True` and `refill_requested_at` timestamp
+3. Dashboard shows "Refill Requested" status instead of "needs refill"
+4. When refill arrives, user clicks "Refill Received" to clear the status
+
+**Fields on Medicine model:**
+- `refill_requested` (Boolean, default False)
+- `refill_requested_at` (DateTime, nullable)
+
+**Methods:**
+- `medicine.request_refill()` - Sets refill as requested
+- `medicine.clear_refill_request()` - Clears after refill received
+- `medicine.refill_status` - Returns 'requested', 'needed', or None
+
 ### Models
-- `Medicine` - The medication itself
+- `Medicine` - The medication itself (includes refill_requested fields)
 - `MedicineSchedule` - When to take it (days, times)
 - `MedicineLog` - Individual dose records (taken, missed, skipped)
 
 ### Dashboard Integration
 - Today's Medicine Schedule with status badges
 - Medicine adherence rate in AI insights
-- Refill alerts as nudges
+- Refill alerts as nudges (differentiates "needs refill" vs "refill requested")
 
 ### Tests
 `apps/health/tests/test_medicine.py` - 77 tests
+
+---
+
+## Vitals Tracking
+
+### Overview
+Track blood pressure and blood oxygen (SpO2) readings with automatic categorization.
+
+### Blood Pressure Tracking (Added 2025-12-29)
+Records systolic and diastolic pressure with context.
+
+**Model: `BloodPressureEntry`**
+- `systolic` - Top number (mmHg)
+- `diastolic` - Bottom number (mmHg)
+- `pulse` - Optional pulse reading
+- `context` - When measured (resting, morning, evening, post_exercise, stressed, relaxed, other)
+- `arm` - Which arm (left, right)
+- `position` - Body position (sitting, standing, lying)
+- `recorded_at` - Timestamp
+- `notes` - Optional notes
+
+**Categorization (AHA Guidelines):**
+- Normal: <120/<80
+- Elevated: 120-129/<80
+- High Stage 1: 130-139/80-89
+- High Stage 2: ≥140/≥90
+- Crisis: ≥180/≥120
+
+**URLs:**
+- `/health/blood-pressure/` - List view
+- `/health/blood-pressure/log/` - Create
+- `/health/blood-pressure/<pk>/edit/` - Update
+- `/health/blood-pressure/<pk>/delete/` - Delete
+
+### Blood Oxygen Tracking (Added 2025-12-29)
+Records SpO2 saturation percentage with context.
+
+**Model: `BloodOxygenEntry`**
+- `spo2` - Oxygen saturation percentage
+- `pulse` - Optional pulse reading
+- `context` - When measured (resting, morning, active, post_exercise, sleeping, illness, other)
+- `measurement_method` - Device type (finger, wrist, ear, other)
+- `recorded_at` - Timestamp
+- `notes` - Optional notes
+
+**Categorization:**
+- Normal: ≥95%
+- Low: 90-94%
+- Concerning: 85-89%
+- Critical: <85%
+
+**URLs:**
+- `/health/blood-oxygen/` - List view
+- `/health/blood-oxygen/log/` - Create
+- `/health/blood-oxygen/<pk>/edit/` - Update
+- `/health/blood-oxygen/<pk>/delete/` - Delete
+
+### Health Home Integration
+Both vitals appear as cards on the Health home page (`/health/`) with:
+- Latest reading
+- Category badge (color-coded)
+- Average stats
+- Links to full history
 
 ---
 

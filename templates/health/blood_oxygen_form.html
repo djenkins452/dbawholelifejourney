@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Log{% endif %} Blood Oxygen - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:blood_oxygen_list' %}">Blood Oxygen</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Log{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Log{% endif %} Blood Oxygen (SpO2)</h1>
+    </div>
+
+    <form method="post" class="card">
+        {% csrf_token %}
+
+        <div class="form-row-2">
+            <div class="form-group">
+                <label for="id_spo2" class="form-label">SpO2 %</label>
+                <input
+                    type="number"
+                    name="spo2"
+                    id="id_spo2"
+                    class="form-input"
+                    value="{{ form.spo2.value|default:'' }}"
+                    placeholder="e.g., 98"
+                    min="50"
+                    max="100"
+                    required
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="id_pulse" class="form-label">Pulse (optional)</label>
+                <input
+                    type="number"
+                    name="pulse"
+                    id="id_pulse"
+                    class="form-input"
+                    value="{{ form.pulse.value|default:'' }}"
+                    placeholder="e.g., 72"
+                    min="30"
+                    max="250"
+                >
+            </div>
+        </div>
+
+        <div class="spo2-guide">
+            <h3>Blood Oxygen Levels</h3>
+            <div class="guide-grid">
+                <div class="guide-item guide-normal">
+                    <strong>Normal:</strong>
+                    <span>95-100%</span>
+                </div>
+                <div class="guide-item guide-low">
+                    <strong>Low:</strong>
+                    <span>90-94%</span>
+                </div>
+                <div class="guide-item guide-concerning">
+                    <strong>Concerning:</strong>
+                    <span>85-89%</span>
+                </div>
+                <div class="guide-item guide-critical">
+                    <strong>Critical:</strong>
+                    <span>&lt;85%</span>
+                </div>
+            </div>
+            <p class="text-muted text-sm mt-2">
+                <em>Note: If your SpO2 is consistently below 95% or drops below 90%, consult a healthcare provider.</em>
+            </p>
+        </div>
+
+        <div class="form-row-2">
+            <div class="form-group">
+                <label for="id_context" class="form-label">When</label>
+                <select name="context" id="id_context" class="form-select">
+                    {% for value, label in form.fields.context.choices %}
+                        <option value="{{ value }}" {% if form.context.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_measurement_method" class="form-label">Measurement Method</label>
+                <select name="measurement_method" id="id_measurement_method" class="form-select">
+                    {% for value, label in form.fields.measurement_method.choices %}
+                        <option value="{{ value }}" {% if form.measurement_method.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_recorded_at" class="form-label">Date & Time</label>
+            <input
+                type="datetime-local"
+                name="recorded_at"
+                id="id_recorded_at"
+                class="form-input"
+                value="{{ form.recorded_at.value|date:'Y-m-d\TH:i'|default:'' }}"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes" class="form-label">Notes (optional)</label>
+            <textarea
+                name="notes"
+                id="id_notes"
+                class="form-textarea"
+                placeholder="Any notes about this reading..."
+                rows="2"
+            >{{ form.notes.value|default:'' }}</textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Log Blood Oxygen{% endif %}
+            </button>
+            <a href="{% url 'health:blood_oxygen_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-row-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row-2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+.spo2-guide {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.spo2-guide h3 {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+}
+
+.guide-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: var(--space-3);
+}
+
+.guide-item {
+    font-size: var(--font-size-sm);
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.guide-item strong {
+    display: block;
+}
+
+.guide-normal {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+}
+
+.guide-low {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+}
+
+.guide-concerning {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+}
+
+.guide-critical {
+    background: var(--color-error);
+    color: white;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

@@ -335,11 +335,15 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         total_scheduled = taken_count + missed_count
         adherence_rate = round((taken_count / total_scheduled) * 100) if total_scheduled > 0 else None
 
-        # Medicines needing refill
+        # Medicines needing refill (exclude those with refill already requested)
         needs_refill = active_medicines.filter(
             current_supply__isnull=False,
-            current_supply__lte=models.F('refill_threshold')
+            current_supply__lte=models.F('refill_threshold'),
+            refill_requested=False
         )
+
+        # Medicines with refill requested
+        refill_requested = active_medicines.filter(refill_requested=True)
 
         # =====================
         # Workout Tracking
@@ -390,6 +394,8 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "medicine_adherence_rate": adherence_rate,
             "medicines_need_refill": list(needs_refill),
             "medicines_need_refill_count": needs_refill.count(),
+            "medicines_refill_requested": list(refill_requested),
+            "medicines_refill_requested_count": refill_requested.count(),
             # Workout data
             "workouts_this_week": workouts_week.count(),
             "recent_workouts": list(recent_workouts),
@@ -759,7 +765,17 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "action_text": "View Schedule"
             })
 
-        # Medicines needing refill
+        # Medicines with refill requested (show first if any)
+        refill_requested_count = user_data.get("medicines_refill_requested_count", 0)
+        if refill_requested_count > 0:
+            nudges.append({
+                "type": "refill_requested",
+                "count": refill_requested_count,
+                "action_url": "/health/medicine/",
+                "action_text": "View Status"
+            })
+
+        # Medicines needing refill (not yet requested)
         refill_count = user_data.get("medicines_need_refill_count", 0)
         if refill_count > 0:
             nudges.append({

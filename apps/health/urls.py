@@ -37,6 +37,18 @@ urlpatterns = [
     path("glucose/<int:pk>/edit/", views.GlucoseUpdateView.as_view(), name="glucose_update"),
     path("glucose/<int:pk>/delete/", views.GlucoseDeleteView.as_view(), name="glucose_delete"),
 
+    # Blood Pressure
+    path("blood-pressure/", views.BloodPressureListView.as_view(), name="blood_pressure_list"),
+    path("blood-pressure/log/", views.BloodPressureCreateView.as_view(), name="blood_pressure_create"),
+    path("blood-pressure/<int:pk>/edit/", views.BloodPressureUpdateView.as_view(), name="blood_pressure_update"),
+    path("blood-pressure/<int:pk>/delete/", views.BloodPressureDeleteView.as_view(), name="blood_pressure_delete"),
+
+    # Blood Oxygen
+    path("blood-oxygen/", views.BloodOxygenListView.as_view(), name="blood_oxygen_list"),
+    path("blood-oxygen/log/", views.BloodOxygenCreateView.as_view(), name="blood_oxygen_create"),
+    path("blood-oxygen/<int:pk>/edit/", views.BloodOxygenUpdateView.as_view(), name="blood_oxygen_update"),
+    path("blood-oxygen/<int:pk>/delete/", views.BloodOxygenDeleteView.as_view(), name="blood_oxygen_delete"),
+
     # Quick log (HTMX)
     path("quick-log/", views.QuickLogView.as_view(), name="quick_log"),
 
@@ -61,6 +73,8 @@ urlpatterns = [
     path("medicine/history/", views.MedicineHistoryView.as_view(), name="medicine_history"),
     path("medicine/adherence/", views.MedicineAdherenceView.as_view(), name="medicine_adherence"),
     path("medicine/quick-look/", views.MedicineQuickLookView.as_view(), name="medicine_quick_look"),
+    path("medicine/<int:pk>/request-refill/", views.MedicineRequestRefillView.as_view(), name="medicine_request_refill"),
+    path("medicine/<int:pk>/clear-refill/", views.MedicineClearRefillView.as_view(), name="medicine_clear_refill"),
 
     # Fitness
     path("fitness/", views.FitnessHomeView.as_view(), name="fitness_home"),

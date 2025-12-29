@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Log{% endif %} Blood Pressure - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:blood_pressure_list' %}">Blood Pressure</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Log{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Log{% endif %} Blood Pressure</h1>
+    </div>
+
+    <form method="post" class="card">
+        {% csrf_token %}
+
+        <div class="form-row-3">
+            <div class="form-group">
+                <label for="id_systolic" class="form-label">Systolic (top)</label>
+                <input
+                    type="number"
+                    name="systolic"
+                    id="id_systolic"
+                    class="form-input"
+                    value="{{ form.systolic.value|default:'' }}"
+                    placeholder="e.g., 120"
+                    min="60"
+                    max="250"
+                    required
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="id_diastolic" class="form-label">Diastolic (bottom)</label>
+                <input
+                    type="number"
+                    name="diastolic"
+                    id="id_diastolic"
+                    class="form-input"
+                    value="{{ form.diastolic.value|default:'' }}"
+                    placeholder="e.g., 80"
+                    min="40"
+                    max="150"
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="id_pulse" class="form-label">Pulse (optional)</label>
+                <input
+                    type="number"
+                    name="pulse"
+                    id="id_pulse"
+                    class="form-input"
+                    value="{{ form.pulse.value|default:'' }}"
+                    placeholder="e.g., 72"
+                    min="30"
+                    max="250"
+                >
+            </div>
+        </div>
+
+        <div class="bp-guide">
+            <h3>Blood Pressure Categories (AHA)</h3>
+            <div class="guide-grid">
+                <div class="guide-item guide-normal">
+                    <strong>Normal:</strong>
+                    <span>&lt;120/80</span>
+                </div>
+                <div class="guide-item guide-elevated">
+                    <strong>Elevated:</strong>
+                    <span>120-129/&lt;80</span>
+                </div>
+                <div class="guide-item guide-high1">
+                    <strong>High Stage 1:</strong>
+                    <span>130-139/80-89</span>
+                </div>
+                <div class="guide-item guide-high2">
+                    <strong>High Stage 2:</strong>
+                    <span>≥140/≥90</span>
+                </div>
+            </div>
+            <p class="text-muted text-sm mt-2">
+                <em>Note: These are general guidelines. Consult your healthcare provider for personalized targets.</em>
+            </p>
+        </div>
+
+        <div class="form-row-3">
+            <div class="form-group">
+                <label for="id_context" class="form-label">When</label>
+                <select name="context" id="id_context" class="form-select">
+                    {% for value, label in form.fields.context.choices %}
+                        <option value="{{ value }}" {% if form.context.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_arm" class="form-label">Arm</label>
+                <select name="arm" id="id_arm" class="form-select">
+                    {% for value, label in form.fields.arm.choices %}
+                        <option value="{{ value }}" {% if form.arm.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_position" class="form-label">Position</label>
+                <select name="position" id="id_position" class="form-select">
+                    {% for value, label in form.fields.position.choices %}
+                        <option value="{{ value }}" {% if form.position.value == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_recorded_at" class="form-label">Date & Time</label>
+            <input
+                type="datetime-local"
+                name="recorded_at"
+                id="id_recorded_at"
+                class="form-input"
+                value="{{ form.recorded_at.value|date:'Y-m-d\TH:i'|default:'' }}"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes" class="form-label">Notes (optional)</label>
+            <textarea
+                name="notes"
+                id="id_notes"
+                class="form-textarea"
+                placeholder="Any notes about this reading..."
+                rows="2"
+            >{{ form.notes.value|default:'' }}</textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Log Blood Pressure{% endif %}
+            </button>
+            <a href="{% url 'health:blood_pressure_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-row-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+.bp-guide {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.bp-guide h3 {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+}
+
+.guide-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: var(--space-3);
+}
+
+.guide-item {
+    font-size: var(--font-size-sm);
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.guide-item strong {
+    display: block;
+}
+
+.guide-normal {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+}
+
+.guide-elevated {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+}
+
+.guide-high1,
+.guide-high2 {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

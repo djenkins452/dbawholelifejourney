@@ -745,7 +745,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             nudges.append({
                 "type": "medicine",
                 "count": pending_doses,
-                "action_url": "/health/medicine/tracker/",
+                "action_url": "/health/medicine/",
                 "action_text": "Open Tracker"
             })
 

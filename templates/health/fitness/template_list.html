@@ -59,6 +59,9 @@
                         <a href="{% url 'health:template_update' template.pk %}" class="btn btn-secondary btn-sm">
                             Edit
                         </a>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('{% url 'health:template_delete' template.pk %}', '{{ template.name|escapejs }}')">
+                            Delete
+                        </button>
                     </div>
                 </div>
             {% endfor %}
@@ -225,4 +228,19 @@
     }
 }
 </style>
+
+<!-- Hidden form for delete -->
+<form id="deleteForm" method="post" style="display: none;">
+    {% csrf_token %}
+</form>
+
+<script>
+function confirmDelete(url, name) {
+    if (confirm('Delete "' + name + '"? This cannot be undone.')) {
+        const form = document.getElementById('deleteForm');
+        form.action = url;
+        form.submit();
+    }
+}
+</script>
 {% endblock %}

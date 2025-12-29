@@ -17,6 +17,32 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Dashboard Current Fast Widget
+Added a prominent widget on the dashboard showing the current active fast with a real-time updating timer.
+
+**Features:**
+- Real-time updating timer showing hours:minutes:seconds since fast started
+- Progress bar toward target hours (when target is set)
+- Fast type display (16:8, 18:6, OMAD, etc.)
+- Quick action buttons to End Fast or View Details
+- Green-themed styling to match health/fasting theme
+- Responsive design for mobile devices
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Added current fast widget section with JavaScript timer
+- `static/css/dashboard.css` - Added `.current-fast-section`, `.fast-card`, `.fast-timer`, and related styles
+
+**Technical Details:**
+- Widget only displays when `health_enabled` and `user_data.active_fast` exist
+- JavaScript reads `data-started` attribute (ISO format) to calculate elapsed time
+- Timer updates every second using `setInterval`
+- Progress bar updates dynamically toward target hours
+- End Fast button uses confirmation dialog
+
+**Test Status:** All 350 dashboard/health tests passing
+
+---
+
 ### Assistant Priorities - Completion Tracking & Positive Feedback
 Fixed issues with the Dashboard AI assistant's "Today's Priorities" feature to properly track completions and provide positive reinforcement.
 

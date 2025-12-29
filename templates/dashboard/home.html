@@ -180,7 +180,53 @@
         {% endif %}
     </section>
     {% endif %}
-    
+
+    <!-- Current Fast Widget (if active) -->
+    {% if health_enabled and user_data.active_fast %}
+    <section class="current-fast-section">
+        <div class="fast-card">
+            <div class="fast-header">
+                <div class="fast-icon-wrapper">
+                    <span class="fast-icon">🕐</span>
+                </div>
+                <div class="fast-title-area">
+                    <span class="fast-badge">Fasting Now</span>
+                    <span class="fast-type">{{ user_data.active_fast.get_fasting_type_display }}</span>
+                </div>
+            </div>
+            <div class="fast-timer-container">
+                <div class="fast-timer"
+                     id="fast-timer"
+                     data-started="{{ user_data.active_fast.started_at|date:'c' }}"
+                     data-target="{{ user_data.active_fast.target_hours|default:'0' }}">
+                    <span class="timer-value" id="timer-hours">--</span>
+                    <span class="timer-separator">:</span>
+                    <span class="timer-value" id="timer-minutes">--</span>
+                    <span class="timer-separator">:</span>
+                    <span class="timer-value" id="timer-seconds">--</span>
+                </div>
+                <span class="timer-label">hours : minutes : seconds</span>
+            </div>
+            {% if user_data.active_fast.target_hours %}
+            <div class="fast-progress-container">
+                <div class="fast-progress-bar">
+                    <div class="fast-progress-fill" id="fast-progress" style="width: {{ user_data.active_fast.progress_percent|floatformat:0 }}%"></div>
+                </div>
+                <div class="fast-progress-labels">
+                    <span class="progress-current" id="progress-hours">{{ user_data.active_fast.duration_display }}</span>
+                    <span class="progress-target">Target: {{ user_data.active_fast.target_hours }}h</span>
+                </div>
+            </div>
+            {% endif %}
+            <div class="fast-actions">
+                <a href="{% url 'health:fasting_end' user_data.active_fast.pk %}" class="btn btn-primary btn-sm fast-end-btn"
+                   onclick="return confirm('End your fast now?');">End Fast</a>
+                <a href="{% url 'health:fasting_list' %}" class="btn btn-secondary btn-sm">View Details</a>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Quick Actions Grid -->
     <section class="quick-actions-section">
         <h2 class="section-title">Quick Actions</h2>
@@ -406,4 +452,77 @@
     </section>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if health_enabled and user_data.active_fast %}
+<script>
+// ==============================================================================
+// File: dashboard fast timer (inline)
+// Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+// Description: Real-time updating timer for active fasting display on dashboard
+// Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+// Created: 2025-12-29
+// Last Updated: 2025-12-29
+// ==============================================================================
+
+(function() {
+    'use strict';
+
+    const timerEl = document.getElementById('fast-timer');
+    if (!timerEl) return;
+
+    const startedAt = new Date(timerEl.dataset.started);
+    const targetHours = parseFloat(timerEl.dataset.target) || 0;
+
+    const hoursEl = document.getElementById('timer-hours');
+    const minutesEl = document.getElementById('timer-minutes');
+    const secondsEl = document.getElementById('timer-seconds');
+    const progressEl = document.getElementById('fast-progress');
+    const progressHoursEl = document.getElementById('progress-hours');
+
+    function pad(num) {
+        return String(num).padStart(2, '0');
+    }
+
+    function formatDuration(hours) {
+        if (hours < 1) {
+            return Math.floor(hours * 60) + ' min';
+        }
+        return hours.toFixed(1) + ' hours';
+    }
+
+    function updateTimer() {
+        const now = new Date();
+        const diffMs = now - startedAt;
+        const diffSeconds = Math.floor(diffMs / 1000);
+
+        const hours = Math.floor(diffSeconds / 3600);
+        const minutes = Math.floor((diffSeconds % 3600) / 60);
+        const seconds = diffSeconds % 60;
+
+        hoursEl.textContent = pad(hours);
+        minutesEl.textContent = pad(minutes);
+        secondsEl.textContent = pad(seconds);
+
+        // Update progress bar if target exists
+        if (targetHours > 0 && progressEl) {
+            const currentHours = diffSeconds / 3600;
+            const percent = Math.min(100, (currentHours / targetHours) * 100);
+            progressEl.style.width = percent.toFixed(1) + '%';
+
+            if (progressHoursEl) {
+                progressHoursEl.textContent = formatDuration(currentHours);
+            }
+        }
+    }
+
+    // Initial update
+    updateTimer();
+
+    // Update every second
+    setInterval(updateTimer, 1000);
+})();
+</script>
+{% endif %}
 {% endblock %}

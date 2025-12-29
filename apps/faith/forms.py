@@ -1,8 +1,18 @@
+# ==============================================================================
+# File: forms.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Forms for faith module - prayer requests, milestones, saved verses
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2024-01-01
+# Last Updated: 2025-12-29
+# ==============================================================================
 """
 Faith Forms - Prayer requests, milestones, and saved verses.
 """
 
 from django import forms
+
+from apps.core.utils import get_user_today
 
 from .models import FaithMilestone, PrayerRequest, SavedVerse
 
@@ -104,6 +114,14 @@ class FaithMilestoneForm(forms.ModelForm):
                 "placeholder": "e.g., Romans 8:28",
             }),
         }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+        # Set default date to user's local date for new entries
+        if not self.instance.pk and user:
+            self.initial["date"] = get_user_today(user)
 
 
 class SavedVerseForm(forms.ModelForm):

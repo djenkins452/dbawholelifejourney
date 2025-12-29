@@ -1,3 +1,11 @@
+# ==============================================================================
+# File: forms.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Forms for health module - weight, fasting, heart rate, glucose, etc.
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2024-01-01
+# Last Updated: 2025-12-29
+# ==============================================================================
 """
 Health Forms - Entry forms for health metrics.
 """
@@ -5,6 +13,8 @@ Health Forms - Entry forms for health metrics.
 import pytz
 from django import forms
 from django.utils import timezone
+
+from apps.core.utils import get_user_today
 
 from .models import (
     BloodOxygenEntry,
@@ -505,9 +515,9 @@ class MedicineForm(forms.ModelForm):
         self.fields["instructions"].required = False
         self.fields["notes"].required = False
 
-        # Set default start date for new medicines
+        # Set default start date for new medicines (use user's local date)
         if not self.instance.pk:
-            self.initial["start_date"] = timezone.now().date()
+            self.initial["start_date"] = get_user_today(user) if user else timezone.now().date()
             self.initial["refill_threshold"] = 7
             self.initial["grace_period_minutes"] = 60
 

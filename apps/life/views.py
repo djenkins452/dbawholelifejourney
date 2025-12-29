@@ -1,3 +1,11 @@
+# ==============================================================================
+# File: views.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Views for life module - projects, tasks, events, inventory, etc.
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2024-01-01
+# Last Updated: 2025-12-29
+# ==============================================================================
 """
 Life Module Views
 
@@ -28,6 +36,7 @@ from django.views.generic import (
     View,
 )
 
+from apps.core.utils import get_user_today, get_user_now
 from apps.help.mixins import HelpContextMixin
 
 from .models import (
@@ -197,7 +206,13 @@ class ProjectCreateView(LifeAccessMixin, CreateView):
         'title', 'description', 'purpose', 'status', 'priority',
         'start_date', 'target_date', 'category', 'cover_image'
     ]
-    
+
+    def get_initial(self):
+        """Set default start_date to user's local date."""
+        initial = super().get_initial()
+        initial['start_date'] = get_user_today(self.request.user)
+        return initial
+
     def form_valid(self, form):
         form.instance.user = self.request.user
         messages.success(self.request, f"Project '{form.instance.title}' created.")
@@ -448,19 +463,27 @@ class EventCreateView(LifeAccessMixin, CreateView):
         'title', 'description', 'event_type', 'start_date', 'start_time',
         'end_date', 'end_time', 'is_all_day', 'location', 'project'
     ]
-    
+
+    def get_initial(self):
+        """Set default start_date to user's local date."""
+        initial = super().get_initial()
+        user_today = get_user_today(self.request.user)
+        initial['start_date'] = user_today
+        initial['end_date'] = user_today
+        return initial
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['project'].queryset = Project.objects.filter(
             user=self.request.user, status='active'
         )
         return form
-    
+
     def form_valid(self, form):
         form.instance.user = self.request.user
         messages.success(self.request, f"Event '{form.instance.title}' created.")
         return super().form_valid(form)
-    
+
     def get_success_url(self):
         return reverse_lazy('life:calendar')
 
@@ -842,21 +865,27 @@ class PetRecordCreateView(LifeAccessMixin, CreateView):
     model = PetRecord
     template_name = "life/pet_record_form.html"
     fields = ['record_type', 'date', 'title', 'description', 'cost', 'next_due_date']
-    
+
     def dispatch(self, request, *args, **kwargs):
         self.pet = get_object_or_404(Pet, pk=kwargs['pet_pk'], user=request.user)
         return super().dispatch(request, *args, **kwargs)
-    
+
+    def get_initial(self):
+        """Set default date to user's local date."""
+        initial = super().get_initial()
+        initial['date'] = get_user_today(self.request.user)
+        return initial
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['pet'] = self.pet
         return context
-    
+
     def form_valid(self, form):
         form.instance.pet = self.pet
         messages.success(self.request, f"Record added for {self.pet.name}.")
         return super().form_valid(form)
-    
+
     def get_success_url(self):
         return reverse('life:pet_detail', kwargs={'pk': self.pet.pk})
 
@@ -1094,8 +1123,10 @@ class MaintenanceLogCreateView(LifeAccessMixin, CreateView):
     ]
 
     def get_initial(self):
-        """Pre-populate form from query parameters (for AI Camera scan)."""
+        """Pre-populate form with defaults and query parameters (for AI Camera scan)."""
         initial = super().get_initial()
+        # Set default date to user's local date
+        initial['date'] = get_user_today(self.request.user)
         # Support prefill from Camera Scan feature
         if self.request.GET.get('title'):
             initial['title'] = self.request.GET.get('title')
@@ -1235,8 +1266,10 @@ class DocumentCreateView(LifeAccessMixin, CreateView):
     ]
 
     def get_initial(self):
-        """Pre-populate form from query parameters (for AI Camera scan)."""
+        """Pre-populate form with defaults and query parameters (for AI Camera scan)."""
         initial = super().get_initial()
+        # Set default document_date to user's local date
+        initial['document_date'] = get_user_today(self.request.user)
         # Support prefill from Camera Scan feature
         if self.request.GET.get('name'):
             initial['title'] = self.request.GET.get('name')

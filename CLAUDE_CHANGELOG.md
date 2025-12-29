@@ -17,6 +17,36 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Default Entry Dates with User Time Zone
+Added user timezone-aware default dates to all entry forms throughout the application. Previously, some forms defaulted to UTC or had no default at all. Now all date/datetime entry forms default to the user's local date based on their configured timezone.
+
+**Forms Updated:**
+- **Journal App** - `JournalEntryForm.entry_date` now defaults to user's local date
+- **Faith App** - `FaithMilestoneForm.date` now defaults to user's local date
+- **Health App** - `MedicineForm.start_date` now uses user's local date instead of UTC
+- **Life App** - Multiple views updated:
+  - `ProjectCreateView` - `start_date` defaults to user's local date
+  - `EventCreateView` - `start_date` and `end_date` default to user's local date
+  - `PetRecordCreateView` - `date` defaults to user's local date
+  - `MaintenanceLogCreateView` - `date` defaults to user's local date
+  - `DocumentCreateView` - `document_date` defaults to user's local date
+
+**How It Works:**
+- Uses `get_user_today(user)` from `apps.core.utils` which gets the current date in the user's configured timezone
+- User can still override the default date if needed
+- Properly handles timezone conversion using the user's preferences
+
+**Files Modified:**
+- `apps/journal/forms.py` - Added import and default for `entry_date`
+- `apps/faith/forms.py` - Added `__init__` method with user parameter and default for `date`
+- `apps/faith/views.py` - Added `get_form_kwargs` to pass user to `FaithMilestoneForm`
+- `apps/health/forms.py` - Updated `MedicineForm` to use `get_user_today(user)`
+- `apps/life/views.py` - Added `get_initial` methods with user timezone defaults to multiple views
+
+**Test Status:** All 1250 tests passing
+
+---
+
 ### Medical Updates - Blood Pressure, Blood Oxygen, and Medicine Refill Tracking
 
 Added two new health metrics (Blood Pressure and Blood Oxygen tracking) and a medicine refill request status feature.

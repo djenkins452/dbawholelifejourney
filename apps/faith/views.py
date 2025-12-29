@@ -480,6 +480,11 @@ class MilestoneCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
     template_name = "faith/milestone_form.html"
     success_url = reverse_lazy("faith:milestone_list")
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
     def form_valid(self, form):
         form.instance.user = self.request.user
         messages.success(self.request, "Milestone added to your faith journey.")
@@ -497,6 +502,11 @@ class MilestoneUpdateView(LoginRequiredMixin, FaithRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return FaithMilestone.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
 
     def get_success_url(self):
         return reverse_lazy("faith:milestone_detail", kwargs={"pk": self.object.pk})

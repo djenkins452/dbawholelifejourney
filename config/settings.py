@@ -103,6 +103,7 @@ INSTALLED_APPS = [
     "django_htmx",
     "cloudinary",
     "cloudinary_storage",
+    "django_watchfiles",  # Efficient file watching for autoreload (fixes Python 3.14 StatReloader issue)
     # Local apps
     "apps.core",
     "apps.users",

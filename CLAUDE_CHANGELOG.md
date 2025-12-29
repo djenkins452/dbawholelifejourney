@@ -17,23 +17,26 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
-### Python 3.14 Autoreload Fix (django-watchfiles)
+### Python 3.14 Autoreload Compatibility Issue
 
-Fixed the Django development server autoreload failing on Python 3.14 with StatReloader.
+**Issue:** Django's autoreload mechanism fails on Python 3.14 due to changes in Python's import system. The error occurs in Django's autoreload subprocess when it tries to re-import apps.
 
-**Issue:** When running `python manage.py runserver` on Python 3.14, Django's StatReloader fails with an ImportError in the autoreload thread. The error occurs during `apps.populate(settings.INSTALLED_APPS)` when the StatReloader tries to watch files for changes.
+**Root Cause:** Python 3.14 (released October 2025) has significant changes to its import system (`_find_and_load_unlocked` in `<frozen importlib._bootstrap>`). Django 5.2's autoreload subprocess spawns a child process that re-imports the entire Django application, and this fails on Python 3.14.
 
-**Root Cause:** Python 3.14's import system has changes that are incompatible with Django 5.2's StatReloader mechanism on Windows.
+**Current Workaround:** Run the development server without autoreload:
+```bash
+python manage.py runserver --noreload
+```
 
-**Solution:** Added `django-watchfiles` which provides an alternative file watcher using the `watchfiles` library (Rust-based, cross-platform). This is more efficient than StatReloader anyway.
-
-**Workaround (without fix):** Run `python manage.py runserver --noreload` to disable autoreload.
+**Attempted Fix:** Added `django-watchfiles` (conditionally loaded in DEBUG mode only) which provides WatchfilesReloader instead of StatReloader. While WatchfilesReloader is more efficient, the underlying Python 3.14 import issue still affects the subprocess.
 
 **Files Modified:**
-- `config/settings.py` - Added `django_watchfiles` to INSTALLED_APPS
-- `requirements.txt` - Added `django-watchfiles>=1.4.0`
+- `config/settings.py` - Conditionally adds `django_watchfiles` when DEBUG=True and package is available
+- `requirements.txt` - Added `django-watchfiles>=1.4.0` (development only)
 
-**Verification:** Server now reports "Watching for file changes with WatchfilesReloader" instead of "StatReloader"
+**Production Impact:** None - production uses Gunicorn, not runserver
+
+**Note:** This is likely a Django/Python 3.14 compatibility issue that will be resolved in future Django releases. For now, use `--noreload` flag.
 
 ---
 

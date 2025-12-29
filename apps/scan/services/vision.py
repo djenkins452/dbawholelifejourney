@@ -130,7 +130,37 @@ Example for a power tool (inventory item):
   "safety_notes": []
 }
 
-Example for food:
+Example for packaged/branded food (protein bar, snack, etc.):
+{
+  "top_category": "food",
+  "confidence": 0.95,
+  "items": [
+    {
+      "label": "Aloha Organic Peanut Butter Chocolate Chip Protein Bar",
+      "details": {
+        "brand": "Aloha",
+        "product_name": "Organic Peanut Butter Chocolate Chip Protein Bar",
+        "description": "Plant-based protein bar with peanut butter and chocolate chips. Vegan, gluten-free, dairy-free, non-GMO.",
+        "calories": 240,
+        "protein_g": 14,
+        "carbohydrates_g": 24,
+        "fat_g": 12,
+        "saturated_fat_g": 3,
+        "fiber_g": 10,
+        "sugar_g": 5,
+        "sodium_mg": 90,
+        "serving_size": 56,
+        "serving_unit": "g",
+        "servings_per_container": 1,
+        "meal_type": "snack"
+      },
+      "confidence": 0.95
+    }
+  ],
+  "safety_notes": []
+}
+
+Example for home-cooked/restaurant food:
 {
   "top_category": "food",
   "confidence": 0.88,
@@ -138,18 +168,19 @@ Example for food:
     {
       "label": "Grilled chicken salad",
       "details": {
+        "brand": "",
+        "product_name": "Grilled chicken salad",
         "description": "Grilled chicken breast on mixed greens with tomatoes, cucumbers, and light vinaigrette",
-        "estimated_calories": 400,
-        "estimated_protein_g": 35,
-        "estimated_carbs_g": 15,
-        "estimated_fat_g": 22,
-        "estimated_fiber_g": 4,
-        "estimated_sugar_g": 5,
-        "estimated_saturated_fat_g": 4,
+        "calories": 400,
+        "protein_g": 35,
+        "carbohydrates_g": 15,
+        "fat_g": 22,
+        "saturated_fat_g": 4,
+        "fiber_g": 4,
+        "sugar_g": 5,
         "serving_size": 1,
         "serving_unit": "plate",
-        "meal_type": "lunch",
-        "ingredients": ["chicken breast", "mixed greens", "tomatoes", "cucumbers", "vinaigrette"]
+        "meal_type": "lunch"
       },
       "confidence": 0.85
     }
@@ -158,13 +189,24 @@ Example for food:
 }
 
 FOOD IDENTIFICATION GUIDELINES:
-When analyzing food images, provide your BEST ESTIMATES for nutritional values based on:
-1. Visual portion size estimation
-2. Common nutritional data for the identified foods
-3. Typical preparation methods visible
+1. For PACKAGED/BRANDED foods (protein bars, snacks, drinks, etc.):
+   - Identify the brand name and full product name
+   - Use your knowledge base to look up the ACTUAL nutritional information
+   - Include standard serving size from the nutrition label
+   - Be specific with the product variant (flavor, size, etc.)
 
-Always return numeric values (not ranges) for nutritional estimates. Use your knowledge of food nutrition.
-For meal_type, use: "breakfast", "lunch", "dinner", or "snack" based on what makes sense for the food shown.
+2. For HOME-COOKED or RESTAURANT food:
+   - Estimate portion size visually
+   - Use common nutritional data for the identified foods
+   - Consider typical preparation methods visible
+
+3. ALWAYS provide numeric values (not ranges) for ALL nutritional fields:
+   - calories, protein_g, carbohydrates_g, fat_g, saturated_fat_g, fiber_g, sugar_g
+   - serving_size and serving_unit (use "g" for grams, "oz" for ounces, "ml" for liquids)
+
+4. For meal_type, use: "breakfast", "lunch", "dinner", or "snack"
+
+5. If you recognize a branded product, set confidence HIGH (0.9+) and use actual nutrition data from your knowledge.
 
 Example for a pet:
 {
@@ -425,21 +467,28 @@ class VisionService:
             food_label = items[0]['label'] if items else 'meal'
             details = items[0].get('details', {}) if items else {}
 
-            # Extract nutritional data
-            calories = details.get('estimated_calories', '')
-            protein = details.get('estimated_protein_g', '')
-            carbs = details.get('estimated_carbs_g', '')
-            fat = details.get('estimated_fat_g', '')
-            fiber = details.get('estimated_fiber_g', '')
-            sugar = details.get('estimated_sugar_g', '')
-            sat_fat = details.get('estimated_saturated_fat_g', '')
+            # Extract nutritional data - support both new format and legacy "estimated_" prefix
+            brand = details.get('brand', '')
+            product_name = details.get('product_name', '')
+            calories = details.get('calories') or details.get('estimated_calories', '')
+            protein = details.get('protein_g') or details.get('estimated_protein_g', '')
+            carbs = details.get('carbohydrates_g') or details.get('estimated_carbs_g', '')
+            fat = details.get('fat_g') or details.get('estimated_fat_g', '')
+            fiber = details.get('fiber_g') or details.get('estimated_fiber_g', '')
+            sugar = details.get('sugar_g') or details.get('estimated_sugar_g', '')
+            sat_fat = details.get('saturated_fat_g') or details.get('estimated_saturated_fat_g', '')
             serving_size = details.get('serving_size', 1)
             serving_unit = details.get('serving_unit', 'serving')
             meal_type = details.get('meal_type', 'snack')
             description = details.get('description', '')
 
+            # Use product_name if available, otherwise use label
+            food_name = product_name if product_name else food_label
+
             # Build URL params for food entry form
-            url_params = [f'food_name={quote(food_label)}']
+            url_params = [f'food_name={quote(food_name)}']
+            if brand:
+                url_params.append(f'food_brand={quote(brand)}')
             if calories:
                 url_params.append(f'total_calories={calories}')
             if protein:
@@ -477,7 +526,8 @@ class VisionService:
                             reverse('health:food_entry_create') + '?' + '&'.join(url_params)
                         ),
                         'payload_template': {
-                            'food_name': food_label,
+                            'food_name': food_name,
+                            'food_brand': brand,
                             'total_calories': calories,
                             'total_protein_g': protein,
                             'total_carbohydrates_g': carbs,

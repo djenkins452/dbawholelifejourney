@@ -683,6 +683,11 @@ class FoodEntryForm(forms.ModelForm):
         self.fields["hunger_level_before"].required = False
         self.fields["fullness_level_after"].required = False
         self.fields["notes"].required = False
+        # Make all nutritional fields optional
+        self.fields["total_calories"].required = False
+        self.fields["total_protein_g"].required = False
+        self.fields["total_carbohydrates_g"].required = False
+        self.fields["total_fat_g"].required = False
         self.fields["total_fiber_g"].required = False
         self.fields["total_sugar_g"].required = False
         self.fields["total_saturated_fat_g"].required = False

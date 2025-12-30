@@ -548,6 +548,176 @@ Examples:
             </div>
         </div>
 
+        <!-- Weight & Nutrition Goals Section (shown when Health module is enabled) -->
+        <div class="card mb-6" id="goals-settings-section" {% if not form.health_enabled.value %}style="display: none;"{% endif %}>
+            <h2 class="card-title">Weight & Nutrition Goals</h2>
+            <p class="text-muted mb-4">Set your personal weight and nutrition targets. Track your progress on the dashboard.</p>
+
+            <!-- Weight Goal Section -->
+            <div class="goal-section">
+                <h3 class="module-section-title">
+                    <span class="goal-icon">⚖️</span> Weight Goal
+                </h3>
+                <p class="text-muted text-sm mb-4">Set your target weight and when you want to achieve it.</p>
+
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label for="id_weight_goal" class="form-label">Target Weight</label>
+                        <input
+                            type="number"
+                            name="weight_goal"
+                            id="id_weight_goal"
+                            class="form-input"
+                            value="{{ form.weight_goal.value|default:'' }}"
+                            placeholder="e.g., 180"
+                            step="0.1"
+                            min="50"
+                            max="500"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_weight_goal_unit" class="form-label">Unit</label>
+                        <select name="weight_goal_unit" id="id_weight_goal_unit" class="form-select">
+                            <option value="lb" {% if form.weight_goal_unit.value == 'lb' %}selected{% endif %}>Pounds (lb)</option>
+                            <option value="kg" {% if form.weight_goal_unit.value == 'kg' %}selected{% endif %}>Kilograms (kg)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_weight_goal_target_date" class="form-label">Target Date</label>
+                        <input
+                            type="date"
+                            name="weight_goal_target_date"
+                            id="id_weight_goal_target_date"
+                            class="form-input"
+                            value="{{ form.weight_goal_target_date.value|date:'Y-m-d'|default:'' }}"
+                        >
+                    </div>
+                </div>
+
+                <p class="form-help">Leave blank if you don't have a specific weight goal. The dashboard will show your progress once you set a goal and log weight entries.</p>
+            </div>
+
+            <!-- Nutrition Goals Section -->
+            <div class="goal-section mt-6">
+                <h3 class="module-section-title">
+                    <span class="goal-icon">🍎</span> Nutrition Goals
+                </h3>
+                <p class="text-muted text-sm mb-4">
+                    Set your daily caloric intake and macro split. Research your personal needs based on your age, activity level, and goals.
+                </p>
+
+                <div class="form-group">
+                    <label for="id_daily_calorie_goal" class="form-label">Daily Calorie Goal</label>
+                    <input
+                        type="number"
+                        name="daily_calorie_goal"
+                        id="id_daily_calorie_goal"
+                        class="form-input calorie-input"
+                        value="{{ form.daily_calorie_goal.value|default:'' }}"
+                        placeholder="e.g., 2000"
+                        min="500"
+                        max="10000"
+                        oninput="updateMacroGrams()"
+                    >
+                    <p class="form-help">Your target daily caloric intake in calories.</p>
+                </div>
+
+                <div class="macro-section mt-4">
+                    <label class="form-label">Macro Split (must total 100%)</label>
+                    <div class="macro-inputs">
+                        <div class="macro-input-group">
+                            <label for="id_protein_percentage" class="macro-label">
+                                <span class="macro-icon protein">🥩</span> Protein
+                            </label>
+                            <div class="macro-input-wrapper">
+                                <input
+                                    type="number"
+                                    name="protein_percentage"
+                                    id="id_protein_percentage"
+                                    class="form-input macro-input"
+                                    value="{{ form.protein_percentage.value|default:'' }}"
+                                    placeholder="30"
+                                    min="0"
+                                    max="100"
+                                    oninput="updateMacroTotal()"
+                                >
+                                <span class="macro-percent">%</span>
+                            </div>
+                            <span class="macro-grams" id="protein-grams"></span>
+                        </div>
+
+                        <div class="macro-input-group">
+                            <label for="id_carbs_percentage" class="macro-label">
+                                <span class="macro-icon carbs">🍞</span> Carbs
+                            </label>
+                            <div class="macro-input-wrapper">
+                                <input
+                                    type="number"
+                                    name="carbs_percentage"
+                                    id="id_carbs_percentage"
+                                    class="form-input macro-input"
+                                    value="{{ form.carbs_percentage.value|default:'' }}"
+                                    placeholder="40"
+                                    min="0"
+                                    max="100"
+                                    oninput="updateMacroTotal()"
+                                >
+                                <span class="macro-percent">%</span>
+                            </div>
+                            <span class="macro-grams" id="carbs-grams"></span>
+                        </div>
+
+                        <div class="macro-input-group">
+                            <label for="id_fat_percentage" class="macro-label">
+                                <span class="macro-icon fat">🥑</span> Fat
+                            </label>
+                            <div class="macro-input-wrapper">
+                                <input
+                                    type="number"
+                                    name="fat_percentage"
+                                    id="id_fat_percentage"
+                                    class="form-input macro-input"
+                                    value="{{ form.fat_percentage.value|default:'' }}"
+                                    placeholder="30"
+                                    min="0"
+                                    max="100"
+                                    oninput="updateMacroTotal()"
+                                >
+                                <span class="macro-percent">%</span>
+                            </div>
+                            <span class="macro-grams" id="fat-grams"></span>
+                        </div>
+                    </div>
+
+                    <div class="macro-total-row mt-3">
+                        <span class="macro-total-label">Total:</span>
+                        <span id="macro-total" class="macro-total-value">0%</span>
+                        <span id="macro-status" class="macro-status"></span>
+                    </div>
+                </div>
+
+                <div class="nutrition-tips mt-4">
+                    <h4 class="tips-title">Common Macro Splits:</h4>
+                    <div class="macro-presets">
+                        <button type="button" class="btn btn-ghost btn-sm macro-preset" onclick="setMacroPreset(30, 40, 30)">
+                            Balanced (30/40/30)
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm macro-preset" onclick="setMacroPreset(40, 30, 30)">
+                            High Protein (40/30/30)
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm macro-preset" onclick="setMacroPreset(30, 20, 50)">
+                            Low Carb (30/20/50)
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm macro-preset" onclick="setMacroPreset(20, 5, 75)">
+                            Keto (20/5/75)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Integrations Section -->
         <div class="card mb-6">
             <h2 class="card-title">Integrations</h2>
@@ -1072,6 +1242,154 @@ Examples:
     color: var(--color-text-muted);
     line-height: 1.4;
 }
+
+/* Weight & Nutrition Goals Styles */
+.goal-section {
+    padding-top: var(--space-2);
+}
+
+.goal-section .module-section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    text-transform: none;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.goal-icon {
+    font-size: 1.25rem;
+}
+
+.form-row-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+}
+
+@media (max-width: 768px) {
+    .form-row-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+.calorie-input {
+    max-width: 200px;
+}
+
+.macro-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+}
+
+.macro-inputs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+}
+
+@media (max-width: 768px) {
+    .macro-inputs {
+        grid-template-columns: 1fr;
+    }
+}
+
+.macro-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.macro-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.macro-icon {
+    font-size: 1.25rem;
+}
+
+.macro-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.macro-input {
+    width: 80px;
+    text-align: center;
+}
+
+.macro-percent {
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.macro-grams {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.macro-total-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.macro-total-label {
+    font-weight: 600;
+}
+
+.macro-total-value {
+    font-weight: 700;
+    font-size: var(--font-size-lg);
+}
+
+.macro-total-value.valid {
+    color: var(--color-success, #10b981);
+}
+
+.macro-total-value.invalid {
+    color: var(--color-error, #ef4444);
+}
+
+.macro-status {
+    font-size: var(--font-size-sm);
+}
+
+.macro-status.valid {
+    color: var(--color-success, #10b981);
+}
+
+.macro-status.invalid {
+    color: var(--color-error, #ef4444);
+}
+
+.nutrition-tips {
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-background));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+}
+
+.macro-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.macro-preset {
+    font-size: var(--font-size-xs);
+}
 </style>
 
 <script src="{% static 'js/timezone-lookup.js' %}"></script>
@@ -1151,16 +1469,87 @@ if (faithToggle) {
     });
 }
 
-// Health settings section visibility
+// Health settings section visibility (including goals section)
 const healthToggle = document.querySelector('input[name="health_enabled"]');
 if (healthToggle) {
     healthToggle.addEventListener('change', function() {
         const healthSection = document.getElementById('health-settings-section');
+        const goalsSection = document.getElementById('goals-settings-section');
         if (healthSection) {
             healthSection.style.display = this.checked ? 'block' : 'none';
         }
+        if (goalsSection) {
+            goalsSection.style.display = this.checked ? 'block' : 'none';
+        }
     });
 }
+
+// Macro percentage calculations
+function updateMacroTotal() {
+    const protein = parseInt(document.getElementById('id_protein_percentage').value) || 0;
+    const carbs = parseInt(document.getElementById('id_carbs_percentage').value) || 0;
+    const fat = parseInt(document.getElementById('id_fat_percentage').value) || 0;
+
+    const total = protein + carbs + fat;
+    const totalEl = document.getElementById('macro-total');
+    const statusEl = document.getElementById('macro-status');
+
+    if (totalEl) {
+        totalEl.textContent = total + '%';
+        totalEl.classList.remove('valid', 'invalid');
+        statusEl.classList.remove('valid', 'invalid');
+
+        if (total === 100) {
+            totalEl.classList.add('valid');
+            statusEl.textContent = '✓ Perfect!';
+            statusEl.classList.add('valid');
+        } else if (total > 0) {
+            totalEl.classList.add('invalid');
+            if (total < 100) {
+                statusEl.textContent = `Need ${100 - total}% more`;
+            } else {
+                statusEl.textContent = `${total - 100}% over`;
+            }
+            statusEl.classList.add('invalid');
+        } else {
+            statusEl.textContent = '';
+        }
+    }
+
+    updateMacroGrams();
+}
+
+function updateMacroGrams() {
+    const calories = parseInt(document.getElementById('id_daily_calorie_goal').value) || 0;
+    const protein = parseInt(document.getElementById('id_protein_percentage').value) || 0;
+    const carbs = parseInt(document.getElementById('id_carbs_percentage').value) || 0;
+    const fat = parseInt(document.getElementById('id_fat_percentage').value) || 0;
+
+    // Calculate grams: Protein & Carbs = 4 cal/g, Fat = 9 cal/g
+    const proteinGrams = calories > 0 && protein > 0 ? Math.round((calories * protein / 100) / 4) : 0;
+    const carbsGrams = calories > 0 && carbs > 0 ? Math.round((calories * carbs / 100) / 4) : 0;
+    const fatGrams = calories > 0 && fat > 0 ? Math.round((calories * fat / 100) / 9) : 0;
+
+    const proteinEl = document.getElementById('protein-grams');
+    const carbsEl = document.getElementById('carbs-grams');
+    const fatEl = document.getElementById('fat-grams');
+
+    if (proteinEl) proteinEl.textContent = proteinGrams > 0 ? `≈ ${proteinGrams}g` : '';
+    if (carbsEl) carbsEl.textContent = carbsGrams > 0 ? `≈ ${carbsGrams}g` : '';
+    if (fatEl) fatEl.textContent = fatGrams > 0 ? `≈ ${fatGrams}g` : '';
+}
+
+function setMacroPreset(protein, carbs, fat) {
+    document.getElementById('id_protein_percentage').value = protein;
+    document.getElementById('id_carbs_percentage').value = carbs;
+    document.getElementById('id_fat_percentage').value = fat;
+    updateMacroTotal();
+}
+
+// Initialize macro calculations on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateMacroTotal();
+});
 
 // Fasting type descriptions and UI
 const fastingDescriptions = {

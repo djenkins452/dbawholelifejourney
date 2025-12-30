@@ -22,10 +22,11 @@ For core project context, see `CLAUDE.md`.
 3. [What's New Feature](#whats-new-feature)
 4. [Dashboard AI Personal Assistant](#dashboard-ai-personal-assistant)
 5. [Nutrition/Food Tracking](#nutritionfood-tracking)
-6. [Medicine Tracking](#medicine-tracking)
-7. [Vitals Tracking](#vitals-tracking)
-8. [Camera Scan Feature](#camera-scan-feature)
-9. [Biometric Login](#biometric-login)
+6. [Weight & Nutrition Goals](#weight--nutrition-goals)
+7. [Medicine Tracking](#medicine-tracking)
+8. [Vitals Tracking](#vitals-tracking)
+9. [Camera Scan Feature](#camera-scan-feature)
+10. [Biometric Login](#biometric-login)
 
 ---
 
@@ -317,6 +318,92 @@ Food entries can be pre-filled from camera scans. See [Camera Scan Feature](#cam
 
 ### Tests
 `apps/health/tests/test_nutrition.py` - 81 tests
+
+---
+
+## Weight & Nutrition Goals
+
+### Overview
+Personal weight and nutrition goal tracking with progress display on the dashboard. Users can set a target weight (with optional deadline) and daily macro targets, then track their progress over time.
+
+### Setting Goals (Preferences Page)
+Access via **Settings → Preferences → Weight & Nutrition Goals** (only visible when Health module is enabled).
+
+**Weight Goal:**
+- Target Weight - Your goal weight (e.g., 180)
+- Unit - Pounds (lb) or Kilograms (kg)
+- Target Date - Optional deadline for reaching your goal
+
+**Nutrition Goals:**
+- Daily Calorie Goal - Target daily caloric intake (e.g., 2000)
+- Macro Split - Percentage of calories from each macro:
+  - Protein % (e.g., 30%)
+  - Carbs % (e.g., 40%)
+  - Fat % (e.g., 30%)
+  - Must total 100%
+- Preset Buttons - Balanced, High Protein, Low Carb, Keto
+
+### Dashboard Progress Display
+
+**Health Tile:**
+- Shows current weight and progress bar toward goal
+- Displays "X.X lb to go" or "X.X kg to go"
+- When goal reached: "Goal reached!"
+
+**Today's Nutrition Section:**
+- Calorie summary: consumed / goal with remaining
+- Macro progress bars for Protein, Carbs, Fat
+- Shows current grams vs target grams
+
+### Progress Calculation Logic
+
+**Weight Progress:**
+- Compares current weight to goal weight
+- Uses first weight entry as starting point
+- Calculates percentage progress
+- Determines if user needs to lose or gain
+
+**Nutrition Progress:**
+- Aggregates today's food entries
+- Converts macro percentages to gram targets:
+  - Protein: `(calories × percent) / 4` (4 cal/g)
+  - Carbs: `(calories × percent) / 4` (4 cal/g)
+  - Fat: `(calories × percent) / 9` (9 cal/g)
+- Calculates progress percentage for each macro
+
+### Model Fields (UserPreferences)
+```python
+# Weight Goals
+weight_goal = DecimalField(max_digits=5, decimal_places=1, null=True)
+weight_goal_unit = CharField(choices=[("lb", "Pounds"), ("kg", "Kilograms")], default="lb")
+weight_goal_target_date = DateField(null=True)
+
+# Nutrition Goals
+daily_calorie_goal = PositiveIntegerField(null=True)
+protein_percentage = PositiveSmallIntegerField(null=True)
+carbs_percentage = PositiveSmallIntegerField(null=True)
+fat_percentage = PositiveSmallIntegerField(null=True)
+```
+
+### Key Methods (UserPreferences)
+- `has_weight_goal` - Property: True if weight_goal is set
+- `has_nutrition_goals` - Property: True if daily_calorie_goal is set
+- `macro_percentages_valid` - Property: True if macros sum to 100%
+- `get_weight_progress()` - Returns dict with progress info
+- `get_nutrition_progress(date)` - Returns dict with today's nutrition progress
+
+### Key Files
+- `apps/users/models.py` - Goal fields and progress methods
+- `apps/users/forms.py` - Goal fields with validation
+- `templates/users/preferences.html` - Goals section in preferences
+- `apps/dashboard/views.py` - Progress data for dashboard
+- `templates/dashboard/home.html` - Health tile and nutrition section
+- `static/css/dashboard.css` - Progress bar styles
+
+### Validation
+- Macro percentages must sum to 100% (enforced in form)
+- All fields are optional (goals are opt-in)
+- Weight goal unit affects how progress is calculated
 
 ---
 

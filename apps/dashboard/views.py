@@ -377,6 +377,10 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         if last_workout:
             days_since_workout = (today - last_workout.date).days
 
+        # Weight and Nutrition Goal Progress
+        weight_progress = user.preferences.get_weight_progress()
+        nutrition_progress = user.preferences.get_nutrition_progress(today)
+
         return {
             "latest_weight": latest_weight,
             "weight_change": weight_change,
@@ -403,6 +407,11 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "workout_streak": workout_streak,
             "days_since_workout": days_since_workout,
             "last_workout": last_workout,
+            # Weight & Nutrition Goal Progress
+            "weight_progress": weight_progress,
+            "nutrition_progress": nutrition_progress,
+            "has_weight_goal": user.preferences.has_weight_goal,
+            "has_nutrition_goals": user.preferences.has_nutrition_goals,
         }
 
     def _calculate_workout_streak(self, user, today):

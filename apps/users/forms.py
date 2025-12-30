@@ -150,6 +150,15 @@ class PreferencesForm(forms.ModelForm):
             "biometric_login_enabled",
             # Health
             "default_fasting_type",
+            # Weight Goals
+            "weight_goal",
+            "weight_goal_unit",
+            "weight_goal_target_date",
+            # Nutrition Goals
+            "daily_calorie_goal",
+            "protein_percentage",
+            "carbs_percentage",
+            "fat_percentage",
         ]
         widgets = {
             "theme": forms.Select(attrs={
@@ -225,6 +234,46 @@ class PreferencesForm(forms.ModelForm):
             "default_fasting_type": forms.Select(attrs={
                 "class": "form-select",
             }),
+            # Weight Goals
+            "weight_goal": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Target weight",
+                "step": "0.1",
+                "min": "50",
+                "max": "500",
+            }),
+            "weight_goal_unit": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "weight_goal_target_date": forms.DateInput(attrs={
+                "class": "form-input",
+                "type": "date",
+            }),
+            # Nutrition Goals
+            "daily_calorie_goal": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Daily calories",
+                "min": "500",
+                "max": "10000",
+            }),
+            "protein_percentage": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "% protein",
+                "min": "0",
+                "max": "100",
+            }),
+            "carbs_percentage": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "% carbs",
+                "min": "0",
+                "max": "100",
+            }),
+            "fat_percentage": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "% fat",
+                "min": "0",
+                "max": "100",
+            }),
         }
 
     def __init__(self, *args, **kwargs):
@@ -271,3 +320,25 @@ class PreferencesForm(forms.ModelForm):
                 choices=fallback_choices,
                 attrs={"class": "form-select"},
             )
+
+    def clean(self):
+        """Validate form data, especially macro percentages."""
+        cleaned_data = super().clean()
+
+        # Validate macro percentages sum to 100% if all are provided
+        protein = cleaned_data.get('protein_percentage')
+        carbs = cleaned_data.get('carbs_percentage')
+        fat = cleaned_data.get('fat_percentage')
+
+        # If any macro percentage is set, encourage setting all of them
+        if any([protein, carbs, fat]) and not all([protein, carbs, fat]):
+            # Don't error, just allow partial entry
+            pass
+        elif all([protein, carbs, fat]):
+            total = protein + carbs + fat
+            if total != 100:
+                raise forms.ValidationError(
+                    f"Macro percentages must add up to 100%. Current total: {total}%"
+                )
+
+        return cleaned_data

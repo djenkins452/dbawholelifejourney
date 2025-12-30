@@ -542,7 +542,9 @@ class PersonalAssistant:
         # Journal gap - only if it's an issue
         last_journal = state_data.get('last_journal_date')
         if last_journal:
-            days_ago = (timezone.now().date() - last_journal).days
+            from apps.core.utils import get_user_today
+            user_today = get_user_today(self.user)
+            days_ago = (user_today - last_journal).days
             if days_ago >= 2:
                 context_parts.append(f"Haven't journaled in {days_ago} days")
 
@@ -596,7 +598,9 @@ What needs the user's attention today? Be direct and actionable."""
                 })
 
             if last_journal:
-                days = (timezone.now().date() - last_journal).days
+                from apps.core.utils import get_user_today
+                user_today = get_user_today(self.user)
+                days = (user_today - last_journal).days
                 if days >= 3:
                     gaps.append({
                         'area': 'journal',

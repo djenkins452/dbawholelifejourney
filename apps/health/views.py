@@ -216,6 +216,12 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["nutrition_today_calories"] = totals['calories'] or 0
             context["nutrition_today_entries"] = today_entries.count()
 
+        # Medical Providers summary
+        from .models import MedicalProvider
+        providers = MedicalProvider.objects.filter(user=user)
+        context["provider_count"] = providers.count()
+        context["primary_provider"] = providers.filter(is_primary=True).first()
+
         return context
 
 
@@ -3071,3 +3077,319 @@ class MedicineClearRefillView(LoginRequiredMixin, View):
         medicine.clear_refill_request()
         messages.success(request, f"Refill request cleared for {medicine.name}.")
         return redirect("health:medicine_detail", pk=medicine.pk)
+
+
+# =============================================================================
+# Medical Provider Views
+# =============================================================================
+
+
+class MedicalProviderListView(HelpContextMixin, LoginRequiredMixin, ListView):
+    """
+    List user's medical providers.
+    """
+
+    model = None  # Set in get_queryset
+    template_name = "health/providers/provider_list.html"
+    context_object_name = "providers"
+    paginate_by = 30
+    help_context_id = "HEALTH_PROVIDERS"
+
+    def get_queryset(self):
+        from .models import MedicalProvider
+        return MedicalProvider.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["specialty_choices"] = dict(self._get_specialty_choices())
+        return context
+
+    def _get_specialty_choices(self):
+        from .models import MedicalProvider
+        return MedicalProvider.SPECIALTY_CHOICES
+
+
+class MedicalProviderDetailView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    View details of a medical provider with their staff.
+    """
+
+    template_name = "health/providers/provider_detail.html"
+    help_context_id = "HEALTH_PROVIDER_DETAIL"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .models import MedicalProvider
+        context["provider"] = get_object_or_404(
+            MedicalProvider.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk'],
+        )
+        # Get all staff for this provider
+        context["staff_members"] = context["provider"].staff.all()
+        return context
+
+
+class MedicalProviderCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
+    """
+    Add a new medical provider.
+    """
+
+    model = None  # Set dynamically
+    template_name = "health/providers/provider_form.html"
+    success_url = reverse_lazy("health:provider_list")
+    help_context_id = "HEALTH_PROVIDER_CREATE"
+
+    def get_form_class(self):
+        from .forms import MedicalProviderForm
+        return MedicalProviderForm
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        messages.success(self.request, f"Added provider: {form.instance.name}")
+        return super().form_valid(form)
+
+
+class MedicalProviderUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
+    """
+    Edit a medical provider.
+    """
+
+    template_name = "health/providers/provider_form.html"
+    help_context_id = "HEALTH_PROVIDER_EDIT"
+
+    def get_queryset(self):
+        from .models import MedicalProvider
+        return MedicalProvider.objects.filter(user=self.request.user)
+
+    def get_form_class(self):
+        from .forms import MedicalProviderForm
+        return MedicalProviderForm
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def get_success_url(self):
+        return reverse_lazy("health:provider_detail", kwargs={'pk': self.object.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, "Provider updated.")
+        return super().form_valid(form)
+
+
+class MedicalProviderDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a medical provider (and all associated staff via CASCADE).
+    """
+
+    def post(self, request, pk):
+        from .models import MedicalProvider
+        provider = get_object_or_404(
+            MedicalProvider.objects.filter(user=request.user),
+            pk=pk,
+        )
+        provider_name = provider.name
+        provider.soft_delete()
+        messages.success(request, f"Deleted provider: {provider_name}")
+        return redirect("health:provider_list")
+
+
+class ProviderAILookupView(LoginRequiredMixin, View):
+    """
+    AI-powered lookup of provider contact information.
+    Uses OpenAI to search for provider details based on name and location.
+    """
+
+    def post(self, request):
+        import json
+        from django.conf import settings
+        from .models import MedicalProvider
+
+        provider_name = request.POST.get('name', '').strip()
+        city = request.POST.get('city', '').strip()
+        state = request.POST.get('state', '').strip()
+
+        if not provider_name:
+            return JsonResponse({
+                'success': False,
+                'error': 'Provider name is required.'
+            })
+
+        # Build location context
+        location_parts = []
+        if city:
+            location_parts.append(city)
+        if state:
+            location_parts.append(state)
+        location_str = ", ".join(location_parts) if location_parts else "USA"
+
+        try:
+            # Check if OpenAI is available
+            openai_api_key = getattr(settings, 'OPENAI_API_KEY', None)
+            if not openai_api_key:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'AI lookup is not configured.'
+                })
+
+            import openai
+            client = openai.OpenAI(api_key=openai_api_key)
+
+            prompt = f"""Look up the contact information for this healthcare provider:
+Provider Name: {provider_name}
+Location: {location_str}
+
+Please provide the following information in JSON format if available:
+- phone: main phone number
+- fax: fax number
+- address_line1: street address
+- city: city name
+- state: state abbreviation
+- postal_code: ZIP code
+- website: practice website URL
+- specialty: medical specialty (use one of: primary_care, internal_medicine, pediatrics, obgyn, cardiology, dermatology, endocrinology, gastroenterology, neurology, oncology, ophthalmology, orthopedics, psychiatry, pulmonology, rheumatology, urology, dentist, optometrist, chiropractor, physical_therapy, mental_health, pharmacy, urgent_care, hospital, lab, imaging, other)
+- credentials: provider credentials (e.g., MD, DO, DDS)
+- npi_number: NPI number if known
+
+Return ONLY valid JSON with no explanation. If information is not available, omit the field.
+Example format: {{"phone": "(555) 123-4567", "address_line1": "123 Main St", "city": "Springfield", "state": "IL", "postal_code": "62701"}}"""
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that looks up healthcare provider information. Return only valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=500,
+            )
+
+            result_text = response.choices[0].message.content.strip()
+
+            # Clean up potential markdown code blocks
+            if result_text.startswith("```"):
+                lines = result_text.split("\n")
+                result_text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+            try:
+                provider_data = json.loads(result_text)
+            except json.JSONDecodeError:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Could not parse AI response. Please enter information manually.'
+                })
+
+            return JsonResponse({
+                'success': True,
+                'data': provider_data
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'AI lookup failed: {str(e)}'
+            })
+
+
+# =============================================================================
+# Provider Staff Views
+# =============================================================================
+
+
+class ProviderStaffCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
+    """
+    Add a staff member to a provider.
+    """
+
+    template_name = "health/providers/staff_form.html"
+    help_context_id = "HEALTH_PROVIDER_STAFF_CREATE"
+
+    def get_form_class(self):
+        from .forms import ProviderStaffForm
+        return ProviderStaffForm
+
+    def get_provider(self):
+        from .models import MedicalProvider
+        return get_object_or_404(
+            MedicalProvider.objects.filter(user=self.request.user),
+            pk=self.kwargs['provider_pk']
+        )
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        kwargs['provider'] = self.get_provider()
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['provider'] = self.get_provider()
+        return context
+
+    def get_success_url(self):
+        return reverse_lazy("health:provider_detail", kwargs={'pk': self.kwargs['provider_pk']})
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        form.instance.provider = self.get_provider()
+        messages.success(self.request, f"Added staff member: {form.instance.name}")
+        return super().form_valid(form)
+
+
+class ProviderStaffUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
+    """
+    Edit a staff member.
+    """
+
+    template_name = "health/providers/staff_form.html"
+    help_context_id = "HEALTH_PROVIDER_STAFF_EDIT"
+
+    def get_queryset(self):
+        from .models import ProviderStaff
+        return ProviderStaff.objects.filter(user=self.request.user)
+
+    def get_form_class(self):
+        from .forms import ProviderStaffForm
+        return ProviderStaffForm
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        kwargs['provider'] = self.object.provider
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['provider'] = self.object.provider
+        return context
+
+    def get_success_url(self):
+        return reverse_lazy("health:provider_detail", kwargs={'pk': self.object.provider.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, "Staff member updated.")
+        return super().form_valid(form)
+
+
+class ProviderStaffDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a staff member.
+    """
+
+    def post(self, request, pk):
+        from .models import ProviderStaff
+        staff = get_object_or_404(
+            ProviderStaff.objects.filter(user=request.user),
+            pk=pk,
+        )
+        provider_pk = staff.provider.pk
+        staff_name = staff.name
+        staff.soft_delete()
+        messages.success(request, f"Removed staff member: {staff_name}")
+        return redirect("health:provider_detail", pk=provider_pk)

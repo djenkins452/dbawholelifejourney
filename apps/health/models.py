@@ -1650,6 +1650,286 @@ class DailyNutritionSummary(UserOwnedModel):
         return self.breakfast_count + self.lunch_count + self.dinner_count + self.snack_count
 
 
+# =============================================================================
+# Medical Provider Models
+# =============================================================================
+
+
+class MedicalProvider(UserOwnedModel):
+    """
+    Healthcare provider (doctor, clinic, specialist) contact information.
+
+    Stores provider details with optional AI-assisted lookup for contact info.
+    Each provider can have multiple associated staff members (PA, nurse, etc.)
+    """
+
+    SPECIALTY_CHOICES = [
+        ("primary_care", "Primary Care / Family Medicine"),
+        ("internal_medicine", "Internal Medicine"),
+        ("pediatrics", "Pediatrics"),
+        ("obgyn", "OB/GYN"),
+        ("cardiology", "Cardiology"),
+        ("dermatology", "Dermatology"),
+        ("endocrinology", "Endocrinology"),
+        ("gastroenterology", "Gastroenterology"),
+        ("neurology", "Neurology"),
+        ("oncology", "Oncology"),
+        ("ophthalmology", "Ophthalmology"),
+        ("orthopedics", "Orthopedics"),
+        ("psychiatry", "Psychiatry"),
+        ("pulmonology", "Pulmonology"),
+        ("rheumatology", "Rheumatology"),
+        ("urology", "Urology"),
+        ("dentist", "Dentist"),
+        ("optometrist", "Optometrist"),
+        ("chiropractor", "Chiropractor"),
+        ("physical_therapy", "Physical Therapy"),
+        ("mental_health", "Mental Health / Therapist"),
+        ("pharmacy", "Pharmacy"),
+        ("urgent_care", "Urgent Care"),
+        ("hospital", "Hospital"),
+        ("lab", "Laboratory"),
+        ("imaging", "Imaging / Radiology"),
+        ("other", "Other"),
+    ]
+
+    # Basic Info
+    name = models.CharField(
+        max_length=200,
+        help_text="Provider or practice name",
+    )
+    specialty = models.CharField(
+        max_length=50,
+        choices=SPECIALTY_CHOICES,
+        default="primary_care",
+    )
+    credentials = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="e.g., MD, DO, DDS, PhD, PA-C, NP",
+    )
+
+    # Contact Information
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Primary phone number",
+    )
+    phone_alt = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Alternate phone (scheduling, etc.)",
+    )
+    fax = models.CharField(
+        max_length=20,
+        blank=True,
+    )
+    email = models.EmailField(
+        blank=True,
+        help_text="Office email address",
+    )
+    website = models.URLField(
+        blank=True,
+        help_text="Practice website",
+    )
+
+    # Address
+    address_line1 = models.CharField(
+        max_length=200,
+        blank=True,
+    )
+    address_line2 = models.CharField(
+        max_length=200,
+        blank=True,
+    )
+    city = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+    state = models.CharField(
+        max_length=50,
+        blank=True,
+    )
+    postal_code = models.CharField(
+        max_length=20,
+        blank=True,
+    )
+    country = models.CharField(
+        max_length=100,
+        blank=True,
+        default="USA",
+    )
+
+    # Patient Portal
+    portal_url = models.URLField(
+        blank=True,
+        help_text="Link to patient portal",
+    )
+    portal_username = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Username for patient portal (stored locally only)",
+    )
+
+    # Additional Info
+    npi_number = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="National Provider Identifier (10 digits)",
+    )
+    accepts_insurance = models.BooleanField(
+        default=True,
+        help_text="Does this provider accept insurance?",
+    )
+    insurance_notes = models.TextField(
+        blank=True,
+        help_text="Notes about accepted insurance plans",
+    )
+
+    # Office Hours (optional JSON for flexibility)
+    office_hours = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Office hours by day: {'monday': '8am-5pm', ...}",
+    )
+
+    # Preferences
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Is this your primary care provider?",
+    )
+
+    # Notes
+    notes = models.TextField(
+        blank=True,
+        help_text="Personal notes about this provider",
+    )
+
+    # AI Lookup tracking
+    ai_lookup_completed = models.BooleanField(
+        default=False,
+        help_text="Was AI used to populate provider info?",
+    )
+    ai_lookup_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When AI lookup was performed",
+    )
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "medical provider"
+        verbose_name_plural = "medical providers"
+
+    def __str__(self):
+        if self.credentials:
+            return f"{self.name}, {self.credentials}"
+        return self.name
+
+    @property
+    def full_address(self):
+        """Return formatted full address."""
+        parts = []
+        if self.address_line1:
+            parts.append(self.address_line1)
+        if self.address_line2:
+            parts.append(self.address_line2)
+        city_state_zip = []
+        if self.city:
+            city_state_zip.append(self.city)
+        if self.state:
+            city_state_zip.append(self.state)
+        if city_state_zip:
+            line = ", ".join(city_state_zip)
+            if self.postal_code:
+                line += f" {self.postal_code}"
+            parts.append(line)
+        return "\n".join(parts) if parts else ""
+
+    @property
+    def staff_count(self):
+        """Number of associated staff members."""
+        return self.staff.count()
+
+
+class ProviderStaff(UserOwnedModel):
+    """
+    Supporting staff for a medical provider (PA, nurse, medical assistant, etc.)
+
+    Manually entered by user - no AI lookup for staff members.
+    """
+
+    ROLE_CHOICES = [
+        ("physician_assistant", "Physician Assistant (PA)"),
+        ("nurse_practitioner", "Nurse Practitioner (NP)"),
+        ("registered_nurse", "Registered Nurse (RN)"),
+        ("licensed_nurse", "Licensed Practical Nurse (LPN)"),
+        ("medical_assistant", "Medical Assistant (MA)"),
+        ("front_desk", "Front Desk / Receptionist"),
+        ("billing", "Billing Specialist"),
+        ("scheduler", "Scheduler / Coordinator"),
+        ("lab_tech", "Lab Technician"),
+        ("xray_tech", "X-Ray Technician"),
+        ("pharmacist", "Pharmacist"),
+        ("pharmacy_tech", "Pharmacy Technician"),
+        ("other", "Other"),
+    ]
+
+    # Link to provider
+    provider = models.ForeignKey(
+        MedicalProvider,
+        on_delete=models.CASCADE,
+        related_name="staff",
+    )
+
+    # Basic Info
+    name = models.CharField(
+        max_length=200,
+        help_text="Staff member's name",
+    )
+    role = models.CharField(
+        max_length=30,
+        choices=ROLE_CHOICES,
+        default="other",
+    )
+    title = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Job title or role description",
+    )
+
+    # Contact (usually via main office, but could be direct)
+    phone_extension = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Phone extension if applicable",
+    )
+    direct_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Direct phone number if different from office",
+    )
+    email = models.EmailField(
+        blank=True,
+        help_text="Direct email if available",
+    )
+
+    # Notes
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about this staff member",
+    )
+
+    class Meta:
+        ordering = ["provider", "name"]
+        verbose_name = "provider staff"
+        verbose_name_plural = "provider staff"
+
+    def __str__(self):
+        role_display = self.get_role_display()
+        return f"{self.name} ({role_display}) - {self.provider.name}"
+
+
 class NutritionGoals(UserOwnedModel):
     """
     User's personalized nutrition targets.

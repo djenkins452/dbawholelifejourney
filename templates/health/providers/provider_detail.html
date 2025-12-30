@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ provider.name }} - Medical Providers - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:provider_list' %}">Providers</a>
+        <span>/</span>
+        <span>{{ provider.name }}</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ provider.name }}{% if provider.credentials %}, {{ provider.credentials }}{% endif %}</h1>
+            <p class="page-subtitle">{{ provider.get_specialty_display }}</p>
+        </div>
+        <div class="page-actions">
+            <a href="{% url 'health:provider_update' pk=provider.pk %}" class="btn btn-secondary">Edit</a>
+        </div>
+    </div>
+
+    <!-- Status Badges -->
+    <div class="status-section mb-6">
+        {% if provider.is_primary %}
+        <span class="badge badge-primary">Primary Care Provider</span>
+        {% endif %}
+        {% if provider.ai_lookup_completed %}
+        <span class="ai-badge" title="Contact info retrieved via AI lookup on {{ provider.ai_lookup_at|date:'M j, Y' }}">AI Verified</span>
+        {% endif %}
+    </div>
+
+    <!-- Contact Info Grid -->
+    <div class="contact-grid mb-6">
+        {% if provider.phone %}
+        <a href="tel:{{ provider.phone }}" class="contact-card contact-phone">
+            <span class="contact-icon">📞</span>
+            <span class="contact-label">Phone</span>
+            <span class="contact-value">{{ provider.phone }}</span>
+        </a>
+        {% endif %}
+        {% if provider.phone_alt %}
+        <a href="tel:{{ provider.phone_alt }}" class="contact-card">
+            <span class="contact-icon">📱</span>
+            <span class="contact-label">Alt Phone</span>
+            <span class="contact-value">{{ provider.phone_alt }}</span>
+        </a>
+        {% endif %}
+        {% if provider.fax %}
+        <div class="contact-card">
+            <span class="contact-icon">📠</span>
+            <span class="contact-label">Fax</span>
+            <span class="contact-value">{{ provider.fax }}</span>
+        </div>
+        {% endif %}
+        {% if provider.email %}
+        <a href="mailto:{{ provider.email }}" class="contact-card">
+            <span class="contact-icon">✉️</span>
+            <span class="contact-label">Email</span>
+            <span class="contact-value">{{ provider.email }}</span>
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Detail Sections -->
+    <div class="detail-sections">
+        {% if provider.full_address %}
+        <div class="detail-section">
+            <h2>Address</h2>
+            <address class="address-block">
+                {{ provider.address_line1 }}<br>
+                {% if provider.address_line2 %}{{ provider.address_line2 }}<br>{% endif %}
+                {{ provider.city }}, {{ provider.state }} {{ provider.postal_code }}
+                {% if provider.country and provider.country != 'USA' %}<br>{{ provider.country }}{% endif %}
+            </address>
+            <a href="https://maps.google.com/?q={{ provider.address_line1|urlencode }}+{{ provider.city|urlencode }}+{{ provider.state|urlencode }}+{{ provider.postal_code|urlencode }}" target="_blank" rel="noopener" class="btn btn-text btn-sm mt-2">View on Map</a>
+        </div>
+        {% endif %}
+
+        {% if provider.website or provider.portal_url %}
+        <div class="detail-section">
+            <h2>Online</h2>
+            <dl class="detail-list">
+                {% if provider.website %}
+                <div class="detail-item">
+                    <dt>Website</dt>
+                    <dd><a href="{{ provider.website }}" target="_blank" rel="noopener">{{ provider.website }}</a></dd>
+                </div>
+                {% endif %}
+                {% if provider.portal_url %}
+                <div class="detail-item">
+                    <dt>Patient Portal</dt>
+                    <dd>
+                        <a href="{{ provider.portal_url }}" target="_blank" rel="noopener">{{ provider.portal_url }}</a>
+                        {% if provider.portal_username %}
+                        <span class="text-sm text-muted block">Username: {{ provider.portal_username }}</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+        {% endif %}
+
+        {% if provider.npi_number or provider.insurance_notes %}
+        <div class="detail-section">
+            <h2>Insurance & Billing</h2>
+            <dl class="detail-list">
+                {% if provider.npi_number %}
+                <div class="detail-item">
+                    <dt>NPI Number</dt>
+                    <dd>{{ provider.npi_number }}</dd>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <dt>Accepts Insurance</dt>
+                    <dd>{% if provider.accepts_insurance %}Yes{% else %}No{% endif %}</dd>
+                </div>
+                {% if provider.insurance_notes %}
+                <div class="detail-item">
+                    <dt>Insurance Notes</dt>
+                    <dd>{{ provider.insurance_notes }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+        {% endif %}
+
+        {% if provider.notes %}
+        <div class="detail-section">
+            <h2>Notes</h2>
+            <p>{{ provider.notes|linebreaks }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Staff Section -->
+    <div class="staff-section mt-6">
+        <div class="section-header">
+            <h2>Staff</h2>
+            <a href="{% url 'health:staff_create' provider_pk=provider.pk %}" class="btn btn-secondary btn-sm">Add Staff</a>
+        </div>
+
+        {% if staff_members %}
+        <div class="staff-list">
+            {% for staff in staff_members %}
+            <div class="staff-card">
+                <div class="staff-header">
+                    <div class="staff-name">{{ staff.name }}</div>
+                    <span class="staff-role">{{ staff.get_role_display }}</span>
+                </div>
+                {% if staff.title %}
+                <div class="staff-title">{{ staff.title }}</div>
+                {% endif %}
+                <div class="staff-contact">
+                    {% if staff.phone_extension %}
+                    <span class="contact-item">ext. {{ staff.phone_extension }}</span>
+                    {% endif %}
+                    {% if staff.direct_phone %}
+                    <a href="tel:{{ staff.direct_phone }}" class="contact-item">{{ staff.direct_phone }}</a>
+                    {% endif %}
+                    {% if staff.email %}
+                    <a href="mailto:{{ staff.email }}" class="contact-item">{{ staff.email }}</a>
+                    {% endif %}
+                </div>
+                {% if staff.notes %}
+                <div class="staff-notes">{{ staff.notes }}</div>
+                {% endif %}
+                <div class="staff-actions">
+                    <a href="{% url 'health:staff_update' pk=staff.pk %}" class="btn btn-text btn-sm">Edit</a>
+                    <form method="post" action="{% url 'health:staff_delete' pk=staff.pk %}" class="inline-form" onsubmit="return confirm('Remove {{ staff.name }} from staff list?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-text btn-sm text-error">Remove</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No staff members added yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Actions -->
+    <div class="provider-actions mt-6">
+        <a href="{% url 'health:provider_update' pk=provider.pk %}" class="btn btn-secondary">Edit Provider</a>
+        <form method="post" action="{% url 'health:provider_delete' pk=provider.pk %}" class="inline-form" onsubmit="return confirm('Delete {{ provider.name }}? This will also remove all associated staff.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Delete Provider</button>
+        </form>
+    </div>
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-4);
+}
+
+.page-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.status-section {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.badge-primary {
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+}
+
+.ai-badge {
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-info, #3b82f6) 20%, transparent);
+    color: var(--color-info, #3b82f6);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.contact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-4);
+}
+
+.contact-card {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.2s ease;
+}
+
+a.contact-card:hover {
+    background: var(--color-border);
+}
+
+.contact-icon {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-2);
+}
+
+.contact-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.contact-value {
+    font-weight: 500;
+    margin-top: var(--space-1);
+}
+
+.contact-phone {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+}
+
+.detail-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.detail-section {
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.detail-section h2 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+}
+
+.address-block {
+    font-style: normal;
+    line-height: 1.6;
+}
+
+.detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.detail-item {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.detail-item dt {
+    font-weight: 500;
+    min-width: 120px;
+    color: var(--color-text-muted);
+}
+
+.detail-item dd a {
+    color: var(--color-accent);
+    word-break: break-all;
+}
+
+.block {
+    display: block;
+}
+
+.staff-section {
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+.staff-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.staff-card {
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.staff-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-1);
+}
+
+.staff-name {
+    font-weight: 600;
+}
+
+.staff-role {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    background: var(--color-background);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+}
+
+.staff-title {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.staff-contact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-2);
+}
+
+.staff-contact a {
+    color: var(--color-accent);
+}
+
+.staff-notes {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--space-2);
+}
+
+.staff-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.provider-actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-error {
+    color: var(--color-error, #ef4444);
+}
+
+.btn-danger {
+    background: var(--color-error, #ef4444);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 80%, black);
+}
+</style>
+{% endblock %}

@@ -15,11 +15,13 @@ from .models import (
     FoodItem,
     GlucoseEntry,
     HeartRateEntry,
+    MedicalProvider,
     Medicine,
     MedicineLog,
     MedicineSchedule,
     NutritionGoals,
     PersonalRecord,
+    ProviderStaff,
     TemplateExercise,
     WeightEntry,
     WorkoutExercise,
@@ -444,3 +446,89 @@ class NutritionGoalsAdmin(admin.ModelAdmin):
             "fields": ("notes",)
         }),
     )
+
+
+# =============================================================================
+# Medical Provider Admin
+# =============================================================================
+
+
+class ProviderStaffInline(admin.TabularInline):
+    model = ProviderStaff
+    extra = 1
+    raw_id_fields = ["user"]
+    fields = ["name", "role", "title", "phone_extension", "direct_phone", "email"]
+
+
+@admin.register(MedicalProvider)
+class MedicalProviderAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "user",
+        "specialty",
+        "credentials",
+        "phone",
+        "city",
+        "state",
+        "is_primary",
+        "ai_lookup_completed",
+        "status",
+    ]
+    list_filter = ["specialty", "is_primary", "accepts_insurance", "ai_lookup_completed", "status"]
+    search_fields = ["user__email", "name", "phone", "city", "npi_number"]
+    raw_id_fields = ["user"]
+    inlines = [ProviderStaffInline]
+    ordering = ["name"]
+
+    fieldsets = (
+        (None, {
+            "fields": ("user", "name", "specialty", "credentials", "is_primary")
+        }),
+        ("Contact Information", {
+            "fields": (
+                ("phone", "phone_alt"),
+                ("fax", "email"),
+                "website",
+            )
+        }),
+        ("Address", {
+            "fields": (
+                "address_line1",
+                "address_line2",
+                ("city", "state"),
+                ("postal_code", "country"),
+            )
+        }),
+        ("Patient Portal", {
+            "fields": ("portal_url", "portal_username"),
+            "classes": ("collapse",)
+        }),
+        ("Insurance & Billing", {
+            "fields": ("npi_number", "accepts_insurance", "insurance_notes"),
+            "classes": ("collapse",)
+        }),
+        ("Notes", {
+            "fields": ("notes",)
+        }),
+        ("AI Lookup", {
+            "fields": ("ai_lookup_completed", "ai_lookup_at"),
+            "classes": ("collapse",)
+        }),
+    )
+
+
+@admin.register(ProviderStaff)
+class ProviderStaffAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "provider",
+        "role",
+        "title",
+        "phone_extension",
+        "email",
+        "status",
+    ]
+    list_filter = ["role", "status"]
+    search_fields = ["name", "provider__name", "email"]
+    raw_id_fields = ["user", "provider"]
+    ordering = ["provider__name", "name"]

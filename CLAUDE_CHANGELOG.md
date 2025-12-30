@@ -17,6 +17,94 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Medical Providers Feature
+
+Added a complete medical providers contact management system to the Health module.
+
+**New Features:**
+- **Medical Provider Tracking** - Store contact information for doctors, clinics, specialists
+  - 27 specialty types (Primary Care, Cardiology, Dentist, etc.)
+  - Full contact info: phone, fax, email, website
+  - Address with Google Maps link
+  - Patient portal URL and username storage
+  - NPI number tracking
+  - Insurance acceptance notes
+  - Mark primary care provider
+- **AI-Powered Provider Lookup**
+  - Enter provider name and location
+  - AI searches for contact information
+  - Auto-populates form fields with results
+  - Uses OpenAI GPT-4o-mini for lookups
+- **Provider Staff Management**
+  - Add supporting staff (PA, Nurse, MA, etc.) to each provider
+  - 12 role types
+  - Direct contact info or phone extension
+  - Linked to parent provider
+- **Health Module Integration**
+  - New "My Providers" card on Health home page
+  - Shows provider count and primary care provider
+  - Quick access to add/view providers
+
+**New Models:**
+- `MedicalProvider` - Healthcare provider contact information
+  - Inherits from `UserOwnedModel` (soft delete, user ownership)
+  - 27+ fields for comprehensive contact storage
+  - AI lookup tracking fields
+- `ProviderStaff` - Supporting staff members
+  - ForeignKey to MedicalProvider (cascade delete)
+  - 12 role choices
+
+**New Views:**
+- `MedicalProviderListView` - List user's providers
+- `MedicalProviderDetailView` - Provider details with staff
+- `MedicalProviderCreateView` - Add new provider with AI lookup
+- `MedicalProviderUpdateView` - Edit provider
+- `MedicalProviderDeleteView` - Soft delete provider
+- `ProviderAILookupView` - AJAX endpoint for AI lookup
+- `ProviderStaffCreateView` - Add staff to provider
+- `ProviderStaffUpdateView` - Edit staff member
+- `ProviderStaffDeleteView` - Remove staff
+
+**New URLs:**
+- `/health/providers/` - List providers
+- `/health/providers/add/` - Add provider
+- `/health/providers/<pk>/` - Provider detail
+- `/health/providers/<pk>/edit/` - Edit provider
+- `/health/providers/<pk>/delete/` - Delete provider
+- `/health/providers/ai-lookup/` - AI lookup API
+- `/health/providers/<pk>/staff/add/` - Add staff
+- `/health/providers/staff/<pk>/edit/` - Edit staff
+- `/health/providers/staff/<pk>/delete/` - Delete staff
+
+**New Templates:**
+- `templates/health/providers/provider_list.html`
+- `templates/health/providers/provider_detail.html`
+- `templates/health/providers/provider_form.html`
+- `templates/health/providers/staff_form.html`
+
+**Files Modified:**
+- `apps/health/models.py` - Added MedicalProvider and ProviderStaff models
+- `apps/health/forms.py` - Added MedicalProviderForm and ProviderStaffForm
+- `apps/health/views.py` - Added 9 new views + HealthHomeView provider context
+- `apps/health/urls.py` - Added 9 new URL patterns
+- `apps/health/admin.py` - Registered new models with inlines
+- `templates/health/home.html` - Added providers card with styles
+
+**New Migration:**
+- `apps/health/migrations/0010_add_medical_providers.py`
+
+**Tests (35 new tests):**
+- `test_medical_providers.py` - Comprehensive test coverage
+  - Model tests (creation, properties, string repr)
+  - View tests (list, detail, create, update, delete)
+  - Staff tests (create, update, delete)
+  - User isolation tests (security)
+  - AI lookup endpoint tests
+  - Form validation tests
+  - Health home integration tests
+
+---
+
 ### Weight and Nutrition Goals Feature
 
 Added personal weight and nutrition goal tracking with progress display on the dashboard.

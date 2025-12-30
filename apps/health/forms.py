@@ -26,10 +26,12 @@ from .models import (
     FoodItem,
     GlucoseEntry,
     HeartRateEntry,
+    MedicalProvider,
     Medicine,
     MedicineLog,
     MedicineSchedule,
     NutritionGoals,
+    ProviderStaff,
     WeightEntry,
 )
 
@@ -1077,3 +1079,216 @@ class FoodSearchForm(forms.Form):
             "autofocus": True,
         }),
     )
+
+
+# =============================================================================
+# Medical Provider Forms
+# =============================================================================
+
+
+class MedicalProviderForm(forms.ModelForm):
+    """
+    Form for adding/editing a medical provider.
+    """
+
+    class Meta:
+        model = MedicalProvider
+        fields = [
+            "name",
+            "specialty",
+            "credentials",
+            "phone",
+            "phone_alt",
+            "fax",
+            "email",
+            "website",
+            "address_line1",
+            "address_line2",
+            "city",
+            "state",
+            "postal_code",
+            "country",
+            "portal_url",
+            "portal_username",
+            "npi_number",
+            "accepts_insurance",
+            "insurance_notes",
+            "is_primary",
+            "notes",
+        ]
+        widgets = {
+            "name": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Provider or practice name",
+            }),
+            "specialty": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "credentials": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "e.g., MD, DO, DDS, PA-C",
+            }),
+            "phone": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "(555) 123-4567",
+                "type": "tel",
+            }),
+            "phone_alt": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Alternate phone",
+                "type": "tel",
+            }),
+            "fax": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Fax number",
+                "type": "tel",
+            }),
+            "email": forms.EmailInput(attrs={
+                "class": "form-input",
+                "placeholder": "office@provider.com",
+            }),
+            "website": forms.URLInput(attrs={
+                "class": "form-input",
+                "placeholder": "https://provider.com",
+            }),
+            "address_line1": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Street address",
+            }),
+            "address_line2": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Suite, building, etc.",
+            }),
+            "city": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "City",
+            }),
+            "state": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "State",
+            }),
+            "postal_code": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "ZIP/Postal code",
+            }),
+            "country": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Country",
+            }),
+            "portal_url": forms.URLInput(attrs={
+                "class": "form-input",
+                "placeholder": "https://portal.provider.com",
+            }),
+            "portal_username": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Your portal username",
+            }),
+            "npi_number": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "10-digit NPI",
+            }),
+            "accepts_insurance": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "insurance_notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "placeholder": "Accepted insurance plans, notes",
+                "rows": 2,
+            }),
+            "is_primary": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "placeholder": "Personal notes about this provider",
+                "rows": 3,
+            }),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+        # Set optional fields
+        optional_fields = [
+            "credentials", "phone", "phone_alt", "fax", "email", "website",
+            "address_line1", "address_line2", "city", "state", "postal_code",
+            "portal_url", "portal_username", "npi_number", "insurance_notes", "notes"
+        ]
+        for field_name in optional_fields:
+            if field_name in self.fields:
+                self.fields[field_name].required = False
+
+        # Set default country for new providers
+        if not self.instance.pk:
+            self.initial["country"] = "USA"
+
+
+class ProviderStaffForm(forms.ModelForm):
+    """
+    Form for adding/editing provider staff.
+    """
+
+    class Meta:
+        model = ProviderStaff
+        fields = [
+            "name",
+            "role",
+            "title",
+            "phone_extension",
+            "direct_phone",
+            "email",
+            "notes",
+        ]
+        widgets = {
+            "name": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Staff member's name",
+            }),
+            "role": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "title": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Job title (optional)",
+            }),
+            "phone_extension": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "ext. 123",
+            }),
+            "direct_phone": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "Direct phone (if different)",
+                "type": "tel",
+            }),
+            "email": forms.EmailInput(attrs={
+                "class": "form-input",
+                "placeholder": "staff@provider.com",
+            }),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "placeholder": "Notes about this staff member",
+                "rows": 2,
+            }),
+        }
+
+    def __init__(self, *args, user=None, provider=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.provider = provider
+
+        # Set optional fields
+        optional_fields = ["title", "phone_extension", "direct_phone", "email", "notes"]
+        for field_name in optional_fields:
+            if field_name in self.fields:
+                self.fields[field_name].required = False
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.provider and not instance.provider_id:
+            instance.provider = self.provider
+        if self.user and not instance.user_id:
+            instance.user = self.user
+        if commit:
+            instance.save()
+        return instance

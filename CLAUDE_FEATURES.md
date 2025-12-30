@@ -25,8 +25,9 @@ For core project context, see `CLAUDE.md`.
 6. [Weight & Nutrition Goals](#weight--nutrition-goals)
 7. [Medicine Tracking](#medicine-tracking)
 8. [Vitals Tracking](#vitals-tracking)
-9. [Camera Scan Feature](#camera-scan-feature)
-10. [Biometric Login](#biometric-login)
+9. [Medical Providers](#medical-providers)
+10. [Camera Scan Feature](#camera-scan-feature)
+11. [Biometric Login](#biometric-login)
 
 ---
 
@@ -513,6 +514,111 @@ Both vitals appear as cards on the Health home page (`/health/`) with:
 - Category badge (color-coded)
 - Average stats
 - Links to full history
+
+---
+
+## Medical Providers
+
+### Overview
+Store contact information for doctors, clinics, and other healthcare providers with AI-assisted lookup and staff tracking.
+
+### Key Features
+- **Provider Contact Management** - Store comprehensive contact info for any healthcare provider
+- **AI-Powered Lookup** - Enter name/location, AI finds contact details
+- **Staff Tracking** - Add PAs, nurses, and other supporting staff
+- **Primary Care Flag** - Mark your main doctor for quick access
+- **Patient Portal Storage** - Store portal URLs and usernames
+
+### Models
+
+**`MedicalProvider`** - Healthcare provider contact information
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | CharField | Provider or practice name |
+| `specialty` | CharField | 27 specialty choices (primary_care, cardiology, dentist, etc.) |
+| `credentials` | CharField | MD, DO, DDS, PA-C, etc. |
+| `phone`, `phone_alt`, `fax` | CharField | Contact numbers |
+| `email`, `website` | EmailField, URLField | Online contact |
+| `address_line1`, `address_line2`, `city`, `state`, `postal_code`, `country` | CharFields | Full address |
+| `portal_url`, `portal_username` | URLField, CharField | Patient portal access |
+| `npi_number` | CharField | National Provider Identifier |
+| `accepts_insurance`, `insurance_notes` | Boolean, TextField | Insurance info |
+| `is_primary` | Boolean | Mark as primary care provider |
+| `notes` | TextField | Personal notes |
+| `ai_lookup_completed`, `ai_lookup_at` | Boolean, DateTime | AI lookup tracking |
+
+**`ProviderStaff`** - Supporting staff members
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | ForeignKey | Parent provider (CASCADE delete) |
+| `name` | CharField | Staff member name |
+| `role` | CharField | 12 role choices (physician_assistant, registered_nurse, etc.) |
+| `title` | CharField | Job title |
+| `phone_extension`, `direct_phone` | CharField | Contact numbers |
+| `email` | EmailField | Direct email |
+| `notes` | TextField | Notes |
+
+### URL Routes (`/health/providers/`)
+
+| Route | View | Description |
+|-------|------|-------------|
+| `/providers/` | `MedicalProviderListView` | List all providers |
+| `/providers/add/` | `MedicalProviderCreateView` | Add provider with AI lookup |
+| `/providers/<pk>/` | `MedicalProviderDetailView` | Provider detail with staff |
+| `/providers/<pk>/edit/` | `MedicalProviderUpdateView` | Edit provider |
+| `/providers/<pk>/delete/` | `MedicalProviderDeleteView` | Delete provider |
+| `/providers/ai-lookup/` | `ProviderAILookupView` | AI lookup API endpoint |
+| `/providers/<pk>/staff/add/` | `ProviderStaffCreateView` | Add staff member |
+| `/providers/staff/<pk>/edit/` | `ProviderStaffUpdateView` | Edit staff |
+| `/providers/staff/<pk>/delete/` | `ProviderStaffDeleteView` | Delete staff |
+
+### AI Provider Lookup
+
+When adding a new provider, users can use AI to auto-fill contact information:
+
+1. Enter provider name (e.g., "Dr. John Smith" or "Cleveland Clinic")
+2. Optionally enter city and state for better results
+3. Click "Search with AI"
+4. AI searches for the provider and returns:
+   - Phone, fax numbers
+   - Address (street, city, state, ZIP)
+   - Website URL
+   - Specialty and credentials
+   - NPI number if known
+5. Form fields are auto-populated with results
+6. User reviews and saves
+
+**Technical Details:**
+- Uses OpenAI GPT-4o-mini model
+- AJAX POST to `/health/providers/ai-lookup/`
+- Returns JSON response
+- `ai_lookup_completed` flag tracks which providers used AI
+
+### Health Home Integration
+
+The Health module home page (`/health/`) includes a "My Providers" card showing:
+- Total provider count
+- Primary care provider name (if set)
+- Quick links to view/add providers
+
+### Key Files
+- `apps/health/models.py` - MedicalProvider, ProviderStaff models
+- `apps/health/forms.py` - MedicalProviderForm, ProviderStaffForm
+- `apps/health/views.py` - 9 provider-related views
+- `apps/health/urls.py` - URL patterns
+- `apps/health/admin.py` - Admin registration with inlines
+- `templates/health/providers/` - 4 templates (list, detail, form, staff_form)
+- `templates/health/home.html` - Providers card
+
+### Tests
+`apps/health/tests/test_medical_providers.py` - 35 tests covering:
+- Model creation and properties
+- View CRUD operations
+- Staff management
+- User isolation (security)
+- AI lookup endpoint
+- Form validation
+- Health home integration
 
 ---
 

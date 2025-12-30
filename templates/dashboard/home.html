@@ -71,10 +71,30 @@
     <section class="celebrations-section">
         <div class="celebrations-grid">
             {% for celebration in ai_insights.celebrations %}
+            {% if celebration.type == 'streak' %}
+            <a href="{% url 'journal:entry_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view journal entries">
+            {% elif celebration.type == 'tasks' %}
+            <a href="{% url 'life:task_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view tasks">
+            {% elif celebration.type == 'medicine' %}
+            <a href="{% url 'health:medicine_home' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view medicines">
+            {% elif celebration.type == 'workout' %}
+            <a href="{% url 'health:workout_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view workouts">
+            {% elif celebration.type == 'faith' %}
+            <a href="{% url 'faith:prayer_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view prayers">
+            {% elif celebration.type == 'health' %}
+            <a href="{% url 'health:weight_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view weight history">
+            {% elif celebration.type == 'scan' %}
+            <a href="{% url 'scan:home' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to open camera scan">
+            {% else %}
             <div class="celebration-card celebration-{{ celebration.type }}">
+            {% endif %}
                 <div class="celebration-title">{{ celebration.title }}</div>
                 <div class="celebration-detail">{{ celebration.detail }}</div>
+            {% if celebration.type == 'streak' or celebration.type == 'tasks' or celebration.type == 'medicine' or celebration.type == 'workout' or celebration.type == 'faith' or celebration.type == 'health' or celebration.type == 'scan' %}
+            </a>
+            {% else %}
             </div>
+            {% endif %}
             {% endfor %}
         </div>
     </section>

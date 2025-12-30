@@ -150,6 +150,31 @@
     text-align: center;
 }
 
+/* Clickable celebration cards */
+.celebration-link {
+    display: block;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.celebration-link:hover {
+    border-color: var(--color-accent);
+    background: var(--color-background);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.celebration-link:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.celebration-link .celebration-title,
+.celebration-link .celebration-detail {
+    color: inherit;
+}
+
 .celebration-title {
     font-size: var(--font-size-base);
     font-weight: 600;

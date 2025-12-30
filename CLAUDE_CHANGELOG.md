@@ -5,7 +5,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29 (Fix Medicine Tile Timezone Bug)
+# Last Updated: 2025-12-29 (Silence django-axes Warning)
 # ==============================================================================
 
 # Change History
@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md`.
 ---
 
 ## 2025-12-29 Changes
+
+### Silence django-axes Warning (axes.W003)
+
+Silenced the `axes.W003` warning that was appearing on every Django startup/deployment.
+
+**Background:**
+- The warning recommended adding `axes.backends.AxesStandaloneBackend` to `AUTHENTICATION_BACKENDS`
+- However, this backend requires a `request` parameter when authenticating
+- Django's test client `client.login()` doesn't pass a request, which breaks many tests
+- Rate limiting still works via `AxesMiddleware`, so the warning is benign
+
+**Solution:**
+- Added `SILENCED_SYSTEM_CHECKS = ["axes.W003"]` to settings
+- Updated comment in `AUTHENTICATION_BACKENDS` explaining the intentional design
+- Rate limiting continues to work via middleware
+
+**Files Modified:**
+- `config/settings.py` - Added `SILENCED_SYSTEM_CHECKS`, updated `AUTHENTICATION_BACKENDS` comment
+
+**Test Status:** All 40 user authentication tests passing
+
+---
 
 ### Medicine Tile Timezone Bug Fix
 

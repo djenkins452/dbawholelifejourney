@@ -375,8 +375,10 @@ AUTH_USER_MODEL = "users.User"
 # Django Allauth Configuration
 SITE_ID = 1
 
-# Note: AxesBackend is added via middleware, not as an authentication backend.
-# This allows tests to work while still providing rate limiting in production.
+# Authentication backends
+# Note: AxesStandaloneBackend is NOT included here because it breaks Django's test client
+# (requires request parameter in authenticate()). Axes rate limiting still works via
+# AxesMiddleware. The warning (axes.W003) is suppressed in SILENCED_SYSTEM_CHECKS.
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
@@ -458,6 +460,14 @@ AXES_RESET_ON_SUCCESS = True  # Reset failed attempts on successful login
 AXES_LOCKOUT_PARAMETERS = ["ip_address", "username"]  # New v6+ config replaces deprecated settings
 AXES_ENABLE_ACCESS_FAILURE_LOG = True  # Log failed attempts
 AXES_VERBOSE = True if DEBUG else False  # Verbose logging in dev only
+
+# Silenced System Checks
+# axes.W003: We intentionally don't include AxesStandaloneBackend in AUTHENTICATION_BACKENDS
+# because it requires a request parameter that Django's test client doesn't provide.
+# Rate limiting still works via AxesMiddleware.
+SILENCED_SYSTEM_CHECKS = [
+    "axes.W003",
+]
 
 
 # Whole Life Journey Custom Settings

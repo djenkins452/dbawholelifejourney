@@ -338,6 +338,52 @@ class UserPreferences(models.Model):
     )
 
     # ===================
+    # WEIGHT GOALS
+    # ===================
+    weight_goal = models.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Target weight goal",
+    )
+    weight_goal_unit = models.CharField(
+        max_length=2,
+        choices=[("lb", "Pounds"), ("kg", "Kilograms")],
+        default="lb",
+        help_text="Unit for weight goal",
+    )
+    weight_goal_target_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Target date to achieve weight goal",
+    )
+
+    # ===================
+    # NUTRITION GOALS
+    # ===================
+    daily_calorie_goal = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Daily caloric intake goal",
+    )
+    protein_percentage = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Target percentage of calories from protein (0-100)",
+    )
+    carbs_percentage = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Target percentage of calories from carbohydrates (0-100)",
+    )
+    fat_percentage = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Target percentage of calories from fat (0-100)",
+    )
+
+    # ===================
     # FASTING PREFERENCES
     # ===================
     FASTING_TYPE_CHOICES = [
@@ -376,6 +422,195 @@ class UserPreferences(models.Model):
 
     def __str__(self):
         return f"Preferences for {self.user.email}"
+
+    @property
+    def has_weight_goal(self):
+        """Check if user has a weight goal set."""
+        return self.weight_goal is not None
+
+    @property
+    def has_nutrition_goals(self):
+        """Check if user has nutrition goals set."""
+        return self.daily_calorie_goal is not None
+
+    @property
+    def macro_percentages_valid(self):
+        """Check if macro percentages add up to 100%."""
+        if self.protein_percentage is None or self.carbs_percentage is None or self.fat_percentage is None:
+            return True  # If not all set, skip validation
+        total = (self.protein_percentage or 0) + (self.carbs_percentage or 0) + (self.fat_percentage or 0)
+        return total == 100
+
+    def get_weight_progress(self):
+        """
+        Calculate progress toward weight goal.
+        Returns dict with current_weight, goal, progress_percent, remaining, on_track.
+        """
+        from apps.health.models import WeightEntry
+
+        if not self.has_weight_goal:
+            return None
+
+        latest_weight = WeightEntry.objects.filter(
+            user=self.user, status='active'
+        ).order_by('-recorded_at').first()
+
+        if not latest_weight:
+            return {
+                'current_weight': None,
+                'goal': float(self.weight_goal),
+                'unit': self.weight_goal_unit,
+                'target_date': self.weight_goal_target_date,
+                'progress_percent': 0,
+                'remaining': None,
+                'on_track': None,
+            }
+
+        # Get current weight in the goal's unit
+        if self.weight_goal_unit == 'lb':
+            current = latest_weight.value_in_lb
+        else:
+            current = latest_weight.value_in_kg
+
+        goal = float(self.weight_goal)
+
+        # Get starting weight (first entry after setting goal or just first entry)
+        starting_weight = WeightEntry.objects.filter(
+            user=self.user, status='active'
+        ).order_by('recorded_at').first()
+
+        if starting_weight:
+            if self.weight_goal_unit == 'lb':
+                start = starting_weight.value_in_lb
+            else:
+                start = starting_weight.value_in_kg
+        else:
+            start = current
+
+        # Calculate progress
+        total_change_needed = start - goal
+        change_so_far = start - current
+
+        if abs(total_change_needed) < 0.1:
+            progress_percent = 100
+        elif total_change_needed != 0:
+            progress_percent = min(100, max(0, (change_so_far / total_change_needed) * 100))
+        else:
+            progress_percent = 100 if abs(current - goal) < 0.5 else 0
+
+        remaining = current - goal
+
+        # Determine if on track for target date
+        on_track = None
+        if self.weight_goal_target_date:
+            from django.utils import timezone
+            today = timezone.now().date()
+            if self.weight_goal_target_date > today:
+                days_remaining = (self.weight_goal_target_date - today).days
+                if abs(remaining) <= 0.5:
+                    on_track = True
+                elif days_remaining > 0 and abs(remaining) > 0:
+                    # Check if recent trend supports reaching goal
+                    on_track = progress_percent >= 50 or remaining < abs(total_change_needed) / 2
+
+        return {
+            'current_weight': round(current, 1),
+            'goal': goal,
+            'unit': self.weight_goal_unit,
+            'target_date': self.weight_goal_target_date,
+            'progress_percent': round(progress_percent, 1),
+            'remaining': round(remaining, 1) if remaining else 0,
+            'on_track': on_track,
+            'direction': 'lose' if remaining > 0 else 'gain' if remaining < 0 else 'maintain',
+        }
+
+    def get_nutrition_progress(self, date=None):
+        """
+        Calculate today's nutrition progress toward goals.
+        Returns dict with current totals, goals, and progress percentages.
+        """
+        from apps.health.models import FoodEntry, DailyNutritionSummary
+        from apps.core.utils import get_user_today
+
+        if not self.has_nutrition_goals:
+            return None
+
+        if date is None:
+            date = get_user_today(self.user) if self.user_id else timezone.now().date()
+
+        # Get today's nutrition data
+        summary = DailyNutritionSummary.objects.filter(
+            user=self.user,
+            summary_date=date,
+            status='active'
+        ).first()
+
+        if not summary:
+            # Calculate from food entries if no summary
+            entries = FoodEntry.objects.filter(
+                user=self.user,
+                logged_date=date,
+                status='active'
+            )
+            total_calories = sum(float(e.total_calories) for e in entries)
+            total_protein_g = sum(float(e.total_protein_g) for e in entries)
+            total_carbs_g = sum(float(e.total_carbohydrates_g) for e in entries)
+            total_fat_g = sum(float(e.total_fat_g) for e in entries)
+        else:
+            total_calories = float(summary.total_calories)
+            total_protein_g = float(summary.total_protein_g)
+            total_carbs_g = float(summary.total_carbohydrates_g)
+            total_fat_g = float(summary.total_fat_g)
+
+        # Calculate goal targets in grams from percentages
+        calorie_goal = self.daily_calorie_goal or 2000
+        protein_goal_g = None
+        carbs_goal_g = None
+        fat_goal_g = None
+
+        if self.protein_percentage is not None:
+            # Protein: 4 calories per gram
+            protein_goal_g = round((calorie_goal * self.protein_percentage / 100) / 4)
+        if self.carbs_percentage is not None:
+            # Carbs: 4 calories per gram
+            carbs_goal_g = round((calorie_goal * self.carbs_percentage / 100) / 4)
+        if self.fat_percentage is not None:
+            # Fat: 9 calories per gram
+            fat_goal_g = round((calorie_goal * self.fat_percentage / 100) / 9)
+
+        # Calculate progress percentages
+        calorie_progress = round((total_calories / calorie_goal) * 100, 1) if calorie_goal else 0
+        protein_progress = round((total_protein_g / protein_goal_g) * 100, 1) if protein_goal_g else None
+        carbs_progress = round((total_carbs_g / carbs_goal_g) * 100, 1) if carbs_goal_g else None
+        fat_progress = round((total_fat_g / fat_goal_g) * 100, 1) if fat_goal_g else None
+
+        return {
+            'date': date,
+            'calories': {
+                'current': round(total_calories),
+                'goal': calorie_goal,
+                'remaining': calorie_goal - round(total_calories),
+                'progress_percent': min(100, calorie_progress),
+            },
+            'protein': {
+                'current_g': round(total_protein_g, 1),
+                'goal_g': protein_goal_g,
+                'goal_percent': self.protein_percentage,
+                'progress_percent': min(100, protein_progress) if protein_progress else None,
+            },
+            'carbs': {
+                'current_g': round(total_carbs_g, 1),
+                'goal_g': carbs_goal_g,
+                'goal_percent': self.carbs_percentage,
+                'progress_percent': min(100, carbs_progress) if carbs_progress else None,
+            },
+            'fat': {
+                'current_g': round(total_fat_g, 1),
+                'goal_g': fat_goal_g,
+                'goal_percent': self.fat_percentage,
+                'progress_percent': min(100, fat_progress) if fat_progress else None,
+            },
+        }
 
 
 class WebAuthnCredential(models.Model):

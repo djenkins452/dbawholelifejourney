@@ -17,6 +17,58 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Weight and Nutrition Goals Feature
+
+Added personal weight and nutrition goal tracking with progress display on the dashboard.
+
+**New Features:**
+- **Weight Goal** - Set a target weight and optional target date in Preferences
+  - Supports both pounds (lb) and kilograms (kg)
+  - Progress bar shows how close you are to your goal
+  - Dashboard Health tile shows remaining weight to goal
+- **Nutrition Goals** - Set daily caloric intake and macro percentages
+  - Daily calorie goal (custom amount)
+  - Macro split: Protein, Carbs, Fat percentages (must total 100%)
+  - Preset macros: Balanced, High Protein, Low Carb, Keto
+  - Calculates target grams from percentages automatically
+- **Dashboard Progress Display**
+  - Health tile shows weight progress bar with remaining to goal
+  - New "Today's Nutrition" section shows:
+    - Calories consumed vs goal
+    - Macro progress bars (protein/carbs/fat)
+    - Current vs target grams for each macro
+
+**Model Changes (UserPreferences):**
+- `weight_goal` - Target weight (DecimalField)
+- `weight_goal_unit` - Unit (lb/kg)
+- `weight_goal_target_date` - Optional target date
+- `daily_calorie_goal` - Daily calorie target
+- `protein_percentage` - Target protein % (0-100)
+- `carbs_percentage` - Target carbs % (0-100)
+- `fat_percentage` - Target fat % (0-100)
+
+**New Methods (UserPreferences):**
+- `has_weight_goal` - Property checking if weight goal is set
+- `has_nutrition_goals` - Property checking if nutrition goals are set
+- `macro_percentages_valid` - Property checking if macros sum to 100%
+- `get_weight_progress()` - Calculates weight progress toward goal
+- `get_nutrition_progress(date)` - Calculates nutrition progress for a date
+
+**Files Modified:**
+- `apps/users/models.py` - Added goal fields and progress methods
+- `apps/users/forms.py` - Added goal fields with validation
+- `templates/users/preferences.html` - New "Weight & Nutrition Goals" section
+- `apps/dashboard/views.py` - Added goal progress to health data
+- `templates/dashboard/home.html` - Health tile progress bar, nutrition section
+- `static/css/dashboard.css` - Styles for goal progress indicators
+
+**New Migration:**
+- `apps/users/migrations/0019_add_weight_nutrition_goals.py`
+
+**Test Status:** All 485 users/dashboard/health tests passing
+
+---
+
 ### Medicine Refill Status Display and Overdue Dose Timezone Fix
 
 Fixed two issues with the medicine tracking system:

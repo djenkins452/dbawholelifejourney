@@ -340,6 +340,40 @@
 
             <a href="{% url 'health:nutrition_home' %}" class="card-link">Go to Nutrition</a>
         </div>
+
+        <!-- Medical Providers Card -->
+        <div class="health-card providers-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <path d="M20 8v6M23 11h-6"/>
+                    </svg>
+                    My Providers
+                </h2>
+                <a href="{% url 'health:provider_create' %}" class="btn btn-primary btn-sm">Add</a>
+            </div>
+
+            {% if provider_count %}
+            <div class="provider-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ provider_count }}</span>
+                    <span class="stat-label">provider{{ provider_count|pluralize }}</span>
+                </div>
+                {% if primary_provider %}
+                <div class="primary-provider">
+                    <span class="stat-label">Primary Care</span>
+                    <span class="provider-name">{{ primary_provider.name }}</span>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-muted">Keep track of your doctors, clinics, and healthcare contacts.</p>
+            {% endif %}
+
+            <a href="{% url 'health:provider_list' %}" class="card-link">View Providers</a>
+        </div>
     </div>
 </div>
 
@@ -623,6 +657,37 @@
 .nutrition-stats .stat-label {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
+}
+
+.provider-stats {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.provider-stats .stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.provider-stats .stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.provider-stats .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.primary-provider {
+    display: flex;
+    flex-direction: column;
+}
+
+.provider-name {
+    font-weight: 500;
+    font-size: var(--font-size-sm);
 }
 
 @media (max-width: 640px) {

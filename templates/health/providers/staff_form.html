@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Staff - {{ provider.name }} - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:provider_list' %}">Providers</a>
+        <span>/</span>
+        <a href="{% url 'health:provider_detail' pk=provider.pk %}">{{ provider.name }}</a>
+        <span>/</span>
+        <span>{% if form.instance.pk %}Edit{% else %}Add{% endif %} Staff</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if form.instance.pk %}Edit Staff Member{% else %}Add Staff Member{% endif %}</h1>
+        <p class="page-subtitle">{{ provider.name }}</p>
+    </div>
+
+    <form method="post" class="form-container">
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="form-errors mb-4">
+            <p class="error-title">Please fix the following errors:</p>
+            <ul>
+                {% for field in form %}
+                    {% for error in field.errors %}
+                    <li>{{ field.label }}: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="form-section">
+            <h2 class="form-section-title">Staff Information</h2>
+
+            <div class="form-group">
+                <label for="id_name">Name *</label>
+                {{ form.name }}
+                <p class="form-help">Staff member's full name</p>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_role">Role *</label>
+                    {{ form.role }}
+                </div>
+                <div class="form-group">
+                    <label for="id_title">Title</label>
+                    {{ form.title }}
+                    <p class="form-help">Job title or position</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Contact Information</h2>
+            <p class="text-muted mb-4">Enter direct contact info if different from the main office.</p>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_phone_extension">Phone Extension</label>
+                    {{ form.phone_extension }}
+                    <p class="form-help">Extension at main office number</p>
+                </div>
+                <div class="form-group">
+                    <label for="id_direct_phone">Direct Phone</label>
+                    {{ form.direct_phone }}
+                    <p class="form-help">Direct line if different</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="id_email">Email</label>
+                {{ form.email }}
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Notes</h2>
+
+            <div class="form-group">
+                <label for="id_notes">Notes</label>
+                {{ form.notes }}
+                <p class="form-help">Any additional information about this staff member</p>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if form.instance.pk %}Save Changes{% else %}Add Staff Member{% endif %}
+            </button>
+            <a href="{% url 'health:provider_detail' pk=provider.pk %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-container {
+    max-width: 600px;
+}
+
+.form-section {
+    margin-bottom: var(--space-6);
+    padding: var(--space-5);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.form-section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.form-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.form-errors {
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-error, #ef4444) 40%, transparent);
+    border-radius: var(--radius-md);
+}
+
+.error-title {
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+
+.form-errors ul {
+    margin: 0;
+    padding-left: var(--space-4);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

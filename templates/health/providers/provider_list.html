@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Providers - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Medical Providers</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">My Medical Providers</h1>
+            <p class="page-subtitle">Manage your healthcare provider contacts</p>
+        </div>
+        <a href="{% url 'health:provider_create' %}" class="btn btn-primary">Add Provider</a>
+    </div>
+
+    {% if providers %}
+    <div class="provider-list">
+        {% for provider in providers %}
+        <div class="provider-card">
+            <div class="provider-header">
+                <div class="provider-title">
+                    <a href="{% url 'health:provider_detail' pk=provider.pk %}">{{ provider.name }}</a>
+                    {% if provider.is_primary %}
+                    <span class="badge badge-primary">Primary</span>
+                    {% endif %}
+                    {% if provider.ai_lookup_completed %}
+                    <span class="ai-badge" title="Contact info retrieved via AI">AI</span>
+                    {% endif %}
+                </div>
+                {% if provider.credentials %}
+                <div class="provider-credentials">{{ provider.credentials }}</div>
+                {% endif %}
+            </div>
+
+            <div class="provider-meta">
+                <span class="specialty-tag">{{ provider.get_specialty_display }}</span>
+                {% if provider.phone %}
+                <span class="meta-item"><a href="tel:{{ provider.phone }}">{{ provider.phone }}</a></span>
+                {% endif %}
+                {% if provider.city and provider.state %}
+                <span class="meta-item">{{ provider.city }}, {{ provider.state }}</span>
+                {% endif %}
+            </div>
+
+            {% if provider.staff_count > 0 %}
+            <div class="staff-count">
+                {{ provider.staff_count }} staff member{{ provider.staff_count|pluralize }}
+            </div>
+            {% endif %}
+
+            <div class="provider-actions">
+                <a href="{% url 'health:provider_detail' pk=provider.pk %}" class="btn btn-secondary btn-sm">View</a>
+                <a href="{% url 'health:provider_update' pk=provider.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                {% if provider.phone %}
+                <a href="tel:{{ provider.phone }}" class="btn btn-secondary btn-sm">Call</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="pagination mt-6">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary btn-sm">Previous</a>
+        {% endif %}
+        <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary btn-sm">Next</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <h2 class="empty-state-title">No providers found</h2>
+        <p class="text-muted">Keep track of your doctors, clinics, and other healthcare providers.</p>
+        <a href="{% url 'health:provider_create' %}" class="btn btn-primary mt-4">Add Your First Provider</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.provider-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.provider-card {
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.provider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-2);
+}
+
+.provider-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.provider-title a {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.provider-credentials {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.badge-primary {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+}
+
+.ai-badge {
+    padding: 2px 6px;
+    background: color-mix(in srgb, var(--color-info, #3b82f6) 20%, transparent);
+    color: var(--color-info, #3b82f6);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+.provider-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.specialty-tag {
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.meta-item {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.meta-item a {
+    color: var(--color-accent);
+}
+
+.staff-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.provider-actions {
+    display: flex;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.page-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

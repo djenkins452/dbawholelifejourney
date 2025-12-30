@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Provider - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:provider_list' %}">Providers</a>
+        <span>/</span>
+        <span>{% if form.instance.pk %}Edit{% else %}Add{% endif %} Provider</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Add Medical Provider{% endif %}</h1>
+    </div>
+
+    {% if not form.instance.pk %}
+    <!-- AI Lookup Section (only for new providers) -->
+    <div class="ai-lookup-section mb-6">
+        <h2 class="form-section-title">Quick Start with AI</h2>
+        <p class="text-muted mb-4">Enter the provider name and location, then let AI find their contact information for you.</p>
+
+        <div class="ai-lookup-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="ai_name">Provider Name</label>
+                    <input type="text" id="ai_name" class="form-input" placeholder="e.g., Dr. John Smith or Cleveland Clinic">
+                </div>
+                <div class="form-group">
+                    <label for="ai_city">City (optional)</label>
+                    <input type="text" id="ai_city" class="form-input" placeholder="e.g., Cleveland">
+                </div>
+                <div class="form-group">
+                    <label for="ai_state">State (optional)</label>
+                    <input type="text" id="ai_state" class="form-input" placeholder="e.g., OH">
+                </div>
+            </div>
+            <button type="button" id="ai-lookup-btn" class="btn btn-secondary">
+                <span class="btn-text">Search with AI</span>
+                <span class="btn-loading" style="display: none;">Searching...</span>
+            </button>
+        </div>
+        <div id="ai-lookup-result" class="ai-lookup-result" style="display: none;"></div>
+    </div>
+    {% endif %}
+
+    <form method="post" class="form-container">
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="form-errors mb-4">
+            <p class="error-title">Please fix the following errors:</p>
+            <ul>
+                {% for field in form %}
+                    {% for error in field.errors %}
+                    <li>{{ field.label }}: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="form-section">
+            <h2 class="form-section-title">Basic Information</h2>
+
+            <div class="form-group">
+                <label for="id_name">Provider Name *</label>
+                {{ form.name }}
+                <p class="form-help">Doctor's name or practice/facility name</p>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_specialty">Specialty *</label>
+                    {{ form.specialty }}
+                </div>
+                <div class="form-group">
+                    <label for="id_credentials">Credentials</label>
+                    {{ form.credentials }}
+                    <p class="form-help">e.g., MD, DO, DDS, PA-C</p>
+                </div>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                    {{ form.is_primary }}
+                    <span>This is my primary care provider</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Contact Information</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_phone">Phone</label>
+                    {{ form.phone }}
+                </div>
+                <div class="form-group">
+                    <label for="id_phone_alt">Alt Phone</label>
+                    {{ form.phone_alt }}
+                    <p class="form-help">Scheduling line, after hours, etc.</p>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_fax">Fax</label>
+                    {{ form.fax }}
+                </div>
+                <div class="form-group">
+                    <label for="id_email">Email</label>
+                    {{ form.email }}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="id_website">Website</label>
+                {{ form.website }}
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Address</h2>
+
+            <div class="form-group">
+                <label for="id_address_line1">Street Address</label>
+                {{ form.address_line1 }}
+            </div>
+
+            <div class="form-group">
+                <label for="id_address_line2">Suite / Building</label>
+                {{ form.address_line2 }}
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_city">City</label>
+                    {{ form.city }}
+                </div>
+                <div class="form-group">
+                    <label for="id_state">State</label>
+                    {{ form.state }}
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_postal_code">ZIP Code</label>
+                    {{ form.postal_code }}
+                </div>
+                <div class="form-group">
+                    <label for="id_country">Country</label>
+                    {{ form.country }}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Patient Portal</h2>
+
+            <div class="form-group">
+                <label for="id_portal_url">Portal URL</label>
+                {{ form.portal_url }}
+                <p class="form-help">Link to log into your patient portal</p>
+            </div>
+
+            <div class="form-group">
+                <label for="id_portal_username">Portal Username</label>
+                {{ form.portal_username }}
+                <p class="form-help">Your username for reference (stored locally)</p>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Insurance & Billing</h2>
+
+            <div class="form-group">
+                <label for="id_npi_number">NPI Number</label>
+                {{ form.npi_number }}
+                <p class="form-help">10-digit National Provider Identifier</p>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                    {{ form.accepts_insurance }}
+                    <span>Accepts insurance</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label for="id_insurance_notes">Insurance Notes</label>
+                {{ form.insurance_notes }}
+                <p class="form-help">Accepted plans, billing notes, etc.</p>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Notes</h2>
+
+            <div class="form-group">
+                <label for="id_notes">Personal Notes</label>
+                {{ form.notes }}
+                <p class="form-help">Any additional information you want to remember</p>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if form.instance.pk %}Save Changes{% else %}Add Provider{% endif %}
+            </button>
+            <a href="{% if form.instance.pk %}{% url 'health:provider_detail' pk=form.instance.pk %}{% else %}{% url 'health:provider_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-container {
+    max-width: 700px;
+}
+
+.ai-lookup-section {
+    max-width: 700px;
+    padding: var(--space-5);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+    border-radius: var(--radius-lg);
+}
+
+.ai-lookup-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.ai-lookup-result {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.ai-lookup-result.success {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-success, #10b981) 30%, transparent);
+}
+
+.ai-lookup-result.error {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-error, #ef4444) 30%, transparent);
+}
+
+.form-section {
+    margin-bottom: var(--space-6);
+    padding: var(--space-5);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.form-section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.form-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.form-errors {
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-error, #ef4444) 40%, transparent);
+    border-radius: var(--radius-md);
+}
+
+.error-title {
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+
+.form-errors ul {
+    margin: 0;
+    padding-left: var(--space-4);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+{% if not form.instance.pk %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const lookupBtn = document.getElementById('ai-lookup-btn');
+    const resultDiv = document.getElementById('ai-lookup-result');
+    const btnText = lookupBtn.querySelector('.btn-text');
+    const btnLoading = lookupBtn.querySelector('.btn-loading');
+
+    lookupBtn.addEventListener('click', async function() {
+        const name = document.getElementById('ai_name').value.trim();
+        const city = document.getElementById('ai_city').value.trim();
+        const state = document.getElementById('ai_state').value.trim();
+
+        if (!name) {
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'ai-lookup-result error';
+            resultDiv.innerHTML = 'Please enter a provider name.';
+            return;
+        }
+
+        // Show loading state
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'inline';
+        lookupBtn.disabled = true;
+        resultDiv.style.display = 'none';
+
+        try {
+            const response = await fetch('{% url "health:provider_ai_lookup" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: new URLSearchParams({
+                    'name': name,
+                    'city': city,
+                    'state': state
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Populate form fields with AI results
+                const fields = {
+                    'id_name': name, // Use the entered name
+                    'id_phone': data.data.phone || '',
+                    'id_fax': data.data.fax || '',
+                    'id_address_line1': data.data.address_line1 || '',
+                    'id_city': data.data.city || '',
+                    'id_state': data.data.state || '',
+                    'id_postal_code': data.data.postal_code || '',
+                    'id_website': data.data.website || '',
+                    'id_specialty': data.data.specialty || '',
+                    'id_credentials': data.data.credentials || '',
+                    'id_npi_number': data.data.npi_number || ''
+                };
+
+                for (const [fieldId, value] of Object.entries(fields)) {
+                    const field = document.getElementById(fieldId);
+                    if (field && value) {
+                        field.value = value;
+                    }
+                }
+
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'ai-lookup-result success';
+                resultDiv.innerHTML = 'Contact information found and populated below. Please review and adjust as needed.';
+            } else {
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'ai-lookup-result error';
+                resultDiv.innerHTML = data.error || 'No results found. Please enter information manually.';
+            }
+        } catch (error) {
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'ai-lookup-result error';
+            resultDiv.innerHTML = 'Failed to lookup provider. Please enter information manually.';
+        } finally {
+            btnText.style.display = 'inline';
+            btnLoading.style.display = 'none';
+            lookupBtn.disabled = false;
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

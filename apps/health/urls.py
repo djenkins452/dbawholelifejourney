@@ -123,4 +123,17 @@ urlpatterns = [
     path("nutrition/foods/add/", views.CustomFoodCreateView.as_view(), name="custom_food_create"),
     path("nutrition/foods/<int:pk>/edit/", views.CustomFoodUpdateView.as_view(), name="custom_food_edit"),
     path("nutrition/foods/<int:pk>/delete/", views.CustomFoodDeleteView.as_view(), name="custom_food_delete"),
+
+    # Medical Providers
+    path("providers/", views.MedicalProviderListView.as_view(), name="provider_list"),
+    path("providers/add/", views.MedicalProviderCreateView.as_view(), name="provider_create"),
+    path("providers/<int:pk>/", views.MedicalProviderDetailView.as_view(), name="provider_detail"),
+    path("providers/<int:pk>/edit/", views.MedicalProviderUpdateView.as_view(), name="provider_update"),
+    path("providers/<int:pk>/delete/", views.MedicalProviderDeleteView.as_view(), name="provider_delete"),
+    path("providers/ai-lookup/", views.ProviderAILookupView.as_view(), name="provider_ai_lookup"),
+
+    # Provider Staff
+    path("providers/<int:provider_pk>/staff/add/", views.ProviderStaffCreateView.as_view(), name="staff_create"),
+    path("providers/staff/<int:pk>/edit/", views.ProviderStaffUpdateView.as_view(), name="staff_update"),
+    path("providers/staff/<int:pk>/delete/", views.ProviderStaffDeleteView.as_view(), name="staff_delete"),
 ]

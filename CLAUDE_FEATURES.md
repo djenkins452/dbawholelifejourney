@@ -27,6 +27,7 @@ For core project context, see `CLAUDE.md`.
 8. [Vitals Tracking](#vitals-tracking)
 9. [Camera Scan Feature](#camera-scan-feature)
 10. [Biometric Login](#biometric-login)
+11. [Dashboard Tile Shortcuts](#dashboard-tile-shortcuts)
 
 ---
 
@@ -606,6 +607,32 @@ WebAuthn-based biometric login for mobile devices (Face ID, Touch ID, Windows He
 
 ### Tests
 32 tests in `apps/users/tests/`
+
+---
+
+## Dashboard Tile Shortcuts
+
+### Overview
+The quick stat tiles at the top of the dashboard are clickable, providing direct navigation to their respective detail pages.
+
+### Clickable Tiles
+| Tile | Icon | Links To |
+|------|------|----------|
+| Journal Streak | 🔥 | `/journal/entries/` (Journal Entry List) |
+| Tasks Today | ✓ | `/life/tasks/` (Task List) |
+| Active Prayers | 🙏 | `/faith/prayers/` (Prayer List) |
+| Medicine Doses | 💊 | `/health/medicine/` (Medicine Tracker) |
+| Workouts This Week | 💪 | `/health/fitness/workouts/` (Workout List) |
+
+### UI/UX
+- Tiles display a lift effect and shadow on hover
+- Border highlights with accent color on hover
+- Cursor changes to pointer to indicate clickability
+- Updated tooltips include "Click to..." guidance
+
+### Key Files
+- `templates/dashboard/home.html` - Quick stat tiles as anchor links
+- `static/css/dashboard.css` - `.quick-stat-link` hover/active styles
 
 ---
 

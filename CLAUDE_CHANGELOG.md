@@ -17,6 +17,31 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Dashboard Tile Shortcut Links
+
+Made the quick stat tiles at the top of the dashboard clickable, providing direct navigation to their respective detail pages.
+
+**Clickable Tiles:**
+- **Journal Streak (🔥)** - Now links to Journal Entries list (`/journal/entries/`)
+- **Tasks Today (✓)** - Now links to Task List (`/life/tasks/`)
+- **Active Prayers (🙏)** - Now links to Prayer List (`/faith/prayers/`)
+- **Medicine Doses (💊)** - Now links to Medicine Tracker (`/health/medicine/`)
+- **Workouts This Week (💪)** - Now links to Workout List (`/health/fitness/workouts/`)
+
+**UI Improvements:**
+- Tiles now have hover effects (lift, border highlight, shadow)
+- Cursor changes to pointer on hover
+- Active/click state provides tactile feedback
+- Updated tooltips to indicate clickability
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Changed `<div>` tiles to `<a>` links with appropriate URLs
+- `static/css/dashboard.css` - Added `.quick-stat-link` styles for hover/active states
+
+**Test Status:** All 56 dashboard tests passing
+
+---
+
 ### Dashboard End Fast Button Fix
 
 Fixed the "End Fast" button on the dashboard that was returning an HTTP 405 error.

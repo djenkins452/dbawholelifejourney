@@ -222,22 +222,37 @@ class PersonalAssistant:
         - AI-generated assessment
         - Alignment gaps (intention vs reality)
         - Celebration-worthy achievements
+
+        Note: Task counts are ALWAYS refreshed (not cached) since they change
+        frequently throughout the day. AI assessment is cached to avoid
+        excessive API calls.
         """
         from apps.core.utils import get_user_today, get_user_now
 
         today = get_user_today(self.user)
         now = get_user_now(self.user)
 
-        # Check for existing snapshot today
+        # Always gather fresh task data (changes frequently)
+        fresh_task_data = self._get_task_state(today, today - timedelta(days=7)) if self.prefs.life_enabled else {}
+
+        # Check for existing snapshot today (for AI assessment caching)
         snapshot = UserStateSnapshot.objects.filter(
             user=self.user,
             snapshot_date=today
         ).first()
 
         if snapshot and not force_refresh:
-            return self._snapshot_to_dict(snapshot)
+            # Return cached data but with FRESH task counts
+            result = self._snapshot_to_dict(snapshot)
+            result['tasks'] = {
+                'completed_today': fresh_task_data.get('tasks_completed_today', 0),
+                'completed_week': fresh_task_data.get('tasks_completed_week', 0),
+                'overdue': fresh_task_data.get('tasks_overdue', 0),
+                'due_today': fresh_task_data.get('tasks_due_today', 0),
+            }
+            return result
 
-        # Gather fresh data
+        # Gather fresh data for everything
         state_data = self._gather_comprehensive_state()
 
         # Generate AI assessment if enabled

@@ -529,6 +529,7 @@ class UserPreferences(models.Model):
         Calculate today's nutrition progress toward goals.
         Returns dict with current totals, goals, and progress percentages.
         """
+        from django.utils import timezone
         from apps.health.models import FoodEntry, DailyNutritionSummary
         from apps.core.utils import get_user_today
 

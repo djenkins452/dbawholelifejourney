@@ -17,6 +17,38 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Health Page Fitness Tile Summary Metrics
+
+Added summary metrics to the Fitness tile on the Health page, making it consistent with all other health tiles that display summary statistics.
+
+**New Fitness Tile Features:**
+- **Workouts This Week** - Number of workout sessions logged since Monday
+- **Workouts This Month** - Number of workout sessions logged this month
+- **Duration This Week** - Total minutes of workouts with recorded duration
+- **Last Workout Date** - When the most recent workout was logged
+
+**Before:** The Fitness tile only showed static text "Track your workouts, cardio, and strength training" with no actual data.
+
+**After:** The tile now shows:
+- `X workouts this week` | `Y this month` (stats layout)
+- `Z min this week` (if duration data exists)
+- `Last workout: Dec 29` (date of most recent workout)
+- Falls back to "No workouts logged yet" with a prompt to log the first workout
+
+**Files Modified:**
+- `apps/health/views.py` - Added workout summary context data to `HealthHomeView.get_context_data()`:
+  - `latest_workout` - Most recent WorkoutSession
+  - `total_workouts` - Total count of workouts
+  - `workouts_this_week` - Workouts since Monday
+  - `workouts_this_month` - Workouts since 1st of month
+  - `fitness_duration_this_week` - Sum of duration_minutes this week
+- `templates/health/home.html` - Updated Fitness card template to display metrics like other tiles
+  - Added `.fitness-stats` CSS styles matching other stat tiles
+
+**Test Status:** All health view tests passing
+
+---
+
 ### Dashboard Tile Shortcut Links
 
 Made the quick stat tiles at the top of the dashboard clickable, providing direct navigation to their respective detail pages.

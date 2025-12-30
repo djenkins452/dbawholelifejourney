@@ -216,6 +216,28 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["nutrition_today_calories"] = totals['calories'] or 0
             context["nutrition_today_entries"] = today_entries.count()
 
+        # Fitness/Workout summary
+        workouts = WorkoutSession.objects.filter(user=user)
+        if workouts.exists():
+            context["latest_workout"] = workouts.first()
+            context["total_workouts"] = workouts.count()
+
+            # Workouts this week
+            week_start = today - timedelta(days=today.weekday())  # Monday
+            week_workouts = workouts.filter(date__gte=week_start)
+            context["workouts_this_week"] = week_workouts.count()
+
+            # Total duration this week
+            week_duration = week_workouts.filter(
+                duration_minutes__isnull=False
+            ).aggregate(total=Sum('duration_minutes'))['total'] or 0
+            context["fitness_duration_this_week"] = week_duration
+
+            # Workouts this month
+            month_start = today.replace(day=1)
+            month_workouts = workouts.filter(date__gte=month_start)
+            context["workouts_this_month"] = month_workouts.count()
+
         return context
 
 

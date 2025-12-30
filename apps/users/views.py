@@ -183,6 +183,18 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         return context
 
     def form_valid(self, form):
+        from django.utils import timezone as dj_timezone
+
+        # Set Personal Assistant consent date if consent was given
+        instance = form.instance
+        if instance.personal_assistant_consent and not instance.personal_assistant_consent_date:
+            instance.personal_assistant_consent_date = dj_timezone.now()
+
+        # If Personal Assistant is disabled or AI is disabled, clear consent
+        if not instance.ai_enabled or not instance.ai_data_consent:
+            instance.personal_assistant_enabled = False
+            instance.personal_assistant_consent = False
+
         messages.success(self.request, "Preferences saved successfully.")
         return super().form_valid(form)
 
@@ -348,7 +360,11 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
 
         elif current_step["id"] == "ai":
             context["ai_enabled"] = prefs.ai_enabled
+            context["ai_data_consent"] = prefs.ai_data_consent
             context["current_coaching_style"] = prefs.ai_coaching_style
+            # Personal Assistant settings
+            context["personal_assistant_enabled"] = prefs.personal_assistant_enabled
+            context["personal_assistant_consent"] = prefs.personal_assistant_consent
             try:
                 from apps.ai.models import CoachingStyle
                 context["coaching_styles"] = CoachingStyle.get_active_styles()
@@ -389,6 +405,7 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
                     prefs.purpose_enabled,
                 ]),
                 "ai_enabled": prefs.ai_enabled,
+                "personal_assistant_enabled": prefs.personal_assistant_enabled,
                 "timezone": prefs.timezone,
             }
 
@@ -419,11 +436,28 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
             ])
 
         elif current_step["id"] == "ai":
+            from django.utils import timezone
             prefs.ai_enabled = request.POST.get("ai_enabled") == "on"
+            prefs.ai_data_consent = request.POST.get("ai_data_consent") == "on"
             coaching_style = request.POST.get("ai_coaching_style")
             if coaching_style:
                 prefs.ai_coaching_style = coaching_style
-            prefs.save(update_fields=["ai_enabled", "ai_coaching_style", "updated_at"])
+            # Personal Assistant settings (only if AI is enabled)
+            if prefs.ai_enabled and prefs.ai_data_consent:
+                prefs.personal_assistant_enabled = request.POST.get("personal_assistant_enabled") == "on"
+                prefs.personal_assistant_consent = request.POST.get("personal_assistant_consent") == "on"
+                # Record consent date if consent was given
+                if prefs.personal_assistant_consent and not prefs.personal_assistant_consent_date:
+                    prefs.personal_assistant_consent_date = timezone.now()
+            else:
+                # Disable Personal Assistant if AI is disabled
+                prefs.personal_assistant_enabled = False
+                prefs.personal_assistant_consent = False
+            prefs.save(update_fields=[
+                "ai_enabled", "ai_data_consent", "ai_coaching_style",
+                "personal_assistant_enabled", "personal_assistant_consent",
+                "personal_assistant_consent_date", "updated_at"
+            ])
 
         elif current_step["id"] == "location":
             prefs.timezone = request.POST.get("timezone", "UTC")

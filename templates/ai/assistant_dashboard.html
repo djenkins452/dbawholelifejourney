@@ -482,16 +482,30 @@
 <div class="assistant-container">
     <!-- Main Content -->
     <div class="assistant-main">
-        {% if not ai_enabled or not ai_consent %}
-        <!-- AI Not Enabled Banner -->
+        {% if not personal_assistant_accessible %}
+        <!-- Personal Assistant Not Available Banner -->
         <div class="ai-status-banner disabled">
             <span class="status-icon">⚠️</span>
             <div class="status-text">
-                <h3>AI Features Not Enabled</h3>
-                <p>Enable AI features and provide consent in your preferences to unlock your personal assistant.</p>
+                {% if not ai_enabled %}
+                <h3>AI Features Required</h3>
+                <p>Enable AI Features first in your preferences to use the Personal Assistant.</p>
+                {% elif not ai_consent %}
+                <h3>AI Consent Required</h3>
+                <p>Please provide AI data processing consent in your preferences to use the Personal Assistant.</p>
+                {% elif not personal_assistant_enabled %}
+                <h3>Personal Assistant Not Enabled</h3>
+                <p>Enable the Personal Assistant module in your preferences to unlock daily priorities and personalized coaching.</p>
+                {% elif not personal_assistant_consent %}
+                <h3>Personal Assistant Consent Required</h3>
+                <p>Please provide consent for the Personal Assistant to access your data for personalized coaching.</p>
+                {% else %}
+                <h3>Personal Assistant Unavailable</h3>
+                <p>{{ personal_assistant_error }}</p>
+                {% endif %}
             </div>
             <div class="status-action">
-                <a href="{% url 'users:preferences' %}" class="btn btn-primary btn-sm">Enable AI</a>
+                <a href="{% url 'users:preferences' %}" class="btn btn-primary btn-sm">Update Preferences</a>
             </div>
         </div>
         {% endif %}
@@ -575,7 +589,7 @@
                     placeholder="Ask me anything..."
                     autocomplete="off"
                     maxlength="2000"
-                    {% if not ai_enabled or not ai_consent %}disabled{% endif %}
+                    {% if not personal_assistant_accessible %}disabled{% endif %}
                 >
                 <button type="submit" class="chat-send-btn" id="chat-send" disabled>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -594,6 +608,9 @@
 (function() {
     const aiEnabled = {{ ai_enabled|yesno:"true,false" }};
     const aiConsent = {{ ai_consent|yesno:"true,false" }};
+    const personalAssistantEnabled = {{ personal_assistant_enabled|yesno:"true,false" }};
+    const personalAssistantConsent = {{ personal_assistant_consent|yesno:"true,false" }};
+    const personalAssistantAccessible = {{ personal_assistant_accessible|yesno:"true,false" }};
 
     // Set current date
     const dateEl = document.getElementById('current-date');
@@ -612,9 +629,9 @@
 
     // Load opening message
     async function loadOpening() {
-        if (!aiEnabled || !aiConsent) {
+        if (!personalAssistantAccessible) {
             document.getElementById('greeting').textContent = 'Welcome back';
-            document.getElementById('assessment').textContent = 'Enable AI features in your preferences to get personalized insights and guidance.';
+            document.getElementById('assessment').textContent = 'Enable Personal Assistant in your preferences to get personalized daily priorities and coaching.';
             return;
         }
 
@@ -876,7 +893,7 @@
     loadOpening();
 
     // Add welcome message to chat
-    if (aiEnabled && aiConsent) {
+    if (personalAssistantAccessible) {
         addChatMessage("I'm here to help you stay aligned with what matters most. Ask me anything about your goals, priorities, or how to make the most of your day.", false);
     }
 })();

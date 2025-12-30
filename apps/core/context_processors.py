@@ -67,6 +67,9 @@ def theme_context(request):
         # AI flags - defaults
         'ai_enabled': False,
         'ai_data_consent': False,
+        # Personal Assistant - defaults
+        'personal_assistant_enabled': False,
+        'personal_assistant_consent': False,
     }
 
     if request.user.is_authenticated:
@@ -83,6 +86,9 @@ def theme_context(request):
             # AI toggles
             context['ai_enabled'] = prefs.ai_enabled
             context['ai_data_consent'] = prefs.ai_data_consent
+            # Personal Assistant toggles
+            context['personal_assistant_enabled'] = prefs.personal_assistant_enabled
+            context['personal_assistant_consent'] = prefs.personal_assistant_consent
             # User's "today" in their timezone (for date comparisons in templates)
             from apps.core.utils import get_user_today
             context['user_today'] = get_user_today(request.user)

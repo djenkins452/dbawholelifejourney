@@ -5,7 +5,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29 (Remove Chat History on Assistant)
+# Last Updated: 2025-12-29 (Personal Assistant Module)
 # ==============================================================================
 
 # Change History
@@ -16,6 +16,56 @@ For active development context, see `CLAUDE.md`.
 ---
 
 ## 2025-12-29 Changes
+
+### Personal Assistant Module
+
+Made the Personal Assistant a selectable module with its own consent, separate from general AI Features.
+
+**Purpose:**
+- Users can enable general AI features (insights, camera scan) without the Personal Assistant
+- Personal Assistant requires explicit opt-in and separate consent
+- Deeper data access requires explicit consent for privacy
+
+**New Model Fields (`UserPreferences`):**
+- `personal_assistant_enabled` - Enable Personal Assistant module (BooleanField, default False)
+- `personal_assistant_consent` - Consent for deeper data access (BooleanField, default False)
+- `personal_assistant_consent_date` - When consent was given (DateTimeField, nullable)
+
+**Migration:**
+- `apps/users/migrations/XXXX_add_personal_assistant_module.py`
+
+**Files Modified:**
+1. `apps/users/models.py` - Added 3 new fields to UserPreferences
+2. `apps/users/forms.py` - Added fields to PreferencesForm
+3. `apps/users/views.py` - Updated OnboardingWizardView and PreferencesView
+4. `apps/core/context_processors.py` - Added personal_assistant_enabled and personal_assistant_consent
+5. `apps/ai/views.py` - Added `check_personal_assistant_enabled()` to AssistantMixin
+6. `templates/users/preferences.html` - Added Personal Assistant section with toggles
+7. `templates/users/onboarding_wizard.html` - Added Personal Assistant to AI step
+8. `templates/ai/assistant_dashboard.html` - Updated status banner messages
+9. `templates/components/navigation.html` - Updated nav item conditional
+10. `apps/ai/tests/test_personal_assistant.py` - Added access control tests
+
+**UI Changes:**
+- **Preferences Page**: Personal Assistant section under AI Features with:
+  - Module toggle (requires AI Features enabled)
+  - Consent toggle (requires module enabled)
+  - Info box showing what the Assistant does
+- **Onboarding Wizard**: AI step now includes:
+  - AI Data Consent toggle
+  - Personal Assistant toggle (visible when AI + consent enabled)
+  - Personal Assistant consent toggle
+- **Navigation**: Assistant link only visible when fully enabled and consented
+- **Assistant Dashboard**: Shows specific messages for each missing requirement
+
+**Access Control:**
+All Personal Assistant API endpoints now check for:
+1. AI Features enabled (`ai_enabled`)
+2. AI Data Consent (`ai_data_consent`)
+3. Personal Assistant enabled (`personal_assistant_enabled`)
+4. Personal Assistant consent (`personal_assistant_consent`)
+
+---
 
 ### Medical Providers Feature
 

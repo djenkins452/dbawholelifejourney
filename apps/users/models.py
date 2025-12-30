@@ -291,6 +291,28 @@ class UserPreferences(models.Model):
         help_text='Personal details for AI personalization (age, family, interests, goals, health conditions, etc.)',
     )
 
+    # ===================
+    # PERSONAL ASSISTANT MODULE
+    # ===================
+    # Personal Assistant is a separate module that requires AI Features to be enabled.
+    # It provides deeper AI integration with daily priorities, coaching, and accountability.
+    personal_assistant_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable Personal Assistant for AI-powered daily guidance, priorities, and coaching",
+    )
+
+    # Personal Assistant Consent (separate from general AI consent)
+    # Required because the Personal Assistant has deeper access to user data
+    personal_assistant_consent = models.BooleanField(
+        default=False,
+        help_text="User consents to Personal Assistant accessing journal entries, tasks, goals, health data for personalized coaching",
+    )
+    personal_assistant_consent_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date when user consented to Personal Assistant data access",
+    )
+
     # Location for weather (manual entry)
     location_city = models.CharField(max_length=100, blank=True)
     location_country = models.CharField(max_length=100, blank=True)

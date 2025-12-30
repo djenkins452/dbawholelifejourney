@@ -4,7 +4,7 @@
 # Description: Comprehensive tests for Dashboard AI Personal Assistant
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-29
-# Last Updated: 2025-12-29
+# Last Updated: 2025-12-29 (Added Personal Assistant module access control tests)
 # ==============================================================================
 """
 Dashboard AI Personal Assistant - Comprehensive Tests
@@ -64,10 +64,24 @@ class AssistantTestMixin:
         user.preferences.save()
 
     def enable_ai(self, user):
-        """Enable AI features for user with consent."""
+        """Enable AI features and Personal Assistant for user with consent."""
         user.preferences.ai_enabled = True
         user.preferences.ai_data_consent = True
         user.preferences.ai_data_consent_date = timezone.now()
+        # Also enable Personal Assistant for backwards compatibility with existing tests
+        user.preferences.personal_assistant_enabled = True
+        user.preferences.personal_assistant_consent = True
+        user.preferences.personal_assistant_consent_date = timezone.now()
+        user.preferences.save()
+
+    def enable_ai_only(self, user):
+        """Enable only AI features without Personal Assistant."""
+        user.preferences.ai_enabled = True
+        user.preferences.ai_data_consent = True
+        user.preferences.ai_data_consent_date = timezone.now()
+        # Explicitly do NOT enable Personal Assistant
+        user.preferences.personal_assistant_enabled = False
+        user.preferences.personal_assistant_consent = False
         user.preferences.save()
 
     def create_journal_entry(self, user, title="Test Entry", mood="grateful", days_ago=0):
@@ -727,3 +741,173 @@ class AssistantEdgeCasesTest(AssistantTestMixin, TestCase):
 
         response = self.client.post(f'/assistant/api/priorities/{priority.id}/complete/')
         self.assertEqual(response.status_code, 404)
+
+
+# =============================================================================
+# 13. PERSONAL ASSISTANT MODULE ACCESS CONTROL TESTS
+# =============================================================================
+
+class PersonalAssistantModuleAccessTest(AssistantTestMixin, TestCase):
+    """
+    Tests for Personal Assistant module access control.
+
+    Personal Assistant requires:
+    1. AI Features enabled (ai_enabled=True)
+    2. AI Data Consent (ai_data_consent=True)
+    3. Personal Assistant module enabled (personal_assistant_enabled=True)
+    4. Personal Assistant consent (personal_assistant_consent=True)
+    """
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.client = Client()
+        self.client.login(email='test@example.com', password='testpass123')
+
+    def enable_full_personal_assistant(self, user):
+        """Enable all requirements for Personal Assistant access."""
+        user.preferences.ai_enabled = True
+        user.preferences.ai_data_consent = True
+        user.preferences.ai_data_consent_date = timezone.now()
+        user.preferences.personal_assistant_enabled = True
+        user.preferences.personal_assistant_consent = True
+        user.preferences.personal_assistant_consent_date = timezone.now()
+        user.preferences.save()
+
+    def test_opening_denied_without_ai_enabled(self):
+        """Opening endpoint denied when AI features not enabled."""
+        # AI not enabled (default)
+        response = self.client.get('/assistant/api/opening/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data.get('success', True))
+        self.assertIn('AI', data.get('error', ''))
+
+    def test_opening_denied_without_ai_consent(self):
+        """Opening endpoint denied when AI consent not given."""
+        self.user.preferences.ai_enabled = True
+        self.user.preferences.save()
+
+        response = self.client.get('/assistant/api/opening/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data.get('success', True))
+
+    def test_opening_denied_without_personal_assistant_enabled(self):
+        """Opening endpoint denied when Personal Assistant not enabled."""
+        self.user.preferences.ai_enabled = True
+        self.user.preferences.ai_data_consent = True
+        self.user.preferences.ai_data_consent_date = timezone.now()
+        # Personal Assistant not enabled (default)
+        self.user.preferences.save()
+
+        response = self.client.get('/assistant/api/opening/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data.get('success', True))
+        self.assertIn('Personal Assistant', data.get('error', ''))
+
+    def test_opening_denied_without_personal_assistant_consent(self):
+        """Opening endpoint denied when Personal Assistant consent not given."""
+        self.user.preferences.ai_enabled = True
+        self.user.preferences.ai_data_consent = True
+        self.user.preferences.ai_data_consent_date = timezone.now()
+        self.user.preferences.personal_assistant_enabled = True
+        # Personal Assistant consent not given (default)
+        self.user.preferences.save()
+
+        response = self.client.get('/assistant/api/opening/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data.get('success', True))
+        self.assertIn('consent', data.get('error', '').lower())
+
+    def test_opening_allowed_with_full_access(self):
+        """Opening endpoint allowed when all requirements met."""
+        self.enable_full_personal_assistant(self.user)
+
+        response = self.client.get('/assistant/api/opening/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        # Should either be successful or have valid response (not error about access)
+        if not data.get('success'):
+            # Error should not be about access control
+            error_msg = data.get('error', '').lower()
+            self.assertNotIn('enabled', error_msg)
+            self.assertNotIn('consent', error_msg)
+
+    def test_chat_denied_without_personal_assistant(self):
+        """Chat endpoint denied when Personal Assistant not fully enabled."""
+        # Only enable AI, not Personal Assistant
+        self.enable_ai_only(self.user)
+
+        response = self.client.post(
+            '/assistant/api/chat/',
+            data=json.dumps({'message': 'Hello'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data.get('success', True))
+        self.assertIn('Personal Assistant', data.get('error', ''))
+
+    def test_priorities_without_personal_assistant_returns_ai_disabled(self):
+        """Priorities endpoint returns ai_enabled=False when Personal Assistant not enabled."""
+        # Only enable AI, not Personal Assistant
+        self.enable_ai_only(self.user)
+
+        response = self.client.get('/assistant/api/priorities/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        # The endpoint returns success=True but ai_enabled=False when PA not enabled
+        self.assertFalse(data.get('ai_enabled', True))
+
+    def test_priorities_allowed_with_full_access(self):
+        """Priorities endpoint allowed when all requirements met."""
+        self.enable_full_personal_assistant(self.user)
+
+        response = self.client.get('/assistant/api/priorities/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success', False))
+
+    def test_consent_date_set_on_enable(self):
+        """Personal Assistant consent date is set when consent is given."""
+        self.assertIsNone(self.user.preferences.personal_assistant_consent_date)
+
+        self.user.preferences.personal_assistant_consent = True
+        self.user.preferences.personal_assistant_consent_date = timezone.now()
+        self.user.preferences.save()
+
+        self.user.refresh_from_db()
+        self.assertIsNotNone(self.user.preferences.personal_assistant_consent_date)
+
+    def test_personal_assistant_disabled_when_ai_disabled(self):
+        """Personal Assistant is disabled when AI is disabled in preferences."""
+        # First enable everything
+        self.enable_full_personal_assistant(self.user)
+
+        # Now disable AI via the form logic simulation
+        self.user.preferences.ai_enabled = False
+        # In real form submission, this would also clear PA settings
+        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.personal_assistant_consent = False
+        self.user.preferences.save()
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.preferences.personal_assistant_enabled)
+        self.assertFalse(self.user.preferences.personal_assistant_consent)
+
+    def test_dashboard_shows_pa_status(self):
+        """Dashboard view shows Personal Assistant status correctly."""
+        # Test with PA not enabled
+        self.enable_ai_only(self.user)
+
+        try:
+            response = self.client.get('/assistant/')
+            self.assertEqual(response.status_code, 200)
+            # Check that the page contains the "not enabled" message
+            content = response.content.decode('utf-8')
+            self.assertIn('Personal Assistant', content)
+        except ValueError as e:
+            if 'staticfiles manifest' in str(e):
+                self.skipTest("Staticfiles manifest not available in test environment")

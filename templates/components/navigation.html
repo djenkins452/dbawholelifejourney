@@ -97,8 +97,8 @@
                 </li>
                 {% endif %}
 
-                <!-- AI Assistant - Conditional on AI enabled and consent -->
-                {% if ai_enabled and ai_data_consent %}
+                <!-- Personal Assistant - Conditional on AI + Personal Assistant enabled and consent -->
+                {% if ai_enabled and ai_data_consent and personal_assistant_enabled and personal_assistant_consent %}
                 <li>
                     <a href="{% url 'ai:dashboard' %}" class="nav-link {% if request.resolver_match.app_name == 'ai' %}active{% endif %}">
                         <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

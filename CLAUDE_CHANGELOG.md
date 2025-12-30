@@ -5,13 +5,31 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29 (Personal Assistant Module + AI Task-Focused Update)
+# Last Updated: 2025-12-30 (Migration merge fix)
 # ==============================================================================
 
 # Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md`.
+
+---
+
+## 2025-12-30 Changes
+
+### Migration Merge: Core App Conflict Resolution
+
+Fixed conflicting migrations in the core app that caused Django startup failures.
+
+**Issue:**
+- Two migrations (`0017_personal_assistant_module_release_note` and `0018_add_assistant_focus_release_note`) both depended on the same parent migration, creating a "diamond" conflict.
+- Railway deployment was repeatedly failing with: `CommandError: Conflicting migrations detected; multiple leaf nodes in the migration graph`
+
+**Fix:**
+- Created merge migration `0019_merge_20251230_0556.py` using `python manage.py makemigrations --merge`
+
+**Files Created:**
+- `apps/core/migrations/0019_merge_20251230_0556.py` - Merge migration
 
 ---
 

@@ -158,6 +158,30 @@
                     </label>
                 </div>
 
+                <!-- AI Data Consent (shown when AI is enabled) -->
+                <div class="ai-consent-section {% if not ai_enabled %}hidden{% endif %}" id="ai-consent-section">
+                    <label class="ai-toggle-card consent-card {% if ai_data_consent %}enabled{% endif %}">
+                        <div class="ai-toggle-content">
+                            <div class="ai-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                    <polyline points="9 12 11 14 15 10"/>
+                                </svg>
+                            </div>
+                            <div class="ai-text">
+                                <h3>AI Data Processing Consent</h3>
+                                <p>Allow AI to process your journal entries and data to provide personalized insights. <strong>Required for AI features.</strong></p>
+                            </div>
+                            <div class="ai-switch">
+                                <input type="checkbox" name="ai_data_consent" id="ai_data_consent" {% if ai_data_consent %}checked{% endif %}>
+                                <label for="ai_data_consent" class="toggle-switch">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
                 <div class="coaching-styles-section {% if not ai_enabled %}hidden{% endif %}" id="coaching-styles">
                     <h2>Choose Your Coaching Voice</h2>
                     <p class="section-subtitle">Each voice has a different personality. Pick the one that feels most supportive to you.</p>
@@ -183,6 +207,47 @@
                             </div>
                         </label>
                         {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Personal Assistant Section (shown when AI is enabled and consent given) -->
+                <div class="personal-assistant-section {% if not ai_enabled or not ai_data_consent %}hidden{% endif %}" id="personal-assistant-section">
+                    <h2>Personal Assistant</h2>
+                    <p class="section-subtitle">Your AI-powered daily coach that helps you live the life you said you want to live.</p>
+
+                    <label class="ai-toggle-card {% if personal_assistant_enabled %}enabled{% endif %}" id="personal-assistant-card">
+                        <div class="ai-toggle-content">
+                            <div class="ai-icon">🎯</div>
+                            <div class="ai-text">
+                                <h3>Enable Personal Assistant</h3>
+                                <p>Get daily priorities, celebrate wins, and receive gentle accountability based on your complete journey.</p>
+                            </div>
+                            <div class="ai-switch">
+                                <input type="checkbox" name="personal_assistant_enabled" id="personal_assistant_enabled" {% if personal_assistant_enabled %}checked{% endif %}>
+                                <label for="personal_assistant_enabled" class="toggle-switch">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- Personal Assistant Consent -->
+                    <div class="pa-consent-section {% if not personal_assistant_enabled %}hidden{% endif %}" id="pa-consent-section">
+                        <label class="ai-toggle-card consent-card {% if personal_assistant_consent %}enabled{% endif %}" id="pa-consent-card">
+                            <div class="ai-toggle-content">
+                                <div class="ai-icon">📋</div>
+                                <div class="ai-text">
+                                    <h3>Personal Assistant Data Consent</h3>
+                                    <p>I consent to the Personal Assistant accessing my journal entries, tasks, goals, prayers, health metrics, and other personal information to provide personalized coaching. <strong>Required for Personal Assistant.</strong></p>
+                                </div>
+                                <div class="ai-switch">
+                                    <input type="checkbox" name="personal_assistant_consent" id="personal_assistant_consent" {% if personal_assistant_consent %}checked{% endif %}>
+                                    <label for="personal_assistant_consent" class="toggle-switch">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </label>
                     </div>
                 </div>
 
@@ -759,6 +824,46 @@
     display: none;
 }
 
+.ai-consent-section {
+    margin-top: var(--space-4);
+}
+
+.ai-consent-section.hidden {
+    display: none;
+}
+
+.consent-card {
+    border-style: dashed;
+}
+
+.consent-card.enabled {
+    border-style: solid;
+}
+
+/* Personal Assistant Section */
+.personal-assistant-section {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.personal-assistant-section.hidden {
+    display: none;
+}
+
+.personal-assistant-section h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-2);
+}
+
+.pa-consent-section {
+    margin-top: var(--space-4);
+}
+
+.pa-consent-section.hidden {
+    display: none;
+}
+
 .coaching-styles-section h2 {
     font-size: var(--font-size-lg);
     margin-bottom: var(--space-2);
@@ -1013,19 +1118,74 @@
 // AI Toggle visibility
 document.addEventListener('DOMContentLoaded', function() {
     const aiToggle = document.getElementById('ai_enabled');
+    const aiConsentToggle = document.getElementById('ai_data_consent');
     const coachingSection = document.getElementById('coaching-styles');
+    const aiConsentSection = document.getElementById('ai-consent-section');
+    const personalAssistantSection = document.getElementById('personal-assistant-section');
+    const personalAssistantToggle = document.getElementById('personal_assistant_enabled');
+    const paConsentSection = document.getElementById('pa-consent-section');
+    const paConsentToggle = document.getElementById('personal_assistant_consent');
     const aiCard = document.querySelector('.ai-toggle-card');
 
-    if (aiToggle && coachingSection) {
-        aiToggle.addEventListener('change', function() {
-            if (this.checked) {
-                coachingSection.classList.remove('hidden');
-                aiCard.classList.add('enabled');
-            } else {
-                coachingSection.classList.add('hidden');
-                aiCard.classList.remove('enabled');
+    function updateAIVisibility() {
+        const aiEnabled = aiToggle && aiToggle.checked;
+        const aiConsentGiven = aiConsentToggle && aiConsentToggle.checked;
+
+        if (coachingSection) {
+            coachingSection.classList.toggle('hidden', !aiEnabled);
+        }
+        if (aiConsentSection) {
+            aiConsentSection.classList.toggle('hidden', !aiEnabled);
+        }
+        if (aiCard) {
+            aiCard.classList.toggle('enabled', aiEnabled);
+        }
+
+        // Personal Assistant requires both AI enabled and AI consent
+        if (personalAssistantSection) {
+            personalAssistantSection.classList.toggle('hidden', !(aiEnabled && aiConsentGiven));
+            // Uncheck Personal Assistant when AI is disabled
+            if (!(aiEnabled && aiConsentGiven)) {
+                if (personalAssistantToggle) personalAssistantToggle.checked = false;
+                if (paConsentToggle) paConsentToggle.checked = false;
             }
-        });
+        }
+    }
+
+    function updatePersonalAssistantVisibility() {
+        const paEnabled = personalAssistantToggle && personalAssistantToggle.checked;
+        const paCard = document.getElementById('personal-assistant-card');
+
+        if (paConsentSection) {
+            paConsentSection.classList.toggle('hidden', !paEnabled);
+        }
+        if (paCard) {
+            paCard.classList.toggle('enabled', paEnabled);
+        }
+        // Uncheck consent when PA is disabled
+        if (!paEnabled && paConsentToggle) {
+            paConsentToggle.checked = false;
+        }
+    }
+
+    function updatePAConsentCard() {
+        const paConsentCard = document.getElementById('pa-consent-card');
+        if (paConsentCard && paConsentToggle) {
+            paConsentCard.classList.toggle('enabled', paConsentToggle.checked);
+        }
+    }
+
+    if (aiToggle) {
+        aiToggle.addEventListener('change', updateAIVisibility);
+    }
+    if (aiConsentToggle) {
+        aiConsentToggle.addEventListener('change', updateAIVisibility);
+    }
+    if (personalAssistantToggle) {
+        personalAssistantToggle.addEventListener('change', updatePersonalAssistantVisibility);
+    }
+    if (paConsentToggle) {
+        paConsentToggle.addEventListener('change', updatePAConsentCard);
     }
 
     // Module card toggle state

@@ -63,6 +63,38 @@ class AssistantMixin:
 
         return True, None
 
+    def check_personal_assistant_enabled(self):
+        """
+        Check if user has Personal Assistant module enabled and consented.
+
+        Personal Assistant requires:
+        1. AI Features enabled (ai_enabled)
+        2. AI Data Consent (ai_data_consent)
+        3. Personal Assistant module enabled (personal_assistant_enabled)
+        4. Personal Assistant consent (personal_assistant_consent)
+
+        Returns:
+            tuple: (is_enabled, error_message_or_None)
+        """
+        user = self.request.user
+        prefs = user.preferences
+
+        # First check AI prerequisites
+        if not prefs.ai_enabled:
+            return False, "AI Features must be enabled first. Enable AI Features in Preferences."
+
+        if not AIService.check_user_consent(user):
+            return False, "AI data processing consent required. Update in Preferences."
+
+        # Check Personal Assistant module
+        if not prefs.personal_assistant_enabled:
+            return False, "Personal Assistant is not enabled. Enable it in Preferences."
+
+        if not prefs.personal_assistant_consent:
+            return False, "Personal Assistant data consent required. Update in Preferences."
+
+        return True, None
+
 
 # =============================================================================
 # OPENING MESSAGE / DAILY CHECK-IN
@@ -81,7 +113,7 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        enabled, error = self.check_ai_enabled()
+        enabled, error = self.check_personal_assistant_enabled()
 
         if not enabled:
             return JsonResponse({
@@ -122,7 +154,7 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
-        enabled, error = self.check_ai_enabled()
+        enabled, error = self.check_personal_assistant_enabled()
 
         if not enabled:
             return JsonResponse({
@@ -259,7 +291,7 @@ class DailyPrioritiesView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        enabled, error = self.check_ai_enabled()
+        enabled, error = self.check_personal_assistant_enabled()
         force_refresh = request.GET.get('refresh') == 'true'
 
         try:
@@ -433,7 +465,7 @@ class WeeklyAnalysisView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        enabled, error = self.check_ai_enabled()
+        enabled, error = self.check_personal_assistant_enabled()
         force_refresh = request.GET.get('refresh') == 'true'
 
         try:
@@ -475,7 +507,7 @@ class MonthlyAnalysisView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        enabled, error = self.check_ai_enabled()
+        enabled, error = self.check_personal_assistant_enabled()
         force_refresh = request.GET.get('refresh') == 'true'
 
         try:
@@ -653,6 +685,15 @@ class AssistantDashboardView(LoginRequiredMixin, AssistantMixin, TemplateView):
         context['ai_consent'] = getattr(prefs, 'ai_data_consent', False)
         context['faith_enabled'] = getattr(prefs, 'faith_enabled', False)
         context['coaching_style'] = getattr(prefs, 'ai_coaching_style', 'supportive')
+
+        # Personal Assistant module status
+        context['personal_assistant_enabled'] = getattr(prefs, 'personal_assistant_enabled', False)
+        context['personal_assistant_consent'] = getattr(prefs, 'personal_assistant_consent', False)
+
+        # Check if Personal Assistant is fully accessible
+        pa_enabled, pa_error = self.check_personal_assistant_enabled()
+        context['personal_assistant_accessible'] = pa_enabled
+        context['personal_assistant_error'] = pa_error
 
         # Get or create conversation for the session (but don't load history)
         # Chat starts fresh each page load - no previous messages displayed

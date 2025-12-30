@@ -5,7 +5,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29 (Updated AI Assistant to be task-focused)
+# Last Updated: 2025-12-29 (Personal Assistant Module + AI Task-Focused Update)
 # ==============================================================================
 
 # Feature Documentation
@@ -49,7 +49,7 @@ New users are guided through a 6-step onboarding wizard before accessing the app
 | Welcome | `/user/onboarding/start/` | Nothing |
 | Theme | `/user/onboarding/step/theme/` | `theme` |
 | Modules | `/user/onboarding/step/modules/` | Module toggles |
-| AI | `/user/onboarding/step/ai/` | `ai_enabled`, `ai_coaching_style` |
+| AI | `/user/onboarding/step/ai/` | `ai_enabled`, `ai_data_consent`, `ai_coaching_style`, `personal_assistant_enabled`, `personal_assistant_consent` |
 | Location | `/user/onboarding/step/location/` | `timezone`, `location_city`, `location_country` |
 | Complete | `/user/onboarding/step/complete/` | `has_completed_onboarding = True` |
 
@@ -261,10 +261,39 @@ A task-focused personal assistant that helps users get things done and stay alig
   - Drift detection from stated intentions
   - Goal progress reporting
 
-### Prerequisites
-- User must have AI enabled in Preferences (`ai_enabled = True`)
-- User must have AI data consent (`ai_data_consent = True`)
-- Faith features only shown if `faith_enabled = True`
+### Prerequisites (Personal Assistant Module)
+The Personal Assistant is a separate module that requires:
+
+1. **AI Features Enabled** (`ai_enabled = True`)
+2. **AI Data Consent** (`ai_data_consent = True`)
+3. **Personal Assistant Enabled** (`personal_assistant_enabled = True`)
+4. **Personal Assistant Consent** (`personal_assistant_consent = True`)
+
+This separation allows users to:
+- Enable general AI features (insights, camera scan) without the Personal Assistant
+- Enable the Personal Assistant only if AI features are already enabled
+- Provide separate consent for the Assistant's deeper data access
+
+### Personal Assistant Module Fields (`UserPreferences`)
+| Field | Type | Description |
+|-------|------|-------------|
+| `personal_assistant_enabled` | Boolean | Enable Personal Assistant module |
+| `personal_assistant_consent` | Boolean | Consent for deeper data access |
+| `personal_assistant_consent_date` | DateTime | When consent was given |
+
+### Where Configured
+- **Onboarding Wizard** - AI step includes Personal Assistant toggle + consent
+- **Preferences Page** - Personal Assistant section under AI Features
+- **Navigation** - Assistant link only shown when fully enabled and consented
+
+### Access Control (`AssistantMixin.check_personal_assistant_enabled()`)
+All Personal Assistant API endpoints check for full access:
+1. AI Features enabled
+2. AI Data Consent given
+3. Personal Assistant module enabled
+4. Personal Assistant consent given
+
+Faith features only shown if `faith_enabled = True`
 
 ### Key Files
 - `apps/ai/models.py` - 6 new models for Dashboard AI

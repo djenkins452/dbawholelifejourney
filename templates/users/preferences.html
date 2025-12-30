@@ -346,6 +346,69 @@ Examples:
                     </ul>
                 </div>
             </div>
+
+            <!-- Personal Assistant Section (shown when AI is enabled and consent given) -->
+            <div id="personal-assistant-section" class="personal-assistant-section {% if not form.ai_enabled.value or not form.ai_data_consent.value %}hidden{% endif %}">
+                <h3 class="module-section-title mt-6">Personal Assistant</h3>
+                <p class="text-muted text-sm mb-4">
+                    Your AI-powered daily coach that helps you live the life you said you want to live.
+                    Generates daily priorities, celebrates wins, and provides gentle accountability.
+                </p>
+
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">🎯</span>
+                            <h4>Personal Assistant</h4>
+                            {% if form.personal_assistant_enabled.value %}<span class="module-status status-active">Active</span>{% endif %}
+                        </div>
+                        <p class="text-muted text-sm">
+                            Enable Personal Assistant for AI-powered daily guidance, priorities, and coaching.
+                            <br><em>Requires AI Features to be enabled.</em>
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="personal_assistant_enabled" id="personal_assistant_toggle" {% if form.personal_assistant_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="toggle-option" id="personal-assistant-consent-option" {% if not form.personal_assistant_enabled.value %}style="display: none;"{% endif %}>
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">📋</span>
+                            <h4>Personal Assistant Data Consent</h4>
+                            {% if form.personal_assistant_consent.value %}<span class="module-status status-active">Granted</span>{% endif %}
+                        </div>
+                        <p class="text-muted text-sm">
+                            <strong>Required for Personal Assistant.</strong> The Personal Assistant goes beyond basic AI insights by analyzing your complete journey —
+                            journal entries, tasks, goals, prayers, health metrics, and life events — to provide personalized daily guidance.
+                            By consenting, you allow deeper AI analysis of your personal data to generate priorities, detect patterns, and offer accountability.
+                            This data is processed by OpenAI's API. You can revoke consent at any time.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="personal_assistant_consent" id="personal_assistant_consent_toggle" {% if form.personal_assistant_consent.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="personal-assistant-info" id="personal-assistant-info" {% if not form.personal_assistant_enabled.value or not form.personal_assistant_consent.value %}style="display: none;"{% endif %}>
+                    <div class="info-box info-box-success">
+                        <h4>What the Personal Assistant Does:</h4>
+                        <ul class="tips-list">
+                            <li><strong>Daily Priorities:</strong> Suggests 3-5 priorities based on your goals, tasks, and patterns</li>
+                            <li><strong>Celebrates Wins:</strong> Recognizes your achievements and progress</li>
+                            <li><strong>Gentle Nudges:</strong> Reminds you about commitments and intentions</li>
+                            <li><strong>Trend Analysis:</strong> Detects patterns and offers insights over time</li>
+                            <li><strong>Reflection Prompts:</strong> Provides personalized journaling questions</li>
+                        </ul>
+                        <p class="mt-3">
+                            <a href="{% url 'ai:dashboard' %}" class="btn btn-primary btn-sm">Open Personal Assistant</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Faith Settings Section (shown when Faith module is enabled) -->
@@ -1189,6 +1252,35 @@ Examples:
     margin-bottom: 0;
 }
 
+/* Personal Assistant Section */
+.personal-assistant-section {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.personal-assistant-section.hidden {
+    display: none;
+}
+
+.info-box {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-top: var(--space-3);
+}
+
+.info-box-success {
+    background: color-mix(in srgb, #10b981 10%, var(--color-background));
+    border: 1px solid color-mix(in srgb, #10b981 30%, var(--color-border));
+}
+
+.info-box h4 {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-2) 0;
+}
+
 /* Fasting Settings */
 .fasting-description-box {
     background: linear-gradient(135deg,
@@ -1419,6 +1511,38 @@ function updateAIProfileVisibility() {
     }
 }
 
+// Personal Assistant visibility and toggle logic
+function updatePersonalAssistantVisibility() {
+    const aiEnabled = document.getElementById('ai_enabled_toggle').checked;
+    const consentEnabled = document.getElementById('ai_data_consent_toggle').checked;
+    const paSection = document.getElementById('personal-assistant-section');
+    const paToggle = document.getElementById('personal_assistant_toggle');
+    const paConsentOption = document.getElementById('personal-assistant-consent-option');
+    const paConsentToggle = document.getElementById('personal_assistant_consent_toggle');
+    const paInfo = document.getElementById('personal-assistant-info');
+
+    if (paSection) {
+        if (aiEnabled && consentEnabled) {
+            paSection.classList.remove('hidden');
+        } else {
+            paSection.classList.add('hidden');
+            // Also uncheck Personal Assistant when AI is disabled
+            if (paToggle) paToggle.checked = false;
+            if (paConsentToggle) paConsentToggle.checked = false;
+        }
+    }
+
+    // Show/hide consent option based on Personal Assistant toggle
+    if (paConsentOption && paToggle) {
+        paConsentOption.style.display = paToggle.checked ? 'flex' : 'none';
+    }
+
+    // Show/hide info box based on both toggles
+    if (paInfo && paToggle && paConsentToggle) {
+        paInfo.style.display = (paToggle.checked && paConsentToggle.checked) ? 'block' : 'none';
+    }
+}
+
 document.getElementById('ai_enabled_toggle').addEventListener('change', function() {
     const coachingSection = document.getElementById('ai-coaching-section');
     const dataConsentOption = document.getElementById('ai-data-consent-option');
@@ -1430,12 +1554,30 @@ document.getElementById('ai_enabled_toggle').addEventListener('change', function
         if (dataConsentOption) dataConsentOption.style.display = 'none';
     }
     updateAIProfileVisibility();
+    updatePersonalAssistantVisibility();
 });
 
-// Data consent toggle also affects profile visibility
+// Data consent toggle also affects profile and Personal Assistant visibility
 document.getElementById('ai_data_consent_toggle').addEventListener('change', function() {
     updateAIProfileVisibility();
+    updatePersonalAssistantVisibility();
 });
+
+// Personal Assistant toggle
+const personalAssistantToggle = document.getElementById('personal_assistant_toggle');
+if (personalAssistantToggle) {
+    personalAssistantToggle.addEventListener('change', function() {
+        updatePersonalAssistantVisibility();
+    });
+}
+
+// Personal Assistant consent toggle
+const paConsentToggle = document.getElementById('personal_assistant_consent_toggle');
+if (paConsentToggle) {
+    paConsentToggle.addEventListener('change', function() {
+        updatePersonalAssistantVisibility();
+    });
+}
 
 // Character counter for AI profile
 const aiProfileTextarea = document.getElementById('id_ai_profile');

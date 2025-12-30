@@ -138,6 +138,9 @@ class PreferencesForm(forms.ModelForm):
             "ai_data_consent",
             'ai_coaching_style',
             'ai_profile',
+            # Personal Assistant (sub-module of AI)
+            "personal_assistant_enabled",
+            "personal_assistant_consent",
             # Location
             "location_city",
             "location_country",
@@ -201,6 +204,12 @@ class PreferencesForm(forms.ModelForm):
                 "class": "form-checkbox",
             }),
             "ai_data_consent": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "personal_assistant_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "personal_assistant_consent": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
             "ai_profile": forms.Textarea(attrs={

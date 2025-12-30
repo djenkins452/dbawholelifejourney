@@ -76,6 +76,25 @@
     font-size: var(--font-size-sm);
 }
 
+/* Clickable quick stat tiles */
+.quick-stat-link {
+    text-decoration: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.quick-stat-link:hover {
+    border-color: var(--color-accent);
+    background: var(--color-background);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.quick-stat-link:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
 /* =============================================================================
    AI INSIGHT HERO
    ============================================================================= */

@@ -19,34 +19,34 @@
         <!-- Quick Stats -->
         <div class="quick-stats">
             {% if quick_stats.journal_streak > 0 %}
-            <div class="quick-stat" title="Journal Streak">
+            <a href="{% url 'journal:entry_list' %}" class="quick-stat quick-stat-link" title="Journal Streak - Click to view entries">
                 <span class="stat-icon">🔥</span>
                 <span class="stat-value">{{ quick_stats.journal_streak }}</span>
-            </div>
+            </a>
             {% endif %}
             {% if quick_stats.tasks_today > 0 %}
-            <div class="quick-stat" title="Tasks Today">
+            <a href="{% url 'life:task_list' %}" class="quick-stat quick-stat-link" title="Tasks Today - Click to view all tasks">
                 <span class="stat-icon">✓</span>
                 <span class="stat-value">{{ quick_stats.tasks_today }}</span>
-            </div>
+            </a>
             {% endif %}
             {% if faith_enabled and quick_stats.active_prayers > 0 %}
-            <div class="quick-stat" title="Active Prayers">
+            <a href="{% url 'faith:prayer_list' %}" class="quick-stat quick-stat-link" title="Active Prayers - Click to view prayer list">
                 <span class="stat-icon">🙏</span>
                 <span class="stat-value">{{ quick_stats.active_prayers }}</span>
-            </div>
+            </a>
             {% endif %}
             {% if health_enabled and quick_stats.medicine_doses_today > 0 %}
-            <div class="quick-stat" title="Medicines: {{ quick_stats.medicine_doses_taken }}/{{ quick_stats.medicine_doses_today }} taken">
+            <a href="{% url 'health:medicine_home' %}" class="quick-stat quick-stat-link" title="Medicines: {{ quick_stats.medicine_doses_taken }}/{{ quick_stats.medicine_doses_today }} taken - Click to open tracker">
                 <span class="stat-icon">💊</span>
                 <span class="stat-value">{{ quick_stats.medicine_doses_taken }}/{{ quick_stats.medicine_doses_today }}</span>
-            </div>
+            </a>
             {% endif %}
             {% if health_enabled and quick_stats.workouts_week > 0 %}
-            <div class="quick-stat" title="Workouts This Week">
+            <a href="{% url 'health:workout_list' %}" class="quick-stat quick-stat-link" title="Workouts This Week - Click to view all workouts">
                 <span class="stat-icon">💪</span>
                 <span class="stat-value">{{ quick_stats.workouts_week }}</span>
-            </div>
+            </a>
             {% endif %}
         </div>
     </header>

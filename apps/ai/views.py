@@ -4,7 +4,7 @@
 # Description: Dashboard AI Personal Assistant API endpoints and views
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-29
-# Last Updated: 2025-12-29
+# Last Updated: 2025-12-29 (removed chat history display on page load)
 # ==============================================================================
 """
 Dashboard AI Personal Assistant Views
@@ -654,11 +654,13 @@ class AssistantDashboardView(LoginRequiredMixin, AssistantMixin, TemplateView):
         context['faith_enabled'] = getattr(prefs, 'faith_enabled', False)
         context['coaching_style'] = getattr(prefs, 'ai_coaching_style', 'supportive')
 
-        # Get conversation if exists
+        # Get or create conversation for the session (but don't load history)
+        # Chat starts fresh each page load - no previous messages displayed
         try:
             conversation = AssistantConversation.get_or_create_active(user)
             context['conversation'] = conversation
-            context['messages'] = conversation.messages.order_by('created_at')[:50]
+            # Don't pass previous messages to template - chat starts fresh each visit
+            context['messages'] = []
         except Exception as e:
             logger.error(f"Error getting assistant conversation for {user.email}: {e}")
             context['conversation'] = None

@@ -5,7 +5,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29
+# Last Updated: 2025-12-29 (Remove Chat History on Assistant)
 # ==============================================================================
 
 # Change History
@@ -16,6 +16,27 @@ For active development context, see `CLAUDE.md`.
 ---
 
 ## 2025-12-29 Changes
+
+### Remove Chat History Display on Assistant Page
+
+Removed the display of previous chat history when loading the Assistant page.
+
+**Problem:**
+- When users visited the Assistant page, previous conversation messages were being loaded and displayed
+- This created unnecessary clutter with short truncated message previews
+- Users wanted a clean slate each time they visit the Assistant
+
+**Solution:**
+- Modified `AssistantDashboardView.get_context_data()` to not pass previous messages to the template
+- The conversation session is still maintained in the database for AI context
+- Chat now starts fresh with just the welcome message on each page visit
+
+**Files Modified:**
+- `apps/ai/views.py` - Changed to pass empty messages list instead of conversation history
+
+**Test Status:** All 43 PersonalAssistant tests passing
+
+---
 
 ### Dashboard End Fast Button Fix
 

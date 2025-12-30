@@ -232,14 +232,10 @@
     border: 1px solid var(--color-border);
 }
 
-.insight-card.celebrations {
-    background: linear-gradient(135deg, #ecfdf5, #d1fae5);
-    border-color: #10b981;
-}
-
 .insight-card.nudges {
     background: linear-gradient(135deg, #fef3c7, #fde68a);
     border-color: #f59e0b;
+    grid-column: 1 / -1;
 }
 
 .insight-card h4 {
@@ -509,14 +505,10 @@
                 <div class="loading-skeleton skeleton-text short"></div>
             </div>
 
-            <!-- Celebrations & Nudges -->
+            <!-- Action Items - What needs attention -->
             <div class="insights-row" id="insights-row">
-                <div class="insight-card celebrations" id="celebrations-card" style="display: none;">
-                    <h4>🎉 Celebrations</h4>
-                    <div class="insight-list" id="celebrations-list"></div>
-                </div>
                 <div class="insight-card nudges" id="nudges-card" style="display: none;">
-                    <h4>💡 Today's Focus</h4>
+                    <h4>Needs Attention</h4>
                     <div class="insight-list" id="nudges-list"></div>
                 </div>
             </div>
@@ -626,26 +618,10 @@
                 // Greeting
                 document.getElementById('greeting').textContent = data.greeting;
 
-                // Assessment
-                document.getElementById('assessment').textContent = data.state_summary || 'Ready to help you make the most of today.';
+                // Assessment - focused on what needs attention
+                document.getElementById('assessment').textContent = data.state_summary || 'Here\'s what needs your attention today.';
 
-                // Celebrations
-                if (data.celebrations && data.celebrations.length > 0) {
-                    const celebrationsCard = document.getElementById('celebrations-card');
-                    const celebrationsList = document.getElementById('celebrations-list');
-                    celebrationsList.innerHTML = '';
-
-                    data.celebrations.forEach(c => {
-                        const item = document.createElement('div');
-                        item.className = 'insight-item';
-                        item.textContent = c.description || c.title;
-                        celebrationsList.appendChild(item);
-                    });
-
-                    celebrationsCard.style.display = 'block';
-                }
-
-                // Nudges
+                // Action Items (nudges) - things that need attention
                 if (data.nudges && data.nudges.length > 0) {
                     const nudgesCard = document.getElementById('nudges-card');
                     const nudgesList = document.getElementById('nudges-list');
@@ -875,9 +851,9 @@
     // Load initial data
     loadOpening();
 
-    // Add welcome message to chat
+    // Add welcome message to chat - focused on getting things done
     if (aiEnabled && aiConsent) {
-        addChatMessage("I'm here to help you stay aligned with what matters most. Ask me anything about your goals, priorities, or how to make the most of your day.", false);
+        addChatMessage("I'm here to help you get things done. Ask me about your priorities, what needs attention, or how to tackle your goals.", false);
     }
 })();
 </script>

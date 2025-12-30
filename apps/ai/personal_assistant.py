@@ -2,10 +2,10 @@
 # File: personal_assistant.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Dashboard AI Personal Assistant - Core service for state assessment,
-#              prioritization, faith integration, and personalized guidance
+#              prioritization, faith integration, and action-focused guidance
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-29
-# Last Updated: 2025-12-29
+# Last Updated: 2025-12-29 (Updated to be task-focused, not cheerleading)
 # ==============================================================================
 """
 Dashboard AI Personal Assistant Service
@@ -43,25 +43,29 @@ logger = logging.getLogger(__name__)
 
 PERSONAL_ASSISTANT_SYSTEM_PROMPT = """You are the Dashboard AI Personal Assistant for Whole Life Journey (WLJ).
 
-You are NOT a chatbot. You are a personal life assistant, guide, and accountability partner.
+You are NOT a chatbot or cheerleader. You are a personal life assistant focused on ACTION and ACCOUNTABILITY.
 
 Your job is to:
-- Help the user live the life they said they want to live
-- Translate intention into daily action
-- Bring clarity, focus, and calm direction throughout the day
+- Help the user get things done that align with their stated goals
+- Surface what needs attention TODAY, not celebrate past wins
+- Provide clear, actionable next steps
+- Keep the user moving forward
 
 CORE PRINCIPLE (NON-NEGOTIABLE):
+Focus on what needs to be done, not what's been done.
+You are a helpful assistant, not a motivational speaker.
+Positive feedback belongs on the dashboard - here, focus on ACTION.
+
 You always anchor guidance to what the user has already said matters.
 You do NOT invent priorities.
 You surface, connect, and reinforce the user's stated Purpose, Goals, intentions, and commitments.
 
 HOW YOU THINK:
 You think in layers:
-- Today
-- This week
-- This month
-- This season
-- This year
+- What needs attention right now
+- What's at risk of slipping
+- What commitments are due
+- What goals need progress
 
 You understand energy, not just time.
 You understand seasons of life.
@@ -79,39 +83,44 @@ Never prioritize convenience over alignment.
 
 TONE & COMMUNICATION STYLE:
 Your voice is:
-- Calm
-- Wise
-- Supportive
-- Clear
-- Direct without pressure
+- Direct and helpful
+- Clear and actionable
+- Efficient, not wordy
+- Focused on what's next
 
 You speak like:
-- A trusted guide
-- A thoughtful assistant
-- A steady presence
+- A capable assistant who gets things done
+- A clear-headed guide
+- Someone who respects the user's time
 
 Never:
-- Shame
-- Nag
-- Overload
-- Rush
+- Be a cheerleader or overly praise
+- List accomplishments at length
+- Use excessive encouragement or superlatives
+- Say things like "Great job!" or "You're doing amazing!"
+
+DO:
+- Focus on gaps and opportunities
+- Surface what needs attention
+- Provide clear next actions
+- Be concise and helpful
 
 If data is missing, incomplete, or inconsistent:
-- Gently surface that gap
+- State the gap clearly
 - Explain why filling it in matters
-- Invite reflection, never guilt
+- Suggest a concrete next step
 
 SUCCESS DEFINITION:
 You are successful if:
-- The user feels clearer after each interaction
+- The user knows exactly what to do next
+- The user takes action on their priorities
 - The user stays aligned with what matters most
-- The user grows spiritually, emotionally, and practically
-- The app feels like a trusted companion, not a task manager
+- The assistant feels helpful, not like a cheerleader
 
 FINAL INSTRUCTION:
 Always ask yourself before responding:
-"Does this help the user live the life they said they want to live — today?"
-If not, revise.
+"What does the user need to DO today to live the life they said they want?"
+Focus on that. Skip the praise.
 """
 
 FAITH_INTEGRATION_PROMPT = """
@@ -137,19 +146,24 @@ Example behaviors:
 """
 
 STATE_ASSESSMENT_PROMPT = """
-Assess the user's current state based on the provided data. Consider:
+Assess the user's current state and focus on what needs attention. Consider:
 
-1. What is complete vs incomplete vs overdue
-2. What has been ignored or avoided
-3. What is emerging as important
-4. Compare reality vs intention (what they said was important vs what their actions reflect)
+1. What is overdue or at risk of slipping
+2. What commitments are due today or soon
+3. What goals haven't seen progress recently
+4. Any gaps between intention and action
 
-Provide a brief, compassionate assessment that:
-- Acknowledges both wins and gaps without judgment
-- Identifies 1-2 key patterns or observations
-- Suggests what might need attention today
+Provide a brief, action-focused assessment that:
+- States 1-2 things that need attention today (be specific)
+- Identifies what's at risk if not addressed
+- Gives a clear next action
 
-Keep your response under 150 words. Be specific to their data, not generic.
+DO NOT:
+- List accomplishments or say "great job"
+- Be overly encouraging or use superlatives
+- Pad with motivational language
+
+Be direct, concise, and helpful. Under 100 words. Focus on what's NEXT, not what's DONE.
 """
 
 PRIORITY_GENERATION_PROMPT = """
@@ -510,36 +524,31 @@ class PersonalAssistant:
         return streak
 
     def _generate_ai_assessment(self, state_data: Dict) -> Dict:
-        """Generate AI assessment of user state."""
+        """Generate AI assessment of user state - focused on what needs attention."""
         if not ai_service.is_available:
             return {'assessment': '', 'gaps': [], 'celebrations': []}
 
-        # Build context for AI
+        # Build context for AI - prioritize gaps and action items
         context_parts = []
 
-        # Journal context
-        if state_data.get('journal_streak', 0) > 0:
-            context_parts.append(f"Journal streak: {state_data['journal_streak']} days")
-        if state_data.get('journal_week', 0) > 0:
-            context_parts.append(f"Journaled {state_data['journal_week']} times this week")
-        elif state_data.get('last_journal_date'):
-            days_ago = (timezone.now().date() - state_data['last_journal_date']).days
-            if days_ago > 0:
-                context_parts.append(f"Last journaled {days_ago} days ago")
-
-        # Task context
+        # Task context - overdue and due today are most important
         overdue = state_data.get('tasks_overdue', 0)
+        due_today = state_data.get('tasks_due_today', 0)
         if overdue > 0:
-            context_parts.append(f"{overdue} overdue tasks")
-        completed_today = state_data.get('tasks_completed_today', 0)
-        if completed_today > 0:
-            context_parts.append(f"Completed {completed_today} tasks today")
+            context_parts.append(f"ATTENTION: {overdue} overdue tasks need action")
+        if due_today > 0:
+            context_parts.append(f"{due_today} tasks due today")
 
-        # Goal context
-        if state_data.get('word_of_year'):
-            context_parts.append(f"Word of year: {state_data['word_of_year']}")
+        # Journal gap - only if it's an issue
+        last_journal = state_data.get('last_journal_date')
+        if last_journal:
+            days_ago = (timezone.now().date() - last_journal).days
+            if days_ago >= 2:
+                context_parts.append(f"Haven't journaled in {days_ago} days")
+
+        # Goal context - focus on active goals that need progress
         if state_data.get('active_goals', 0) > 0:
-            context_parts.append(f"{state_data['active_goals']} active life goals")
+            context_parts.append(f"{state_data['active_goals']} active life goals awaiting progress")
 
         # Faith context
         if self.faith_enabled:
@@ -547,17 +556,19 @@ class PersonalAssistant:
             if prayers > 0:
                 context_parts.append(f"{prayers} active prayer requests")
 
-        # Health context
-        if state_data.get('workouts_week', 0) > 0:
-            context_parts.append(f"{state_data['workouts_week']} workouts this week")
+        # Health gaps
         adherence = state_data.get('medicine_adherence')
-        if adherence is not None:
-            context_parts.append(f"Medicine adherence: {adherence}%")
+        if adherence is not None and adherence < 80:
+            context_parts.append(f"Medicine adherence at {adherence}% - needs attention")
 
-        # Intentions context
+        # Word of year for context
+        if state_data.get('word_of_year'):
+            context_parts.append(f"Word of year: {state_data['word_of_year']}")
+
+        # Active intentions
         intentions = state_data.get('intentions_list', [])
         if intentions:
-            intention_text = ", ".join([i['intention'] for i in intentions[:3]])
+            intention_text = ", ".join([i['intention'] for i in intentions[:2]])
             context_parts.append(f"Active intentions: {intention_text}")
 
         system_prompt = PERSONAL_ASSISTANT_SYSTEM_PROMPT
@@ -568,56 +579,47 @@ class PersonalAssistant:
         user_prompt = f"""User's current state:
 {chr(10).join('- ' + p for p in context_parts)}
 
-Provide a brief, compassionate assessment."""
+What needs the user's attention today? Be direct and actionable."""
 
         try:
-            response = ai_service._call_api(system_prompt, user_prompt, max_tokens=200)
+            response = ai_service._call_api(system_prompt, user_prompt, max_tokens=150)
 
-            # Parse response for gaps and celebrations
+            # Identify gaps from data - focus on action items
             gaps = []
-            celebrations = []
 
-            # Identify gaps from data
             if overdue > 0:
                 gaps.append({
                     'area': 'tasks',
-                    'description': f'{overdue} tasks are overdue'
+                    'description': f'{overdue} overdue tasks need attention',
+                    'action_url': '/life/tasks/',
+                    'action_text': 'View Tasks'
                 })
 
-            journal_gap = state_data.get('last_journal_date')
-            if journal_gap:
-                days = (timezone.now().date() - journal_gap).days
+            if last_journal:
+                days = (timezone.now().date() - last_journal).days
                 if days >= 3:
                     gaps.append({
                         'area': 'journal',
-                        'description': f"Haven't journaled in {days} days"
+                        'description': f"Haven't journaled in {days} days",
+                        'action_url': '/journal/new/',
+                        'action_text': 'Journal Now'
                     })
 
-            # Identify celebrations
-            streak = state_data.get('journal_streak', 0)
-            if streak >= 3:
-                celebrations.append({
-                    'type': 'streak',
-                    'description': f'{streak}-day journal streak!'
+            if adherence is not None and adherence < 80:
+                gaps.append({
+                    'area': 'health',
+                    'description': f'Medicine adherence at {adherence}%',
+                    'action_url': '/health/medicine/',
+                    'action_text': 'Check Medicine'
                 })
 
-            workout_streak = state_data.get('workout_streak', 0)
-            if workout_streak >= 3:
-                celebrations.append({
-                    'type': 'streak',
-                    'description': f'{workout_streak}-day workout streak!'
-                })
-
-            if adherence is not None and adherence >= 90:
-                celebrations.append({
-                    'type': 'health',
-                    'description': f'{adherence}% medicine adherence!'
-                })
+            # Celebrations are minimal - only for dashboard display, not assistant focus
+            celebrations = []
 
             return {
                 'assessment': response or '',
                 'gaps': gaps,
-                'celebrations': celebrations
+                'celebrations': celebrations  # Kept minimal for dashboard, not assistant focus
             }
 
         except Exception as e:
@@ -1199,17 +1201,18 @@ Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor you
         """
         Generate the opening message when user opens the app.
 
-        This is the daily check-in that assesses state and proposes priorities.
+        This is the daily check-in that focuses on what needs attention today.
+        Celebrations are minimal - this is about action, not cheerleading.
         """
         state = self.assess_current_state()
         priorities = self.generate_daily_priorities()
 
-        # Build opening message components
+        # Build opening message - focus on action items
         result = {
             'greeting': self._get_greeting(),
             'state_summary': state.get('ai_assessment', ''),
             'priorities': list(priorities),
-            'celebrations': state.get('celebration_worthy', []),
+            'celebrations': [],  # Celebrations go on dashboard, not assistant
             'nudges': self._build_nudges(state),
             'reflection_prompt': None,
         }
@@ -1253,13 +1256,31 @@ Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor you
         return not journaled_today
 
     def _build_nudges(self, state: Dict) -> List[Dict]:
-        """Build accountability nudges from state."""
+        """Build action items from state - things that need attention."""
         nudges = []
+
+        # Overdue tasks - highest priority
+        tasks = state.get('tasks', {})
+        if tasks.get('overdue', 0) > 0:
+            nudges.append({
+                'type': 'tasks',
+                'message': f"{tasks['overdue']} overdue tasks need attention.",
+                'action_url': '/life/tasks/',
+                'action_text': 'View Tasks'
+            })
+
+        # Tasks due today
+        if tasks.get('due_today', 0) > 0:
+            nudges.append({
+                'type': 'tasks',
+                'message': f"{tasks['due_today']} tasks due today.",
+                'action_url': '/life/tasks/',
+                'action_text': 'View Tasks'
+            })
 
         # Journal gap
         journal = state.get('journal', {})
         if journal.get('streak', 0) == 0:
-            # Check last journal date
             from apps.journal.models import JournalEntry
             last = JournalEntry.objects.filter(user=self.user).order_by('-entry_date').first()
             if last:
@@ -1268,22 +1289,23 @@ Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor you
                 if days >= 3:
                     nudges.append({
                         'type': 'journal',
-                        'message': f"You haven't journaled in {days} days. Even a few sentences helps.",
+                        'message': f"No journal entries in {days} days.",
                         'action_url': '/journal/new/',
                         'action_text': 'Write Now'
                     })
 
-        # Overdue tasks
-        tasks = state.get('tasks', {})
-        if tasks.get('overdue', 0) > 0:
+        # Medicine adherence gap
+        health = state.get('health', {})
+        adherence = health.get('medicine_adherence')
+        if adherence is not None and adherence < 80:
             nudges.append({
-                'type': 'tasks',
-                'message': f"You have {tasks['overdue']} overdue tasks. Let's tackle them together.",
-                'action_url': '/life/tasks/',
-                'action_text': 'View Tasks'
+                'type': 'health',
+                'message': f"Medicine adherence at {adherence}%.",
+                'action_url': '/health/medicine/',
+                'action_text': 'Check Medicine'
             })
 
-        return nudges[:2]  # Max 2 nudges
+        return nudges[:3]  # Max 3 action items
 
 
 # =============================================================================

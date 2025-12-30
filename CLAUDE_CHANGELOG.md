@@ -5,7 +5,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29 (Silence django-axes Warning)
+# Last Updated: 2025-12-29 (AI Assistant Task-Focused Update)
 # ==============================================================================
 
 # Change History
@@ -16,6 +16,60 @@ For active development context, see `CLAUDE.md`.
 ---
 
 ## 2025-12-29 Changes
+
+### AI Assistant - Task-Focused Not Cheerleading
+
+Updated the AI Personal Assistant to focus on what needs to be done rather than celebrating what's been accomplished. Positive feedback/celebrations now belong on the main dashboard, while the Assistant focuses on ACTION.
+
+**Changes Made:**
+
+1. **System Prompts Updated** (`apps/ai/personal_assistant.py`)
+   - Updated `PERSONAL_ASSISTANT_SYSTEM_PROMPT` to be action-focused, not cheerleading
+   - Changed tone instructions: "Direct and helpful" instead of "Calm, Wise, Supportive"
+   - Added explicit instructions to NOT be a cheerleader or use excessive praise
+   - Focus on gaps and opportunities, not accomplishments
+
+2. **State Assessment Prompt Updated**
+   - Updated `STATE_ASSESSMENT_PROMPT` to focus on what needs attention
+   - Reduced from 150 to 100 words max response
+   - Explicit DO NOT instructions for praise and superlatives
+   - Focus on actionable gaps and clear next steps
+
+3. **Assessment Generation Updated**
+   - `_generate_ai_assessment()` now prioritizes gaps and action items
+   - Overdue tasks and due-today tasks are highlighted first
+   - Journal gaps, medicine adherence issues surfaced
+   - Celebrations array kept minimal (for dashboard use only)
+
+4. **Opening Message Updated**
+   - `get_opening_message()` now returns empty celebrations array
+   - Focus shifted to nudges (renamed conceptually to "action items")
+   - Greeting remains, but assessment focuses on what needs attention
+
+5. **Nudges Enhanced**
+   - `_build_nudges()` now prioritizes overdue tasks first
+   - Added tasks due today as action item
+   - Added medicine adherence gap detection
+   - Increased max nudges from 2 to 3
+
+6. **Dashboard Template Updated** (`templates/ai/assistant_dashboard.html`)
+   - Removed Celebrations card entirely
+   - Renamed "Today's Focus" to "Needs Attention"
+   - Updated welcome chat message to be task-focused
+   - Simplified insights row to single action items card
+
+**Philosophy:**
+- The **Dashboard** is where positive feedback and celebrations belong
+- The **Assistant** is for getting things done and staying on track
+- Direct, helpful, efficient communication without excessive praise
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Prompts, assessment, opening message, nudges
+- `templates/ai/assistant_dashboard.html` - Removed celebrations, simplified UI
+
+**Test Status:** All 44 personal assistant tests passing, 57 dashboard tests passing
+
+---
 
 ### Silence django-axes Warning (axes.W003)
 

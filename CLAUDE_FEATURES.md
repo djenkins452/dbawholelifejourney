@@ -5,7 +5,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29
+# Last Updated: 2025-12-29 (Updated AI Assistant to be task-focused)
 # ==============================================================================
 
 # Feature Documentation
@@ -191,33 +191,33 @@ Users can disable the popup via Preferences → Notifications → "Show What's N
 ## Dashboard AI Personal Assistant
 
 ### Overview
-A comprehensive personal life assistant that helps users live the life they said they want to live. This is NOT a chatbot - it anchors all guidance to user's stated Purpose, Goals, intentions, and commitments.
+A task-focused personal assistant that helps users get things done and stay aligned with their goals. This is NOT a chatbot or cheerleader - it focuses on ACTION and what needs attention.
 
 ### Core Philosophy
+- **Action-focused** - Surfaces what needs attention, not what's been accomplished
 - **Faith-first prioritization** (for users with faith enabled): Faith → Purpose → Long-term goals → Commitments → Maintenance → Optional
-- **Honors user's journey** - doesn't lecture or give unsolicited advice
-- **Celebrates wins** and progress
-- **Gentle accountability** - nudges without nagging
+- **Direct and helpful** - Provides clear next steps without excessive praise
+- **Positive feedback on dashboard** - Celebrations belong on the main dashboard, not the assistant
 - **Personalized reflection prompts** for journaling
 
 ### What It Does
-1. **Daily State Assessment** - Evaluates user's current state across all dimensions (journal, tasks, goals, faith, health)
-2. **Priority Generation** - Creates daily priorities following strict ordering based on what matters most to the user
+1. **Daily State Assessment** - Focuses on gaps and action items (overdue tasks, journal gaps, medicine adherence issues)
+2. **Priority Generation** - Creates daily priorities following strict ordering based on what matters most
    - Completed priorities are preserved when refreshing (won't be deleted/regenerated)
-   - Shows positive feedback toast when priorities are completed with type-specific encouragement
+   - Shows brief positive feedback when priorities are completed
    - Tracks completion history for analytics via `DailyPriority.get_completion_stats()`
 3. **Trend Analysis** - Weekly/monthly analysis of patterns and progress
 4. **Drift Detection** - Identifies when behavior drifts from stated intentions
 5. **Reflection Prompts** - Generates personalized journaling prompts based on context
-6. **Celebration** - Recognizes completed goals, maintained streaks, answered prayers
-7. **Conversational Interface** - Answers questions about user's own journey and data
+6. **Action Items** - Surfaces things that need attention today with direct action links
+7. **Conversational Interface** - Answers questions about priorities and how to tackle goals
 
 ### What It Is NOT
-- NOT a generic chatbot
-- Does NOT give unsolicited advice
+- NOT a cheerleader or motivational speaker
+- NOT focused on celebrating accomplishments (that's the dashboard's job)
+- Does NOT use excessive praise or superlatives
 - Does NOT lecture or moralize
 - Does NOT claim to know what's best for the user
-- Does NOT suggest what user "should" want
 
 ### Models (`apps/ai/models.py`)
 | Model | Description |

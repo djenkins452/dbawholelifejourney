@@ -227,8 +227,11 @@
             </div>
             {% endif %}
             <div class="fast-actions">
-                <a href="{% url 'health:fasting_end' user_data.active_fast.pk %}" class="btn btn-primary btn-sm fast-end-btn"
-                   onclick="return confirm('End your fast now?');">End Fast</a>
+                <form method="post" action="{% url 'health:fasting_end' user_data.active_fast.pk %}" class="inline-form"
+                      onsubmit="return confirm('End your fast now?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary btn-sm fast-end-btn">End Fast</button>
+                </form>
                 <a href="{% url 'health:fasting_list' %}" class="btn btn-secondary btn-sm">View Details</a>
             </div>
         </div>

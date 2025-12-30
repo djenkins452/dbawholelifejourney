@@ -5,7 +5,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29 (Remove Chat History on Assistant)
+# Last Updated: 2025-12-29 (Fix Medicine Tile Timezone Bug)
 # ==============================================================================
 
 # Change History
@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md`.
 ---
 
 ## 2025-12-29 Changes
+
+### Medicine Tile Timezone Bug Fix
+
+Fixed a bug where the Medicines tile on the Health page was incorrectly showing doses as "overdue" because it was using UTC time instead of the user's configured timezone.
+
+**Problem:**
+- The `HealthHomeView.get_context_data()` method was calculating overdue doses by comparing `timezone.now()` (UTC) against the scheduled time
+- The code stripped the timezone info from UTC time but kept the UTC value, then compared it against a naive datetime constructed from the user's local date/time
+- For users in EST (UTC-5), a dose scheduled for 5:00 PM would show as overdue at 12:00 PM local time (5:00 PM UTC)
+
+**Solution:**
+- Updated the overdue calculation to convert `timezone.now()` to the user's local timezone before comparison
+- Uses `user.preferences.timezone` to get the user's configured timezone
+- Falls back to UTC if timezone is not set or invalid
+- Now matches the pattern already used in `MedicineListView._is_overdue()` method
+
+**Files Modified:**
+- `apps/health/views.py` - Fixed `HealthHomeView.get_context_data()` medicine overdue calculation (lines 191-211)
+
+**Test Status:** All health and medicine tests passing (85 medicine tests, 16 health tests)
+
+---
 
 ### Health Page Fitness Tile Summary Metrics
 

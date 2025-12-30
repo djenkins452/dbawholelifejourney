@@ -188,13 +188,26 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                             MedicineLog.STATUS_LATE,
                             MedicineLog.STATUS_SKIPPED,
                         ]:
-                            # Check if overdue
+                            # Check if overdue using user's timezone
                             from datetime import datetime, timedelta as td
+
+                            # Get user's timezone
+                            try:
+                                user_tz = pytz.timezone(user.preferences.timezone or 'UTC')
+                            except (AttributeError, pytz.UnknownTimeZoneError):
+                                user_tz = pytz.UTC
+
+                            # Convert current time to user's local time
+                            now_local = now.astimezone(user_tz)
+
+                            # Create deadline from user's local date and scheduled time
                             scheduled_dt = datetime.combine(today, schedule.scheduled_time)
                             grace_minutes = medicine.grace_period_minutes
                             deadline = scheduled_dt + td(minutes=grace_minutes)
-                            now_naive = now.replace(tzinfo=None) if now.tzinfo else now
-                            if now_naive > deadline:
+
+                            # Compare in user's local time (both naive)
+                            now_local_naive = now_local.replace(tzinfo=None)
+                            if now_local_naive > deadline:
                                 overdue_count += 1
 
             context["medicine_scheduled_today"] = total_scheduled

@@ -17,6 +17,25 @@ For active development context, see `CLAUDE.md`.
 
 ## 2025-12-29 Changes
 
+### Dashboard End Fast Button Fix
+
+Fixed the "End Fast" button on the dashboard that was returning an HTTP 405 error.
+
+**Problem:**
+- The End Fast button on the dashboard was using an `<a href>` anchor tag which sends a GET request
+- The `EndFastView` only accepts POST requests for safety (prevents CSRF attacks and accidental clicks from URL sharing)
+- Clicking "End Fast" resulted in HTTP 405 Method Not Allowed error
+
+**Solution:**
+- Changed the End Fast button from an anchor tag to a proper POST form with CSRF token
+- Added `onsubmit` confirmation dialog (same UX as before with `onclick`)
+- Matches the implementation used in `fasting_list.html` and `health/home.html`
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Changed End Fast button to POST form with CSRF token
+
+---
+
 ### Weight and Nutrition Goals Feature
 
 Added personal weight and nutrition goal tracking with progress display on the dashboard.

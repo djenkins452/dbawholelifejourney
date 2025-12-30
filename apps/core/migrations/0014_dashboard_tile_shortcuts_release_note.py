@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: 0013_dashboard_tile_shortcuts_release_note.py
+# File: 0014_dashboard_tile_shortcuts_release_note.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Data migration to add Dashboard Tile Shortcuts release note
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
@@ -55,7 +55,7 @@ def remove_dashboard_tile_shortcuts_release_note(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0012_weight_nutrition_goals_release_notes'),
+        ('core', '0013_merge_20251229_1954'),
     ]
 
     operations = [

@@ -303,9 +303,29 @@
                 <a href="{% url 'health:workout_create' %}" class="btn btn-primary btn-sm">Log Workout</a>
             </div>
 
-            <div class="fitness-quick-stats">
-                <p class="fitness-stat">Track your workouts, cardio, and strength training</p>
-            </div>
+            {% if latest_workout %}
+                <div class="fitness-stats">
+                    <div class="stat">
+                        <span class="stat-value">{{ workouts_this_week }}</span>
+                        <span class="stat-label">workouts this week</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">{{ workouts_this_month }}</span>
+                        <span class="stat-label">this month</span>
+                    </div>
+                </div>
+
+                {% if fitness_duration_this_week %}
+                    <p class="metric-avg">{{ fitness_duration_this_week }} min this week</p>
+                {% endif %}
+
+                <p class="metric-date">Last workout: {{ latest_workout.date|date:"M j" }}</p>
+            {% else %}
+                <p class="text-muted">No workouts logged yet.</p>
+                <a href="{% url 'health:workout_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Log your first workout
+                </a>
+            {% endif %}
 
             <a href="{% url 'health:fitness_home' %}" class="card-link">Go to Fitness</a>
         </div>
@@ -655,6 +675,27 @@
 }
 
 .nutrition-stats .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.fitness-stats {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.fitness-stats .stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.fitness-stats .stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.fitness-stats .stat-label {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
 }

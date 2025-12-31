@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit Taken Time - {{ medicine.name }} - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <span>/</span>
+        <a href="{% url 'health:medicine_history' %}">History</a>
+        <span>/</span>
+        <span>Edit Log</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Edit Taken Time</h1>
+        <p class="page-subtitle">Correct when you actually took this dose</p>
+    </div>
+
+    <!-- Medicine Info Card -->
+    <div class="info-card mb-6">
+        <div class="info-row">
+            <span class="info-label">Medicine</span>
+            <span class="info-value">{{ medicine.name }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Dose</span>
+            <span class="info-value">{{ medicine.dose }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Scheduled Date</span>
+            <span class="info-value">{{ log.scheduled_date|date:"l, F j, Y" }}</span>
+        </div>
+        {% if log.scheduled_time %}
+        <div class="info-row">
+            <span class="info-label">Scheduled Time</span>
+            <span class="info-value">{{ log.scheduled_time|time:"g:i A" }}</span>
+        </div>
+        {% endif %}
+        <div class="info-row">
+            <span class="info-label">Current Status</span>
+            <span class="info-value status-badge status-{{ log.log_status }}">{{ log.get_log_status_display }}</span>
+        </div>
+    </div>
+
+    <!-- Edit Form -->
+    <form method="post" class="form-card">
+        {% csrf_token %}
+        {% if request.GET.next %}
+        <input type="hidden" name="next" value="{{ request.GET.next }}">
+        {% endif %}
+
+        <div class="form-group">
+            <label for="id_taken_at" class="form-label">When did you actually take this dose?</label>
+            {{ form.taken_at }}
+            {% if form.taken_at.errors %}
+            <span class="form-error">{{ form.taken_at.errors.0 }}</span>
+            {% endif %}
+            <p class="form-help">Enter the actual time you took this medicine. The status (Taken/Taken Late) will be recalculated based on this time.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes" class="form-label">Notes (optional)</label>
+            {{ form.notes }}
+            {% if form.notes.errors %}
+            <span class="form-error">{{ form.notes.errors.0 }}</span>
+            {% endif %}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{% if request.GET.next %}{{ request.GET.next }}{% else %}{% url 'health:medicine_history' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.info-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.info-value {
+    font-weight: 500;
+}
+
+.status-badge {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+}
+
+.status-taken {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.status-late {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    color: var(--color-warning, #f59e0b);
+}
+
+.status-skipped {
+    background: color-mix(in srgb, var(--color-text-muted) 15%, transparent);
+    color: var(--color-text-muted);
+}
+
+.status-missed {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    color: var(--color-error, #ef4444);
+}
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.form-help {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.form-error {
+    color: var(--color-error, #ef4444);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-1);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .info-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

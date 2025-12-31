@@ -37,6 +37,7 @@ from .forms import (
     GlucoseEntryForm,
     HeartRateEntryForm,
     MedicineForm,
+    MedicineLogEditForm,
     MedicineLogForm,
     MedicineScheduleForm,
     PRNDoseForm,
@@ -2276,7 +2277,55 @@ class MedicineHistoryView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["medicines"] = Medicine.objects.filter(user=self.request.user)
         context["selected_medicine"] = self.request.GET.get("medicine")
+        # Add user timezone for template display
+        try:
+            context["user_timezone"] = self.request.user.preferences.timezone or "UTC"
+        except AttributeError:
+            context["user_timezone"] = "UTC"
         return context
+
+
+class MedicineLogEditView(LoginRequiredMixin, UpdateView):
+    """
+    Edit the taken_at time of a medicine log entry.
+
+    Allows users to correct the time when they actually took a dose,
+    which is important when they took the medicine on time but forgot
+    to log it immediately.
+    """
+
+    model = MedicineLog
+    form_class = MedicineLogEditForm
+    template_name = "health/medicine/log_edit.html"
+
+    def get_queryset(self):
+        """Only allow editing the user's own logs."""
+        return MedicineLog.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["log"] = self.object
+        context["medicine"] = self.object.medicine
+        return context
+
+    def get_success_url(self):
+        """Return to the referring page or medicine history."""
+        next_url = self.request.POST.get("next") or self.request.GET.get("next")
+        if next_url:
+            return next_url
+        return reverse_lazy("health:medicine_history")
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            f"Updated taken time for {self.object.medicine.name}."
+        )
+        return super().form_valid(form)
 
 
 class MedicineAdherenceView(LoginRequiredMixin, TemplateView):

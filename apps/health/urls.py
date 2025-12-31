@@ -71,6 +71,7 @@ urlpatterns = [
     path("medicine/<int:pk>/undo/<int:schedule_pk>/", views.MedicineUndoView.as_view(), name="medicine_undo"),
     path("medicine/prn/", views.PRNLogView.as_view(), name="medicine_prn_log"),
     path("medicine/history/", views.MedicineHistoryView.as_view(), name="medicine_history"),
+    path("medicine/log/<int:pk>/edit/", views.MedicineLogEditView.as_view(), name="medicine_log_edit"),
     path("medicine/adherence/", views.MedicineAdherenceView.as_view(), name="medicine_adherence"),
     path("medicine/quick-look/", views.MedicineQuickLookView.as_view(), name="medicine_quick_look"),
     path("medicine/<int:pk>/request-refill/", views.MedicineRequestRefillView.as_view(), name="medicine_request_refill"),

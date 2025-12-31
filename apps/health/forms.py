@@ -620,6 +620,76 @@ class MedicineLogForm(forms.ModelForm):
         self.fields["notes"].required = False
 
 
+class MedicineLogEditForm(forms.ModelForm):
+    """
+    Form for editing the taken_at time of a medicine log.
+    Allows users to correct the time when a dose was actually taken.
+    """
+
+    class Meta:
+        model = MedicineLog
+        fields = ["taken_at", "notes"]
+        widgets = {
+            "taken_at": forms.DateTimeInput(attrs={
+                "class": "form-input",
+                "type": "datetime-local",
+            }),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "placeholder": "Notes about this dose (optional)",
+                "rows": 2,
+            }),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.fields["notes"].required = False
+
+        # Convert existing taken_at to user's local timezone for display
+        if self.instance.pk and self.instance.taken_at:
+            user_tz = get_user_timezone(user)
+            local_taken = self.instance.taken_at.astimezone(user_tz)
+            self.initial["taken_at"] = local_taken.strftime("%Y-%m-%dT%H:%M")
+
+    def clean_taken_at(self):
+        """Convert datetime from user's timezone to UTC."""
+        taken_at = self.cleaned_data.get('taken_at')
+        return interpret_as_user_timezone(taken_at, self.user)
+
+    def save(self, commit=True):
+        """
+        Save the log and recalculate late/on-time status based on new taken_at.
+        """
+        instance = super().save(commit=False)
+
+        # Recalculate the status based on the new taken_at time
+        if instance.taken_at and instance.scheduled_time:
+            from datetime import datetime, timedelta
+            import pytz
+
+            user_tz = get_user_timezone(self.user)
+
+            # Convert taken_at to user's local timezone
+            taken_local = instance.taken_at.astimezone(user_tz)
+
+            # Create scheduled datetime in user's timezone
+            scheduled_dt = datetime.combine(instance.scheduled_date, instance.scheduled_time)
+            scheduled_local = user_tz.localize(scheduled_dt)
+
+            grace_minutes = instance.medicine.grace_period_minutes
+            latest_ok = scheduled_local + timedelta(minutes=grace_minutes)
+
+            if taken_local > latest_ok:
+                instance.log_status = MedicineLog.STATUS_LATE
+            else:
+                instance.log_status = MedicineLog.STATUS_TAKEN
+
+        if commit:
+            instance.save()
+        return instance
+
+
 class PRNDoseForm(forms.Form):
     """
     Simple form for logging a PRN (as-needed) dose.

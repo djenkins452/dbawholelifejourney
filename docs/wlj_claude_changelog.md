@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30
+# Last Updated: 2025-12-30 (Medicine timezone fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,34 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-30 Changes
+
+### Medicine "Taken At" Time Now Displays in User's Timezone
+
+Fixed medicine history showing "Taken Late" incorrectly because the `taken_at` time was being displayed in UTC instead of the user's configured timezone.
+
+**Issue:**
+- The `taken_at` field on MedicineLog is a DateTimeField stored in UTC
+- When displayed in templates, Django's `time` filter was showing UTC time
+- For users in America/New_York (EST/EDT, UTC-5), a medicine taken at 9:24 AM local time was showing as "1:24 PM" (UTC)
+- This caused medicines taken on time to appear as "Taken Late"
+
+**Fix:**
+1. Added `user_timezone` to the theme context processor so templates can access the user's timezone
+2. Used Django's `{% timezone %}` template tag to convert `taken_at` datetimes to user's local time
+3. Updated both `medicine_detail.html` and `history.html` templates
+
+**Files Modified:**
+- `apps/core/context_processors.py` - Added `user_timezone` to template context
+- `templates/health/medicine/medicine_detail.html` - Added `{% load tz %}` and wrapped `taken_at` in timezone tag
+- `templates/health/medicine/history.html` - Added `{% load tz %}` and wrapped `taken_at` in timezone tag
+
+**Technical Details:**
+- The `scheduled_time` fields are stored as TimeField (no timezone), so they don't need conversion - they represent the desired local schedule time
+- Only `taken_at` (DateTimeField stored in UTC) needed the timezone conversion
+
+**Test Results:** 86 medicine tests pass
+
+---
 
 ### Documentation Reorganization
 

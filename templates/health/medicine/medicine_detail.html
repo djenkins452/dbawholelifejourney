@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load tz %}
 
 {% block title %}{{ medicine.name }} - Medicines - Whole Life Journey{% endblock %}
 
@@ -204,7 +205,7 @@
                 <span class="log-time">{% if log.scheduled_time %}{{ log.scheduled_time|time:"g:i A" }}{% else %}PRN{% endif %}</span>
                 <span class="log-status">{{ log.get_log_status_display }}</span>
                 {% if log.taken_at %}
-                <span class="log-taken-time">at {{ log.taken_at|time:"g:i A" }}</span>
+                <span class="log-taken-time">at {% timezone user_timezone %}{{ log.taken_at|time:"g:i A" }}{% endtimezone %}</span>
                 {% endif %}
             </div>
             {% endfor %}

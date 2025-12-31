@@ -92,6 +92,8 @@ def theme_context(request):
             # User's "today" in their timezone (for date comparisons in templates)
             from apps.core.utils import get_user_today
             context['user_today'] = get_user_today(request.user)
+            # User's timezone for datetime conversion in templates
+            context['user_timezone'] = prefs.timezone
         except Exception:
             pass
 

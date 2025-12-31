@@ -478,8 +478,11 @@ Users can mark a medicine as "refill requested" to track that they've already ca
 - Medicine adherence rate in AI insights
 - Refill alerts as nudges (differentiates "needs refill" vs "refill requested")
 
+### Timezone Handling (Fixed 2025-12-30)
+The `taken_at` time on medicine logs is now displayed in the user's configured timezone. This fixes an issue where medicines taken on time appeared as "Taken Late" because the UTC time was being shown instead of local time.
+
 ### Tests
-`apps/health/tests/test_medicine.py` - 77 tests
+`apps/health/tests/test_medicine.py` - 86 tests
 
 ---
 

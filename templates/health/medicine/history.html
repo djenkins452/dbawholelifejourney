@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load tz %}
 
 {% block title %}Medicine History - Whole Life Journey{% endblock %}
 
@@ -71,7 +72,7 @@
                     </div>
                     {% if log.taken_at %}
                     <div class="log-taken">
-                        Taken at {{ log.taken_at|time:"g:i A" }}
+                        Taken at {% timezone user_timezone %}{{ log.taken_at|time:"g:i A" }}{% endtimezone %}
                     </div>
                     {% endif %}
                     {% if log.prn_reason %}

@@ -116,7 +116,15 @@
         {% if verses %}
         <div class="verse-grid">
             {% for verse in verses %}
-            <div class="verse-card">
+            <div class="verse-card {% if verse.is_memory_verse %}memory-verse{% endif %}">
+                {% if verse.is_memory_verse %}
+                <div class="memory-verse-badge">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                    </svg>
+                    Memory Verse
+                </div>
+                {% endif %}
                 <p class="verse-text">{{ verse.text }}</p>
                 <p class="verse-reference">{{ verse.reference }}</p>
                 {% if verse.themes %}
@@ -130,6 +138,15 @@
                 <p class="verse-notes">{{ verse.notes }}</p>
                 {% endif %}
                 <div class="verse-actions">
+                    <form method="post" action="{% url 'faith:toggle_memory_verse' verse.pk %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost btn-sm {% if verse.is_memory_verse %}text-accent{% endif %}" title="{% if verse.is_memory_verse %}Remove as memory verse{% else %}Set as memory verse{% endif %}">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="{% if verse.is_memory_verse %}currentColor{% else %}none{% endif %}" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                            </svg>
+                            {% if verse.is_memory_verse %}Memorizing{% else %}Memorize{% endif %}
+                        </button>
+                    </form>
                     <a href="{% url 'faith:saved_verse_edit' verse.pk %}" class="btn btn-ghost btn-sm">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -351,6 +368,29 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-4);
+    position: relative;
+}
+
+.verse-card.memory-verse {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-background));
+}
+
+.memory-verse-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-2);
+}
+
+.text-accent {
+    color: var(--color-accent) !important;
 }
 
 .verse-text {

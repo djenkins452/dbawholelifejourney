@@ -50,7 +50,30 @@
             {% endif %}
         </div>
     </header>
-    
+
+    <!-- Memory Verse (if faith enabled and user has one set) -->
+    {% if faith_enabled and user_data.memory_verse %}
+    <section class="memory-verse-section">
+        <div class="memory-verse-card">
+            <div class="memory-verse-header">
+                <div class="memory-verse-badge">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                    </svg>
+                    Memory Verse
+                </div>
+                <a href="{% url 'faith:scripture_list' %}" class="memory-verse-link" title="Manage Scripture">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                </a>
+            </div>
+            <blockquote class="memory-verse-text">{{ user_data.memory_verse.text }}</blockquote>
+            <p class="memory-verse-reference">— {{ user_data.memory_verse.reference }}</p>
+        </div>
+    </section>
+    {% endif %}
+
     {% if ai_enabled and ai_insights %}
     <!-- AI Insight Card (Main Focus) -->
     <section class="ai-insight-hero">

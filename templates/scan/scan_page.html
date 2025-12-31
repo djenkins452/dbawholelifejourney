@@ -844,8 +844,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Quagga2 library for barcode detection fallback (browsers without native BarcodeDetector) -->
-<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+<!-- ZXing-js library for reliable cross-browser barcode detection -->
+<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.js"></script>
 <script>
 (function() {
     'use strict';
@@ -1270,8 +1270,11 @@
     }
 
     // =========================================================================
-    // Barcode Scanning Functions
+    // Barcode Scanning Functions - Using ZXing-js library
     // =========================================================================
+
+    // ZXing reader instance (lazy initialized)
+    let zxingReader = null;
 
     function setScanMode(mode) {
         scanMode = mode;
@@ -1320,21 +1323,18 @@
             return;
         }
 
-        // Use BarcodeDetector API if available (Chrome/Edge on Android - NOT Safari/iOS)
-        if ('BarcodeDetector' in window) {
-            console.log('BarcodeDetector API available, starting native detection');
-            startNativeBarcodeDetection();
-        } else {
-            console.log('BarcodeDetector API NOT available - using Quagga fallback');
-            // Update hint to show scanning is active
-            if (barcodeOverlay) {
-                const hint = barcodeOverlay.querySelector('.barcode-hint');
-                if (hint) {
-                    hint.textContent = 'Scanning for barcode...';
-                }
+        // Update hint to show scanning is active
+        if (barcodeOverlay) {
+            const hint = barcodeOverlay.querySelector('.barcode-hint');
+            if (hint) {
+                hint.textContent = 'Scanning for barcode...';
             }
-            startCanvasBarcodeDetection();
         }
+
+        // Use ZXing library for cross-browser barcode detection
+        console.log('Starting ZXing barcode detection');
+        console.log('Video dimensions:', cameraPreview.videoWidth, 'x', cameraPreview.videoHeight);
+        startZXingBarcodeDetection();
     }
 
     function stopBarcodeDetection() {
@@ -1348,146 +1348,108 @@
         }
     }
 
-    async function startNativeBarcodeDetection() {
-        try {
-            // Check what formats are supported
-            const supportedFormats = await BarcodeDetector.getSupportedFormats();
-            console.log('Supported barcode formats:', supportedFormats);
-
-            // Use all common product barcode formats
-            const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
-                .filter(f => supportedFormats.includes(f));
-
-            if (formats.length === 0) {
-                console.log('No supported barcode formats found');
-                startCanvasBarcodeDetection();
-                return;
+    function getZXingReader() {
+        // Initialize ZXing reader if not already done
+        if (!zxingReader) {
+            // Check if ZXing library is loaded (UMD exposes ZXingBrowser global)
+            if (typeof ZXingBrowser === 'undefined') {
+                console.error('ZXing library not loaded - ZXingBrowser is undefined');
+                console.log('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('zxing')));
+                return null;
             }
 
-            console.log('Using formats:', formats);
-            const barcodeDetector = new BarcodeDetector({ formats });
-
-            let scanAttempts = 0;
-            barcodeDetectionInterval = setInterval(async () => {
-                if (!cameraPreview || cameraPreview.paused || cameraPreview.ended || cameraPreview.readyState < 2) {
-                    return;
-                }
-
-                scanAttempts++;
-                try {
-                    const barcodes = await barcodeDetector.detect(cameraPreview);
-                    if (barcodes.length > 0) {
-                        console.log('Barcode detected:', barcodes[0].rawValue, 'format:', barcodes[0].format);
-                        handleBarcodeDetected(barcodes[0].rawValue);
-                    } else if (scanAttempts % 25 === 0) {
-                        // Log every 5 seconds (25 * 200ms) to show scanning is active
-                        console.log('Still scanning... attempts:', scanAttempts);
-                    }
-                } catch (err) {
-                    if (scanAttempts % 50 === 0) {
-                        console.log('Detection cycle error (normal):', err.message);
-                    }
-                }
-            }, 200); // Check every 200ms
-
-            console.log('Barcode detection started');
-
-        } catch (err) {
-            console.error('Native barcode detection failed:', err);
-            startCanvasBarcodeDetection();
+            // Use BrowserMultiFormatReader for barcode scanning
+            if (ZXingBrowser.BrowserMultiFormatReader) {
+                zxingReader = new ZXingBrowser.BrowserMultiFormatReader();
+                console.log('ZXing BrowserMultiFormatReader initialized');
+            } else {
+                console.error('ZXing BrowserMultiFormatReader not available in ZXingBrowser:', Object.keys(ZXingBrowser));
+                return null;
+            }
         }
+        return zxingReader;
     }
 
-    function startCanvasBarcodeDetection() {
-        // Use Quagga2 library as fallback for browsers without BarcodeDetector
-        if (typeof Quagga === 'undefined') {
-            console.log('Quagga not loaded - library may still be loading');
-            // Retry after a short delay in case library is still loading
-            setTimeout(() => {
-                if (typeof Quagga !== 'undefined' && scanMode === 'barcode') {
-                    console.log('Quagga now available, starting detection');
-                    startCanvasBarcodeDetection();
-                } else {
-                    console.log('Quagga still not available, manual capture only');
-                    if (barcodeOverlay) {
-                        const hint = barcodeOverlay.querySelector('.barcode-hint');
-                        if (hint) {
-                            hint.textContent = 'Press capture button to scan';
-                        }
-                    }
+    function startZXingBarcodeDetection() {
+        const reader = getZXingReader();
+        if (!reader) {
+            console.log('ZXing not available, falling back to manual capture mode');
+            if (barcodeOverlay) {
+                const hint = barcodeOverlay.querySelector('.barcode-hint');
+                if (hint) {
+                    hint.textContent = 'Press capture button to scan';
                 }
-            }, 500);
+            }
             return;
         }
 
-        console.log('Starting Quagga2 barcode detection (fallback mode)');
-        console.log('Video dimensions:', cameraPreview.videoWidth, 'x', cameraPreview.videoHeight);
-
-        // Create a hidden canvas for processing
+        // Create a canvas for processing frames
         const processCanvas = document.createElement('canvas');
-        let quaggaScanAttempts = 0;
-        let isProcessing = false; // Prevent overlapping scans
+        let scanAttempts = 0;
+        let isProcessing = false;
 
-        barcodeDetectionInterval = setInterval(() => {
+        barcodeDetectionInterval = setInterval(async () => {
             // Skip if already processing a frame or video not ready
             if (isProcessing || !cameraPreview || cameraPreview.paused || cameraPreview.ended || cameraPreview.readyState < 2) {
                 return;
             }
 
             isProcessing = true;
-            quaggaScanAttempts++;
+            scanAttempts++;
 
-            // Capture current frame - use reasonable size for barcode detection
-            const targetWidth = Math.min(cameraPreview.videoWidth, 640);
-            const scale = targetWidth / cameraPreview.videoWidth;
-            const targetHeight = Math.round(cameraPreview.videoHeight * scale);
+            try {
+                // Capture current frame to canvas
+                processCanvas.width = cameraPreview.videoWidth;
+                processCanvas.height = cameraPreview.videoHeight;
+                const ctx = processCanvas.getContext('2d');
+                ctx.drawImage(cameraPreview, 0, 0);
 
-            processCanvas.width = targetWidth;
-            processCanvas.height = targetHeight;
-            const ctx = processCanvas.getContext('2d');
-            ctx.drawImage(cameraPreview, 0, 0, targetWidth, targetHeight);
+                // Create image element from canvas for ZXing decodeFromImageElement
+                // ZXing browser doesn't have decodeFromCanvas, so we use decodeFromImageElement
+                const imageData = processCanvas.toDataURL('image/png');
+                const img = new Image();
+                img.src = imageData;
 
-            // Get image data URL with good quality for barcode reading
-            const imageData = processCanvas.toDataURL('image/png');
+                // Wait for image to load
+                await new Promise((resolve) => {
+                    img.onload = resolve;
+                    img.onerror = resolve; // Continue even on error
+                });
 
-            // Use Quagga's decodeSingle for single-frame processing
-            Quagga.decodeSingle({
-                src: imageData,
-                numOfWorkers: 0, // Use main thread for faster response
-                inputStream: {
-                    size: targetWidth
-                },
-                decoder: {
-                    readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader'],
-                    multiple: false
-                },
-                locate: true,
-                locator: {
-                    patchSize: 'medium',
-                    halfSample: false // Better accuracy on mobile
-                }
-            }, function(result) {
-                isProcessing = false;
+                // Use ZXing to decode from image element
+                const result = await reader.decodeFromImageElement(img);
 
-                if (result && result.codeResult && result.codeResult.code) {
-                    const code = result.codeResult.code;
-                    const format = result.codeResult.format;
-                    console.log('Quagga detected barcode:', code, 'format:', format);
+                if (result && result.text) {
+                    const code = result.text;
+                    const format = result.format ? result.format.toString() : 'unknown';
+                    console.log('ZXing detected barcode:', code, 'format:', format);
 
-                    // Validate the barcode looks reasonable (numeric, right length)
+                    // Validate the barcode looks reasonable (numeric, right length for product barcodes)
                     if (/^\d{8,14}$/.test(code)) {
                         handleBarcodeDetected(code);
                     } else {
-                        console.log('Ignoring invalid barcode:', code);
+                        console.log('Non-product barcode detected:', code, '(keeping scanning)');
                     }
-                } else if (quaggaScanAttempts % 10 === 0) {
-                    // Log every 3 seconds (10 * 300ms) to show scanning is active
-                    console.log('Quagga scanning... attempts:', quaggaScanAttempts);
                 }
-            });
-        }, 300); // Process every 300ms (give more time for processing)
+            } catch (err) {
+                // NotFoundException is normal when no barcode is visible
+                const errName = err.name || err.constructor?.name || '';
+                if (errName !== 'NotFoundException' && errName !== 'N' && !errName.includes('NotFound')) {
+                    if (scanAttempts % 30 === 0) {
+                        console.log('ZXing scan cycle:', errName || err.message);
+                    }
+                }
+            } finally {
+                isProcessing = false;
+            }
 
-        console.log('Quagga2 barcode detection started');
+            // Log progress periodically
+            if (scanAttempts % 25 === 0) {
+                console.log('ZXing scanning... attempts:', scanAttempts);
+            }
+        }, 200); // Scan every 200ms for responsive detection
+
+        console.log('ZXing barcode detection started');
     }
 
     function handleBarcodeDetected(barcode) {
@@ -1584,7 +1546,7 @@
         setState('barcodeNotFound');
     }
 
-    // Manual barcode capture (for browsers without BarcodeDetector)
+    // Manual barcode capture using ZXing
     async function captureAndLookupBarcode() {
         if (!mediaStream) {
             showError('Camera not available', 'Please try again.');
@@ -1593,21 +1555,61 @@
 
         setState('loading');
 
-        // Capture frame
+        // Capture frame to canvas
         const canvas = document.createElement('canvas');
         canvas.width = cameraPreview.videoWidth;
         canvas.height = cameraPreview.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(cameraPreview, 0, 0);
 
-        // Try native BarcodeDetector first
+        // Use ZXing library for detection
+        const reader = getZXingReader();
+        if (reader) {
+            try {
+                console.log('Manual capture: Using ZXing');
+
+                // Convert canvas to image element for ZXing
+                const imageData = canvas.toDataURL('image/png');
+                const img = new Image();
+                img.src = imageData;
+
+                // Wait for image to load
+                await new Promise((resolve) => {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                });
+
+                const result = await reader.decodeFromImageElement(img);
+
+                if (result && result.text) {
+                    const code = result.text;
+                    console.log('ZXing manual capture detected:', code, 'format:', result.format?.toString());
+
+                    // Validate the barcode looks reasonable (numeric, right length for product barcodes)
+                    if (/^\d{8,14}$/.test(code)) {
+                        await lookupBarcode(code);
+                        return;
+                    } else {
+                        console.log('Non-product barcode detected:', code);
+                        showError('Invalid Barcode', `Detected "${code}" but it doesn't appear to be a product barcode. Product barcodes are 8-14 digits.`);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.log('ZXing manual capture - no barcode found:', err.name || err.message);
+            }
+        }
+
+        // Try native BarcodeDetector as fallback (Chrome/Edge Android)
         if ('BarcodeDetector' in window) {
             try {
+                console.log('Manual capture: Trying native BarcodeDetector');
                 const barcodeDetector = new BarcodeDetector({
                     formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
                 });
                 const barcodes = await barcodeDetector.detect(canvas);
                 if (barcodes.length > 0) {
+                    console.log('Native BarcodeDetector found:', barcodes[0].rawValue);
                     await lookupBarcode(barcodes[0].rawValue);
                     return;
                 }
@@ -1616,53 +1618,8 @@
             }
         }
 
-        // Fall back to Quagga
-        if (typeof Quagga !== 'undefined') {
-            console.log('Manual capture: Using Quagga fallback');
-            const imageData = canvas.toDataURL('image/png'); // PNG for better quality
-
-            return new Promise((resolve) => {
-                Quagga.decodeSingle({
-                    src: imageData,
-                    numOfWorkers: 0,
-                    inputStream: {
-                        size: Math.min(canvas.width, 800)
-                    },
-                    decoder: {
-                        readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader'],
-                        multiple: false
-                    },
-                    locate: true,
-                    locator: {
-                        patchSize: 'large',
-                        halfSample: false
-                    }
-                }, async function(result) {
-                    if (result && result.codeResult && result.codeResult.code) {
-                        const code = result.codeResult.code;
-                        console.log('Quagga manual capture detected:', code, 'format:', result.codeResult.format);
-
-                        // Validate barcode format
-                        if (/^\d{8,14}$/.test(code)) {
-                            await lookupBarcode(code);
-                        } else {
-                            console.log('Invalid barcode format:', code);
-                            showError('Invalid Barcode', 'The detected code does not appear to be a valid product barcode.');
-                        }
-                        resolve();
-                    } else {
-                        console.log('No barcode detected by Quagga');
-                        showError('No Barcode Found', 'Position the barcode within the frame and try again. Make sure the barcode is well-lit and in focus.');
-                        resolve();
-                    }
-                });
-            });
-        } else {
-            console.log('Quagga not available for manual capture');
-        }
-
-        // No detection method available
-        showError('No Barcode Found', 'Position the barcode within the frame and try again.');
+        // No barcode found
+        showError('No Barcode Found', 'Position the barcode within the frame and try again. Make sure the barcode is well-lit, in focus, and fully visible.');
     }
 
     // Helper functions

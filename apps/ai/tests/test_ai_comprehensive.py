@@ -1436,6 +1436,8 @@ class AIProfilePreferencesTest(AITestMixin, TestCase):
                 'timezone': 'US/Eastern',
                 'default_fasting_type': '16:8',
                 'weight_goal_unit': 'lb',  # Required field
+                'sms_quiet_start': '22:00',  # Required SMS field
+                'sms_quiet_end': '08:00',  # Required SMS field
             }
         )
 

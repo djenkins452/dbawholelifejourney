@@ -4,7 +4,7 @@
 # Description: SMS app configuration
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-30
-# Last Updated: 2025-12-30
+# Last Updated: 2025-12-31
 # ==============================================================================
 """SMS app configuration."""
 
@@ -17,3 +17,8 @@ class SmsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.sms'
     verbose_name = 'SMS Notifications'
+
+    def ready(self):
+        """Import signals when app is ready."""
+        # Import signals to register them
+        import apps.sms.signals  # noqa: F401

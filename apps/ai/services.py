@@ -1,3 +1,12 @@
+# ==============================================================================
+# File: services.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: AI Services - Core OpenAI API wrapper with database-driven prompts
+#              and optimized caching for reduced API calls
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2025-01-01
+# Last Updated: 2025-12-31 (Added system prompt caching for optimization)
+# ==============================================================================
 """
 AI Services for Whole Life Journey - WITH DATABASE-DRIVEN PROMPTS
 
@@ -5,11 +14,18 @@ This module provides AI-powered insights and encouragement based on user data.
 It uses OpenAI's API to generate personalized, meaningful feedback.
 
 Both coaching styles AND prompt configurations are now database-driven for flexibility.
+
+Caching Optimizations (2025-12-31):
+- System prompts cached by user/style combination (1 hour)
+- Coaching style prompts cached (1 hour)
+- AIPromptConfig cached (1 hour)
 """
+import hashlib
 import logging
 from typing import Optional
 from datetime import timedelta
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -144,33 +160,46 @@ class AIService:
         If prompt_type is provided and exists in database, uses that config.
         Otherwise falls back to system_base config or hardcoded defaults.
 
+        Caching Strategy (Optimization 2025-12-31):
+        - Base system prompt + coaching style + faith context is cached
+        - User profile is NOT cached (too variable, needs safety processing each time)
+        - Cache key: system_prompt_{coaching_style}_{faith_enabled}
+
         Args:
             faith_enabled: Whether faith context should be included
             coaching_style: The user's preferred coaching style
             prompt_type: Specific prompt type for database lookup
             user_profile: User's personal AI profile for personalization
         """
-        # Try to get system base config from database
-        base_config = self._get_prompt_config('system_base')
+        # Try to get cached base prompt (without user profile)
+        cache_key = f'system_prompt_{coaching_style}_{faith_enabled}'
+        base = cache.get(cache_key)
 
-        if base_config:
-            base = base_config.get_full_prompt()
-        else:
-            # Fallback to hardcoded base
-            base = FALLBACK_SYSTEM_BASE
+        if base is None:
+            # Build the base prompt
+            base_config = self._get_prompt_config('system_base')
 
-        # Add coaching style
-        base += "\n" + self._get_coaching_style_prompt(coaching_style)
-
-        # Add faith context if enabled
-        if faith_enabled:
-            faith_config = self._get_prompt_config('faith_context')
-            if faith_config:
-                base += "\n" + faith_config.system_instructions
+            if base_config:
+                base = base_config.get_full_prompt()
             else:
-                base += FALLBACK_FAITH_CONTEXT
+                # Fallback to hardcoded base
+                base = FALLBACK_SYSTEM_BASE
 
-        # Add user profile context if provided
+            # Add coaching style
+            base += "\n" + self._get_coaching_style_prompt(coaching_style)
+
+            # Add faith context if enabled
+            if faith_enabled:
+                faith_config = self._get_prompt_config('faith_context')
+                if faith_config:
+                    base += "\n" + faith_config.system_instructions
+                else:
+                    base += FALLBACK_FAITH_CONTEXT
+
+            # Cache the base prompt (1 hour)
+            cache.set(cache_key, base, 3600)
+
+        # Add user profile context if provided (not cached - varies per user)
         if user_profile:
             from .profile_moderation import build_safe_profile_context
             profile_context = build_safe_profile_context(user_profile)

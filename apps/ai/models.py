@@ -1,9 +1,40 @@
+# ==============================================================================
+# File: models.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: AI Models - Insights caching, coaching styles, prompt configs
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2025-01-01
+# Last Updated: 2025-12-31 (Added system prompt cache invalidation)
+# ==============================================================================
 """
 AI Models - Store generated insights for caching and history.
+
+Caching Strategy (2025-12-31):
+- CoachingStyle: Cached 1 hour, invalidates on save
+- AIPromptConfig: Cached 1 hour, invalidates on save
+- Both also invalidate system_prompt_* cache keys on save
 """
 from django.core.cache import cache
 from django.db import models
 from django.conf import settings
+
+
+def invalidate_system_prompt_cache():
+    """
+    Invalidate all cached system prompts.
+
+    Called when CoachingStyle or AIPromptConfig is updated.
+    System prompts are cached with keys like:
+    - system_prompt_supportive_True
+    - system_prompt_supportive_False
+    - system_prompt_direct_True
+    - etc.
+    """
+    # Get all active coaching style keys
+    styles = ['supportive', 'gentle', 'direct', 'cheerleader', 'mentor', 'companion', 'coach']
+    for style in styles:
+        for faith in [True, False]:
+            cache.delete(f'system_prompt_{style}_{faith}')
 
 
 class CoachingStyle(models.Model):
@@ -61,6 +92,9 @@ class CoachingStyle(models.Model):
         # Clear cache when style is updated
         cache.delete('coaching_styles_all')
         cache.delete(f'coaching_style_{self.key}')
+
+        # Also invalidate system prompt cache (uses coaching style)
+        invalidate_system_prompt_cache()
 
         # Ensure only one default
         if self.is_default:
@@ -267,6 +301,10 @@ class AIPromptConfig(models.Model):
         # Clear cache when config is updated
         cache.delete(f'ai_prompt_config_{self.prompt_type}')
         cache.delete('ai_prompt_configs_all')
+
+        # Also invalidate system prompt cache (uses prompt configs)
+        invalidate_system_prompt_cache()
+
         super().save(*args, **kwargs)
 
     @classmethod

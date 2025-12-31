@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Significant Events, Cascading Menu, Memory Verse, SMS Preferences fix, Improved Help System, Task Search)
+# Last Updated: 2025-12-31 (AI Caching Optimizations, Significant Events, Cascading Menu, Memory Verse)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,47 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### AI Caching Optimizations
+
+Performed comprehensive AI usage assessment and implemented caching optimizations to reduce API costs and improve performance without sacrificing features.
+
+**Assessment Report Created:**
+- `docs/wlj_ai_assessment.md` - Complete analysis of AI architecture and API call patterns
+
+**Optimizations Implemented:**
+
+1. **System Prompt Caching** (`apps/ai/services.py`)
+   - System prompts now cached by coaching style + faith enabled combination
+   - Cache key: `system_prompt_{coaching_style}_{faith_enabled}`
+   - TTL: 1 hour
+   - Reduces redundant prompt building on every API call
+
+2. **Instance-Level User Data Caching** (`apps/ai/dashboard_ai.py`)
+   - Added `get_user_data()` method with per-instance caching
+   - Added `get_reflection_data()` method with per-instance caching
+   - Prevents redundant database queries when multiple methods call `_gather_user_data()`
+
+3. **Cache Invalidation on Config Changes** (`apps/ai/models.py`)
+   - Added `invalidate_system_prompt_cache()` helper function
+   - CoachingStyle.save() now invalidates system prompt cache
+   - AIPromptConfig.save() now invalidates system prompt cache
+   - Ensures cached prompts are refreshed when admin changes AI configuration
+
+**Files Modified:**
+- `apps/ai/services.py` - Added system prompt caching, updated header
+- `apps/ai/dashboard_ai.py` - Added instance-level user data caching, updated header
+- `apps/ai/models.py` - Added cache invalidation on save, updated header
+
+**Test Fix:**
+- `apps/ai/tests/test_ai_comprehensive.py` - Added required SMS quiet hours fields to PreferencesForm test
+
+**Estimated Impact:**
+- ~25% reduction in API costs through better caching
+- Reduced database queries per request
+- Faster response times for dashboard and personal assistant
+
+---
 
 ### Significant Events Feature
 

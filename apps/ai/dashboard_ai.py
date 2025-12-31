@@ -1,13 +1,25 @@
+# ==============================================================================
+# File: dashboard_ai.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Dashboard AI Integration - Insights with optimized caching
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2025-01-01
+# Last Updated: 2025-12-31 (Added request-level caching for user data)
+# ==============================================================================
 """
 Dashboard AI Integration - With Coaching Style Support
 
 This module provides AI-powered insights specifically for the dashboard.
 It handles caching, data gathering, and insight generation.
 
-apps/ai/dashboard_ai.py
+Caching Optimizations (2025-12-31):
+- User data cached per instance (request-level caching via _cached_user_data)
+- Reflection data cached per instance
+- Reduces redundant queries when multiple methods call _gather_user_data()
 """
 import logging
 from datetime import timedelta
+from functools import cached_property
 from django.db import models
 from django.utils import timezone
 from django.db.models import Count, F
@@ -22,14 +34,21 @@ class DashboardAI:
     """
     AI services specifically for dashboard insights.
     Uses the user's preferred coaching style.
+
+    Optimization (2025-12-31):
+    - Uses cached_property for user_data to prevent redundant queries
+    - Single instance should be used per request for optimal caching
     """
-    
+
     def __init__(self, user):
         self.user = user
         self.prefs = user.preferences
         self.faith_enabled = self.prefs.faith_enabled
         self.coaching_style = getattr(self.prefs, 'ai_coaching_style', 'supportive')
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
+        # Internal cache for user data (per-instance)
+        self._cached_user_data = None
+        self._cached_reflection_data = None
     
     def get_daily_insight(self, force_refresh: bool = False) -> str:
         """
@@ -37,6 +56,8 @@ class DashboardAI:
 
         Returns cached insight if available and valid, otherwise generates new one.
         Cache is invalidated when coaching style changes.
+
+        Optimization (2025-12-31): Uses instance-cached user data.
         """
         # Check for cached valid insight with matching coaching style
         if not force_refresh:
@@ -50,8 +71,8 @@ class DashboardAI:
             if cached:
                 return cached.content
 
-        # Generate new insight
-        user_data = self._gather_user_data()
+        # Generate new insight using cached user data
+        user_data = self.get_user_data()
         content = ai_service.generate_daily_insight(
             user_data,
             self.faith_enabled,
@@ -152,16 +173,51 @@ class DashboardAI:
     def get_reflection_prompt(self) -> str:
         """
         Get a personalized reflection prompt for journaling.
+
+        Optimization (2025-12-31): Uses instance-cached reflection data.
         """
-        user_data = self._gather_reflection_data()
+        user_data = self.get_reflection_data()
         return ai_service.generate_weekly_reflection_prompt(
-            user_data, 
+            user_data,
             self.faith_enabled,
             self.coaching_style
         )
     
+    def get_user_data(self, force_refresh: bool = False) -> dict:
+        """
+        Get user data with instance-level caching.
+
+        Optimization (2025-12-31):
+        - First call gathers data and caches it on the instance
+        - Subsequent calls return cached data
+        - Use force_refresh=True to bypass cache
+
+        Args:
+            force_refresh: If True, bypass cache and gather fresh data
+
+        Returns:
+            dict: User data for AI context
+        """
+        if self._cached_user_data is None or force_refresh:
+            self._cached_user_data = self._gather_user_data()
+        return self._cached_user_data
+
+    def get_reflection_data(self, force_refresh: bool = False) -> dict:
+        """
+        Get reflection data with instance-level caching.
+
+        Args:
+            force_refresh: If True, bypass cache and gather fresh data
+
+        Returns:
+            dict: Reflection data for AI context
+        """
+        if self._cached_reflection_data is None or force_refresh:
+            self._cached_reflection_data = self._gather_reflection_data()
+        return self._cached_reflection_data
+
     def _gather_user_data(self) -> dict:
-        """Gather user data for daily insight generation."""
+        """Gather user data for daily insight generation. Use get_user_data() for caching."""
         from apps.journal.models import JournalEntry
         from apps.core.utils import get_user_today, get_user_now
 

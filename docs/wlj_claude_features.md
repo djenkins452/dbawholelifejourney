@@ -341,6 +341,33 @@ The Personal Assistant is a separate module that requires:
 3. **Personal Assistant Enabled** (`personal_assistant_enabled = True`)
 4. **Personal Assistant Consent** (`personal_assistant_consent = True`)
 
+### AI Caching Strategy (Optimized 2025-12-31)
+
+Multiple levels of caching reduce API costs and improve performance:
+
+| Layer | What's Cached | TTL | Invalidation |
+|-------|--------------|-----|--------------|
+| **System Prompt** | Base + coaching style + faith context | 1 hour | On CoachingStyle or AIPromptConfig save |
+| **Coaching Styles** | Active coaching styles list | 1 hour | On CoachingStyle save |
+| **Prompt Configs** | AIPromptConfig per type | 1 hour | On AIPromptConfig save |
+| **Daily Insight** | Generated dashboard message | End of day | On coaching style change |
+| **Weekly Summary** | Journal week summary | 24 hours | On coaching style change |
+| **User State Snapshot** | Daily user state | 1 day | force_refresh=True |
+| **Instance User Data** | Per-request data gathering | Per-instance | New DashboardAI instance |
+
+**Key Files:**
+- `apps/ai/services.py` - System prompt caching with `cache.set()`
+- `apps/ai/dashboard_ai.py` - Instance-level caching with `get_user_data()` / `get_reflection_data()`
+- `apps/ai/models.py` - `invalidate_system_prompt_cache()` helper
+
+**Cache Keys:**
+- `system_prompt_{coaching_style}_{faith_enabled}` - Cached system prompts
+- `coaching_styles_all` - All active coaching styles
+- `coaching_style_{key}` - Individual style by key
+- `ai_prompt_config_{prompt_type}` - Prompt configs by type
+
+For full assessment, see: `docs/wlj_ai_assessment.md`
+
 This separation allows users to:
 - Enable general AI features (insights, camera scan) without the Personal Assistant
 - Enable the Personal Assistant only if AI features are already enabled

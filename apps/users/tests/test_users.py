@@ -209,13 +209,13 @@ class PreferencesViewTest(TestCase):
     def test_preferences_can_be_saved(self):
         """User can save preference changes."""
         self.client.login(email='test@example.com', password='testpass123')
-        
+
         # First, GET the form to see what fields are expected
         get_response = self.client.get(reverse('users:preferences'))
         if get_response.status_code == 302:
             if 'terms' in get_response.url:
                 self.skipTest("Terms acceptance required - test needs terms fixture")
-        
+
         # POST the form data - include all required fields
         response = self.client.post(reverse('users:preferences'), {
             'theme': 'dark',
@@ -235,12 +235,16 @@ class PreferencesViewTest(TestCase):
             'location_city': '',
             'location_country': '',
             'default_fasting_type': '16:8',
+            # Required fields for weight goal and SMS
+            'weight_goal_unit': 'lb',
+            'sms_quiet_start': '22:00',
+            'sms_quiet_end': '08:00',
         }, follow=True)  # Follow redirects
-        
+
         # Verify change was saved
         self.user.preferences.refresh_from_db()
         self.assertEqual(
-            self.user.preferences.theme, 
+            self.user.preferences.theme,
             'dark',
             f"Theme should be 'dark', got '{self.user.preferences.theme}'"
         )

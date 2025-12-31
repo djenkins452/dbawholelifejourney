@@ -1046,6 +1046,10 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',
             'default_fasting_type': '16:8',
+            # Required fields for weight goal and SMS
+            'weight_goal_unit': 'lb',
+            'sms_quiet_start': '22:00',
+            'sms_quiet_end': '08:00',
             # show_whats_new not included = unchecked = False
         })
         self.user.preferences.refresh_from_db()
@@ -1061,6 +1065,10 @@ class WhatsNewPreferenceTest(CoreTestMixin, TestCase):
             'timezone': 'US/Eastern',
             'ai_coaching_style': 'supportive',
             'default_fasting_type': '16:8',
+            # Required fields for weight goal and SMS
+            'weight_goal_unit': 'lb',
+            'sms_quiet_start': '22:00',
+            'sms_quiet_end': '08:00',
             'show_whats_new': 'on',
         })
         self.user.preferences.refresh_from_db()

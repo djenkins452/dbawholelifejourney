@@ -1,63 +1,64 @@
-# CLAUDE_CHANGELOG.md
 # ==============================================================================
-# File: CLAUDE_CHANGELOG.md
+# File: docs/wlj_claude_changelog.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30 (Personal Assistant coaching style + time urgency)
+# Last Updated: 2025-12-30
 # ==============================================================================
 
-# Change History
+# WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
-For active development context, see `CLAUDE.md`.
+For active development context, see `CLAUDE.md` (project root).
 
 ---
 
 ## 2025-12-30 Changes
 
-### Personal Assistant: Coaching Style Integration & Time-Aware Urgency
+### Documentation Reorganization
 
-Enhanced the Personal Assistant to use the user's selected AI Coaching Style (same as Dashboard AI) and added time-aware urgency messaging based on user timezone.
+Reorganized all project documentation files into a clean, consistent structure in the `docs/` directory.
 
-**Key Changes:**
+**Changes Made:**
+- Created `docs/` subdirectory for all project documentation
+- Renamed all documentation files to follow consistent naming convention: `wlj_<category>_<descriptor>.md`
+- Updated `CLAUDE.md` to reference new file locations
+- Added `docs/README.md` as documentation index
+- Deleted temporary artifact files (test_summary.txt, test_errors.txt, etc.)
 
-1. **Coaching Style Integration** (`apps/ai/personal_assistant.py`)
-   - Personal Assistant now uses the same coaching style as Dashboard AI
-   - Added `build_personal_assistant_prompt()` function that incorporates coaching style
-   - Added `get_coaching_style_for_assistant()` to fetch coaching style from database
-   - Communication style varies based on coaching style (direct, gentle, supportive)
-   - Fallback responses now match the user's coaching style
+**New Naming Convention:**
+| Old Name | New Name |
+|----------|----------|
+| `CLAUDE_CHANGELOG.md` | `docs/wlj_claude_changelog.md` |
+| `CLAUDE_FEATURES.md` | `docs/wlj_claude_features.md` |
+| `CLAUDE_BEACON.md` | `docs/wlj_claude_beacon.md` |
+| `BACKUP.md` | `docs/wlj_backup.md` |
+| `BACKUP_REPORT.md` | `docs/wlj_backup_report.md` |
+| `SECURITY_REVIEW_REPORT.md` | `docs/wlj_security_review.md` |
+| `SYSTEM_AUDIT_REPORT.md` | `docs/wlj_system_audit.md` |
+| `SYSTEM_REVIEW.md` | `docs/wlj_system_review.md` |
+| `THIRD_PARTY_SERVICES.md` | `docs/wlj_third_party_services.md` |
+| `docs/CAMERA_SCAN_ARCHITECTURE.md` | `docs/wlj_camera_scan_architecture.md` |
 
-2. **Time-Aware Urgency**
-   - Added `_get_time_context()` method that calculates hours remaining until bedtime (10pm)
-   - Time context includes: current_time, hours_remaining, day_status, urgency_message
-   - Messages become more urgent as the day progresses:
-     - Early morning: "Focus on priorities without rushing"
-     - Late afternoon: "You have about X hours left today. Focus on what's most critical."
-     - Evening: "Only about X hours remain. What absolutely must get done?"
-     - Late evening: "Only X hour(s) left before bedtime. Focus on the essentials."
-   - Nudges include time-based urgency (e.g., "3 tasks STILL due today. 2 hours to go.")
+**Naming Convention Rules:**
+- All files start with `wlj_` prefix
+- Categories: `claude_*`, `backup_*`, `security_*`, `system_*`, `third_party_*`, `camera_*`
+- Use lowercase with underscores
+- Example: `wlj_claude_changelog.md`
 
-3. **Focus on REMAINING Tasks**
-   - Prompts now explicitly focus on what REMAINS to be done, not accomplishments
-   - State summaries show "Tasks REMAINING today" instead of completed counts
-   - AI assessment prompts ask "What STILL needs attention?"
-   - User prompt instructions emphasize remaining work over praise
+**Files Kept at Root:**
+- `CLAUDE.md` - Remains at root for Claude Code discovery
+- `README.md` - Standard project README
 
-4. **Opening Message Enhancements**
-   - `get_opening_message()` now includes `time_context` and `coaching_style`
-   - Greeting includes time-aware suffix when in evening hours
-   - Direct style: "Good evening, Danny. 4 hours left today."
-   - Gentle style: "Good evening, Danny. The evening is here."
-   - Supportive: "Good evening, Danny. Let's make the most of the evening."
-
-**Files Modified:**
-- `apps/ai/personal_assistant.py` - Core changes for coaching style + time awareness
-- `apps/ai/tests/test_ai_comprehensive.py` - Fixed test missing required form field
-
-**Test Results:** 54 Personal Assistant tests pass, 152 total AI tests pass
+**Temporary Files Deleted:**
+- `test_summary.txt`
+- `test_errors.txt`
+- `app_diffs.txt`
+- `different_files.txt`
+- `template_diffs.txt`
+- `phase2_diff_..txt`
+- `docs/intro_transcript.md`
 
 ---
 
@@ -1122,7 +1123,7 @@ Fixed critical bug where medicine schedules weren't appearing in Today's Schedul
 ---
 
 ### Camera Scan Feature
-Added comprehensive Camera Scan feature with OpenAI Vision API integration. See `docs/CAMERA_SCAN_ARCHITECTURE.md`.
+Added comprehensive Camera Scan feature with OpenAI Vision API integration. See `docs/wlj_camera_scan_architecture.md`.
 
 **Files:** Multiple scan app files (70 new tests).
 
@@ -1134,7 +1135,7 @@ Added Medicine section to Health module with daily tracker, adherence stats, PRN
 ---
 
 ### CSO Security Review & Fixes
-Comprehensive security review with 21 findings. See `SECURITY_REVIEW_REPORT.md`.
+Comprehensive security review with 21 findings. See `docs/wlj_security_review.md`.
 
 **Critical fixes:**
 - C-2: Bible API key removed from frontend

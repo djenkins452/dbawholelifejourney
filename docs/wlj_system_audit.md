@@ -1,4 +1,13 @@
-# SYSTEM AUDIT REPORT
+# ==============================================================================
+# File: docs/wlj_system_audit.md
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: System audit report with health score and findings
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2025-12-28
+# Last Updated: 2025-12-30
+# ==============================================================================
+
+# WLJ System Audit Report
 
 **Project:** Whole Life Journey - Django 5.x Personal Wellness/Journaling Application
 **Audit Date:** December 28, 2025
@@ -17,8 +26,8 @@ The Whole Life Journey application is a **well-structured, production-ready Djan
 
 | Priority | Count | Description |
 |----------|-------|-------------|
-| **CRITICAL** | ~~2~~ 0 | ~~Open redirect vulnerability~~✅, ~~hardcoded API key~~✅ |
-| **HIGH** | ~~5~~ 0 | ~~Bare except clauses~~✅, ~~missing error logging~~✅, ~~XSS risk~~✅, ~~unsafe IP extraction~~✅, ~~missing error pages~~✅ |
+| **CRITICAL** | ~~2~~ 0 | ~~Open redirect vulnerability~~, ~~hardcoded API key~~ |
+| **HIGH** | ~~5~~ 0 | ~~Bare except clauses~~, ~~missing error logging~~, ~~XSS risk~~, ~~unsafe IP extraction~~, ~~missing error pages~~ |
 | **MEDIUM** | 12 | Hardcoded values, missing input validation, code duplication |
 | **LOW** | 15 | Documentation gaps, large files, minor best practice violations |
 
@@ -26,17 +35,17 @@ The Whole Life Journey application is a **well-structured, production-ready Djan
 
 ## TOP RISKS (RANKED BY SEVERITY)
 
-### 1. ~~CRITICAL: Open Redirect Vulnerability~~ ✅ FIXED (2025-12-28)
+### 1. ~~CRITICAL: Open Redirect Vulnerability~~ FIXED (2025-12-28)
 **Location:** `apps/life/views.py:356-359`, `apps/life/views.py:309-312`, `apps/purpose/views.py:343-348`
 **Issue:** User-controlled `next` parameter used directly in `redirect()` without validation.
 **Resolution:** Created `is_safe_redirect_url()` and `get_safe_redirect_url()` utilities in `apps/core/utils.py` that validate URLs using Django's `url_has_allowed_host_and_scheme()`. Updated all 3 vulnerable locations to use these utilities. Added 14 comprehensive tests for the new utilities.
 
-### 2. ~~CRITICAL: Hardcoded API Key in Source Code~~ ✅ FIXED (2025-12-28)
+### 2. ~~CRITICAL: Hardcoded API Key in Source Code~~ FIXED (2025-12-28)
 **Location:** `config/settings.py:396`
 **Issue:** Bible API key hardcoded as default fallback value.
 **Resolution:** Removed hardcoded API key; now defaults to empty string. Templates already handle missing key gracefully by showing "API not configured". Updated `.env.example` with documentation on where to get a free API key.
 
-### 3. ~~HIGH: Bare Exception Handling (10+ Locations)~~ ✅ FIXED (2025-12-28)
+### 3. ~~HIGH: Bare Exception Handling (10+ Locations)~~ FIXED (2025-12-28)
 **Locations fixed:**
 - `apps/users/views.py:125, 136, 296`
 - `apps/ai/dashboard_ai.py:184, 203, 213, 235, 269`
@@ -48,7 +57,7 @@ The Whole Life Journey application is a **well-structured, production-ready Djan
 - `except (subprocess.TimeoutExpired, FileNotFoundError, OSError):`
 - `except Exception as e:` with `logger.debug(f"...")`
 
-### 4. ~~HIGH: No Persistent Error Logging~~ ✅ FIXED (2025-12-28)
+### 4. ~~HIGH: No Persistent Error Logging~~ FIXED (2025-12-28)
 **Resolution:** Added comprehensive logging configuration to `config/settings.py`:
 - RotatingFileHandler for `logs/error.log` (5MB max, 5 backups)
 - RotatingFileHandler for `logs/app.log` (10MB max, 3 backups)
@@ -56,14 +65,14 @@ The Whole Life Journey application is a **well-structured, production-ready Djan
 - Detailed formatter with timestamp, level, module, and line number
 - Loggers for django, django.request, django.security, and apps
 
-### 5. ~~HIGH: Missing Custom Error Pages~~ ✅ FIXED (2025-12-28)
+### 5. ~~HIGH: Missing Custom Error Pages~~ FIXED (2025-12-28)
 **Resolution:**
 - Created `templates/404.html` with user-friendly error message and navigation
 - Created `templates/500.html` with error message and home link
 - Added custom error handlers in `config/urls.py` (`handler404`, `handler500`)
 - Added handler functions in `apps/core/views.py` (`custom_404`, `custom_500`)
 
-### 6. ~~HIGH: XSS Risk in HTMX Response~~ ✅ FIXED (2025-12-28)
+### 6. ~~HIGH: XSS Risk in HTMX Response~~ FIXED (2025-12-28)
 **Location:** `apps/journal/views.py:402-410`
 **Resolution:** Added `django.utils.html.escape()` to all dynamic content in `RandomPromptView`:
 ```python
@@ -73,7 +82,7 @@ from django.utils.html import escape
 <p class="prompt-scripture">{escape(prompt.scripture_reference)}: {escape(prompt.scripture_text or "")}</p>
 ```
 
-### 7. ~~HIGH: Unsafe Client IP Extraction~~ ✅ FIXED (2025-12-28)
+### 7. ~~HIGH: Unsafe Client IP Extraction~~ FIXED (2025-12-28)
 **Location:** `apps/users/views.py:206-211`
 **Resolution:** Added documentation and basic validation to `get_client_ip()`:
 - Added clear docstring warning about spoofing risks
@@ -130,22 +139,22 @@ from django.utils.html import escape
 
 ## AREAS NEEDING IMMEDIATE ATTENTION
 
-### Security (All Critical/High Issues Fixed ✅)
+### Security (All Critical/High Issues Fixed)
 
 | Issue | Location | Status | Fixed Date |
 |-------|----------|--------|------------|
-| ~~Open redirect vulnerability~~ | life/views.py, purpose/views.py | ✅ FIXED | 2025-12-28 |
-| ~~Hardcoded API key~~ | config/settings.py | ✅ FIXED | 2025-12-28 |
-| ~~Bare except clauses (10+)~~ | Multiple files | ✅ FIXED | 2025-12-28 |
-| ~~XSS in HTMX response~~ | journal/views.py | ✅ FIXED | 2025-12-28 |
-| ~~Unsafe IP extraction~~ | users/views.py | ✅ FIXED | 2025-12-28 |
+| ~~Open redirect vulnerability~~ | life/views.py, purpose/views.py | FIXED | 2025-12-28 |
+| ~~Hardcoded API key~~ | config/settings.py | FIXED | 2025-12-28 |
+| ~~Bare except clauses (10+)~~ | Multiple files | FIXED | 2025-12-28 |
+| ~~XSS in HTMX response~~ | journal/views.py | FIXED | 2025-12-28 |
+| ~~Unsafe IP extraction~~ | users/views.py | FIXED | 2025-12-28 |
 
-### Error Handling (Mostly Fixed ✅)
+### Error Handling (Mostly Fixed)
 
 | Issue | Impact | Status |
 |-------|--------|--------|
-| ~~No custom error pages~~ | Poor user experience on errors | ✅ FIXED |
-| ~~Console-only logging~~ | Cannot review past errors | ✅ FIXED |
+| ~~No custom error pages~~ | Poor user experience on errors | FIXED |
+| ~~Console-only logging~~ | Cannot review past errors | FIXED |
 | No error dashboard | Admin has no visibility | OPEN |
 | No health check endpoint | Cannot monitor system status | OPEN |
 
@@ -333,8 +342,8 @@ Add these to CI/CD pipeline:
 The Whole Life Journey application has a **solid foundation** with proper Django architecture, comprehensive testing, and good separation of concerns.
 
 ### Fixed Issues (2025-12-28)
-- ✅ **2 CRITICAL security issues** - Open redirect vulnerability and hardcoded API key
-- ✅ **5 HIGH priority issues** - Bare except clauses, XSS risk, unsafe IP extraction, missing error pages, console-only logging
+- **2 CRITICAL security issues** - Open redirect vulnerability and hardcoded API key
+- **5 HIGH priority issues** - Bare except clauses, XSS risk, unsafe IP extraction, missing error pages, console-only logging
 
 ### Remaining Areas
 1. **Admin visibility** for system health and errors (2 items OPEN)
@@ -343,8 +352,8 @@ The Whole Life Journey application has a **solid foundation** with proper Django
 4. **Documentation** gaps
 
 **Estimated remaining remediation effort:**
-- ~~Critical fixes: 4-6 hours~~ ✅ DONE
-- ~~High priority fixes: 8-10 hours~~ ✅ DONE
+- ~~Critical fixes: 4-6 hours~~ DONE
+- ~~High priority fixes: 8-10 hours~~ DONE
 - Medium priority improvements: 16-20 hours
 - Low priority cleanup: 8-12 hours
 

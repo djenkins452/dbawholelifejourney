@@ -4,12 +4,38 @@
 **Repo:** C:\dbawholelifejourney (GitHub: djenkins452/dbawholelifejourney)
 **Deployment:** Railway with PostgreSQL (via DATABASE_URL env var)
 
-## Related Documentation
-- `CLAUDE_FEATURES.md` - Detailed feature documentation (onboarding, help system, Dashboard AI, nutrition, medicine, camera scan, biometric login)
-- `CLAUDE_CHANGELOG.md` - Historical fixes, migrations, and change history
-- `THIRD_PARTY_SERVICES.md` - Third-party services inventory
-- `SECURITY_REVIEW_REPORT.md` - Security review with 21 findings
-- `BACKUP.md` - Backup and disaster recovery playbook
+## Documentation Structure
+
+All project documentation is organized in the `docs/` directory with consistent naming:
+
+### Claude Context Files
+- `docs/wlj_claude_features.md` - Detailed feature documentation (onboarding, help system, Dashboard AI, nutrition, medicine, camera scan, biometric login)
+- `docs/wlj_claude_changelog.md` - Historical fixes, migrations, and change history
+- `docs/wlj_claude_beacon.md` - WLJ Financial Dashboard context (Beacon Innovations site)
+
+### Operations & Backup
+- `docs/wlj_backup.md` - Backup and disaster recovery playbook
+- `docs/wlj_backup_report.md` - Backup operation reports
+
+### Security & System
+- `docs/wlj_security_review.md` - Security review with 21 findings
+- `docs/wlj_system_audit.md` - System audit report with health score
+- `docs/wlj_system_review.md` - Repeatable audit process and checklists
+
+### Third-Party & Architecture
+- `docs/wlj_third_party_services.md` - Third-party services inventory
+- `docs/wlj_camera_scan_architecture.md` - Camera scan feature architecture
+
+### Documentation Naming Convention
+All documentation files follow this pattern: `wlj_<category>_<descriptor>.md`
+
+Categories:
+- `wlj_claude_*` - Claude Code AI context files
+- `wlj_backup_*` - Backup and disaster recovery
+- `wlj_security_*` - Security reviews and reports
+- `wlj_system_*` - System audits and reviews
+- `wlj_third_party_*` - Third-party service documentation
+- `wlj_camera_*` - Camera/scan feature architecture
 
 ## Tech Stack
 - Django 5.x with django-allauth for authentication
@@ -95,8 +121,20 @@ Every file created or updated MUST include a documentation header:
 // ==============================================================================
 ```
 
+**Markdown Documentation (in docs/):**
+```markdown
+# ==============================================================================
+# File: docs/wlj_<category>_<descriptor>.md
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Brief description
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: YYYY-MM-DD
+# Last Updated: YYYY-MM-DD
+# ==============================================================================
+```
+
 ### Third-Party Services
-When adding/modifying any third-party service: Update `THIRD_PARTY_SERVICES.md` immediately.
+When adding/modifying any third-party service: Update `docs/wlj_third_party_services.md` immediately.
 
 ## Session Instructions
 
@@ -106,12 +144,12 @@ Say: **"Read CLAUDE.md and continue"** - this gives full project context.
 ### MANDATORY: Documentation Updates
 **After ANY code changes, you MUST update the relevant documentation files:**
 
-1. **`CLAUDE_CHANGELOG.md`** - Update for ANY changes made during the session
+1. **`docs/wlj_claude_changelog.md`** - Update for ANY changes made during the session
    - Add new section with date if needed
    - Document what changed, files modified, and why
    - Include migration names if any were created
 
-2. **`CLAUDE_FEATURES.md`** - Update when modifying or adding features
+2. **`docs/wlj_claude_features.md`** - Update when modifying or adding features
    - Camera Scan, Nutrition, Medicine, Dashboard AI, etc.
    - Keep feature documentation current with actual functionality
 
@@ -120,13 +158,13 @@ Say: **"Read CLAUDE.md and continue"** - this gives full project context.
    - New apps or major architecture changes
    - New deployment patterns or important files
 
-4. **`THIRD_PARTY_SERVICES.md`** - Update when adding/modifying external services
+4. **`docs/wlj_third_party_services.md`** - Update when adding/modifying external services
 
 **DO NOT wait for user to ask** - update documentation automatically as part of completing each task.
 
 ### End of Session Tasks
 1. Run `git log --oneline -20` to see recent commits
-2. Update `CLAUDE_CHANGELOG.md` with any new fixes (if not already done)
+2. Update `docs/wlj_claude_changelog.md` with any new fixes (if not already done)
 3. Verify all .md files are current
 4. Commit and push changes with descriptive message
 
@@ -219,6 +257,6 @@ Before deploying: **"What could this change accidentally break?"** Only test tho
 
 ---
 
-*For detailed feature documentation, see `CLAUDE_FEATURES.md`*
-*For historical changes, see `CLAUDE_CHANGELOG.md`*
-*Last updated: 2025-12-29*
+*For detailed feature documentation, see `docs/wlj_claude_features.md`*
+*For historical changes, see `docs/wlj_claude_changelog.md`*
+*Last updated: 2025-12-30*

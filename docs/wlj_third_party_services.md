@@ -1,16 +1,16 @@
-# Third-Party Services Documentation
 # ==============================================================================
-# File: THIRD_PARTY_SERVICES.md
+# File: docs/wlj_third_party_services.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Comprehensive inventory of all third-party services, APIs, and
-#              external integrations used in this application.
+# Description: Comprehensive inventory of all third-party services and APIs
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-28
+# Last Updated: 2025-12-30
 # ==============================================================================
 # IMPORTANT: This file must be updated whenever a new third-party service is
 # added, removed, or modified. See CLAUDE.md for maintenance instructions.
 # ==============================================================================
+
+# WLJ Third-Party Services Documentation
 
 ## Overview
 
@@ -535,4 +535,4 @@ The following services are NOT integrated but may be considered for future use:
 
 ---
 
-*Last Updated: 2025-12-28*
+*Last Updated: 2025-12-30*

@@ -40,7 +40,8 @@
       "Bash(python manage.py shell:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nAdd food recognition with nutritional data from camera scan\n\n- Update vision service prompt to request detailed nutritional estimates\n  (calories, protein, carbs, fat, fiber, sugar, saturated fat, serving info)\n- Route food scans to nutrition log form instead of journal\n- Pre-fill FoodEntryCreateView with all recognized nutritional data\n- Set entry_source to ''camera'' when coming from AI scan\n- Add from_camera context for display purposes\n- Add tests for camera prefill functionality\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git stash:*)",
-      "Bash(copy C:dbawholelifejourney.env C:Usersdanny.claude-worktreesdbawholelifejourneyloving-feynman.env)"
+      "Bash(copy C:dbawholelifejourney.env C:Usersdanny.claude-worktreesdbawholelifejourneyloving-feynman.env)",
+      "Bash(dir:*)"
     ]
   }
 }

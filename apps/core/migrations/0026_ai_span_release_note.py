@@ -19,35 +19,12 @@ def add_release_note(apps, schema_editor):
         ReleaseNote.objects.create(
             version="1.4.0",
             title="Smarter AI Insights",
-            summary=(
+            description=(
                 "Your AI coach now sees your complete picture - Word of the Year, "
                 "goals, intentions, prayers, projects, weight goals, nutrition progress, "
-                "and more. Dashboard messages are now deeply personalized to your journey."
+                "and more. Dashboard messages are now deeply personalized to your whole life journey."
             ),
-            description=(
-                "## Enhanced AI Understanding\n\n"
-                "The AI now reads and applies your full life context when generating insights:\n\n"
-                "**Purpose & Direction:**\n"
-                "- Your Word of the Year and annual theme\n"
-                "- Active life goals with domain context\n"
-                "- Change intentions you're working on\n\n"
-                "**Faith Journey:**\n"
-                "- Your memory verse and recent Scripture study\n"
-                "- Active and answered prayers\n"
-                "- Faith milestones\n\n"
-                "**Life & Tasks:**\n"
-                "- Priority projects and their progress\n"
-                "- Tasks due today and overdue items\n"
-                "- Today's calendar events\n\n"
-                "**Health Progress:**\n"
-                "- Weight goal progress\n"
-                "- Today's nutrition vs your goals\n"
-                "- Workout activity and personal records\n"
-                "- Medicine adherence\n\n"
-                "Your AI coach can now reference your Word of the Year, encourage specific goals, "
-                "and provide truly personalized guidance based on your full life picture."
-            ),
-            release_type="feature",
+            entry_type="feature",
             is_published=True,
             is_major=False
         )

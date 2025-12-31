@@ -479,7 +479,7 @@ class ScanHistoryViewTests(ScanTestMixin, TestCase):
             user=other_user,
             request_id=uuid.uuid4(),
             status=ScanLog.STATUS_SUCCESS,
-            category='medicine'
+            category='supplement'  # Using supplement instead of medicine (which appears in nav menu)
         )
 
         self.client.login(email='test@example.com', password='testpass123')
@@ -487,7 +487,10 @@ class ScanHistoryViewTests(ScanTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Food')
-        self.assertNotContains(response, 'Medicine')
+        # Verify only 1 scan is shown - the user's scan
+        content = response.content.decode()
+        scan_count = content.count('class="recent-scan-item"')
+        self.assertEqual(scan_count, 1, "Only user's scan should be visible")
 
     def test_shows_empty_state(self):
         """Test that empty state is shown when no scans."""
@@ -496,3 +499,269 @@ class ScanHistoryViewTests(ScanTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'No scans yet')
+
+
+class BarcodeLookupViewTests(ScanTestMixin, TestCase):
+    """Tests for the barcode lookup API endpoint."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self._grant_scan_consent(self.user)
+        self.url = reverse('scan:barcode_lookup')
+        cache.clear()
+
+    def test_requires_authentication(self):
+        """Test that unauthenticated requests are rejected."""
+        response = self.client.post(
+            self.url,
+            data=json.dumps({'barcode': '012345678901'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_requires_barcode(self):
+        """Test that requests without barcode are rejected."""
+        self.client.login(email='test@example.com', password='testpass123')
+        response = self.client.post(
+            self.url,
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertEqual(data['error_code'], 'NO_BARCODE')
+
+    def test_barcode_not_found(self):
+        """Test response when barcode is not in database."""
+        self.client.login(email='test@example.com', password='testpass123')
+
+        # Mock the barcode service to return not found
+        with patch('apps.scan.views.barcode_service') as mock_service:
+            from apps.scan.services.barcode import BarcodeResult
+            mock_service.lookup.return_value = BarcodeResult(
+                barcode='012345678901',
+                found=False,
+                source='not_found'
+            )
+
+            response = self.client.post(
+                self.url,
+                data=json.dumps({'barcode': '012345678901'}),
+                content_type='application/json'
+            )
+
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertFalse(data['found'])
+            self.assertEqual(data['barcode'], '012345678901')
+
+    def test_barcode_found_in_database(self):
+        """Test response when barcode is found in database."""
+        from apps.health.models import FoodItem
+
+        # Create a FoodItem with a barcode
+        food_item = FoodItem.objects.create(
+            name='Test Protein Bar',
+            brand='Test Brand',
+            barcode='012345678901',
+            serving_size=40,
+            serving_unit='g',
+            calories=200,
+            protein_g=20,
+            carbohydrates_g=25,
+            fat_g=8,
+            fiber_g=3,
+            sugar_g=5,
+            saturated_fat_g=2,
+            data_source=FoodItem.SOURCE_BARCODE
+        )
+
+        self.client.login(email='test@example.com', password='testpass123')
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps({'barcode': '012345678901'}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['found'])
+        self.assertEqual(data['source'], 'database')
+        self.assertEqual(data['food_name'], 'Test Protein Bar')
+        self.assertEqual(data['brand'], 'Test Brand')
+        self.assertEqual(data['calories'], 200)
+        self.assertEqual(data['protein_g'], 20)
+        self.assertIn('food_entry_url', data)
+
+        # Verify scan log was created
+        scan_log = ScanLog.objects.filter(
+            user=self.user,
+            category='barcode'
+        ).first()
+        self.assertIsNotNone(scan_log)
+        self.assertEqual(scan_log.status, ScanLog.STATUS_SUCCESS)
+
+    @patch('apps.scan.services.barcode.BarcodeService._lookup_ai')
+    def test_barcode_found_via_ai(self, mock_ai_lookup):
+        """Test response when barcode is found via AI."""
+        from apps.scan.services.barcode import BarcodeResult
+
+        mock_ai_lookup.return_value = BarcodeResult(
+            barcode='9876543210123',
+            found=True,
+            source='ai',
+            food_name='AI Found Product',
+            brand='AI Brand',
+            calories=150,
+            protein_g=10,
+            carbohydrates_g=20,
+            fat_g=5,
+            fiber_g=2,
+            sugar_g=8,
+            saturated_fat_g=1,
+            serving_size=30,
+            serving_unit='g',
+            confidence=0.85
+        )
+
+        self.client.login(email='test@example.com', password='testpass123')
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps({'barcode': '9876543210123'}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['found'])
+        self.assertEqual(data['source'], 'ai')
+        self.assertEqual(data['food_name'], 'AI Found Product')
+
+    def test_creates_scan_log_for_not_found(self):
+        """Test that scan log is created even when barcode is not found."""
+        self.client.login(email='test@example.com', password='testpass123')
+
+        # Use a barcode that doesn't exist
+        response = self.client.post(
+            self.url,
+            data=json.dumps({'barcode': '000000000000'}),
+            content_type='application/json'
+        )
+
+        # Verify scan log was created
+        scan_log = ScanLog.objects.filter(
+            user=self.user,
+            category='barcode'
+        ).first()
+        self.assertIsNotNone(scan_log)
+
+
+class BarcodeServiceTests(TestCase):
+    """Tests for the BarcodeService class."""
+
+    def setUp(self):
+        from apps.scan.services.barcode import BarcodeService
+        self.service = BarcodeService()
+
+    def test_clean_barcode_valid(self):
+        """Test cleaning valid barcodes."""
+        self.assertEqual(self.service._clean_barcode('012345678901'), '012345678901')
+        self.assertEqual(self.service._clean_barcode('  012345678901  '), '012345678901')
+        self.assertEqual(self.service._clean_barcode('0123456789012'), '0123456789012')
+
+    def test_clean_barcode_invalid(self):
+        """Test cleaning invalid barcodes."""
+        self.assertEqual(self.service._clean_barcode(''), '')
+        self.assertEqual(self.service._clean_barcode('123'), '')  # Too short
+        self.assertEqual(self.service._clean_barcode('abc'), '')  # Not numeric
+
+    def test_lookup_database_found(self):
+        """Test database lookup when barcode exists."""
+        from apps.health.models import FoodItem
+
+        food_item = FoodItem.objects.create(
+            name='Test Food',
+            barcode='111111111111',
+            serving_size=100,
+            serving_unit='g',
+            calories=100,
+            protein_g=5,
+            carbohydrates_g=10,
+            fat_g=3
+        )
+
+        result = self.service._lookup_database('111111111111')
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result.found)
+        self.assertEqual(result.source, 'database')
+        self.assertEqual(result.food_name, 'Test Food')
+        self.assertEqual(result.food_item_id, food_item.id)
+
+    def test_lookup_database_not_found(self):
+        """Test database lookup when barcode doesn't exist."""
+        result = self.service._lookup_database('999999999999')
+
+        self.assertIsNone(result)
+
+    def test_lookup_full_flow_database(self):
+        """Test full lookup flow with database hit."""
+        from apps.health.models import FoodItem
+
+        FoodItem.objects.create(
+            name='Database Product',
+            barcode='222222222222',
+            serving_size=50,
+            serving_unit='g',
+            calories=150,
+            protein_g=8,
+            carbohydrates_g=15,
+            fat_g=6
+        )
+
+        result = self.service.lookup('222222222222', use_ai=False)
+
+        self.assertTrue(result.found)
+        self.assertEqual(result.source, 'database')
+        self.assertEqual(result.food_name, 'Database Product')
+
+    def test_lookup_no_ai_when_disabled(self):
+        """Test that AI is not used when disabled."""
+        result = self.service.lookup('333333333333', use_ai=False)
+
+        self.assertFalse(result.found)
+        self.assertEqual(result.source, 'not_found')
+
+    def test_save_to_database(self):
+        """Test saving AI result to database."""
+        from apps.health.models import FoodItem
+        from apps.scan.services.barcode import BarcodeResult
+
+        result = BarcodeResult(
+            barcode='444444444444',
+            found=True,
+            source='ai',
+            food_name='AI Product',
+            brand='AI Brand',
+            calories=100,
+            protein_g=5,
+            carbohydrates_g=10,
+            fat_g=3,
+            serving_size=30,
+            serving_unit='g',
+            confidence=0.9
+        )
+
+        food_item_id = self.service.save_to_database(result)
+
+        self.assertIsNotNone(food_item_id)
+
+        food_item = FoodItem.objects.get(id=food_item_id)
+        self.assertEqual(food_item.name, 'AI Product')
+        self.assertEqual(food_item.barcode, '444444444444')
+        self.assertEqual(food_item.data_source, FoodItem.SOURCE_BARCODE)
+        self.assertFalse(food_item.is_verified)

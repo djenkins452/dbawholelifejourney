@@ -389,6 +389,183 @@
         margin-bottom: 1rem;
         opacity: 0.5;
     }
+
+    /* Scan Mode Toggle */
+    .scan-mode-toggle {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        background: var(--color-surface);
+        padding: 0.5rem;
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+    }
+
+    .scan-mode-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s;
+        color: var(--color-text-secondary);
+        flex: 1;
+    }
+
+    .scan-mode-btn:hover {
+        background: var(--color-bg);
+    }
+
+    .scan-mode-btn.active {
+        background: var(--color-accent);
+        color: white;
+    }
+
+    .scan-mode-btn .mode-icon {
+        font-size: 1.5rem;
+    }
+
+    .scan-mode-btn .mode-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Barcode Scanner Overlay */
+    .barcode-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    }
+
+    .barcode-overlay.hidden {
+        display: none;
+    }
+
+    .barcode-target {
+        width: 80%;
+        max-width: 300px;
+        height: 100px;
+        border: 3px solid var(--color-accent);
+        border-radius: 8px;
+        background: transparent;
+        position: relative;
+        animation: pulse-border 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-border {
+        0%, 100% { border-color: var(--color-accent); }
+        50% { border-color: rgba(var(--color-accent-rgb), 0.5); }
+    }
+
+    .barcode-target::before,
+    .barcode-target::after {
+        content: '';
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border: 3px solid var(--color-accent);
+    }
+
+    .barcode-target::before {
+        top: -3px;
+        left: -3px;
+        border-right: none;
+        border-bottom: none;
+        border-radius: 8px 0 0 0;
+    }
+
+    .barcode-target::after {
+        bottom: -3px;
+        right: -3px;
+        border-left: none;
+        border-top: none;
+        border-radius: 0 0 8px 0;
+    }
+
+    .barcode-hint {
+        color: white;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        margin-top: 1rem;
+    }
+
+    /* Barcode Result */
+    .barcode-result {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+    }
+
+    .barcode-result-found {
+        border-color: var(--color-success);
+    }
+
+    .barcode-result-not-found {
+        border-color: var(--color-warning);
+    }
+
+    .barcode-result-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    .barcode-product-name {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .barcode-product-brand {
+        color: var(--color-text-secondary);
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+    }
+
+    .barcode-nutrition-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.75rem;
+        margin: 1rem 0;
+        padding: 1rem;
+        background: var(--color-bg);
+        border-radius: 8px;
+    }
+
+    .barcode-nutrition-item {
+        text-align: center;
+    }
+
+    .barcode-nutrition-value {
+        font-size: 1.125rem;
+        font-weight: 600;
+    }
+
+    .barcode-nutrition-label {
+        font-size: 0.75rem;
+        color: var(--color-text-secondary);
+    }
+
+    .barcode-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+    }
 </style>
 {% endblock %}
 
@@ -396,8 +573,22 @@
 <div class="scan-container">
     <div class="scan-header">
         <h1>Scan with Camera</h1>
-        <p>Point your camera at food, medicine, supplements, or documents</p>
+        <p id="scan-mode-description">Point your camera at food, medicine, supplements, or documents</p>
     </div>
+
+    <!-- Scan Mode Toggle -->
+    {% if has_ai_consent and has_scan_consent and vision_available %}
+    <div class="scan-mode-toggle">
+        <button id="btn-vision-mode" class="scan-mode-btn active" title="AI Vision - Scan any item">
+            <span class="mode-icon">&#x1F4F7;</span>
+            <span class="mode-label">Vision</span>
+        </button>
+        <button id="btn-barcode-mode" class="scan-mode-btn" title="Barcode - Scan food product barcodes">
+            <span class="mode-icon">&#x1F4F1;</span>
+            <span class="mode-label">Barcode</span>
+        </button>
+    </div>
+    {% endif %}
 
     {% if not vision_available %}
     <!-- Service Unavailable -->
@@ -448,6 +639,11 @@
             <video id="camera-preview" class="camera-preview" autoplay playsinline></video>
             <div id="camera-overlay" class="camera-overlay">
                 <span>Starting camera...</span>
+            </div>
+            <!-- Barcode scanning overlay -->
+            <div id="barcode-overlay" class="barcode-overlay hidden">
+                <div class="barcode-target"></div>
+                <span class="barcode-hint">Position barcode within the frame</span>
             </div>
         </div>
 
@@ -568,6 +764,65 @@
         </div>
     </div>
 
+    <!-- Barcode Result State -->
+    <div id="barcode-result-state" class="scan-state">
+        <div id="barcode-result-card" class="barcode-result">
+            <div id="barcode-result-icon" class="barcode-result-icon">&#x2705;</div>
+            <div id="barcode-product-name" class="barcode-product-name">Product Name</div>
+            <div id="barcode-product-brand" class="barcode-product-brand">Brand</div>
+
+            <div id="barcode-nutrition-grid" class="barcode-nutrition-grid">
+                <div class="barcode-nutrition-item">
+                    <div id="barcode-calories" class="barcode-nutrition-value">0</div>
+                    <div class="barcode-nutrition-label">Calories</div>
+                </div>
+                <div class="barcode-nutrition-item">
+                    <div id="barcode-protein" class="barcode-nutrition-value">0g</div>
+                    <div class="barcode-nutrition-label">Protein</div>
+                </div>
+                <div class="barcode-nutrition-item">
+                    <div id="barcode-carbs" class="barcode-nutrition-value">0g</div>
+                    <div class="barcode-nutrition-label">Carbs</div>
+                </div>
+                <div class="barcode-nutrition-item">
+                    <div id="barcode-fat" class="barcode-nutrition-value">0g</div>
+                    <div class="barcode-nutrition-label">Fat</div>
+                </div>
+            </div>
+
+            <div class="barcode-actions">
+                <a id="barcode-log-btn" href="#" class="action-btn action-btn-primary">
+                    Log to Nutrition
+                </a>
+                <button id="barcode-scan-another-btn" class="action-btn">
+                    Scan Another
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barcode Not Found State -->
+    <div id="barcode-not-found-state" class="scan-state">
+        <div class="barcode-result barcode-result-not-found">
+            <div class="barcode-result-icon">&#x2753;</div>
+            <h3>Product Not Found</h3>
+            <p id="barcode-not-found-code" style="color: var(--color-text-secondary); font-size: 0.875rem; margin: 0.5rem 0;">
+                Barcode: 000000000000
+            </p>
+            <p style="margin: 1rem 0;">
+                This barcode isn't in our database yet. You can still log this food manually.
+            </p>
+            <div class="barcode-actions">
+                <a href="{% url 'health:food_entry_create' %}" class="action-btn action-btn-primary">
+                    Add Manually
+                </a>
+                <button id="barcode-not-found-retry-btn" class="action-btn">
+                    Try Again
+                </button>
+            </div>
+        </div>
+    </div>
+
     {% if recent_scans %}
     <!-- Recent Scans -->
     <div class="recent-scans">
@@ -604,7 +859,9 @@
         preview: document.getElementById('preview-state'),
         loading: document.getElementById('loading-state'),
         results: document.getElementById('results-state'),
-        error: document.getElementById('error-state')
+        error: document.getElementById('error-state'),
+        barcodeResult: document.getElementById('barcode-result-state'),
+        barcodeNotFound: document.getElementById('barcode-not-found-state')
     };
 
     let currentState = 'camera';
@@ -612,12 +869,36 @@
     let capturedImageData = null;
     let currentRequestId = null;
     let facingMode = 'environment'; // Start with rear camera
+    let scanMode = 'vision'; // 'vision' or 'barcode'
+    let barcodeScanner = null;
+    let barcodeDetectionInterval = null;
+    let lastScannedBarcode = null;
+    let barcodeDebounceTimeout = null;
 
     // DOM elements
     const cameraPreview = document.getElementById('camera-preview');
     const cameraOverlay = document.getElementById('camera-overlay');
+    const barcodeOverlay = document.getElementById('barcode-overlay');
     const previewImage = document.getElementById('preview-image');
     const fileInput = document.getElementById('file-input');
+    const scanModeDescription = document.getElementById('scan-mode-description');
+
+    // Mode toggle buttons
+    const btnVisionMode = document.getElementById('btn-vision-mode');
+    const btnBarcodeMode = document.getElementById('btn-barcode-mode');
+
+    // Barcode result elements
+    const barcodeResultCard = document.getElementById('barcode-result-card');
+    const barcodeProductName = document.getElementById('barcode-product-name');
+    const barcodeProductBrand = document.getElementById('barcode-product-brand');
+    const barcodeCalories = document.getElementById('barcode-calories');
+    const barcodeProtein = document.getElementById('barcode-protein');
+    const barcodeCarbs = document.getElementById('barcode-carbs');
+    const barcodeFat = document.getElementById('barcode-fat');
+    const barcodeLogBtn = document.getElementById('barcode-log-btn');
+    const barcodeScanAnotherBtn = document.getElementById('barcode-scan-another-btn');
+    const barcodeNotFoundCode = document.getElementById('barcode-not-found-code');
+    const barcodeNotFoundRetryBtn = document.getElementById('barcode-not-found-retry-btn');
 
     // Buttons
     const btnCapture = document.getElementById('btn-capture');
@@ -965,8 +1246,235 @@
     function resetToCamera() {
         capturedImageData = null;
         currentRequestId = null;
+        lastScannedBarcode = null;
         setState('camera');
         startCamera();
+        if (scanMode === 'barcode') {
+            startBarcodeDetection();
+        }
+    }
+
+    // =========================================================================
+    // Barcode Scanning Functions
+    // =========================================================================
+
+    function setScanMode(mode) {
+        scanMode = mode;
+
+        // Update button states
+        if (btnVisionMode) {
+            btnVisionMode.classList.toggle('active', mode === 'vision');
+        }
+        if (btnBarcodeMode) {
+            btnBarcodeMode.classList.toggle('active', mode === 'barcode');
+        }
+
+        // Update description text
+        if (scanModeDescription) {
+            scanModeDescription.textContent = mode === 'barcode'
+                ? 'Scan food product barcodes for instant nutrition info'
+                : 'Point your camera at food, medicine, supplements, or documents';
+        }
+
+        // Toggle barcode overlay
+        if (barcodeOverlay) {
+            barcodeOverlay.classList.toggle('hidden', mode !== 'barcode');
+        }
+
+        // Start/stop barcode detection
+        if (mode === 'barcode') {
+            startBarcodeDetection();
+        } else {
+            stopBarcodeDetection();
+        }
+    }
+
+    function startBarcodeDetection() {
+        if (!cameraPreview || !cameraPreview.srcObject) {
+            console.log('Camera not ready for barcode detection');
+            return;
+        }
+
+        // Use BarcodeDetector API if available (Chrome/Edge on mobile)
+        if ('BarcodeDetector' in window) {
+            startNativeBarcodeDetection();
+        } else {
+            // Fallback to canvas-based detection with server lookup
+            startCanvasBarcodeDetection();
+        }
+    }
+
+    function stopBarcodeDetection() {
+        if (barcodeDetectionInterval) {
+            clearInterval(barcodeDetectionInterval);
+            barcodeDetectionInterval = null;
+        }
+        if (barcodeDebounceTimeout) {
+            clearTimeout(barcodeDebounceTimeout);
+            barcodeDebounceTimeout = null;
+        }
+    }
+
+    async function startNativeBarcodeDetection() {
+        try {
+            const barcodeDetector = new BarcodeDetector({
+                formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
+            });
+
+            barcodeDetectionInterval = setInterval(async () => {
+                if (!cameraPreview || cameraPreview.paused || cameraPreview.ended) {
+                    return;
+                }
+
+                try {
+                    const barcodes = await barcodeDetector.detect(cameraPreview);
+                    if (barcodes.length > 0) {
+                        handleBarcodeDetected(barcodes[0].rawValue);
+                    }
+                } catch (err) {
+                    // Detection failed, continue scanning
+                }
+            }, 200); // Check every 200ms
+
+        } catch (err) {
+            console.error('Native barcode detection failed:', err);
+            startCanvasBarcodeDetection();
+        }
+    }
+
+    function startCanvasBarcodeDetection() {
+        // For browsers without BarcodeDetector, we'll capture frames and let
+        // the user manually trigger lookup by pressing capture button
+        // The capture button in barcode mode will extract barcode using a different flow
+        console.log('Using manual barcode capture mode');
+    }
+
+    function handleBarcodeDetected(barcode) {
+        // Debounce to avoid multiple rapid detections
+        if (barcode === lastScannedBarcode) {
+            return;
+        }
+
+        if (barcodeDebounceTimeout) {
+            clearTimeout(barcodeDebounceTimeout);
+        }
+
+        barcodeDebounceTimeout = setTimeout(async () => {
+            lastScannedBarcode = barcode;
+            stopBarcodeDetection();
+
+            // Vibrate on detection (if supported)
+            if (navigator.vibrate) {
+                navigator.vibrate(100);
+            }
+
+            // Look up the barcode
+            await lookupBarcode(barcode);
+        }, 300);
+    }
+
+    async function lookupBarcode(barcode) {
+        setState('loading');
+
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || document.cookie.match(/csrftoken=([^;]+)/)?.[1]
+                || '{{ csrf_token }}';
+
+            const response = await fetch('{% url "scan:barcode_lookup" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ barcode: barcode })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Barcode lookup failed');
+            }
+
+            if (data.found) {
+                showBarcodeResult(data);
+            } else {
+                showBarcodeNotFound(barcode);
+            }
+
+        } catch (err) {
+            console.error('Barcode lookup error:', err);
+            showError('Lookup Failed', err.message || 'Please try again.');
+        }
+    }
+
+    function showBarcodeResult(data) {
+        // Update result display
+        if (barcodeProductName) {
+            barcodeProductName.textContent = data.food_name || 'Unknown Product';
+        }
+        if (barcodeProductBrand) {
+            barcodeProductBrand.textContent = data.brand || '';
+            barcodeProductBrand.style.display = data.brand ? 'block' : 'none';
+        }
+        if (barcodeCalories) {
+            barcodeCalories.textContent = Math.round(data.calories || 0);
+        }
+        if (barcodeProtein) {
+            barcodeProtein.textContent = `${Math.round(data.protein_g || 0)}g`;
+        }
+        if (barcodeCarbs) {
+            barcodeCarbs.textContent = `${Math.round(data.carbohydrates_g || 0)}g`;
+        }
+        if (barcodeFat) {
+            barcodeFat.textContent = `${Math.round(data.fat_g || 0)}g`;
+        }
+        if (barcodeLogBtn && data.food_entry_url) {
+            barcodeLogBtn.href = data.food_entry_url;
+        }
+
+        setState('barcodeResult');
+    }
+
+    function showBarcodeNotFound(barcode) {
+        if (barcodeNotFoundCode) {
+            barcodeNotFoundCode.textContent = `Barcode: ${barcode}`;
+        }
+        setState('barcodeNotFound');
+    }
+
+    // Manual barcode capture (for browsers without BarcodeDetector)
+    async function captureAndLookupBarcode() {
+        if (!mediaStream) {
+            showError('Camera not available', 'Please try again.');
+            return;
+        }
+
+        // Capture frame
+        const canvas = document.createElement('canvas');
+        canvas.width = cameraPreview.videoWidth;
+        canvas.height = cameraPreview.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(cameraPreview, 0, 0);
+
+        // If BarcodeDetector is available, try to detect from canvas
+        if ('BarcodeDetector' in window) {
+            try {
+                const barcodeDetector = new BarcodeDetector({
+                    formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
+                });
+                const barcodes = await barcodeDetector.detect(canvas);
+                if (barcodes.length > 0) {
+                    await lookupBarcode(barcodes[0].rawValue);
+                    return;
+                }
+            } catch (err) {
+                console.error('Barcode detection from canvas failed:', err);
+            }
+        }
+
+        // No barcode detected
+        showError('No Barcode Found', 'Position the barcode within the frame and try again.');
     }
 
     // Helper functions
@@ -995,9 +1503,16 @@
     }
 
     // Event listeners
-    btnCapture?.addEventListener('click', capturePhoto);
+    btnCapture?.addEventListener('click', () => {
+        if (scanMode === 'barcode') {
+            captureAndLookupBarcode();
+        } else {
+            capturePhoto();
+        }
+    });
     btnSwitchCamera?.addEventListener('click', switchCamera);
     btnCancelCamera?.addEventListener('click', () => {
+        stopBarcodeDetection();
         stopCamera();
         window.history.back();
     });
@@ -1007,16 +1522,28 @@
     btnScanAnother?.addEventListener('click', resetToCamera);
     btnRetry?.addEventListener('click', resetToCamera);
     btnCancelError?.addEventListener('click', () => {
+        stopBarcodeDetection();
         stopCamera();
         window.history.back();
     });
     fileInput?.addEventListener('change', handleFileSelect);
 
+    // Mode toggle event listeners
+    btnVisionMode?.addEventListener('click', () => setScanMode('vision'));
+    btnBarcodeMode?.addEventListener('click', () => setScanMode('barcode'));
+
+    // Barcode result buttons
+    barcodeScanAnotherBtn?.addEventListener('click', resetToCamera);
+    barcodeNotFoundRetryBtn?.addEventListener('click', resetToCamera);
+
     // Initialize camera on page load
     startCamera();
 
     // Cleanup on page unload
-    window.addEventListener('beforeunload', stopCamera);
+    window.addEventListener('beforeunload', () => {
+        stopBarcodeDetection();
+        stopCamera();
+    });
 
 })();
 </script>

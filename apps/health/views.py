@@ -2547,8 +2547,10 @@ class FoodEntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Track if this is from camera scan for display purposes
+        # Track if this is from camera scan or barcode scan for display purposes
         context['from_camera'] = self.request.GET.get('source') == 'ai_camera'
+        context['from_barcode'] = self.request.GET.get('entry_source') == 'barcode'
+        context['scanned_barcode'] = self.request.GET.get('barcode', '')
         return context
 
     def form_valid(self, form):
@@ -2557,6 +2559,8 @@ class FoodEntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
         entry_source = self.request.GET.get('entry_source', 'manual')
         if entry_source == 'camera':
             form.instance.entry_source = FoodEntry.SOURCE_CAMERA
+        elif entry_source == 'barcode':
+            form.instance.entry_source = FoodEntry.SOURCE_BARCODE
         else:
             form.instance.entry_source = FoodEntry.SOURCE_MANUAL
         messages.success(self.request, "Food logged.")

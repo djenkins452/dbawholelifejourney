@@ -433,3 +433,137 @@ class ScanHistoryView(LoginRequiredMixin, TemplateView):
         ).order_by('-count')
 
         return context
+
+
+class BarcodeLookupView(LoginRequiredMixin, View):
+    """
+    API endpoint to look up a barcode and return nutritional information.
+
+    Accepts POST with JSON body containing barcode string.
+    Returns JSON with product information or not_found status.
+    """
+
+    def post(self, request):
+        """Look up a barcode."""
+        from .services import barcode_service
+        from urllib.parse import quote
+
+        user = request.user
+        request_id = str(uuid.uuid4())
+
+        # Security Check 1: AI Consent (required for AI fallback)
+        has_ai_consent = self._check_ai_consent(user)
+
+        # Get barcode from request
+        try:
+            import json as json_module
+            body = json_module.loads(request.body)
+            barcode = body.get('barcode', '')
+        except (json_module.JSONDecodeError, KeyError):
+            barcode = request.POST.get('barcode', '')
+
+        if not barcode:
+            return JsonResponse({
+                'error': 'No barcode provided',
+                'error_code': 'NO_BARCODE',
+                'request_id': request_id
+            }, status=400)
+
+        # Look up the barcode
+        result = barcode_service.lookup(
+            barcode=barcode,
+            use_ai=has_ai_consent  # Only use AI if user has consented
+        )
+
+        # Build URL for food entry creation if found
+        if result.found:
+            # Build query params for food entry form
+            url_params = []
+            if result.food_name:
+                url_params.append(f'food_name={quote(result.food_name)}')
+            if result.brand:
+                url_params.append(f'food_brand={quote(result.brand)}')
+            if result.calories is not None:
+                url_params.append(f'total_calories={result.calories}')
+            if result.protein_g is not None:
+                url_params.append(f'total_protein_g={result.protein_g}')
+            if result.carbohydrates_g is not None:
+                url_params.append(f'total_carbohydrates_g={result.carbohydrates_g}')
+            if result.fat_g is not None:
+                url_params.append(f'total_fat_g={result.fat_g}')
+            if result.fiber_g is not None:
+                url_params.append(f'total_fiber_g={result.fiber_g}')
+            if result.sugar_g is not None:
+                url_params.append(f'total_sugar_g={result.sugar_g}')
+            if result.saturated_fat_g is not None:
+                url_params.append(f'total_saturated_fat_g={result.saturated_fat_g}')
+            if result.serving_size is not None:
+                url_params.append(f'serving_size={result.serving_size}')
+            if result.serving_unit:
+                url_params.append(f'serving_unit={quote(result.serving_unit)}')
+            if result.description:
+                url_params.append(f'notes={quote(result.description)}')
+
+            # Set source as barcode
+            url_params.append('entry_source=barcode')
+            url_params.append(f'barcode={quote(barcode)}')
+
+            # Build the food entry URL
+            food_entry_url = reverse('health:food_entry_create')
+            if url_params:
+                food_entry_url += '?' + '&'.join(url_params)
+
+            response_data = result.to_dict()
+            response_data['request_id'] = request_id
+            response_data['food_entry_url'] = food_entry_url
+
+            # If this was an AI result, optionally save it to the database
+            if result.source == 'ai' and has_ai_consent:
+                saved_id = barcode_service.save_to_database(result)
+                if saved_id:
+                    response_data['saved_to_database'] = True
+                    response_data['food_item_id'] = saved_id
+
+            # Log the barcode scan
+            ScanLog.objects.create(
+                user=user,
+                request_id=request_id,
+                status=ScanLog.STATUS_SUCCESS,
+                category='barcode',
+                confidence=result.confidence,
+                items_detected=[{
+                    'label': result.food_name,
+                    'barcode': barcode,
+                    'source': result.source
+                }]
+            )
+
+            return JsonResponse(response_data)
+
+        else:
+            # Log the failed lookup
+            ScanLog.objects.create(
+                user=user,
+                request_id=request_id,
+                status=ScanLog.STATUS_SUCCESS,  # Request succeeded, just no match
+                category='barcode',
+                confidence=0.0,
+                items_detected=[{
+                    'barcode': barcode,
+                    'source': 'not_found'
+                }]
+            )
+
+            return JsonResponse({
+                'found': False,
+                'barcode': barcode,
+                'request_id': request_id,
+                'message': 'Product not found. You can add it manually.'
+            })
+
+    def _check_ai_consent(self, user) -> bool:
+        """Check if user has consented to AI processing."""
+        if not hasattr(user, 'preferences'):
+            return False
+        prefs = user.preferences
+        return prefs.ai_enabled and prefs.ai_data_consent

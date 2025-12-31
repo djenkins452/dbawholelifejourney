@@ -829,13 +829,19 @@ The Health module home page (`/health/`) includes a "My Providers" card showing:
 
 ### Overview
 OpenAI Vision API integration for scanning items and routing to appropriate modules.
+Now includes dedicated barcode scanning mode for quick food product lookup.
 
-### Categories Detected
+### Scan Modes
+
+#### 1. Vision Mode (AI Recognition)
+Uses OpenAI Vision API to identify items in photos.
+
+**Categories Detected:**
 - food, medicine, supplement, receipt, document
 - workout equipment, barcode, inventory_item
 - recipe, pet, maintenance
 
-### Key Features
+**Features:**
 - Browser camera capture (getUserMedia)
 - File upload fallback
 - Multi-format support (JPEG, PNG, WebP)
@@ -844,7 +850,30 @@ OpenAI Vision API integration for scanning items and routing to appropriate modu
 - Rate limiting
 - Magic bytes validation
 
-### Food Recognition (Enhanced 2025-12-29)
+#### 2. Barcode Mode (Added 2025-12-31)
+Dedicated mode for scanning food product barcodes.
+
+**Features:**
+- Native BarcodeDetector API (Chrome/Edge mobile)
+- Real-time barcode detection from camera feed
+- Supports UPC-A, UPC-E, EAN-13, EAN-8, Code 128, Code 39
+- Vibration feedback on detection
+- Manual capture fallback for browsers without BarcodeDetector
+
+**Lookup Flow:**
+1. Scan barcode → Extract barcode string
+2. Check local FoodItem database first
+3. If not found, use OpenAI to lookup product (with AI consent)
+4. Display product name, brand, and key nutrition info
+5. Pre-fill food entry form with all details
+6. Save AI-found products to database for future lookups
+
+**Entry Source Tracking:**
+- `entry_source = 'barcode'` set automatically
+- Barcode value passed to food entry form
+
+### Food Recognition (Vision Mode)
+
 When food is detected, the system:
 
 1. **For Packaged/Branded Foods** (protein bars, snacks, drinks):
@@ -872,16 +901,31 @@ When food is detected, the system:
    - `source=ai_camera` added to URL for tracking
 
 ### Architecture
-See `docs/CAMERA_SCAN_ARCHITECTURE.md` for full details.
+See `docs/wlj_camera_scan_architecture.md` for full details.
 
 ### Key Files
-- `apps/scan/views.py` - ScanHomeView, ScanAnalyzeView
+- `apps/scan/views.py` - ScanHomeView, ScanAnalyzeView, BarcodeLookupView
 - `apps/scan/services/vision.py` - OpenAI Vision integration, `_build_actions()`
+- `apps/scan/services/barcode.py` - Barcode lookup service (database + AI)
 - `apps/health/views.py` - FoodEntryCreateView (accepts prefill params)
-- `templates/scan/scan_page.html` - Camera UI
+- `apps/health/models.py` - FoodItem (has barcode field), FoodEntry (SOURCE_BARCODE)
+- `templates/scan/scan_page.html` - Camera UI with mode toggle
+
+### URL Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/scan/` | GET | Scan home page with camera interface |
+| `/scan/analyze/` | POST | Submit image for AI analysis |
+| `/scan/barcode/` | POST | Look up barcode and return nutrition info |
+| `/scan/consent/` | POST | Record user consent for scanning |
+| `/scan/history/` | GET | View scan history |
 
 ### Tests
-`apps/scan/tests/` - 93 tests
+`apps/scan/tests/` - 100+ tests including:
+- Vision analysis tests
+- Barcode lookup view tests
+- Barcode service tests
+- Security and isolation tests
 
 ---
 

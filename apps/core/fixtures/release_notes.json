@@ -1,6 +1,20 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 15,
+        "fields": {
+            "title": "Barcode Scanner for Food",
+            "description": "Scan food product barcodes with your phone camera for instant nutrition info. Lookup uses local database first, then AI for unknown products. Pre-fills your food entry form with all nutritional data.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2025-12-31",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": ""
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 1,
         "fields": {
             "title": "AI Camera Scanning",

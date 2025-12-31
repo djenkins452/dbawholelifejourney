@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (File Cleanup & Test Fixes)
+# Last Updated: 2025-12-31 (Barcode Scanner Feature)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,55 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Barcode Scanner Feature (NEW)
+
+Added dedicated barcode scanning mode to the Camera Scan feature for quick food product lookup.
+
+**New Files Created:**
+- `apps/scan/services/barcode.py` - Barcode lookup service with database and AI fallback
+
+**Files Modified:**
+- `apps/scan/views.py` - Added BarcodeLookupView for barcode API endpoint
+- `apps/scan/urls.py` - Added `/scan/barcode/` URL route
+- `apps/scan/services/__init__.py` - Exported barcode_service
+- `apps/health/views.py` - FoodEntryCreateView now handles barcode source
+- `templates/scan/scan_page.html` - Added mode toggle, barcode overlay, and barcode result states
+
+**Test Files Modified:**
+- `apps/scan/tests/test_views.py` - Added BarcodeLookupViewTests and BarcodeServiceTests
+- `apps/scan/tests/test_security.py` - Fixed user isolation test assertion
+
+**Features:**
+1. **Mode Toggle UI**
+   - Toggle between Vision mode and Barcode mode at top of scan page
+   - Different camera overlay for each mode
+
+2. **Barcode Detection**
+   - Uses native BarcodeDetector API on Chrome/Edge mobile
+   - Supports UPC-A, UPC-E, EAN-13, EAN-8, Code 128, Code 39
+   - Real-time detection from camera feed
+   - Vibration feedback on barcode detection
+
+3. **Barcode Lookup Service**
+   - First checks local FoodItem database by barcode field
+   - Falls back to OpenAI for unknown barcodes (requires AI consent)
+   - Saves AI-found products to database for future lookups
+   - Returns structured BarcodeResult with all nutritional data
+
+4. **Food Entry Integration**
+   - Pre-fills food entry form with all nutritional data
+   - Sets `entry_source = 'barcode'` automatically
+   - Passes barcode value in URL for reference
+
+5. **Result Display**
+   - Shows product name, brand, and key nutrition (calories, protein, carbs, fat)
+   - "Log to Nutrition" button pre-fills food entry form
+   - "Scan Another" to continue scanning
+
+**No migrations required** - Uses existing FoodItem.barcode field and FoodEntry.SOURCE_BARCODE.
+
+---
 
 ### File Cleanup & Test Fixes
 

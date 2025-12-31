@@ -54,6 +54,9 @@ openai>=1.0.0
 # SMS Notifications (Twilio)
 twilio>=9.0.0
 
+# Background Job Scheduler
+django-apscheduler>=0.6.2
+
 # Linting and Code Quality (development)
 black>=24.8.0
 isort>=5.13.2

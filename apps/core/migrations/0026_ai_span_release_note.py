@@ -8,6 +8,7 @@
 # ==============================================================================
 
 from django.db import migrations
+from django.utils import timezone
 
 
 def add_release_note(apps, schema_editor):
@@ -25,6 +26,7 @@ def add_release_note(apps, schema_editor):
                 "and more. Dashboard messages are now deeply personalized to your whole life journey."
             ),
             entry_type="feature",
+            release_date=timezone.now().date(),
             is_published=True,
             is_major=False
         )

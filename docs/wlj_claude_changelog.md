@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Improved Help System, Task Search)
+# Last Updated: 2025-12-31 (Cascading Menu Navigation)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,47 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Cascading Menu Navigation System
+
+Implemented an industry-standard cascading dropdown menu system for the main navigation. Users can now hover (desktop) or tap (mobile) on module names to reveal dropdown menus with direct links to all sub-pages within each module.
+
+**Key Features:**
+- **Desktop:** Hover-triggered dropdown menus with smooth CSS transitions
+- **Mobile:** Tap-to-toggle accordion-style menus that work well on touch devices
+- **Mega Menu:** Health module features a multi-column mega menu with organized sections (Vitals, Medicine, Fitness, Nutrition, Providers)
+- **Two-column Layout:** Life and other larger modules use a two-column dropdown for easier scanning
+- **Accessibility:** Full ARIA support, keyboard navigation (ESC closes all menus), focus management
+- **Visual Polish:** Icons for each menu item, dividers between sections, chevron rotation on expand
+
+**Menu Structure:**
+- Dashboard - Direct link (no dropdown)
+- Journal - Home, New Entry, All Entries, Book View, Prompts, Tags
+- Faith - Home, Today's Verse, Saved Scripture, Prayers, Milestones, Reflections
+- Health - Mega menu with 5 columns:
+  - Vitals: Health Home, Weight, Heart Rate, Blood Pressure, Glucose, Blood Oxygen
+  - Medicine: Today's Medicines, All Medicines, History, Adherence
+  - Fitness: Fitness Home, Workouts, Templates, Personal Records
+  - Nutrition: Nutrition Home, Food History, Statistics, Goals
+  - Providers: Medical Providers, Fasting
+- Life - Two-column: Home, Calendar, Projects, Tasks, Inventory, Pets, Recipes, Maintenance, Documents
+- Purpose - Home, Annual Direction, Goals, Intentions, Reflections
+- Assistant - Direct link (no dropdown)
+
+**Files Modified:**
+- `templates/components/navigation.html` - Complete rewrite with dropdown structure
+- `static/css/main.css` - Added 180+ lines for dropdown/mega menu styles
+- `static/js/main.js` - Added dropdown toggle functions, click-outside handlers, ESC key support
+
+**Migrations:**
+- `apps/core/migrations/0023_merge_20251231_0658.py` - Merge migration for prior conflicts
+- `apps/core/migrations/0024_add_cascading_menu_release_note.py` - What's New entry
+
+**What's New Entry Added:**
+- Title: "Enhanced Navigation with Cascading Menus"
+- Type: Feature
+
+---
 
 ### Task Search Feature
 

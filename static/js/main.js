@@ -35,17 +35,22 @@
 function toggleMobileMenu() {
     const menu = document.getElementById('nav-menu');
     const button = document.querySelector('.nav-mobile-toggle');
-    
+
     if (menu && button) {
         const isOpen = menu.classList.toggle('open');
         button.setAttribute('aria-expanded', isOpen);
+
+        // Close all dropdowns when closing mobile menu
+        if (!isOpen) {
+            closeAllNavDropdowns();
+        }
     }
 }
 
 function toggleUserMenu() {
     const menu = document.getElementById('user-menu');
     const button = document.querySelector('.nav-user-button');
-    
+
     if (menu && button) {
         const isHidden = menu.hidden;
         menu.hidden = !isHidden;
@@ -53,28 +58,86 @@ function toggleUserMenu() {
     }
 }
 
+// Toggle navigation dropdown (for mobile and click-based interaction)
+function toggleNavDropdown(dropdown) {
+    if (!dropdown) return;
+
+    const button = dropdown.querySelector('.nav-dropdown-toggle');
+    const menu = dropdown.querySelector('.nav-dropdown-menu');
+
+    if (!button || !menu) return;
+
+    const isOpen = dropdown.classList.contains('open');
+
+    // Close all other dropdowns first
+    closeAllNavDropdowns();
+
+    if (!isOpen) {
+        dropdown.classList.add('open');
+        menu.hidden = false;
+        button.setAttribute('aria-expanded', 'true');
+    }
+}
+
+// Close all navigation dropdowns
+function closeAllNavDropdowns() {
+    document.querySelectorAll('.nav-dropdown').forEach(function(dropdown) {
+        dropdown.classList.remove('open');
+        const button = dropdown.querySelector('.nav-dropdown-toggle');
+        const menu = dropdown.querySelector('.nav-dropdown-menu');
+        if (button) button.setAttribute('aria-expanded', 'false');
+        if (menu) menu.hidden = true;
+    });
+}
+
+// Initialize nav dropdown click handlers
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click handlers to all dropdown toggles
+    document.querySelectorAll('.nav-dropdown-toggle').forEach(function(toggle) {
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const dropdown = toggle.closest('.nav-dropdown');
+            toggleNavDropdown(dropdown);
+        });
+    });
+});
+
 // Close user menu when clicking outside
 document.addEventListener('click', function(event) {
     const userMenu = document.getElementById('user-menu');
     const userButton = document.querySelector('.nav-user-button');
-    
+
     if (userMenu && userButton) {
         if (!userButton.contains(event.target) && !userMenu.contains(event.target)) {
             userMenu.hidden = true;
             userButton.setAttribute('aria-expanded', 'false');
         }
     }
+
+    // Close nav dropdowns when clicking outside (for mobile)
+    const clickedDropdown = event.target.closest('.nav-dropdown');
+    document.querySelectorAll('.nav-dropdown').forEach(function(dropdown) {
+        if (dropdown !== clickedDropdown) {
+            dropdown.classList.remove('open');
+            const button = dropdown.querySelector('.nav-dropdown-toggle');
+            const menu = dropdown.querySelector('.nav-dropdown-menu');
+            if (button) button.setAttribute('aria-expanded', 'false');
+            if (menu) menu.hidden = true;
+        }
+    });
 });
 
 // Close mobile menu when clicking outside
 document.addEventListener('click', function(event) {
     const navMenu = document.getElementById('nav-menu');
     const mobileToggle = document.querySelector('.nav-mobile-toggle');
-    
+
     if (navMenu && mobileToggle) {
         if (!mobileToggle.contains(event.target) && !navMenu.contains(event.target)) {
             navMenu.classList.remove('open');
             mobileToggle.setAttribute('aria-expanded', 'false');
+            closeAllNavDropdowns();
         }
     }
 });
@@ -167,9 +230,16 @@ document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         const userMenu = document.getElementById('user-menu');
         const navMenu = document.getElementById('nav-menu');
-        
+        const mobileToggle = document.querySelector('.nav-mobile-toggle');
+
         if (userMenu) userMenu.hidden = true;
-        if (navMenu) navMenu.classList.remove('open');
+        if (navMenu) {
+            navMenu.classList.remove('open');
+            if (mobileToggle) mobileToggle.setAttribute('aria-expanded', 'false');
+        }
+
+        // Close all navigation dropdowns
+        closeAllNavDropdowns();
     }
 });
 

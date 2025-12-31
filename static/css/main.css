@@ -530,6 +530,232 @@ a:hover {
 }
 
 /* ==========================================================================
+   Navigation Dropdowns (Cascading Menu)
+   ========================================================================== */
+
+/* Dropdown container */
+.nav-dropdown {
+    position: relative;
+}
+
+/* Dropdown toggle button */
+.nav-dropdown-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.nav-dropdown-chevron {
+    width: 14px;
+    height: 14px;
+    margin-left: var(--space-1);
+    transition: transform var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.nav-dropdown.open .nav-dropdown-chevron {
+    transform: rotate(180deg);
+}
+
+/* Dropdown menu */
+.nav-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 200px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-2);
+    margin-top: var(--space-1);
+    z-index: 60;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast), visibility var(--transition-fast);
+}
+
+.nav-dropdown-menu:not([hidden]) {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+/* Wider dropdown for Life module */
+.nav-dropdown-menu-wide {
+    min-width: 380px;
+}
+
+/* Dropdown items */
+.nav-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-text);
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    white-space: nowrap;
+}
+
+.nav-dropdown-item:hover {
+    background-color: var(--color-surface);
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.nav-dropdown-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.nav-dropdown-item:hover .nav-dropdown-icon {
+    opacity: 1;
+}
+
+.nav-dropdown-divider {
+    margin: var(--space-2) 0;
+    border: none;
+    border-top: 1px solid var(--color-border);
+}
+
+/* Mega menu styles (for Health) */
+.nav-mega-menu {
+    min-width: auto;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    padding: var(--space-4);
+}
+
+.nav-mega-columns {
+    display: flex;
+    gap: var(--space-6);
+}
+
+.nav-mega-columns-2 {
+    gap: var(--space-4);
+}
+
+.nav-mega-column {
+    min-width: 140px;
+}
+
+.nav-mega-heading {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: var(--space-1) var(--space-3);
+    margin-bottom: var(--space-1);
+}
+
+.nav-mega-column .nav-dropdown-item {
+    padding: var(--space-1) var(--space-3);
+}
+
+/* Desktop hover behavior */
+@media (min-width: 769px) {
+    /* Show dropdown on hover with slight delay */
+    .nav-dropdown:hover .nav-dropdown-menu,
+    .nav-dropdown:focus-within .nav-dropdown-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+
+    /* Hide user name on desktop to save space */
+    .nav-user-name {
+        display: none;
+    }
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+    .nav-dropdown {
+        position: static;
+    }
+
+    .nav-dropdown-toggle {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .nav-dropdown-menu {
+        position: static;
+        min-width: auto;
+        width: 100%;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        margin: 0;
+        padding-left: var(--space-6);
+        border-radius: 0;
+        background: transparent;
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height var(--transition-base);
+    }
+
+    .nav-dropdown-menu:not([hidden]) {
+        max-height: 1000px;
+        padding-top: var(--space-2);
+        padding-bottom: var(--space-2);
+    }
+
+    .nav-dropdown-menu-wide,
+    .nav-mega-menu {
+        min-width: auto;
+        width: 100%;
+        max-width: none;
+        padding: 0;
+        padding-left: var(--space-6);
+    }
+
+    .nav-mega-columns {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .nav-mega-column {
+        min-width: auto;
+    }
+
+    .nav-mega-heading {
+        padding: var(--space-2) var(--space-3);
+        margin-top: var(--space-2);
+        border-top: 1px solid var(--color-border);
+    }
+
+    .nav-mega-column:first-child .nav-mega-heading {
+        border-top: none;
+        margin-top: 0;
+    }
+
+    .nav-dropdown-item {
+        padding: var(--space-2) var(--space-3);
+    }
+
+    .nav-mega-column .nav-dropdown-item {
+        padding: var(--space-2) var(--space-3);
+    }
+
+    .nav-dropdown-divider {
+        margin: var(--space-1) var(--space-3);
+    }
+}
+
+/* ==========================================================================
    Footer
    ========================================================================== */
 

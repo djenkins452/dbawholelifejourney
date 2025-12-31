@@ -16,20 +16,89 @@ For core project context, see `CLAUDE.md` (project root).
 ---
 
 ## Table of Contents
-1. [Onboarding Wizard](#onboarding-wizard)
-2. [Context-Aware Help System](#context-aware-help-system)
-3. [What's New Feature](#whats-new-feature)
-4. [Dashboard AI Personal Assistant](#dashboard-ai-personal-assistant)
-5. [Nutrition/Food Tracking](#nutritionfood-tracking)
-6. [Weight & Nutrition Goals](#weight--nutrition-goals)
-7. [Medicine Tracking](#medicine-tracking)
-8. [Vitals Tracking](#vitals-tracking)
-9. [Medical Providers](#medical-providers)
-10. [Camera Scan Feature](#camera-scan-feature)
-11. [Biometric Login](#biometric-login)
-12. [Dashboard Tile Shortcuts](#dashboard-tile-shortcuts)
-13. [SMS Text Notifications](#sms-text-notifications)
-14. [Task Management](#task-management)
+1. [Navigation System](#navigation-system)
+2. [Onboarding Wizard](#onboarding-wizard)
+3. [Context-Aware Help System](#context-aware-help-system)
+4. [What's New Feature](#whats-new-feature)
+5. [Dashboard AI Personal Assistant](#dashboard-ai-personal-assistant)
+6. [Nutrition/Food Tracking](#nutritionfood-tracking)
+7. [Weight & Nutrition Goals](#weight--nutrition-goals)
+8. [Medicine Tracking](#medicine-tracking)
+9. [Vitals Tracking](#vitals-tracking)
+10. [Medical Providers](#medical-providers)
+11. [Camera Scan Feature](#camera-scan-feature)
+12. [Biometric Login](#biometric-login)
+13. [Dashboard Tile Shortcuts](#dashboard-tile-shortcuts)
+14. [SMS Text Notifications](#sms-text-notifications)
+15. [Task Management](#task-management)
+
+---
+
+## Navigation System
+
+### Overview
+The main navigation features a cascading dropdown menu system that allows users to jump directly to any page without visiting the module home first.
+
+### Desktop Behavior
+- Hover over menu items to reveal dropdown menus
+- Dropdowns appear with smooth fade-in animation
+- Clicking a dropdown item navigates to that page
+- Clicking outside closes all dropdowns
+- ESC key closes all open menus
+
+### Mobile Behavior
+- Tap on menu items to toggle dropdown visibility
+- Dropdowns expand in-place as accordion menus
+- Chevron rotates to indicate open/closed state
+- Works well with touch devices
+
+### Menu Structure
+
+| Module | Type | Items |
+|--------|------|-------|
+| Dashboard | Direct link | Home only |
+| Journal | Dropdown | Home, New Entry, All Entries, Book View, Prompts, Tags |
+| Faith | Dropdown | Home, Today's Verse, Saved Scripture, Prayers, Milestones, Reflections |
+| Health | Mega menu | 5 columns: Vitals, Medicine, Fitness, Nutrition, Providers |
+| Life | Two-column | Home, Calendar, Projects, Tasks, Inventory, Pets, Recipes, Maintenance, Documents |
+| Purpose | Dropdown | Home, Annual Direction, Goals, Intentions, Reflections |
+| Assistant | Direct link | Dashboard only |
+
+### Health Mega Menu Columns
+- **Vitals:** Health Home, Weight, Heart Rate, Blood Pressure, Glucose, Blood Oxygen
+- **Medicine:** Today's Medicines, All Medicines, History, Adherence
+- **Fitness:** Fitness Home, Workouts, Templates, Personal Records
+- **Nutrition:** Nutrition Home, Food History, Statistics, Goals
+- **Providers:** Medical Providers, Fasting
+
+### Key Files
+- `templates/components/navigation.html` - Navigation template with dropdown structure
+- `static/css/main.css` - Dropdown and mega menu styles (lines 532-756)
+- `static/js/main.js` - Dropdown toggle logic, click handlers, keyboard support
+
+### CSS Classes
+| Class | Purpose |
+|-------|---------|
+| `.nav-dropdown` | Container for menu item with dropdown |
+| `.nav-dropdown-toggle` | Button that triggers dropdown |
+| `.nav-dropdown-menu` | The dropdown panel |
+| `.nav-dropdown-item` | Link within dropdown |
+| `.nav-mega-menu` | Multi-column dropdown variant |
+| `.nav-mega-columns` | Flexbox container for columns |
+| `.nav-mega-column` | Single column within mega menu |
+| `.nav-mega-heading` | Column header text |
+
+### JavaScript Functions
+- `toggleNavDropdown(dropdown)` - Toggle a specific dropdown's visibility
+- `closeAllNavDropdowns()` - Close all open dropdowns
+- Click handlers for outside clicks
+- ESC key handler in accessibility section
+
+### Accessibility Features
+- Full ARIA support (`aria-expanded`, `aria-haspopup`)
+- Keyboard navigation (ESC closes all menus)
+- Focus-visible outlines
+- Screen reader compatible structure
 
 ---
 

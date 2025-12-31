@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Medicine Log Edit Feature)
+# Last Updated: 2025-12-31 (Barcode Scanner - ZXing Library)
 # ==============================================================================
 
 # WLJ Change History
@@ -88,10 +88,12 @@ Added dedicated barcode scanning mode to the Camera Scan feature for quick food 
    - Toggle between Vision mode and Barcode mode at top of scan page
    - Different camera overlay for each mode
 
-2. **Barcode Detection**
-   - Uses native BarcodeDetector API on Chrome/Edge mobile
+2. **Barcode Detection** (Updated: ZXing Library)
+   - Now uses @zxing/browser library for cross-browser barcode detection
+   - Works on all browsers including Safari/iOS (previously Quagga2 was unreliable)
+   - Uses native BarcodeDetector API as fallback on Chrome/Edge Android
    - Supports UPC-A, UPC-E, EAN-13, EAN-8, Code 128, Code 39
-   - Real-time detection from camera feed
+   - Real-time auto-detection from camera feed without button press
    - Vibration feedback on barcode detection
 
 3. **Barcode Lookup Service**

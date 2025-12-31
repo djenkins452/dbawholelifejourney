@@ -4,7 +4,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30
+# Last Updated: 2025-12-31
 # ==============================================================================
 
 # WLJ Feature Documentation
@@ -72,7 +72,15 @@ The users app is mounted at `/user/` (singular), not `/users/`.
 ## Context-Aware Help System
 
 ### Overview
-The application has a "?" help icon that provides context-aware help. This is authoritative user guidance with exact, step-by-step instructions.
+The application has a "?" help icon that provides context-aware help. The help content is designed to help users make informed decisions about why to use each feature and how it connects to the Dashboard and AI insights.
+
+### Content Philosophy (Updated 2025-12-31)
+Each help topic now includes:
+1. **"Why This Feature?"** - Value proposition explaining the reason to use it
+2. **"How It Powers Your Dashboard"** - Connection to AI insights and dashboard
+3. **"How to Use It"** - Step-by-step instructions
+4. **"Tips for Success"** - Best practices
+5. **"Related Features"** - Cross-module connections
 
 ### Core Principle: HELP_CONTEXT_ID
 Every page declares a stable identifier. The help system uses this to show the exact relevant documentation.
@@ -80,55 +88,69 @@ Every page declares a stable identifier. The help system uses this to show the e
 **How it works:**
 1. User clicks "?" icon
 2. System reads the page's `HELP_CONTEXT_ID`
-3. Looks up that ID in the help index
-4. Opens the exact matching help section
+3. Looks up that ID in the `HelpTopic` model
+4. Displays content in a modal with Markdown rendering
 
 ### HELP_CONTEXT_ID Naming Convention
 Format: `{APP}_{SCREEN}` or `{APP}_{ENTITY}_{ACTION}`
 
 Examples:
 - `DASHBOARD_HOME`
-- `HEALTH_ROOT`
-- `HEALTH_WORKOUT_CREATE`
-- `JOURNAL_ENTRY_LIST`
+- `HEALTH_HOME`
+- `NUTRITION_HOME`
+- `HEALTH_MEDICINE_HOME`
 - `SETTINGS_PREFERENCES`
+- `SCAN_HOME`
+- `ASSISTANT_HOME`
+
+### Available Help Topics (20 total)
+| Context ID | Title |
+|------------|-------|
+| DASHBOARD_HOME | Your Dashboard: The Heart of Your Journey |
+| GENERAL | Navigating Your Whole Life Journey |
+| JOURNAL_HOME | Journal: The Foundation of Self-Awareness |
+| HEALTH_HOME | Health: Track What You Can Measure |
+| FAITH_HOME | Faith: Nurture Your Spiritual Journey |
+| SETTINGS_PREFERENCES | Preferences: Make It Yours |
+| LIFE_HOME | Life: Your Daily Operating Layer |
+| PURPOSE_HOME | Purpose: Your North Star |
+| NUTRITION_HOME | Nutrition: Fuel Your Body Intentionally |
+| HEALTH_MEDICINE_HOME | Medicine Tracking: Never Miss a Dose |
+| SCAN_HOME | Camera Scan: AI-Powered Quick Entry |
+| ASSISTANT_HOME | Personal Assistant: Your AI-Powered Guide |
+| SMS_SETTINGS | SMS Notifications: Reminders Where You'll See Them |
+| HEALTH_VITALS | Vitals: Monitor Your Cardiovascular Health |
+| HEALTH_PROVIDERS | Medical Providers: Your Healthcare Contacts |
+| + 5 Admin Console topics |
 
 ### Implementation Details
 Each page exposes its context via:
-- Django template variable: `{% with help_context_id="HEALTH_ROOT" %}`
-- HTML data attribute: `data-help-context="HEALTH_ROOT"`
-- JavaScript variable: `window.HELP_CONTEXT_ID = "HEALTH_ROOT"`
+- Django view mixin: `HelpContextMixin` with `help_context_id` attribute
+- Template: `{% include 'components/help_button.html' %}`
+- API: `GET /help/api/topic/<context_id>/`
 
-### Documentation File Structure
-```
-docs/
-├── help/
-│   ├── index.json          # Maps HELP_CONTEXT_ID → file + HELP_ID
-│   ├── dashboard.md        # Dashboard help content
-│   ├── health.md           # Health app help content
-│   └── ...
-```
+### Data Storage
+Help content is stored in the database via Django fixtures:
+- `apps/help/fixtures/help_topics.json` - User-facing help (20 topics)
+- `apps/help/fixtures/help_articles.json` - Searchable articles (15 articles)
+- `apps/help/fixtures/help_categories.json` - Article categories (5 categories)
+- `apps/help/fixtures/admin_help_topics.json` - Admin help (7 topics)
 
-### Help Entry Format
-```markdown
-## [HELP_ID: health-log-workout]
-**Title:** How to Log a Workout
-**Context:** HEALTH_WORKOUT_CREATE screen
-**Description:** Record your exercise activities.
-
-### Steps
-1. Click "Health" in the left navigation menu.
-2. Click the "Log Workout" button.
-3. Select a workout type from the dropdown.
-4. Enter the duration in minutes.
-5. Click "Save" to record your workout.
+### Reloading Help Content
+Use the management command to reload help content from fixtures:
+```bash
+python manage.py reload_help_content           # Reload all
+python manage.py reload_help_content --dry-run # Preview only
+python manage.py reload_help_content --topics-only   # Only topics
+python manage.py reload_help_content --articles-only # Only articles
 ```
 
 ### Writing Rules
-1. Start each step with an action verb (Click, Enter, Select)
-2. Reference exact UI labels in quotes
-3. Be exact—a chatbot will read these verbatim
-4. No vague text, no summaries
+1. Start with the "Why" - explain value before how-to
+2. Show Dashboard/AI connection - how data powers insights
+3. Use tables to show data→insight relationships
+4. Include Related Features section for cross-module discovery
+5. Markdown supported (headings, bold, tables, lists)
 
 ---
 

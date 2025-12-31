@@ -4,13 +4,81 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30 (Medicine 'Taken Late' status timezone fix)
+# Last Updated: 2025-12-31 (Improved Help System)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2025-12-31 Changes
+
+### Improved Help System - "Why Use This Feature"
+
+Completely rewrote the in-app help system to provide more valuable, decision-enabling content. The previous help content explained *how* to use features, but the new content explains *why* users should use each feature and how it all connects.
+
+**New Content Structure:**
+Each help topic now includes:
+1. **"Why This Feature?"** - Value proposition explaining the reason to use it
+2. **"How It Powers Your Dashboard"** - Connection to AI insights and dashboard
+3. **"How to Use It"** - Step-by-step instructions
+4. **"Tips for Success"** - Best practices
+5. **"Related Features"** - Cross-module connections showing how everything integrates
+
+**Help Topics Added/Rewritten (20 total):**
+- DASHBOARD_HOME - "Your Dashboard: The Heart of Your Journey"
+- GENERAL - "Navigating Your Whole Life Journey"
+- JOURNAL_HOME - "Journal: The Foundation of Self-Awareness"
+- HEALTH_HOME - "Health: Track What You Can Measure"
+- FAITH_HOME - "Faith: Nurture Your Spiritual Journey"
+- SETTINGS_PREFERENCES - "Preferences: Make It Yours"
+- LIFE_HOME - "Life: Your Daily Operating Layer"
+- PURPOSE_HOME - "Purpose: Your North Star"
+- NUTRITION_HOME - "Nutrition: Fuel Your Body Intentionally" (NEW)
+- HEALTH_MEDICINE_HOME - "Medicine Tracking: Never Miss a Dose" (NEW)
+- SCAN_HOME - "Camera Scan: AI-Powered Quick Entry" (NEW)
+- ASSISTANT_HOME - "Personal Assistant: Your AI-Powered Guide" (NEW)
+- SMS_SETTINGS - "SMS Notifications: Reminders Where You'll See Them" (NEW)
+- HEALTH_VITALS - "Vitals: Monitor Your Cardiovascular Health" (NEW)
+- HEALTH_PROVIDERS - "Medical Providers: Your Healthcare Contacts" (NEW)
+
+**Help Articles Added/Rewritten (15 total):**
+- Welcome to Whole Life Journey
+- Understanding Your Dashboard
+- Journaling for Self-Awareness
+- Health Tracking Overview
+- Faith Module: Tracking Your Spiritual Journey
+- Customizing Your Preferences
+- AI Coaching Styles Explained
+- Why Can't I See Certain Features?
+- Goals and the Purpose Module
+- Tasks, Projects, and the Life Module
+- Medicine Tracking and Adherence (NEW)
+- Camera Scan: Quick AI-Powered Entry (NEW)
+- The Personal Assistant (NEW)
+- SMS Notifications Setup (NEW)
+- Nutrition and Food Tracking (NEW)
+
+**New Management Command:**
+- `reload_help_content` - Clears and reloads help content from fixtures
+  - Options: `--dry-run`, `--topics-only`, `--articles-only`
+  - Added to Procfile for automatic deployment
+
+**Files Created:**
+- `apps/help/management/__init__.py`
+- `apps/help/management/commands/__init__.py`
+- `apps/help/management/commands/reload_help_content.py`
+- `apps/core/migrations/0022_improved_help_system_release_note.py`
+
+**Files Modified:**
+- `apps/help/fixtures/help_topics.json` - Complete rewrite (13→20 topics)
+- `apps/help/fixtures/help_articles.json` - Complete rewrite (10→15 articles)
+- `Procfile` - Added `reload_help_content` command
+
+**Test Status:** All 68 help app tests passing
 
 ---
 

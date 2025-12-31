@@ -5,14 +5,14 @@
     "fields": {
       "context_id": "DASHBOARD_HOME",
       "help_id": "dashboard-overview",
-      "title": "Dashboard Overview",
-      "description": "Your personalized command center for tracking your whole life journey.",
-      "content": "## Welcome to Your Dashboard\n\nThe Dashboard is your personal command center. It provides:\n\n- **Daily insights** personalized to your activity\n- **Quick stats** showing your progress\n- **Gentle nudges** when you've been away too long\n- **Celebrations** for your achievements\n\n### Quick Stats\n\nAt the top of your dashboard, you'll see quick stats including:\n- Journal streak (consecutive days of journaling)\n- Active goals\n- Tasks completed today\n- Active prayer requests (if Faith module is enabled)\n\n### AI Insights\n\nIf you have AI features enabled in your Preferences, you'll see personalized insights based on your recent activity.\n\n### Getting Started\n\n1. Click on any module in the navigation to explore that area.\n2. Use the quick action buttons to create new entries.\n3. Check back daily to build your streaks!",
+      "title": "Your Dashboard: The Heart of Your Journey",
+      "description": "Your personalized command center that transforms your daily data into meaningful insights.",
+      "content": "## Why Your Dashboard Matters\n\nYour Dashboard isn't just a home page—it's **your personal life intelligence center**. Every journal entry, health measurement, prayer, and task you log feeds into this view to give you:\n\n- **Patterns you can't see yourself** - The AI notices trends across weeks and months\n- **Timely nudges** - Gentle reminders when you're drifting from your intentions\n- **Celebrations** - Recognition of progress that keeps you motivated\n- **Action items** - What needs your attention today, prioritized by what matters most\n\n### How Your Data Becomes Insight\n\nWhen you log a journal entry, the AI analyzes your mood patterns. When you track your weight, it notices trends. When you complete tasks, it learns your productivity rhythms. **The more you use Whole Life Journey, the smarter your Dashboard becomes.**\n\n---\n\n## Dashboard Components\n\n### Quick Stats (Top Row)\nClickable tiles showing your current status:\n- **Journal Streak** 🔥 - Consecutive days of journaling (click to see entries)\n- **Tasks Today** ✓ - Today's task count (click to manage tasks)\n- **Active Prayers** 🙏 - Open prayer requests (click to view)\n- **Medicine Doses** 💊 - Today's medications (click to track)\n- **Workouts This Week** 💪 - Weekly exercise count (click to log more)\n\n### Today's Insight\nAn AI-generated observation personalized to your coaching style. This isn't generic advice—it's based on YOUR recent activity, mood patterns, and goals.\n\n### Celebrations\nRecognition of your wins, big and small. Completing a 7-day journal streak? Hitting your protein goal? We celebrate progress here.\n\n### Accountability Nudges\nGentle reminders about:\n- Goals you set but haven't worked on\n- Habits that have slipped\n- Medicines that need refills\n- Tasks that are overdue\n\n### Today's Priorities\nIf you've enabled the Personal Assistant, you'll see AI-suggested priorities ordered by what matters most to you.\n\n---\n\n## Tips for a Powerful Dashboard\n\n1. **Check it daily** - Even a 30-second glance keeps you connected\n2. **Log consistently** - The more data you provide, the smarter your insights\n3. **Enable AI features** - Turn on the Personal Assistant for maximum value\n4. **Click the tiles** - Each stat is a direct link to that feature\n\n---\n\n## Related Features\n- **Personal Assistant** - Get AI-powered daily priorities and guidance\n- **Journal** - Your entries power mood and pattern analysis\n- **Health Tracking** - Feeds weight, nutrition, and vital trends",
       "app_name": "dashboard",
       "order": 1,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -21,14 +21,14 @@
     "fields": {
       "context_id": "GENERAL",
       "help_id": "general-navigation",
-      "title": "Getting Around the App",
-      "description": "Learn how to navigate Whole Life Journey.",
-      "content": "## Navigating Whole Life Journey\n\n### Main Navigation\n\nUse the top navigation bar to access different modules:\n\n1. **Dashboard** - Your home base with daily insights\n2. **Journal** - Record your thoughts and reflections\n3. **Faith** - Track prayers, scripture, and spiritual milestones\n4. **Health** - Monitor weight, fasting, and fitness\n5. **Life** - Manage projects, tasks, and events\n6. **Purpose** - Set goals and annual directions\n\n### User Menu\n\nClick your avatar in the top-right corner to access:\n- **Profile** - Update your name and avatar\n- **Preferences** - Customize themes, modules, and AI settings\n- **Sign Out** - Log out of your account\n\n### Help System\n\nClick the **?** icon in the navigation for context-specific help on any page.\n\n### Mobile Navigation\n\nOn mobile devices, tap the menu icon (☰) to open the navigation drawer.",
+      "title": "Navigating Your Whole Life Journey",
+      "description": "Master the app layout and discover how everything connects.",
+      "content": "## Why Good Navigation Matters\n\nWhole Life Journey brings together many aspects of your life—journal, health, faith, goals, and more. Understanding the layout helps you **capture thoughts quickly** when inspiration strikes and **find information easily** when you need it.\n\n---\n\n## The Big Picture: How It All Connects\n\nThink of Whole Life Journey as a **personal life operating system**:\n\n| Module | What You Log | What the AI Learns |\n|--------|--------------|--------------------|\n| **Journal** | Thoughts, moods, reflections | Emotional patterns, triggers |\n| **Health** | Weight, nutrition, medicine, vitals | Physical trends, adherence |\n| **Faith** | Prayers, scripture, milestones | Spiritual journey, answered prayers |\n| **Life** | Tasks, projects, events | Productivity patterns |\n| **Purpose** | Goals, intentions, directions | What matters most to you |\n\n**Everything feeds into your Dashboard**, where AI turns raw data into actionable insights.\n\n---\n\n## Main Navigation\n\n### Top Navigation Bar\n- **Dashboard** - Your daily home base with insights\n- **Journal** - Record thoughts and track moods\n- **Faith** - Prayers, scripture, spiritual growth (if enabled)\n- **Health** - Weight, nutrition, medicine, vitals, fitness\n- **Life** - Tasks, projects, events, documents\n- **Purpose** - Goals, annual direction, change intentions\n- **Scan** 📷 - Camera scan for food, medicine, documents\n\n### User Menu (Avatar Icon)\nClick your profile picture in the top-right:\n- **Profile** - Your account information\n- **Preferences** - Customize themes, modules, AI settings\n- **What's New** - Recent feature updates\n- **Sign Out** - Log out securely\n\n### Help Icon (?)\nAvailable on every page—click for context-specific guidance.\n\n---\n\n## Mobile Navigation\n\nOn phones and tablets:\n1. Tap the **☰ menu icon** to open the navigation drawer\n2. All modules are accessible from the drawer\n3. Swipe to close or tap outside\n\n---\n\n## Tips for Efficient Navigation\n\n1. **Use Dashboard tiles** - Click the stat tiles for direct access\n2. **Bookmark the Dashboard** - Make it your browser home page\n3. **Enable only what you need** - Disable unused modules in Preferences\n4. **Use keyboard shortcuts** - Press `?` to open help on any page",
       "app_name": "core",
       "order": 0,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -37,14 +37,14 @@
     "fields": {
       "context_id": "JOURNAL_HOME",
       "help_id": "journal-overview",
-      "title": "Journal Overview",
-      "description": "Track your daily thoughts, moods, and reflections.",
-      "content": "## Your Journal\n\nThe Journal module helps you build a daily reflection practice.\n\n### Creating an Entry\n\n1. Click the **\"New Entry\"** button in the top-right corner.\n2. Enter a title for your entry.\n3. Select your current mood from the dropdown.\n4. Write your thoughts in the body field.\n5. (Optional) Add categories to organize your entry.\n6. Click **\"Save\"** to create your entry.\n\n### Viewing Entries\n\nYour entries are displayed in reverse chronological order (newest first).\n\n- Click on any entry title to view the full content.\n- Use the calendar view to see entries by date.\n- Filter entries by mood or category.\n\n### Journal Streaks\n\nBuild a journaling habit! Your dashboard shows how many consecutive days you've written entries.\n\n### Tips for Journaling\n\n- Write at the same time each day to build a habit.\n- Don't worry about length—even a few sentences count.\n- Use the mood tracker to notice patterns over time.",
+      "title": "Journal: The Foundation of Self-Awareness",
+      "description": "Your journal entries power AI insights about your emotional patterns and life rhythms.",
+      "content": "## Why Journaling Changes Everything\n\nYour journal isn't just a diary—it's the **primary data source for your AI insights**. Every entry you write teaches the system about:\n\n- **Your emotional patterns** - When do you feel best? What triggers stress?\n- **Your life rhythms** - Busy seasons, restful periods, recurring challenges\n- **Your growth** - How far you've come, patterns you've broken\n- **Your values** - What you write about reveals what matters\n\n### The Dashboard Connection\n\nWhen you journal consistently:\n- Your **Daily Insight** becomes more personalized and relevant\n- The AI notices **mood trends** you might miss\n- Your **Journal Streak** tile celebrates consistency\n- The Personal Assistant can suggest **reflection prompts** based on your patterns\n\n---\n\n## How to Use the Journal\n\n### Creating an Entry\n1. Click **\"New Entry\"** from the Journal page\n2. Enter a title (or leave blank for auto-date title)\n3. Select your current **mood** from the dropdown\n4. Write your thoughts in the body field\n5. (Optional) Add **categories** to organize entries\n6. Click **\"Save\"** to create your entry\n\n### Mood Tracking\nSelecting your mood with each entry enables:\n- Mood trend charts over time\n- AI insights about what affects your emotional state\n- Pattern detection (e.g., \"You tend to feel anxious on Mondays\")\n\n### Viewing Past Entries\n- Entries display newest first by default\n- Click any title to read the full entry\n- Use the calendar view to browse by date\n- Filter by mood or category to find specific entries\n\n---\n\n## Tips for Powerful Journaling\n\n1. **Write at the same time daily** - Morning or evening, consistency builds the habit\n2. **Don't aim for perfection** - Even three sentences count toward your streak\n3. **Be honest** - The AI learns from authentic entries, not polished ones\n4. **Review monthly** - Read old entries to see your own growth\n5. **Use prompts** - The Personal Assistant can suggest what to write about\n\n---\n\n## What Your Journal Teaches the AI\n\n| What You Write | What the AI Learns |\n|----------------|--------------------|\n| Daily moods | Emotional patterns over time |\n| Challenges mentioned | Recurring struggles to address |\n| Wins and gratitude | What brings you joy |\n| Goals referenced | Progress toward intentions |\n| Relationships mentioned | Who matters in your life |\n\n---\n\n## Related Features\n- **Dashboard** - See your journal streak and mood-based insights\n- **Personal Assistant** - Get personalized journaling prompts\n- **Purpose** - Connect journal reflections to your life goals",
       "app_name": "journal",
       "order": 1,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -53,14 +53,14 @@
     "fields": {
       "context_id": "HEALTH_HOME",
       "help_id": "health-overview",
-      "title": "Health Tracking Overview",
-      "description": "Monitor your physical wellness journey.",
-      "content": "## Health Module\n\nTrack your physical wellness with these features:\n\n### Weight Tracking\n\n1. Click **\"Log Weight\"** to record a new measurement.\n2. Enter your weight and the date/time.\n3. View your progress on the weight chart.\n\n### Fasting\n\n1. Click **\"Start Fast\"** to begin a fasting window.\n2. Click **\"End Fast\"** when you break your fast.\n3. View your fasting history and patterns.\n\n### Glucose (Blood Sugar)\n\n1. Click **\"Log Glucose\"** to record a reading.\n2. Note whether it's fasting, post-meal, or random.\n3. Track patterns over time.\n\n### Fitness\n\n1. Log workouts with type, duration, and notes.\n2. Track your exercise consistency.\n3. View workout history.",
+      "title": "Health: Track What You Can Measure",
+      "description": "Your health data powers trend analysis and helps you make informed decisions.",
+      "content": "## Why Track Your Health?\n\n**What gets measured gets managed.** The Health module helps you:\n\n- **See trends** you can't feel day-to-day (gradual weight changes, blood pressure patterns)\n- **Stay accountable** to your health goals with visual progress\n- **Inform conversations** with your doctor using real data\n- **Receive smart insights** as the AI notices patterns in your health data\n\n### The Dashboard Connection\n\nYour health data appears on your Dashboard as:\n- **Weight progress** toward your goal (if set)\n- **Nutrition summary** showing calories and macros\n- **Medicine tracker** with today's doses\n- **Fitness count** for the week\n- **AI nudges** when you haven't logged in a while\n\n---\n\n## Health Sub-Modules\n\n### Weight Tracking\n**Why:** See long-term trends, not daily fluctuations\n- Log weight with optional notes\n- View progress charts over weeks/months\n- Set a goal weight in Preferences\n- AI notices trends and plateaus\n\n### Nutrition / Food Tracking\n**Why:** Understand what you eat, hit your macro goals\n- Log meals with calories and macros\n- Use Camera Scan for instant food logging\n- Track meal timing and eating pace\n- Set calorie and macro goals in Preferences\n\n### Medicine Tracking\n**Why:** Never miss a dose, track adherence over time\n- Set up your medication schedule\n- One-tap daily check-off\n- See adherence percentages\n- Get refill alerts before you run out\n\n### Vitals (Blood Pressure & SpO2)\n**Why:** Monitor cardiovascular health between doctor visits\n- Log readings with context (resting, morning, etc.)\n- Automatic categorization (normal, elevated, high)\n- See trends over time\n\n### Fasting\n**Why:** Track intermittent fasting windows\n- Start/end fasting with one tap\n- View fasting history and patterns\n- Track your fasting streaks\n\n### Fitness / Workouts\n**Why:** Build exercise consistency\n- Log workouts with type and duration\n- Use templates for common routines\n- Track weekly workout counts\n\n### Medical Providers\n**Why:** Keep all your healthcare contacts organized\n- Store doctor/clinic contact info\n- AI-assisted provider lookup\n- Track staff and portal access\n\n---\n\n## Tips for Better Health Tracking\n\n1. **Log at the same time daily** - Morning weigh-ins, evening food reviews\n2. **Use Camera Scan** - Photograph meals for quick logging\n3. **Set realistic goals** - In Preferences, set targets you'll actually hit\n4. **Check your trends** - Weekly patterns matter more than daily numbers\n5. **Enable SMS reminders** - Get medicine reminders via text\n\n---\n\n## Related Features\n- **Camera Scan** - Photograph food for instant nutrition logging\n- **Dashboard** - See today's health summary at a glance\n- **Personal Assistant** - Get health-related priorities and nudges\n- **Preferences** - Set weight and nutrition goals",
       "app_name": "health",
       "order": 1,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -69,14 +69,14 @@
     "fields": {
       "context_id": "FAITH_HOME",
       "help_id": "faith-overview",
-      "title": "Faith Module Overview",
-      "description": "Nurture your spiritual life with prayer tracking and scripture reflection.",
-      "content": "## Faith Module\n\nGrow in your spiritual journey with these tools:\n\n### Prayer Requests\n\n1. Click **\"New Prayer\"** to add a prayer request.\n2. Set priority (Normal or Urgent).\n3. Mark prayers as answered when God responds.\n4. View your answered prayer history.\n\n### Faith Milestones\n\nRecord significant spiritual moments:\n- Salvation\n- Baptism\n- Answered prayers\n- Spiritual insights\n- Community moments\n\n### Scripture\n\nReflect on Bible passages:\n1. Search for verses by reference.\n2. Save favorite passages.\n3. Add personal notes and reflections.\n\n### Daily Encouragement\n\nFaith-specific encouragements appear on your dashboard when this module is enabled.",
+      "title": "Faith: Nurture Your Spiritual Journey",
+      "description": "Track prayers, scripture, and spiritual milestones to see God's faithfulness over time.",
+      "content": "## Why Track Your Faith Journey?\n\nFaith isn't just about the present moment—it's about **seeing God's faithfulness over time**. The Faith module helps you:\n\n- **Remember answered prayers** you might otherwise forget\n- **Track spiritual growth** through milestones and reflections\n- **Build consistency** in scripture reading and prayer\n- **See patterns** in your spiritual life the AI can surface\n\n### The Dashboard Connection\n\nWith Faith enabled, your Dashboard shows:\n- **Active Prayer count** - Quick access to your prayer list\n- **Faith-based insights** - AI considers your spiritual journey in daily insights\n- **Faith-first priorities** - The Personal Assistant prioritizes faith over other areas\n- **Answered prayer celebrations** - Recognition when God responds\n\n---\n\n## Faith Features\n\n### Prayer Requests\n**Why:** Never forget what you're praying for—and celebrate when God answers\n\n1. Click **\"New Prayer\"** to add a request\n2. Set priority (Normal or Urgent)\n3. Mark as **Answered** when God responds\n4. View your history of answered prayers\n\n**The power of tracking:** Months later, review your answered prayers. You'll be amazed at God's faithfulness in ways you forgot.\n\n### Scripture\n**Why:** Save verses that speak to you for easy reference\n\n- Search for verses by reference\n- Save favorites with personal notes\n- Organize by topic or theme\n- Review during difficult times\n\n### Faith Milestones\n**Why:** Mark the moments that shaped your faith journey\n\nRecord significant spiritual moments:\n- Salvation experience\n- Baptism\n- Answered prayers\n- Spiritual insights\n- Community moments\n- Ministry experiences\n\n---\n\n## How Faith Integrates with the AI\n\nWhen faith is enabled, the Personal Assistant:\n- **Prioritizes faith first** - Spiritual matters appear before other priorities\n- **Suggests prayer time** - Gentle reminders to connect with God\n- **Notices patterns** - When you haven't prayed or read scripture in a while\n- **Celebrates faithfulness** - Acknowledges spiritual consistency\n\n---\n\n## Tips for Spiritual Growth\n\n1. **Log prayers as you pray them** - Don't wait until later\n2. **Update prayer status promptly** - Mark answered when it happens\n3. **Review answered prayers monthly** - Build your faith by remembering\n4. **Connect journal to faith** - Reflect spiritually in your journal entries\n5. **Enable SMS reminders** - Get daily prayer reminders\n\n---\n\n## Related Features\n- **Journal** - Write about spiritual experiences\n- **Personal Assistant** - Faith-first daily priorities\n- **SMS Notifications** - Daily prayer reminders via text\n- **Dashboard** - Active prayer count and faith insights",
       "app_name": "faith",
       "order": 1,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -85,14 +85,14 @@
     "fields": {
       "context_id": "SETTINGS_PREFERENCES",
       "help_id": "preferences-overview",
-      "title": "Preferences Overview",
-      "description": "Customize your Whole Life Journey experience.",
-      "content": "## Preferences\n\nPersonalize your experience with these settings:\n\n### Theme\n\nChoose a visual theme that matches your style:\n- **Minimal** - Clean and focused\n- **Faith** - Warm, spiritually grounded\n- **Sports** - Bold and performance-driven\n- **Nature** - Calm and organic\n- **Outdoors** - Adventurous and expansive\n\n### Accent Color\n\nPick a custom accent color for buttons and highlights.\n\n### Module Toggles\n\nEnable or disable modules based on what matters to you:\n- Journal\n- Faith\n- Health\n- Life\n- Purpose\n\n### AI Settings\n\n- Enable/disable AI-powered insights\n- Choose a coaching style (Supportive, Direct, Gentle, etc.)\n\n### Timezone\n\nSet your timezone for accurate streak tracking and date displays.",
+      "title": "Preferences: Make It Yours",
+      "description": "Customize your experience, set goals, and control how the AI interacts with you.",
+      "content": "## Why Preferences Matter\n\nWhole Life Journey adapts to YOU, not the other way around. Your Preferences control:\n\n- **What you see** - Enable only the modules you'll actually use\n- **How it looks** - Choose themes and colors that inspire you\n- **How the AI talks** - Pick a coaching style that motivates you\n- **Your goals** - Set weight, nutrition, and other targets\n- **Your notifications** - Control SMS reminders and alerts\n\n### The More You Customize, The Better It Works\n\nSetting clear goals in Preferences means:\n- Your Dashboard shows **progress toward YOUR targets**\n- The AI gives you **relevant, personalized insights**\n- You stay focused on **what matters to you**\n\n---\n\n## Preference Categories\n\n### Theme & Appearance\n**Why:** Work in an environment that inspires you\n\n- **Theme** - Choose from Minimal, Faith, Sports, Nature, Outdoors\n- **Accent Color** - Pick a custom highlight color\n- **Dark/Light Mode** - Follows your system or set manually\n\n### Module Toggles\n**Why:** Only see what's relevant to your life\n\nEnable or disable:\n- Journal\n- Faith (prayers, scripture, milestones)\n- Health (weight, nutrition, medicine, vitals)\n- Life (tasks, projects, events)\n- Purpose (goals, directions)\n\nDisabled modules disappear from navigation.\n\n### AI Settings\n**Why:** Get insights that actually help you\n\n- **Enable AI** - Turn on intelligent insights across the app\n- **Coaching Style** - How the AI communicates with you:\n  - Supportive Partner (warm, encouraging)\n  - Direct Coach (brief, action-focused)\n  - Gentle Guide (patient, nurturing)\n  - Wise Mentor (thoughtful, reflective)\n  - Cheerful Friend (upbeat, positive)\n  - Calm Companion (steady, peaceful)\n  - Accountability Partner (motivating, focused)\n\n### Personal Assistant\n**Why:** Get daily priorities and proactive guidance\n\n- **Enable Personal Assistant** - Adds the Assistant to your navigation\n- **Consent** - The Assistant needs deeper data access for personalization\n\n### Weight & Nutrition Goals\n**Why:** Track progress toward specific targets\n\n- **Target Weight** - Your goal weight with optional deadline\n- **Daily Calories** - Your calorie target\n- **Macro Split** - Protein/Carbs/Fat percentages\n- Presets: Balanced, High Protein, Low Carb, Keto\n\n### SMS Notifications\n**Why:** Get reminders where you'll see them\n\n- **Verify Phone** - Add and verify your phone number\n- **Categories** - Choose which reminders you want\n- **Quiet Hours** - No texts during sleep\n\n### Timezone & Location\n**Why:** Accurate times and local context\n\n- Set your timezone for correct streak tracking\n- Location enables weather-aware insights\n\n---\n\n## Tips for Optimal Settings\n\n1. **Start with fewer modules** - Add more as you build the habit\n2. **Try different coaching styles** - Change it up if one doesn't resonate\n3. **Set realistic goals** - Better to exceed than constantly fall short\n4. **Enable the Personal Assistant** - It's the most powerful feature\n5. **Use SMS reminders** - Texts are harder to ignore than app badges",
       "app_name": "users",
       "order": 1,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -101,14 +101,14 @@
     "fields": {
       "context_id": "LIFE_HOME",
       "help_id": "life-overview",
-      "title": "Life Module Overview",
-      "description": "Manage the daily operating layer of your life.",
-      "content": "## Life Module\n\nOrganize your daily life with these powerful tools:\n\n### Projects\n\nTrack larger initiatives with multiple steps:\n\n1. Click **\"New Project\"** to create a project.\n2. Set status (Active, Paused, Completed).\n3. Add tasks to break down the work.\n4. Track progress as you complete tasks.\n\n### Tasks\n\nManage your to-do list:\n\n1. Create tasks with priority levels (Now, Soon, Later).\n2. Assign due dates for time-sensitive items.\n3. Link tasks to projects for organization.\n4. Mark tasks complete as you finish them.\n\n### Events\n\nTrack important dates and appointments:\n\n1. Add life events with dates and times.\n2. Set reminders for upcoming events.\n3. View your week at a glance.\n\n### Additional Features\n\n- **Inventory** - Track your belongings\n- **Pets** - Manage pet records and care\n- **Recipes** - Save your favorite recipes\n- **Documents** - Store important documents",
+      "title": "Life: Your Daily Operating Layer",
+      "description": "Manage the practical stuff—tasks, projects, events—so nothing falls through the cracks.",
+      "content": "## Why Use the Life Module?\n\nThe Life module is where **intentions become action**. While Purpose holds your big-picture goals, Life holds the daily tasks that move you toward them. The connection matters:\n\n- **Tasks completed** feed into your Dashboard productivity stats\n- **Overdue tasks** trigger AI accountability nudges\n- **Project progress** shows in your weekly trend analysis\n- **Events** integrate with SMS reminders so you never miss important dates\n\n### The Dashboard Connection\n\nYour Life data powers:\n- **Tasks Today** tile showing your daily count\n- **Overdue task nudges** in your accountability section\n- **Productivity patterns** the AI tracks weekly\n- **Event reminders** via SMS if enabled\n\n---\n\n## Life Features\n\n### Tasks\n**Why:** Capture everything so your brain can relax\n\n1. Click **\"New Task\"** to create a task\n2. Set a title and optional description\n3. Choose priority: Now, Soon, or Later\n4. Add due date for time-sensitive items\n5. Link to a project if part of larger work\n\n**Priority levels:**\n- **Now** - Do today\n- **Soon** - This week\n- **Later** - Someday\n\n### Projects\n**Why:** Break complex work into manageable pieces\n\n1. Click **\"New Project\"** to create a project\n2. Set status: Active, Paused, or Completed\n3. Add tasks that belong to this project\n4. Track progress as tasks complete\n\n**Project-Task connection:** Completing project tasks updates your overall project progress automatically.\n\n### Events\n**Why:** Never miss important dates\n\n- Add events with dates and times\n- Set location and notes\n- View your week at a glance\n- Get SMS reminders 30 minutes before\n\n### Additional Features\n\n- **Inventory** - Track your belongings and their locations\n- **Pets** - Manage pet records, vet visits, care schedules\n- **Recipes** - Save your favorite recipes\n- **Documents** - Store important document references\n\n---\n\n## How Life Connects to Purpose\n\nThe ideal flow:\n1. Set **Annual Direction** in Purpose (your word/theme for the year)\n2. Create **Goals** that align with that direction\n3. Break goals into **Projects** in Life\n4. Break projects into **Tasks**\n5. Complete tasks daily → Projects complete → Goals achieved → Direction fulfilled\n\nThe AI sees this entire chain and helps keep you aligned.\n\n---\n\n## Tips for Task Management\n\n1. **Do a daily review** - Check your task list each morning\n2. **Use the Now/Soon/Later system** - Don't over-prioritize\n3. **Link tasks to projects** - See the bigger picture\n4. **Complete tasks promptly** - Don't let the list grow stale\n5. **Enable task SMS reminders** - Get due date notifications\n\n---\n\n## Related Features\n- **Purpose** - Your goals that tasks support\n- **Dashboard** - Today's task count and productivity patterns\n- **Personal Assistant** - Task-related priorities\n- **SMS Notifications** - Task due date reminders",
       "app_name": "life",
       "order": 1,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -117,14 +117,14 @@
     "fields": {
       "context_id": "PURPOSE_HOME",
       "help_id": "purpose-overview",
-      "title": "Purpose Module Overview",
-      "description": "Define your direction and set meaningful goals.",
-      "content": "## Purpose Module\n\nConnect with your deeper motivations and long-term direction:\n\n### Annual Direction\n\nSet your focus for the year:\n\n1. Choose a **Word of the Year** - a guiding theme.\n2. Write your **Core Theme** - what you want to accomplish.\n3. Define your **Focus Areas** - key life domains.\n4. Review and adjust throughout the year.\n\n### Life Goals\n\nSet and track meaningful goals:\n\n1. Click **\"New Goal\"** to create a goal.\n2. Add milestones to break it into steps.\n3. Track progress as you advance.\n4. Celebrate when goals are completed.\n\n### Change Intentions\n\nCapture things you want to change:\n\n1. Record areas for personal growth.\n2. Set intentions for positive change.\n3. Review periodically for accountability.\n\n### Reflection\n\nUse the Purpose module for periodic life reviews to ensure your daily actions align with your deeper values.",
+      "title": "Purpose: Your North Star",
+      "description": "Define what matters most so your daily actions align with your deeper values.",
+      "content": "## Why Purpose Matters Most\n\nPurpose is the **anchor** for everything else in Whole Life Journey. Without it, you're just logging data. With it, every task, journal entry, and health metric connects to **what you actually want from life**.\n\n### The AI Connection\n\nWhen you set Purpose content, the AI can:\n- **Detect drift** - Notice when your actions don't match your stated intentions\n- **Prioritize wisely** - Suggest priorities aligned with your goals\n- **Celebrate alignment** - Acknowledge when you're living your purpose\n- **Ask better questions** - Generate journal prompts connected to your direction\n\n---\n\n## Purpose Features\n\n### Annual Direction\n**Why:** Give your year focus and meaning\n\n1. **Word of the Year** - A single guiding word (e.g., \"Growth\", \"Peace\", \"Discipline\")\n2. **Core Theme** - What you want to accomplish this year\n3. **Focus Areas** - Key life domains to prioritize\n\n**Review quarterly** to ensure you're still on track.\n\n### Life Goals\n**Why:** Define what success looks like\n\n1. Click **\"New Goal\"** to create a goal\n2. Add milestones to break it into steps\n3. Track progress as you advance\n4. Link to projects and tasks in the Life module\n\n**Goal categories:**\n- Health & Wellness\n- Personal Growth\n- Relationships\n- Career\n- Financial\n- Spiritual\n\n### Change Intentions\n**Why:** Capture what you want to improve\n\n- Record areas for personal growth\n- Set intentions for positive change\n- Review periodically for accountability\n\n---\n\n## How Purpose Powers the AI\n\n| What You Set | How the AI Uses It |\n|--------------|--------------------|\n| Word of the Year | References it in daily insights |\n| Goals | Prioritizes related tasks |\n| Change Intentions | Watches for drift |\n| Focus Areas | Filters what matters |\n\n---\n\n## The Purpose Cascade\n\n```\nAnnual Direction (the \"why\")\n    ↓\nLife Goals (the \"what\")\n    ↓\nProjects (the \"how\", in Life module)\n    ↓\nTasks (the daily \"do\")\n```\n\nThe AI understands this hierarchy and helps you stay connected from daily tasks to yearly purpose.\n\n---\n\n## Tips for Purposeful Living\n\n1. **Set your Annual Direction first** - Everything else flows from this\n2. **Limit to 3-5 goals** - Focus beats breadth\n3. **Review monthly** - Are you moving toward your purpose?\n4. **Connect to Life module** - Create projects and tasks from goals\n5. **Journal about purpose** - Reflect on alignment regularly\n\n---\n\n## Related Features\n- **Life** - Tasks and projects that execute your purpose\n- **Journal** - Reflect on purpose alignment\n- **Personal Assistant** - Drift detection and goal reminders\n- **Dashboard** - Goal progress and purpose-aligned insights",
       "app_name": "purpose",
       "order": 1,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -134,13 +134,13 @@
       "context_id": "SETTINGS_PROFILE",
       "help_id": "profile-overview",
       "title": "Your Profile",
-      "description": "View and manage your account information.",
-      "content": "## Your Profile\n\nView your account details and activity summary.\n\n### Profile Information\n\nYour profile displays:\n- **Name** - Your display name throughout the app\n- **Email** - Your login email address\n- **Avatar** - Your profile picture\n- **Member since** - When you joined\n\n### Activity Summary\n\nQuick stats show your engagement:\n- Journal entries created\n- Prayer requests (if Faith enabled)\n- Health measurements logged\n\n### Editing Your Profile\n\nClick **\"Edit Profile\"** to update:\n- Your name\n- Email address\n- Profile picture (avatar)\n\n### Account Security\n\nTo change your password, use the password reset option from the login page.",
+      "description": "View and manage your account information and activity summary.",
+      "content": "## Your Profile\n\nYour profile is your account identity in Whole Life Journey.\n\n### Profile Information\n\nYour profile displays:\n- **Name** - How you appear throughout the app\n- **Email** - Your login address\n- **Avatar** - Your profile picture\n- **Member since** - When you joined\n\n### Activity Summary\n\nQuick stats show your overall engagement:\n- Total journal entries\n- Prayer requests (if Faith enabled)\n- Health measurements logged\n- Tasks completed\n\n### Editing Your Profile\n\nClick **\"Edit Profile\"** to update:\n- Your display name\n- Email address\n- Profile picture\n\n### Account Security\n\n- Use **Preferences > Security** for biometric login (Face ID/Touch ID)\n- To change your password, use the password reset option from the login page\n- Your data is stored securely and never shared",
       "app_name": "users",
       "order": 2,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -150,13 +150,13 @@
       "context_id": "ADMIN_CONSOLE_HOME",
       "help_id": "admin-console-overview",
       "title": "Admin Console Overview",
-      "description": "Manage your Whole Life Journey site.",
-      "content": "## Admin Console\n\nWelcome to the Admin Console - your central hub for site management.\n\n### Quick Stats\n\nThe dashboard shows key metrics:\n- Total users\n- Total journal entries\n- Active themes\n- Categories defined\n\n### Management Sections\n\n**Site Configuration**\nControl site-wide settings like branding, registration options, and default theme.\n\n**Themes**\nCreate and customize visual themes with light and dark mode colors.\n\n**Categories**\nManage content categories for organizing journal entries.\n\n**Users**\nView and manage user accounts.\n\n**Choice Categories**\nDefine dropdown options used throughout the app.\n\n**Test History** (Dev only)\nView test run history and results.\n\n### Django Admin\n\nFor advanced database access, click **\"Django Admin\"** to access the full Django admin interface.",
+      "description": "Manage your Whole Life Journey site settings and users.",
+      "content": "## Admin Console\n\nThe Admin Console is the management hub for site-wide settings.\n\n### Quick Stats\n\nThe dashboard shows:\n- Total users\n- Total journal entries\n- Active themes\n- Categories defined\n\n### Management Sections\n\n**Site Configuration** - Branding, registration, default settings\n\n**Themes** - Create and customize visual themes\n\n**Categories** - Manage content organization\n\n**Users** - View and manage accounts\n\n**Choice Categories** - Define dropdown options\n\n**Help Topics** - Manage help content\n\n### Django Admin\n\nFor advanced database access, click **\"Django Admin\"** to access the full interface.",
       "app_name": "admin_console",
       "order": 1,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -166,13 +166,13 @@
       "context_id": "ADMIN_CONSOLE_SITE_CONFIG",
       "help_id": "admin-console-site-config",
       "title": "Site Configuration",
-      "description": "Configure site-wide settings and branding.",
-      "content": "## Site Configuration\n\nControl your site's appearance and behavior.\n\n### Branding\n\n- **Site Name** - Displayed in the browser title bar and headers\n- **Tagline** - Shown on the landing page\n- **Logo** - Upload a custom logo (recommended: 200x64 pixels)\n- **Favicon** - Your browser tab icon (32x32 PNG)\n\n### Registration Settings\n\n- **Allow Registration** - Enable or disable new user signups\n- **Require Email Verification** - Force users to verify their email\n- **Faith Enabled by Default** - Whether new users have Faith module enabled\n\n### Default Theme\n\nSelect which theme new users will see by default.\n\n### Footer & Legal\n\n- **Footer Text** - Copyright notice\n- **Privacy Policy URL** - Link to your privacy policy\n- **Terms URL** - Link to your terms of service\n\n### Saving Changes\n\nClick **Save Configuration** at the bottom. Changes take effect immediately.",
+      "description": "Configure site-wide settings, branding, and defaults.",
+      "content": "## Site Configuration\n\nControl your site's appearance and behavior.\n\n### Branding\n- **Site Name** - Browser title and headers\n- **Tagline** - Landing page message\n- **Logo** - Custom logo (200x64 recommended)\n- **Favicon** - Browser tab icon (32x32 PNG)\n\n### Registration Settings\n- **Allow Registration** - Enable/disable signups\n- **Require Email Verification** - Force email confirmation\n- **Faith Enabled by Default** - New user Faith module setting\n\n### Default Theme\nSelect the theme new users see initially.\n\n### Footer & Legal\n- Footer text and copyright\n- Privacy Policy URL\n- Terms of Service URL\n\n### Saving Changes\nClick **Save Configuration** - changes apply immediately.",
       "app_name": "admin_console",
       "order": 2,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -182,13 +182,13 @@
       "context_id": "ADMIN_CONSOLE_THEMES",
       "help_id": "admin-console-themes",
       "title": "Theme Management",
-      "description": "Create and customize visual themes.",
-      "content": "## Theme Management\n\nThemes control the visual appearance of your site.\n\n### Theme Properties\n\n- **Name** - Displayed to users in preferences\n- **Slug** - Unique identifier (lowercase, no spaces)\n- **Description** - Brief description of the theme's style\n- **Sort Order** - Display position in theme picker\n\n### Color Settings\n\nEach theme has colors for both light and dark modes:\n\n**Primary Colors**\n- Primary - Main brand color\n- Secondary - Supporting color\n- Accent - Highlight color for buttons, links\n\n**Text Colors**\n- Text - Main body text\n- Text Muted - Secondary/subdued text\n\n**Background Colors**\n- Background - Page background\n- Surface - Card/panel backgrounds\n- Border - Lines and dividers\n\n### Creating a Theme\n\n1. Click **\"Add Theme\"**\n2. Fill in the name, slug, and description\n3. Set all color values using hex codes (#ffffff)\n4. Check **Active** to make it available to users\n5. Click **Save**\n\n### Tips\n\n- Test themes in both light and dark mode\n- Ensure good contrast for accessibility\n- Preview changes before activating",
+      "description": "Create and customize visual themes for your site.",
+      "content": "## Theme Management\n\nThemes control the visual appearance of your site.\n\n### Theme Properties\n- **Name** - Displayed in preferences\n- **Slug** - Unique identifier\n- **Description** - Style description\n- **Sort Order** - Display position\n\n### Color Settings\n\nEach theme has light and dark mode colors:\n\n**Primary Colors:** Primary, Secondary, Accent\n\n**Text Colors:** Text, Text Muted\n\n**Background Colors:** Background, Surface, Border\n\n### Creating a Theme\n1. Click **\"Add Theme\"**\n2. Fill in name, slug, description\n3. Set all hex color values (#ffffff)\n4. Check **Active** for availability\n5. Click **Save**\n\n### Tips\n- Test in both light and dark mode\n- Ensure good contrast for accessibility\n- Preview before activating",
       "app_name": "admin_console",
       "order": 3,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   },
   {
@@ -199,12 +199,124 @@
       "help_id": "admin-console-users",
       "title": "User Management",
       "description": "View and manage user accounts.",
-      "content": "## User Management\n\nView and manage all user accounts.\n\n### User List\n\nThe user list shows:\n- Name and email\n- Staff/admin status\n- Date joined\n- Last login\n\n### User Details\n\nClick on a user to view:\n- Account information\n- Activity statistics\n- Preference settings\n\n### Staff Status\n\nUsers with **Staff** status can:\n- Access the Admin Console\n- Access the Django Admin\n- Manage site content\n\n### Creating Users\n\nTo create new admin users, use the Django Admin interface.\n\n### Security Notes\n\n- Only grant staff access to trusted users\n- Review user activity periodically\n- Use strong passwords",
+      "content": "## User Management\n\nView and manage all user accounts.\n\n### User List\nShows name, email, staff status, join date, last login.\n\n### User Details\nClick a user to view account info, activity stats, and preferences.\n\n### Staff Status\nStaff users can access Admin Console and Django Admin.\n\n### Creating Users\nUse Django Admin for new admin accounts.\n\n### Security Notes\n- Only grant staff to trusted users\n- Review user activity periodically\n- Enforce strong passwords",
       "app_name": "admin_console",
       "order": 4,
       "is_active": true,
       "created_at": "2024-12-27T00:00:00Z",
-      "updated_at": "2024-12-27T00:00:00Z"
+      "updated_at": "2025-12-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 14,
+    "fields": {
+      "context_id": "NUTRITION_HOME",
+      "help_id": "nutrition-overview",
+      "title": "Nutrition: Fuel Your Body Intentionally",
+      "description": "Track what you eat to understand your patterns and hit your macro goals.",
+      "content": "## Why Track Nutrition?\n\nYou can't manage what you don't measure. Nutrition tracking helps you:\n\n- **Understand your patterns** - When do you overeat? Undereat protein?\n- **Hit your goals** - See exactly where you stand on calories and macros\n- **Identify triggers** - Connect eating habits to mood, stress, and time of day\n- **Make informed choices** - Know the impact before you eat\n\n### The Dashboard Connection\n\nYour nutrition data powers:\n- **Today's Nutrition** summary with calorie and macro progress\n- **AI insights** about eating patterns\n- **Personal Assistant** nudges when you're off-target\n- **Trend analysis** showing weekly and monthly patterns\n\n---\n\n## How to Log Food\n\n### Method 1: Camera Scan (Fastest)\n1. Click **Scan** in the navigation\n2. Point camera at your food or nutrition label\n3. AI identifies the food and estimates nutrition\n4. Review and save the pre-filled entry\n\n### Method 2: Quick Add\n1. From Nutrition page, click **\"Quick Add\"**\n2. Enter food name and basics (calories at minimum)\n3. Save quickly without full detail\n\n### Method 3: Full Entry\n1. Click **\"Add Food Entry\"**\n2. Fill in all nutritional details\n3. Add meal type, location, eating pace\n4. Include hunger/fullness levels for mindful eating\n\n---\n\n## Tracking Details\n\n### Meal Types\n- Breakfast, Lunch, Dinner, Snack\n\n### Location Context\n- Home, Restaurant, Work, Travel, Other\n\n### Eating Pace\n- Rushed, Normal, Slow/Mindful\n\n### Hunger & Fullness\n- 1-5 scale to build mindful eating awareness\n\n---\n\n## Setting Nutrition Goals\n\nIn **Preferences > Weight & Nutrition Goals**:\n\n1. **Daily Calorie Goal** - Your target intake\n2. **Macro Split** - Protein/Carbs/Fat percentages\n3. Use presets: Balanced, High Protein, Low Carb, Keto\n\nOnce set, your Dashboard shows progress bars for each.\n\n---\n\n## Tips for Successful Tracking\n\n1. **Log before you eat** - Easier than remembering later\n2. **Use Camera Scan** - AI does the work for packaged foods\n3. **Don't aim for perfection** - Close estimates beat no data\n4. **Review weekly trends** - Daily variation is normal\n5. **Create custom foods** - Save your common meals for quick logging\n\n---\n\n## Related Features\n- **Camera Scan** - Photograph food for instant logging\n- **Dashboard** - Today's nutrition summary\n- **Preferences** - Set calorie and macro goals\n- **Personal Assistant** - Nutrition-related priorities",
+      "app_name": "health",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2025-12-31T00:00:00Z",
+      "updated_at": "2025-12-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 15,
+    "fields": {
+      "context_id": "HEALTH_MEDICINE_HOME",
+      "help_id": "medicine-overview",
+      "title": "Medicine Tracking: Never Miss a Dose",
+      "description": "Track your medications, monitor adherence, and get refill reminders.",
+      "content": "## Why Track Medicine?\n\nMedication adherence is one of the most impactful health behaviors—and one of the hardest to maintain. Medicine tracking helps you:\n\n- **Never miss a dose** - Visual schedules and SMS reminders\n- **Build consistency** - See your adherence rate over time\n- **Catch refill needs early** - Alerts before you run out\n- **Inform your doctor** - Share accurate adherence data at appointments\n\n### The Dashboard Connection\n\nYour medicine data appears on your Dashboard as:\n- **Medicine Doses** tile with today's status\n- **Adherence insights** from the AI\n- **Refill alerts** in the nudges section\n- **Trend analysis** in weekly reports\n\n---\n\n## Setting Up Medicines\n\n### Adding a Medicine\n1. Go to **Health > Medicine**\n2. Click **\"Add Medicine\"**\n3. Enter: Name, dose, frequency\n4. Set schedule: days and times\n5. Add doctor and pharmacy (optional)\n6. Set refill alert threshold\n\n### Schedule Options\n- **Daily** - Same times every day\n- **Specific days** - Weekly medications\n- **PRN (As Needed)** - Track when you take it\n\n---\n\n## Daily Tracking\n\n### One-Tap Check-Off\n1. Visit **Health > Medicine** each day\n2. See today's schedule with status badges\n3. Tap to mark as **Taken**, **Missed**, or **Skipped**\n\n### Status Badges\n- 🟢 **Taken** - Dose completed\n- 🟡 **Pending** - Not yet due\n- 🔴 **Overdue** - Past due time\n- ⚪ **Skipped** - Intentionally skipped\n\n### SMS Reminders\nEnable in **Preferences > SMS Notifications**:\n- Get text reminders at scheduled times\n- Reply **D** for Done, **R** for Remind Me, **N** for Skip\n- Log doses directly from text messages\n\n---\n\n## Refill Tracking\n\n### Setting Up Refill Alerts\n1. Enter **current quantity** and **pills per dose**\n2. System calculates days remaining\n3. Alert triggers at your set threshold\n\n### Refill Request Tracking\n1. When low, click **\"Request Refill\"**\n2. Status changes to \"Refill Requested\"\n3. Dashboard shows pending refill\n4. When received, click **\"Refill Received\"**\n\n---\n\n## Adherence Tracking\n\n### View Your Adherence\n- **Daily view** - Today's completion rate\n- **Weekly view** - 7-day adherence percentage\n- **Monthly view** - Long-term consistency\n- **By medicine** - See which meds you miss most\n\n### Quick Look\nClick **\"Quick Look\"** for a screenshot-friendly view of your medicine list—great for sharing with doctors.\n\n---\n\n## Tips for Better Adherence\n\n1. **Enable SMS reminders** - Text messages are harder to ignore\n2. **Use consistent times** - Same time each day builds habit\n3. **Log immediately** - Don't wait until later\n4. **Review weekly** - Identify patterns in missed doses\n5. **Pause when needed** - Pause medications without losing history\n\n---\n\n## Related Features\n- **SMS Notifications** - Medicine reminders via text\n- **Dashboard** - Today's medicine status\n- **Camera Scan** - Photograph medicine bottles to add\n- **Personal Assistant** - Medicine-related priorities",
+      "app_name": "health",
+      "order": 3,
+      "is_active": true,
+      "created_at": "2025-12-31T00:00:00Z",
+      "updated_at": "2025-12-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 16,
+    "fields": {
+      "context_id": "SCAN_HOME",
+      "help_id": "scan-overview",
+      "title": "Camera Scan: AI-Powered Quick Entry",
+      "description": "Photograph items to instantly log food, medicine, documents, and more.",
+      "content": "## Why Use Camera Scan?\n\nCamera Scan removes the friction from logging. Instead of typing nutritional data or medicine names, just **point and shoot**:\n\n- **Food/Nutrition** - Photograph meals or nutrition labels for instant macro entry\n- **Medicine** - Scan bottles to add medications\n- **Documents** - Capture important papers\n- **Receipts** - Log expenses quickly\n\n### The Time Savings\n\nManual food entry: 2-3 minutes per meal\nCamera scan: 10 seconds\n\nOver a week, that's **30+ minutes saved** on food logging alone.\n\n---\n\n## How to Use Camera Scan\n\n### Taking a Photo\n1. Click **Scan** in the main navigation\n2. Grant camera permission if prompted\n3. Point at your item (food, medicine, document)\n4. Tap **capture** or use file upload\n5. Wait for AI analysis (2-5 seconds)\n\n### What the AI Detects\n\n| Item Type | What Happens |\n|-----------|-------------|\n| **Packaged Food** | Identifies brand, looks up nutrition facts |\n| **Home-Cooked Food** | Estimates portions and macros |\n| **Nutrition Label** | Reads and extracts all data |\n| **Medicine Bottle** | Extracts name, dose, pharmacy |\n| **Document** | Categorizes and offers to save |\n| **Receipt** | Extracts items and totals |\n\n### After Analysis\n\nYou'll see:\n- What the AI identified\n- Pre-filled form with extracted data\n- Suggested actions (log food, add medicine, etc.)\n- Option to edit before saving\n\n---\n\n## Food Recognition Details\n\n### For Packaged Foods\n- AI identifies brand and product name\n- Looks up actual nutritional data\n- Returns calories, protein, carbs, fat, fiber, sugar\n- Includes standard serving size\n\n### For Home-Cooked/Restaurant Food\n- AI estimates portion size visually\n- Uses nutritional databases for identified ingredients\n- Considers visible preparation methods\n- Estimates are good approximations, not exact\n\n---\n\n## Tips for Best Results\n\n1. **Good lighting** - Natural light works best\n2. **Clear focus** - Make sure text is readable\n3. **Include labels** - Nutrition facts labels give best accuracy\n4. **Whole plate visible** - For portion estimation\n5. **Steady hand** - Avoid blur\n\n---\n\n## Privacy & Security\n\n- **No permanent storage** - Images are processed and deleted\n- **Encrypted transmission** - Your photos are secure\n- **No sharing** - Data stays in your account only\n- **Optional** - You can always use manual entry instead\n\n---\n\n## Related Features\n- **Nutrition Tracking** - Where food scans end up\n- **Medicine Tracking** - Where medicine scans end up\n- **Dashboard** - See logged data in your daily view\n- **AI Settings** - Camera scan requires AI to be enabled",
+      "app_name": "scan",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2025-12-31T00:00:00Z",
+      "updated_at": "2025-12-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 17,
+    "fields": {
+      "context_id": "ASSISTANT_HOME",
+      "help_id": "assistant-overview",
+      "title": "Personal Assistant: Your AI-Powered Guide",
+      "description": "Get daily priorities, trend analysis, and proactive guidance based on your data.",
+      "content": "## Why Use the Personal Assistant?\n\nThe Personal Assistant isn't a chatbot or cheerleader—it's a **task-focused guide** that helps you take action. Unlike the Dashboard (which shows data), the Assistant tells you **what to do next**.\n\n### What Makes It Different\n\n| Dashboard | Personal Assistant |\n|-----------|---------|\n| Shows your data | Interprets your data |\n| Celebrates wins | Focuses on gaps |\n| Passive display | Proactive suggestions |\n| General insights | Specific priorities |\n\n---\n\n## Personal Assistant Features\n\n### Daily Priorities\nEach morning, the Assistant analyzes your data and suggests:\n1. What needs attention today\n2. Ordered by importance (faith first, then purpose, then maintenance)\n3. Completable with one click\n\n### Opening Message\nA brief daily check-in that:\n- Acknowledges your current state\n- Highlights what matters today\n- Sets the tone based on your coaching style\n\n### Trend Analysis\n- **Weekly Analysis** - Patterns from the last 7 days\n- **Monthly Analysis** - Bigger-picture trends\n- **Drift Detection** - When your actions don't match your intentions\n\n### Reflection Prompts\nPersonalized journaling suggestions based on:\n- Your recent activity\n- Gaps in your tracking\n- Goals you've set\n- Patterns the AI notices\n\n---\n\n## Priority Ordering (Faith-First)\n\nIf you have Faith enabled, priorities follow this order:\n\n1. **Faith** - Prayer, scripture, spiritual practices\n2. **Purpose** - Goals and annual direction\n3. **Long-term goals** - Active goal milestones\n4. **Commitments** - Tasks and events\n5. **Maintenance** - Health tracking, routines\n6. **Optional** - Nice-to-haves\n\nThis ensures what matters most gets attention first.\n\n---\n\n## Using the Assistant\n\n### Viewing Priorities\n1. Click **Assistant** in the navigation\n2. See today's priorities with action buttons\n3. Click to complete, dismiss, or get details\n\n### Chatting\n- Ask questions about your data\n- Get clarification on priorities\n- Request analysis of specific areas\n\n### Completing Priorities\n- Click ✓ when done\n- Priority marked complete (not regenerated today)\n- Contributes to completion stats\n\n---\n\n## Enabling the Personal Assistant\n\nThe Assistant requires extra consent because it accesses more of your data:\n\n1. Go to **Preferences > AI Settings**\n2. Enable **AI Features** if not already\n3. Enable **Personal Assistant**\n4. Accept the consent for deeper data access\n5. Assistant link appears in navigation\n\n---\n\n## What the Assistant Sees\n\nTo provide useful guidance, the Assistant analyzes:\n- Journal entries and mood patterns\n- Health data and adherence rates\n- Task completion and overdue items\n- Prayer requests and faith activity\n- Goal progress and drift from intentions\n\n**This is why separate consent is required.**\n\n---\n\n## Tips for Getting Value\n\n1. **Check it daily** - Morning review of priorities\n2. **Complete promptly** - Mark done when you finish\n3. **Log consistently** - Better data = better suggestions\n4. **Set clear Purpose** - The AI needs to know your intentions\n5. **Read weekly analysis** - Big-picture patterns are revealing\n\n---\n\n## Related Features\n- **Dashboard** - Where insights appear\n- **Purpose** - Your goals that drive priorities\n- **Journal** - Reflection prompts link here\n- **Preferences** - Enable/configure the Assistant",
+      "app_name": "ai",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2025-12-31T00:00:00Z",
+      "updated_at": "2025-12-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 18,
+    "fields": {
+      "context_id": "SMS_SETTINGS",
+      "help_id": "sms-overview",
+      "title": "SMS Notifications: Reminders Where You'll See Them",
+      "description": "Get text message reminders for medicines, tasks, events, and more.",
+      "content": "## Why SMS Notifications?\n\nApp notifications are easy to ignore. Text messages aren't. SMS notifications ensure you:\n\n- **Never miss a medicine dose** - Texts arrive at scheduled times\n- **Stay on top of tasks** - Due date reminders via text\n- **Remember events** - 30-minute advance notice\n- **Can respond quickly** - Reply to log without opening the app\n\n### The Quick Reply System\n\nWhen you get a medicine reminder, reply:\n- **D** (Done) - Mark taken immediately\n- **R** (Remind) - Get another reminder in 5 minutes\n- **N** (No/Skip) - Skip this dose\n\nNo app needed. Just text back.\n\n---\n\n## Setting Up SMS\n\n### Step 1: Add Your Phone\n1. Go to **Preferences > SMS Notifications**\n2. Enter your phone number\n3. Click **\"Send Verification Code\"**\n4. Enter the 6-digit code you receive\n5. Phone is now verified\n\n### Step 2: Enable SMS\n1. Toggle **\"Enable SMS Notifications\"** on\n2. Accept the SMS consent\n\n### Step 3: Choose Categories\nSelect which reminders you want:\n- ✅ Medicine reminders\n- ✅ Medicine refill alerts\n- ✅ Task due date reminders\n- ✅ Event reminders\n- ✅ Prayer reminders (if Faith enabled)\n- ✅ Fasting reminders\n\n### Step 4: Set Quiet Hours\nNo texts during sleep:\n- Set start time (e.g., 10:00 PM)\n- Set end time (e.g., 7:00 AM)\n- Reminders queue until quiet hours end\n\n---\n\n## Notification Types\n\n| Type | When Sent | Example |\n|------|-----------|----------|\n| Medicine | At scheduled time | \"Time for Metformin. Reply D/R/N\" |\n| Refill Alert | When supply low | \"Low supply: Metformin (3 days left)\" |\n| Task Due | On due date | \"Due today: Buy groceries\" |\n| Event | 30 min before | \"In 30 min: Doctor appt\" |\n| Prayer | Morning | \"Take a moment for prayer today\" |\n| Fasting | Window times | \"Eating window opens at noon\" |\n\n---\n\n## Reply Codes\n\n| You Text | What Happens |\n|----------|-------------|\n| D, done, yes, taken | Mark complete |\n| R, R5, R10, R30 | Remind in X minutes |\n| N, no, skip | Skip/dismiss |\n\nCodes are case-insensitive.\n\n---\n\n## Costs\n\nSMS is a premium feature with real carrier costs:\n- Outbound: ~$0.008/message\n- Inbound: ~$0.008/message\n\n**Example:** 3 medicine reminders/day = ~$0.72/month\n\nYour site admin manages the Twilio account.\n\n---\n\n## Tips for Best Use\n\n1. **Start with medicine only** - Most impactful category\n2. **Set appropriate quiet hours** - Avoid late-night texts\n3. **Use reply codes** - Faster than opening the app\n4. **Check SMS history** - View all sent messages in app\n\n---\n\n## Related Features\n- **Medicine Tracking** - Primary use case for SMS\n- **Life Events** - Event reminders via SMS\n- **Preferences** - Configure all SMS settings\n- **Faith** - Daily prayer reminders",
+      "app_name": "sms",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2025-12-31T00:00:00Z",
+      "updated_at": "2025-12-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 19,
+    "fields": {
+      "context_id": "HEALTH_VITALS",
+      "help_id": "vitals-overview",
+      "title": "Vitals: Monitor Your Cardiovascular Health",
+      "description": "Track blood pressure and blood oxygen to spot trends between doctor visits.",
+      "content": "## Why Track Vitals?\n\nVitals like blood pressure and blood oxygen change gradually. By tracking them yourself, you can:\n\n- **Catch trends early** - Gradual changes are hard to feel\n- **Prepare for appointments** - Bring real data to your doctor\n- **Understand your patterns** - Morning vs evening, resting vs stressed\n- **Get categorization** - Know if readings are normal, elevated, or concerning\n\n### The Dashboard Connection\n\nYour vitals data appears on:\n- **Health home page** - Latest readings with category badges\n- **AI insights** - Patterns and trends over time\n- **Personal Assistant** - Alerts for concerning readings\n\n---\n\n## Blood Pressure Tracking\n\n### Logging a Reading\n1. Go to **Health > Blood Pressure**\n2. Click **\"Log Reading\"**\n3. Enter systolic (top number) and diastolic (bottom number)\n4. Add pulse if you know it\n5. Select context (resting, morning, post-exercise, etc.)\n6. Note which arm and your position\n7. Save\n\n### Categories (AHA Guidelines)\n\n| Category | Systolic | Diastolic |\n|----------|----------|-----------|\n| 🟢 Normal | <120 | AND <80 |\n| 🟡 Elevated | 120-129 | AND <80 |\n| 🟠 High Stage 1 | 130-139 | OR 80-89 |\n| 🔴 High Stage 2 | ≥140 | OR ≥90 |\n| ⚫ Crisis | ≥180 | OR ≥120 |\n\n### Context Options\n- Resting, Morning, Evening\n- Post-Exercise, Stressed, Relaxed\n- At Doctor's Office\n\n---\n\n## Blood Oxygen (SpO2) Tracking\n\n### Logging a Reading\n1. Go to **Health > Blood Oxygen**\n2. Click **\"Log Reading\"**\n3. Enter SpO2 percentage\n4. Add pulse if available\n5. Select context and measurement method\n6. Save\n\n### Categories\n\n| Category | SpO2 |\n|----------|------|\n| 🟢 Normal | ≥95% |\n| 🟡 Low | 90-94% |\n| 🟠 Concerning | 85-89% |\n| 🔴 Critical | <85% |\n\n### Measurement Methods\n- Finger pulse oximeter\n- Wrist device\n- Ear clip\n- Other\n\n---\n\n## Tips for Accurate Tracking\n\n### Blood Pressure\n1. **Sit quietly for 5 minutes** before measuring\n2. **Same time daily** for comparable readings\n3. **Arm at heart level** for accuracy\n4. **Avoid caffeine/exercise** for 30 minutes before\n5. **Take 2-3 readings** and log the average\n\n### Blood Oxygen\n1. **Warm hands** for better readings\n2. **Remove nail polish** if using finger\n3. **Stay still** during measurement\n4. **Resting readings** are most useful for trends\n\n---\n\n## Related Features\n- **Health Home** - Vitals cards with quick access\n- **Dashboard** - AI notices concerning patterns\n- **Medical Providers** - Share data with your doctor\n- **Personal Assistant** - Vitals-related priorities",
+      "app_name": "health",
+      "order": 4,
+      "is_active": true,
+      "created_at": "2025-12-31T00:00:00Z",
+      "updated_at": "2025-12-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 20,
+    "fields": {
+      "context_id": "HEALTH_PROVIDERS",
+      "help_id": "providers-overview",
+      "title": "Medical Providers: Your Healthcare Contacts",
+      "description": "Store doctor contacts, patient portal access, and staff information in one place.",
+      "content": "## Why Store Provider Information?\n\nWhen you need medical help, you want information fast. The Providers feature helps you:\n\n- **Find contact info quickly** - No searching through papers\n- **Access patient portals** - Stored URLs and usernames\n- **Know your care team** - Track staff members you work with\n- **Use AI lookup** - Let AI find provider details for you\n\n---\n\n## Adding a Provider\n\n### Manual Entry\n1. Go to **Health > Providers**\n2. Click **\"Add Provider\"**\n3. Enter name and specialty\n4. Add contact info (phone, fax, address)\n5. Add patient portal URL and username\n6. Mark as primary care if applicable\n7. Save\n\n### AI-Assisted Lookup\n1. Start adding a provider\n2. Enter just the name and city/state\n3. Click **\"Search with AI\"**\n4. AI finds and pre-fills:\n   - Phone and fax numbers\n   - Full address\n   - Website URL\n   - Specialty and credentials\n   - NPI number\n5. Review and save\n\n---\n\n## Provider Information\n\n### Contact Details\n- Phone (primary and alternate)\n- Fax number\n- Email address\n- Website\n- Full address\n\n### Practice Details\n- Specialty (27 options)\n- Credentials (MD, DO, PA-C, etc.)\n- NPI number\n- Insurance accepted\n\n### Patient Portal\n- Portal URL\n- Username (not password - stored locally only)\n\n### Staff Members\nAdd PAs, nurses, and staff you interact with:\n- Name and role\n- Direct phone/extension\n- Email\n\n---\n\n## Specialties Available\n\nPrimary Care, Cardiology, Dentistry, Dermatology, Endocrinology, Gastroenterology, Neurology, OB/GYN, Oncology, Ophthalmology, Orthopedics, Pediatrics, Psychiatry, Pulmonology, Radiology, Rheumatology, Urology, Physical Therapy, Pharmacy, Lab/Imaging, Urgent Care, Emergency, Hospital, Specialist, Mental Health, Nutrition, Other\n\n---\n\n## Tips for Organization\n\n1. **Mark your primary care** - Appears first and on Health home\n2. **Add staff members** - Remember who you talked to\n3. **Store portal URLs** - Direct links to patient portals\n4. **Use AI lookup** - Faster than manual search\n5. **Add notes** - Personal reminders about the practice\n\n---\n\n## Related Features\n- **Medicine Tracking** - Link medicines to prescribing doctors\n- **Health Home** - Primary provider quick access\n- **Vitals** - Share data with providers",
+      "app_name": "health",
+      "order": 5,
+      "is_active": true,
+      "created_at": "2025-12-31T00:00:00Z",
+      "updated_at": "2025-12-31T00:00:00Z"
     }
   }
 ]

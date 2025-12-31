@@ -34,6 +34,8 @@ Copyright:
     without explicit permission.
 """
 
+import datetime
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
@@ -357,6 +359,80 @@ class UserPreferences(models.Model):
     biometric_login_enabled = models.BooleanField(
         default=False,
         help_text="Enable Face ID, Touch ID, or device biometrics for quick login",
+    )
+
+    # ===================
+    # SMS NOTIFICATIONS
+    # ===================
+    # Phone number and verification
+    phone_number = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Phone number in E.164 format (e.g., +1XXXXXXXXXX)",
+    )
+    phone_verified = models.BooleanField(
+        default=False,
+        help_text="Has the phone number been verified via SMS code?",
+    )
+    phone_verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the phone was verified",
+    )
+
+    # SMS master toggle and consent
+    sms_enabled = models.BooleanField(
+        default=False,
+        help_text="Master toggle for SMS notifications",
+    )
+    sms_consent = models.BooleanField(
+        default=False,
+        help_text="User has consented to receive SMS notifications",
+    )
+    sms_consent_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When user consented to SMS notifications",
+    )
+
+    # Category preferences (what to text about)
+    sms_medicine_reminders = models.BooleanField(
+        default=True,
+        help_text="Send SMS reminders for medicine doses",
+    )
+    sms_medicine_refill_alerts = models.BooleanField(
+        default=True,
+        help_text="Send SMS alerts when medicine supply is low",
+    )
+    sms_task_reminders = models.BooleanField(
+        default=True,
+        help_text="Send SMS reminders for task due dates",
+    )
+    sms_event_reminders = models.BooleanField(
+        default=True,
+        help_text="Send SMS reminders for calendar events",
+    )
+    sms_prayer_reminders = models.BooleanField(
+        default=False,
+        help_text="Send daily prayer reminders",
+    )
+    sms_fasting_reminders = models.BooleanField(
+        default=False,
+        help_text="Send fasting window reminders",
+    )
+
+    # Quiet hours
+    sms_quiet_hours_enabled = models.BooleanField(
+        default=True,
+        help_text="Respect quiet hours for SMS notifications",
+    )
+    sms_quiet_start = models.TimeField(
+        default=datetime.time(22, 0),
+        help_text="Start of quiet hours (no SMS)",
+    )
+    sms_quiet_end = models.TimeField(
+        default=datetime.time(7, 0),
+        help_text="End of quiet hours",
     )
 
     # ===================

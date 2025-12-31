@@ -86,6 +86,8 @@ urlpatterns = [
     path('scan/', include('apps.scan.urls', namespace='scan')),
     # AI Personal Assistant
     path('assistant/', include('apps.ai.urls', namespace='ai')),
+    # SMS Notifications
+    path('sms/', include('apps.sms.urls', namespace='sms')),
 ]
 
 # Serve media files

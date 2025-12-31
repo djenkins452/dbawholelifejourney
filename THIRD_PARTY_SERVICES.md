@@ -476,6 +476,56 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
+## SMS Notifications
+
+### 20. Twilio
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | Twilio |
+| **Type** | REST API & SDK |
+| **Pricing** | Paid (usage-based) |
+| **Status** | Active |
+
+**Purpose:**
+- SMS text message notifications for reminders
+- Medicine dose reminders with reply shortcuts (D=Done, R=Remind, N=Skip)
+- Task due date reminders
+- Calendar event reminders
+- Phone number verification via Twilio Verify
+
+**Configuration (Environment Variables):**
+- `TWILIO_ACCOUNT_SID` - Twilio account SID
+- `TWILIO_AUTH_TOKEN` - Twilio auth token
+- `TWILIO_PHONE_NUMBER` - Sender phone number (E.164 format: +1XXXXXXXXXX)
+- `TWILIO_VERIFY_SERVICE_SID` - Twilio Verify service SID for phone verification
+- `TWILIO_TEST_MODE` - Set to true for development (logs instead of sending)
+- `SMS_TRIGGER_TOKEN` - Secret token for external cron trigger endpoints
+
+**Key Files:**
+- `config/settings.py` (lines 556-577)
+- `apps/sms/services.py` - TwilioService, SMSNotificationService
+- `apps/sms/scheduler.py` - SMSScheduler
+- `apps/sms/views.py` - Webhooks and verification views
+- `apps/sms/models.py` - SMSNotification, SMSResponse models
+- `apps/users/models.py` - SMS preference fields in UserPreferences
+- `requirements.txt` (twilio>=9.0.0)
+
+**User Consent:**
+- Explicit opt-in required via phone verification and `sms_consent` field
+- Users can reply STOP to unsubscribe (Twilio handles this)
+
+**Webhook URLs (configure in Twilio Console):**
+- Incoming SMS: `/sms/webhook/incoming/`
+- Delivery Status: `/sms/webhook/status/`
+
+**Cost Estimates:**
+- Phone Number: ~$1.15/month
+- Outbound SMS: ~$0.0079/message
+- Inbound SMS: ~$0.0079/message
+- Twilio Verify: ~$0.05/verification
+
+---
+
 ## Services NOT Currently Used
 
 The following services are NOT integrated but may be considered for future use:
@@ -487,7 +537,6 @@ The following services are NOT integrated but may be considered for future use:
 | Google Analytics | User analytics | Not integrated |
 | Mixpanel | Product analytics | Not integrated |
 | Firebase | Push notifications | Not integrated |
-| Twilio | SMS notifications | Not integrated |
 | AWS S3 | Alternative storage | Not integrated (uses Cloudinary) |
 
 ---
@@ -515,6 +564,7 @@ The following services are NOT integrated but may be considered for future use:
 | 17 | Railway | PaaS | Paid (usage) | Active |
 | 18 | GitHub | Source Control | Free | Active |
 | 19 | Zippopotam.us | Location API | Free | Deprecated |
+| 20 | Twilio | SMS API | Paid (usage) | Active |
 
 ---
 
@@ -535,4 +585,4 @@ The following services are NOT integrated but may be considered for future use:
 
 ---
 
-*Last Updated: 2025-12-28*
+*Last Updated: 2025-12-30*

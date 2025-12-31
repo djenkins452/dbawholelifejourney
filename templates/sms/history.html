@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}SMS History - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'users:preferences' %}">Settings</a>
+        <span>/</span>
+        <span>SMS History</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">SMS Notification History</h1>
+            <p class="page-subtitle">View your recent SMS reminders and responses</p>
+        </div>
+        <a href="{% url 'users:preferences' %}" class="btn btn-secondary">
+            ← Back to Preferences
+        </a>
+    </div>
+
+    {% if not notifications %}
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-icon">📱</div>
+            <h3>No SMS notifications yet</h3>
+            <p class="text-muted">
+                Once you enable SMS notifications and verify your phone number,
+                your notification history will appear here.
+            </p>
+            <a href="{% url 'users:preferences' %}" class="btn btn-primary mt-4">
+                Set Up SMS Notifications
+            </a>
+        </div>
+    </div>
+    {% else %}
+
+    <div class="sms-history">
+        {% for date, day_notifications in grouped_notifications.items %}
+        <div class="sms-day-group">
+            <h3 class="day-header">
+                {{ date|date:"l, F j, Y" }}
+            </h3>
+
+            <div class="notification-list">
+                {% for notification in day_notifications %}
+                <div class="notification-card status-{{ notification.status }}">
+                    <div class="notification-icon">
+                        {% if notification.category == 'medicine' %}
+                        💊
+                        {% elif notification.category == 'medicine_refill' %}
+                        📦
+                        {% elif notification.category == 'task' %}
+                        ✅
+                        {% elif notification.category == 'event' %}
+                        📅
+                        {% elif notification.category == 'prayer' %}
+                        🙏
+                        {% elif notification.category == 'fasting' %}
+                        ⏱️
+                        {% else %}
+                        📱
+                        {% endif %}
+                    </div>
+
+                    <div class="notification-content">
+                        <div class="notification-header">
+                            <span class="notification-category">
+                                {{ notification.get_category_display }}
+                            </span>
+                            <span class="notification-time">
+                                {{ notification.scheduled_for|time:"g:i A" }}
+                            </span>
+                        </div>
+
+                        <div class="notification-message">
+                            {{ notification.message }}
+                        </div>
+
+                        <div class="notification-footer">
+                            <span class="status-badge status-{{ notification.status }}">
+                                {% if notification.status == 'pending' %}
+                                ⏳ Pending
+                                {% elif notification.status == 'sent' %}
+                                ✓ Sent
+                                {% elif notification.status == 'delivered' %}
+                                ✓✓ Delivered
+                                {% elif notification.status == 'failed' %}
+                                ✗ Failed
+                                {% elif notification.status == 'cancelled' %}
+                                ⊘ Cancelled
+                                {% endif %}
+                            </span>
+
+                            {% if notification.response_code %}
+                            <span class="response-badge">
+                                Reply: {{ notification.response_code }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% endif %}
+</div>
+
+<style>
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: var(--space-4);
+}
+
+.sms-history {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.sms-day-group {
+    margin-bottom: var(--space-4);
+}
+
+.day-header {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.notification-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.notification-card {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: var(--transition-fast);
+}
+
+.notification-card:hover {
+    border-color: var(--color-accent);
+}
+
+.notification-card.status-failed {
+    border-left: 3px solid var(--color-error, #ef4444);
+}
+
+.notification-card.status-delivered {
+    border-left: 3px solid var(--color-success, #10b981);
+}
+
+.notification-icon {
+    font-size: 1.5rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.notification-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.notification-category {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-accent);
+}
+
+.notification-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.notification-message {
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+    line-height: var(--line-height-relaxed);
+    margin-bottom: var(--space-2);
+}
+
+.notification-footer {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.status-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-background);
+}
+
+.status-badge.status-pending {
+    color: #6b7280;
+}
+
+.status-badge.status-sent {
+    color: #3b82f6;
+}
+
+.status-badge.status-delivered {
+    color: #10b981;
+}
+
+.status-badge.status-failed {
+    color: #ef4444;
+}
+
+.status-badge.status-cancelled {
+    color: #9ca3af;
+}
+
+.response-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-background));
+    color: var(--color-accent);
+}
+
+@media (max-width: 640px) {
+    .notification-card {
+        flex-direction: column;
+    }
+
+    .notification-icon {
+        width: 100%;
+        height: auto;
+        padding: var(--space-2);
+        justify-content: flex-start;
+        flex-direction: row;
+        gap: var(--space-2);
+    }
+}
+</style>
+{% endblock %}

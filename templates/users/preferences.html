@@ -517,6 +517,250 @@ Examples:
             </div>
         </div>
 
+        <!-- SMS Notifications Section -->
+        <div class="card mb-6" id="sms-section">
+            <h2 class="card-title">SMS Notifications</h2>
+            <p class="text-muted mb-4">Get text message reminders for medicine, tasks, and events. Standard SMS rates may apply.</p>
+
+            <!-- Phone Number Section -->
+            <div class="sms-phone-section mb-4">
+                <h3 class="module-section-title">Phone Number</h3>
+
+                <div class="form-group">
+                    <label for="sms_phone_number" class="form-label">
+                        Phone Number
+                        <span class="form-label-hint">— E.164 format: +1XXXXXXXXXX</span>
+                    </label>
+                    <div class="phone-input-wrapper">
+                        <input
+                            type="tel"
+                            id="sms_phone_number"
+                            class="form-input"
+                            value="{{ user.preferences.phone_number }}"
+                            placeholder="+1 (555) 123-4567"
+                            {% if user.preferences.phone_verified %}readonly{% endif %}
+                        >
+                        {% if user.preferences.phone_verified %}
+                        <span class="verified-badge">✓ Verified</span>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="removePhone()">Remove</button>
+                        {% else %}
+                        <button type="button" class="btn btn-primary btn-sm" id="send-code-btn" onclick="sendVerificationCode()">Verify</button>
+                        {% endif %}
+                    </div>
+                    <p id="phone-status" class="form-help"></p>
+                </div>
+
+                <!-- Verification Code Input (hidden until code sent) -->
+                <div id="verification-code-section" class="form-group" style="display: none;">
+                    <label for="verification_code" class="form-label">Verification Code</label>
+                    <div class="verification-input-wrapper">
+                        <input
+                            type="text"
+                            id="verification_code"
+                            class="form-input"
+                            placeholder="Enter 6-digit code"
+                            maxlength="6"
+                            pattern="[0-9]{6}"
+                        >
+                        <button type="button" class="btn btn-primary btn-sm" onclick="checkVerificationCode()">Verify Code</button>
+                    </div>
+                    <p class="form-help">Enter the 6-digit code sent to your phone.</p>
+                </div>
+            </div>
+
+            <!-- Master Toggle (only shown if phone is verified) -->
+            <div id="sms-toggles-section" {% if not user.preferences.phone_verified %}style="display: none;"{% endif %}>
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">📱</span>
+                            <h4>Enable SMS Notifications</h4>
+                            {% if user.preferences.sms_enabled %}<span class="module-status status-active">Active</span>{% endif %}
+                        </div>
+                        <p class="text-muted text-sm">
+                            Master toggle for all SMS notifications. You can respond to texts with shortcuts:
+                            <strong>D</strong>=Done, <strong>R</strong>=Remind, <strong>N</strong>=Skip.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="sms_enabled" id="sms_enabled_toggle" {% if user.preferences.sms_enabled %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- SMS Consent -->
+                <div class="toggle-option" id="sms-consent-option" {% if not user.preferences.sms_enabled %}style="display: none;"{% endif %}>
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">📋</span>
+                            <h4>SMS Consent</h4>
+                            {% if user.preferences.sms_consent %}<span class="module-status status-active">Granted</span>{% endif %}
+                        </div>
+                        <p class="text-muted text-sm">
+                            <strong>Required.</strong> I consent to receive SMS text messages from Whole Life Journey for reminders and notifications.
+                            Standard message and data rates may apply. You can opt out at any time by disabling SMS notifications.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="sms_consent" id="sms_consent_toggle" {% if user.preferences.sms_consent %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Category Toggles (only shown if consent is given) -->
+                <div id="sms-categories-section" {% if not user.preferences.sms_consent %}style="display: none;"{% endif %}>
+                    <h3 class="module-section-title mt-6">What to text about</h3>
+
+                    <div class="toggle-option">
+                        <div class="toggle-info">
+                            <div class="module-header">
+                                <span class="module-icon">💊</span>
+                                <h4>Medicine Reminders</h4>
+                            </div>
+                            <p class="text-muted text-sm">
+                                Get reminders when it's time to take your medications.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="sms_medicine_reminders" {% if user.preferences.sms_medicine_reminders %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="toggle-option">
+                        <div class="toggle-info">
+                            <div class="module-header">
+                                <span class="module-icon">📦</span>
+                                <h4>Medicine Refill Alerts</h4>
+                            </div>
+                            <p class="text-muted text-sm">
+                                Get alerts when your medicine supply is running low.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="sms_medicine_refill_alerts" {% if user.preferences.sms_medicine_refill_alerts %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="toggle-option">
+                        <div class="toggle-info">
+                            <div class="module-header">
+                                <span class="module-icon">✅</span>
+                                <h4>Task Reminders</h4>
+                            </div>
+                            <p class="text-muted text-sm">
+                                Get reminders when tasks are due today.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="sms_task_reminders" {% if user.preferences.sms_task_reminders %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="toggle-option">
+                        <div class="toggle-info">
+                            <div class="module-header">
+                                <span class="module-icon">📅</span>
+                                <h4>Event Reminders</h4>
+                            </div>
+                            <p class="text-muted text-sm">
+                                Get reminders 30 minutes before calendar events.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="sms_event_reminders" {% if user.preferences.sms_event_reminders %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="toggle-option">
+                        <div class="toggle-info">
+                            <div class="module-header">
+                                <span class="module-icon">🙏</span>
+                                <h4>Daily Prayer Reminders</h4>
+                            </div>
+                            <p class="text-muted text-sm">
+                                Get a morning reminder to pray.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="sms_prayer_reminders" {% if user.preferences.sms_prayer_reminders %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="toggle-option">
+                        <div class="toggle-info">
+                            <div class="module-header">
+                                <span class="module-icon">⏱️</span>
+                                <h4>Fasting Reminders</h4>
+                            </div>
+                            <p class="text-muted text-sm">
+                                Get reminders about your fasting windows.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="sms_fasting_reminders" {% if user.preferences.sms_fasting_reminders %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Quiet Hours -->
+                    <h3 class="module-section-title mt-6">Quiet Hours</h3>
+
+                    <div class="toggle-option">
+                        <div class="toggle-info">
+                            <div class="module-header">
+                                <span class="module-icon">🌙</span>
+                                <h4>Enable Quiet Hours</h4>
+                            </div>
+                            <p class="text-muted text-sm">
+                                Don't send SMS during nighttime hours. Messages will be delayed until quiet hours end.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="sms_quiet_hours_enabled" id="sms_quiet_hours_toggle" {% if user.preferences.sms_quiet_hours_enabled %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="quiet-hours-times" id="quiet-hours-times" {% if not user.preferences.sms_quiet_hours_enabled %}style="display: none;"{% endif %}>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="sms_quiet_start" class="form-label">Quiet Start</label>
+                                <input
+                                    type="time"
+                                    name="sms_quiet_start"
+                                    id="sms_quiet_start"
+                                    class="form-input"
+                                    value="{{ user.preferences.sms_quiet_start|time:'H:i' }}"
+                                >
+                            </div>
+                            <div class="form-group">
+                                <label for="sms_quiet_end" class="form-label">Quiet End</label>
+                                <input
+                                    type="time"
+                                    name="sms_quiet_end"
+                                    id="sms_quiet_end"
+                                    class="form-input"
+                                    value="{{ user.preferences.sms_quiet_end|time:'H:i' }}"
+                                >
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SMS History Link -->
+                    <div class="text-right mt-4">
+                        <a href="{% url 'sms:history' %}" class="btn btn-secondary btn-sm">
+                            View SMS History →
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Security Section -->
         <div class="card mb-6" id="security-section">
             <h2 class="card-title">Security</h2>
@@ -1482,6 +1726,41 @@ Examples:
 .macro-preset {
     font-size: var(--font-size-xs);
 }
+
+/* SMS Notifications Styles */
+.phone-input-wrapper,
+.verification-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 400px;
+}
+
+.phone-input-wrapper .form-input,
+.verification-input-wrapper .form-input {
+    flex: 1;
+}
+
+.verified-badge {
+    color: var(--color-success, #10b981);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.quiet-hours-times {
+    margin-top: var(--space-3);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.quiet-hours-times .form-row {
+    max-width: 300px;
+}
 </style>
 
 <script src="{% static 'js/timezone-lookup.js' %}"></script>
@@ -1823,6 +2102,163 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+// SMS Notifications toggle logic
+const smsEnabledToggle = document.getElementById('sms_enabled_toggle');
+const smsConsentToggle = document.getElementById('sms_consent_toggle');
+const smsQuietHoursToggle = document.getElementById('sms_quiet_hours_toggle');
+
+if (smsEnabledToggle) {
+    smsEnabledToggle.addEventListener('change', function() {
+        const consentOption = document.getElementById('sms-consent-option');
+        const categoriesSection = document.getElementById('sms-categories-section');
+        if (this.checked) {
+            if (consentOption) consentOption.style.display = 'flex';
+        } else {
+            if (consentOption) consentOption.style.display = 'none';
+            if (categoriesSection) categoriesSection.style.display = 'none';
+            if (smsConsentToggle) smsConsentToggle.checked = false;
+        }
+    });
+}
+
+if (smsConsentToggle) {
+    smsConsentToggle.addEventListener('change', function() {
+        const categoriesSection = document.getElementById('sms-categories-section');
+        if (categoriesSection) {
+            categoriesSection.style.display = this.checked ? 'block' : 'none';
+        }
+    });
+}
+
+if (smsQuietHoursToggle) {
+    smsQuietHoursToggle.addEventListener('change', function() {
+        const quietHoursTimes = document.getElementById('quiet-hours-times');
+        if (quietHoursTimes) {
+            quietHoursTimes.style.display = this.checked ? 'block' : 'none';
+        }
+    });
+}
+
+// Phone verification functions
+async function sendVerificationCode() {
+    const phoneInput = document.getElementById('sms_phone_number');
+    const statusEl = document.getElementById('phone-status');
+    const sendBtn = document.getElementById('send-code-btn');
+    const codeSection = document.getElementById('verification-code-section');
+
+    let phone = phoneInput.value.trim();
+
+    // Basic phone normalization - add +1 if not present
+    if (phone && !phone.startsWith('+')) {
+        phone = '+1' + phone.replace(/\D/g, '');
+    }
+
+    if (!phone || phone.length < 10) {
+        statusEl.textContent = 'Please enter a valid phone number';
+        statusEl.style.color = 'var(--color-error, #ef4444)';
+        return;
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Sending...';
+    statusEl.textContent = '';
+
+    try {
+        const response = await fetch('/sms/api/verify/send/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({ phone_number: phone })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            statusEl.textContent = 'Verification code sent! Check your phone.';
+            statusEl.style.color = 'var(--color-success, #10b981)';
+            codeSection.style.display = 'block';
+            phoneInput.value = phone;  // Update to normalized format
+        } else {
+            statusEl.textContent = data.error || 'Failed to send code';
+            statusEl.style.color = 'var(--color-error, #ef4444)';
+        }
+    } catch (error) {
+        statusEl.textContent = 'Network error. Please try again.';
+        statusEl.style.color = 'var(--color-error, #ef4444)';
+    } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Verify';
+    }
+}
+
+async function checkVerificationCode() {
+    const codeInput = document.getElementById('verification_code');
+    const statusEl = document.getElementById('phone-status');
+
+    const code = codeInput.value.trim();
+
+    if (!code || code.length !== 6) {
+        statusEl.textContent = 'Please enter the 6-digit code';
+        statusEl.style.color = 'var(--color-error, #ef4444)';
+        return;
+    }
+
+    statusEl.textContent = 'Verifying...';
+
+    try {
+        const response = await fetch('/sms/api/verify/check/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({ code: code })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            statusEl.textContent = 'Phone verified successfully!';
+            statusEl.style.color = 'var(--color-success, #10b981)';
+            // Reload to show verified state
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            statusEl.textContent = data.error || 'Invalid code';
+            statusEl.style.color = 'var(--color-error, #ef4444)';
+        }
+    } catch (error) {
+        statusEl.textContent = 'Network error. Please try again.';
+        statusEl.style.color = 'var(--color-error, #ef4444)';
+    }
+}
+
+async function removePhone() {
+    if (!confirm('Are you sure you want to remove your phone number? This will disable all SMS notifications.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/sms/api/phone/remove/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to remove phone number');
+        }
+    } catch (error) {
+        alert('Network error. Please try again.');
+    }
+}
 </script>
 <script src="{% static 'js/biometric.js' %}"></script>
 {% endblock %}

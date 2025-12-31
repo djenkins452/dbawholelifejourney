@@ -5,6 +5,12 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Nutrition</span>
+    </nav>
+
     <div class="page-header">
         <div>
             <h1 class="page-title">Daily Nutrition</h1>

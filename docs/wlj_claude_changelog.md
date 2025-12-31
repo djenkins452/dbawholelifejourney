@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Barcode Scanner - ZXing Library)
+# Last Updated: 2025-12-31 (Barcode Scanner - ZXing + Open Food Facts)
 # ==============================================================================
 
 # WLJ Change History
@@ -89,17 +89,18 @@ Added dedicated barcode scanning mode to the Camera Scan feature for quick food 
    - Different camera overlay for each mode
 
 2. **Barcode Detection** (Updated: ZXing Library)
-   - Now uses @zxing/browser library for cross-browser barcode detection
+   - Uses @zxing/browser library for cross-browser barcode detection
+   - CDN: `https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js`
    - Works on all browsers including Safari/iOS (previously Quagga2 was unreliable)
-   - Uses native BarcodeDetector API as fallback on Chrome/Edge Android
    - Supports UPC-A, UPC-E, EAN-13, EAN-8, Code 128, Code 39
    - Real-time auto-detection from camera feed without button press
    - Vibration feedback on barcode detection
 
-3. **Barcode Lookup Service**
-   - First checks local FoodItem database by barcode field
-   - Falls back to OpenAI for unknown barcodes (requires AI consent)
-   - Saves AI-found products to database for future lookups
+3. **Barcode Lookup Service** (Updated: Open Food Facts API)
+   - **Lookup order:** Local DB → Open Food Facts → OpenAI fallback
+   - **Open Food Facts:** Free, open-source database with 4M+ products worldwide
+   - API: `https://world.openfoodfacts.org/api/v2/product/{barcode}.json`
+   - Caches Open Food Facts results to local database for faster future lookups
    - Returns structured BarcodeResult with all nutritional data
 
 4. **Food Entry Integration**

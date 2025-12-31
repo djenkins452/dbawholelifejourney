@@ -536,11 +536,11 @@ Examples:
                             type="tel"
                             id="sms_phone_number"
                             class="form-input"
-                            value="{{ user.preferences.phone_number }}"
+                            value="{{ form.instance.phone_number }}"
                             placeholder="+1 (555) 123-4567"
-                            {% if user.preferences.phone_verified %}readonly{% endif %}
+                            {% if form.instance.phone_verified %}readonly{% endif %}
                         >
-                        {% if user.preferences.phone_verified %}
+                        {% if form.instance.phone_verified %}
                         <span class="verified-badge">✓ Verified</span>
                         <button type="button" class="btn btn-ghost btn-sm" onclick="removePhone()">Remove</button>
                         {% else %}
@@ -569,13 +569,13 @@ Examples:
             </div>
 
             <!-- Master Toggle (only shown if phone is verified) -->
-            <div id="sms-toggles-section" {% if not user.preferences.phone_verified %}style="display: none;"{% endif %}>
+            <div id="sms-toggles-section" {% if not form.instance.phone_verified %}style="display: none;"{% endif %}>
                 <div class="toggle-option">
                     <div class="toggle-info">
                         <div class="module-header">
                             <span class="module-icon">📱</span>
                             <h4>Enable SMS Notifications</h4>
-                            {% if user.preferences.sms_enabled %}<span class="module-status status-active">Active</span>{% endif %}
+                            {% if form.sms_enabled.value %}<span class="module-status status-active">Active</span>{% endif %}
                         </div>
                         <p class="text-muted text-sm">
                             Master toggle for all SMS notifications. You can respond to texts with shortcuts:
@@ -583,18 +583,18 @@ Examples:
                         </p>
                     </div>
                     <label class="toggle-switch">
-                        <input type="checkbox" name="sms_enabled" id="sms_enabled_toggle" {% if user.preferences.sms_enabled %}checked{% endif %}>
+                        <input type="checkbox" name="sms_enabled" id="sms_enabled_toggle" {% if form.sms_enabled.value %}checked{% endif %}>
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
 
                 <!-- SMS Consent -->
-                <div class="toggle-option" id="sms-consent-option" {% if not user.preferences.sms_enabled %}style="display: none;"{% endif %}>
+                <div class="toggle-option" id="sms-consent-option" {% if not form.sms_enabled.value %}style="display: none;"{% endif %}>
                     <div class="toggle-info">
                         <div class="module-header">
                             <span class="module-icon">📋</span>
                             <h4>SMS Consent</h4>
-                            {% if user.preferences.sms_consent %}<span class="module-status status-active">Granted</span>{% endif %}
+                            {% if form.sms_consent.value %}<span class="module-status status-active">Granted</span>{% endif %}
                         </div>
                         <p class="text-muted text-sm">
                             <strong>Required.</strong> I consent to receive SMS text messages from Whole Life Journey for reminders and notifications.
@@ -602,13 +602,13 @@ Examples:
                         </p>
                     </div>
                     <label class="toggle-switch">
-                        <input type="checkbox" name="sms_consent" id="sms_consent_toggle" {% if user.preferences.sms_consent %}checked{% endif %}>
+                        <input type="checkbox" name="sms_consent" id="sms_consent_toggle" {% if form.sms_consent.value %}checked{% endif %}>
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
 
                 <!-- Category Toggles (only shown if consent is given) -->
-                <div id="sms-categories-section" {% if not user.preferences.sms_consent %}style="display: none;"{% endif %}>
+                <div id="sms-categories-section" {% if not form.sms_consent.value %}style="display: none;"{% endif %}>
                     <h3 class="module-section-title mt-6">What to text about</h3>
 
                     <div class="toggle-option">
@@ -622,7 +622,7 @@ Examples:
                             </p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" name="sms_medicine_reminders" {% if user.preferences.sms_medicine_reminders %}checked{% endif %}>
+                            <input type="checkbox" name="sms_medicine_reminders" {% if form.sms_medicine_reminders.value %}checked{% endif %}>
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -638,7 +638,7 @@ Examples:
                             </p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" name="sms_medicine_refill_alerts" {% if user.preferences.sms_medicine_refill_alerts %}checked{% endif %}>
+                            <input type="checkbox" name="sms_medicine_refill_alerts" {% if form.sms_medicine_refill_alerts.value %}checked{% endif %}>
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -654,7 +654,7 @@ Examples:
                             </p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" name="sms_task_reminders" {% if user.preferences.sms_task_reminders %}checked{% endif %}>
+                            <input type="checkbox" name="sms_task_reminders" {% if form.sms_task_reminders.value %}checked{% endif %}>
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -670,7 +670,7 @@ Examples:
                             </p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" name="sms_event_reminders" {% if user.preferences.sms_event_reminders %}checked{% endif %}>
+                            <input type="checkbox" name="sms_event_reminders" {% if form.sms_event_reminders.value %}checked{% endif %}>
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -686,7 +686,7 @@ Examples:
                             </p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" name="sms_prayer_reminders" {% if user.preferences.sms_prayer_reminders %}checked{% endif %}>
+                            <input type="checkbox" name="sms_prayer_reminders" {% if form.sms_prayer_reminders.value %}checked{% endif %}>
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -702,7 +702,7 @@ Examples:
                             </p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" name="sms_fasting_reminders" {% if user.preferences.sms_fasting_reminders %}checked{% endif %}>
+                            <input type="checkbox" name="sms_fasting_reminders" {% if form.sms_fasting_reminders.value %}checked{% endif %}>
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -721,12 +721,12 @@ Examples:
                             </p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" name="sms_quiet_hours_enabled" id="sms_quiet_hours_toggle" {% if user.preferences.sms_quiet_hours_enabled %}checked{% endif %}>
+                            <input type="checkbox" name="sms_quiet_hours_enabled" id="sms_quiet_hours_toggle" {% if form.sms_quiet_hours_enabled.value %}checked{% endif %}>
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
 
-                    <div class="quiet-hours-times" id="quiet-hours-times" {% if not user.preferences.sms_quiet_hours_enabled %}style="display: none;"{% endif %}>
+                    <div class="quiet-hours-times" id="quiet-hours-times" {% if not form.sms_quiet_hours_enabled.value %}style="display: none;"{% endif %}>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="sms_quiet_start" class="form-label">Quiet Start</label>
@@ -735,7 +735,7 @@ Examples:
                                     name="sms_quiet_start"
                                     id="sms_quiet_start"
                                     class="form-input"
-                                    value="{{ user.preferences.sms_quiet_start|time:'H:i' }}"
+                                    value="{{ form.sms_quiet_start.value|time:'H:i' }}"
                                 >
                             </div>
                             <div class="form-group">
@@ -745,7 +745,7 @@ Examples:
                                     name="sms_quiet_end"
                                     id="sms_quiet_end"
                                     class="form-input"
-                                    value="{{ user.preferences.sms_quiet_end|time:'H:i' }}"
+                                    value="{{ form.sms_quiet_end.value|time:'H:i' }}"
                                 >
                             </div>
                         </div>

@@ -162,6 +162,18 @@ class PreferencesForm(forms.ModelForm):
             "protein_percentage",
             "carbs_percentage",
             "fat_percentage",
+            # SMS Notifications
+            "sms_enabled",
+            "sms_consent",
+            "sms_medicine_reminders",
+            "sms_medicine_refill_alerts",
+            "sms_task_reminders",
+            "sms_event_reminders",
+            "sms_prayer_reminders",
+            "sms_fasting_reminders",
+            "sms_quiet_hours_enabled",
+            "sms_quiet_start",
+            "sms_quiet_end",
         ]
         widgets = {
             "theme": forms.Select(attrs={
@@ -282,6 +294,42 @@ class PreferencesForm(forms.ModelForm):
                 "placeholder": "% fat",
                 "min": "0",
                 "max": "100",
+            }),
+            # SMS Notifications
+            "sms_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_consent": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_medicine_reminders": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_medicine_refill_alerts": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_task_reminders": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_event_reminders": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_prayer_reminders": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_fasting_reminders": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_quiet_hours_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_quiet_start": forms.TimeInput(attrs={
+                "class": "form-input",
+                "type": "time",
+            }),
+            "sms_quiet_end": forms.TimeInput(attrs={
+                "class": "form-input",
+                "type": "time",
             }),
         }
 

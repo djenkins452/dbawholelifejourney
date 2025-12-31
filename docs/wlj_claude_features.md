@@ -4,7 +4,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30
+# Last Updated: 2025-12-31
 # ==============================================================================
 
 # WLJ Feature Documentation
@@ -28,7 +28,8 @@ For core project context, see `CLAUDE.md` (project root).
 10. [Camera Scan Feature](#camera-scan-feature)
 11. [Biometric Login](#biometric-login)
 12. [Dashboard Tile Shortcuts](#dashboard-tile-shortcuts)
-13. [SMS Text Notifications](#sms-text-notifications)
+13. [Task List with Search](#task-list-with-search)
+14. [SMS Text Notifications](#sms-text-notifications)
 
 ---
 
@@ -771,6 +772,42 @@ The quick stat tiles at the top of the dashboard are clickable, providing direct
 ### Key Files
 - `templates/dashboard/home.html` - Quick stat tiles as anchor links
 - `static/css/dashboard.css` - `.quick-stat-link` hover/active styles
+
+---
+
+## Task List with Search
+
+### Overview
+The Task List page allows users to view all tasks with powerful filtering and search capabilities.
+
+### Features
+1. **Full-Text Search** - Search across task titles, notes, and project names
+2. **Filtering** - Filter by completion status (Active/Completed/All) and priority (Now/Soon/Someday)
+3. **Task Counts** - See how many tasks in each category
+4. **Combined Search + Filters** - Search preserves filter selections
+
+### Search Behavior
+- Searches task `title`, `notes`, and `project.title` fields
+- Case-insensitive matching
+- Search query persists across filter changes
+- Clear button to reset search
+
+### URL Parameters
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `q` | string | Search query |
+| `show` | active, completed, all | Filter by completion status |
+| `priority` | now, soon, someday | Filter by priority |
+
+### Example URLs
+- `/life/tasks/` - All active tasks
+- `/life/tasks/?q=groceries` - Search for "groceries" in active tasks
+- `/life/tasks/?show=all&priority=now` - All "now" priority tasks
+- `/life/tasks/?show=completed&q=work` - Completed tasks containing "work"
+
+### Key Files
+- `apps/life/views.py` - TaskListView with search/filter logic
+- `templates/life/task_list.html` - Task list UI with search bar
 
 ---
 

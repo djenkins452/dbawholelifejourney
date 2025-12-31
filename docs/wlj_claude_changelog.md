@@ -4,13 +4,76 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30 (Medicine 'Taken Late' status timezone fix)
+# Last Updated: 2025-12-31 (SMS Preferences fix, Task Search feature)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2025-12-31 Changes
+
+### Fix SMS Preferences Not Saving
+
+Fixed bug where changes to SMS notification settings in Preferences would not save.
+
+**Issue:**
+- SMS notification toggles (enabled, consent, category preferences, quiet hours) were displayed in the preferences form but were not bound to the Django form
+- The template used `user.preferences.sms_*` instead of `form.sms_*.value`, which meant the fields weren't part of the form submission
+- The `PreferencesForm` class did not include SMS fields in its `fields` list
+
+**Fix:**
+1. Added all 11 SMS fields to `PreferencesForm.Meta.fields`:
+   - `sms_enabled`, `sms_consent`
+   - `sms_medicine_reminders`, `sms_medicine_refill_alerts`
+   - `sms_task_reminders`, `sms_event_reminders`
+   - `sms_prayer_reminders`, `sms_fasting_reminders`
+   - `sms_quiet_hours_enabled`, `sms_quiet_start`, `sms_quiet_end`
+
+2. Added corresponding widget definitions for all SMS fields
+
+3. Updated template to use `form.sms_*.value` instead of `user.preferences.sms_*`
+
+4. Added SMS consent date handling in `PreferencesView.form_valid()`
+
+**Files Modified:**
+- `apps/users/forms.py` - Added SMS fields and widgets to PreferencesForm
+- `apps/users/views.py` - Added SMS consent date handling
+- `templates/users/preferences.html` - Updated SMS section to use form fields
+
+---
+
+### Task List with Search Feature
+
+Added ability to search within tasks and improved task list display with counts.
+
+**Features Added:**
+- Full-text search across task title, notes, and project name
+- Search preserves existing filters (show, priority)
+- Task counts displayed on filter buttons (Active/Completed/All)
+- Clear search button when search is active
+- Search results count display
+
+**Implementation:**
+1. Updated `TaskListView` in `apps/life/views.py`:
+   - Added search query handling with Django Q objects
+   - Searches across title, notes, and project__title
+   - Added `search_query` to context
+   - Added `total_active_count`, `total_completed_count`, `total_all_count` to context
+
+2. Updated `templates/life/task_list.html`:
+   - Added search bar with search icon and clear button
+   - Search results info display
+   - Updated filter links to preserve search query
+   - Added task counts to filter buttons
+   - Added CSS styles for search bar
+
+**Files Modified:**
+- `apps/life/views.py` - Enhanced TaskListView with search and counts
+- `templates/life/task_list.html` - Added search UI and updated filter links
 
 ---
 

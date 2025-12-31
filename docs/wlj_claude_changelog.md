@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Menu Navigation Reorganization)
+# Last Updated: 2025-12-31 (File Cleanup & Test Fixes)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,48 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### File Cleanup & Test Fixes
+
+Fixed 6 failing tests and added temp files to .gitignore for cleaner repository.
+
+**Changes Made:**
+
+1. **Added temp/test output files to .gitignore**
+   - `nul` - Windows null device file that can accidentally be created
+   - `test_errors.txt` - Test runner error output
+   - `test_summary.txt` - Test runner summary output
+   - `test_output.txt` - General test output
+
+2. **Fixed Preferences Form Tests**
+   - Added missing required fields: `weight_goal_unit`, `sms_quiet_start`, `sms_quiet_end`
+   - Corrected `weight_goal_unit` value from 'lbs' to 'lb' (matching model choices)
+   - Tests affected: `apps.users.tests.test_users.PreferencesViewTest`
+
+3. **Fixed What's New Preference Tests**
+   - Same form field fixes as preferences tests
+   - Tests affected: `apps.core.tests.test_core_comprehensive.WhatsNewPreferenceTest`
+
+4. **Fixed Blood Oxygen Data Isolation Test**
+   - Changed test strategy: instead of checking if '94' appears in HTML (which matched unrelated content like navigation elements), now verifies entry count in context
+   - More robust test that confirms data isolation without false positives
+   - Tests affected: `apps.health.tests.test_health_comprehensive.BloodVitalsDataIsolationTest`
+
+5. **Fixed Task Search Tests**
+   - Updated assertions to match actual template text
+   - Template shows "X results for" not "Found X tasks matching"
+   - Tests affected: `apps.life.tests.test_views.TaskViewTest`
+
+**Files Modified:**
+- `.gitignore` - Added temp file patterns
+- `apps/core/tests/test_core_comprehensive.py` - Fixed What's New preference tests
+- `apps/health/tests/test_health_comprehensive.py` - Fixed blood oxygen data isolation test
+- `apps/life/tests/test_views.py` - Fixed task search result assertions
+- `apps/users/tests/test_users.py` - Fixed preferences form test
+
+**Test Count:** 1379 tests passing (no change in total)
+
+---
 
 ### Menu Navigation Reorganization
 

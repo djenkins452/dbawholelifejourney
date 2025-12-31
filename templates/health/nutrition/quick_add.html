@@ -5,6 +5,14 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:nutrition_home' %}">Nutrition</a>
+        <span>/</span>
+        <span>Quick Add</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">Quick Add</h1>
         <p class="page-subtitle">Log just calories - fast and simple</p>

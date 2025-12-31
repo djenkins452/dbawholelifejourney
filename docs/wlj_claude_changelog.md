@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Barcode Scanner - ZXing + Open Food Facts)
+# Last Updated: 2025-12-31 (Nutrition Breadcrumbs)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,25 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Nutrition Breadcrumbs (Enhancement)
+
+Added breadcrumb navigation to all nutrition pages for improved UX and navigation consistency.
+
+**Files Modified (9 templates):**
+- `templates/health/nutrition/home.html` - Health > Nutrition
+- `templates/health/nutrition/food_entry_form.html` - Health > Nutrition > Log Food/Edit Entry
+- `templates/health/nutrition/food_entry_detail.html` - Health > Nutrition > [Food Name]
+- `templates/health/nutrition/history.html` - Health > Nutrition > History
+- `templates/health/nutrition/goals.html` - Health > Nutrition > Goals
+- `templates/health/nutrition/stats.html` - Health > Nutrition > Stats
+- `templates/health/nutrition/quick_add.html` - Health > Nutrition > Quick Add
+- `templates/health/nutrition/custom_food_list.html` - Health > Nutrition > My Foods
+- `templates/health/nutrition/custom_food_form.html` - Health > Nutrition > My Foods > Create/Edit
+
+**No migrations required** - Template-only changes.
+
+---
 
 ### Medicine Log Edit Feature (NEW)
 

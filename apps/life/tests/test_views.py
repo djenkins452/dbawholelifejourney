@@ -439,7 +439,8 @@ class TaskViewTest(TestCase):
         response = self.client.get(reverse('life:task_list') + '?q=nonexistent')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'No tasks found')
+        # Template shows "0 results for" when no matches
+        self.assertContains(response, '0 results')
         self.assertContains(response, 'nonexistent')
 
     def test_task_search_query_preserved_in_context(self):
@@ -457,7 +458,8 @@ class TaskViewTest(TestCase):
         response = self.client.get(reverse('life:task_list') + '?q=meeting')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Found 2 tasks matching')
+        # Template shows "2 results for" format
+        self.assertContains(response, '2 results')
 
     def test_task_search_other_user_tasks_not_visible(self):
         """Search does not return tasks belonging to other users."""

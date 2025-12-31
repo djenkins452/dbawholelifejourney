@@ -86,5 +86,11 @@ npm-debug.log
 *.tmp
 *.temp
 
+# Temp/test output files
+nul
+test_errors.txt
+test_summary.txt
+test_output.txt
+
 # Import files (personal data)
 chatgpt_journal_import.json

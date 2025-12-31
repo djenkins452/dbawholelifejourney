@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30 (SMS Notifications Feature)
+# Last Updated: 2025-12-30 (Medicine 'Taken Late' status timezone fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -99,6 +99,35 @@ Added first-class SMS notification capabilities using Twilio. Users can receive 
 - Phone Number: ~$1.15/month
 - Outbound/Inbound SMS: ~$0.0079/message
 - Phone verification: ~$0.05/verification
+
+---
+
+### Fix Medicine "Taken Late" Status When Taken Early
+
+Fixed bug where medicines taken BEFORE the scheduled time were incorrectly marked as "Taken Late".
+
+**Issue:**
+- When a user in America/New_York (EST, UTC-5) took medicine at 8:24 AM local time with a 9:00 AM schedule, it was incorrectly marked "Taken Late"
+- The root cause: the `mark_taken()` method was comparing UTC time (stored in database) against a naive local time
+- Example: 8:24 AM EST = 1:24 PM UTC. When stripped of timezone, "1:24 PM" > "10:00 AM" (schedule + grace), so marked as late
+
+**Fix:**
+Updated three methods in `MedicineLog` model to properly convert times to user's timezone before comparison:
+
+1. `mark_taken()` - Now converts `taken_at` (UTC) to user's local timezone before comparing with scheduled time
+2. `was_on_time` property - Same timezone-aware comparison
+3. `minutes_late` property - Same timezone-aware comparison
+
+**Technical Details:**
+- Uses `pytz.timezone(self.user.preferences.timezone)` to get user's timezone
+- Converts `taken_at.astimezone(user_tz)` for UTC → local conversion
+- Creates `scheduled_local = user_tz.localize(scheduled_dt)` for proper timezone-aware scheduled time
+- Compares both timezone-aware datetimes correctly
+
+**Files Modified:**
+- `apps/health/models.py` - Updated `mark_taken()`, `was_on_time`, and `minutes_late` in `MedicineLog` class
+
+**Related:** This is a companion fix to the earlier "Taken At" display fix. The display fix showed the correct time in the UI, but this fix ensures the status (Taken/Taken Late) is also correctly calculated.
 
 ---
 

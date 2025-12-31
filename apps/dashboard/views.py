@@ -503,33 +503,55 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
     def _get_life_data(self, user, today):
         """Get life-related data."""
-        from apps.life.models import Project, Task, LifeEvent
-        
+        from apps.life.models import Project, Task, LifeEvent, SignificantEvent
+
         week_ahead = today + timedelta(days=7)
-        
+        month_ahead = today + timedelta(days=30)
+
         # Projects
         projects = Project.objects.filter(user=user)
         active_projects = projects.filter(status='active')
-        
+
         # Tasks
         tasks = Task.objects.filter(user=user, is_completed=False)
         overdue_tasks = tasks.filter(due_date__lt=today)
         due_soon = tasks.filter(due_date__gte=today, due_date__lte=week_ahead)
-        
+
         # Tasks completed today
         completed_today = Task.objects.filter(
             user=user,
             is_completed=True,
             completed_at__date=today
         ).count()
-        
+
         # Upcoming events
         upcoming_events = LifeEvent.objects.filter(
             user=user,
             start_date__gte=today,
             start_date__lte=week_ahead
         ).order_by('start_date')[:5]
-        
+
+        # Significant events (birthdays, anniversaries, etc.) - next 30 days
+        significant_events = SignificantEvent.objects.filter(
+            user=user,
+            status='active'
+        )
+
+        # Calculate next occurrence for each and filter to upcoming
+        upcoming_significant = []
+        for event in significant_events:
+            next_date = event.get_next_occurrence(today)
+            days_until = (next_date - today).days
+            if days_until <= 30:
+                event.next_occurrence = next_date
+                event.days_until = days_until
+                event.years_display = event.get_years_display()
+                upcoming_significant.append(event)
+
+        # Sort by days until
+        upcoming_significant.sort(key=lambda e: e.days_until)
+        upcoming_significant = upcoming_significant[:5]  # Limit to 5
+
         return {
             "active_projects": active_projects.count(),
             "incomplete_tasks": tasks.count(),
@@ -538,6 +560,8 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "completed_tasks_today": completed_today,
             "upcoming_events": list(upcoming_events),
             "upcoming_events_count": upcoming_events.count(),
+            "upcoming_significant_events": upcoming_significant,
+            "upcoming_significant_count": len(upcoming_significant),
         }
     
     def _get_purpose_data(self, user):

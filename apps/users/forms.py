@@ -171,6 +171,7 @@ class PreferencesForm(forms.ModelForm):
             "sms_event_reminders",
             "sms_prayer_reminders",
             "sms_fasting_reminders",
+            "sms_significant_event_reminders",
             "sms_quiet_hours_enabled",
             "sms_quiet_start",
             "sms_quiet_end",
@@ -318,6 +319,9 @@ class PreferencesForm(forms.ModelForm):
                 "class": "form-checkbox",
             }),
             "sms_fasting_reminders": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "sms_significant_event_reminders": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
             "sms_quiet_hours_enabled": forms.CheckboxInput(attrs={

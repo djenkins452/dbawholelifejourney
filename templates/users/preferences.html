@@ -707,6 +707,22 @@ Examples:
                         </label>
                     </div>
 
+                    <div class="toggle-option">
+                        <div class="toggle-info">
+                            <div class="module-header">
+                                <span class="module-icon">🎂</span>
+                                <h4>Significant Event Reminders</h4>
+                            </div>
+                            <p class="text-muted text-sm">
+                                Get reminders for birthdays, anniversaries, and other significant dates.
+                            </p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="sms_significant_event_reminders" {% if form.sms_significant_event_reminders.value %}checked{% endif %}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
                     <!-- Quiet Hours -->
                     <h3 class="module-section-title mt-6">Quiet Hours</h3>
 

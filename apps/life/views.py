@@ -50,7 +50,9 @@ from .models import (
     PetRecord,
     Recipe,
     Document,
+    SignificantEvent,
 )
+from .forms import SignificantEventForm
 
 
 class LifeAccessMixin(LoginRequiredMixin):
@@ -1365,10 +1367,10 @@ class DocumentDeleteView(LifeAccessMixin, DeleteView):
 
 class DocumentDownloadView(LifeAccessMixin, View):
     """Download a document file."""
-    
+
     def get(self, request, pk):
         document = get_object_or_404(Document, pk=pk, user=request.user)
-        
+
         if document.file:
             response = FileResponse(
                 document.file.open('rb'),
@@ -1376,9 +1378,126 @@ class DocumentDownloadView(LifeAccessMixin, View):
                 filename=document.file.name.split('/')[-1]
             )
             return response
-        
+
         messages.error(request, "File not found.")
         return redirect('life:document_detail', pk=pk)
+
+
+# =============================================================================
+# Significant Events (Birthdays, Anniversaries, etc.)
+# =============================================================================
+
+class SignificantEventListView(HelpContextMixin, LifeAccessMixin, ListView):
+    """List all significant events."""
+    model = SignificantEvent
+    template_name = "life/significant_event_list.html"
+    context_object_name = "events"
+    help_context_id = "LIFE_SIGNIFICANT_EVENTS"
+
+    def get_queryset(self):
+        return SignificantEvent.objects.filter(
+            user=self.request.user
+        ).order_by('event_date')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        today = get_user_today(self.request.user)
+
+        # Annotate events with next occurrence info
+        events_with_dates = []
+        for event in context['events']:
+            event.next_occurrence = event.get_next_occurrence(today)
+            event.days_until = event.days_until_next(today)
+            events_with_dates.append(event)
+
+        # Sort by days until next occurrence
+        events_with_dates.sort(key=lambda e: e.days_until)
+        context['events'] = events_with_dates
+
+        # Upcoming events (within 30 days)
+        context['upcoming_events'] = [e for e in events_with_dates if e.days_until <= 30]
+        context['upcoming_count'] = len(context['upcoming_events'])
+
+        # Count by type
+        context['type_counts'] = {}
+        for event in context['events']:
+            event_type = event.get_event_type_display()
+            context['type_counts'][event_type] = context['type_counts'].get(event_type, 0) + 1
+
+        context['user_today'] = today
+
+        return context
+
+
+class SignificantEventDetailView(HelpContextMixin, LifeAccessMixin, DetailView):
+    """View details of a significant event."""
+    model = SignificantEvent
+    template_name = "life/significant_event_detail.html"
+    context_object_name = "event"
+    help_context_id = "LIFE_SIGNIFICANT_EVENT_DETAIL"
+
+    def get_queryset(self):
+        return SignificantEvent.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        today = get_user_today(self.request.user)
+
+        # Add computed properties
+        context['next_occurrence'] = self.object.get_next_occurrence(today)
+        context['days_until'] = self.object.days_until_next(today)
+        context['years_display'] = self.object.get_years_display()
+        context['user_today'] = today
+
+        return context
+
+
+class SignificantEventCreateView(HelpContextMixin, LifeAccessMixin, CreateView):
+    """Create a new significant event."""
+    model = SignificantEvent
+    form_class = SignificantEventForm
+    template_name = "life/significant_event_form.html"
+    help_context_id = "LIFE_SIGNIFICANT_EVENT_CREATE"
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        messages.success(self.request, f"'{form.instance.title}' added to your significant events.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('life:significant_event_list')
+
+
+class SignificantEventUpdateView(HelpContextMixin, LifeAccessMixin, UpdateView):
+    """Edit a significant event."""
+    model = SignificantEvent
+    form_class = SignificantEventForm
+    template_name = "life/significant_event_form.html"
+    help_context_id = "LIFE_SIGNIFICANT_EVENT_EDIT"
+
+    def get_queryset(self):
+        return SignificantEvent.objects.filter(user=self.request.user)
+
+    def form_valid(self, form):
+        messages.success(self.request, f"'{form.instance.title}' updated.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('life:significant_event_detail', kwargs={'pk': self.object.pk})
+
+
+class SignificantEventDeleteView(LifeAccessMixin, DeleteView):
+    """Delete a significant event."""
+    model = SignificantEvent
+    template_name = "life/significant_event_confirm_delete.html"
+    success_url = reverse_lazy('life:significant_event_list')
+
+    def get_queryset(self):
+        return SignificantEvent.objects.filter(user=self.request.user)
+
+    def form_valid(self, form):
+        messages.success(self.request, f"'{self.object.title}' has been deleted.")
+        return super().form_valid(form)
 
 
 # =============================================================================

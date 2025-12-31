@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (SMS Preferences fix, Task Search feature)
+# Last Updated: 2025-12-31 (Significant Events feature)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,65 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Significant Events Feature
+
+Added ability to track and get SMS reminders for significant personal dates like birthdays, anniversaries, and milestones. Events recur annually and can send reminders at configurable intervals before the date.
+
+**New Model: `SignificantEvent`**
+- `title`, `description`, `event_type` (birthday, anniversary, memorial, milestone, holiday, other)
+- `event_date` - The date of the event (year used for age/anniversary calculations)
+- `original_year` - For calculating "Xth anniversary" or age
+- `person_name` - Who the event is for (e.g., "Mom", "John & Jane")
+- `sms_reminder_enabled`, `reminder_days` - JSON array of days before event to send reminders (e.g., [14, 7, 3, 1, 0])
+- `custom_message` - Custom message to include in SMS reminders
+
+**Smart Date Handling:**
+- `get_next_occurrence()` - Calculates next occurrence of the event (handles Feb 29)
+- `get_years_count()` - Calculates years since original year
+- `days_until_next()` - Days until next occurrence
+- `get_display_date()` - Human-friendly display ("Tomorrow", "In 3 days", "Jan 15")
+- `get_years_display()` - Ordinal display ("10th", "25th")
+
+**SMS Integration:**
+- Added `CATEGORY_SIGNIFICANT_EVENT` to SMS models
+- Added `schedule_significant_event_reminders()` to SMS scheduler
+- Personalized messages based on event type and person name
+- Custom message appended to SMS
+
+**UI Features:**
+- Full CRUD views at `/life/significant-events/`
+- List view sorted by days until next occurrence
+- Multi-select checkbox for reminder days
+- Dashboard "Upcoming Celebrations" card showing next 5 events within 30 days
+- Life home page quick link to significant events
+- User preferences toggle for `sms_significant_event_reminders`
+
+**Files Created:**
+- `apps/life/migrations/0006_significantevent.py`
+- `apps/users/migrations/0023_userpreferences_sms_significant_event_reminders.py`
+- `apps/life/forms.py` - SignificantEventForm with reminder_days checkbox widget
+- `templates/life/significant_event_list.html`
+- `templates/life/significant_event_form.html`
+- `templates/life/significant_event_detail.html`
+- `templates/life/significant_event_confirm_delete.html`
+
+**Files Modified:**
+- `apps/life/models.py` - Added SignificantEvent model
+- `apps/life/views.py` - Added CRUD views
+- `apps/life/urls.py` - Added URL patterns
+- `apps/life/admin.py` - Registered SignificantEventAdmin
+- `apps/users/models.py` - Added sms_significant_event_reminders field
+- `apps/users/forms.py` - Added sms_significant_event_reminders to PreferencesForm
+- `apps/sms/models.py` - Added CATEGORY_SIGNIFICANT_EVENT
+- `apps/sms/scheduler.py` - Added schedule_significant_event_reminders method
+- `apps/dashboard/views.py` - Added upcoming_significant_events to life data
+- `templates/dashboard/home.html` - Added "Upcoming Celebrations" section
+- `templates/users/preferences.html` - Added SMS toggle for significant events
+- `templates/life/home.html` - Added quick link to significant events
+- `static/css/dashboard.css` - Added celebrations section styles
+
+---
 
 ### Fix SMS Preferences Not Saving
 

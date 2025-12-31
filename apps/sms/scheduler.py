@@ -66,6 +66,7 @@ class SMSScheduler:
             'event': 0,
             'prayer': 0,
             'fasting': 0,
+            'significant_event': 0,
         }
 
         try:
@@ -94,6 +95,9 @@ class SMSScheduler:
 
         if prefs.sms_fasting_reminders:
             results['fasting'] = self.schedule_fasting_reminders(user, date)
+
+        if prefs.sms_significant_event_reminders:
+            results['significant_event'] = self.schedule_significant_event_reminders(user, date)
 
         return results
 
@@ -124,6 +128,7 @@ class SMSScheduler:
             'event': 0,
             'prayer': 0,
             'fasting': 0,
+            'significant_event': 0,
         }
 
         for pref in enabled_prefs:
@@ -431,6 +436,144 @@ class SMSScheduler:
                             count += 1
 
         return count
+
+    def schedule_significant_event_reminders(self, user, date) -> int:
+        """
+        Schedule reminders for significant events (birthdays, anniversaries, etc.).
+
+        For each significant event with SMS reminders enabled, schedules a
+        notification based on the configured reminder days (e.g., 7 days before,
+        1 day before, day of).
+
+        Returns:
+            Number of notifications scheduled
+        """
+        from apps.life.models import SignificantEvent
+
+        count = 0
+
+        # Get all significant events with SMS reminders enabled
+        events = SignificantEvent.objects.filter(
+            user=user,
+            status='active',
+            sms_reminder_enabled=True
+        )
+
+        for event in events:
+            # Get reminder days configuration
+            reminder_days_list = event.get_reminder_days_list()
+            if not reminder_days_list:
+                continue
+
+            # Get next occurrence of this event
+            next_occurrence = event.get_next_occurrence(date)
+
+            for days_before in reminder_days_list:
+                # Calculate when this reminder should be sent
+                reminder_date = next_occurrence - timedelta(days=days_before)
+
+                # Only schedule if reminder_date is today
+                if reminder_date != date:
+                    continue
+
+                # Schedule for 9 AM in user's timezone
+                scheduled_datetime = self._combine_date_time(date, time(9, 0), user)
+
+                # Don't schedule if it's in the past
+                if scheduled_datetime < timezone.now():
+                    continue
+
+                # Check if notification already exists
+                if self._significant_event_notification_exists(user, event, scheduled_datetime):
+                    continue
+
+                # Build message
+                message = self._build_significant_event_message(event, days_before)
+
+                notification = self.service.schedule_notification(
+                    user=user,
+                    category=SMSNotification.CATEGORY_SIGNIFICANT_EVENT,
+                    message=message,
+                    scheduled_for=scheduled_datetime,
+                    source_object=event
+                )
+
+                if notification:
+                    count += 1
+
+        return count
+
+    def _build_significant_event_message(self, event, days_before: int) -> str:
+        """
+        Build the SMS message for a significant event reminder.
+
+        Args:
+            event: SignificantEvent instance
+            days_before: Number of days before the event
+
+        Returns:
+            str: The SMS message
+        """
+        # Determine the time reference
+        if days_before == 0:
+            time_ref = "is today"
+        elif days_before == 1:
+            time_ref = "is tomorrow"
+        else:
+            time_ref = f"is in {days_before} days"
+
+        # Build base message
+        if event.person_name:
+            # Use person name for more personal message
+            if event.event_type == 'birthday':
+                base = f"{event.person_name}'s Birthday {time_ref}!"
+            elif event.event_type == 'anniversary':
+                years_display = event.get_years_display()
+                if years_display:
+                    base = f"{years_display} Anniversary with {event.person_name} {time_ref}!"
+                else:
+                    base = f"Anniversary with {event.person_name} {time_ref}!"
+            elif event.event_type == 'memorial':
+                base = f"{event.person_name}'s Memorial {time_ref}."
+            else:
+                base = f"{event.title} {time_ref}!"
+        else:
+            # Use title directly
+            years_display = event.get_years_display()
+            if years_display and event.event_type in ['anniversary', 'milestone']:
+                base = f"{years_display} {event.title} {time_ref}!"
+            else:
+                base = f"{event.title} {time_ref}!"
+
+        # Add custom message if set
+        if event.custom_message:
+            # Truncate custom message if needed to fit SMS limit
+            max_custom_len = 160 - len(base) - 5  # Leave room for space
+            custom = event.custom_message[:max_custom_len]
+            return f"{base} {custom}"
+
+        return base
+
+    def _significant_event_notification_exists(self, user, event, scheduled_for) -> bool:
+        """
+        Check if a significant event notification already exists.
+        """
+        from django.contrib.contenttypes.models import ContentType
+
+        content_type = ContentType.objects.get_for_model(event)
+
+        # Allow some time tolerance (within 5 minutes)
+        time_min = scheduled_for - timedelta(minutes=5)
+        time_max = scheduled_for + timedelta(minutes=5)
+
+        return SMSNotification.objects.filter(
+            user=user,
+            category=SMSNotification.CATEGORY_SIGNIFICANT_EVENT,
+            content_type=content_type,
+            object_id=event.pk,
+            scheduled_for__range=(time_min, time_max),
+            status__in=[SMSNotification.STATUS_PENDING, SMSNotification.STATUS_SENT]
+        ).exists()
 
     def _get_user_today(self, user):
         """Get today's date in user's timezone."""

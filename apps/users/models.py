@@ -420,6 +420,10 @@ class UserPreferences(models.Model):
         default=False,
         help_text="Send fasting window reminders",
     )
+    sms_significant_event_reminders = models.BooleanField(
+        default=True,
+        help_text="Send SMS reminders for significant events (birthdays, anniversaries)",
+    )
 
     # Quiet hours
     sms_quiet_hours_enabled = models.BooleanField(

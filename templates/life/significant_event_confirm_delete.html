@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ object.title }} - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:significant_event_list' %}">Significant Events</a>
+        <span>/</span>
+        <span>Delete</span>
+    </nav>
+
+    <div class="delete-page">
+        <div class="delete-card">
+            <div class="delete-icon">
+                {% if object.event_type == 'birthday' %}🎂
+                {% elif object.event_type == 'anniversary' %}💍
+                {% elif object.event_type == 'memorial' %}🕯️
+                {% elif object.event_type == 'milestone' %}🏆
+                {% elif object.event_type == 'holiday' %}🎉
+                {% else %}📅{% endif %}
+            </div>
+            <h1 class="delete-title">Delete {{ object.title }}?</h1>
+            <p class="delete-message">
+                This will permanently remove this significant event and its reminder settings.
+                You won't receive any more SMS reminders for this event.
+            </p>
+
+            <div class="event-preview">
+                <div class="preview-row">
+                    <span class="preview-label">Event</span>
+                    <span class="preview-value">{{ object.title }}</span>
+                </div>
+                {% if object.person_name %}
+                <div class="preview-row">
+                    <span class="preview-label">Person</span>
+                    <span class="preview-value">{{ object.person_name }}</span>
+                </div>
+                {% endif %}
+                <div class="preview-row">
+                    <span class="preview-label">Date</span>
+                    <span class="preview-value">{{ object.event_date|date:"F j" }}</span>
+                </div>
+            </div>
+
+            <form method="post" class="delete-form">
+                {% csrf_token %}
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-danger">Yes, Delete Event</button>
+                    <a href="{% url 'life:significant_event_detail' object.pk %}" class="btn btn-ghost">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.delete-page {
+    max-width: 500px;
+    margin: 0 auto;
+    padding-top: var(--space-8);
+}
+
+.delete-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-8);
+    text-align: center;
+}
+
+.delete-icon {
+    font-size: 3rem;
+    margin-bottom: var(--space-4);
+}
+
+.delete-title {
+    font-size: var(--font-size-xl);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.delete-message {
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-6) 0;
+}
+
+.event-preview {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+    text-align: left;
+}
+
+.preview-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+}
+
+.preview-row:not(:last-child) {
+    border-bottom: 1px solid var(--color-border);
+}
+
+.preview-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.preview-value {
+    font-weight: 500;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+}
+
+.btn-danger {
+    background: var(--color-error);
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+</style>
+{% endblock %}

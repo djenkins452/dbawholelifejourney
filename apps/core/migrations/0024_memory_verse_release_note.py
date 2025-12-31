@@ -56,7 +56,7 @@ def remove_memory_verse_release_note(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0023_merge_20251231_0644'),
+        ('core', '0023_merge_20251231_0643'),
     ]
 
     operations = [

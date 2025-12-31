@@ -967,6 +967,13 @@
             mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
             cameraPreview.srcObject = mediaStream;
 
+            // Wait for video to be ready to play
+            await new Promise((resolve) => {
+                cameraPreview.onloadedmetadata = () => {
+                    cameraPreview.play().then(resolve).catch(resolve);
+                };
+            });
+
             // Check if device has multiple cameras
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoDevices = devices.filter(d => d.kind === 'videoinput');
@@ -975,6 +982,12 @@
             }
 
             cameraOverlay.classList.add('hidden');
+
+            // Start barcode detection if in barcode mode
+            if (scanMode === 'barcode') {
+                console.log('Camera ready, starting barcode detection...');
+                startBarcodeDetection();
+            }
 
         } catch (err) {
             console.error('Camera error:', err);
@@ -1290,16 +1303,34 @@
     }
 
     function startBarcodeDetection() {
+        // Stop any existing detection first
+        stopBarcodeDetection();
+
         if (!cameraPreview || !cameraPreview.srcObject) {
             console.log('Camera not ready for barcode detection');
             return;
         }
 
+        // Wait for video to have valid dimensions
+        if (cameraPreview.videoWidth === 0 || cameraPreview.videoHeight === 0) {
+            console.log('Waiting for video dimensions...');
+            setTimeout(startBarcodeDetection, 100);
+            return;
+        }
+
         // Use BarcodeDetector API if available (Chrome/Edge on mobile)
         if ('BarcodeDetector' in window) {
+            console.log('BarcodeDetector API available, starting native detection');
             startNativeBarcodeDetection();
         } else {
-            // Fallback to canvas-based detection with server lookup
+            console.log('BarcodeDetector API NOT available - manual capture required');
+            // Show hint to user
+            if (barcodeOverlay) {
+                const hint = barcodeOverlay.querySelector('.barcode-hint');
+                if (hint) {
+                    hint.textContent = 'Press capture button to scan barcode';
+                }
+            }
             startCanvasBarcodeDetection();
         }
     }
@@ -1317,24 +1348,47 @@
 
     async function startNativeBarcodeDetection() {
         try {
-            const barcodeDetector = new BarcodeDetector({
-                formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
-            });
+            // Check what formats are supported
+            const supportedFormats = await BarcodeDetector.getSupportedFormats();
+            console.log('Supported barcode formats:', supportedFormats);
 
+            // Use all common product barcode formats
+            const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
+                .filter(f => supportedFormats.includes(f));
+
+            if (formats.length === 0) {
+                console.log('No supported barcode formats found');
+                startCanvasBarcodeDetection();
+                return;
+            }
+
+            console.log('Using formats:', formats);
+            const barcodeDetector = new BarcodeDetector({ formats });
+
+            let scanAttempts = 0;
             barcodeDetectionInterval = setInterval(async () => {
-                if (!cameraPreview || cameraPreview.paused || cameraPreview.ended) {
+                if (!cameraPreview || cameraPreview.paused || cameraPreview.ended || cameraPreview.readyState < 2) {
                     return;
                 }
 
+                scanAttempts++;
                 try {
                     const barcodes = await barcodeDetector.detect(cameraPreview);
                     if (barcodes.length > 0) {
+                        console.log('Barcode detected:', barcodes[0].rawValue, 'format:', barcodes[0].format);
                         handleBarcodeDetected(barcodes[0].rawValue);
+                    } else if (scanAttempts % 25 === 0) {
+                        // Log every 5 seconds (25 * 200ms) to show scanning is active
+                        console.log('Still scanning... attempts:', scanAttempts);
                     }
                 } catch (err) {
-                    // Detection failed, continue scanning
+                    if (scanAttempts % 50 === 0) {
+                        console.log('Detection cycle error (normal):', err.message);
+                    }
                 }
             }, 200); // Check every 200ms
+
+            console.log('Barcode detection started');
 
         } catch (err) {
             console.error('Native barcode detection failed:', err);
@@ -1345,7 +1399,6 @@
     function startCanvasBarcodeDetection() {
         // For browsers without BarcodeDetector, we'll capture frames and let
         // the user manually trigger lookup by pressing capture button
-        // The capture button in barcode mode will extract barcode using a different flow
         console.log('Using manual barcode capture mode');
     }
 

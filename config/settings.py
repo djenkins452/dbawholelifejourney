@@ -117,6 +117,7 @@ INSTALLED_APPS = [
     'apps.help',
     'apps.scan',
     'apps.sms',
+    'django_apscheduler',
 ]
 
 # Development-only: Add django-watchfiles for efficient autoreload (fixes Python 3.14 StatReloader issue)
@@ -575,4 +576,16 @@ if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
     print(f"Twilio configured - Test Mode: {TWILIO_TEST_MODE}")
 else:
     print("Twilio NOT configured - TWILIO_ACCOUNT_SID/AUTH_TOKEN not set")
+
+
+# ==============================================================================
+# APScheduler Configuration (Background Jobs)
+# ==============================================================================
+# Used for scheduling SMS reminders and sending pending notifications
+# Jobs are stored in the database and survive restarts
+
+APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
+
+# Run scheduler only in production (managed by run_scheduler command)
+APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
     

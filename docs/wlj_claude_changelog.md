@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Barcode Scanner - ZXing + Open Food Facts)
+# Last Updated: 2025-12-31 (APScheduler for SMS Notifications)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,39 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### APScheduler for Automatic SMS Notification Scheduling (NEW)
+
+**Problem Solved:**
+SMS medicine reminders were not being sent because the notification system required external cron jobs to trigger scheduling and sending - but no scheduler was actually running on Railway.
+
+**Solution:**
+Integrated `django-apscheduler` to run background jobs automatically as part of the Django application. Added a worker process that:
+1. **Schedules SMS reminders daily at midnight** - Creates SMSNotification records for all users with SMS enabled
+2. **Sends pending SMS every 5 minutes** - Finds notifications due and sends via Twilio
+3. **Cleans up old job logs weekly** - Prevents database bloat
+
+**New Dependencies:**
+- `django-apscheduler>=0.6.2` - APScheduler with Django database job store
+
+**New Files Created:**
+- `apps/sms/management/commands/run_sms_scheduler.py` - Management command to run the scheduler
+  - Uses `BackgroundScheduler` with `DjangoJobStore` for persistence
+  - Configurable schedule hour and send interval via command arguments
+  - Runs initial send check on startup
+  - Handles graceful shutdown on SIGINT
+
+**Files Modified:**
+- `requirements.txt` - Added django-apscheduler
+- `config/settings.py` - Added `django_apscheduler` to INSTALLED_APPS, APScheduler configuration
+- `Procfile` - Added `worker: python manage.py run_sms_scheduler`
+
+**Deployment:**
+Railway will automatically detect the worker process in Procfile and run it alongside the web process. No external cron configuration needed.
+
+**Test Count:** 1392 tests (unchanged)
+
+---
 
 ### Medicine Log Edit Feature (NEW)
 

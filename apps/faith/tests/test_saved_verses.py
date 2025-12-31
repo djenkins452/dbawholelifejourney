@@ -532,3 +532,191 @@ class SavedVerseDeleteTest(TestCase):
         # Verify verse was NOT deleted
         self.verse.refresh_from_db()
         self.assertFalse(self.verse.is_deleted)
+
+
+class MemoryVerseTest(TestCase):
+    """Tests for memory verse feature."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='test@example.com',
+            password='testpass123'
+        )
+        setup_user_for_faith(self.user)
+        self.client = Client()
+        self.client.login(email='test@example.com', password='testpass123')
+
+        self.verse = SavedVerse.objects.create(
+            user=self.user,
+            reference='Philippians 4:13',
+            text='I can do all things through Christ who strengthens me.',
+            translation='NKJV',
+            book_name='Philippians',
+            book_order=50,
+            chapter=4,
+            verse_start=13,
+            themes=['strength', 'faith']
+        )
+
+    def test_default_is_not_memory_verse(self):
+        """New saved verses are not memory verses by default."""
+        self.assertFalse(self.verse.is_memory_verse)
+
+    def test_toggle_to_memory_verse(self):
+        """Can toggle verse to be a memory verse."""
+        response = self.client.post(
+            reverse('faith:toggle_memory_verse', kwargs={'pk': self.verse.pk})
+        )
+        self.assertRedirects(response, reverse('faith:scripture_list'))
+
+        self.verse.refresh_from_db()
+        self.assertTrue(self.verse.is_memory_verse)
+
+    def test_toggle_off_memory_verse(self):
+        """Can toggle memory verse off."""
+        self.verse.is_memory_verse = True
+        self.verse.save()
+
+        response = self.client.post(
+            reverse('faith:toggle_memory_verse', kwargs={'pk': self.verse.pk})
+        )
+        self.assertRedirects(response, reverse('faith:scripture_list'))
+
+        self.verse.refresh_from_db()
+        self.assertFalse(self.verse.is_memory_verse)
+
+    def test_only_one_memory_verse_at_a_time(self):
+        """Setting a new memory verse clears the previous one."""
+        verse2 = SavedVerse.objects.create(
+            user=self.user,
+            reference='John 3:16',
+            text='For God so loved the world...',
+            translation='ESV',
+            book_name='John',
+            book_order=43,
+            chapter=3,
+            verse_start=16
+        )
+
+        # Set first verse as memory verse
+        self.verse.is_memory_verse = True
+        self.verse.save()
+
+        # Toggle second verse as memory verse
+        self.client.post(
+            reverse('faith:toggle_memory_verse', kwargs={'pk': verse2.pk})
+        )
+
+        self.verse.refresh_from_db()
+        verse2.refresh_from_db()
+
+        # First verse should no longer be memory verse
+        self.assertFalse(self.verse.is_memory_verse)
+        # Second verse should now be memory verse
+        self.assertTrue(verse2.is_memory_verse)
+
+    def test_cannot_toggle_other_users_verse(self):
+        """Cannot toggle another user's verse as memory verse."""
+        other_user = User.objects.create_user(
+            email='other@example.com',
+            password='testpass123'
+        )
+        setup_user_for_faith(other_user)
+        other_verse = SavedVerse.objects.create(
+            user=other_user,
+            reference='Psalm 23:1',
+            text='The Lord is my shepherd...',
+            translation='NIV',
+            book_name='Psalms',
+            book_order=19,
+            chapter=23,
+            verse_start=1
+        )
+
+        response = self.client.post(
+            reverse('faith:toggle_memory_verse', kwargs={'pk': other_verse.pk})
+        )
+        self.assertEqual(response.status_code, 404)
+
+        other_verse.refresh_from_db()
+        self.assertFalse(other_verse.is_memory_verse)
+
+    def test_memory_verse_shows_badge_in_list(self):
+        """Memory verse shows badge in scripture list."""
+        self.verse.is_memory_verse = True
+        self.verse.save()
+
+        response = self.client.get(reverse('faith:scripture_list'))
+        self.assertContains(response, 'Memory Verse')
+        self.assertContains(response, 'memory-verse')
+
+    def test_toggle_requires_post(self):
+        """Toggle requires POST method (GET should not work)."""
+        response = self.client.get(
+            reverse('faith:toggle_memory_verse', kwargs={'pk': self.verse.pk})
+        )
+        self.assertEqual(response.status_code, 405)
+
+        self.verse.refresh_from_db()
+        self.assertFalse(self.verse.is_memory_verse)
+
+
+class MemoryVerseOnDashboardTest(TestCase):
+    """Tests for memory verse display on dashboard."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.user.preferences.faith_enabled = True
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+        accept_terms(self.user)
+
+        self.client = Client()
+        self.client.login(email='test@example.com', password='testpass123')
+
+    def test_dashboard_shows_memory_verse_when_set(self):
+        """Dashboard displays memory verse when one is set."""
+        verse = SavedVerse.objects.create(
+            user=self.user,
+            reference='Romans 8:28',
+            text='And we know that in all things God works for the good...',
+            translation='NIV',
+            book_name='Romans',
+            book_order=45,
+            chapter=8,
+            verse_start=28,
+            is_memory_verse=True
+        )
+
+        response = self.client.get(reverse('dashboard:home'))
+        self.assertContains(response, 'Memory Verse')
+        self.assertContains(response, 'Romans 8:28')
+        self.assertContains(response, 'And we know that in all things God works for the good')
+
+    def test_dashboard_no_memory_verse_section_when_not_set(self):
+        """Dashboard does not show memory verse section when none is set."""
+        response = self.client.get(reverse('dashboard:home'))
+        self.assertNotContains(response, 'memory-verse-section')
+
+    def test_dashboard_no_memory_verse_when_faith_disabled(self):
+        """Dashboard does not show memory verse when faith module is disabled."""
+        self.user.preferences.faith_enabled = False
+        self.user.preferences.save()
+
+        SavedVerse.objects.create(
+            user=self.user,
+            reference='John 3:16',
+            text='For God so loved the world...',
+            translation='ESV',
+            book_name='John',
+            book_order=43,
+            chapter=3,
+            verse_start=16,
+            is_memory_verse=True
+        )
+
+        response = self.client.get(reverse('dashboard:home'))
+        self.assertNotContains(response, 'memory-verse-section')

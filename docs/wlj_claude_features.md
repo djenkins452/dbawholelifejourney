@@ -31,6 +31,7 @@ For core project context, see `CLAUDE.md` (project root).
 13. [Dashboard Tile Shortcuts](#dashboard-tile-shortcuts)
 14. [SMS Text Notifications](#sms-text-notifications)
 15. [Task Management](#task-management)
+16. [Memory Verse](#memory-verse)
 
 ---
 
@@ -142,15 +143,7 @@ The users app is mounted at `/user/` (singular), not `/users/`.
 ## Context-Aware Help System
 
 ### Overview
-The application has a "?" help icon that provides context-aware help. The help content is designed to help users make informed decisions about why to use each feature and how it connects to the Dashboard and AI insights.
-
-### Content Philosophy (Updated 2025-12-31)
-Each help topic now includes:
-1. **"Why This Feature?"** - Value proposition explaining the reason to use it
-2. **"How It Powers Your Dashboard"** - Connection to AI insights and dashboard
-3. **"How to Use It"** - Step-by-step instructions
-4. **"Tips for Success"** - Best practices
-5. **"Related Features"** - Cross-module connections
+The application has a "?" help icon that provides context-aware help. This is authoritative user guidance with exact, step-by-step instructions.
 
 ### Core Principle: HELP_CONTEXT_ID
 Every page declares a stable identifier. The help system uses this to show the exact relevant documentation.
@@ -158,69 +151,55 @@ Every page declares a stable identifier. The help system uses this to show the e
 **How it works:**
 1. User clicks "?" icon
 2. System reads the page's `HELP_CONTEXT_ID`
-3. Looks up that ID in the `HelpTopic` model
-4. Displays content in a modal with Markdown rendering
+3. Looks up that ID in the help index
+4. Opens the exact matching help section
 
 ### HELP_CONTEXT_ID Naming Convention
 Format: `{APP}_{SCREEN}` or `{APP}_{ENTITY}_{ACTION}`
 
 Examples:
 - `DASHBOARD_HOME`
-- `HEALTH_HOME`
-- `NUTRITION_HOME`
-- `HEALTH_MEDICINE_HOME`
+- `HEALTH_ROOT`
+- `HEALTH_WORKOUT_CREATE`
+- `JOURNAL_ENTRY_LIST`
 - `SETTINGS_PREFERENCES`
-- `SCAN_HOME`
-- `ASSISTANT_HOME`
-
-### Available Help Topics (20 total)
-| Context ID | Title |
-|------------|-------|
-| DASHBOARD_HOME | Your Dashboard: The Heart of Your Journey |
-| GENERAL | Navigating Your Whole Life Journey |
-| JOURNAL_HOME | Journal: The Foundation of Self-Awareness |
-| HEALTH_HOME | Health: Track What You Can Measure |
-| FAITH_HOME | Faith: Nurture Your Spiritual Journey |
-| SETTINGS_PREFERENCES | Preferences: Make It Yours |
-| LIFE_HOME | Life: Your Daily Operating Layer |
-| PURPOSE_HOME | Purpose: Your North Star |
-| NUTRITION_HOME | Nutrition: Fuel Your Body Intentionally |
-| HEALTH_MEDICINE_HOME | Medicine Tracking: Never Miss a Dose |
-| SCAN_HOME | Camera Scan: AI-Powered Quick Entry |
-| ASSISTANT_HOME | Personal Assistant: Your AI-Powered Guide |
-| SMS_SETTINGS | SMS Notifications: Reminders Where You'll See Them |
-| HEALTH_VITALS | Vitals: Monitor Your Cardiovascular Health |
-| HEALTH_PROVIDERS | Medical Providers: Your Healthcare Contacts |
-| + 5 Admin Console topics |
 
 ### Implementation Details
 Each page exposes its context via:
-- Django view mixin: `HelpContextMixin` with `help_context_id` attribute
-- Template: `{% include 'components/help_button.html' %}`
-- API: `GET /help/api/topic/<context_id>/`
+- Django template variable: `{% with help_context_id="HEALTH_ROOT" %}`
+- HTML data attribute: `data-help-context="HEALTH_ROOT"`
+- JavaScript variable: `window.HELP_CONTEXT_ID = "HEALTH_ROOT"`
 
-### Data Storage
-Help content is stored in the database via Django fixtures:
-- `apps/help/fixtures/help_topics.json` - User-facing help (20 topics)
-- `apps/help/fixtures/help_articles.json` - Searchable articles (15 articles)
-- `apps/help/fixtures/help_categories.json` - Article categories (5 categories)
-- `apps/help/fixtures/admin_help_topics.json` - Admin help (7 topics)
+### Documentation File Structure
+```
+docs/
+├── help/
+│   ├── index.json          # Maps HELP_CONTEXT_ID → file + HELP_ID
+│   ├── dashboard.md        # Dashboard help content
+│   ├── health.md           # Health app help content
+│   └── ...
+```
 
-### Reloading Help Content
-Use the management command to reload help content from fixtures:
-```bash
-python manage.py reload_help_content           # Reload all
-python manage.py reload_help_content --dry-run # Preview only
-python manage.py reload_help_content --topics-only   # Only topics
-python manage.py reload_help_content --articles-only # Only articles
+### Help Entry Format
+```markdown
+## [HELP_ID: health-log-workout]
+**Title:** How to Log a Workout
+**Context:** HEALTH_WORKOUT_CREATE screen
+**Description:** Record your exercise activities.
+
+### Steps
+1. Click "Health" in the left navigation menu.
+2. Click the "Log Workout" button.
+3. Select a workout type from the dropdown.
+4. Enter the duration in minutes.
+5. Click "Save" to record your workout.
 ```
 
 ### Writing Rules
-1. Start with the "Why" - explain value before how-to
-2. Show Dashboard/AI connection - how data powers insights
-3. Use tables to show data→insight relationships
-4. Include Related Features section for cross-module discovery
-5. Markdown supported (headings, bold, tables, lists)
+1. Start each step with an action verb (Click, Enter, Select)
+2. Reference exact UI labels in quotes
+3. Be exact—a chatbot will read these verbatim
+4. No vague text, no summaries
 
 ---
 
@@ -866,6 +845,42 @@ The quick stat tiles at the top of the dashboard are clickable, providing direct
 
 ---
 
+## Task List with Search
+
+### Overview
+The Task List page allows users to view all tasks with powerful filtering and search capabilities.
+
+### Features
+1. **Full-Text Search** - Search across task titles, notes, and project names
+2. **Filtering** - Filter by completion status (Active/Completed/All) and priority (Now/Soon/Someday)
+3. **Task Counts** - See how many tasks in each category
+4. **Combined Search + Filters** - Search preserves filter selections
+
+### Search Behavior
+- Searches task `title`, `notes`, and `project.title` fields
+- Case-insensitive matching
+- Search query persists across filter changes
+- Clear button to reset search
+
+### URL Parameters
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `q` | string | Search query |
+| `show` | active, completed, all | Filter by completion status |
+| `priority` | now, soon, someday | Filter by priority |
+
+### Example URLs
+- `/life/tasks/` - All active tasks
+- `/life/tasks/?q=groceries` - Search for "groceries" in active tasks
+- `/life/tasks/?show=all&priority=now` - All "now" priority tasks
+- `/life/tasks/?show=completed&q=work` - Completed tasks containing "work"
+
+### Key Files
+- `apps/life/views.py` - TaskListView with search/filter logic
+- `templates/life/task_list.html` - Task list UI with search bar
+
+---
+
 ## SMS Text Notifications
 
 ### Overview
@@ -1122,6 +1137,78 @@ Located in `apps/life/tests/test_views.py` - TaskViewTest class with tests for:
 - Search by title and notes
 - Search with filters
 - User isolation
+
+---
+
+## Memory Verse
+
+### Overview
+Users can designate one of their saved Scripture verses as a "Memory Verse" to display prominently at the top of their Dashboard. This feature supports Scripture memorization as a spiritual discipline.
+
+### How It Works
+1. User saves Scripture verses to their personal library (Faith → Scripture)
+2. User clicks the "Memorize" button on any saved verse
+3. The verse is marked as the Memory Verse (only one at a time)
+4. The verse appears at the top of the Dashboard (when Faith module is enabled)
+5. User can toggle off or switch to a different verse at any time
+
+### Model Changes
+`SavedVerse` model in `apps/faith/models.py`:
+```python
+is_memory_verse = BooleanField(
+    default=False,
+    help_text="Mark this verse as a memory verse to display on the dashboard"
+)
+```
+
+### Business Logic
+- Only one verse can be the memory verse at a time per user
+- Setting a new memory verse automatically clears the previous one
+- Memory verse only displays on dashboard when Faith module is enabled
+
+### URL Routes
+| URL | View | Description |
+|-----|------|-------------|
+| `/faith/scripture/<id>/memory-verse/` | ToggleMemoryVerseView | Toggle memory verse status |
+
+### Dashboard Display
+When a user has a memory verse set and Faith is enabled:
+- Appears immediately after the header, before AI insights
+- Features a star icon badge with "Memory Verse" label
+- Shows the Scripture text in italics
+- Displays the reference attribution
+- Link to Scripture Library for management
+
+### UI Components
+**Scripture List (`templates/faith/scripture_list.html`)**:
+- "Memorize" / "Memorizing" toggle button with star icon
+- Visual badge on memory verse cards
+- Highlighted border and background
+
+**Dashboard (`templates/dashboard/home.html`)**:
+- Memory verse section with styled card
+- Gradient background with accent color
+- Link to Scripture Library
+
+### CSS Styles
+- `static/css/dashboard.css` - Memory verse section styles
+- `templates/faith/scripture_list.html` - Inline styles for verse cards
+
+### Key Files
+- `apps/faith/models.py` - SavedVerse.is_memory_verse field
+- `apps/faith/views.py` - ToggleMemoryVerseView
+- `apps/faith/urls.py` - Route for toggle endpoint
+- `apps/dashboard/views.py` - _get_faith_data fetches memory verse
+- `templates/dashboard/home.html` - Memory verse display section
+- `templates/faith/scripture_list.html` - Toggle button and badge
+
+### Testing
+10 tests in `apps/faith/tests/test_saved_verses.py`:
+- `MemoryVerseTest` - 7 tests for toggle functionality
+- `MemoryVerseOnDashboardTest` - 3 tests for dashboard display
+
+### Migration
+`apps/faith/migrations/0005_add_memory_verse_field.py` - Adds is_memory_verse field
 
 ---
 

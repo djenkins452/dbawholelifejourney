@@ -256,19 +256,23 @@ class ProjectDeleteView(LifeAccessMixin, DeleteView):
 # =============================================================================
 
 class TaskListView(LifeAccessMixin, ListView):
-    """List all tasks with search and filter capabilities."""
+    """List all tasks with search and filtering capabilities."""
     model = Task
     template_name = "life/task_list.html"
     context_object_name = "tasks"
 
     def get_queryset(self):
+        from django.db.models import Q
+
         queryset = Task.objects.filter(user=self.request.user)
 
-        # Search by title and notes
+        # Search functionality - searches title, notes, and project name
         search_query = self.request.GET.get('q', '').strip()
         if search_query:
             queryset = queryset.filter(
-                Q(title__icontains=search_query) | Q(notes__icontains=search_query)
+                Q(title__icontains=search_query) |
+                Q(notes__icontains=search_query) |
+                Q(project__title__icontains=search_query)
             )
 
         # Filter by completion
@@ -305,11 +309,16 @@ class TaskListView(LifeAccessMixin, ListView):
         from apps.core.utils import get_user_today
         context['current_show'] = self.request.GET.get('show', 'active')
         context['current_priority'] = self.request.GET.get('priority', '')
-        context['search_query'] = self.request.GET.get('q', '').strip()
+        context['search_query'] = self.request.GET.get('q', '')
         context['user_today'] = get_user_today(self.request.user)
         context['projects'] = Project.objects.filter(
             user=self.request.user, status='active'
         )
+        # Total task counts for display
+        all_tasks = Task.objects.filter(user=self.request.user)
+        context['total_active_count'] = all_tasks.filter(is_completed=False).count()
+        context['total_completed_count'] = all_tasks.filter(is_completed=True).count()
+        context['total_all_count'] = all_tasks.count()
         return context
 
 

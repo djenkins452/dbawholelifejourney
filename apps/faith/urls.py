@@ -19,6 +19,7 @@ urlpatterns = [
     path("scripture/<int:pk>/", views.ScriptureDetailView.as_view(), name="scripture_detail"),
     path("scripture/<int:pk>/edit/", views.SavedVerseUpdateView.as_view(), name="saved_verse_edit"),
     path("scripture/<int:pk>/delete/", views.SavedVerseDeleteView.as_view(), name="saved_verse_delete"),
+    path("scripture/<int:pk>/memory-verse/", views.ToggleMemoryVerseView.as_view(), name="toggle_memory_verse"),
 
     # Prayers
     path("prayers/", views.PrayerListView.as_view(), name="prayer_list"),

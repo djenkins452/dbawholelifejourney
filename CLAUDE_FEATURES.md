@@ -5,7 +5,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29 (Personal Assistant Module + AI Task-Focused Update)
+# Last Updated: 2025-12-30 (Personal Assistant coaching style + time urgency)
 # ==============================================================================
 
 # Feature Documentation
@@ -191,14 +191,49 @@ Users can disable the popup via Preferences → Notifications → "Show What's N
 ## Dashboard AI Personal Assistant
 
 ### Overview
-A task-focused personal assistant that helps users get things done and stay aligned with their goals. This is NOT a chatbot or cheerleader - it focuses on ACTION and what needs attention.
+A task-focused personal assistant that helps users get things done and stay aligned with their goals. This is NOT a chatbot or cheerleader - it focuses on ACTION and what REMAINS to be done.
 
 ### Core Philosophy
-- **Action-focused** - Surfaces what needs attention, not what's been accomplished
+- **Action-focused** - Surfaces what REMAINS to be done, not what's been accomplished
+- **Coaching style aware** - Uses the same coaching style as Dashboard AI (direct, gentle, supportive, etc.)
+- **Time-aware urgency** - Knows the user's timezone and increases urgency as the day progresses
 - **Faith-first prioritization** (for users with faith enabled): Faith → Purpose → Long-term goals → Commitments → Maintenance → Optional
 - **Direct and helpful** - Provides clear next steps without excessive praise
 - **Positive feedback on dashboard** - Celebrations belong on the main dashboard, not the assistant
 - **Personalized reflection prompts** for journaling
+
+### Coaching Style Integration
+The Personal Assistant uses the user's selected AI Coaching Style (configured in Preferences):
+
+| Style | Communication Approach |
+|-------|----------------------|
+| `direct` | Blunt, to the point, no fluff, short sentences |
+| `gentle` | Warm but action-focused, acknowledges feelings |
+| `supportive` | Balance of warmth and directness (default) |
+
+The coaching style affects:
+- System prompts sent to the AI
+- Fallback responses when AI is unavailable
+- Greeting messages (especially in evening hours)
+- Nudge messaging tone
+
+### Time-Aware Urgency
+The assistant is aware of the user's local time (based on their timezone preference) and adjusts messaging accordingly:
+
+| Time of Day | Hours Until Bedtime | Urgency Level | Example Message |
+|-------------|---------------------|---------------|-----------------|
+| Early morning (<9am) | Many | Low | "Focus on priorities without rushing" |
+| Morning (9am-12pm) | Many | Low | "Good time to tackle important items" |
+| Afternoon (12-3pm) | 7-10 hours | Medium | "You have about X hours of productive time left" |
+| Late afternoon (3-6pm) | 4-7 hours | Medium-High | "Focus on what's most critical" |
+| Evening (6-8pm) | 2-4 hours | High | "Only about X hours remain. What absolutely must get done?" |
+| Late evening (8-10pm) | 0-2 hours | Very High | "Only X hour(s) left before bedtime. Focus on the essentials" |
+| Night (>10pm) | 0 | Wind-down | "Consider what can wait until tomorrow" |
+
+**Nudge Examples with Time Context:**
+- "3 tasks STILL due today. 2 hours to go."
+- "2 overdue tasks. Only 4 hours left today."
+- Direct style: "3 overdue. Handle them now."
 
 ### What It Does
 1. **Daily State Assessment** - Focuses on gaps and action items (overdue tasks, journal gaps, medicine adherence issues)
@@ -249,11 +284,15 @@ A task-focused personal assistant that helps users get things done and stay alig
 | `/assistant/api/reflection/used/` | `ReflectionPromptUsedView` | Mark prompt used |
 
 ### Key Services
-- `apps/ai/personal_assistant.py` - Core personal assistant logic (~800 lines)
+- `apps/ai/personal_assistant.py` - Core personal assistant logic (~1500 lines)
   - State assessment across all dimensions
   - Priority generation with faith-first ordering
-  - Opening message generation
-  - Conversation management with context
+  - Opening message generation with time context
+  - Conversation management with coaching style
+  - Time-aware urgency messaging
+  - `build_personal_assistant_prompt()` - Builds AI prompt with coaching style
+  - `_get_time_context()` - Calculates hours remaining in day
+  - `_build_system_prompt()` - Combines base prompt, coaching style, time context
 
 - `apps/ai/trend_tracking.py` - Trend analysis service (~400 lines)
   - Weekly/monthly analysis generation

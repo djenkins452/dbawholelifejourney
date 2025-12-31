@@ -5,7 +5,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30 (Migration merge fix)
+# Last Updated: 2025-12-30 (Personal Assistant coaching style + time urgency)
 # ==============================================================================
 
 # Change History
@@ -16,6 +16,50 @@ For active development context, see `CLAUDE.md`.
 ---
 
 ## 2025-12-30 Changes
+
+### Personal Assistant: Coaching Style Integration & Time-Aware Urgency
+
+Enhanced the Personal Assistant to use the user's selected AI Coaching Style (same as Dashboard AI) and added time-aware urgency messaging based on user timezone.
+
+**Key Changes:**
+
+1. **Coaching Style Integration** (`apps/ai/personal_assistant.py`)
+   - Personal Assistant now uses the same coaching style as Dashboard AI
+   - Added `build_personal_assistant_prompt()` function that incorporates coaching style
+   - Added `get_coaching_style_for_assistant()` to fetch coaching style from database
+   - Communication style varies based on coaching style (direct, gentle, supportive)
+   - Fallback responses now match the user's coaching style
+
+2. **Time-Aware Urgency**
+   - Added `_get_time_context()` method that calculates hours remaining until bedtime (10pm)
+   - Time context includes: current_time, hours_remaining, day_status, urgency_message
+   - Messages become more urgent as the day progresses:
+     - Early morning: "Focus on priorities without rushing"
+     - Late afternoon: "You have about X hours left today. Focus on what's most critical."
+     - Evening: "Only about X hours remain. What absolutely must get done?"
+     - Late evening: "Only X hour(s) left before bedtime. Focus on the essentials."
+   - Nudges include time-based urgency (e.g., "3 tasks STILL due today. 2 hours to go.")
+
+3. **Focus on REMAINING Tasks**
+   - Prompts now explicitly focus on what REMAINS to be done, not accomplishments
+   - State summaries show "Tasks REMAINING today" instead of completed counts
+   - AI assessment prompts ask "What STILL needs attention?"
+   - User prompt instructions emphasize remaining work over praise
+
+4. **Opening Message Enhancements**
+   - `get_opening_message()` now includes `time_context` and `coaching_style`
+   - Greeting includes time-aware suffix when in evening hours
+   - Direct style: "Good evening, Danny. 4 hours left today."
+   - Gentle style: "Good evening, Danny. The evening is here."
+   - Supportive: "Good evening, Danny. Let's make the most of the evening."
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Core changes for coaching style + time awareness
+- `apps/ai/tests/test_ai_comprehensive.py` - Fixed test missing required form field
+
+**Test Results:** 54 Personal Assistant tests pass, 152 total AI tests pass
+
+---
 
 ### Migration Merge: Core App Conflict Resolution
 

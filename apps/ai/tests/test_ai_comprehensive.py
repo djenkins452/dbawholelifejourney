@@ -1435,6 +1435,7 @@ class AIProfilePreferencesTest(AITestMixin, TestCase):
                 'ai_profile': 'Test profile content for AI personalization.',
                 'timezone': 'US/Eastern',
                 'default_fasting_type': '16:8',
+                'weight_goal_unit': 'lb',  # Required field
             }
         )
 

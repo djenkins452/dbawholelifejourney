@@ -5,7 +5,7 @@
 #              prioritization, faith integration, and action-focused guidance
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-29
-# Last Updated: 2025-12-29 (Updated to be task-focused, not cheerleading)
+# Last Updated: 2025-12-30 (Added coaching style integration, time-aware urgency)
 # ==============================================================================
 """
 Dashboard AI Personal Assistant Service
@@ -41,20 +41,21 @@ logger = logging.getLogger(__name__)
 # PERSONAL ASSISTANT SYSTEM PROMPTS
 # =============================================================================
 
-PERSONAL_ASSISTANT_SYSTEM_PROMPT = """You are the Dashboard AI Personal Assistant for Whole Life Journey (WLJ).
+# Base system prompt - coaching style is appended dynamically
+PERSONAL_ASSISTANT_BASE_PROMPT = """You are the Dashboard AI Personal Assistant for Whole Life Journey (WLJ).
 
 You are NOT a chatbot or cheerleader. You are a personal life assistant focused on ACTION and ACCOUNTABILITY.
 
 Your job is to:
 - Help the user get things done that align with their stated goals
-- Surface what needs attention TODAY, not celebrate past wins
-- Provide clear, actionable next steps
-- Keep the user moving forward
+- Surface what REMAINS to be done TODAY, not celebrate past wins
+- Provide clear, actionable next steps with time awareness
+- Keep the user moving forward with urgency when appropriate
 
 CORE PRINCIPLE (NON-NEGOTIABLE):
-Focus on what needs to be done, not what's been done.
+Focus on what STILL needs to be done, not what's been done.
 You are a helpful assistant, not a motivational speaker.
-Positive feedback belongs on the dashboard - here, focus on ACTION.
+Positive feedback belongs on the dashboard - here, focus on REMAINING ACTION.
 
 You always anchor guidance to what the user has already said matters.
 You do NOT invent priorities.
@@ -62,14 +63,15 @@ You surface, connect, and reinforce the user's stated Purpose, Goals, intentions
 
 HOW YOU THINK:
 You think in layers:
-- What needs attention right now
-- What's at risk of slipping
-- What commitments are due
-- What goals need progress
+- What STILL needs attention right now
+- What's at risk of slipping if not done TODAY
+- What commitments are due and NOT yet completed
+- What goals HAVEN'T seen progress yet
 
 You understand energy, not just time.
 You understand seasons of life.
 You understand that progress is not linear.
+You are aware of the TIME OF DAY and remaining hours.
 
 PRIORITIZATION RULES (ALWAYS USE THIS ORDER):
 1. Faith and spiritual alignment
@@ -81,30 +83,6 @@ PRIORITIZATION RULES (ALWAYS USE THIS ORDER):
 
 Never prioritize convenience over alignment.
 
-TONE & COMMUNICATION STYLE:
-Your voice is:
-- Direct and helpful
-- Clear and actionable
-- Efficient, not wordy
-- Focused on what's next
-
-You speak like:
-- A capable assistant who gets things done
-- A clear-headed guide
-- Someone who respects the user's time
-
-Never:
-- Be a cheerleader or overly praise
-- List accomplishments at length
-- Use excessive encouragement or superlatives
-- Say things like "Great job!" or "You're doing amazing!"
-
-DO:
-- Focus on gaps and opportunities
-- Surface what needs attention
-- Provide clear next actions
-- Be concise and helpful
-
 If data is missing, incomplete, or inconsistent:
 - State the gap clearly
 - Explain why filling it in matters
@@ -112,16 +90,101 @@ If data is missing, incomplete, or inconsistent:
 
 SUCCESS DEFINITION:
 You are successful if:
-- The user knows exactly what to do next
-- The user takes action on their priorities
+- The user knows exactly what REMAINS to do
+- The user takes action on their remaining priorities
 - The user stays aligned with what matters most
-- The assistant feels helpful, not like a cheerleader
-
-FINAL INSTRUCTION:
-Always ask yourself before responding:
-"What does the user need to DO today to live the life they said they want?"
-Focus on that. Skip the praise.
+- The assistant feels helpful and action-focused
 """
+
+# Time urgency prompt - added based on time of day
+TIME_URGENCY_PROMPT = """
+TIME AWARENESS:
+Current time for user: {current_time}
+Hours remaining before typical bedtime (10pm): {hours_remaining}
+Day status: {day_status}
+
+{urgency_message}
+"""
+
+def get_coaching_style_for_assistant(coaching_style: str) -> str:
+    """
+    Get the coaching style prompt instructions for the Personal Assistant.
+    Uses the same coaching styles as Dashboard AI for consistency.
+    """
+    from .services import ai_service
+    return ai_service._get_coaching_style_prompt(coaching_style)
+
+
+def build_personal_assistant_prompt(coaching_style: str, faith_enabled: bool,
+                                     user_profile: str = None, time_context: dict = None) -> str:
+    """
+    Build the complete Personal Assistant system prompt with coaching style.
+
+    Args:
+        coaching_style: User's selected coaching style (e.g., 'supportive', 'direct')
+        faith_enabled: Whether faith module is enabled
+        user_profile: User's personal AI profile
+        time_context: Dict with current_time, hours_remaining, day_status, urgency_message
+    """
+    prompt = PERSONAL_ASSISTANT_BASE_PROMPT
+
+    # Add coaching style instructions
+    style_prompt = get_coaching_style_for_assistant(coaching_style)
+    prompt += "\n\nCOACHING STYLE:\n" + style_prompt
+
+    # Add communication guidelines based on coaching style
+    prompt += "\n\nCOMMUNICATION STYLE:"
+    if coaching_style == 'direct':
+        prompt += """
+- Be blunt and to the point
+- No fluff or unnecessary words
+- State what needs doing, then stop
+- Use short sentences
+- Don't soften the message"""
+    elif coaching_style == 'gentle':
+        prompt += """
+- Be warm but still action-focused
+- Acknowledge the user's feelings
+- Frame remaining tasks as opportunities
+- Use encouraging but not excessive language"""
+    else:  # supportive (default) and others
+        prompt += """
+- Balance warmth with directness
+- Be clear about what remains
+- Supportive but not cheerleading
+- Focus on next steps, not praise"""
+
+    prompt += """
+
+NEVER:
+- Be a cheerleader or overly praise
+- List accomplishments at length
+- Use excessive encouragement or superlatives
+- Say things like "Great job!" or "You're doing amazing!"
+
+DO:
+- Focus on gaps and REMAINING items
+- Surface what STILL needs attention
+- Provide clear next actions
+- Be concise and helpful
+- Use time awareness to create appropriate urgency"""
+
+    # Add time urgency context if provided
+    if time_context:
+        prompt += "\n\n" + TIME_URGENCY_PROMPT.format(**time_context)
+
+    # Add faith context if enabled
+    if faith_enabled:
+        prompt += "\n" + FAITH_INTEGRATION_PROMPT
+
+    # Add user profile context if provided
+    if user_profile:
+        from .profile_moderation import build_safe_profile_context
+        profile_context = build_safe_profile_context(user_profile)
+        if profile_context:
+            prompt += "\n\nUSER CONTEXT:\n" + profile_context
+
+    return prompt
 
 FAITH_INTEGRATION_PROMPT = """
 FAITH & SPIRITUAL INTEGRATION:
@@ -200,6 +263,8 @@ class PersonalAssistant:
     - Reflection prompts
     - Trend analysis
     - Accountability tracking
+    - Time-aware urgency (based on user timezone)
+    - Coaching style integration (matches Dashboard AI)
     """
 
     def __init__(self, user):
@@ -208,6 +273,72 @@ class PersonalAssistant:
         self.faith_enabled = self.prefs.faith_enabled
         self.coaching_style = getattr(self.prefs, 'ai_coaching_style', 'supportive')
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
+
+    def _get_time_context(self) -> dict:
+        """
+        Get time-aware context for urgency messaging.
+
+        Calculates hours remaining in day and appropriate urgency level
+        based on user's timezone. Assumes typical bedtime of 10pm.
+        """
+        import pytz
+        from apps.core.utils import get_user_now
+
+        user_now = get_user_now(self.user)
+        current_hour = user_now.hour
+        current_time = user_now.strftime("%I:%M %p")
+
+        # Assume bedtime at 10pm (22:00)
+        bedtime_hour = 22
+        hours_remaining = max(0, bedtime_hour - current_hour)
+
+        # Determine day status and urgency message
+        if current_hour < 9:  # Early morning
+            day_status = "early_morning"
+            urgency_message = "It's early in the day. Focus on priorities without rushing."
+        elif current_hour < 12:  # Morning
+            day_status = "morning"
+            urgency_message = "Good time to tackle important items while energy is high."
+        elif current_hour < 15:  # Early afternoon
+            day_status = "afternoon"
+            urgency_message = f"Afternoon is here. You have about {hours_remaining} hours of productive time left."
+        elif current_hour < 18:  # Late afternoon
+            day_status = "late_afternoon"
+            if hours_remaining <= 4:
+                urgency_message = f"You have about {hours_remaining} hours left today. Focus on what's most critical."
+            else:
+                urgency_message = "Late afternoon - good time to wrap up remaining priorities."
+        elif current_hour < 20:  # Evening
+            day_status = "evening"
+            urgency_message = f"Evening is here. Only about {hours_remaining} hours remain. What absolutely must get done?"
+        elif current_hour < 22:  # Late evening
+            day_status = "late_evening"
+            if hours_remaining > 0:
+                urgency_message = f"Only {hours_remaining} hour(s) left before bedtime. Focus on the essentials or let go gracefully."
+            else:
+                urgency_message = "The day is wrapping up. Time to close out or accept what didn't get done."
+        else:  # Night
+            day_status = "night"
+            urgency_message = "It's late. Consider what can wait until tomorrow. Rest is productive too."
+
+        return {
+            'current_time': current_time,
+            'hours_remaining': hours_remaining,
+            'day_status': day_status,
+            'urgency_message': urgency_message
+        }
+
+    def _build_system_prompt(self, include_time_context: bool = True) -> str:
+        """
+        Build the complete system prompt with coaching style and time context.
+        """
+        time_context = self._get_time_context() if include_time_context else None
+        return build_personal_assistant_prompt(
+            coaching_style=self.coaching_style,
+            faith_enabled=self.faith_enabled,
+            user_profile=self.user_profile,
+            time_context=time_context
+        )
 
     # =========================================================================
     # STATE ASSESSMENT
@@ -539,20 +670,27 @@ class PersonalAssistant:
         return streak
 
     def _generate_ai_assessment(self, state_data: Dict) -> Dict:
-        """Generate AI assessment of user state - focused on what needs attention."""
+        """Generate AI assessment of user state - focused on what REMAINS to be done."""
         if not ai_service.is_available:
             return {'assessment': '', 'gaps': [], 'celebrations': []}
 
-        # Build context for AI - prioritize gaps and action items
+        # Build context for AI - prioritize REMAINING items and gaps
         context_parts = []
+
+        # Get time context for urgency
+        time_context = self._get_time_context()
+        context_parts.append(f"Time: {time_context['current_time']} ({time_context['hours_remaining']} hours until bedtime)")
 
         # Task context - overdue and due today are most important
         overdue = state_data.get('tasks_overdue', 0)
         due_today = state_data.get('tasks_due_today', 0)
+        remaining = overdue + due_today
         if overdue > 0:
-            context_parts.append(f"ATTENTION: {overdue} overdue tasks need action")
+            context_parts.append(f"URGENT: {overdue} overdue tasks need action NOW")
         if due_today > 0:
-            context_parts.append(f"{due_today} tasks due today")
+            context_parts.append(f"{due_today} tasks STILL due today")
+        if remaining == 0 and state_data.get('tasks_due_week', 0) > 0:
+            context_parts.append(f"{state_data['tasks_due_week']} tasks coming up this week")
 
         # Journal gap - only if it's an issue
         last_journal = state_data.get('last_journal_date')
@@ -588,15 +726,14 @@ class PersonalAssistant:
             intention_text = ", ".join([i['intention'] for i in intentions[:2]])
             context_parts.append(f"Active intentions: {intention_text}")
 
-        system_prompt = PERSONAL_ASSISTANT_SYSTEM_PROMPT
-        if self.faith_enabled:
-            system_prompt += "\n" + FAITH_INTEGRATION_PROMPT
+        # Build system prompt with coaching style
+        system_prompt = self._build_system_prompt(include_time_context=True)
         system_prompt += "\n\n" + STATE_ASSESSMENT_PROMPT
 
-        user_prompt = f"""User's current state:
+        user_prompt = f"""User's current state - focus on what REMAINS:
 {chr(10).join('- ' + p for p in context_parts)}
 
-What needs the user's attention today? Be direct and actionable."""
+What STILL needs the user's attention today? Be direct, actionable, and mindful of time remaining. Use your coaching style ({self.coaching_style})."""
 
         try:
             response = ai_service._call_api(system_prompt, user_prompt, max_tokens=150)
@@ -1152,29 +1289,28 @@ What needs the user's attention today? Be direct and actionable."""
         return response
 
     def _generate_response(self, message: str, conversation: AssistantConversation) -> str:
-        """Generate AI response to user message."""
+        """Generate AI response to user message using coaching style and time awareness."""
         # Get conversation history
         history = conversation.messages.order_by('-created_at')[:10]
 
         # Build context
         state = self.assess_current_state()
+        time_context = self._get_time_context()
 
-        system_prompt = PERSONAL_ASSISTANT_SYSTEM_PROMPT
-        if self.faith_enabled:
-            system_prompt += "\n" + FAITH_INTEGRATION_PROMPT
+        # Build system prompt with coaching style and time awareness
+        system_prompt = self._build_system_prompt(include_time_context=True)
 
-        # Add user context
-        if self.user_profile:
-            system_prompt += f"\n\nUSER CONTEXT:\n{self.user_profile}"
-
-        # Add current state summary
+        # Add current state summary - focus on REMAINING items
+        tasks = state.get('tasks', {})
+        remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
         system_prompt += f"""
 
-CURRENT USER STATE:
+CURRENT USER STATE (focus on what REMAINS):
+- Tasks REMAINING today: {remaining_tasks} ({tasks.get('overdue', 0)} overdue, {tasks.get('due_today', 0)} due today)
+- Active goals needing progress: {state.get('goals', {}).get('active', 0)}
 - Journal streak: {state.get('journal', {}).get('streak', 0)} days
-- Active goals: {state.get('goals', {}).get('active', 0)}
-- Overdue tasks: {state.get('tasks', {}).get('overdue', 0)}
 - Active prayers: {state.get('faith', {}).get('active_prayers', 0)}
+- Time remaining in day: ~{time_context['hours_remaining']} hours until bedtime
 """
 
         if state.get('ai_assessment'):
@@ -1191,7 +1327,7 @@ CURRENT USER STATE:
 
 User's new message: {message}
 
-Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor your response to what matters to this user."""
+Respond as the Dashboard AI Personal Assistant. Focus on what REMAINS to be done, not what's been accomplished. Use your coaching style ({self.coaching_style}) and be mindful of time remaining today."""
 
         try:
             return ai_service._call_api(system_prompt, user_prompt, max_tokens=300) or self._get_fallback_response(message)
@@ -1200,17 +1336,33 @@ Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor you
             return self._get_fallback_response(message)
 
     def _get_fallback_response(self, message: str) -> str:
-        """Get fallback response when AI is unavailable."""
+        """Get fallback response when AI is unavailable, matching coaching style."""
         import random
 
-        fallbacks = [
-            "I'm here to help you stay aligned with what matters most. What's on your mind?",
-            "Let's take a moment to reflect on what's most important today.",
-            "I'm listening. What would be most helpful for you right now?",
-            "Thank you for sharing. How can I help you move forward?",
-        ]
+        # Fallbacks vary by coaching style
+        fallbacks = {
+            'direct': [
+                "What do you need to get done? Let's focus.",
+                "What's the priority right now?",
+                "What's blocking progress?",
+                "What action can you take in the next hour?",
+            ],
+            'gentle': [
+                "I'm here to help. What feels most pressing right now?",
+                "Let's think about what would help you most today.",
+                "What's on your mind? We can work through it together.",
+                "Take your time. What would feel like a win today?",
+            ],
+            'supportive': [
+                "I'm here to help you stay on track. What needs your attention?",
+                "Let's focus on what's most important today. What's on your list?",
+                "What can I help you move forward on?",
+                "What's still on your plate that we can tackle?",
+            ],
+        }
 
-        return random.choice(fallbacks)
+        style_fallbacks = fallbacks.get(self.coaching_style, fallbacks['supportive'])
+        return random.choice(style_fallbacks)
 
     # =========================================================================
     # OPENING MESSAGE (DAILY CHECK-IN)
@@ -1220,20 +1372,24 @@ Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor you
         """
         Generate the opening message when user opens the app.
 
-        This is the daily check-in that focuses on what needs attention today.
+        This is the daily check-in that focuses on what REMAINS to be done today.
+        Includes time-aware urgency and coaching style context.
         Celebrations are minimal - this is about action, not cheerleading.
         """
         state = self.assess_current_state()
         priorities = self.generate_daily_priorities()
+        time_context = self._get_time_context()
 
-        # Build opening message - focus on action items
+        # Build opening message - focus on REMAINING action items
         result = {
             'greeting': self._get_greeting(),
+            'time_context': time_context,  # Include time awareness
             'state_summary': state.get('ai_assessment', ''),
             'priorities': list(priorities),
             'celebrations': [],  # Celebrations go on dashboard, not assistant
             'nudges': self._build_nudges(state),
             'reflection_prompt': None,
+            'coaching_style': self.coaching_style,  # Include for frontend if needed
         }
 
         # Add reflection prompt if appropriate
@@ -1243,21 +1399,35 @@ Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor you
         return result
 
     def _get_greeting(self) -> str:
-        """Get time-appropriate greeting."""
+        """Get time-appropriate greeting with urgency when needed."""
         import pytz
+        from apps.core.utils import get_user_now
 
-        user_tz = pytz.timezone(self.prefs.timezone)
-        user_time = timezone.now().astimezone(user_tz)
-        hour = user_time.hour
+        user_now = get_user_now(self.user)
+        hour = user_now.hour
 
         name = self.user.first_name or self.user.get_short_name()
 
+        # Base greeting varies by time of day
         if hour < 12:
-            return f"Good morning, {name}"
+            greeting = f"Good morning, {name}"
         elif hour < 17:
-            return f"Good afternoon, {name}"
+            greeting = f"Good afternoon, {name}"
         else:
-            return f"Good evening, {name}"
+            greeting = f"Good evening, {name}"
+
+        # Add time context for later in the day based on coaching style
+        if hour >= 18:  # Evening - add urgency
+            time_context = self._get_time_context()
+            if time_context['hours_remaining'] <= 4:
+                if self.coaching_style == 'direct':
+                    greeting += f". {time_context['hours_remaining']} hours left today."
+                elif self.coaching_style == 'gentle':
+                    greeting += f". The evening is here."
+                else:  # supportive
+                    greeting += f". Let's make the most of the evening."
+
+        return greeting
 
     def _should_offer_reflection(self) -> bool:
         """Determine if we should offer a reflection prompt."""
@@ -1275,26 +1445,44 @@ Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor you
         return not journaled_today
 
     def _build_nudges(self, state: Dict) -> List[Dict]:
-        """Build action items from state - things that need attention."""
+        """Build action items from state - things that REMAIN and need attention."""
         nudges = []
+        time_context = self._get_time_context()
+        hours_left = time_context['hours_remaining']
 
-        # Overdue tasks - highest priority
+        # Overdue tasks - highest priority with time urgency
         tasks = state.get('tasks', {})
         if tasks.get('overdue', 0) > 0:
+            overdue = tasks['overdue']
+            if self.coaching_style == 'direct':
+                msg = f"{overdue} overdue. Handle them now."
+            elif hours_left <= 3:
+                msg = f"{overdue} overdue tasks. Only {hours_left} hours left today."
+            else:
+                msg = f"{overdue} overdue tasks need attention."
             nudges.append({
                 'type': 'tasks',
-                'message': f"{tasks['overdue']} overdue tasks need attention.",
+                'message': msg,
                 'action_url': '/life/tasks/',
-                'action_text': 'View Tasks'
+                'action_text': 'View Tasks',
+                'urgency': 'high'
             })
 
-        # Tasks due today
+        # Tasks due today with time awareness
         if tasks.get('due_today', 0) > 0:
+            due_today = tasks['due_today']
+            if hours_left <= 2:
+                msg = f"{due_today} tasks STILL due today. {hours_left} hours to go."
+            elif hours_left <= 4:
+                msg = f"{due_today} tasks remaining today. Time is running out."
+            else:
+                msg = f"{due_today} tasks still due today."
             nudges.append({
                 'type': 'tasks',
-                'message': f"{tasks['due_today']} tasks due today.",
+                'message': msg,
                 'action_url': '/life/tasks/',
-                'action_text': 'View Tasks'
+                'action_text': 'View Tasks',
+                'urgency': 'medium' if hours_left > 4 else 'high'
             })
 
         # Journal gap
@@ -1310,7 +1498,8 @@ Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor you
                         'type': 'journal',
                         'message': f"No journal entries in {days} days.",
                         'action_url': '/journal/new/',
-                        'action_text': 'Write Now'
+                        'action_text': 'Write Now',
+                        'urgency': 'medium'
                     })
 
         # Medicine adherence gap
@@ -1321,7 +1510,8 @@ Respond as the Dashboard AI Personal Assistant. Be helpful, warm, and anchor you
                 'type': 'health',
                 'message': f"Medicine adherence at {adherence}%.",
                 'action_url': '/health/medicine/',
-                'action_text': 'Check Medicine'
+                'action_text': 'Check Medicine',
+                'urgency': 'medium'
             })
 
         return nudges[:3]  # Max 3 action items

@@ -195,6 +195,14 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
             instance.personal_assistant_enabled = False
             instance.personal_assistant_consent = False
 
+        # Set SMS consent date if consent was given
+        if instance.sms_consent and not instance.sms_consent_date:
+            instance.sms_consent_date = dj_timezone.now()
+
+        # If SMS is disabled, clear consent
+        if not instance.sms_enabled:
+            instance.sms_consent = False
+
         messages.success(self.request, "Preferences saved successfully.")
         return super().form_valid(form)
 

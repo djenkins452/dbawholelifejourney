@@ -28,8 +28,8 @@ For core project context, see `CLAUDE.md` (project root).
 10. [Camera Scan Feature](#camera-scan-feature)
 11. [Biometric Login](#biometric-login)
 12. [Dashboard Tile Shortcuts](#dashboard-tile-shortcuts)
-13. [SMS Text Notifications](#sms-text-notifications)
-14. [Task Management](#task-management)
+13. [Task List with Search](#task-list-with-search)
+14. [SMS Text Notifications](#sms-text-notifications)
 
 ---
 
@@ -73,15 +73,7 @@ The users app is mounted at `/user/` (singular), not `/users/`.
 ## Context-Aware Help System
 
 ### Overview
-The application has a "?" help icon that provides context-aware help. The help content is designed to help users make informed decisions about why to use each feature and how it connects to the Dashboard and AI insights.
-
-### Content Philosophy (Updated 2025-12-31)
-Each help topic now includes:
-1. **"Why This Feature?"** - Value proposition explaining the reason to use it
-2. **"How It Powers Your Dashboard"** - Connection to AI insights and dashboard
-3. **"How to Use It"** - Step-by-step instructions
-4. **"Tips for Success"** - Best practices
-5. **"Related Features"** - Cross-module connections
+The application has a "?" help icon that provides context-aware help. This is authoritative user guidance with exact, step-by-step instructions.
 
 ### Core Principle: HELP_CONTEXT_ID
 Every page declares a stable identifier. The help system uses this to show the exact relevant documentation.
@@ -89,69 +81,55 @@ Every page declares a stable identifier. The help system uses this to show the e
 **How it works:**
 1. User clicks "?" icon
 2. System reads the page's `HELP_CONTEXT_ID`
-3. Looks up that ID in the `HelpTopic` model
-4. Displays content in a modal with Markdown rendering
+3. Looks up that ID in the help index
+4. Opens the exact matching help section
 
 ### HELP_CONTEXT_ID Naming Convention
 Format: `{APP}_{SCREEN}` or `{APP}_{ENTITY}_{ACTION}`
 
 Examples:
 - `DASHBOARD_HOME`
-- `HEALTH_HOME`
-- `NUTRITION_HOME`
-- `HEALTH_MEDICINE_HOME`
+- `HEALTH_ROOT`
+- `HEALTH_WORKOUT_CREATE`
+- `JOURNAL_ENTRY_LIST`
 - `SETTINGS_PREFERENCES`
-- `SCAN_HOME`
-- `ASSISTANT_HOME`
-
-### Available Help Topics (20 total)
-| Context ID | Title |
-|------------|-------|
-| DASHBOARD_HOME | Your Dashboard: The Heart of Your Journey |
-| GENERAL | Navigating Your Whole Life Journey |
-| JOURNAL_HOME | Journal: The Foundation of Self-Awareness |
-| HEALTH_HOME | Health: Track What You Can Measure |
-| FAITH_HOME | Faith: Nurture Your Spiritual Journey |
-| SETTINGS_PREFERENCES | Preferences: Make It Yours |
-| LIFE_HOME | Life: Your Daily Operating Layer |
-| PURPOSE_HOME | Purpose: Your North Star |
-| NUTRITION_HOME | Nutrition: Fuel Your Body Intentionally |
-| HEALTH_MEDICINE_HOME | Medicine Tracking: Never Miss a Dose |
-| SCAN_HOME | Camera Scan: AI-Powered Quick Entry |
-| ASSISTANT_HOME | Personal Assistant: Your AI-Powered Guide |
-| SMS_SETTINGS | SMS Notifications: Reminders Where You'll See Them |
-| HEALTH_VITALS | Vitals: Monitor Your Cardiovascular Health |
-| HEALTH_PROVIDERS | Medical Providers: Your Healthcare Contacts |
-| + 5 Admin Console topics |
 
 ### Implementation Details
 Each page exposes its context via:
-- Django view mixin: `HelpContextMixin` with `help_context_id` attribute
-- Template: `{% include 'components/help_button.html' %}`
-- API: `GET /help/api/topic/<context_id>/`
+- Django template variable: `{% with help_context_id="HEALTH_ROOT" %}`
+- HTML data attribute: `data-help-context="HEALTH_ROOT"`
+- JavaScript variable: `window.HELP_CONTEXT_ID = "HEALTH_ROOT"`
 
-### Data Storage
-Help content is stored in the database via Django fixtures:
-- `apps/help/fixtures/help_topics.json` - User-facing help (20 topics)
-- `apps/help/fixtures/help_articles.json` - Searchable articles (15 articles)
-- `apps/help/fixtures/help_categories.json` - Article categories (5 categories)
-- `apps/help/fixtures/admin_help_topics.json` - Admin help (7 topics)
+### Documentation File Structure
+```
+docs/
+├── help/
+│   ├── index.json          # Maps HELP_CONTEXT_ID → file + HELP_ID
+│   ├── dashboard.md        # Dashboard help content
+│   ├── health.md           # Health app help content
+│   └── ...
+```
 
-### Reloading Help Content
-Use the management command to reload help content from fixtures:
-```bash
-python manage.py reload_help_content           # Reload all
-python manage.py reload_help_content --dry-run # Preview only
-python manage.py reload_help_content --topics-only   # Only topics
-python manage.py reload_help_content --articles-only # Only articles
+### Help Entry Format
+```markdown
+## [HELP_ID: health-log-workout]
+**Title:** How to Log a Workout
+**Context:** HEALTH_WORKOUT_CREATE screen
+**Description:** Record your exercise activities.
+
+### Steps
+1. Click "Health" in the left navigation menu.
+2. Click the "Log Workout" button.
+3. Select a workout type from the dropdown.
+4. Enter the duration in minutes.
+5. Click "Save" to record your workout.
 ```
 
 ### Writing Rules
-1. Start with the "Why" - explain value before how-to
-2. Show Dashboard/AI connection - how data powers insights
-3. Use tables to show data→insight relationships
-4. Include Related Features section for cross-module discovery
-5. Markdown supported (headings, bold, tables, lists)
+1. Start each step with an action verb (Click, Enter, Select)
+2. Reference exact UI labels in quotes
+3. Be exact—a chatbot will read these verbatim
+4. No vague text, no summaries
 
 ---
 
@@ -797,6 +775,42 @@ The quick stat tiles at the top of the dashboard are clickable, providing direct
 
 ---
 
+## Task List with Search
+
+### Overview
+The Task List page allows users to view all tasks with powerful filtering and search capabilities.
+
+### Features
+1. **Full-Text Search** - Search across task titles, notes, and project names
+2. **Filtering** - Filter by completion status (Active/Completed/All) and priority (Now/Soon/Someday)
+3. **Task Counts** - See how many tasks in each category
+4. **Combined Search + Filters** - Search preserves filter selections
+
+### Search Behavior
+- Searches task `title`, `notes`, and `project.title` fields
+- Case-insensitive matching
+- Search query persists across filter changes
+- Clear button to reset search
+
+### URL Parameters
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `q` | string | Search query |
+| `show` | active, completed, all | Filter by completion status |
+| `priority` | now, soon, someday | Filter by priority |
+
+### Example URLs
+- `/life/tasks/` - All active tasks
+- `/life/tasks/?q=groceries` - Search for "groceries" in active tasks
+- `/life/tasks/?show=all&priority=now` - All "now" priority tasks
+- `/life/tasks/?show=completed&q=work` - Completed tasks containing "work"
+
+### Key Files
+- `apps/life/views.py` - TaskListView with search/filter logic
+- `templates/life/task_list.html` - Task list UI with search bar
+
+---
+
 ## SMS Text Notifications
 
 ### Overview
@@ -960,100 +974,4 @@ SMS_TRIGGER_TOKEN=your-random-secret-token
 
 ---
 
-## Task Management
-
-### Overview
-The Task Management feature allows users to track personal tasks with intelligent priority-based organization. Tasks can be associated with projects, have due dates, effort estimates, and support recurrence patterns.
-
-### Key Features
-
-#### Task List (`/life/tasks/`)
-- **Priority Groups**: Tasks auto-organized into Now/Soon/Someday based on due date
-- **Search**: Full-text search across task titles and notes
-- **Filters**: Filter by status (Active/Completed/All) and priority
-- **Quick Toggle**: Complete tasks with single click, undo available
-- **Project Association**: Link tasks to projects
-
-#### Task Search (Added 2025-12-31)
-Search functionality for finding tasks quickly:
-- **Search Bar**: Located at top of task list page
-- **Search Fields**: Searches both title and notes
-- **Case Insensitive**: Finds matches regardless of case
-- **Filter Compatible**: Search works with existing show/priority filters
-- **Preserves Context**: Search query preserved when changing filters
-- **Result Count**: Shows "Found X tasks matching..."
-- **Clear Button**: Quick reset to show all tasks
-
-**URL Pattern:** `/life/tasks/?q=<search_term>`
-
-**Combined Example:** `/life/tasks/?q=meeting&show=active&priority=now`
-
-#### Priority System
-Priorities are auto-calculated based on due date:
-| Priority | Criteria |
-|----------|----------|
-| Now | Due today or overdue |
-| Soon | Due within 7 days |
-| Someday | Due 7+ days away or no due date |
-
-#### Effort Estimation
-| Level | Duration |
-|-------|----------|
-| Quick | < 15 minutes |
-| Small | < 1 hour |
-| Medium | 1-3 hours |
-| Large | Half day+ |
-
-#### Recurrence Patterns
-Tasks can recur with patterns:
-- Daily, Weekly, Biweekly, Monthly, Yearly
-- Every weekday
-- Custom: weekly:mon,wed,fri
-- Custom: monthly:15 (15th of each month)
-
-When a recurring task is completed, the next occurrence is automatically created.
-
-### Task Model Fields
-| Field | Type | Description |
-|-------|------|-------------|
-| title | CharField(300) | Task description |
-| notes | TextField | Additional details |
-| project | ForeignKey | Optional project association |
-| priority | CharField | now/soon/someday (auto-calculated) |
-| effort | CharField | quick/small/medium/large |
-| due_date | DateField | When task is due |
-| is_completed | BooleanField | Completion status |
-| completed_at | DateTimeField | When completed |
-| is_recurring | BooleanField | Whether task repeats |
-| recurrence_pattern | CharField | Pattern like 'daily', 'weekly' |
-
-### URL Routes
-| URL | View | Description |
-|-----|------|-------------|
-| `/life/tasks/` | TaskListView | Task list with search/filters |
-| `/life/tasks/new/` | TaskCreateView | Create new task |
-| `/life/tasks/<id>/edit/` | TaskUpdateView | Edit task |
-| `/life/tasks/<id>/delete/` | TaskDeleteView | Delete task |
-| `/life/tasks/<id>/toggle/` | TaskToggleView | Toggle completion |
-
-### Key Files
-- `apps/life/models.py` - Task model with priority calculation
-- `apps/life/views.py` - Task views including search functionality
-- `apps/life/services/recurrence.py` - Recurrence pattern parsing
-- `templates/life/task_list.html` - Task list UI with search bar
-- `templates/life/task_form.html` - Task create/edit form
-- `apps/life/tests/test_views.py` - Task view tests including search tests
-
-### Testing
-Located in `apps/life/tests/test_views.py` - TaskViewTest class with tests for:
-- List loading and filtering
-- Task creation and editing
-- Toggle completion (complete/undo)
-- Project pre-selection
-- Search by title and notes
-- Search with filters
-- User isolation
-
----
-
-*Last updated: 2025-12-31*
+*Last updated: 2025-12-30*

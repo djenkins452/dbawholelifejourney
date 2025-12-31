@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Improved Help System, Task Search)
+# Last Updated: 2025-12-31 (SMS Preferences fix, Task Search feature)
 # ==============================================================================
 
 # WLJ Change History
@@ -16,106 +16,64 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2025-12-31 Changes
 
-### Task Search Feature
+### Fix SMS Preferences Not Saving
 
-Added the ability to search tasks by title and notes content. Users can now quickly find specific tasks from their task list.
+Fixed bug where changes to SMS notification settings in Preferences would not save.
 
-**Features:**
-- Search box at the top of the task list page
-- Searches both task title and notes fields
-- Case-insensitive search
-- Works with existing filters (Show: Active/Completed/All, Priority: Now/Soon/Someday)
-- Preserves search query when changing filters
-- Shows result count ("Found X tasks matching...")
-- Clear search button to reset search
-- Context-aware empty state (different message for no results vs no tasks)
+**Issue:**
+- SMS notification toggles (enabled, consent, category preferences, quiet hours) were displayed in the preferences form but were not bound to the Django form
+- The template used `user.preferences.sms_*` instead of `form.sms_*.value`, which meant the fields weren't part of the form submission
+- The `PreferencesForm` class did not include SMS fields in its `fields` list
+
+**Fix:**
+1. Added all 11 SMS fields to `PreferencesForm.Meta.fields`:
+   - `sms_enabled`, `sms_consent`
+   - `sms_medicine_reminders`, `sms_medicine_refill_alerts`
+   - `sms_task_reminders`, `sms_event_reminders`
+   - `sms_prayer_reminders`, `sms_fasting_reminders`
+   - `sms_quiet_hours_enabled`, `sms_quiet_start`, `sms_quiet_end`
+
+2. Added corresponding widget definitions for all SMS fields
+
+3. Updated template to use `form.sms_*.value` instead of `user.preferences.sms_*`
+
+4. Added SMS consent date handling in `PreferencesView.form_valid()`
 
 **Files Modified:**
-- `apps/life/views.py` - Added search query filtering with Q objects to `TaskListView.get_queryset()`
-- `apps/life/views.py` - Added `search_query` to template context
-- `templates/life/task_list.html` - Added search bar UI with input, clear button, and search button
-- `templates/life/task_list.html` - Added CSS styles for search bar components
-- `templates/life/task_list.html` - Updated filter links to preserve search query
-- `templates/life/task_list.html` - Added empty state for search with no results
-
-**Tests Added (9 new tests):**
-- `test_task_search_by_title` - Search filters tasks by title
-- `test_task_search_by_notes` - Search filters tasks by notes content
-- `test_task_search_case_insensitive` - Search is case-insensitive
-- `test_task_search_with_filters` - Search works with show/priority filters
-- `test_task_search_empty_query_returns_all` - Empty search returns all tasks
-- `test_task_search_no_results` - No matches shows empty state
-- `test_task_search_query_preserved_in_context` - Search query in template context
-- `test_task_search_shows_result_count` - Shows count of matching tasks
-- `test_task_search_other_user_tasks_not_visible` - User isolation maintained
-
-**URL:** `/life/tasks/?q=<search_term>`
+- `apps/users/forms.py` - Added SMS fields and widgets to PreferencesForm
+- `apps/users/views.py` - Added SMS consent date handling
+- `templates/users/preferences.html` - Updated SMS section to use form fields
 
 ---
 
-### Improved Help System - "Why Use This Feature"
+### Task List with Search Feature
 
-Completely rewrote the in-app help system to provide more valuable, decision-enabling content. The previous help content explained *how* to use features, but the new content explains *why* users should use each feature and how it all connects.
+Added ability to search within tasks and improved task list display with counts.
 
-**New Content Structure:**
-Each help topic now includes:
-1. **"Why This Feature?"** - Value proposition explaining the reason to use it
-2. **"How It Powers Your Dashboard"** - Connection to AI insights and dashboard
-3. **"How to Use It"** - Step-by-step instructions
-4. **"Tips for Success"** - Best practices
-5. **"Related Features"** - Cross-module connections showing how everything integrates
+**Features Added:**
+- Full-text search across task title, notes, and project name
+- Search preserves existing filters (show, priority)
+- Task counts displayed on filter buttons (Active/Completed/All)
+- Clear search button when search is active
+- Search results count display
 
-**Help Topics Added/Rewritten (20 total):**
-- DASHBOARD_HOME - "Your Dashboard: The Heart of Your Journey"
-- GENERAL - "Navigating Your Whole Life Journey"
-- JOURNAL_HOME - "Journal: The Foundation of Self-Awareness"
-- HEALTH_HOME - "Health: Track What You Can Measure"
-- FAITH_HOME - "Faith: Nurture Your Spiritual Journey"
-- SETTINGS_PREFERENCES - "Preferences: Make It Yours"
-- LIFE_HOME - "Life: Your Daily Operating Layer"
-- PURPOSE_HOME - "Purpose: Your North Star"
-- NUTRITION_HOME - "Nutrition: Fuel Your Body Intentionally" (NEW)
-- HEALTH_MEDICINE_HOME - "Medicine Tracking: Never Miss a Dose" (NEW)
-- SCAN_HOME - "Camera Scan: AI-Powered Quick Entry" (NEW)
-- ASSISTANT_HOME - "Personal Assistant: Your AI-Powered Guide" (NEW)
-- SMS_SETTINGS - "SMS Notifications: Reminders Where You'll See Them" (NEW)
-- HEALTH_VITALS - "Vitals: Monitor Your Cardiovascular Health" (NEW)
-- HEALTH_PROVIDERS - "Medical Providers: Your Healthcare Contacts" (NEW)
+**Implementation:**
+1. Updated `TaskListView` in `apps/life/views.py`:
+   - Added search query handling with Django Q objects
+   - Searches across title, notes, and project__title
+   - Added `search_query` to context
+   - Added `total_active_count`, `total_completed_count`, `total_all_count` to context
 
-**Help Articles Added/Rewritten (15 total):**
-- Welcome to Whole Life Journey
-- Understanding Your Dashboard
-- Journaling for Self-Awareness
-- Health Tracking Overview
-- Faith Module: Tracking Your Spiritual Journey
-- Customizing Your Preferences
-- AI Coaching Styles Explained
-- Why Can't I See Certain Features?
-- Goals and the Purpose Module
-- Tasks, Projects, and the Life Module
-- Medicine Tracking and Adherence (NEW)
-- Camera Scan: Quick AI-Powered Entry (NEW)
-- The Personal Assistant (NEW)
-- SMS Notifications Setup (NEW)
-- Nutrition and Food Tracking (NEW)
-
-**New Management Command:**
-- `reload_help_content` - Clears and reloads help content from fixtures
-  - Options: `--dry-run`, `--topics-only`, `--articles-only`
-  - Added to Procfile for automatic deployment
-
-**Files Created:**
-- `apps/help/management/__init__.py`
-- `apps/help/management/commands/__init__.py`
-- `apps/help/management/commands/reload_help_content.py`
-- `apps/core/migrations/0022_improved_help_system_release_note.py`
+2. Updated `templates/life/task_list.html`:
+   - Added search bar with search icon and clear button
+   - Search results info display
+   - Updated filter links to preserve search query
+   - Added task counts to filter buttons
+   - Added CSS styles for search bar
 
 **Files Modified:**
-- `apps/help/fixtures/help_topics.json` - Complete rewrite (13→20 topics)
-- `apps/help/fixtures/help_articles.json` - Complete rewrite (10→15 articles)
-- `Procfile` - Added `reload_help_content` command
-
-**Test Status:** All 68 help app tests passing
+- `apps/life/views.py` - Enhanced TaskListView with search and counts
+- `templates/life/task_list.html` - Added search UI and updated filter links
 
 ---
 

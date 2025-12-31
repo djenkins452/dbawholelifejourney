@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Improved Help System, Task Search)
+# Last Updated: 2025-12-31 (Memory Verse, Improved Help System, Task Search)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,43 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Memory Verse Feature
+
+Added the ability to mark a saved Scripture verse as a "Memory Verse" to display prominently at the top of the Dashboard.
+
+**Features:**
+- Toggle button on saved verses to mark/unmark as memory verse
+- Only one memory verse allowed per user at a time
+- Memory verse displays at top of Dashboard (when Faith module enabled)
+- Visual badge and highlight on memory verse in Scripture Library
+- Star icon and styled card on Dashboard
+
+**Files Modified:**
+- `apps/faith/models.py` - Added `is_memory_verse` field to SavedVerse model
+- `apps/faith/views.py` - Added `ToggleMemoryVerseView` class
+- `apps/faith/urls.py` - Added route for toggle endpoint
+- `apps/dashboard/views.py` - `_get_faith_data()` now fetches memory verse
+- `templates/dashboard/home.html` - Added Memory Verse section after header
+- `templates/faith/scripture_list.html` - Added Memorize button and badge to verse cards
+- `static/css/dashboard.css` - Added Memory Verse section styles
+
+**Migration:**
+- `apps/faith/migrations/0005_add_memory_verse_field.py`
+
+**Tests Added (10 new tests):**
+- `test_default_is_not_memory_verse` - New verses aren't memory verses
+- `test_toggle_to_memory_verse` - Can set as memory verse
+- `test_toggle_off_memory_verse` - Can unset memory verse
+- `test_only_one_memory_verse_at_a_time` - New one clears previous
+- `test_cannot_toggle_other_users_verse` - User isolation
+- `test_memory_verse_shows_badge_in_list` - Badge displays correctly
+- `test_toggle_requires_post` - GET method not allowed
+- `test_dashboard_shows_memory_verse_when_set` - Dashboard displays verse
+- `test_dashboard_no_memory_verse_section_when_not_set` - Hidden when none
+- `test_dashboard_no_memory_verse_when_faith_disabled` - Hidden when Faith off
+
+---
 
 ### Task Search Feature
 

@@ -219,6 +219,12 @@ class SavedVerse(UserOwnedModel):
         help_text="Personal notes about this verse",
     )
 
+    # Memory Verse tracking
+    is_memory_verse = models.BooleanField(
+        default=False,
+        help_text="Mark this verse as a memory verse to display on the dashboard",
+    )
+
     class Meta:
         ordering = ["book_order", "chapter", "verse_start"]
         verbose_name = "saved verse"

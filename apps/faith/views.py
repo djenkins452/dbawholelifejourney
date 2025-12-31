@@ -878,3 +878,40 @@ class BibleAPISearchView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMi
         if success:
             return JsonResponse(data)
         return JsonResponse(data, status=500)
+
+
+class ToggleMemoryVerseView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Toggle a saved verse's memory verse status.
+
+    When marked as memory verse, ensures only one verse is marked at a time.
+    Memory verse displays prominently on the Dashboard.
+    """
+
+    def post(self, request, pk):
+        verse = get_object_or_404(
+            SavedVerse.objects.filter(user=request.user),
+            pk=pk
+        )
+
+        # Toggle the status
+        if verse.is_memory_verse:
+            # Unmarking as memory verse
+            verse.is_memory_verse = False
+            verse.save(update_fields=["is_memory_verse", "updated_at"])
+            messages.success(request, f'"{verse.reference}" is no longer your memory verse.')
+        else:
+            # Clear any existing memory verse first (only one at a time)
+            SavedVerse.objects.filter(user=request.user, is_memory_verse=True).update(
+                is_memory_verse=False
+            )
+            # Mark this one as the memory verse
+            verse.is_memory_verse = True
+            verse.save(update_fields=["is_memory_verse", "updated_at"])
+            messages.success(request, f'"{verse.reference}" is now your memory verse!')
+
+        # Redirect back to referrer or scripture list
+        referer = request.META.get('HTTP_REFERER')
+        if referer:
+            return redirect(referer)
+        return redirect("faith:scripture_list")

@@ -239,20 +239,27 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     
     def _get_faith_data(self, user):
         """Get faith-related data."""
-        from apps.faith.models import PrayerRequest, FaithMilestone
-        
+        from apps.faith.models import PrayerRequest, FaithMilestone, SavedVerse
+
         prayers = PrayerRequest.objects.filter(user=user)
         active_prayers = prayers.filter(is_answered=False)
         answered_prayers = prayers.filter(is_answered=True)
-        
+
         # Recent answered prayers
         recent_answered = answered_prayers.order_by('-answered_at').first()
-        
+
+        # Get the user's memory verse (if any)
+        memory_verse = SavedVerse.objects.filter(
+            user=user,
+            is_memory_verse=True
+        ).first()
+
         return {
             "active_prayers": active_prayers.count(),
             "answered_prayers": answered_prayers.count(),
             "total_milestones": FaithMilestone.objects.filter(user=user).count(),
             "recent_answered_prayer": recent_answered,
+            "memory_verse": memory_verse,
         }
     
     def _get_health_data(self, user, today, month_ago):

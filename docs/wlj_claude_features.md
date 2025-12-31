@@ -30,6 +30,7 @@ For core project context, see `CLAUDE.md` (project root).
 12. [Dashboard Tile Shortcuts](#dashboard-tile-shortcuts)
 13. [SMS Text Notifications](#sms-text-notifications)
 14. [Task Management](#task-management)
+15. [Memory Verse](#memory-verse)
 
 ---
 
@@ -1053,6 +1054,78 @@ Located in `apps/life/tests/test_views.py` - TaskViewTest class with tests for:
 - Search by title and notes
 - Search with filters
 - User isolation
+
+---
+
+## Memory Verse
+
+### Overview
+Users can designate one of their saved Scripture verses as a "Memory Verse" to display prominently at the top of their Dashboard. This feature supports Scripture memorization as a spiritual discipline.
+
+### How It Works
+1. User saves Scripture verses to their personal library (Faith → Scripture)
+2. User clicks the "Memorize" button on any saved verse
+3. The verse is marked as the Memory Verse (only one at a time)
+4. The verse appears at the top of the Dashboard (when Faith module is enabled)
+5. User can toggle off or switch to a different verse at any time
+
+### Model Changes
+`SavedVerse` model in `apps/faith/models.py`:
+```python
+is_memory_verse = BooleanField(
+    default=False,
+    help_text="Mark this verse as a memory verse to display on the dashboard"
+)
+```
+
+### Business Logic
+- Only one verse can be the memory verse at a time per user
+- Setting a new memory verse automatically clears the previous one
+- Memory verse only displays on dashboard when Faith module is enabled
+
+### URL Routes
+| URL | View | Description |
+|-----|------|-------------|
+| `/faith/scripture/<id>/memory-verse/` | ToggleMemoryVerseView | Toggle memory verse status |
+
+### Dashboard Display
+When a user has a memory verse set and Faith is enabled:
+- Appears immediately after the header, before AI insights
+- Features a star icon badge with "Memory Verse" label
+- Shows the Scripture text in italics
+- Displays the reference attribution
+- Link to Scripture Library for management
+
+### UI Components
+**Scripture List (`templates/faith/scripture_list.html`)**:
+- "Memorize" / "Memorizing" toggle button with star icon
+- Visual badge on memory verse cards
+- Highlighted border and background
+
+**Dashboard (`templates/dashboard/home.html`)**:
+- Memory verse section with styled card
+- Gradient background with accent color
+- Link to Scripture Library
+
+### CSS Styles
+- `static/css/dashboard.css` - Memory verse section styles
+- `templates/faith/scripture_list.html` - Inline styles for verse cards
+
+### Key Files
+- `apps/faith/models.py` - SavedVerse.is_memory_verse field
+- `apps/faith/views.py` - ToggleMemoryVerseView
+- `apps/faith/urls.py` - Route for toggle endpoint
+- `apps/dashboard/views.py` - _get_faith_data fetches memory verse
+- `templates/dashboard/home.html` - Memory verse display section
+- `templates/faith/scripture_list.html` - Toggle button and badge
+
+### Testing
+10 tests in `apps/faith/tests/test_saved_verses.py`:
+- `MemoryVerseTest` - 7 tests for toggle functionality
+- `MemoryVerseOnDashboardTest` - 3 tests for dashboard display
+
+### Migration
+`apps/faith/migrations/0005_add_memory_verse_field.py` - Adds is_memory_verse field
 
 ---
 

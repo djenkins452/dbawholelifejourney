@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Cascading Menu, Memory Verse, SMS Preferences fix, Improved Help System, Task Search)
+# Last Updated: 2025-12-31 (AI Span: Comprehensive AI Context Enhancement)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,68 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### AI Span: Comprehensive AI Context Enhancement
+
+Enhanced OpenAI integration to read and apply ALL relevant user data when generating Dashboard AI insights and Personal Assistant responses. The AI now has a complete picture of the user's life journey.
+
+**New Data Sent to OpenAI:**
+
+**Purpose Module:**
+- Word of the Year and annual theme
+- Anchor Scripture (if set)
+- Active change intentions (identity-based shifts)
+- Life goals with domain names and importance
+- Goal details including "why it matters"
+
+**Faith Module:**
+- Active prayer count
+- Recently answered prayers (shows God's faithfulness)
+- Memory verse (if user has one set)
+- Recently saved Scripture references (what user is studying)
+- Faith milestones count
+
+**Life Module:**
+- Tasks due today and overdue counts
+- Active projects with progress percentages
+- Priority projects (marked as "Now")
+- Today's calendar events count
+
+**Health Module:**
+- Current weight and weight goal progress
+- Weight remaining to goal and direction (lose/gain/maintain)
+- Active fasting status with hours fasted
+- Today's calorie intake vs goal
+- Calories remaining for the day
+- Workout count and days since last workout
+- Personal records achieved this month
+- Medicine adherence rate with quality indicator
+- Medicines needing refill
+
+**Files Modified:**
+- `apps/ai/dashboard_ai.py` - Enhanced `_gather_user_data()` with comprehensive context
+  - Added Purpose module data gathering (Word of Year, goals, intentions)
+  - Added enhanced Faith data (memory verse, Scripture study, answered prayers)
+  - Added Life module data (projects, events, tasks due)
+  - Added Health nutrition data (calories, weight goals)
+  - Organized code with clear section headers
+- `apps/ai/services.py` - Updated `generate_daily_insight()` to use new data
+  - Added sections for Annual Direction & Purpose
+  - Added Task & Project Status context
+  - Added enhanced Faith Context
+  - Added comprehensive Health Status
+  - Improved prompt to reference Word of Year and goals
+
+**Impact:**
+- AI insights now deeply personalized to user's stated purpose
+- Dashboard messages reference user's Word of the Year when appropriate
+- AI can encourage progress on specific goals by name
+- Health insights include weight goal progress and nutrition tracking
+- Faith-aware insights include Scripture study and prayer activity
+
+**No migrations required** - This is a code-only enhancement to AI prompt construction.
+
+---
 
 ### Cascading Menu Navigation System
 

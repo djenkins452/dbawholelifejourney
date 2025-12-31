@@ -204,12 +204,12 @@
                                 <a href="{% url 'health:food_history' %}" class="nav-dropdown-item">Food History</a>
                                 <a href="{% url 'health:nutrition_stats' %}" class="nav-dropdown-item">Statistics</a>
                                 <a href="{% url 'health:nutrition_goals' %}" class="nav-dropdown-item">Goals</a>
+                                <a href="{% url 'health:fasting_list' %}" class="nav-dropdown-item">Fasting</a>
                             </div>
                             <!-- Providers Column -->
                             <div class="nav-mega-column">
                                 <div class="nav-mega-heading">Providers</div>
                                 <a href="{% url 'health:provider_list' %}" class="nav-dropdown-item">Medical Providers</a>
-                                <a href="{% url 'health:fasting_list' %}" class="nav-dropdown-item">Fasting</a>
                             </div>
                         </div>
                     </div>
@@ -296,6 +296,12 @@
                                         <polyline points="14 2 14 8 20 8"/>
                                     </svg>
                                     Documents
+                                </a>
+                                <a href="{% url 'life:significant_event_list' %}" class="nav-dropdown-item">
+                                    <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    Significant Events
                                 </a>
                             </div>
                         </div>

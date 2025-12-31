@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (AI Span: Comprehensive AI Context Enhancement)
+# Last Updated: 2025-12-31 (Menu Navigation Reorganization)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,28 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Menu Navigation Reorganization
+
+Updated the Health and Life module navigation menus for better organization.
+
+**Changes Made:**
+
+1. **Moved Fasting from Providers to Nutrition**
+   - Fasting is logically related to nutrition tracking, not medical providers
+   - Nutrition menu now includes: Nutrition Home, Food History, Statistics, Goals, Fasting
+   - Providers menu now contains only: Medical Providers
+
+2. **Added Significant Events to Life Menu**
+   - Significant Events (birthdays, anniversaries, etc.) was missing from navigation
+   - Now accessible under Life menu alongside Documents
+
+**Files Modified:**
+- `templates/components/navigation.html` - Updated Health mega-menu and Life dropdown menu
+
+**No migrations required** - Template-only change.
+
+---
 
 ### AI Span: Comprehensive AI Context Enhancement
 
@@ -98,9 +120,9 @@ Implemented an industry-standard cascading dropdown menu system for the main nav
   - Vitals: Health Home, Weight, Heart Rate, Blood Pressure, Glucose, Blood Oxygen
   - Medicine: Today's Medicines, All Medicines, History, Adherence
   - Fitness: Fitness Home, Workouts, Templates, Personal Records
-  - Nutrition: Nutrition Home, Food History, Statistics, Goals
-  - Providers: Medical Providers, Fasting
-- Life - Two-column: Home, Calendar, Projects, Tasks, Inventory, Pets, Recipes, Maintenance, Documents
+  - Nutrition: Nutrition Home, Food History, Statistics, Goals, Fasting
+  - Providers: Medical Providers
+- Life - Two-column: Home, Calendar, Projects, Tasks, Inventory, Pets, Recipes, Maintenance, Documents, Significant Events
 - Purpose - Home, Annual Direction, Goals, Intentions, Reflections
 - Assistant - Direct link (no dropdown)
 

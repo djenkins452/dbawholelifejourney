@@ -1134,13 +1134,22 @@ class MedicineLog(UserOwnedModel):
             return True  # PRN doses are always "on time"
 
         from datetime import datetime, timedelta
-        scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
-        grace_minutes = self.medicine.grace_period_minutes
-        latest_ok = scheduled_dt + timedelta(minutes=grace_minutes)
+        import pytz
 
-        # Compare without timezone for simplicity
-        taken_naive = self.taken_at.replace(tzinfo=None) if self.taken_at.tzinfo else self.taken_at
-        return taken_naive <= latest_ok
+        # Get user's timezone for proper comparison
+        user_tz = pytz.timezone(self.user.preferences.timezone)
+
+        # Convert taken_at to user's local timezone
+        taken_local = self.taken_at.astimezone(user_tz) if self.taken_at.tzinfo else user_tz.localize(self.taken_at)
+
+        # Create scheduled datetime in user's timezone
+        scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
+        scheduled_local = user_tz.localize(scheduled_dt)
+
+        grace_minutes = self.medicine.grace_period_minutes
+        latest_ok = scheduled_local + timedelta(minutes=grace_minutes)
+
+        return taken_local <= latest_ok
 
     @property
     def minutes_late(self):
@@ -1151,10 +1160,19 @@ class MedicineLog(UserOwnedModel):
             return 0  # PRN doses aren't late
 
         from datetime import datetime
-        scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
-        taken_naive = self.taken_at.replace(tzinfo=None) if self.taken_at.tzinfo else self.taken_at
+        import pytz
 
-        diff = taken_naive - scheduled_dt
+        # Get user's timezone for proper comparison
+        user_tz = pytz.timezone(self.user.preferences.timezone)
+
+        # Convert taken_at to user's local timezone
+        taken_local = self.taken_at.astimezone(user_tz) if self.taken_at.tzinfo else user_tz.localize(self.taken_at)
+
+        # Create scheduled datetime in user's timezone
+        scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
+        scheduled_local = user_tz.localize(scheduled_dt)
+
+        diff = taken_local - scheduled_local
         return max(0, int(diff.total_seconds() / 60))
 
     def mark_taken(self, taken_at=None):
@@ -1164,12 +1182,22 @@ class MedicineLog(UserOwnedModel):
         # Check if it was late
         if self.scheduled_time:
             from datetime import datetime, timedelta
-            scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
-            grace_minutes = self.medicine.grace_period_minutes
-            latest_ok = scheduled_dt + timedelta(minutes=grace_minutes)
+            import pytz
 
-            taken_naive = self.taken_at.replace(tzinfo=None) if self.taken_at.tzinfo else self.taken_at
-            if taken_naive > latest_ok:
+            # Get user's timezone for proper comparison
+            user_tz = pytz.timezone(self.user.preferences.timezone)
+
+            # Convert taken_at to user's local timezone
+            taken_local = self.taken_at.astimezone(user_tz) if self.taken_at.tzinfo else user_tz.localize(self.taken_at)
+
+            # Create scheduled datetime in user's timezone
+            scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
+            scheduled_local = user_tz.localize(scheduled_dt)
+
+            grace_minutes = self.medicine.grace_period_minutes
+            latest_ok = scheduled_local + timedelta(minutes=grace_minutes)
+
+            if taken_local > latest_ok:
                 self.log_status = self.STATUS_LATE
             else:
                 self.log_status = self.STATUS_TAKEN

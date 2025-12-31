@@ -21,8 +21,9 @@ def add_medicine_timezone_fix_note(apps, schema_editor):
         'title': 'Medicine Time Display Fixed',
         'description': (
             'Fixed an issue where medicine "taken at" times were showing in UTC instead of '
-            'your local timezone. Medicines taken on time were incorrectly showing as "Taken Late" '
-            'for users in timezones behind UTC. Times now correctly display in your configured timezone.'
+            'your local timezone. Both the display time AND the "Taken Late" status are now '
+            'correctly calculated in your timezone. Medicines taken early or on time will '
+            'no longer be incorrectly marked as "Taken Late".'
         ),
         'entry_type': 'fix',
         'release_date': date(2025, 12, 30),

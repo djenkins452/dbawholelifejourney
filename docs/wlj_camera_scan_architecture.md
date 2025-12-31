@@ -1,4 +1,13 @@
-# Camera Scan Feature - Architecture & Security Design
+# ==============================================================================
+# File: docs/wlj_camera_scan_architecture.md
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Camera scan feature architecture and security design
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2025-12-28
+# Last Updated: 2025-12-30
+# ==============================================================================
+
+# WLJ Camera Scan Feature - Architecture & Security Design
 
 ## Overview
 

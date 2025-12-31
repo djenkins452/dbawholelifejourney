@@ -1,4 +1,13 @@
-# SYSTEM REVIEW - Repeatable Audit Process
+# ==============================================================================
+# File: docs/wlj_system_review.md
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Repeatable audit process and checklists for system reviews
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2025-12-28
+# Last Updated: 2025-12-30
+# ==============================================================================
+
+# WLJ System Review - Repeatable Audit Process
 
 **Purpose:** This document defines the repeatable process for conducting a full system audit of the Whole Life Journey Django application. Use this for periodic reviews, before major releases, or after significant changes.
 
@@ -247,7 +256,7 @@ PRIMARY OBJECTIVES
 |--------|---------|--------|-------|
 | Test count | 857+ | 900+ | Add tests for new features |
 | Test pass rate | 100% | 100% | Never deploy with failures |
-| Bare except count | 0 | 0 | ✅ All eliminated |
+| Bare except count | 0 | 0 | All eliminated |
 | Files > 500 lines | 6 | 3 | Split large files |
 | Backup files | 29 | 0 | Clean regularly |
 
@@ -255,7 +264,7 @@ PRIMARY OBJECTIVES
 
 | Metric | Current | Target | Notes |
 |--------|---------|--------|-------|
-| Open vulnerabilities | 0 CRIT, 0 HIGH | 0 | ✅ All fixed |
+| Open vulnerabilities | 0 CRIT, 0 HIGH | 0 | All fixed |
 | Auth coverage | 100% | 100% | All views protected |
 | Input validation | ~80% | 100% | Validate all inputs |
 
@@ -263,16 +272,16 @@ PRIMARY OBJECTIVES
 
 ## REMEDIATION PRIORITIES
 
-### Priority 1: Security ✅ COMPLETE
-1. ~~Fix open redirect vulnerability~~ ✅
-2. ~~Remove hardcoded API key~~ ✅
-3. ~~Replace bare except clauses~~ ✅
-4. ~~Add XSS escaping to HTMX responses~~ ✅
-5. ~~Fix unsafe IP extraction~~ ✅
+### Priority 1: Security COMPLETE
+1. ~~Fix open redirect vulnerability~~
+2. ~~Remove hardcoded API key~~
+3. ~~Replace bare except clauses~~
+4. ~~Add XSS escaping to HTMX responses~~
+5. ~~Fix unsafe IP extraction~~
 
-### Priority 2: Error Handling (Mostly Complete ✅)
-1. ~~Create custom error pages~~ ✅
-2. ~~Add persistent file logging~~ ✅
+### Priority 2: Error Handling (Mostly Complete)
+1. ~~Create custom error pages~~
+2. ~~Add persistent file logging~~
 3. Create health check endpoint (OPEN)
 4. Add error dashboard widget (OPEN)
 
@@ -326,7 +335,7 @@ python manage.py test --parallel
 After completing an audit:
 
 1. **Update this document** with new findings
-2. **Update SYSTEM_AUDIT_REPORT.md** with current status
+2. **Update docs/wlj_system_audit.md** with current status
 3. **Create tickets/issues** for items needing fix
 4. **Prioritize** based on security impact
 5. **Schedule** remediation work
@@ -348,6 +357,7 @@ After completing an audit:
 | Date | Version | Changes |
 |------|---------|---------|
 | 2025-12-28 | 1.0.0 | Initial audit process created |
+| 2025-12-30 | 1.0.1 | Reorganized into docs/ directory |
 
 ---
 

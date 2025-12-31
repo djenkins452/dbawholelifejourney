@@ -1,18 +1,17 @@
-# CLAUDE_FEATURES.md
 # ==============================================================================
-# File: CLAUDE_FEATURES.md
+# File: docs/wlj_claude_features.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-29 (Personal Assistant Module + AI Task-Focused Update)
+# Last Updated: 2025-12-30
 # ==============================================================================
 
-# Feature Documentation
+# WLJ Feature Documentation
 
 This file contains detailed documentation for major features.
 Reference this file when working on specific features.
-For core project context, see `CLAUDE.md`.
+For core project context, see `CLAUDE.md` (project root).
 
 ---
 

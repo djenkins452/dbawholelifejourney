@@ -1,4 +1,13 @@
-# SECURITY REVIEW REPORT
+# ==============================================================================
+# File: docs/wlj_security_review.md
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Security review report with findings and remediation status
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2025-12-28
+# Last Updated: 2025-12-30
+# ==============================================================================
+
+# WLJ Security Review Report
 
 **Project:** Whole Life Journey
 **Review Date:** December 28, 2025

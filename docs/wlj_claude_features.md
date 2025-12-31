@@ -32,6 +32,7 @@ For core project context, see `CLAUDE.md` (project root).
 14. [SMS Text Notifications](#sms-text-notifications)
 15. [Task Management](#task-management)
 16. [Memory Verse](#memory-verse)
+17. [Significant Events](#significant-events)
 
 ---
 
@@ -61,7 +62,7 @@ The main navigation features a cascading dropdown menu system that allows users 
 | Journal | Dropdown | Home, New Entry, All Entries, Book View, Prompts, Tags |
 | Faith | Dropdown | Home, Today's Verse, Saved Scripture, Prayers, Milestones, Reflections |
 | Health | Mega menu | 5 columns: Vitals, Medicine, Fitness, Nutrition, Providers |
-| Life | Two-column | Home, Calendar, Projects, Tasks, Inventory, Pets, Recipes, Maintenance, Documents |
+| Life | Two-column | Home, Calendar, Projects, Tasks, Inventory, Pets, Recipes, Maintenance, Documents, Significant Events |
 | Purpose | Dropdown | Home, Annual Direction, Goals, Intentions, Reflections |
 | Assistant | Direct link | Dashboard only |
 
@@ -910,6 +911,7 @@ First-class SMS notification system using Twilio. Users can receive text message
 | Event | Calendar event reminders (30 min before) | "WLJ: In 30 min: Doctor appt at 2:30 PM" |
 | Prayer | Daily prayer reminders | "WLJ: Good morning! Take a moment for prayer today." |
 | Fasting | Fasting window reminders | "WLJ: Eating window opens at 12:00 PM. Keep going!" |
+| Significant Event | Birthdays, anniversaries, milestones | "WLJ: Mom's Birthday is tomorrow! Gift ideas: Books" |
 
 ### Reply Codes
 | Code | Meaning | Action |
@@ -943,6 +945,7 @@ sms_task_reminders = BooleanField
 sms_event_reminders = BooleanField
 sms_prayer_reminders = BooleanField
 sms_fasting_reminders = BooleanField
+sms_significant_event_reminders = BooleanField
 
 # Quiet hours
 sms_quiet_hours_enabled = BooleanField
@@ -1209,6 +1212,97 @@ When a user has a memory verse set and Faith is enabled:
 
 ### Migration
 `apps/faith/migrations/0005_add_memory_verse_field.py` - Adds is_memory_verse field
+
+---
+
+## Significant Events
+
+### Overview
+Track and get SMS reminders for significant personal dates like birthdays, anniversaries, memorials, and milestones. Events automatically recur annually and can send SMS reminders at configurable intervals before the date.
+
+### Event Types
+| Type | Icon | Description |
+|------|------|-------------|
+| Birthday | 🎂 | Someone's birthday |
+| Anniversary | 💍 | Wedding, relationship, or work anniversaries |
+| Memorial | 🕯️ | Remembering someone who passed |
+| Milestone | 🏆 | Achievement or personal milestone |
+| Holiday | 🎉 | Personal or family holidays |
+| Other | 📅 | Custom event type |
+
+### Smart Date Features
+- **Annual recurrence** - Events automatically calculate their next occurrence each year
+- **Years calculation** - Shows "10th Anniversary", "25th Birthday", etc.
+- **Feb 29 handling** - Leap year dates gracefully fall back to Feb 28
+- **Days countdown** - "Today!", "Tomorrow", "In 3 days", etc.
+
+### SMS Reminders
+| Setting | Options |
+|---------|---------|
+| Reminder intervals | 14 days, 7 days, 3 days, 1 day, day-of |
+| Custom message | e.g., "Gift ideas: Books, flowers" |
+| Time | Sent at 9 AM user's timezone |
+
+**SMS Message Format:**
+```
+WLJ: Mom's Birthday is tomorrow! Gift ideas: Books, flowers
+WLJ: 25th Anniversary with Jane is in 7 days!
+WLJ: Dad's Memorial is today. 🕯️
+```
+
+### Model Fields (`apps/life/models.py`)
+```python
+class SignificantEvent(UserOwnedModel):
+    title = CharField(max_length=200)
+    description = TextField(blank=True)
+    event_type = CharField(choices=[
+        'birthday', 'anniversary', 'memorial',
+        'milestone', 'holiday', 'other'
+    ])
+    event_date = DateField  # The date (year used for age calculation)
+    original_year = PositiveIntegerField(null=True)  # For "Xth" display
+    person_name = CharField(max_length=200, blank=True)
+
+    # SMS settings
+    sms_reminder_enabled = BooleanField
+    reminder_days = JSONField  # e.g., [14, 7, 3, 1, 0]
+    custom_message = TextField(blank=True)
+```
+
+### Key Methods
+- `get_next_occurrence(from_date)` - Next occurrence of this event
+- `get_years_count()` - Years since original_year
+- `days_until_next()` - Days until next occurrence (0 = today)
+- `get_display_date()` - Human-friendly: "Tomorrow", "In 3 days", "Jan 15"
+- `get_years_display()` - Ordinal: "10th", "25th"
+
+### URL Routes (`/life/significant-events/`)
+| Route | View | Description |
+|-------|------|-------------|
+| `/life/significant-events/` | List | All events sorted by days until |
+| `/life/significant-events/new/` | Create | Add new event |
+| `/life/significant-events/<id>/` | Detail | Event details with countdown |
+| `/life/significant-events/<id>/edit/` | Update | Edit event |
+| `/life/significant-events/<id>/delete/` | Delete | Remove event |
+
+### Dashboard Integration
+- **"Upcoming Celebrations" card** - Shows next 5 events within 30 days
+- Events highlighted based on proximity: "Today!" (green), "Soon" (yellow)
+- Years badge displayed (e.g., "10th")
+
+### User Preferences
+- `sms_significant_event_reminders` - Toggle in preferences to enable/disable SMS for this category
+- Default: enabled (when SMS is configured)
+
+### Key Files
+- `apps/life/models.py` - SignificantEvent model
+- `apps/life/forms.py` - SignificantEventForm with checkbox reminder days
+- `apps/life/views.py` - CRUD views
+- `apps/life/urls.py` - URL patterns
+- `apps/sms/scheduler.py` - `schedule_significant_event_reminders()`
+- `apps/dashboard/views.py` - `_get_life_data()` includes significant events
+- `templates/life/significant_event_*.html` - UI templates
+- `static/css/dashboard.css` - Celebrations section styles
 
 ---
 

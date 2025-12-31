@@ -64,6 +64,12 @@ from .views import (
     DocumentUpdateView,
     DocumentDeleteView,
     DocumentDownloadView,
+    # Significant Events
+    SignificantEventListView,
+    SignificantEventDetailView,
+    SignificantEventCreateView,
+    SignificantEventUpdateView,
+    SignificantEventDeleteView,
     # Google Calendar
     GoogleCalendarSettingsView,
     GoogleCalendarSaveSettingsView,
@@ -146,7 +152,14 @@ urlpatterns = [
     path("documents/<int:pk>/edit/", DocumentUpdateView.as_view(), name="document_update"),
     path("documents/<int:pk>/delete/", DocumentDeleteView.as_view(), name="document_delete"),
     path("documents/<int:pk>/download/", DocumentDownloadView.as_view(), name="document_download"),
-    
+
+    # Significant Events (Birthdays, Anniversaries, etc.)
+    path("significant-events/", SignificantEventListView.as_view(), name="significant_event_list"),
+    path("significant-events/new/", SignificantEventCreateView.as_view(), name="significant_event_create"),
+    path("significant-events/<int:pk>/", SignificantEventDetailView.as_view(), name="significant_event_detail"),
+    path("significant-events/<int:pk>/edit/", SignificantEventUpdateView.as_view(), name="significant_event_update"),
+    path("significant-events/<int:pk>/delete/", SignificantEventDeleteView.as_view(), name="significant_event_delete"),
+
     # Google Calendar
     path("calendar/google/", GoogleCalendarSettingsView.as_view(), name="google_calendar_settings"),
     path("calendar/google/settings/", GoogleCalendarSaveSettingsView.as_view(), name="google_calendar_save_settings"),

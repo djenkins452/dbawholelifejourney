@@ -1121,3 +1121,214 @@ class GoogleCalendarCredential(models.Model):
         self.last_sync_status = 'success' if success else 'error'
         self.last_sync_message = message
         self.save(update_fields=['last_sync', 'last_sync_status', 'last_sync_message'])
+
+
+# =============================================================================
+# Significant Events (Birthdays, Anniversaries, etc.)
+# =============================================================================
+
+class SignificantEvent(UserOwnedModel):
+    """
+    Significant recurring events like birthdays, anniversaries, and milestones.
+
+    These events automatically recur annually and can trigger SMS reminders
+    at configurable intervals before the event date.
+    """
+
+    EVENT_TYPE_CHOICES = [
+        ('birthday', 'Birthday'),
+        ('anniversary', 'Anniversary'),
+        ('memorial', 'Memorial / In Memory'),
+        ('milestone', 'Milestone'),
+        ('holiday', 'Personal Holiday'),
+        ('other', 'Other'),
+    ]
+
+    # Core fields
+    title = models.CharField(
+        max_length=200,
+        help_text="e.g., Mom's Birthday, Wedding Anniversary"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional notes about this event"
+    )
+
+    event_type = models.CharField(
+        max_length=20,
+        choices=EVENT_TYPE_CHOICES,
+        default='birthday'
+    )
+
+    # The event date (month/day matter most, year used for age/years calculation)
+    event_date = models.DateField(
+        help_text="The date of the event (year used for calculating years/age)"
+    )
+
+    # Optional: Track the original year for "years since" calculation
+    # If not set, uses event_date.year
+    original_year = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Year the event started (for calculating anniversaries, ages)"
+    )
+
+    # Person/entity this relates to
+    person_name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="e.g., Mom, John & Jane, Grandpa"
+    )
+
+    # SMS Reminder Settings
+    sms_reminder_enabled = models.BooleanField(
+        default=False,
+        help_text="Send SMS reminders for this event"
+    )
+
+    # Reminder days before event (stored as JSON array)
+    # e.g., [14, 7, 3, 1, 0] for reminders at 14 days, 7 days, 3 days, 1 day, and day-of
+    reminder_days = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Days before event to send reminders (e.g., [7, 3, 1, 0])"
+    )
+
+    # Custom message to include in SMS
+    custom_message = models.TextField(
+        blank=True,
+        help_text="Custom message to include in reminders (e.g., Gift ideas: Books, flowers)"
+    )
+
+    class Meta:
+        ordering = ['event_date']
+        verbose_name = "Significant Event"
+        verbose_name_plural = "Significant Events"
+
+    def __str__(self):
+        return f"{self.title} ({self.event_date.strftime('%b %d')})"
+
+    def get_absolute_url(self):
+        return reverse('life:significant_event_detail', kwargs={'pk': self.pk})
+
+    def get_next_occurrence(self, from_date=None):
+        """
+        Calculate the next occurrence of this event.
+
+        Args:
+            from_date: Date to calculate from (defaults to user's today)
+
+        Returns:
+            date: The next occurrence date
+        """
+        if from_date is None:
+            from_date = get_user_today(self.user) if self.user_id else timezone.now().date()
+
+        # Get month and day from the event
+        event_month = self.event_date.month
+        event_day = self.event_date.day
+
+        # Handle Feb 29 for non-leap years
+        def get_valid_date(year, month, day):
+            import calendar
+            max_day = calendar.monthrange(year, month)[1]
+            return timezone.datetime(year, month, min(day, max_day)).date()
+
+        # Try this year first
+        this_year_date = get_valid_date(from_date.year, event_month, event_day)
+
+        if this_year_date >= from_date:
+            return this_year_date
+        else:
+            # Event has passed this year, return next year's date
+            return get_valid_date(from_date.year + 1, event_month, event_day)
+
+    def get_years_count(self, from_date=None):
+        """
+        Calculate how many years since the original event.
+
+        Returns:
+            int or None: Years count, or None if no original year set
+        """
+        # Use original_year if set, otherwise use the event_date year
+        start_year = self.original_year or self.event_date.year
+
+        if from_date is None:
+            from_date = get_user_today(self.user) if self.user_id else timezone.now().date()
+
+        next_occurrence = self.get_next_occurrence(from_date)
+        years = next_occurrence.year - start_year
+
+        return years if years > 0 else None
+
+    def days_until_next(self, from_date=None):
+        """
+        Calculate days until the next occurrence.
+
+        Returns:
+            int: Days until next occurrence (0 = today)
+        """
+        if from_date is None:
+            from_date = get_user_today(self.user) if self.user_id else timezone.now().date()
+
+        next_occurrence = self.get_next_occurrence(from_date)
+        return (next_occurrence - from_date).days
+
+    @property
+    def is_today(self):
+        """Check if this event is today."""
+        return self.days_until_next() == 0
+
+    @property
+    def is_this_week(self):
+        """Check if this event is within the next 7 days."""
+        return self.days_until_next() <= 7
+
+    @property
+    def is_this_month(self):
+        """Check if this event is within the next 30 days."""
+        return self.days_until_next() <= 30
+
+    def get_display_date(self):
+        """
+        Get a human-friendly display of the event date.
+
+        Returns:
+            str: e.g., "Tomorrow", "Jan 15", "In 3 days"
+        """
+        days = self.days_until_next()
+        next_date = self.get_next_occurrence()
+
+        if days == 0:
+            return "Today"
+        elif days == 1:
+            return "Tomorrow"
+        elif days <= 7:
+            return f"In {days} days"
+        else:
+            return next_date.strftime('%b %d')
+
+    def get_years_display(self):
+        """
+        Get a human-friendly display of years count.
+
+        Returns:
+            str or None: e.g., "10th", "25th", or None
+        """
+        years = self.get_years_count()
+        if years is None:
+            return None
+
+        # Handle ordinal suffix
+        if 11 <= years % 100 <= 13:
+            suffix = 'th'
+        else:
+            suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(years % 10, 'th')
+
+        return f"{years}{suffix}"
+
+    def get_reminder_days_list(self):
+        """Get reminder days as a sorted list."""
+        if not self.reminder_days:
+            return []
+        return sorted(self.reminder_days, reverse=True)

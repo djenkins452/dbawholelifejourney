@@ -582,6 +582,48 @@
         </div>
     </section>
     {% endif %}
+
+    <!-- Upcoming Celebrations (Significant Events) -->
+    {% if life_enabled and user_data.upcoming_significant_events %}
+    <section class="celebrations-section">
+        <div class="section-header-with-link">
+            <h2 class="section-title">Upcoming Celebrations</h2>
+            <a href="{% url 'life:significant_event_list' %}" class="section-link">View All</a>
+        </div>
+        <div class="celebrations-list">
+            {% for event in user_data.upcoming_significant_events %}
+            <a href="{{ event.get_absolute_url }}" class="celebration-item {% if event.days_until == 0 %}today{% elif event.days_until <= 7 %}soon{% endif %}">
+                <span class="celebration-icon">
+                    {% if event.event_type == 'birthday' %}🎂
+                    {% elif event.event_type == 'anniversary' %}💍
+                    {% elif event.event_type == 'memorial' %}🕯️
+                    {% elif event.event_type == 'milestone' %}🏆
+                    {% elif event.event_type == 'holiday' %}🎉
+                    {% else %}📅{% endif %}
+                </span>
+                <div class="celebration-info">
+                    <span class="celebration-title">{{ event.title }}</span>
+                    {% if event.person_name %}
+                    <span class="celebration-person">{{ event.person_name }}</span>
+                    {% endif %}
+                </div>
+                <div class="celebration-countdown">
+                    {% if event.days_until == 0 %}
+                    <span class="countdown-badge today">Today!</span>
+                    {% elif event.days_until == 1 %}
+                    <span class="countdown-badge tomorrow">Tomorrow</span>
+                    {% else %}
+                    <span class="countdown-text">{{ event.days_until }} days</span>
+                    {% endif %}
+                    {% if event.years_display %}
+                    <span class="years-badge">{{ event.years_display }}</span>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
 </div>
 {% endblock %}
 

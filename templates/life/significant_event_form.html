@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit {{ object.title }}{% else %}Add Significant Event{% endif %} - Life{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Life</a>
+        <span>/</span>
+        <a href="{% url 'life:significant_event_list' %}">Significant Events</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Add{% endif %}</span>
+    </nav>
+
+    <div class="form-page">
+        <div class="form-header">
+            <h1 class="page-title">{% if object %}Edit {{ object.title }}{% else %}Add a Significant Event{% endif %}</h1>
+            <p class="page-subtitle">Track birthdays, anniversaries, and important dates</p>
+        </div>
+
+        <form method="post" class="life-form">
+            {% csrf_token %}
+
+            <div class="form-section">
+                <h2 class="form-section-title">Event Details</h2>
+
+                <div class="form-group">
+                    <label for="id_title" class="form-label">Event Title *</label>
+                    <input type="text" name="title" id="id_title" class="form-input"
+                           value="{{ form.title.value|default:'' }}" required
+                           placeholder="e.g., Mom's Birthday, Wedding Anniversary">
+                    {% if form.title.help_text %}
+                    <p class="form-help">{{ form.title.help_text }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_event_type" class="form-label">Event Type</label>
+                        <select name="event_type" id="id_event_type" class="form-select">
+                            <option value="birthday" {% if form.event_type.value == 'birthday' %}selected{% endif %}>Birthday</option>
+                            <option value="anniversary" {% if form.event_type.value == 'anniversary' %}selected{% endif %}>Anniversary</option>
+                            <option value="memorial" {% if form.event_type.value == 'memorial' %}selected{% endif %}>Memorial / In Memory</option>
+                            <option value="milestone" {% if form.event_type.value == 'milestone' %}selected{% endif %}>Milestone</option>
+                            <option value="holiday" {% if form.event_type.value == 'holiday' %}selected{% endif %}>Personal Holiday</option>
+                            <option value="other" {% if form.event_type.value == 'other' %}selected{% endif %}>Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_event_date" class="form-label">Date *</label>
+                        <input type="date" name="event_date" id="id_event_date" class="form-input"
+                               value="{{ form.event_date.value|date:'Y-m-d'|default:'' }}" required>
+                        <p class="form-help">{{ form.event_date.help_text }}</p>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_person_name" class="form-label">Person / People</label>
+                        <input type="text" name="person_name" id="id_person_name" class="form-input"
+                               value="{{ form.person_name.value|default:'' }}"
+                               placeholder="e.g., Mom, John & Jane, Grandpa">
+                        <p class="form-help">{{ form.person_name.help_text }}</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_original_year" class="form-label">Original Year</label>
+                        <input type="number" name="original_year" id="id_original_year" class="form-input"
+                               value="{{ form.original_year.value|default:'' }}"
+                               placeholder="e.g., 1999" min="1900" max="2100">
+                        <p class="form-help">{{ form.original_year.help_text }}</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_description" class="form-label">Notes</label>
+                    <textarea name="description" id="id_description" class="form-textarea" rows="3"
+                              placeholder="Optional notes about this event">{{ form.description.value|default:'' }}</textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2 class="form-section-title">SMS Reminders</h2>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="sms_reminder_enabled" id="id_sms_reminder_enabled"
+                               {% if form.sms_reminder_enabled.value %}checked{% endif %}>
+                        Enable SMS Reminders
+                    </label>
+                    <p class="form-help">Get text message reminders before this event</p>
+                </div>
+
+                <div class="reminder-options" id="reminder-options">
+                    <label class="form-label">Remind me:</label>
+                    <div class="reminder-checkboxes">
+                        {% for value, label in form.reminder_days_choices.field.choices %}
+                        <label class="checkbox-label reminder-option">
+                            <input type="checkbox" name="reminder_days_choices" value="{{ value }}"
+                                   {% if value|stringformat:"s" in form.reminder_days_choices.value %}checked{% endif %}>
+                            {{ label }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_custom_message" class="form-label">Custom Reminder Message</label>
+                    <textarea name="custom_message" id="id_custom_message" class="form-textarea" rows="2"
+                              placeholder="e.g., Gift ideas: Books, flowers, dinner reservation">{{ form.custom_message.value|default:'' }}</textarea>
+                    <p class="form-help">{{ form.custom_message.help_text }}</p>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if object %}Save Changes{% else %}Add Event{% endif %}
+                </button>
+                <a href="{% url 'life:significant_event_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.form-page {
+    max-width: 600px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-size-base);
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.reminder-options {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.reminder-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.reminder-option {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-background);
+    border-radius: var(--radius-md);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.form-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const smsToggle = document.getElementById('id_sms_reminder_enabled');
+    const reminderOptions = document.getElementById('reminder-options');
+
+    function toggleReminderOptions() {
+        if (smsToggle.checked) {
+            reminderOptions.style.display = 'block';
+        } else {
+            reminderOptions.style.display = 'none';
+        }
+    }
+
+    smsToggle.addEventListener('change', toggleReminderOptions);
+    toggleReminderOptions();
+});
+</script>
+{% endblock %}

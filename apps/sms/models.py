@@ -62,6 +62,7 @@ class SMSNotification(TimeStampedModel):
     CATEGORY_EVENT = 'event'
     CATEGORY_PRAYER = 'prayer'
     CATEGORY_FASTING = 'fasting'
+    CATEGORY_SIGNIFICANT_EVENT = 'significant_event'
     CATEGORY_VERIFICATION = 'verification'
     CATEGORY_SYSTEM = 'system'
 
@@ -72,6 +73,7 @@ class SMSNotification(TimeStampedModel):
         (CATEGORY_EVENT, 'Event'),
         (CATEGORY_PRAYER, 'Prayer'),
         (CATEGORY_FASTING, 'Fasting'),
+        (CATEGORY_SIGNIFICANT_EVENT, 'Significant Event'),
         (CATEGORY_VERIFICATION, 'Verification'),
         (CATEGORY_SYSTEM, 'System'),
     ]

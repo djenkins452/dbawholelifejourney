@@ -10,6 +10,7 @@ from .models import (
     Pet,
     PetRecord,
     Recipe,
+    SignificantEvent,
 )
 
 
@@ -60,3 +61,11 @@ class RecipeAdmin(admin.ModelAdmin):
     list_display = ['title', 'user', 'category', 'difficulty', 'is_favorite']
     list_filter = ['category', 'difficulty', 'is_favorite']
     search_fields = ['title', 'description', 'ingredients']
+
+
+@admin.register(SignificantEvent)
+class SignificantEventAdmin(admin.ModelAdmin):
+    list_display = ['title', 'user', 'event_type', 'event_date', 'person_name', 'sms_reminder_enabled']
+    list_filter = ['event_type', 'sms_reminder_enabled', 'created_at']
+    search_fields = ['title', 'person_name', 'description']
+    ordering = ['event_date']

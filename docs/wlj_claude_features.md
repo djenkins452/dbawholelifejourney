@@ -621,6 +621,34 @@ Daily tracker, adherence stats, PRN support, refill tracking, dashboard integrat
 - Quick Look for screenshots
 - Refill alerts with request tracking
 - Pause/resume without losing history
+- **Edit Taken Time** (Added 2025-12-31) - Correct the time when you actually took a dose
+
+### Edit Medicine Log (Added 2025-12-31)
+Allows users to correct the "taken at" time on medicine log entries:
+
+**Problem Solved:**
+- User takes medicine at 8:00 AM (on time)
+- Forgets to tap "Take" until 9:30 AM
+- System marks it as "Taken Late"
+- Now user can edit the log to set the correct time
+
+**How It Works:**
+1. On Medicine Home page, taken doses show an "Edit" link
+2. On History page, each log entry has an "Edit" link
+3. Edit page shows medicine info, scheduled time, and current status
+4. User enters the actual taken time using datetime picker
+5. System recalculates "Taken" vs "Taken Late" status based on new time
+
+**URL:** `/health/medicine/log/<pk>/edit/`
+
+**Form Fields:**
+- `taken_at` - DateTime picker (user's timezone, converted to/from UTC)
+- `notes` - Optional notes field
+
+**Technical Details:**
+- `MedicineLogEditForm` handles timezone conversion
+- Status recalculated on save using medicine's grace_period_minutes
+- User can only edit their own logs (404 for others)
 
 ### Refill Request Status (Added 2025-12-29)
 Users can mark a medicine as "refill requested" to track that they've already called in/submitted a refill:
@@ -653,7 +681,7 @@ Users can mark a medicine as "refill requested" to track that they've already ca
 The `taken_at` time on medicine logs is now displayed in the user's configured timezone. This fixes an issue where medicines taken on time appeared as "Taken Late" because the UTC time was being shown instead of local time.
 
 ### Tests
-`apps/health/tests/test_medicine.py` - 86 tests
+`apps/health/tests/test_medicine.py` - 98 tests (12 new tests for log edit feature)
 
 ---
 

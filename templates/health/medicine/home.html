@@ -104,6 +104,9 @@
             <div class="dose-actions">
                 {% if item.is_taken %}
                 <span class="dose-status taken-status">Taken</span>
+                {% if item.log %}
+                <a href="{% url 'health:medicine_log_edit' pk=item.log.pk %}?next={% url 'health:medicine_home' %}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
+                {% endif %}
                 <form method="post" action="{% url 'health:medicine_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">

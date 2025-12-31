@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Barcode Scanner Feature)
+# Last Updated: 2025-12-31 (Medicine Log Edit Feature)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,55 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Medicine Log Edit Feature (NEW)
+
+Added the ability to edit the "taken at" time of medicine log entries. This allows users to correct the time when they actually took a dose - important when they took medicine on time but forgot to log it immediately.
+
+**Problem Solved:**
+- User takes medicine at 8:00 AM on schedule
+- Forgets to tap "Take" until 9:30 AM
+- Medicine is marked as "Taken Late" even though it was on time
+- Now users can edit the log to correct the actual taken time
+
+**New Files Created:**
+- `templates/health/medicine/log_edit.html` - Edit form template with medicine info display
+
+**Files Modified:**
+- `apps/health/forms.py` - Added `MedicineLogEditForm` class
+  - Allows editing `taken_at` datetime and `notes`
+  - Converts times between user timezone and UTC
+  - Recalculates Taken/Taken Late status on save based on new time
+- `apps/health/views.py` - Added `MedicineLogEditView` class
+  - UpdateView for editing MedicineLog entries
+  - User can only edit their own logs (data isolation)
+  - Imports `MedicineLogEditForm`
+- `apps/health/urls.py` - Added route `/medicine/log/<int:pk>/edit/`
+- `templates/health/medicine/home.html` - Added "Edit" link for taken doses
+- `templates/health/medicine/history.html` - Added "Edit" link for each log entry
+  - Updated CSS grid to accommodate new actions column
+  - Added user_timezone to context for time display
+
+**Tests Added (12 new tests):**
+- `test_log_edit_view_requires_login` - Authentication required
+- `test_log_edit_view_loads` - Page loads correctly
+- `test_log_edit_shows_medicine_info` - Displays medicine name and dose
+- `test_log_edit_can_update_taken_at` - Can change the time
+- `test_log_edit_recalculates_status_to_taken` - Late → Taken when corrected
+- `test_log_edit_recalculates_status_to_late` - Taken → Late if time changed
+- `test_log_edit_can_add_notes` - Notes field works
+- `test_log_edit_redirects_to_next_url` - Respects ?next= parameter
+- `test_log_edit_default_redirect_to_history` - Default redirect
+- `test_user_cannot_edit_other_users_log` - Data isolation (404)
+- `test_log_edit_shows_current_status` - Displays status badge
+- `test_history_page_shows_edit_link` - Edit link appears in history
+- `test_medicine_home_shows_edit_link_for_taken_doses` - Edit link on home page
+
+**Test Count:** 1381 tests (was 1368, +13 tests)
+
+**No migrations required** - Uses existing MedicineLog fields.
+
+---
 
 ### Barcode Scanner Feature (NEW)
 

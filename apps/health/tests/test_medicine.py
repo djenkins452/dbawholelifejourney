@@ -1208,3 +1208,240 @@ class MedicineHealthDashboardTest(MedicineTestMixin, TestCase):
         response = self.client.get(reverse('health:home'))
         self.assertIn('medicine_low_supply', response.context)
         self.assertEqual(response.context['medicine_low_supply'], 1)
+
+
+# =============================================================================
+# 15. MEDICINE LOG EDIT TESTS
+# =============================================================================
+
+class MedicineLogEditTest(MedicineTestMixin, TestCase):
+    """Tests for editing medicine log entries (correcting taken_at time)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.login_user()
+        self.medicine = self.create_medicine(self.user, grace_period_minutes=60)
+        self.schedule = self.create_schedule(self.medicine, time(8, 0))
+
+    def test_log_edit_view_requires_login(self):
+        """Log edit view requires authentication."""
+        log = self.create_log(
+            self.user, self.medicine, self.schedule,
+            taken_at=timezone.now()
+        )
+        self.client.logout()
+        response = self.client.get(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk})
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_log_edit_view_loads(self):
+        """Log edit page loads for authenticated user."""
+        log = self.create_log(
+            self.user, self.medicine, self.schedule,
+            taken_at=timezone.now()
+        )
+        response = self.client.get(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Edit Taken Time')
+
+    def test_log_edit_shows_medicine_info(self):
+        """Log edit page displays medicine information."""
+        log = self.create_log(
+            self.user, self.medicine, self.schedule,
+            taken_at=timezone.now()
+        )
+        response = self.client.get(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk})
+        )
+        self.assertContains(response, self.medicine.name)
+        self.assertContains(response, self.medicine.dose)
+
+    def test_log_edit_can_update_taken_at(self):
+        """Log taken_at time can be updated."""
+        log = self.create_log(
+            self.user, self.medicine, self.schedule,
+            taken_at=timezone.now(),
+            scheduled_time=time(8, 0)
+        )
+
+        # Update to earlier time (within schedule time - should become "taken")
+        new_taken_at = log.scheduled_date.isoformat() + 'T08:00'
+
+        response = self.client.post(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            {'taken_at': new_taken_at}
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log.refresh_from_db()
+        self.assertIsNotNone(log.taken_at)
+
+    def test_log_edit_recalculates_status_to_taken(self):
+        """Editing taken_at to on-time recalculates status to 'taken'."""
+        # Create a log that was marked late
+        log = MedicineLog.objects.create(
+            user=self.user,
+            medicine=self.medicine,
+            schedule=self.schedule,
+            scheduled_date=timezone.now().date(),
+            scheduled_time=time(8, 0),
+            log_status=MedicineLog.STATUS_LATE,
+            taken_at=timezone.now(),
+        )
+
+        # Update to on-time (8:00 AM - within the 60 min grace period)
+        new_taken_at = log.scheduled_date.isoformat() + 'T08:30'
+
+        response = self.client.post(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            {'taken_at': new_taken_at}
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log.refresh_from_db()
+        self.assertEqual(log.log_status, MedicineLog.STATUS_TAKEN)
+
+    def test_log_edit_recalculates_status_to_late(self):
+        """Editing taken_at to late time recalculates status to 'late'."""
+        # Create a log that was marked taken on time
+        log = MedicineLog.objects.create(
+            user=self.user,
+            medicine=self.medicine,
+            schedule=self.schedule,
+            scheduled_date=timezone.now().date(),
+            scheduled_time=time(8, 0),
+            log_status=MedicineLog.STATUS_TAKEN,
+            taken_at=timezone.now(),
+        )
+
+        # Update to late time (10:30 AM - well past the 60 min grace period)
+        new_taken_at = log.scheduled_date.isoformat() + 'T10:30'
+
+        response = self.client.post(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            {'taken_at': new_taken_at}
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log.refresh_from_db()
+        self.assertEqual(log.log_status, MedicineLog.STATUS_LATE)
+
+    def test_log_edit_can_add_notes(self):
+        """Notes can be added when editing log."""
+        log = self.create_log(
+            self.user, self.medicine, self.schedule,
+            taken_at=timezone.now(),
+            scheduled_time=time(8, 0)
+        )
+
+        new_taken_at = log.scheduled_date.isoformat() + 'T08:00'
+
+        response = self.client.post(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            {
+                'taken_at': new_taken_at,
+                'notes': 'Forgot to log earlier'
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+        log.refresh_from_db()
+        self.assertEqual(log.notes, 'Forgot to log earlier')
+
+    def test_log_edit_redirects_to_next_url(self):
+        """Log edit redirects to next URL if provided."""
+        log = self.create_log(
+            self.user, self.medicine, self.schedule,
+            taken_at=timezone.now(),
+            scheduled_time=time(8, 0)
+        )
+
+        new_taken_at = log.scheduled_date.isoformat() + 'T08:00'
+        next_url = reverse('health:medicine_home')
+
+        response = self.client.post(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}) + f'?next={next_url}',
+            {'taken_at': new_taken_at}
+        )
+
+        self.assertRedirects(response, next_url)
+
+    def test_log_edit_default_redirect_to_history(self):
+        """Log edit redirects to history page by default."""
+        log = self.create_log(
+            self.user, self.medicine, self.schedule,
+            taken_at=timezone.now(),
+            scheduled_time=time(8, 0)
+        )
+
+        new_taken_at = log.scheduled_date.isoformat() + 'T08:00'
+
+        response = self.client.post(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            {'taken_at': new_taken_at}
+        )
+
+        self.assertRedirects(response, reverse('health:medicine_history'))
+
+    def test_user_cannot_edit_other_users_log(self):
+        """User cannot edit another user's log entry."""
+        other_user = self.create_user(email='other@example.com')
+        other_medicine = self.create_medicine(other_user, name='Other Medicine')
+        other_schedule = self.create_schedule(other_medicine)
+        other_log = self.create_log(
+            other_user, other_medicine, other_schedule,
+            taken_at=timezone.now()
+        )
+
+        response = self.client.get(
+            reverse('health:medicine_log_edit', kwargs={'pk': other_log.pk})
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_log_edit_shows_current_status(self):
+        """Log edit page shows current status badge."""
+        log = MedicineLog.objects.create(
+            user=self.user,
+            medicine=self.medicine,
+            schedule=self.schedule,
+            scheduled_date=timezone.now().date(),
+            scheduled_time=time(8, 0),
+            log_status=MedicineLog.STATUS_LATE,
+            taken_at=timezone.now(),
+        )
+
+        response = self.client.get(
+            reverse('health:medicine_log_edit', kwargs={'pk': log.pk})
+        )
+        self.assertContains(response, 'Taken Late')
+
+    def test_history_page_shows_edit_link(self):
+        """History page shows edit link for logs with taken_at."""
+        log = self.create_log(
+            self.user, self.medicine, self.schedule,
+            taken_at=timezone.now()
+        )
+
+        response = self.client.get(reverse('health:medicine_history'))
+        self.assertContains(response, f'/health/medicine/log/{log.pk}/edit/')
+
+    def test_medicine_home_shows_edit_link_for_taken_doses(self):
+        """Medicine home shows edit link for taken doses."""
+        # Create a log for today's schedule
+        today = timezone.now().date()
+        log = MedicineLog.objects.create(
+            user=self.user,
+            medicine=self.medicine,
+            schedule=self.schedule,
+            scheduled_date=today,
+            scheduled_time=self.schedule.scheduled_time,
+            log_status=MedicineLog.STATUS_TAKEN,
+            taken_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse('health:medicine_home'))
+        self.assertContains(response, f'/health/medicine/log/{log.pk}/edit/')

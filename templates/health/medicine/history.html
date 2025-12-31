@@ -75,6 +75,11 @@
                         Taken at {% timezone user_timezone %}{{ log.taken_at|time:"g:i A" }}{% endtimezone %}
                     </div>
                     {% endif %}
+                    <div class="log-actions">
+                        {% if log.taken_at %}
+                        <a href="{% url 'health:medicine_log_edit' pk=log.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
+                        {% endif %}
+                    </div>
                     {% if log.prn_reason %}
                     <div class="log-reason">{{ log.prn_reason }}</div>
                     {% endif %}
@@ -164,7 +169,7 @@
 
 .log-item {
     display: grid;
-    grid-template-columns: 1fr auto auto auto;
+    grid-template-columns: 1fr auto auto auto auto;
     gap: var(--space-3);
     align-items: center;
     padding: var(--space-3);
@@ -238,6 +243,25 @@
 .log-taken-info {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+}
+
+.log-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.log-actions .btn-text {
+    color: var(--color-accent);
+    background: transparent;
+    border: none;
+    padding: var(--space-1) var(--space-2);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    text-decoration: none;
+}
+
+.log-actions .btn-text:hover {
+    text-decoration: underline;
 }
 
 .log-reason,

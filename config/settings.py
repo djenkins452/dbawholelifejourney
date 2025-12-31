@@ -116,6 +116,7 @@ INSTALLED_APPS = [
     'apps.ai',
     'apps.help',
     'apps.scan',
+    'apps.sms',
 ]
 
 # Development-only: Add django-watchfiles for efficient autoreload (fixes Python 3.14 StatReloader issue)
@@ -550,4 +551,28 @@ if DEBUG:
     GOOGLE_CALENDAR_REDIRECT_URI = 'http://localhost:8000/life/calendar/google/callback/'
 else:
     GOOGLE_CALENDAR_REDIRECT_URI = env('GOOGLE_CALENDAR_REDIRECT_URI', default='')
+
+
+# ==============================================================================
+# Twilio SMS Configuration
+# ==============================================================================
+# Get your credentials at: https://www.twilio.com/console
+# Twilio Verify requires a Verify Service - create one in the Twilio Console
+
+TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID', default='')
+TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', default='')
+TWILIO_PHONE_NUMBER = env('TWILIO_PHONE_NUMBER', default='')  # E.164 format: +1XXXXXXXXXX
+TWILIO_VERIFY_SERVICE_SID = env('TWILIO_VERIFY_SERVICE_SID', default='')
+
+# Test mode - when True, logs SMS instead of sending (useful for development)
+TWILIO_TEST_MODE = env.bool('TWILIO_TEST_MODE', default=DEBUG)
+
+# Trigger token for protected API endpoints (used by external cron)
+SMS_TRIGGER_TOKEN = env('SMS_TRIGGER_TOKEN', default='')
+
+# Log Twilio configuration status at startup
+if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+    print(f"Twilio configured - Test Mode: {TWILIO_TEST_MODE}")
+else:
+    print("Twilio NOT configured - TWILIO_ACCOUNT_SID/AUTH_TOKEN not set")
     

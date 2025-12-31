@@ -51,6 +51,9 @@ resend>=2.4.0
 # AI Integration
 openai>=1.0.0
 
+# SMS Notifications (Twilio)
+twilio>=9.0.0
+
 # Linting and Code Quality (development)
 black>=24.8.0
 isort>=5.13.2

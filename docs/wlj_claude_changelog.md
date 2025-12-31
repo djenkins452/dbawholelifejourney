@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30 (Medicine timezone fix)
+# Last Updated: 2025-12-30 (SMS Notifications Feature)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,92 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-30 Changes
+
+### SMS Text Notifications Feature
+
+Added first-class SMS notification capabilities using Twilio. Users can receive text message reminders for medicine doses, tasks, events, and more. Replies with shortcuts (D=Done, R=Remind, N=Skip) allow quick status updates directly from text messages.
+
+**New App: `apps/sms/`**
+- `models.py` - SMSNotification, SMSResponse models for tracking sent/scheduled SMS and user replies
+- `services.py` - TwilioService (Twilio API integration), SMSNotificationService (scheduling, sending, reply processing)
+- `scheduler.py` - SMSScheduler for scheduling medicine, task, event, prayer, and fasting reminders
+- `views.py` - Phone verification, Twilio webhooks, SMS history page, protected trigger endpoints
+- `urls.py` - URL patterns for all SMS endpoints
+- `admin.py` - Admin registration with status badges and filters
+
+**New User Preference Fields (15 fields):**
+- Phone: `phone_number`, `phone_verified`, `phone_verified_at`
+- Master toggles: `sms_enabled`, `sms_consent`, `sms_consent_date`
+- Categories: `sms_medicine_reminders`, `sms_medicine_refill_alerts`, `sms_task_reminders`, `sms_event_reminders`, `sms_prayer_reminders`, `sms_fasting_reminders`
+- Quiet hours: `sms_quiet_hours_enabled`, `sms_quiet_start`, `sms_quiet_end`
+
+**Management Commands:**
+- `send_pending_sms` - Send all pending SMS notifications (run every 5 min)
+- `schedule_sms_reminders` - Schedule SMS for all users (run daily)
+
+**URL Routes (10 endpoints):**
+- `/sms/api/verify/send/` - Send phone verification code
+- `/sms/api/verify/check/` - Verify phone with code
+- `/sms/api/phone/remove/` - Remove phone and disable SMS
+- `/sms/api/status/` - Get SMS configuration status
+- `/sms/api/trigger/send/` - Protected: Send pending SMS
+- `/sms/api/trigger/schedule/` - Protected: Schedule SMS
+- `/sms/webhook/incoming/` - Twilio incoming SMS webhook
+- `/sms/webhook/status/` - Twilio delivery status webhook
+- `/sms/history/` - User SMS history page
+
+**Notification Categories:**
+- Medicine dose reminders
+- Medicine refill alerts
+- Task due date reminders
+- Calendar event reminders (30 min before)
+- Daily prayer reminders
+- Fasting window reminders
+
+**Reply Codes:**
+- D/done/yes/taken → Mark medicine taken / task complete
+- R/R5/R10/R30 → Schedule new reminder in X minutes
+- N/no/skip → Mark skipped / dismiss for today
+
+**New Files:**
+- `apps/sms/__init__.py`, `apps.py`, `models.py`, `admin.py`
+- `apps/sms/services.py`, `scheduler.py`, `views.py`, `urls.py`
+- `apps/sms/management/commands/send_pending_sms.py`
+- `apps/sms/management/commands/schedule_sms_reminders.py`
+- `apps/sms/tests/test_sms_comprehensive.py` (~50 tests)
+- `templates/sms/history.html` - SMS history page
+
+**Modified Files:**
+- `apps/users/models.py` - Added 15 SMS preference fields
+- `templates/users/preferences.html` - Added SMS section with verification, toggles, quiet hours
+- `config/settings.py` - Added Twilio settings and 'apps.sms' to INSTALLED_APPS
+- `config/urls.py` - Added SMS URL include
+- `requirements.txt` - Added `twilio>=9.0.0`
+- `THIRD_PARTY_SERVICES.md` - Added Twilio documentation
+- `CLAUDE_FEATURES.md` - Added SMS Text Notifications section
+
+**Migrations:**
+- `apps/users/migrations/0021_sms_notifications.py` - User preference fields
+- `apps/sms/migrations/0001_sms_notifications.py` - SMS models
+
+**Configuration (Environment Variables):**
+- `TWILIO_ACCOUNT_SID` - Twilio account SID
+- `TWILIO_AUTH_TOKEN` - Twilio auth token
+- `TWILIO_PHONE_NUMBER` - Sender phone number (E.164)
+- `TWILIO_VERIFY_SERVICE_SID` - Twilio Verify service SID
+- `TWILIO_TEST_MODE` - Test mode (logs instead of sending)
+- `SMS_TRIGGER_TOKEN` - Secret token for protected endpoints
+
+**Test Mode:**
+- When `TWILIO_TEST_MODE=True`, SMS are logged instead of sent
+- Verification code `123456` is accepted in test mode
+
+**Cost Estimates:**
+- Phone Number: ~$1.15/month
+- Outbound/Inbound SMS: ~$0.0079/message
+- Phone verification: ~$0.05/verification
+
+---
 
 ### Medicine "Taken At" Time Now Displays in User's Timezone
 
@@ -1151,7 +1237,7 @@ Fixed critical bug where medicine schedules weren't appearing in Today's Schedul
 ---
 
 ### Camera Scan Feature
-Added comprehensive Camera Scan feature with OpenAI Vision API integration. See `docs/wlj_camera_scan_architecture.md`.
+Added comprehensive Camera Scan feature with OpenAI Vision API integration. See `docs/CAMERA_SCAN_ARCHITECTURE.md`.
 
 **Files:** Multiple scan app files (70 new tests).
 
@@ -1163,7 +1249,7 @@ Added Medicine section to Health module with daily tracker, adherence stats, PRN
 ---
 
 ### CSO Security Review & Fixes
-Comprehensive security review with 21 findings. See `docs/wlj_security_review.md`.
+Comprehensive security review with 21 findings. See `SECURITY_REVIEW_REPORT.md`.
 
 **Critical fixes:**
 - C-2: Bible API key removed from frontend

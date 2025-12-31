@@ -28,6 +28,7 @@ For core project context, see `CLAUDE.md` (project root).
 10. [Camera Scan Feature](#camera-scan-feature)
 11. [Biometric Login](#biometric-login)
 12. [Dashboard Tile Shortcuts](#dashboard-tile-shortcuts)
+13. [SMS Text Notifications](#sms-text-notifications)
 
 ---
 
@@ -773,4 +774,167 @@ The quick stat tiles at the top of the dashboard are clickable, providing direct
 
 ---
 
-*Last updated: 2025-12-29*
+## SMS Text Notifications
+
+### Overview
+First-class SMS notification system using Twilio. Users can receive text message reminders for medicine doses, task due dates, calendar events, and more. Replies with shortcuts (D=Done, R=Remind, N=Skip) allow quick status updates directly from text messages.
+
+### Prerequisites
+1. **Twilio Account** - Sign up at twilio.com
+2. **Twilio Phone Number** - Purchase a number (~$1.15/month)
+3. **Twilio Verify Service** - For phone verification
+4. **Environment Variables** - See configuration below
+
+### User Flow
+1. **Verify Phone** - User enters phone in Preferences, receives 6-digit code, enters code
+2. **Enable SMS** - Toggle SMS notifications on
+3. **Give Consent** - Accept SMS terms and consent
+4. **Select Categories** - Choose which reminders to receive
+5. **Set Quiet Hours** - Configure times when no SMS will be sent
+6. **Receive Reminders** - Get texts at scheduled times
+7. **Reply to Log** - Reply D/R/N to log status directly
+
+### Notification Categories
+| Category | Description | Example Message |
+|----------|-------------|-----------------|
+| Medicine | Scheduled medication reminders | "WLJ: Time for Metformin 500mg. Reply D=Done, R=5min, N=Skip" |
+| Medicine Refill | Low supply alerts | "WLJ: Low supply: Metformin (3 days left). Time to refill!" |
+| Task | Task due date reminders | "WLJ: Due today: Buy groceries. Reply D=Done, R=1hr, N=Not today" |
+| Event | Calendar event reminders (30 min before) | "WLJ: In 30 min: Doctor appt at 2:30 PM" |
+| Prayer | Daily prayer reminders | "WLJ: Good morning! Take a moment for prayer today." |
+| Fasting | Fasting window reminders | "WLJ: Eating window opens at 12:00 PM. Keep going!" |
+
+### Reply Codes
+| Code | Meaning | Action |
+|------|---------|--------|
+| D, d, done, yes, taken | Done | Mark medicine taken / task complete |
+| R, R5, R10, R30 | Remind | Schedule new reminder in X minutes |
+| N, n, no, skip | Skip | Mark skipped / dismiss for today |
+
+### Models (`apps/sms/models.py`)
+| Model | Description |
+|-------|-------------|
+| `SMSNotification` | Scheduled/sent SMS with delivery status |
+| `SMSResponse` | Incoming SMS replies with parsed actions |
+
+### UserPreferences Fields
+```python
+# Phone verification
+phone_number = CharField  # E.164 format: +1XXXXXXXXXX
+phone_verified = BooleanField
+phone_verified_at = DateTimeField
+
+# Master toggles
+sms_enabled = BooleanField
+sms_consent = BooleanField
+sms_consent_date = DateTimeField
+
+# Category toggles
+sms_medicine_reminders = BooleanField
+sms_medicine_refill_alerts = BooleanField
+sms_task_reminders = BooleanField
+sms_event_reminders = BooleanField
+sms_prayer_reminders = BooleanField
+sms_fasting_reminders = BooleanField
+
+# Quiet hours
+sms_quiet_hours_enabled = BooleanField
+sms_quiet_start = TimeField  # Default: 22:00
+sms_quiet_end = TimeField    # Default: 07:00
+```
+
+### URL Routes (`/sms/`)
+| Route | View | Description |
+|-------|------|-------------|
+| `/sms/api/verify/send/` | `SendVerificationView` | Send verification code |
+| `/sms/api/verify/check/` | `CheckVerificationView` | Verify code |
+| `/sms/api/phone/remove/` | `RemovePhoneView` | Remove phone & disable SMS |
+| `/sms/api/status/` | `sms_status` | Get SMS configuration status |
+| `/sms/api/trigger/send/` | `TriggerSendView` | Protected: Send pending SMS |
+| `/sms/api/trigger/schedule/` | `TriggerScheduleView` | Protected: Schedule SMS |
+| `/sms/webhook/incoming/` | `TwilioIncomingWebhookView` | Twilio incoming webhook |
+| `/sms/webhook/status/` | `TwilioStatusWebhookView` | Twilio delivery status |
+| `/sms/history/` | `sms_history` | User SMS history page |
+
+### Management Commands
+```bash
+# Schedule reminders for all users (run daily)
+python manage.py schedule_sms_reminders
+
+# Send pending notifications (run every 5 min)
+python manage.py send_pending_sms
+
+# Dry run (preview without sending)
+python manage.py send_pending_sms --dry-run
+python manage.py schedule_sms_reminders --dry-run
+
+# Schedule for specific user
+python manage.py schedule_sms_reminders --user=email@example.com
+```
+
+### External Cron Setup (Railway)
+Since Railway has no cron, use external trigger with protected endpoints:
+
+1. Set `SMS_TRIGGER_TOKEN` environment variable
+2. Call endpoints with `X-Trigger-Token` header:
+   ```bash
+   # Every 5 minutes
+   curl -X POST https://yourapp.railway.app/sms/api/trigger/send/ \
+        -H "X-Trigger-Token: your-secret-token"
+
+   # Daily at midnight
+   curl -X POST https://yourapp.railway.app/sms/api/trigger/schedule/ \
+        -H "X-Trigger-Token: your-secret-token"
+   ```
+
+3. Use cron-job.org, GitHub Actions, or similar for scheduling
+
+### Configuration (Environment Variables)
+```bash
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_PHONE_NUMBER=+1XXXXXXXXXX
+TWILIO_VERIFY_SERVICE_SID=VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_TEST_MODE=True  # Set to False in production
+SMS_TRIGGER_TOKEN=your-random-secret-token
+```
+
+### Twilio Console Setup
+1. **Create Verify Service**: Console → Verify → Create Service
+2. **Configure Webhooks**: Console → Phone Numbers → Your Number → Messaging
+   - Incoming: `https://yourapp.railway.app/sms/webhook/incoming/`
+   - Status: `https://yourapp.railway.app/sms/webhook/status/`
+
+### Key Files
+- `apps/sms/models.py` - SMSNotification, SMSResponse
+- `apps/sms/services.py` - TwilioService, SMSNotificationService
+- `apps/sms/scheduler.py` - SMSScheduler for all categories
+- `apps/sms/views.py` - Webhooks, verification, history
+- `apps/sms/urls.py` - URL patterns
+- `apps/users/models.py` - SMS preference fields
+- `templates/sms/history.html` - SMS history page
+- `templates/users/preferences.html` - SMS section in preferences
+
+### Tests
+`apps/sms/tests/test_sms_comprehensive.py` - ~50 tests covering:
+- Model creation and status transitions
+- Reply parsing (D/R/N)
+- TwilioService (test mode)
+- Notification scheduling
+- Webhook handling
+- View functionality
+- Integration flows
+
+### Cost Estimates
+| Item | Cost |
+|------|------|
+| Phone Number | ~$1.15/month |
+| Outbound SMS | ~$0.0079/message |
+| Inbound SMS | ~$0.0079/message |
+| Verify (phone verification) | ~$0.05/verification |
+
+**Example:** 1 user, 3 medicine reminders/day = ~$0.71/month + $1.15 number = ~$1.86/month
+
+---
+
+*Last updated: 2025-12-30*

@@ -526,6 +526,41 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
+## Background Job Scheduling
+
+### 21. Django-APScheduler
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | APScheduler + Django integration |
+| **Type** | Python Package |
+| **Pricing** | Free (Open Source) |
+| **Status** | Active |
+
+**Purpose:**
+- Background job scheduling for SMS notifications
+- Runs scheduled tasks within the Django process
+- Persists job state in database (survives restarts)
+
+**Jobs Scheduled:**
+- `schedule_daily_sms_reminders` - Runs at midnight, creates SMS notifications for all users
+- `send_pending_sms` - Runs every 5 minutes, sends due notifications via Twilio
+- `delete_old_job_executions` - Weekly cleanup of job execution logs
+
+**Configuration (settings.py):**
+- `APSCHEDULER_DATETIME_FORMAT` - Display format for job times
+- `APSCHEDULER_RUN_NOW_TIMEOUT` - Timeout for immediate job runs
+
+**Key Files:**
+- `config/settings.py` - APScheduler configuration
+- `apps/sms/management/commands/run_sms_scheduler.py` - Scheduler management command
+- `Procfile` - Worker process: `worker: python manage.py run_sms_scheduler`
+- `requirements.txt` (django-apscheduler>=0.6.2)
+
+**Deployment:**
+Railway automatically starts the worker process alongside the web process.
+
+---
+
 ## Services NOT Currently Used
 
 The following services are NOT integrated but may be considered for future use:
@@ -565,6 +600,7 @@ The following services are NOT integrated but may be considered for future use:
 | 18 | GitHub | Source Control | Free | Active |
 | 19 | Zippopotam.us | Location API | Free | Deprecated |
 | 20 | Twilio | SMS API | Paid (usage) | Active |
+| 21 | Django-APScheduler | Background Jobs | Free (OSS) | Active |
 
 ---
 
@@ -585,4 +621,4 @@ The following services are NOT integrated but may be considered for future use:
 
 ---
 
-*Last Updated: 2025-12-30*
+*Last Updated: 2025-12-31*

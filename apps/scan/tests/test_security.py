@@ -274,13 +274,8 @@ class UserIsolationTests(ScanTestMixin, TestCase):
 
         # Check the page contains the Food scan category
         self.assertContains(response, 'Food')
-        # Check that there are scan records - look for the scan list structure
-        # Note: "Medicine" appears in navigation menu so we can't just check for absence
-        # Instead verify that only 1 scan is shown (the Food one)
-        content = response.content.decode()
-        # The scan history shows "Food" as a category, and user2's "Medicine" scan shouldn't appear in the list
-        scan_count = content.count('class="recent-scan-item"')
-        self.assertEqual(scan_count, 1, "Only user1's scan should be visible")
+        # Verify only 1 scan is shown by checking context
+        self.assertEqual(len(response.context['scans']), 1)
 
     def test_cannot_access_other_users_scan_log(self):
         """Test that users cannot record actions on others' scans."""

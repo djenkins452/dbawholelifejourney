@@ -531,7 +531,7 @@ class BarcodeLookupView(LoginRequiredMixin, View):
                 status=ScanLog.STATUS_SUCCESS,
                 category='barcode',
                 confidence=result.confidence,
-                items_detected=[{
+                items_json=[{
                     'label': result.food_name,
                     'barcode': barcode,
                     'source': result.source
@@ -548,7 +548,7 @@ class BarcodeLookupView(LoginRequiredMixin, View):
                 status=ScanLog.STATUS_SUCCESS,  # Request succeeded, just no match
                 category='barcode',
                 confidence=0.0,
-                items_detected=[{
+                items_json=[{
                     'barcode': barcode,
                     'source': 'not_found'
                 }]

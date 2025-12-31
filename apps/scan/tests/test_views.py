@@ -487,10 +487,8 @@ class ScanHistoryViewTests(ScanTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Food')
-        # Verify only 1 scan is shown - the user's scan
-        content = response.content.decode()
-        scan_count = content.count('class="recent-scan-item"')
-        self.assertEqual(scan_count, 1, "Only user's scan should be visible")
+        # Verify only 1 scan is shown by checking context
+        self.assertEqual(len(response.context['scans']), 1)
 
     def test_shows_empty_state(self):
         """Test that empty state is shown when no scans."""
@@ -537,10 +535,10 @@ class BarcodeLookupViewTests(ScanTestMixin, TestCase):
         """Test response when barcode is not in database."""
         self.client.login(email='test@example.com', password='testpass123')
 
-        # Mock the barcode service to return not found
-        with patch('apps.scan.views.barcode_service') as mock_service:
+        # Use a barcode that doesn't exist in database and mock AI to return not found
+        with patch('apps.scan.services.barcode.BarcodeService._lookup_ai') as mock_ai:
             from apps.scan.services.barcode import BarcodeResult
-            mock_service.lookup.return_value = BarcodeResult(
+            mock_ai.return_value = BarcodeResult(
                 barcode='012345678901',
                 found=False,
                 source='not_found'

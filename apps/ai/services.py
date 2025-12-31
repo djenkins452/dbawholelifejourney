@@ -347,14 +347,44 @@ Match your response to your coaching style."""
             user_profile
         )
 
-        # Build context from available data
+        # Build comprehensive context from available data
         context_parts = []
 
+        # ===================
+        # ANNUAL DIRECTION & PURPOSE
+        # ===================
+        if user_data.get('word_of_year'):
+            context_parts.append(f"Word of the Year: '{user_data['word_of_year']}'")
+        if user_data.get('annual_theme'):
+            context_parts.append(f"Annual Theme: {user_data['annual_theme']}")
+        if user_data.get('anchor_scripture'):
+            context_parts.append(f"Anchor Scripture: {user_data['anchor_scripture']}")
+
+        # Active intentions
+        if user_data.get('active_intentions'):
+            intentions = ', '.join(user_data['active_intentions'][:3])
+            context_parts.append(f"Trying to embody: {intentions}")
+
+        # Goals with details
+        if user_data.get('goals_list'):
+            for goal in user_data['goals_list'][:2]:
+                domain = goal.get('domain__name', '')
+                title = goal.get('title', '')
+                why = goal.get('why_it_matters', '')[:50]
+                if domain:
+                    context_parts.append(f"Goal ({domain}): {title}")
+                else:
+                    context_parts.append(f"Goal: {title}")
+        elif user_data.get('active_goals', 0) > 0:
+            context_parts.append(f"Working on {user_data['active_goals']} life goals")
+
+        # ===================
+        # JOURNAL ACTIVITY
+        # ===================
         if user_data.get('journal_count_week', 0) > 0:
             context_parts.append(f"Journaled {user_data['journal_count_week']} times this week")
 
         if user_data.get('last_journal_date'):
-            # Use user's today if provided in user_data, otherwise fall back to UTC
             today = user_data.get('today', timezone.now().date())
             days_ago = (today - user_data['last_journal_date']).days
             if days_ago == 0:
@@ -367,32 +397,100 @@ Match your response to your coaching style."""
         if user_data.get('current_streak', 0) > 1:
             context_parts.append(f"On a {user_data['current_streak']}-day journal streak")
 
-        if faith_enabled and user_data.get('active_prayers', 0) > 0:
-            context_parts.append(f"Tracking {user_data['active_prayers']} active prayers")
-
-        if user_data.get('active_goals', 0) > 0:
-            context_parts.append(f"Working on {user_data['active_goals']} life goals")
-
+        # ===================
+        # TASK & PROJECT STATUS
+        # ===================
         if user_data.get('completed_tasks_today', 0) > 0:
             context_parts.append(f"Completed {user_data['completed_tasks_today']} tasks today")
 
-        if user_data.get('overdue_tasks', 0) > 0:
-            context_parts.append(f"Has {user_data['overdue_tasks']} overdue tasks")
+        if user_data.get('tasks_due_today', 0) > 0:
+            context_parts.append(f"{user_data['tasks_due_today']} tasks due today")
 
-        if user_data.get('weight_trend') == 'down':
-            context_parts.append("Weight trending down recently")
+        if user_data.get('overdue_tasks', 0) > 0:
+            context_parts.append(f"{user_data['overdue_tasks']} overdue tasks need attention")
+
+        if user_data.get('active_projects', 0) > 0:
+            context_parts.append(f"{user_data['active_projects']} active projects")
+
+        if user_data.get('priority_projects'):
+            for proj in user_data['priority_projects']:
+                context_parts.append(f"Priority project: {proj['title']} ({proj['progress']}% complete)")
+
+        if user_data.get('events_today', 0) > 0:
+            context_parts.append(f"{user_data['events_today']} events scheduled today")
+
+        # ===================
+        # FAITH CONTEXT
+        # ===================
+        if faith_enabled:
+            if user_data.get('active_prayers', 0) > 0:
+                context_parts.append(f"Tracking {user_data['active_prayers']} active prayers")
+            if user_data.get('answered_prayers_month', 0) > 0:
+                context_parts.append(f"{user_data['answered_prayers_month']} prayers answered this month")
+            if user_data.get('memory_verse'):
+                mv = user_data['memory_verse']
+                context_parts.append(f"Memorizing: {mv['reference']}")
+            if user_data.get('studying_scripture'):
+                refs = ', '.join(user_data['studying_scripture'][:2])
+                context_parts.append(f"Recently studied: {refs}")
+
+        # ===================
+        # HEALTH STATUS
+        # ===================
+        if user_data.get('weight_trend'):
+            trend = user_data['weight_trend']
+            if trend == 'down':
+                context_parts.append("Weight trending down recently")
+            elif trend == 'up':
+                context_parts.append("Weight trending up recently")
+
+        if user_data.get('weight_goal') and user_data.get('weight_remaining'):
+            remaining = abs(user_data['weight_remaining'])
+            direction = user_data.get('weight_direction', 'lose')
+            if remaining > 0:
+                context_parts.append(f"{remaining} lbs to go to reach weight goal")
 
         if user_data.get('fasting_active'):
-            context_parts.append("Currently in a fasting window")
+            hours = user_data.get('fasting_hours', 0)
+            if hours:
+                context_parts.append(f"Currently fasting ({hours:.1f} hours in)")
+            else:
+                context_parts.append("Currently in a fasting window")
+
+        if user_data.get('calories_today'):
+            cal = user_data['calories_today']
+            remaining = user_data.get('calories_remaining', 0)
+            if remaining > 0:
+                context_parts.append(f"Logged {cal} calories today ({remaining} remaining)")
+
+        if user_data.get('workouts_this_week', 0) > 0:
+            context_parts.append(f"{user_data['workouts_this_week']} workouts this week")
+        elif user_data.get('days_since_workout') is not None and user_data['days_since_workout'] > 3:
+            context_parts.append(f"No workout in {user_data['days_since_workout']} days")
+
+        if user_data.get('recent_prs_count', 0) > 0:
+            context_parts.append(f"Set {user_data['recent_prs_count']} personal records this month")
+
+        if user_data.get('medicine_adherence_rate') is not None:
+            rate = user_data['medicine_adherence_rate']
+            if rate < 80:
+                context_parts.append(f"Medicine adherence at {rate}% this week")
+            elif rate >= 95:
+                context_parts.append(f"Excellent medicine adherence ({rate}%)")
+
+        if user_data.get('medicines_need_refill', 0) > 0:
+            context_parts.append(f"{user_data['medicines_need_refill']} medicines need refill soon")
 
         if not context_parts:
             context_parts.append("Just getting started with their journey")
 
-        prompt = f"""Based on this user's current activity and status:
+        prompt = f"""Based on this user's comprehensive life data:
 {chr(10).join('- ' + p for p in context_parts)}
 
-Generate a personalized message for their dashboard.
-Be specific to their situation. Match your coaching style perfectly."""
+Generate a personalized, meaningful message for their dashboard.
+Consider their Word of the Year, goals, and current progress.
+Be specific to their situation. Match your coaching style perfectly.
+Keep it concise but personal - 2-3 sentences max."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
     

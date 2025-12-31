@@ -1,10 +1,12 @@
 # ==============================================================================
 # File: dashboard_ai.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Dashboard AI Integration - Insights with optimized caching
+# Description: Dashboard AI Integration - Comprehensive user context gathering
+#              for personalized AI insights including Word of Year, goals,
+#              intentions, faith, health, projects, and nutrition data.
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
-# Created: 2025-01-01
-# Last Updated: 2025-12-31 (Added request-level caching for user data)
+# Created: 2025-12-28
+# Last Updated: 2025-12-31 (Enhanced AI context with comprehensive user data)
 # ==============================================================================
 """
 Dashboard AI Integration - With Coaching Style Support
@@ -12,14 +14,17 @@ Dashboard AI Integration - With Coaching Style Support
 This module provides AI-powered insights specifically for the dashboard.
 It handles caching, data gathering, and insight generation.
 
-Caching Optimizations (2025-12-31):
-- User data cached per instance (request-level caching via _cached_user_data)
-- Reflection data cached per instance
-- Reduces redundant queries when multiple methods call _gather_user_data()
+Gathers comprehensive user data including:
+- Annual Direction (Word of Year, Theme, Anchor Scripture)
+- Life Goals with domain and importance
+- Change Intentions (identity-based shifts)
+- Tasks, Projects, and Events
+- Faith data (prayers, memory verses, Scripture study)
+- Health data (weight, fasting, nutrition, workouts, medicine)
+- Journal activity and streaks
 """
 import logging
 from datetime import timedelta
-from functools import cached_property
 from django.db import models
 from django.utils import timezone
 from django.db.models import Count, F
@@ -34,21 +39,14 @@ class DashboardAI:
     """
     AI services specifically for dashboard insights.
     Uses the user's preferred coaching style.
-
-    Optimization (2025-12-31):
-    - Uses cached_property for user_data to prevent redundant queries
-    - Single instance should be used per request for optimal caching
     """
-
+    
     def __init__(self, user):
         self.user = user
         self.prefs = user.preferences
         self.faith_enabled = self.prefs.faith_enabled
         self.coaching_style = getattr(self.prefs, 'ai_coaching_style', 'supportive')
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
-        # Internal cache for user data (per-instance)
-        self._cached_user_data = None
-        self._cached_reflection_data = None
     
     def get_daily_insight(self, force_refresh: bool = False) -> str:
         """
@@ -56,8 +54,6 @@ class DashboardAI:
 
         Returns cached insight if available and valid, otherwise generates new one.
         Cache is invalidated when coaching style changes.
-
-        Optimization (2025-12-31): Uses instance-cached user data.
         """
         # Check for cached valid insight with matching coaching style
         if not force_refresh:
@@ -71,8 +67,8 @@ class DashboardAI:
             if cached:
                 return cached.content
 
-        # Generate new insight using cached user data
-        user_data = self.get_user_data()
+        # Generate new insight
+        user_data = self._gather_user_data()
         content = ai_service.generate_daily_insight(
             user_data,
             self.faith_enabled,
@@ -173,57 +169,24 @@ class DashboardAI:
     def get_reflection_prompt(self) -> str:
         """
         Get a personalized reflection prompt for journaling.
-
-        Optimization (2025-12-31): Uses instance-cached reflection data.
         """
-        user_data = self.get_reflection_data()
+        user_data = self._gather_reflection_data()
         return ai_service.generate_weekly_reflection_prompt(
-            user_data,
+            user_data, 
             self.faith_enabled,
             self.coaching_style
         )
     
-    def get_user_data(self, force_refresh: bool = False) -> dict:
-        """
-        Get user data with instance-level caching.
-
-        Optimization (2025-12-31):
-        - First call gathers data and caches it on the instance
-        - Subsequent calls return cached data
-        - Use force_refresh=True to bypass cache
-
-        Args:
-            force_refresh: If True, bypass cache and gather fresh data
-
-        Returns:
-            dict: User data for AI context
-        """
-        if self._cached_user_data is None or force_refresh:
-            self._cached_user_data = self._gather_user_data()
-        return self._cached_user_data
-
-    def get_reflection_data(self, force_refresh: bool = False) -> dict:
-        """
-        Get reflection data with instance-level caching.
-
-        Args:
-            force_refresh: If True, bypass cache and gather fresh data
-
-        Returns:
-            dict: Reflection data for AI context
-        """
-        if self._cached_reflection_data is None or force_refresh:
-            self._cached_reflection_data = self._gather_reflection_data()
-        return self._cached_reflection_data
-
     def _gather_user_data(self) -> dict:
-        """Gather user data for daily insight generation. Use get_user_data() for caching."""
+        """Gather comprehensive user data for daily insight generation."""
         from apps.journal.models import JournalEntry
         from apps.core.utils import get_user_today, get_user_now
 
         now = get_user_now(self.user)
         week_ago = now - timedelta(days=7)
+        month_ago = now - timedelta(days=30)
         today = get_user_today(self.user)
+        current_year = today.year
 
         # Journal stats
         entries = JournalEntry.objects.filter(user=self.user)
@@ -231,6 +194,7 @@ class DashboardAI:
         last_entry = entries.order_by('-entry_date').first()
 
         data = {
+            'today': today,
             'journal_count_week': entries_this_week.count(),
             'last_journal_date': last_entry.entry_date if last_entry else None,
         }
@@ -238,20 +202,56 @@ class DashboardAI:
         # Calculate streak
         data['current_streak'] = self._calculate_journal_streak()
 
-        # Goals (if Purpose enabled)
+        # ===================
+        # PURPOSE MODULE DATA
+        # ===================
         if self.prefs.purpose_enabled:
             try:
-                from apps.purpose.models import LifeGoal
-                data['active_goals'] = LifeGoal.objects.filter(
-                    user=self.user, status='active'
-                ).count()
-            except Exception as e:
-                logger.debug(f"Could not load goals for AI context: {e}")
+                from apps.purpose.models import LifeGoal, AnnualDirection, ChangeIntention
 
-        # Tasks completed today (if Life enabled)
+                # Goals count
+                active_goals = LifeGoal.objects.filter(user=self.user, status='active')
+                data['active_goals'] = active_goals.count()
+
+                # Get goal details for context (max 3 most important)
+                goals_list = list(active_goals.order_by('sort_order')[:3].values(
+                    'title', 'why_it_matters', 'domain__name'
+                ))
+                if goals_list:
+                    data['goals_list'] = goals_list
+
+                # Annual Direction - Word of Year and Theme
+                direction = AnnualDirection.objects.filter(
+                    user=self.user,
+                    year=current_year
+                ).first()
+                if direction:
+                    data['word_of_year'] = direction.word_of_year
+                    if direction.theme:
+                        data['annual_theme'] = direction.theme
+                    if direction.anchor_text:
+                        data['anchor_scripture'] = f"{direction.anchor_text[:100]}..." if len(direction.anchor_text) > 100 else direction.anchor_text
+                        if direction.anchor_source:
+                            data['anchor_scripture'] += f" ({direction.anchor_source})"
+
+                # Active Change Intentions
+                intentions = ChangeIntention.objects.filter(
+                    user=self.user, status='active'
+                )[:3]
+                if intentions:
+                    data['active_intentions'] = [i.intention for i in intentions]
+
+            except Exception as e:
+                logger.debug(f"Could not load purpose data for AI context: {e}")
+
+        # ===================
+        # LIFE MODULE DATA
+        # ===================
         if self.prefs.life_enabled:
             try:
-                from apps.life.models import Task
+                from apps.life.models import Task, Project, LifeEvent
+
+                # Tasks completed today
                 data['completed_tasks_today'] = Task.objects.filter(
                     user=self.user,
                     is_completed=True,
@@ -264,105 +264,213 @@ class DashboardAI:
                     is_completed=False,
                     due_date__lt=today
                 ).count()
-            except Exception as e:
-                logger.debug(f"Could not load tasks for AI context: {e}")
 
-        # Faith (if enabled)
+                # Tasks due today (not overdue, but actionable)
+                data['tasks_due_today'] = Task.objects.filter(
+                    user=self.user,
+                    is_completed=False,
+                    due_date=today
+                ).count()
+
+                # Active projects with progress
+                active_projects = Project.objects.filter(
+                    user=self.user, status='active'
+                )
+                if active_projects.exists():
+                    data['active_projects'] = active_projects.count()
+                    # Get top priority projects
+                    priority_projects = active_projects.filter(priority='now')[:2]
+                    if priority_projects:
+                        data['priority_projects'] = [
+                            {'title': p.title, 'progress': p.progress_percentage}
+                            for p in priority_projects
+                        ]
+
+                # Upcoming events today and tomorrow
+                events_today = LifeEvent.objects.filter(
+                    user=self.user,
+                    start_date=today
+                ).count()
+                if events_today:
+                    data['events_today'] = events_today
+
+            except Exception as e:
+                logger.debug(f"Could not load life module data for AI context: {e}")
+
+        # ===================
+        # FAITH MODULE DATA
+        # ===================
         if self.faith_enabled:
             try:
-                from apps.faith.models import PrayerRequest
-                data['active_prayers'] = PrayerRequest.objects.filter(
+                from apps.faith.models import PrayerRequest, SavedVerse, FaithMilestone
+
+                # Active prayer count
+                active_prayers = PrayerRequest.objects.filter(
                     user=self.user, is_answered=False
+                )
+                data['active_prayers'] = active_prayers.count()
+
+                # Recently answered prayers (last 30 days) - shows God's faithfulness
+                answered_recently = PrayerRequest.objects.filter(
+                    user=self.user,
+                    is_answered=True,
+                    answered_at__gte=month_ago
                 ).count()
+                if answered_recently > 0:
+                    data['answered_prayers_month'] = answered_recently
+
+                # Memory verse (if user has one set)
+                memory_verse = SavedVerse.objects.filter(
+                    user=self.user,
+                    is_memory_verse=True,
+                    status='active'
+                ).first()
+                if memory_verse:
+                    data['memory_verse'] = {
+                        'reference': memory_verse.reference,
+                        'text': memory_verse.text[:150] + '...' if len(memory_verse.text) > 150 else memory_verse.text
+                    }
+
+                # Recent saved verses (shows what user is studying)
+                recent_verses = SavedVerse.objects.filter(
+                    user=self.user,
+                    status='active'
+                ).order_by('-created_at')[:3]
+                if recent_verses:
+                    data['studying_scripture'] = [v.reference for v in recent_verses]
+
+                # Faith milestones count (shows spiritual journey depth)
+                milestones = FaithMilestone.objects.filter(user=self.user).count()
+                if milestones > 0:
+                    data['faith_milestones_count'] = milestones
+
             except Exception as e:
-                logger.debug(f"Could not load prayers for AI context: {e}")
+                logger.debug(f"Could not load faith data for AI context: {e}")
 
-        # Health - Basic metrics
-        try:
-            from apps.health.models import WeightEntry, FastingWindow
+        # ===================
+        # HEALTH MODULE DATA
+        # ===================
+        if self.prefs.health_enabled:
+            try:
+                from apps.health.models import WeightEntry, FastingWindow
 
-            # Weight trend
-            weights = WeightEntry.objects.filter(user=self.user).order_by('-recorded_at')[:5]
-            if weights.count() >= 2:
-                recent = list(weights)
-                if recent[0].value_in_lb < recent[-1].value_in_lb:
-                    data['weight_trend'] = 'down'
-                elif recent[0].value_in_lb > recent[-1].value_in_lb:
-                    data['weight_trend'] = 'up'
+                # Weight trend
+                weights = WeightEntry.objects.filter(user=self.user).order_by('-recorded_at')[:5]
+                if weights.count() >= 2:
+                    recent = list(weights)
+                    if recent[0].value_in_lb < recent[-1].value_in_lb:
+                        data['weight_trend'] = 'down'
+                    elif recent[0].value_in_lb > recent[-1].value_in_lb:
+                        data['weight_trend'] = 'up'
+                    else:
+                        data['weight_trend'] = 'stable'
+
+                    # Current weight for context
+                    data['current_weight'] = round(recent[0].value_in_lb, 1)
+
+                # Weight goal progress
+                weight_progress = self.prefs.get_weight_progress()
+                if weight_progress and weight_progress.get('current_weight'):
+                    data['weight_goal'] = weight_progress.get('goal')
+                    data['weight_remaining'] = weight_progress.get('remaining')
+                    data['weight_direction'] = weight_progress.get('direction')
+                    data['weight_progress_percent'] = weight_progress.get('progress_percent')
+
+                # Active fast
+                active_fast = FastingWindow.objects.filter(
+                    user=self.user, ended_at__isnull=True
+                ).first()
+                if active_fast:
+                    data['fasting_active'] = True
+                    # Calculate how long they've been fasting
+                    fasting_hours = (now - active_fast.started_at).total_seconds() / 3600
+                    data['fasting_hours'] = round(fasting_hours, 1)
                 else:
-                    data['weight_trend'] = 'stable'
+                    data['fasting_active'] = False
 
-            # Active fast
-            data['fasting_active'] = FastingWindow.objects.filter(
-                user=self.user, ended_at__isnull=True
-            ).exists()
-        except Exception as e:
-            logger.debug(f"Could not load health data for AI context: {e}")
+            except Exception as e:
+                logger.debug(f"Could not load health data for AI context: {e}")
 
-        # Health - Medicine Tracking
-        try:
-            from apps.health.models import Medicine, MedicineLog
+            # Health - Nutrition Tracking
+            try:
+                from apps.health.models import DailyNutritionSummary
 
-            active_medicines = Medicine.objects.filter(
-                user=self.user,
-                medicine_status=Medicine.STATUS_ACTIVE
-            )
-            data['active_medicines_count'] = active_medicines.count()
+                # Today's nutrition progress
+                nutrition_progress = self.prefs.get_nutrition_progress(today)
+                if nutrition_progress:
+                    calories = nutrition_progress.get('calories', {})
+                    if calories.get('current', 0) > 0:
+                        data['calories_today'] = calories.get('current')
+                        data['calorie_goal'] = calories.get('goal')
+                        data['calories_remaining'] = calories.get('remaining')
 
-            # Medicine adherence this week
-            medicine_logs = MedicineLog.objects.filter(
-                user=self.user,
-                scheduled_date__gte=today - timedelta(days=7),
-                scheduled_date__lte=today
-            )
-            taken_count = medicine_logs.filter(log_status__in=['taken', 'late']).count()
-            missed_count = medicine_logs.filter(log_status='missed').count()
-            total = taken_count + missed_count
-            if total > 0:
-                data['medicine_adherence_rate'] = round((taken_count / total) * 100)
-            else:
-                data['medicine_adherence_rate'] = None
+            except Exception as e:
+                logger.debug(f"Could not load nutrition data for AI context: {e}")
 
-            # Medicines needing refill
-            needs_refill = active_medicines.filter(
-                current_supply__isnull=False,
-                current_supply__lte=F('refill_threshold')
-            ).count()
-            data['medicines_need_refill'] = needs_refill
+            # Health - Medicine Tracking
+            try:
+                from apps.health.models import Medicine, MedicineLog
 
-        except Exception as e:
-            logger.debug(f"Could not load medicine data for AI context: {e}")
+                active_medicines = Medicine.objects.filter(
+                    user=self.user,
+                    medicine_status=Medicine.STATUS_ACTIVE
+                )
+                data['active_medicines_count'] = active_medicines.count()
 
-        # Health - Workout Tracking
-        try:
-            from apps.health.models import WorkoutSession, PersonalRecord
+                # Medicine adherence this week
+                medicine_logs = MedicineLog.objects.filter(
+                    user=self.user,
+                    scheduled_date__gte=today - timedelta(days=7),
+                    scheduled_date__lte=today
+                )
+                taken_count = medicine_logs.filter(log_status__in=['taken', 'late']).count()
+                missed_count = medicine_logs.filter(log_status='missed').count()
+                total = taken_count + missed_count
+                if total > 0:
+                    data['medicine_adherence_rate'] = round((taken_count / total) * 100)
+                else:
+                    data['medicine_adherence_rate'] = None
 
-            # Workouts this week
-            workouts_week = WorkoutSession.objects.filter(
-                user=self.user,
-                date__gte=today - timedelta(days=7),
-                date__lte=today
-            ).count()
-            data['workouts_this_week'] = workouts_week
+                # Medicines needing refill
+                needs_refill = active_medicines.filter(
+                    current_supply__isnull=False,
+                    current_supply__lte=F('refill_threshold')
+                ).count()
+                data['medicines_need_refill'] = needs_refill
 
-            # Last workout
-            last_workout = WorkoutSession.objects.filter(
-                user=self.user
-            ).order_by('-date').first()
-            if last_workout:
-                data['days_since_workout'] = (today - last_workout.date).days
-            else:
-                data['days_since_workout'] = None
+            except Exception as e:
+                logger.debug(f"Could not load medicine data for AI context: {e}")
 
-            # Recent PRs (last 30 days)
-            recent_prs = PersonalRecord.objects.filter(
-                user=self.user,
-                achieved_date__gte=today - timedelta(days=30)
-            ).count()
-            data['recent_prs_count'] = recent_prs
+            # Health - Workout Tracking
+            try:
+                from apps.health.models import WorkoutSession, PersonalRecord
 
-        except Exception as e:
-            logger.debug(f"Could not load workout data for AI context: {e}")
+                # Workouts this week
+                workouts_week = WorkoutSession.objects.filter(
+                    user=self.user,
+                    date__gte=today - timedelta(days=7),
+                    date__lte=today
+                ).count()
+                data['workouts_this_week'] = workouts_week
+
+                # Last workout
+                last_workout = WorkoutSession.objects.filter(
+                    user=self.user
+                ).order_by('-date').first()
+                if last_workout:
+                    data['days_since_workout'] = (today - last_workout.date).days
+                else:
+                    data['days_since_workout'] = None
+
+                # Recent PRs (last 30 days)
+                recent_prs = PersonalRecord.objects.filter(
+                    user=self.user,
+                    achieved_date__gte=today - timedelta(days=30)
+                ).count()
+                data['recent_prs_count'] = recent_prs
+
+            except Exception as e:
+                logger.debug(f"Could not load workout data for AI context: {e}")
 
         # Scan Activity
         try:

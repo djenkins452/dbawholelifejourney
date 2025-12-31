@@ -398,9 +398,80 @@ Faith features only shown if `faith_enabled = True`
 - `apps/ai/models.py` - 6 new models for Dashboard AI
 - `apps/ai/personal_assistant.py` - Core service
 - `apps/ai/trend_tracking.py` - Trend analysis
+- `apps/ai/dashboard_ai.py` - Dashboard AI insights and context gathering
+- `apps/ai/services.py` - Core AI service for OpenAI API calls
 - `apps/ai/views.py` - 16 API endpoints
 - `apps/ai/urls.py` - URL configuration
 - `templates/ai/assistant_dashboard.html` - Full-page UI
+
+### Comprehensive AI Context (as of 2025-12-31)
+
+The AI receives a complete picture of the user's life to generate personalized insights:
+
+**Purpose Module Data:**
+| Data | Source | Description |
+|------|--------|-------------|
+| Word of Year | `AnnualDirection` | User's single-word focus for the year |
+| Annual Theme | `AnnualDirection` | Expanded theme description |
+| Anchor Scripture | `AnnualDirection` | Scripture verse supporting the theme |
+| Active Intentions | `ChangeIntention` | Identity-based behavior changes |
+| Life Goals | `LifeGoal` | Goals with domain names and "why it matters" |
+
+**Faith Module Data:**
+| Data | Source | Description |
+|------|--------|-------------|
+| Active Prayers | `PrayerRequest` | Count of unanswered prayers |
+| Answered Prayers | `PrayerRequest` | Count answered in last 30 days |
+| Memory Verse | `SavedVerse` | Currently memorizing Scripture |
+| Scripture Study | `SavedVerse` | Recent verses user is studying |
+| Faith Milestones | `FaithMilestone` | Spiritual journey marker count |
+
+**Life Module Data:**
+| Data | Source | Description |
+|------|--------|-------------|
+| Tasks Today | `Task` | Due today, not completed |
+| Overdue Tasks | `Task` | Past due, needs attention |
+| Active Projects | `Project` | Status = 'active' |
+| Priority Projects | `Project` | Priority = 'now' with progress % |
+| Events Today | `LifeEvent` | Calendar events for today |
+
+**Health Module Data:**
+| Data | Source | Description |
+|------|--------|-------------|
+| Weight Trend | `WeightEntry` | up/down/stable based on last 5 entries |
+| Current Weight | `WeightEntry` | Most recent weight in lbs |
+| Weight Goal | `UserPreferences` | Target weight and remaining lbs |
+| Fasting Status | `FastingWindow` | Active fast with hours elapsed |
+| Calories Today | `DailyNutritionSummary` | Consumed vs remaining |
+| Workouts Week | `WorkoutSession` | Count in last 7 days |
+| Days Since Workout | `WorkoutSession` | Gap since last workout |
+| Personal Records | `PersonalRecord` | PRs in last 30 days |
+| Medicine Adherence | `MedicineLog` | Percentage this week |
+| Refills Needed | `Medicine` | Below refill threshold |
+
+**Journal Data:**
+| Data | Source | Description |
+|------|--------|-------------|
+| Entries This Week | `JournalEntry` | Count in last 7 days |
+| Last Journal Date | `JournalEntry` | Most recent entry date |
+| Journal Streak | Calculated | Consecutive days journaling |
+
+### How Context Is Used
+
+The AI builds context into the prompt:
+```
+Based on this user's comprehensive life data:
+- Word of the Year: 'FOCUS'
+- Annual Theme: Being intentional about time and energy
+- Goal (Health): Lose 20 pounds
+- 3 tasks due today
+- Weight trending down recently
+- Memorizing: John 3:16
+...
+
+Generate a personalized, meaningful message for their dashboard.
+Consider their Word of the Year, goals, and current progress.
+```
 
 ### Tests
 `apps/ai/tests/test_personal_assistant.py` - 45 tests

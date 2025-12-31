@@ -4,7 +4,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30
+# Last Updated: 2025-12-31
 # ==============================================================================
 
 # WLJ Feature Documentation
@@ -29,6 +29,7 @@ For core project context, see `CLAUDE.md` (project root).
 11. [Biometric Login](#biometric-login)
 12. [Dashboard Tile Shortcuts](#dashboard-tile-shortcuts)
 13. [SMS Text Notifications](#sms-text-notifications)
+14. [Task Management](#task-management)
 
 ---
 
@@ -937,4 +938,100 @@ SMS_TRIGGER_TOKEN=your-random-secret-token
 
 ---
 
-*Last updated: 2025-12-30*
+## Task Management
+
+### Overview
+The Task Management feature allows users to track personal tasks with intelligent priority-based organization. Tasks can be associated with projects, have due dates, effort estimates, and support recurrence patterns.
+
+### Key Features
+
+#### Task List (`/life/tasks/`)
+- **Priority Groups**: Tasks auto-organized into Now/Soon/Someday based on due date
+- **Search**: Full-text search across task titles and notes
+- **Filters**: Filter by status (Active/Completed/All) and priority
+- **Quick Toggle**: Complete tasks with single click, undo available
+- **Project Association**: Link tasks to projects
+
+#### Task Search (Added 2025-12-31)
+Search functionality for finding tasks quickly:
+- **Search Bar**: Located at top of task list page
+- **Search Fields**: Searches both title and notes
+- **Case Insensitive**: Finds matches regardless of case
+- **Filter Compatible**: Search works with existing show/priority filters
+- **Preserves Context**: Search query preserved when changing filters
+- **Result Count**: Shows "Found X tasks matching..."
+- **Clear Button**: Quick reset to show all tasks
+
+**URL Pattern:** `/life/tasks/?q=<search_term>`
+
+**Combined Example:** `/life/tasks/?q=meeting&show=active&priority=now`
+
+#### Priority System
+Priorities are auto-calculated based on due date:
+| Priority | Criteria |
+|----------|----------|
+| Now | Due today or overdue |
+| Soon | Due within 7 days |
+| Someday | Due 7+ days away or no due date |
+
+#### Effort Estimation
+| Level | Duration |
+|-------|----------|
+| Quick | < 15 minutes |
+| Small | < 1 hour |
+| Medium | 1-3 hours |
+| Large | Half day+ |
+
+#### Recurrence Patterns
+Tasks can recur with patterns:
+- Daily, Weekly, Biweekly, Monthly, Yearly
+- Every weekday
+- Custom: weekly:mon,wed,fri
+- Custom: monthly:15 (15th of each month)
+
+When a recurring task is completed, the next occurrence is automatically created.
+
+### Task Model Fields
+| Field | Type | Description |
+|-------|------|-------------|
+| title | CharField(300) | Task description |
+| notes | TextField | Additional details |
+| project | ForeignKey | Optional project association |
+| priority | CharField | now/soon/someday (auto-calculated) |
+| effort | CharField | quick/small/medium/large |
+| due_date | DateField | When task is due |
+| is_completed | BooleanField | Completion status |
+| completed_at | DateTimeField | When completed |
+| is_recurring | BooleanField | Whether task repeats |
+| recurrence_pattern | CharField | Pattern like 'daily', 'weekly' |
+
+### URL Routes
+| URL | View | Description |
+|-----|------|-------------|
+| `/life/tasks/` | TaskListView | Task list with search/filters |
+| `/life/tasks/new/` | TaskCreateView | Create new task |
+| `/life/tasks/<id>/edit/` | TaskUpdateView | Edit task |
+| `/life/tasks/<id>/delete/` | TaskDeleteView | Delete task |
+| `/life/tasks/<id>/toggle/` | TaskToggleView | Toggle completion |
+
+### Key Files
+- `apps/life/models.py` - Task model with priority calculation
+- `apps/life/views.py` - Task views including search functionality
+- `apps/life/services/recurrence.py` - Recurrence pattern parsing
+- `templates/life/task_list.html` - Task list UI with search bar
+- `templates/life/task_form.html` - Task create/edit form
+- `apps/life/tests/test_views.py` - Task view tests including search tests
+
+### Testing
+Located in `apps/life/tests/test_views.py` - TaskViewTest class with tests for:
+- List loading and filtering
+- Task creation and editing
+- Toggle completion (complete/undo)
+- Project pre-selection
+- Search by title and notes
+- Search with filters
+- User isolation
+
+---
+
+*Last updated: 2025-12-31*

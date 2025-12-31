@@ -4,7 +4,7 @@
 # Description: Views for life module - projects, tasks, events, inventory, etc.
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2024-01-01
-# Last Updated: 2025-12-29
+# Last Updated: 2025-12-31
 # ==============================================================================
 """
 Life Module Views
@@ -256,31 +256,38 @@ class ProjectDeleteView(LifeAccessMixin, DeleteView):
 # =============================================================================
 
 class TaskListView(LifeAccessMixin, ListView):
-    """List all tasks."""
+    """List all tasks with search and filter capabilities."""
     model = Task
     template_name = "life/task_list.html"
     context_object_name = "tasks"
-    
+
     def get_queryset(self):
         queryset = Task.objects.filter(user=self.request.user)
-        
+
+        # Search by title and notes
+        search_query = self.request.GET.get('q', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(title__icontains=search_query) | Q(notes__icontains=search_query)
+            )
+
         # Filter by completion
         show = self.request.GET.get('show', 'active')
         if show == 'active':
             queryset = queryset.filter(is_completed=False)
         elif show == 'completed':
             queryset = queryset.filter(is_completed=True)
-        
+
         # Filter by priority
         priority = self.request.GET.get('priority')
         if priority:
             queryset = queryset.filter(priority=priority)
-        
+
         # Filter by project
         project_id = self.request.GET.get('project')
         if project_id:
             queryset = queryset.filter(project_id=project_id)
-        
+
         # Custom ordering for priority: now=1, soon=2, someday=3
         # (alphabetically it would be now < someday < soon, which is wrong)
         priority_order = Case(
@@ -292,12 +299,13 @@ class TaskListView(LifeAccessMixin, ListView):
         return queryset.select_related('project').annotate(
             priority_order=priority_order
         ).order_by('is_completed', 'priority_order', 'due_date', '-created_at')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from apps.core.utils import get_user_today
         context['current_show'] = self.request.GET.get('show', 'active')
         context['current_priority'] = self.request.GET.get('priority', '')
+        context['search_query'] = self.request.GET.get('q', '').strip()
         context['user_today'] = get_user_today(self.request.user)
         context['projects'] = Project.objects.filter(
             user=self.request.user, status='active'

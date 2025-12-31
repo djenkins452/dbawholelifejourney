@@ -352,6 +352,130 @@ class TaskViewTest(TestCase):
         # The form should not have the other user's project pre-selected
         self.assertIsNone(response.context['form'].initial.get('project'))
 
+    # =========================================================================
+    # Task Search Tests
+    # =========================================================================
+
+    def test_task_search_by_title(self):
+        """Search filters tasks by title."""
+        Task.objects.create(user=self.user, title='Buy groceries')
+        Task.objects.create(user=self.user, title='Fix the car')
+        Task.objects.create(user=self.user, title='Call the doctor')
+
+        response = self.client.get(reverse('life:task_list') + '?q=groceries')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Buy groceries')
+        self.assertNotContains(response, 'Fix the car')
+        self.assertNotContains(response, 'Call the doctor')
+
+    def test_task_search_by_notes(self):
+        """Search filters tasks by notes content."""
+        Task.objects.create(
+            user=self.user,
+            title='Weekly shopping',
+            notes='Need to buy milk and eggs'
+        )
+        Task.objects.create(
+            user=self.user,
+            title='Prepare dinner',
+            notes='Make pasta with sauce'
+        )
+
+        response = self.client.get(reverse('life:task_list') + '?q=milk')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Weekly shopping')
+        self.assertNotContains(response, 'Prepare dinner')
+
+    def test_task_search_case_insensitive(self):
+        """Search is case-insensitive."""
+        Task.objects.create(user=self.user, title='URGENT: Fix Bug')
+
+        # Search with different cases
+        response_lower = self.client.get(reverse('life:task_list') + '?q=urgent')
+        response_upper = self.client.get(reverse('life:task_list') + '?q=URGENT')
+        response_mixed = self.client.get(reverse('life:task_list') + '?q=Urgent')
+
+        self.assertContains(response_lower, 'URGENT: Fix Bug')
+        self.assertContains(response_upper, 'URGENT: Fix Bug')
+        self.assertContains(response_mixed, 'URGENT: Fix Bug')
+
+    def test_task_search_with_filters(self):
+        """Search works together with other filters."""
+        task_active = Task.objects.create(
+            user=self.user,
+            title='Active meeting task',
+            is_completed=False
+        )
+        task_completed = Task.objects.create(
+            user=self.user,
+            title='Completed meeting task',
+            is_completed=True
+        )
+
+        # Search with active filter
+        response = self.client.get(reverse('life:task_list') + '?q=meeting&show=active')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Active meeting task')
+        self.assertNotContains(response, 'Completed meeting task')
+
+    def test_task_search_empty_query_returns_all(self):
+        """Empty search query returns all tasks."""
+        Task.objects.create(user=self.user, title='Task One')
+        Task.objects.create(user=self.user, title='Task Two')
+
+        response = self.client.get(reverse('life:task_list') + '?q=')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Task One')
+        self.assertContains(response, 'Task Two')
+
+    def test_task_search_no_results(self):
+        """Search with no matches shows empty state."""
+        Task.objects.create(user=self.user, title='Regular task')
+
+        response = self.client.get(reverse('life:task_list') + '?q=nonexistent')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No tasks found')
+        self.assertContains(response, 'nonexistent')
+
+    def test_task_search_query_preserved_in_context(self):
+        """Search query is preserved in template context."""
+        response = self.client.get(reverse('life:task_list') + '?q=test+query')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['search_query'], 'test query')
+
+    def test_task_search_shows_result_count(self):
+        """Search results show the count of matching tasks."""
+        Task.objects.create(user=self.user, title='Project meeting')
+        Task.objects.create(user=self.user, title='Client meeting')
+
+        response = self.client.get(reverse('life:task_list') + '?q=meeting')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Found 2 tasks matching')
+
+    def test_task_search_other_user_tasks_not_visible(self):
+        """Search does not return tasks belonging to other users."""
+        other_user = User.objects.create_user(
+            email='other@example.com',
+            password='testpass123'
+        )
+        self._accept_terms(other_user)
+
+        Task.objects.create(user=self.user, title='My secret task')
+        Task.objects.create(user=other_user, title='Secret task of other user')
+
+        response = self.client.get(reverse('life:task_list') + '?q=secret')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'My secret task')
+        self.assertNotContains(response, 'Secret task of other user')
+
 
 class ProjectViewTest(TestCase):
     """Tests for project views."""

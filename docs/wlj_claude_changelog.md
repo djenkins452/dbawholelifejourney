@@ -4,13 +4,52 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30 (Medicine 'Taken Late' status timezone fix)
+# Last Updated: 2025-12-31 (Task Search feature)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2025-12-31 Changes
+
+### Task Search Feature
+
+Added the ability to search tasks by title and notes content. Users can now quickly find specific tasks from their task list.
+
+**Features:**
+- Search box at the top of the task list page
+- Searches both task title and notes fields
+- Case-insensitive search
+- Works with existing filters (Show: Active/Completed/All, Priority: Now/Soon/Someday)
+- Preserves search query when changing filters
+- Shows result count ("Found X tasks matching...")
+- Clear search button to reset search
+- Context-aware empty state (different message for no results vs no tasks)
+
+**Files Modified:**
+- `apps/life/views.py` - Added search query filtering with Q objects to `TaskListView.get_queryset()`
+- `apps/life/views.py` - Added `search_query` to template context
+- `templates/life/task_list.html` - Added search bar UI with input, clear button, and search button
+- `templates/life/task_list.html` - Added CSS styles for search bar components
+- `templates/life/task_list.html` - Updated filter links to preserve search query
+- `templates/life/task_list.html` - Added empty state for search with no results
+
+**Tests Added (9 new tests):**
+- `test_task_search_by_title` - Search filters tasks by title
+- `test_task_search_by_notes` - Search filters tasks by notes content
+- `test_task_search_case_insensitive` - Search is case-insensitive
+- `test_task_search_with_filters` - Search works with show/priority filters
+- `test_task_search_empty_query_returns_all` - Empty search returns all tasks
+- `test_task_search_no_results` - No matches shows empty state
+- `test_task_search_query_preserved_in_context` - Search query in template context
+- `test_task_search_shows_result_count` - Shows count of matching tasks
+- `test_task_search_other_user_tasks_not_visible` - User isolation maintained
+
+**URL:** `/life/tasks/?q=<search_term>`
 
 ---
 

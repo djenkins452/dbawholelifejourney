@@ -36,20 +36,58 @@
         </a>
     </div>
     
+    <!-- Search Bar -->
+    <div class="search-bar mb-4">
+        <form method="get" action="{% url 'life:task_list' %}" class="search-form">
+            <div class="search-input-wrapper">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input type="text"
+                       name="q"
+                       value="{{ search_query }}"
+                       placeholder="Search tasks by title or notes..."
+                       class="search-input"
+                       autocomplete="off">
+                {% if search_query %}
+                <a href="?show={{ current_show }}{% if current_priority %}&priority={{ current_priority }}{% endif %}" class="search-clear" title="Clear search">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </a>
+                {% endif %}
+            </div>
+            <!-- Preserve current filters in search -->
+            <input type="hidden" name="show" value="{{ current_show }}">
+            {% if current_priority %}<input type="hidden" name="priority" value="{{ current_priority }}">{% endif %}
+            <button type="submit" class="btn btn-secondary search-btn">Search</button>
+        </form>
+    </div>
+
+    {% if search_query %}
+    <div class="search-results-info mb-4">
+        <span class="search-results-text">
+            Found {{ tasks|length }} task{{ tasks|length|pluralize }} matching "{{ search_query }}"
+        </span>
+    </div>
+    {% endif %}
+
     <!-- Filters -->
     <div class="filters-bar mb-6">
         <div class="filter-group">
             <label class="filter-label">Show:</label>
-            <a href="?show=active" class="filter-btn {% if current_show == 'active' %}active{% endif %}">Active</a>
-            <a href="?show=completed" class="filter-btn {% if current_show == 'completed' %}active{% endif %}">Completed</a>
-            <a href="?show=all" class="filter-btn {% if current_show == 'all' %}active{% endif %}">All</a>
+            <a href="?show=active{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {% if current_show == 'active' %}active{% endif %}">Active</a>
+            <a href="?show=completed{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {% if current_show == 'completed' %}active{% endif %}">Completed</a>
+            <a href="?show=all{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {% if current_show == 'all' %}active{% endif %}">All</a>
         </div>
         <div class="filter-group">
             <label class="filter-label">Priority:</label>
-            <a href="?show={{ current_show }}" class="filter-btn {% if not current_priority %}active{% endif %}">All</a>
-            <a href="?show={{ current_show }}&priority=now" class="filter-btn {% if current_priority == 'now' %}active{% endif %}">Now</a>
-            <a href="?show={{ current_show }}&priority=soon" class="filter-btn {% if current_priority == 'soon' %}active{% endif %}">Soon</a>
-            <a href="?show={{ current_show }}&priority=someday" class="filter-btn {% if current_priority == 'someday' %}active{% endif %}">Someday</a>
+            <a href="?show={{ current_show }}{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {% if not current_priority %}active{% endif %}">All</a>
+            <a href="?show={{ current_show }}&priority=now{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {% if current_priority == 'now' %}active{% endif %}">Now</a>
+            <a href="?show={{ current_show }}&priority=soon{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {% if current_priority == 'soon' %}active{% endif %}">Soon</a>
+            <a href="?show={{ current_show }}&priority=someday{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {% if current_priority == 'someday' %}active{% endif %}">Someday</a>
         </div>
     </div>
     
@@ -125,6 +163,15 @@
     </div>
     {% else %}
     <div class="empty-state">
+        {% if search_query %}
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <h2>No tasks found</h2>
+        <p>No tasks match your search for "{{ search_query }}".</p>
+        <a href="?show={{ current_show }}{% if current_priority %}&priority={{ current_priority }}{% endif %}" class="btn btn-secondary">Clear Search</a>
+        {% else %}
         <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M9 11l3 3L22 4"/>
             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
@@ -132,11 +179,106 @@
         <h2>No tasks yet</h2>
         <p>Tasks help you track what needs to be done.</p>
         <a href="{% url 'life:task_create' %}" class="btn btn-primary">Add Your First Task</a>
+        {% endif %}
     </div>
     {% endif %}
 </div>
 
 <style>
+/* Search Bar Styles */
+.search-bar {
+    margin-bottom: var(--space-4);
+}
+
+.search-form {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.search-input-wrapper {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-icon {
+    position: absolute;
+    left: var(--space-3);
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+.search-input {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    padding-left: calc(var(--space-3) + 24px);
+    padding-right: var(--space-10);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    background: var(--color-background);
+    color: var(--color-text);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+.search-input::placeholder {
+    color: var(--color-text-muted);
+}
+
+.search-clear {
+    position: absolute;
+    right: var(--space-3);
+    color: var(--color-text-muted);
+    padding: var(--space-1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.search-clear:hover {
+    color: var(--color-text);
+    background: var(--color-surface);
+}
+
+.search-btn {
+    flex-shrink: 0;
+    padding: var(--space-3) var(--space-4);
+}
+
+.search-results-info {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--color-accent);
+}
+
+.search-results-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+    .search-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-btn {
+        width: 100%;
+    }
+}
+
 .filters-bar {
     display: flex;
     flex-wrap: wrap;

@@ -1320,17 +1320,17 @@
             return;
         }
 
-        // Use BarcodeDetector API if available (Chrome/Edge on mobile)
+        // Use BarcodeDetector API if available (Chrome/Edge on Android - NOT Safari/iOS)
         if ('BarcodeDetector' in window) {
             console.log('BarcodeDetector API available, starting native detection');
             startNativeBarcodeDetection();
         } else {
-            console.log('BarcodeDetector API NOT available - manual capture required');
-            // Show hint to user
+            console.log('BarcodeDetector API NOT available - using Quagga fallback');
+            // Update hint to show scanning is active
             if (barcodeOverlay) {
                 const hint = barcodeOverlay.querySelector('.barcode-hint');
                 if (hint) {
-                    hint.textContent = 'Press capture button to scan barcode';
+                    hint.textContent = 'Scanning for barcode...';
                 }
             }
             startCanvasBarcodeDetection();
@@ -1401,54 +1401,91 @@
     function startCanvasBarcodeDetection() {
         // Use Quagga2 library as fallback for browsers without BarcodeDetector
         if (typeof Quagga === 'undefined') {
-            console.log('Quagga not loaded, using manual capture mode');
+            console.log('Quagga not loaded - library may still be loading');
+            // Retry after a short delay in case library is still loading
+            setTimeout(() => {
+                if (typeof Quagga !== 'undefined' && scanMode === 'barcode') {
+                    console.log('Quagga now available, starting detection');
+                    startCanvasBarcodeDetection();
+                } else {
+                    console.log('Quagga still not available, manual capture only');
+                    if (barcodeOverlay) {
+                        const hint = barcodeOverlay.querySelector('.barcode-hint');
+                        if (hint) {
+                            hint.textContent = 'Press capture button to scan';
+                        }
+                    }
+                }
+            }, 500);
             return;
         }
 
         console.log('Starting Quagga2 barcode detection (fallback mode)');
+        console.log('Video dimensions:', cameraPreview.videoWidth, 'x', cameraPreview.videoHeight);
 
         // Create a hidden canvas for processing
         const processCanvas = document.createElement('canvas');
         let quaggaScanAttempts = 0;
+        let isProcessing = false; // Prevent overlapping scans
 
         barcodeDetectionInterval = setInterval(() => {
-            if (!cameraPreview || cameraPreview.paused || cameraPreview.ended || cameraPreview.readyState < 2) {
+            // Skip if already processing a frame or video not ready
+            if (isProcessing || !cameraPreview || cameraPreview.paused || cameraPreview.ended || cameraPreview.readyState < 2) {
                 return;
             }
 
+            isProcessing = true;
             quaggaScanAttempts++;
 
-            // Capture current frame
-            processCanvas.width = cameraPreview.videoWidth;
-            processCanvas.height = cameraPreview.videoHeight;
-            const ctx = processCanvas.getContext('2d');
-            ctx.drawImage(cameraPreview, 0, 0);
+            // Capture current frame - use reasonable size for barcode detection
+            const targetWidth = Math.min(cameraPreview.videoWidth, 640);
+            const scale = targetWidth / cameraPreview.videoWidth;
+            const targetHeight = Math.round(cameraPreview.videoHeight * scale);
 
-            // Get image data URL
-            const imageData = processCanvas.toDataURL('image/jpeg', 0.8);
+            processCanvas.width = targetWidth;
+            processCanvas.height = targetHeight;
+            const ctx = processCanvas.getContext('2d');
+            ctx.drawImage(cameraPreview, 0, 0, targetWidth, targetHeight);
+
+            // Get image data URL with good quality for barcode reading
+            const imageData = processCanvas.toDataURL('image/png');
 
             // Use Quagga's decodeSingle for single-frame processing
             Quagga.decodeSingle({
                 src: imageData,
                 numOfWorkers: 0, // Use main thread for faster response
+                inputStream: {
+                    size: targetWidth
+                },
                 decoder: {
-                    readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader']
+                    readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader'],
+                    multiple: false
                 },
                 locate: true,
                 locator: {
                     patchSize: 'medium',
-                    halfSample: true
+                    halfSample: false // Better accuracy on mobile
                 }
             }, function(result) {
+                isProcessing = false;
+
                 if (result && result.codeResult && result.codeResult.code) {
-                    console.log('Quagga detected barcode:', result.codeResult.code, 'format:', result.codeResult.format);
-                    handleBarcodeDetected(result.codeResult.code);
-                } else if (quaggaScanAttempts % 15 === 0) {
-                    // Log every 3 seconds (15 * 200ms) to show scanning is active
-                    console.log('Quagga still scanning... attempts:', quaggaScanAttempts);
+                    const code = result.codeResult.code;
+                    const format = result.codeResult.format;
+                    console.log('Quagga detected barcode:', code, 'format:', format);
+
+                    // Validate the barcode looks reasonable (numeric, right length)
+                    if (/^\d{8,14}$/.test(code)) {
+                        handleBarcodeDetected(code);
+                    } else {
+                        console.log('Ignoring invalid barcode:', code);
+                    }
+                } else if (quaggaScanAttempts % 10 === 0) {
+                    // Log every 3 seconds (10 * 300ms) to show scanning is active
+                    console.log('Quagga scanning... attempts:', quaggaScanAttempts);
                 }
             });
-        }, 200); // Process every 200ms
+        }, 300); // Process every 300ms (give more time for processing)
 
         console.log('Quagga2 barcode detection started');
     }
@@ -1581,13 +1618,19 @@
 
         // Fall back to Quagga
         if (typeof Quagga !== 'undefined') {
-            const imageData = canvas.toDataURL('image/jpeg', 0.9);
+            console.log('Manual capture: Using Quagga fallback');
+            const imageData = canvas.toDataURL('image/png'); // PNG for better quality
+
             return new Promise((resolve) => {
                 Quagga.decodeSingle({
                     src: imageData,
                     numOfWorkers: 0,
+                    inputStream: {
+                        size: Math.min(canvas.width, 800)
+                    },
                     decoder: {
-                        readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader']
+                        readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader'],
+                        multiple: false
                     },
                     locate: true,
                     locator: {
@@ -1596,15 +1639,26 @@
                     }
                 }, async function(result) {
                     if (result && result.codeResult && result.codeResult.code) {
-                        console.log('Quagga manual capture detected:', result.codeResult.code);
-                        await lookupBarcode(result.codeResult.code);
+                        const code = result.codeResult.code;
+                        console.log('Quagga manual capture detected:', code, 'format:', result.codeResult.format);
+
+                        // Validate barcode format
+                        if (/^\d{8,14}$/.test(code)) {
+                            await lookupBarcode(code);
+                        } else {
+                            console.log('Invalid barcode format:', code);
+                            showError('Invalid Barcode', 'The detected code does not appear to be a valid product barcode.');
+                        }
                         resolve();
                     } else {
-                        showError('No Barcode Found', 'Position the barcode within the frame and try again.');
+                        console.log('No barcode detected by Quagga');
+                        showError('No Barcode Found', 'Position the barcode within the frame and try again. Make sure the barcode is well-lit and in focus.');
                         resolve();
                     }
                 });
             });
+        } else {
+            console.log('Quagga not available for manual capture');
         }
 
         // No detection method available

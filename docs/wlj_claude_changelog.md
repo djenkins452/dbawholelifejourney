@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 4)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 5)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,70 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 5 Blocker Task Creation (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 5 Blocker Task Creation
+
+**Description:**
+Added minimal logic to capture blockers as tasks instead of stopping progress. When a task encounters a blocker (missing config, required credentials, manual setup needed, or business decision required), a blocker task is created and the original task is marked as blocked.
+
+**Blocker Definition:**
+A blocker exists ONLY when one or more of the following is true:
+- Required configuration or environment variable is missing
+- An external account, credential, or API key is required
+- A manual setup step must be completed by a human
+- A business rule or decision is required to proceed
+
+**Model Changes:**
+- Added `blocking_task` ForeignKey field to AdminTask model
+  - Self-referential relationship (`'self'`)
+  - `on_delete=SET_NULL` (blocked task persists if blocker is deleted)
+  - `null=True, blank=True` (optional field)
+  - `related_name='blocks'` for reverse lookup (blocker.blocks returns all blocked tasks)
+
+**New Service Functions (in `services.py`):**
+1. `create_blocker_task(blocked_task, title, description, category, effort, created_by)`
+   - Creates a new AdminTask with category='infra' or 'business'
+   - Sets priority equal to or higher than the blocked task
+   - Creates status='ready' blocker task
+   - Updates original task to status='blocked' with blocking_task reference
+   - Creates AdminActivityLog entries for BOTH tasks
+   - Returns tuple: (blocker_task, blocked_task, blocker_log, blocked_log)
+
+2. `get_blocked_tasks(phase=None)` - Query all tasks with status='blocked'
+3. `get_blocker_tasks(phase=None)` - Query all tasks that are blocking other tasks
+4. `is_valid_blocker_reason(reason)` - Validate blocker reason
+
+**Blocker Task Requirements:**
+- **title:** Short, action-oriented description
+- **description:** Must include what was being worked on, what caused the block, what is required to unblock
+- **category:** 'infra' or 'business' only (not feature, bug, or content)
+- **priority:** Equal to or higher than blocked task
+- **status:** 'ready' (so it appears in next tasks)
+- **effort:** 'S' or 'M' only
+- **created_by:** 'claude' or 'human'
+- **phase:** Same phase as blocked task
+
+**Activity Logging:**
+Both the blocker task and blocked task get AdminActivityLog entries:
+1. Blocker task log: "Blocker task created. Blocking task: '[title]' (ID: X). Reason: [description]"
+2. Blocked task log: "Task blocked. Blocker task created: '[title]' (ID: X). Reason: [description]"
+
+**New Files:**
+- `apps/admin_console/migrations/0006_add_blocking_task.py` - Migration for blocking_task field
+
+**Modified Files:**
+- `apps/admin_console/models.py` - Added blocking_task ForeignKey field
+- `apps/admin_console/services.py` - Added blocker task creation and query functions
+- `apps/admin_console/tests/test_admin_console.py` - Added 17 new tests
+
+**Tests:** 17 new tests for Phase 5 functionality:
+- BlockerTaskCreationTest (9 tests): creation, priority, task updates, activity logs, validation
+- BlockerTaskQueryTests (4 tests): get_blocked_tasks, get_blocker_tasks with filters
+- BlockerModelFieldTests (4 tests): nullable, settable, SET_NULL on delete, reverse relationship
+
+---
 
 ### Admin Project Tasks - Phase 4 Task Execution (NEW FEATURE)
 

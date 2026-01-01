@@ -127,6 +127,14 @@ class AdminTask(models.Model):
         related_name='tasks'
     )
     blocked_reason = models.TextField(blank=True, default='')
+    blocking_task = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='blocks',
+        help_text='The blocker task that is preventing this task from proceeding'
+    )
     created_by = models.CharField(max_length=10, choices=CREATED_BY_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

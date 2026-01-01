@@ -1335,3 +1335,503 @@ class TaskStatusUpdateAPITest(AdminTestMixin, TestCase):
         data = json.loads(response.content)
         self.assertEqual(data['status'], 'ready')
         self.assertEqual(data['blocked_reason'], '')  # Cleared
+
+
+# =============================================================================
+# 13. BLOCKER TASK CREATION TESTS
+# =============================================================================
+
+class BlockerTaskCreationTest(AdminTestMixin, TestCase):
+    """Tests for blocker task creation functionality."""
+
+    def setUp(self):
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        self.client = Client()
+        self.admin = self.create_admin()
+
+        # Create an active phase
+        self.active_phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Active Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Create a task in progress
+        self.in_progress_task = AdminTask.objects.create(
+            title='Working Task',
+            description='Currently being worked on',
+            category='feature',
+            priority=2,
+            status='in_progress',
+            effort='M',
+            phase=self.active_phase,
+            created_by='claude'
+        )
+
+    def test_create_blocker_task_success(self):
+        """Blocker task is created with correct attributes."""
+        from apps.admin_console.services import create_blocker_task
+
+        blocker_task, blocked_task, blocker_log, blocked_log = create_blocker_task(
+            blocked_task=self.in_progress_task,
+            title='Configure API Key',
+            description='Working on Working Task. The OPENAI_API_KEY is missing. Configure OPENAI_API_KEY in environment.',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+
+        # Verify blocker task was created correctly
+        self.assertEqual(blocker_task.title, 'Configure API Key')
+        self.assertIn('OPENAI_API_KEY', blocker_task.description)
+        self.assertEqual(blocker_task.category, 'infra')
+        self.assertEqual(blocker_task.status, 'ready')
+        self.assertEqual(blocker_task.effort, 'S')
+        self.assertEqual(blocker_task.created_by, 'claude')
+        self.assertEqual(blocker_task.phase, self.active_phase)
+
+    def test_create_blocker_task_priority(self):
+        """Blocker task priority is equal to or higher than blocked task."""
+        from apps.admin_console.services import create_blocker_task
+
+        blocker_task, _, _, _ = create_blocker_task(
+            blocked_task=self.in_progress_task,
+            title='Get Business Approval',
+            description='Need business decision on feature scope.',
+            category='business',
+            effort='M',
+            created_by='human'
+        )
+
+        # Priority should be same or higher (lower number)
+        self.assertLessEqual(blocker_task.priority, self.in_progress_task.priority)
+
+    def test_create_blocker_task_updates_original_task(self):
+        """Original task is updated to blocked status with reference."""
+        from apps.admin_console.services import create_blocker_task
+        from apps.admin_console.models import AdminTask
+
+        blocker_task, blocked_task, _, _ = create_blocker_task(
+            blocked_task=self.in_progress_task,
+            title='Manual Server Setup',
+            description='Working on Working Task. Server needs manual configuration. SSH to server and configure firewall.',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+
+        # Refresh from database
+        blocked_task.refresh_from_db()
+
+        # Verify blocked task was updated
+        self.assertEqual(blocked_task.status, 'blocked')
+        self.assertIn('Manual Server Setup', blocked_task.blocked_reason)
+        self.assertIn(str(blocker_task.pk), blocked_task.blocked_reason)
+        self.assertEqual(blocked_task.blocking_task, blocker_task)
+
+    def test_create_blocker_task_creates_activity_logs(self):
+        """Activity logs are created for both tasks."""
+        from apps.admin_console.services import create_blocker_task
+        from apps.admin_console.models import AdminActivityLog
+
+        initial_log_count = AdminActivityLog.objects.count()
+
+        blocker_task, blocked_task, blocker_log, blocked_log = create_blocker_task(
+            blocked_task=self.in_progress_task,
+            title='Get Credentials',
+            description='Need external account credentials.',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+
+        # Two logs should be created
+        self.assertEqual(AdminActivityLog.objects.count(), initial_log_count + 2)
+
+        # Verify blocker log
+        self.assertEqual(blocker_log.task, blocker_task)
+        self.assertIn('Blocker task created', blocker_log.action)
+        self.assertIn(self.in_progress_task.title, blocker_log.action)
+        self.assertEqual(blocker_log.created_by, 'claude')
+
+        # Verify blocked log
+        self.assertEqual(blocked_log.task, blocked_task)
+        self.assertIn('Task blocked', blocked_log.action)
+        self.assertIn('Get Credentials', blocked_log.action)
+        self.assertEqual(blocked_log.created_by, 'claude')
+
+    def test_create_blocker_task_invalid_category_raises_error(self):
+        """Creating blocker with invalid category raises ValueError."""
+        from apps.admin_console.services import create_blocker_task
+
+        with self.assertRaises(ValueError) as context:
+            create_blocker_task(
+                blocked_task=self.in_progress_task,
+                title='Some Task',
+                description='Description',
+                category='feature',  # Not allowed for blockers
+                effort='S',
+                created_by='claude'
+            )
+
+        self.assertIn('infra', str(context.exception))
+        self.assertIn('business', str(context.exception))
+
+    def test_create_blocker_task_invalid_effort_raises_error(self):
+        """Creating blocker with invalid effort raises ValueError."""
+        from apps.admin_console.services import create_blocker_task
+
+        with self.assertRaises(ValueError) as context:
+            create_blocker_task(
+                blocked_task=self.in_progress_task,
+                title='Some Task',
+                description='Description',
+                category='infra',
+                effort='L',  # Only S or M allowed for blockers
+                created_by='claude'
+            )
+
+        self.assertIn("'S'", str(context.exception))
+        self.assertIn("'M'", str(context.exception))
+
+    def test_create_blocker_task_only_in_progress_tasks(self):
+        """Can only create blocker for in_progress tasks."""
+        from apps.admin_console.models import AdminTask
+        from apps.admin_console.services import create_blocker_task
+
+        # Create a task in ready status
+        ready_task = AdminTask.objects.create(
+            title='Ready Task',
+            description='Not started yet',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+
+        with self.assertRaises(ValueError) as context:
+            create_blocker_task(
+                blocked_task=ready_task,
+                title='Blocker',
+                description='Description',
+                category='infra',
+                effort='S',
+                created_by='claude'
+            )
+
+        self.assertIn('in_progress', str(context.exception))
+        self.assertIn('ready', str(context.exception))
+
+    def test_create_blocker_task_business_category(self):
+        """Blocker task can be created with business category."""
+        from apps.admin_console.services import create_blocker_task
+
+        blocker_task, _, _, _ = create_blocker_task(
+            blocked_task=self.in_progress_task,
+            title='Get Pricing Approval',
+            description='Working on pricing feature. Need business decision on pricing tiers. Approval required from product team.',
+            category='business',
+            effort='M',
+            created_by='human'
+        )
+
+        self.assertEqual(blocker_task.category, 'business')
+
+    def test_blocking_task_relationship(self):
+        """Blocking task relationship is properly set."""
+        from apps.admin_console.services import create_blocker_task
+        from apps.admin_console.models import AdminTask
+
+        blocker_task, blocked_task, _, _ = create_blocker_task(
+            blocked_task=self.in_progress_task,
+            title='Environment Setup',
+            description='Missing config.',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+
+        # Verify relationship from blocked task
+        blocked_task.refresh_from_db()
+        self.assertEqual(blocked_task.blocking_task, blocker_task)
+
+        # Verify reverse relationship (blocks)
+        self.assertEqual(blocker_task.blocks.count(), 1)
+        self.assertEqual(blocker_task.blocks.first(), blocked_task)
+
+
+class BlockerTaskQueryTests(AdminTestMixin, TestCase):
+    """Tests for blocker task query functions."""
+
+    def setUp(self):
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        # Create phases
+        self.phase1 = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Phase 1',
+            objective='Test',
+            status='in_progress'
+        )
+        self.phase2 = AdminProjectPhase.objects.create(
+            phase_number=2,
+            name='Phase 2',
+            objective='Later',
+            status='not_started'
+        )
+
+        # Create some tasks
+        self.task1 = AdminTask.objects.create(
+            title='Task 1',
+            description='Description 1',
+            category='feature',
+            priority=1,
+            status='in_progress',
+            effort='M',
+            phase=self.phase1,
+            created_by='human'
+        )
+
+    def test_get_blocked_tasks_returns_blocked_only(self):
+        """get_blocked_tasks returns only blocked tasks."""
+        from apps.admin_console.models import AdminTask
+        from apps.admin_console.services import get_blocked_tasks, create_blocker_task
+
+        # Create a blocker
+        create_blocker_task(
+            blocked_task=self.task1,
+            title='Blocker 1',
+            description='Blocks Task 1',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+
+        blocked_tasks = get_blocked_tasks()
+        self.assertEqual(blocked_tasks.count(), 1)
+        self.assertEqual(blocked_tasks.first().title, 'Task 1')
+
+    def test_get_blocked_tasks_filters_by_phase(self):
+        """get_blocked_tasks can filter by phase."""
+        from apps.admin_console.models import AdminTask
+        from apps.admin_console.services import get_blocked_tasks, create_blocker_task
+
+        # Create a blocked task in phase 2
+        task2 = AdminTask.objects.create(
+            title='Task 2',
+            description='Description 2',
+            category='feature',
+            priority=1,
+            status='in_progress',
+            effort='M',
+            phase=self.phase2,
+            created_by='human'
+        )
+
+        # Block both tasks
+        create_blocker_task(
+            blocked_task=self.task1,
+            title='Blocker 1',
+            description='Blocks Task 1',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+        create_blocker_task(
+            blocked_task=task2,
+            title='Blocker 2',
+            description='Blocks Task 2',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+
+        # Filter by phase 1
+        phase1_blocked = get_blocked_tasks(phase=self.phase1)
+        self.assertEqual(phase1_blocked.count(), 1)
+        self.assertEqual(phase1_blocked.first().title, 'Task 1')
+
+        # Filter by phase 2
+        phase2_blocked = get_blocked_tasks(phase=self.phase2)
+        self.assertEqual(phase2_blocked.count(), 1)
+        self.assertEqual(phase2_blocked.first().title, 'Task 2')
+
+    def test_get_blocker_tasks_returns_blockers(self):
+        """get_blocker_tasks returns tasks that are blocking other tasks."""
+        from apps.admin_console.services import get_blocker_tasks, create_blocker_task
+
+        # Create a blocker
+        blocker_task, _, _, _ = create_blocker_task(
+            blocked_task=self.task1,
+            title='Blocker 1',
+            description='Blocks Task 1',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+
+        blocker_tasks = get_blocker_tasks()
+        self.assertEqual(blocker_tasks.count(), 1)
+        self.assertEqual(blocker_tasks.first().title, 'Blocker 1')
+
+    def test_get_blocker_tasks_filters_by_phase(self):
+        """get_blocker_tasks can filter by phase."""
+        from apps.admin_console.models import AdminTask
+        from apps.admin_console.services import get_blocker_tasks, create_blocker_task
+
+        # Create a blocked task in phase 2
+        task2 = AdminTask.objects.create(
+            title='Task 2',
+            description='Description 2',
+            category='feature',
+            priority=1,
+            status='in_progress',
+            effort='M',
+            phase=self.phase2,
+            created_by='human'
+        )
+
+        # Block both tasks
+        blocker1, _, _, _ = create_blocker_task(
+            blocked_task=self.task1,
+            title='Blocker 1',
+            description='Blocks Task 1',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+        blocker2, _, _, _ = create_blocker_task(
+            blocked_task=task2,
+            title='Blocker 2',
+            description='Blocks Task 2',
+            category='infra',
+            effort='S',
+            created_by='claude'
+        )
+
+        # Filter by phase 1
+        phase1_blockers = get_blocker_tasks(phase=self.phase1)
+        self.assertEqual(phase1_blockers.count(), 1)
+        self.assertEqual(phase1_blockers.first().title, 'Blocker 1')
+
+
+class BlockerModelFieldTests(AdminTestMixin, TestCase):
+    """Tests for the blocking_task model field."""
+
+    def setUp(self):
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        self.phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        self.task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=self.phase,
+            created_by='human'
+        )
+
+    def test_blocking_task_is_nullable(self):
+        """blocking_task field can be null."""
+        self.assertIsNone(self.task.blocking_task)
+
+    def test_blocking_task_can_be_set(self):
+        """blocking_task field can be set to another task."""
+        from apps.admin_console.models import AdminTask
+
+        blocker = AdminTask.objects.create(
+            title='Blocker Task',
+            description='Blocker',
+            category='infra',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=self.phase,
+            created_by='claude'
+        )
+
+        self.task.blocking_task = blocker
+        self.task.save()
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.blocking_task, blocker)
+
+    def test_blocking_task_set_null_on_delete(self):
+        """blocking_task is set to null when blocker is deleted."""
+        from apps.admin_console.models import AdminTask
+
+        blocker = AdminTask.objects.create(
+            title='Blocker Task',
+            description='Blocker',
+            category='infra',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=self.phase,
+            created_by='claude'
+        )
+
+        self.task.blocking_task = blocker
+        self.task.save()
+
+        # Delete the blocker
+        blocker.delete()
+
+        # Verify blocking_task is now null
+        self.task.refresh_from_db()
+        self.assertIsNone(self.task.blocking_task)
+
+    def test_blocks_reverse_relationship(self):
+        """blocks reverse relationship works correctly."""
+        from apps.admin_console.models import AdminTask
+
+        blocker = AdminTask.objects.create(
+            title='Blocker Task',
+            description='Blocker',
+            category='infra',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=self.phase,
+            created_by='claude'
+        )
+
+        # Create multiple tasks blocked by the same blocker
+        task1 = AdminTask.objects.create(
+            title='Blocked Task 1',
+            description='Blocked 1',
+            category='feature',
+            priority=1,
+            status='blocked',
+            effort='S',
+            phase=self.phase,
+            created_by='human',
+            blocking_task=blocker
+        )
+        task2 = AdminTask.objects.create(
+            title='Blocked Task 2',
+            description='Blocked 2',
+            category='feature',
+            priority=2,
+            status='blocked',
+            effort='S',
+            phase=self.phase,
+            created_by='human',
+            blocking_task=blocker
+        )
+
+        # Verify reverse relationship
+        self.assertEqual(blocker.blocks.count(), 2)
+        self.assertIn(task1, blocker.blocks.all())
+        self.assertIn(task2, blocker.blocks.all())

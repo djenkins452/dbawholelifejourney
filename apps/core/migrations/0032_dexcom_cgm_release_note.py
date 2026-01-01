@@ -43,6 +43,7 @@ def remove_release_note(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
+        ('core', '0031_merge_20251231_2303'),
         ('core', '0031_merge_20251231_2325'),
     ]
 

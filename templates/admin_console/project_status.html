@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Project Status - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Project Status</h1>
+            <p class="page-subtitle">Read-only view of project metrics</p>
+        </div>
+        <a href="{% url 'admin_console:dashboard' %}" class="btn btn-outline">Back to Admin</a>
+    </div>
+
+    <!-- Section A: Active Phase -->
+    <div class="status-section">
+        <h2 class="section-title">Active Phase</h2>
+        <div class="status-card">
+            {% if active_phase %}
+            <table class="status-table">
+                <tr>
+                    <th>Phase Number</th>
+                    <td>{{ active_phase.phase_number }}</td>
+                </tr>
+                <tr>
+                    <th>Phase Name</th>
+                    <td>{{ active_phase.name }}</td>
+                </tr>
+                <tr>
+                    <th>Status</th>
+                    <td>
+                        <span class="badge badge-status-{{ active_phase.status }}">
+                            {{ active_phase.get_status_display }}
+                        </span>
+                    </td>
+                </tr>
+                {% if active_phase.objective %}
+                <tr>
+                    <th>Objective</th>
+                    <td>{{ active_phase.objective }}</td>
+                </tr>
+                {% endif %}
+            </table>
+            {% else %}
+            <p class="text-muted">No active phase</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Section B: Global Metrics -->
+    <div class="status-section">
+        <h2 class="section-title">Global Metrics</h2>
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <span class="metric-value">{{ global_metrics.total_tasks }}</span>
+                <span class="metric-label">Total Tasks</span>
+            </div>
+            <div class="metric-card metric-success">
+                <span class="metric-value">{{ global_metrics.completed_tasks }}</span>
+                <span class="metric-label">Completed</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-value">{{ global_metrics.remaining_tasks }}</span>
+                <span class="metric-label">Remaining</span>
+            </div>
+            <div class="metric-card metric-warning">
+                <span class="metric-value">{{ global_metrics.blocked_tasks }}</span>
+                <span class="metric-label">Blocked</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section C: Active Phase Metrics -->
+    <div class="status-section">
+        <h2 class="section-title">Active Phase Metrics</h2>
+        {% if active_phase %}
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <span class="metric-value">{{ active_phase_metrics.total_tasks }}</span>
+                <span class="metric-label">Total in Phase</span>
+            </div>
+            <div class="metric-card metric-success">
+                <span class="metric-value">{{ active_phase_metrics.completed_tasks }}</span>
+                <span class="metric-label">Completed</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-value">{{ active_phase_metrics.remaining_tasks }}</span>
+                <span class="metric-label">Remaining</span>
+            </div>
+            <div class="metric-card metric-warning">
+                <span class="metric-value">{{ active_phase_metrics.blocked_tasks }}</span>
+                <span class="metric-label">Blocked</span>
+            </div>
+        </div>
+        {% else %}
+        <div class="status-card">
+            <p class="text-muted">No active phase</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section D: Risk Snapshot -->
+    <div class="status-section">
+        <h2 class="section-title">Risk Snapshot</h2>
+        <div class="metrics-grid metrics-grid-2">
+            <div class="metric-card metric-danger">
+                <span class="metric-value">{{ high_priority_remaining }}</span>
+                <span class="metric-label">High-Priority Remaining</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-value">{{ tasks_created_by_claude }}</span>
+                <span class="metric-label">Tasks Created by Claude</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.status-section {
+    margin-bottom: var(--space-8);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+    color: var(--color-text);
+}
+
+.status-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.status-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.status-table th,
+.status-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.status-table tr:last-child th,
+.status-table tr:last-child td {
+    border-bottom: none;
+}
+
+.status-table th {
+    width: 150px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+}
+
+.metrics-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 768px) {
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .metrics-grid-2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+.metric-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    text-align: center;
+}
+
+.metric-value {
+    display: block;
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-text);
+}
+
+.metric-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+}
+
+.metric-success .metric-value {
+    color: #10b981;
+}
+
+.metric-warning .metric-value {
+    color: #f59e0b;
+}
+
+.metric-danger .metric-value {
+    color: #ef4444;
+}
+
+.badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+}
+
+.badge-status-planned {
+    background: color-mix(in srgb, #6b7280 15%, transparent);
+    color: #6b7280;
+}
+
+.badge-status-in_progress {
+    background: color-mix(in srgb, #3b82f6 15%, transparent);
+    color: #3b82f6;
+}
+
+.badge-status-completed {
+    background: color-mix(in srgb, #10b981 15%, transparent);
+    color: #10b981;
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

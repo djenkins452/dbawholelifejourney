@@ -938,3 +938,45 @@ class ProjectMetricsAPIView(View):
         metrics = get_project_metrics()
 
         return JsonResponse(metrics)
+
+
+# ============================================================
+# Project Status Page View (Phase 7)
+# ============================================================
+
+class ProjectStatusView(AdminRequiredMixin, TemplateView):
+    """
+    Admin-only page displaying project metrics and status.
+
+    GET /admin/projects/status/
+
+    Displays:
+    - Active Phase info (number, name, status, objective)
+    - Global Metrics (total, completed, remaining, blocked tasks)
+    - Active Phase Metrics (same breakdown for active phase)
+    - Risk Snapshot (high-priority remaining, Claude-created tasks)
+    """
+    template_name = "admin_console/project_status.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Get metrics using existing service function
+        from .services import get_project_metrics, get_active_phase
+        metrics = get_project_metrics()
+        active_phase = get_active_phase()
+
+        # Active Phase info
+        context['active_phase'] = active_phase
+
+        # Global metrics
+        context['global_metrics'] = metrics['global']
+
+        # Active phase metrics
+        context['active_phase_metrics'] = metrics['active_phase_metrics']
+
+        # Risk snapshot
+        context['high_priority_remaining'] = metrics['high_priority_remaining_tasks']
+        context['tasks_created_by_claude'] = metrics['tasks_created_by_claude']
+
+        return context

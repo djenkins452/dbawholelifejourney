@@ -75,6 +75,9 @@ urlpatterns = [
     path("projects/activity/<int:pk>/edit/", views.ActivityLogUpdateView.as_view(), name="activity_log_update"),
     path("projects/activity/<int:pk>/delete/", views.ActivityLogDeleteView.as_view(), name="activity_log_delete"),
 
+    # Project Status Page (Phase 7)
+    path("projects/status/", views.ProjectStatusView.as_view(), name="project_status"),
+
     # API Endpoints
     path("api/admin/project/active-phase/", views.ActivePhaseAPIView.as_view(), name="api_active_phase"),
     path("api/admin/project/tasks/<int:pk>/status/", views.TaskStatusUpdateAPIView.as_view(), name="api_task_status"),

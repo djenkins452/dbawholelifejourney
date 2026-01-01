@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 11.1)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 12)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,73 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 12 Task Intake & Controls (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 12 Task Intake & Controls
+
+**Description:**
+Added a clean, intentional admin-console interface for human task management. This phase provides admin-only pages for creating and managing project tasks without any automation or execution logic.
+
+**New Routes:**
+- `GET/POST /admin-console/projects/intake/` - Task Intake page
+- `GET /admin-console/projects/tasks/` - Task List page (enhanced with filtering)
+- `POST /api/projects/tasks/<id>/mark-ready/` - Mark Ready toggle API
+
+**Task Intake Page:**
+New `TaskIntakeView` provides a form for admins to create tasks:
+- Required fields: title, description, phase
+- Priority: 1-5 (default 3)
+- Status: backlog or ready (default backlog)
+- Optional: category, effort
+- created_by is ALWAYS set to "human" (enforced server-side)
+- Validates phase is selected (cannot create task without phase)
+- Redirects to task list after successful creation
+
+**Task List Page:**
+Enhanced `AdminTaskListView` with:
+- Display columns: title, phase number, status, priority, created_by, created_at
+- Order by: priority ASC, created_at ASC
+- Filterable by: phase, status
+- Read-only list with Mark Ready controls
+- Shows truncated task descriptions
+
+**Human Controls:**
+1. "Mark Ready" toggle button on backlog tasks
+   - Requires explicit click
+   - Changes status from backlog to ready
+   - Logs activity as created_by="human"
+   - No bulk actions (one task at a time)
+
+2. Soft guardrail warning
+   - Displays warning when 5+ tasks are marked "ready"
+   - Shows on both Task Intake and Task List pages
+   - Does NOT block saving (warning only)
+   - Updates dynamically when using Mark Ready toggle
+
+**Navigation:**
+Added "Projects" section to admin console dashboard with links to:
+- Task Intake
+- Task List
+- Project Status (existing)
+
+**Safety Rules:**
+- Non-admin users receive 403 Forbidden
+- Cannot create task without selecting a phase
+- Cannot auto-assign tasks to future phases
+- No execution logic triggered from UI
+- No Phase 11 integration from this interface
+
+**Modified Files:**
+- `apps/admin_console/urls.py` - Added 2 new routes
+- `apps/admin_console/views.py` - Added TaskIntakeView, MarkReadyAPIView, enhanced AdminTaskListView
+- `templates/admin_console/task_intake.html` - New template
+- `templates/admin_console/admin_task_list.html` - Enhanced with filtering and Mark Ready controls
+- `templates/admin_console/dashboard.html` - Added Projects section
+
+**Tests:** All 156 admin_console tests pass.
+
+---
 
 ### Admin Project Tasks - Phase 11.1 Preflight Guard & Phase Seeding (NEW FEATURE)
 

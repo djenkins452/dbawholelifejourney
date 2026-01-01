@@ -4,7 +4,7 @@
 # Description: Admin console URL configuration
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01
+# Last Updated: 2026-01-01 (Phase 12 - Task Intake & Controls)
 # ==============================================================================
 """
 Admin Console URLs
@@ -68,6 +68,12 @@ urlpatterns = [
     path("projects/tasks/new/", views.AdminTaskCreateView.as_view(), name="admin_task_create"),
     path("projects/tasks/<int:pk>/edit/", views.AdminTaskUpdateView.as_view(), name="admin_task_update"),
     path("projects/tasks/<int:pk>/delete/", views.AdminTaskDeleteView.as_view(), name="admin_task_delete"),
+
+    # Phase 12: Task Intake (human-only task creation)
+    path("projects/intake/", views.TaskIntakeView.as_view(), name="task_intake"),
+
+    # Phase 12: Mark Ready toggle API
+    path("api/projects/tasks/<int:pk>/mark-ready/", views.MarkReadyAPIView.as_view(), name="api_mark_ready"),
 
     # Activity Logs
     path("projects/activity/", views.ActivityLogListView.as_view(), name="activity_log_list"),

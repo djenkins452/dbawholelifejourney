@@ -1,3 +1,11 @@
+# ==============================================================================
+# File: apps/admin_console/views.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Admin console views for site management and project task intake
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2026-01-01
+# Last Updated: 2026-01-01 (Phase 12 - Task Intake & Controls)
+# ==============================================================================
 """
 Admin Views - Custom admin interface for site management.
 
@@ -15,6 +23,7 @@ from django.utils.decorators import method_decorator
 from django.views.generic import (
     CreateView,
     DeleteView,
+    FormView,
     ListView,
     TemplateView,
     UpdateView,
@@ -574,18 +583,57 @@ class ProjectPhaseDeleteView(AdminRequiredMixin, DeleteView):
 # ============================================================
 
 class AdminTaskListView(AdminRequiredMixin, ListView):
-    """List all admin tasks."""
+    """
+    List all admin tasks with filtering.
+
+    Phase 12 requirements:
+    - Display: title, phase number, status, priority, created_by, created_at
+    - Order by: priority ASC, created_at ASC
+    - Filterable by: phase, status (optional)
+    - Read-only list (no inline editing required)
+    - Includes Mark Ready control for backlog tasks
+    """
     template_name = "admin_console/admin_task_list.html"
     context_object_name = "tasks"
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
-        return AdminTask.objects.select_related('phase').all().order_by('priority', '-created_at')
+
+        queryset = AdminTask.objects.select_related('phase').all()
+
+        # Filter by phase if provided
+        phase_filter = self.request.GET.get('phase')
+        if phase_filter:
+            try:
+                queryset = queryset.filter(phase_id=int(phase_filter))
+            except (ValueError, TypeError):
+                pass
+
+        # Filter by status if provided
+        status_filter = self.request.GET.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        # Order by priority ASC, created_at ASC (per Phase 12 spec)
+        return queryset.order_by('priority', 'created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from apps.admin_console.models import AdminProjectPhase
-        context['phases'] = AdminProjectPhase.objects.all()
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        context['phases'] = AdminProjectPhase.objects.all().order_by('phase_number')
+        context['status_choices'] = AdminTask.STATUS_CHOICES
+
+        # Preserve filter values
+        context['current_phase_filter'] = self.request.GET.get('phase', '')
+        context['current_status_filter'] = self.request.GET.get('status', '')
+
+        # Ready tasks warning (soft guardrail)
+        ready_count = AdminTask.objects.filter(status='ready').count()
+        context['ready_count'] = ready_count
+        context['show_ready_warning'] = ready_count >= READY_TASKS_WARNING_THRESHOLD
+        context['ready_warning_threshold'] = READY_TASKS_WARNING_THRESHOLD
+
         return context
 
 
@@ -649,6 +697,188 @@ class AdminTaskDeleteView(AdminRequiredMixin, DeleteView):
         except DeletionProtectedError as e:
             messages.error(self.request, str(e))
             return redirect('admin_console:admin_task_list')
+
+
+# ============================================================
+# Phase 12: Task Intake & Controls
+# ============================================================
+
+# Guardrail threshold for ready tasks warning
+READY_TASKS_WARNING_THRESHOLD = 5
+
+
+class TaskIntakeView(AdminRequiredMixin, TemplateView):
+    """
+    Task Intake page for admin to create new tasks.
+
+    GET: Display the task intake form
+    POST: Create a new AdminTask
+
+    Safety rules:
+    - created_by is always set to 'human'
+    - Status defaults to 'backlog', not auto-set to 'ready'
+    - Validates required fields
+    - Requires a phase to be selected
+    """
+    template_name = "admin_console/task_intake.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from .services import get_active_phase
+
+        # Get phases for dropdown
+        context['phases'] = AdminProjectPhase.objects.all().order_by('phase_number')
+
+        # Get active phase as default
+        active_phase = get_active_phase()
+        context['active_phase'] = active_phase
+
+        # Category and effort choices
+        context['category_choices'] = AdminTask.CATEGORY_CHOICES
+        context['effort_choices'] = AdminTask.EFFORT_CHOICES
+
+        # Check if there's a warning about ready tasks count
+        ready_count = AdminTask.objects.filter(status='ready').count()
+        context['ready_count'] = ready_count
+        context['show_ready_warning'] = ready_count >= READY_TASKS_WARNING_THRESHOLD
+        context['ready_warning_threshold'] = READY_TASKS_WARNING_THRESHOLD
+
+        return context
+
+    def post(self, request):
+        from django import forms
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        # Extract form data
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        phase_id = request.POST.get('phase')
+        priority = request.POST.get('priority', '3')
+        status = request.POST.get('status', 'backlog')
+        category = request.POST.get('category', '')
+        effort = request.POST.get('effort', '')
+
+        # Validate required fields
+        errors = []
+        if not title:
+            errors.append("Title is required.")
+        if not description:
+            errors.append("Description is required.")
+        if not phase_id:
+            errors.append("Phase is required. Cannot create a task without a phase.")
+
+        # Validate phase exists
+        phase = None
+        if phase_id:
+            try:
+                phase = AdminProjectPhase.objects.get(pk=phase_id)
+            except AdminProjectPhase.DoesNotExist:
+                errors.append(f"Phase with ID {phase_id} does not exist.")
+
+        # Validate priority
+        try:
+            priority = int(priority)
+            if priority < 1 or priority > 5:
+                errors.append("Priority must be between 1 and 5.")
+        except (ValueError, TypeError):
+            priority = 3
+
+        # Validate status - only backlog or ready allowed on intake
+        if status not in ('backlog', 'ready'):
+            status = 'backlog'
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return redirect('admin_console:task_intake')
+
+        # Create the task
+        task = AdminTask.objects.create(
+            title=title,
+            description=description,
+            phase=phase,
+            priority=priority,
+            status=status,
+            category=category if category else 'feature',
+            effort=effort if effort else 'M',
+            created_by='human'  # Always human for intake
+        )
+
+        messages.success(request, f"Task '{task.title}' created successfully.")
+        return redirect('admin_console:admin_task_list')
+
+
+class MarkReadyAPIView(View):
+    """
+    API endpoint to toggle a task from backlog to ready.
+
+    POST /api/projects/tasks/<id>/mark-ready/
+
+    This is a human control that:
+    - Requires explicit click/action
+    - Only works for tasks with status='backlog'
+    - Changes status to 'ready'
+
+    Returns:
+    - 200: Success with task info
+    - 400: Task is not in backlog status
+    - 403: Permission denied (not admin)
+    - 404: Task not found
+    """
+
+    def post(self, request, pk):
+        from apps.admin_console.models import AdminTask, AdminActivityLog
+
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Get the task
+        try:
+            task = AdminTask.objects.select_related('phase').get(pk=pk)
+        except AdminTask.DoesNotExist:
+            return JsonResponse(
+                {'error': 'Task not found'},
+                status=404
+            )
+
+        # Validate current status
+        if task.status != 'backlog':
+            return JsonResponse(
+                {'error': f"Cannot mark as ready. Task is '{task.status}', not 'backlog'."},
+                status=400
+            )
+
+        # Update status
+        old_status = task.status
+        task.status = 'ready'
+        task.save()
+
+        # Log the change
+        AdminActivityLog.objects.create(
+            task=task,
+            action=f"Status changed from '{old_status}' to 'ready' via Mark Ready control.",
+            created_by='human'
+        )
+
+        # Get current count of ready tasks for warning
+        ready_count = AdminTask.objects.filter(status='ready').count()
+
+        return JsonResponse({
+            'success': True,
+            'task': {
+                'id': task.id,
+                'title': task.title,
+                'status': task.status,
+                'phase_number': task.phase.phase_number
+            },
+            'ready_count': ready_count,
+            'show_warning': ready_count >= READY_TASKS_WARNING_THRESHOLD
+        })
 
 
 # ============================================================

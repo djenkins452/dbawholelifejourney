@@ -171,6 +171,67 @@
                 <path d="M9 18l6-6-6-6"/>
             </svg>
         </a>
+    </div>
+
+    <!-- Projects Section -->
+    <div class="section-divider mt-8 mb-4">
+        <h2 class="section-title">Projects</h2>
+    </div>
+
+    <div class="admin-grid">
+        <!-- Task Intake -->
+        <a href="{% url 'admin_console:task_intake' %}" class="admin-card">
+            <div class="admin-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Task Intake</h3>
+                <p>Create new project tasks</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+
+        <!-- Task List -->
+        <a href="{% url 'admin_console:admin_task_list' %}" class="admin-card">
+            <div class="admin-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="8" y1="6" x2="21" y2="6"/>
+                    <line x1="8" y1="12" x2="21" y2="12"/>
+                    <line x1="8" y1="18" x2="21" y2="18"/>
+                    <line x1="3" y1="6" x2="3.01" y2="6"/>
+                    <line x1="3" y1="12" x2="3.01" y2="12"/>
+                    <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Task List</h3>
+                <p>View and manage tasks</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+
+        <!-- Project Status -->
+        <a href="{% url 'admin_console:project_status' %}" class="admin-card">
+            <div class="admin-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Project Status</h3>
+                <p>View metrics and progress</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
 
         <!-- Django Admin (escape hatch) -->
         <a href="/{{ admin_url_path }}/" class="admin-card admin-card-secondary">
@@ -348,6 +409,19 @@
 
 .section-title {
     font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+}
+
+.section-divider {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-4);
+}
+
+.mt-8 {
+    margin-top: var(--space-8);
+}
+
+.mb-4 {
     margin-bottom: var(--space-4);
 }
 

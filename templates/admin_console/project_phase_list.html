@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Project Phases - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <span>Project Phases</span>
+            </nav>
+            <h1 class="page-title">Project Phases</h1>
+            <p class="page-subtitle">Manage project phases for task organization</p>
+        </div>
+        <a href="{% url 'admin_console:project_phase_create' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New Phase
+        </a>
+    </div>
+
+    {% if phases %}
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Phase #</th>
+                    <th>Name</th>
+                    <th>Objective</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for phase in phases %}
+                <tr>
+                    <td><strong>{{ phase.phase_number }}</strong></td>
+                    <td>{{ phase.name }}</td>
+                    <td>{{ phase.objective|truncatewords:15 }}</td>
+                    <td>
+                        <span class="status-badge status-{{ phase.status }}">
+                            {{ phase.get_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <a href="{% url 'admin_console:project_phase_update' phase.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                            <a href="{% url 'admin_console:project_phase_delete' phase.pk %}" class="btn btn-ghost btn-sm text-error">Delete</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h2>No phases yet</h2>
+        <p>Create project phases to organize your tasks.</p>
+        <a href="{% url 'admin_console:project_phase_create' %}" class="btn btn-primary">Create Phase</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+}
+
+.table-container {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.admin-table th {
+    background: var(--color-surface);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+
+.admin-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+    background: var(--color-surface);
+}
+
+.status-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.status-not_started {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.status-in_progress {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-complete {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.action-buttons {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

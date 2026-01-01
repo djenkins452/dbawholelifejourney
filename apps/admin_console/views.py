@@ -490,3 +490,217 @@ class RunTestsView(AdminRequiredMixin, View):
             messages.error(request, f"Error running tests: {str(e)}")
 
         return redirect('admin_console:test_run_list')
+
+
+# ============================================================
+# Project Phase Views
+# ============================================================
+
+class ProjectPhaseListView(AdminRequiredMixin, ListView):
+    """List all project phases."""
+    template_name = "admin_console/project_phase_list.html"
+    context_object_name = "phases"
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminProjectPhase
+        return AdminProjectPhase.objects.all().order_by('phase_number')
+
+
+class ProjectPhaseCreateView(AdminRequiredMixin, CreateView):
+    """Create a new project phase."""
+    template_name = "admin_console/project_phase_form.html"
+    success_url = reverse_lazy('admin_console:project_phase_list')
+    fields = ['phase_number', 'name', 'objective', 'status']
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminProjectPhase
+        return AdminProjectPhase.objects.all()
+
+    def get_form_class(self):
+        from django import forms
+        from apps.admin_console.models import AdminProjectPhase
+
+        class ProjectPhaseForm(forms.ModelForm):
+            class Meta:
+                model = AdminProjectPhase
+                fields = ['phase_number', 'name', 'objective', 'status']
+
+        return ProjectPhaseForm
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Phase '{form.instance.name}' created.")
+        return super().form_valid(form)
+
+
+class ProjectPhaseUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit a project phase."""
+    template_name = "admin_console/project_phase_form.html"
+    success_url = reverse_lazy('admin_console:project_phase_list')
+    fields = ['phase_number', 'name', 'objective', 'status']
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminProjectPhase
+        return AdminProjectPhase.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Phase '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+
+class ProjectPhaseDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a project phase."""
+    template_name = "admin_console/project_phase_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:project_phase_list')
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminProjectPhase
+        return AdminProjectPhase.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Phase '{self.object.name}' deleted.")
+        return super().form_valid(form)
+
+
+# ============================================================
+# Admin Task Views
+# ============================================================
+
+class AdminTaskListView(AdminRequiredMixin, ListView):
+    """List all admin tasks."""
+    template_name = "admin_console/admin_task_list.html"
+    context_object_name = "tasks"
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminTask
+        return AdminTask.objects.select_related('phase').all().order_by('priority', '-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.admin_console.models import AdminProjectPhase
+        context['phases'] = AdminProjectPhase.objects.all()
+        return context
+
+
+class AdminTaskCreateView(AdminRequiredMixin, CreateView):
+    """Create a new admin task."""
+    template_name = "admin_console/admin_task_form.html"
+    success_url = reverse_lazy('admin_console:admin_task_list')
+    fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'created_by']
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminTask
+        return AdminTask.objects.all()
+
+    def get_form_class(self):
+        from django import forms
+        from apps.admin_console.models import AdminTask
+
+        class AdminTaskForm(forms.ModelForm):
+            class Meta:
+                model = AdminTask
+                fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'created_by']
+
+        return AdminTaskForm
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Task '{form.instance.title}' created.")
+        return super().form_valid(form)
+
+
+class AdminTaskUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit an admin task."""
+    template_name = "admin_console/admin_task_form.html"
+    success_url = reverse_lazy('admin_console:admin_task_list')
+    fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'created_by']
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminTask
+        return AdminTask.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Task '{form.instance.title}' updated.")
+        return super().form_valid(form)
+
+
+class AdminTaskDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete an admin task."""
+    template_name = "admin_console/admin_task_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:admin_task_list')
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminTask
+        return AdminTask.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Task '{self.object.title}' deleted.")
+        return super().form_valid(form)
+
+
+# ============================================================
+# Activity Log Views
+# ============================================================
+
+class ActivityLogListView(AdminRequiredMixin, ListView):
+    """List all activity logs."""
+    template_name = "admin_console/activity_log_list.html"
+    context_object_name = "logs"
+    paginate_by = 50
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminActivityLog
+        return AdminActivityLog.objects.select_related('task').all().order_by('-created_at')
+
+
+class ActivityLogCreateView(AdminRequiredMixin, CreateView):
+    """Create a new activity log."""
+    template_name = "admin_console/activity_log_form.html"
+    success_url = reverse_lazy('admin_console:activity_log_list')
+    fields = ['task', 'action', 'created_by']
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminActivityLog
+        return AdminActivityLog.objects.all()
+
+    def get_form_class(self):
+        from django import forms
+        from apps.admin_console.models import AdminActivityLog
+
+        class ActivityLogForm(forms.ModelForm):
+            class Meta:
+                model = AdminActivityLog
+                fields = ['task', 'action', 'created_by']
+
+        return ActivityLogForm
+
+    def form_valid(self, form):
+        messages.success(self.request, "Activity log created.")
+        return super().form_valid(form)
+
+
+class ActivityLogUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit an activity log."""
+    template_name = "admin_console/activity_log_form.html"
+    success_url = reverse_lazy('admin_console:activity_log_list')
+    fields = ['task', 'action', 'created_by']
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminActivityLog
+        return AdminActivityLog.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, "Activity log updated.")
+        return super().form_valid(form)
+
+
+class ActivityLogDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete an activity log."""
+    template_name = "admin_console/activity_log_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:activity_log_list')
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminActivityLog
+        return AdminActivityLog.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, "Activity log deleted.")
+        return super().form_valid(form)

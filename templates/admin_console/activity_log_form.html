@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Activity Log{% else %}New Activity Log{% endif %} - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:activity_log_list' %}">Activity Logs</a>
+                <span>/</span>
+                <span>{% if object %}Edit{% else %}New{% endif %}</span>
+            </nav>
+            <h1 class="page-title">{% if object %}Edit Activity Log{% else %}New Activity Log{% endif %}</h1>
+        </div>
+    </div>
+
+    <form method="post" class="admin-form">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <div class="form-group">
+                <label for="id_task" class="form-label">Task</label>
+                <select name="task" id="id_task" class="form-input" required>
+                    {% for task in form.fields.task.queryset %}
+                    <option value="{{ task.pk }}" {% if form.task.value == task.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ task.title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_action" class="form-label">Action</label>
+                <textarea name="action" id="id_action" class="form-textarea" rows="4"
+                          required placeholder="Describe the action taken...">{{ form.action.value|default:'' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="id_created_by" class="form-label">Created By</label>
+                <select name="created_by" id="id_created_by" class="form-input" required>
+                    <option value="human" {% if form.created_by.value == 'human' %}selected{% endif %}>Human</option>
+                    <option value="claude" {% if form.created_by.value == 'claude' %}selected{% endif %}>Claude</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Create Log Entry{% endif %}
+            </button>
+            <a href="{% url 'admin_console:activity_log_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.admin-form {
+    max-width: 600px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+{% endblock %}

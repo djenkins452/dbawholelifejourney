@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Project Manager App Removed)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 1)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,79 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 1 Infrastructure (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 1 Infrastructure
+
+**Description:**
+Created a simple admin-only project task system for internal project management. This is infrastructure only - no automation, AI, or business rules.
+
+**New Models:**
+
+1. **AdminProjectPhase**
+   - `phase_number` (IntegerField, unique)
+   - `name` (CharField, max_length=100)
+   - `objective` (TextField)
+   - `status` (CharField, choices: not_started, in_progress, complete)
+   - `created_at`, `updated_at` (auto timestamps)
+
+2. **AdminTask**
+   - `title` (CharField, max_length=200)
+   - `description` (TextField)
+   - `category` (CharField, choices: feature, bug, infra, content, business)
+   - `priority` (IntegerField, default=3)
+   - `status` (CharField, choices: backlog, ready, in_progress, blocked, done)
+   - `effort` (CharField, choices: S, M, L)
+   - `phase` (ForeignKey to AdminProjectPhase)
+   - `created_by` (CharField, choices: human, claude)
+   - `created_at`, `updated_at` (auto timestamps)
+
+3. **AdminActivityLog**
+   - `task` (ForeignKey to AdminTask)
+   - `action` (TextField)
+   - `created_by` (CharField, choices: human, claude)
+   - `created_at` (auto timestamp)
+
+**New URL Patterns:**
+- `/admin-console/projects/phases/` - Phase list
+- `/admin-console/projects/phases/new/` - Create phase
+- `/admin-console/projects/phases/<pk>/edit/` - Edit phase
+- `/admin-console/projects/phases/<pk>/delete/` - Delete phase
+- `/admin-console/projects/tasks/` - Task list
+- `/admin-console/projects/tasks/new/` - Create task
+- `/admin-console/projects/tasks/<pk>/edit/` - Edit task
+- `/admin-console/projects/tasks/<pk>/delete/` - Delete task
+- `/admin-console/projects/activity/` - Activity log list
+- `/admin-console/projects/activity/new/` - Create log
+- `/admin-console/projects/activity/<pk>/edit/` - Edit log
+- `/admin-console/projects/activity/<pk>/delete/` - Delete log
+
+**New Files:**
+- `apps/admin_console/migrations/0004_admin_project_tasks.py`
+- `apps/admin_console/management/commands/load_phase1_data.py`
+- `templates/admin_console/project_phase_list.html`
+- `templates/admin_console/project_phase_form.html`
+- `templates/admin_console/project_phase_confirm_delete.html`
+- `templates/admin_console/admin_task_list.html`
+- `templates/admin_console/admin_task_form.html`
+- `templates/admin_console/admin_task_confirm_delete.html`
+- `templates/admin_console/activity_log_list.html`
+- `templates/admin_console/activity_log_form.html`
+- `templates/admin_console/activity_log_confirm_delete.html`
+
+**Modified Files:**
+- `apps/admin_console/models.py` - Added 3 new models
+- `apps/admin_console/views.py` - Added 12 new views
+- `apps/admin_console/urls.py` - Added 12 new URL patterns
+- `Procfile` - Added `load_phase1_data` command
+
+**Seed Data Created:**
+- Phase 1: "Core Project Infrastructure" (status: in_progress)
+
+**Tests:** All admin_console tests pass.
+
+---
 
 ### Project Manager App Removal (CLEANUP)
 

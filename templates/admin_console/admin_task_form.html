@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Task{% else %}New Task{% endif %} - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:admin_task_list' %}">Admin Tasks</a>
+                <span>/</span>
+                <span>{% if object %}Edit{% else %}New{% endif %}</span>
+            </nav>
+            <h1 class="page-title">{% if object %}Edit Task{% else %}New Task{% endif %}</h1>
+        </div>
+    </div>
+
+    <form method="post" class="admin-form">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <div class="form-group">
+                <label for="id_title" class="form-label">Title</label>
+                <input type="text" name="title" id="id_title" class="form-input"
+                       value="{{ form.title.value|default:'' }}" required maxlength="200"
+                       placeholder="e.g., Implement user authentication">
+            </div>
+
+            <div class="form-group">
+                <label for="id_description" class="form-label">Description</label>
+                <textarea name="description" id="id_description" class="form-textarea" rows="4"
+                          required placeholder="Describe the task in detail...">{{ form.description.value|default:'' }}</textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_category" class="form-label">Category</label>
+                    <select name="category" id="id_category" class="form-input" required>
+                        <option value="feature" {% if form.category.value == 'feature' %}selected{% endif %}>Feature</option>
+                        <option value="bug" {% if form.category.value == 'bug' %}selected{% endif %}>Bug</option>
+                        <option value="infra" {% if form.category.value == 'infra' %}selected{% endif %}>Infrastructure</option>
+                        <option value="content" {% if form.category.value == 'content' %}selected{% endif %}>Content</option>
+                        <option value="business" {% if form.category.value == 'business' %}selected{% endif %}>Business</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_priority" class="form-label">Priority (1=highest)</label>
+                    <input type="number" name="priority" id="id_priority" class="form-input"
+                           value="{{ form.priority.value|default:'3' }}" required min="1" max="10">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_status" class="form-label">Status</label>
+                    <select name="status" id="id_status" class="form-input" required>
+                        <option value="backlog" {% if form.status.value == 'backlog' %}selected{% endif %}>Backlog</option>
+                        <option value="ready" {% if form.status.value == 'ready' %}selected{% endif %}>Ready</option>
+                        <option value="in_progress" {% if form.status.value == 'in_progress' %}selected{% endif %}>In Progress</option>
+                        <option value="blocked" {% if form.status.value == 'blocked' %}selected{% endif %}>Blocked</option>
+                        <option value="done" {% if form.status.value == 'done' %}selected{% endif %}>Done</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_effort" class="form-label">Effort</label>
+                    <select name="effort" id="id_effort" class="form-input" required>
+                        <option value="S" {% if form.effort.value == 'S' %}selected{% endif %}>Small</option>
+                        <option value="M" {% if form.effort.value == 'M' %}selected{% endif %}>Medium</option>
+                        <option value="L" {% if form.effort.value == 'L' %}selected{% endif %}>Large</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_phase" class="form-label">Phase</label>
+                    <select name="phase" id="id_phase" class="form-input" required>
+                        {% for phase in form.fields.phase.queryset %}
+                        <option value="{{ phase.pk }}" {% if form.phase.value == phase.pk|stringformat:"s" %}selected{% endif %}>
+                            Phase {{ phase.phase_number }}: {{ phase.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_created_by" class="form-label">Created By</label>
+                    <select name="created_by" id="id_created_by" class="form-input" required>
+                        <option value="human" {% if form.created_by.value == 'human' %}selected{% endif %}>Human</option>
+                        <option value="claude" {% if form.created_by.value == 'claude' %}selected{% endif %}>Claude</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Create Task{% endif %}
+            </button>
+            <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.admin-form {
+    max-width: 700px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+{% endblock %}

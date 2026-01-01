@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Phase{% else %}New Phase{% endif %} - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:project_phase_list' %}">Project Phases</a>
+                <span>/</span>
+                <span>{% if object %}Edit{% else %}New{% endif %}</span>
+            </nav>
+            <h1 class="page-title">{% if object %}Edit Phase{% else %}New Phase{% endif %}</h1>
+        </div>
+    </div>
+
+    <form method="post" class="admin-form">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_phase_number" class="form-label">Phase Number</label>
+                    <input type="number" name="phase_number" id="id_phase_number" class="form-input"
+                           value="{{ form.phase_number.value|default:'' }}" required min="1">
+                </div>
+
+                <div class="form-group">
+                    <label for="id_status" class="form-label">Status</label>
+                    <select name="status" id="id_status" class="form-input">
+                        <option value="not_started" {% if form.status.value == 'not_started' %}selected{% endif %}>Not Started</option>
+                        <option value="in_progress" {% if form.status.value == 'in_progress' %}selected{% endif %}>In Progress</option>
+                        <option value="complete" {% if form.status.value == 'complete' %}selected{% endif %}>Complete</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="id_name" class="form-label">Name</label>
+                <input type="text" name="name" id="id_name" class="form-input"
+                       value="{{ form.name.value|default:'' }}" required maxlength="100"
+                       placeholder="e.g., Core Project Infrastructure">
+            </div>
+
+            <div class="form-group">
+                <label for="id_objective" class="form-label">Objective</label>
+                <textarea name="objective" id="id_objective" class="form-textarea" rows="4"
+                          required placeholder="Describe the objective for this phase...">{{ form.objective.value|default:'' }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Create Phase{% endif %}
+            </button>
+            <a href="{% url 'admin_console:project_phase_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.admin-form {
+    max-width: 600px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+</style>
+{% endblock %}

@@ -62,6 +62,8 @@ urlpatterns = [
     path(f"{settings.ADMIN_URL_PATH}/", admin.site.urls),
     # Authentication (django-allauth)
     path("accounts/", include("allauth.urls")),
+    # API endpoints for admin project tasks
+    path("api/admin/project/", include("apps.admin_console.api_urls")),
     # Core pages (landing, terms, about)
     path("", include("apps.core.urls", namespace="core")),
     # User management (profile, preferences)

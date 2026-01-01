@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 2)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 3)
 # ==============================================================================
 
 # WLJ Change History
@@ -16,48 +16,42 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-01 Changes
 
-### Admin Project Tasks - Phase 2 Phase Awareness (ENHANCEMENT)
+### Admin Project Tasks - Phase 3 Task Selection (NEW FEATURE)
 
-**Session:** WLJ Admin Tasks - Phase 2 Phase Awareness
+**Session:** WLJ Admin Tasks - Phase 3 Task Selection
 
 **Description:**
-Added phase awareness logic to the admin project task system. This includes rules for phase status management, an active phase query helper, and an internal API endpoint.
+Added minimal logic to list the next tasks for the active project phase. This includes a helper function and an admin-only API endpoint.
 
 **New Features:**
 
-1. **Phase Status Rule**
-   - Only ONE AdminProjectPhase may have status = "in_progress" at a time
-   - When a phase is set to "in_progress", all other non-complete phases are automatically set to "not_started"
-   - Complete phases are not affected
+1. **get_next_tasks(limit=5) Helper Function**
+   - Reads the active phase (status='in_progress')
+   - Queries AdminTask where phase=active and status IN ('ready', 'backlog')
+   - Orders by priority ASC, then created_at ASC
+   - Returns up to `limit` tasks
 
-2. **Active Phase Query Helper**
-   - `get_active_phase()` function in `apps/admin_console/services.py`
-   - Returns the phase with status = "in_progress"
-   - If none exists, activates the lowest phase_number that is NOT "complete"
-   - Returns None if no phases exist
+2. **GET /api/admin/project/next-tasks/ API Endpoint**
+   - Admin-only (returns 403 for non-staff users)
+   - Query params: `limit` (optional, default 5)
+   - Returns JSON array of task objects with: id, title, priority, status, phase_number
+   - Returns empty list if no active phase or no matching tasks
 
-3. **Admin-Only API Endpoint**
-   - `GET /admin-console/api/admin/project/active-phase/`
-   - Returns JSON with phase_number, name, status, objective
-   - Returns 403 if not admin, 404 if no phases exist
-
-4. **Phase Status Validation**
-   - Complete phases cannot be changed back to "in_progress" without admin override
-   - `set_in_progress_with_override()` method allows intentional reactivation
+**Safety Rules Implemented:**
+- Does NOT return tasks from future phases (only from active phase)
+- Does NOT return tasks with status='done'
+- Returns empty list when no tasks exist
 
 **New Files:**
-- `apps/admin_console/services.py` - Phase management service functions
+- `apps/admin_console/services.py` - Service functions (get_active_phase, get_next_tasks)
+- `apps/admin_console/api_urls.py` - API URL routes
 
 **Modified Files:**
-- `apps/admin_console/models.py` - Added clean(), save() override, set_in_progress_with_override()
-- `apps/admin_console/views.py` - Added ActivePhaseAPIView, added file header
-- `apps/admin_console/urls.py` - Added api_active_phase URL, added file header
-- `apps/admin_console/tests/test_admin_console.py` - Added Phase 2 tests (12 new tests)
+- `apps/admin_console/views.py` - Added NextTasksAPIView
+- `config/urls.py` - Added /api/admin/project/ route
+- `apps/admin_console/tests/test_admin_console.py` - Added 11 tests for NextTasksAPITest
 
-**New URL Patterns:**
-- `/admin-console/api/admin/project/active-phase/` - Active phase API endpoint
-
-**Tests:** All 49 admin_console tests pass.
+**Tests:** 11 new tests for NextTasksAPITest, all passing.
 
 ---
 

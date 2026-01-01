@@ -1,40 +1,48 @@
 # ==============================================================================
 # File: apps/admin_console/services.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Admin console service functions for phase management
+# Description: Service functions for admin console task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
 # Last Updated: 2026-01-01
 # ==============================================================================
 
-from apps.admin_console.models import AdminProjectPhase
+from .models import AdminProjectPhase, AdminTask
 
 
 def get_active_phase():
     """
-    Return the active project phase.
+    Get the currently active project phase.
 
-    Behavior:
-    - Returns the AdminProjectPhase with status = "in_progress"
-    - If none exists, returns the lowest phase_number that is NOT "complete"
-      and sets its status to "in_progress"
-    - If no phases exist, returns None
+    Returns the phase with status='in_progress', or None if no active phase.
     """
-    # First, try to find an in_progress phase
-    active_phase = AdminProjectPhase.objects.filter(status='in_progress').first()
-    if active_phase:
-        return active_phase
+    return AdminProjectPhase.objects.filter(status='in_progress').first()
 
-    # No in_progress phase, find the lowest phase_number that is not complete
-    next_phase = AdminProjectPhase.objects.exclude(
-        status='complete'
-    ).order_by('phase_number').first()
 
-    if next_phase:
-        # Set it to in_progress
-        next_phase.status = 'in_progress'
-        next_phase.save()
-        return next_phase
+def get_next_tasks(limit=5):
+    """
+    Get the next tasks to work on from the active phase.
 
-    # No phases exist
-    return None
+    Queries tasks where:
+    - phase = active phase
+    - status IN ('ready', 'backlog')
+
+    Orders by:
+    1. priority ASC (lower number = higher priority)
+    2. created_at ASC (older tasks first)
+
+    Args:
+        limit: Maximum number of tasks to return (default 5)
+
+    Returns:
+        QuerySet of AdminTask objects, or empty queryset if no active phase
+    """
+    active_phase = get_active_phase()
+
+    if not active_phase:
+        return AdminTask.objects.none()
+
+    return AdminTask.objects.filter(
+        phase=active_phase,
+        status__in=['ready', 'backlog']
+    ).order_by('priority', 'created_at')[:limit]

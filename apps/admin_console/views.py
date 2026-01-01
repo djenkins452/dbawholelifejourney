@@ -1,11 +1,3 @@
-# ==============================================================================
-# File: apps/admin_console/views.py
-# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Admin console views for site and project management
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
-# Created: 2026-01-01
-# Last Updated: 2026-01-01
-# ==============================================================================
 """
 Admin Views - Custom admin interface for site management.
 
@@ -716,41 +708,53 @@ class ActivityLogDeleteView(AdminRequiredMixin, DeleteView):
 
 
 # ============================================================
-# Project Phase API Views
+# Project Task API Views
 # ============================================================
 
-class ActivePhaseAPIView(AdminRequiredMixin, View):
+class NextTasksAPIView(View):
     """
-    API endpoint to get the currently active project phase.
+    API endpoint to get next tasks from the active phase.
 
-    GET /api/admin/project/active-phase/
+    GET /api/admin/project/next-tasks/
+    Query params:
+        - limit (optional, default 5): Maximum tasks to return
 
-    Returns JSON:
-    {
-        "phase_number": 1,
-        "name": "Core Project Infrastructure",
-        "status": "in_progress",
-        "objective": "..."
-    }
-
-    Returns 403 if not admin.
-    Returns 404 if no phases exist.
+    Returns JSON array of task objects.
+    Returns 403 if user is not admin.
     """
 
-    def get(self, request, *args, **kwargs):
-        from apps.admin_console.services import get_active_phase
-
-        phase = get_active_phase()
-
-        if phase is None:
+    def get(self, request):
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
             return JsonResponse(
-                {'error': 'No project phases found'},
-                status=404
+                {'error': 'Permission denied'},
+                status=403
             )
 
-        return JsonResponse({
-            'phase_number': phase.phase_number,
-            'name': phase.name,
-            'status': phase.status,
-            'objective': phase.objective,
-        })
+        # Get limit from query params
+        try:
+            limit = int(request.GET.get('limit', 5))
+            if limit < 1:
+                limit = 5
+            elif limit > 100:
+                limit = 100
+        except (ValueError, TypeError):
+            limit = 5
+
+        # Get next tasks using service function
+        from .services import get_next_tasks
+        tasks = get_next_tasks(limit=limit)
+
+        # Build response
+        result = [
+            {
+                'id': task.id,
+                'title': task.title,
+                'priority': task.priority,
+                'status': task.status,
+                'phase_number': task.phase.phase_number
+            }
+            for task in tasks
+        ]
+
+        return JsonResponse(result, safe=False)

@@ -1,11 +1,3 @@
-# ==============================================================================
-# File: apps/admin_console/tests/test_admin_console.py
-# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Comprehensive tests for admin console functionality
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
-# Created: 2026-01-01
-# Last Updated: 2026-01-01
-# ==============================================================================
 # -*- coding: utf-8 -*-
 """
 Admin Console - Comprehensive Tests
@@ -17,9 +9,8 @@ This test file covers:
 4. Theme management
 5. Category management
 6. User management views
-7. Project phase awareness (Phase 2)
 
-Location: apps/admin_console/tests/test_admin_console.py
+Location: apps/admin_console/tests.py
 """
 
 from django.test import TestCase, Client
@@ -561,248 +552,290 @@ class RunTestsViewTest(AdminTestMixin, TestCase):
 
 
 # =============================================================================
-# 10. PROJECT PHASE AWARENESS TESTS (Phase 2)
+# 10. NEXT TASKS API TESTS
 # =============================================================================
 
-class PhaseStatusRuleTest(AdminTestMixin, TestCase):
-    """Tests for phase status rules - only one in_progress at a time."""
-
-    def setUp(self):
-        self.client = Client()
-        self.admin = self.create_admin()
-        self.login_admin()
-
-    def test_setting_phase_in_progress_updates_others(self):
-        """When a phase is set to in_progress, other non-complete phases become not_started."""
-        from apps.admin_console.models import AdminProjectPhase
-
-        # Create multiple phases
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1,
-            name='Phase 1',
-            objective='Objective 1',
-            status='in_progress'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2,
-            name='Phase 2',
-            objective='Objective 2',
-            status='not_started'
-        )
-        phase3 = AdminProjectPhase.objects.create(
-            phase_number=3,
-            name='Phase 3',
-            objective='Objective 3',
-            status='not_started'
-        )
-
-        # Set phase2 to in_progress
-        phase2.status = 'in_progress'
-        phase2.save()
-
-        # Reload phase1
-        phase1.refresh_from_db()
-
-        # Phase1 should now be not_started (since it wasn't complete)
-        self.assertEqual(phase1.status, 'not_started')
-        self.assertEqual(phase2.status, 'in_progress')
-
-    def test_complete_phases_not_affected(self):
-        """Complete phases are not affected when another is set to in_progress."""
-        from apps.admin_console.models import AdminProjectPhase
-
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1,
-            name='Phase 1',
-            objective='Objective 1',
-            status='complete'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2,
-            name='Phase 2',
-            objective='Objective 2',
-            status='not_started'
-        )
-
-        # Set phase2 to in_progress
-        phase2.status = 'in_progress'
-        phase2.save()
-
-        # Phase1 should still be complete
-        phase1.refresh_from_db()
-        self.assertEqual(phase1.status, 'complete')
-
-
-class PhaseValidationTest(AdminTestMixin, TestCase):
-    """Tests for phase status validation."""
-
-    def setUp(self):
-        self.client = Client()
-        self.admin = self.create_admin()
-        self.login_admin()
-
-    def test_cannot_change_complete_to_in_progress(self):
-        """Complete phases cannot be changed to in_progress without override."""
-        from django.core.exceptions import ValidationError
-        from apps.admin_console.models import AdminProjectPhase
-
-        phase = AdminProjectPhase.objects.create(
-            phase_number=1,
-            name='Phase 1',
-            objective='Objective 1',
-            status='complete'
-        )
-
-        phase.status = 'in_progress'
-
-        with self.assertRaises(ValidationError):
-            phase.save()
-
-    def test_admin_override_allows_complete_to_in_progress(self):
-        """Admin override allows changing complete to in_progress."""
-        from apps.admin_console.models import AdminProjectPhase
-
-        phase = AdminProjectPhase.objects.create(
-            phase_number=1,
-            name='Phase 1',
-            objective='Objective 1',
-            status='complete'
-        )
-
-        # Use the override method
-        phase.set_in_progress_with_override()
-
-        phase.refresh_from_db()
-        self.assertEqual(phase.status, 'in_progress')
-
-
-class GetActivePhaseTest(AdminTestMixin, TestCase):
-    """Tests for get_active_phase() helper function."""
-
-    def setUp(self):
-        self.client = Client()
-        self.admin = self.create_admin()
-        self.login_admin()
-
-    def test_get_active_phase_returns_in_progress(self):
-        """get_active_phase returns the in_progress phase."""
-        from apps.admin_console.models import AdminProjectPhase
-        from apps.admin_console.services import get_active_phase
-
-        AdminProjectPhase.objects.create(
-            phase_number=1,
-            name='Phase 1',
-            objective='Objective 1',
-            status='complete'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2,
-            name='Phase 2',
-            objective='Objective 2',
-            status='in_progress'
-        )
-
-        active = get_active_phase()
-        self.assertEqual(active.pk, phase2.pk)
-
-    def test_get_active_phase_activates_lowest_not_complete(self):
-        """get_active_phase activates lowest phase_number that is not complete."""
-        from apps.admin_console.models import AdminProjectPhase
-        from apps.admin_console.services import get_active_phase
-
-        AdminProjectPhase.objects.create(
-            phase_number=1,
-            name='Phase 1',
-            objective='Objective 1',
-            status='complete'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2,
-            name='Phase 2',
-            objective='Objective 2',
-            status='not_started'
-        )
-        AdminProjectPhase.objects.create(
-            phase_number=3,
-            name='Phase 3',
-            objective='Objective 3',
-            status='not_started'
-        )
-
-        active = get_active_phase()
-        self.assertEqual(active.pk, phase2.pk)
-        self.assertEqual(active.status, 'in_progress')
-
-    def test_get_active_phase_returns_none_when_no_phases(self):
-        """get_active_phase returns None when no phases exist."""
-        from apps.admin_console.services import get_active_phase
-
-        active = get_active_phase()
-        self.assertIsNone(active)
-
-
-class ActivePhaseAPITest(AdminTestMixin, TestCase):
-    """Tests for active phase API endpoint."""
+class NextTasksAPITest(AdminTestMixin, TestCase):
+    """Tests for the next tasks API endpoint."""
 
     def setUp(self):
         self.client = Client()
         self.admin = self.create_admin()
         self.regular_user = self.create_user()
-        self.login_admin()
 
-    def test_api_requires_staff(self):
-        """API endpoint requires staff status."""
+    def test_next_tasks_requires_authentication(self):
+        """Next tasks API requires authentication."""
+        response = self.client.get('/api/admin/project/next-tasks/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_next_tasks_requires_staff(self):
+        """Next tasks API requires staff status."""
         self.login_user()
-        response = self.client.get(reverse('admin_console:api_active_phase'))
-        self.assertEqual(response.status_code, 302)
+        response = self.client.get('/api/admin/project/next-tasks/')
+        self.assertEqual(response.status_code, 403)
 
-    def test_api_returns_active_phase(self):
-        """API returns the active phase data."""
-        from apps.admin_console.models import AdminProjectPhase
+    def test_next_tasks_accessible_to_staff(self):
+        """Next tasks API is accessible to staff users."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_next_tasks_returns_json(self):
+        """Next tasks API returns JSON."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_next_tasks_returns_empty_list_when_no_active_phase(self):
+        """Next tasks API returns empty list when no active phase."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
         import json
+        data = json.loads(response.content)
+        self.assertEqual(data, [])
 
-        AdminProjectPhase.objects.create(
+    def test_next_tasks_returns_tasks_from_active_phase(self):
+        """Next tasks API returns tasks from active phase."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        # Create an active phase
+        phase = AdminProjectPhase.objects.create(
             phase_number=1,
-            name='Core Infrastructure',
-            objective='Build the foundation',
+            name='Test Phase',
+            objective='Test objective',
             status='in_progress'
         )
 
-        response = self.client.get(reverse('admin_console:api_active_phase'))
-        self.assertEqual(response.status_code, 200)
-
-        data = json.loads(response.content)
-        self.assertEqual(data['phase_number'], 1)
-        self.assertEqual(data['name'], 'Core Infrastructure')
-        self.assertEqual(data['status'], 'in_progress')
-        self.assertEqual(data['objective'], 'Build the foundation')
-
-    def test_api_returns_404_when_no_phases(self):
-        """API returns 404 when no phases exist."""
-        response = self.client.get(reverse('admin_console:api_active_phase'))
-        self.assertEqual(response.status_code, 404)
-
-    def test_api_activates_next_phase_if_none_active(self):
-        """API activates the next phase if none is in_progress."""
-        from apps.admin_console.models import AdminProjectPhase
-        import json
-
-        AdminProjectPhase.objects.create(
-            phase_number=1,
-            name='Phase 1',
-            objective='Objective 1',
-            status='complete'
+        # Create tasks
+        task1 = AdminTask.objects.create(
+            title='Task 1',
+            description='Description 1',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
         )
-        AdminProjectPhase.objects.create(
+        task2 = AdminTask.objects.create(
+            title='Task 2',
+            description='Description 2',
+            category='bug',
+            priority=2,
+            status='backlog',
+            effort='M',
+            phase=phase,
+            created_by='claude'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]['title'], 'Task 1')
+        self.assertEqual(data[0]['priority'], 1)
+        self.assertEqual(data[0]['status'], 'ready')
+        self.assertEqual(data[0]['phase_number'], 1)
+
+    def test_next_tasks_does_not_return_done_tasks(self):
+        """Next tasks API does not return done tasks."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        AdminTask.objects.create(
+            title='Done Task',
+            description='Done',
+            category='feature',
+            priority=1,
+            status='done',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Ready Task',
+            description='Ready',
+            category='feature',
+            priority=2,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['title'], 'Ready Task')
+
+    def test_next_tasks_does_not_return_tasks_from_future_phases(self):
+        """Next tasks API does not return tasks from future phases."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        active_phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Active Phase',
+            objective='Current',
+            status='in_progress'
+        )
+        future_phase = AdminProjectPhase.objects.create(
             phase_number=2,
-            name='Phase 2',
-            objective='Objective 2',
+            name='Future Phase',
+            objective='Later',
             status='not_started'
         )
 
-        response = self.client.get(reverse('admin_console:api_active_phase'))
-        self.assertEqual(response.status_code, 200)
+        AdminTask.objects.create(
+            title='Active Task',
+            description='Current task',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=active_phase,
+            created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Future Task',
+            description='Later task',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=future_phase,
+            created_by='human'
+        )
 
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
         data = json.loads(response.content)
-        self.assertEqual(data['phase_number'], 2)
-        self.assertEqual(data['status'], 'in_progress')
+
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['title'], 'Active Task')
+
+    def test_next_tasks_respects_limit_param(self):
+        """Next tasks API respects limit parameter."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        for i in range(10):
+            AdminTask.objects.create(
+                title=f'Task {i}',
+                description=f'Description {i}',
+                category='feature',
+                priority=i,
+                status='ready',
+                effort='S',
+                phase=phase,
+                created_by='human'
+            )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/?limit=3')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data), 3)
+
+    def test_next_tasks_default_limit_is_5(self):
+        """Next tasks API defaults to limit of 5."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        for i in range(10):
+            AdminTask.objects.create(
+                title=f'Task {i}',
+                description=f'Description {i}',
+                category='feature',
+                priority=i,
+                status='ready',
+                effort='S',
+                phase=phase,
+                created_by='human'
+            )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data), 5)
+
+    def test_next_tasks_orders_by_priority_then_created_at(self):
+        """Next tasks API orders by priority, then created_at."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from django.utils import timezone
+        import datetime
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Create tasks with same priority but different created times
+        task1 = AdminTask.objects.create(
+            title='Task A',
+            description='A',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+        task2 = AdminTask.objects.create(
+            title='Task B',
+            description='B',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+        task3 = AdminTask.objects.create(
+            title='Task C',
+            description='C',
+            category='feature',
+            priority=2,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+
+        # Should be ordered by priority first, then by created_at (oldest first)
+        self.assertEqual(data[0]['priority'], 1)
+        self.assertEqual(data[1]['priority'], 1)
+        self.assertEqual(data[2]['priority'], 2)

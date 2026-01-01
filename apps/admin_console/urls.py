@@ -74,7 +74,4 @@ urlpatterns = [
     path("projects/activity/new/", views.ActivityLogCreateView.as_view(), name="activity_log_create"),
     path("projects/activity/<int:pk>/edit/", views.ActivityLogUpdateView.as_view(), name="activity_log_update"),
     path("projects/activity/<int:pk>/delete/", views.ActivityLogDeleteView.as_view(), name="activity_log_delete"),
-
-    # API Endpoints
-    path("api/admin/project/active-phase/", views.ActivePhaseAPIView.as_view(), name="api_active_phase"),
 ]

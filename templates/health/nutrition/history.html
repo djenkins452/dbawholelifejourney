@@ -67,6 +67,10 @@
                     <div class="entry-actions">
                         <a href="{% url 'health:food_entry_detail' entry.pk %}" class="btn btn-text btn-xs">View</a>
                         <a href="{% url 'health:food_entry_edit' entry.pk %}" class="btn btn-text btn-xs">Edit</a>
+                        <form method="post" action="{% url 'health:food_entry_delete' entry.pk %}" class="inline-form" onsubmit="return confirm('Delete this food entry?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-text btn-xs text-danger">Delete</button>
+                        </form>
                     </div>
                 </div>
                 {% endfor %}
@@ -202,6 +206,21 @@
 .entry-actions {
     display: flex;
     gap: var(--space-1);
+    align-items: center;
+}
+
+.inline-form {
+    display: inline;
+    margin: 0;
+    padding: 0;
+}
+
+.text-danger {
+    color: var(--color-danger, #dc2626) !important;
+}
+
+.text-danger:hover {
+    color: #b91c1c !important;
 }
 
 .pagination {

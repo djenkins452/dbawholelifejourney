@@ -1152,22 +1152,56 @@ python manage.py schedule_sms_reminders --dry-run
 python manage.py schedule_sms_reminders --user=email@example.com
 ```
 
-### External Cron Setup (Railway)
-Since Railway has no cron, use external trigger with protected endpoints:
+### Automatic Scheduling (Embedded Scheduler)
+The SMS scheduler runs automatically within the web process - no external cron required.
 
-1. Set `SMS_TRIGGER_TOKEN` environment variable
-2. Call endpoints with `X-Trigger-Token` header:
-   ```bash
-   # Every 5 minutes
-   curl -X POST https://yourapp.railway.app/sms/api/trigger/send/ \
-        -H "X-Trigger-Token: your-secret-token"
+**How It Works:**
+1. **Embedded in WSGI**: Scheduler starts when Gunicorn loads via `--preload` flag
+2. **Two Background Jobs**:
+   - `schedule_daily_reminders` - Runs at midnight to create SMS records for the day
+   - `send_pending_sms` - Runs every 5 minutes to send due notifications
+3. **Real-Time Signals**: Creating/editing medicines, tasks, or events immediately schedules SMS for today
 
-   # Daily at midnight
-   curl -X POST https://yourapp.railway.app/sms/api/trigger/schedule/ \
-        -H "X-Trigger-Token: your-secret-token"
-   ```
+**Key Files:**
+- `config/wsgi.py` - Starts APScheduler with background jobs
+- `apps/sms/jobs.py` - Job functions (`schedule_daily_reminders`, `send_pending_sms`)
+- `apps/sms/signals.py` - Django post_save signals for real-time scheduling
+- `apps/sms/apps.py` - Registers signals in `ready()` method
 
-3. Use cron-job.org, GitHub Actions, or similar for scheduling
+**Technical Details:**
+- Uses `BackgroundScheduler` with `MemoryJobStore` (not DjangoJobStore)
+- Jobs re-register on each startup with `replace_existing=True`
+- Uses textual references (`'apps.sms.jobs:send_pending_sms'`) to avoid serialization issues
+- Single-instance protection via `SMS_SCHEDULER_STARTED` environment variable
+
+### Real-Time Scheduling (Signals)
+When users save models, SMS is scheduled immediately (no wait for nightly batch):
+
+| Model | Trigger | SMS Scheduled |
+|-------|---------|---------------|
+| Medicine | Save with active schedule | SMS for any doses due today |
+| MedicineSchedule | Save active schedule | SMS for this dose if today |
+| Task | Save with today's due date | SMS at 9 AM |
+| LifeEvent | Save event happening today | SMS 30 minutes before event |
+
+**Conditions for Real-Time Scheduling:**
+- User has SMS enabled and verified phone
+- User has given SMS consent
+- Relevant category toggle is enabled (e.g., `sms_medicine_reminders`)
+- The reminder time is in the future
+
+### Legacy: External Cron (Optional)
+Protected endpoints still exist for external triggering if needed:
+
+```bash
+# Trigger pending SMS send
+curl -X POST https://yourapp.railway.app/sms/api/trigger/send/ \
+     -H "X-Trigger-Token: $SMS_TRIGGER_TOKEN"
+
+# Trigger daily scheduling
+curl -X POST https://yourapp.railway.app/sms/api/trigger/schedule/ \
+     -H "X-Trigger-Token: $SMS_TRIGGER_TOKEN"
+```
 
 ### Configuration (Environment Variables)
 ```bash
@@ -1189,8 +1223,12 @@ SMS_TRIGGER_TOKEN=your-random-secret-token
 - `apps/sms/models.py` - SMSNotification, SMSResponse
 - `apps/sms/services.py` - TwilioService, SMSNotificationService
 - `apps/sms/scheduler.py` - SMSScheduler for all categories
+- `apps/sms/jobs.py` - Importable job functions for APScheduler
+- `apps/sms/signals.py` - Django signals for real-time scheduling
 - `apps/sms/views.py` - Webhooks, verification, history
 - `apps/sms/urls.py` - URL patterns
+- `apps/sms/apps.py` - App config with signal registration
+- `config/wsgi.py` - Embedded scheduler startup
 - `apps/users/models.py` - SMS preference fields
 - `templates/sms/history.html` - SMS history page
 - `templates/users/preferences.html` - SMS section in preferences

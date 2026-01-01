@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Real-Time SMS Scheduling)
+# Last Updated: 2025-12-31 (Embedded SMS Scheduler)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,39 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Embedded SMS Scheduler in Web Process (FIX)
+
+**Problem Solved:**
+SMS scheduler was configured to run as a separate worker process, but Railway doesn't auto-create worker processes from Procfile - only web and database services are created by default.
+
+**Solution:**
+Embedded the APScheduler background jobs directly in the WSGI application. The scheduler starts when Gunicorn loads the application using the `--preload` flag.
+
+**Key Implementation Details:**
+1. **Embedded in WSGI:** Scheduler starts in `config/wsgi.py` rather than as separate worker
+2. **Single Instance:** Uses `SMS_SCHEDULER_STARTED` environment variable to prevent duplicate schedulers when Gunicorn forks workers
+3. **Textual References:** Jobs use textual references (`'apps.sms.jobs:schedule_daily_reminders'`) instead of function objects to avoid APScheduler serialization issues
+4. **MemoryJobStore:** Uses in-memory job store (not DjangoJobStore) because jobs are re-registered on each startup anyway
+
+**New File Created:**
+- `apps/sms/jobs.py` - Importable job functions for APScheduler:
+  - `schedule_daily_reminders()` - Called at midnight to create SMSNotification records
+  - `send_pending_sms()` - Called every 5 minutes to send due notifications
+
+**Files Modified:**
+- `config/wsgi.py` - Added `start_scheduler()` function that initializes APScheduler with two jobs
+- `Procfile` - Added `--preload` flag to Gunicorn command to ensure scheduler starts once before forking
+
+**Error Fixed:**
+- `SerializationError: This Job cannot be serialized since the reference to its callable could not be determined`
+- Solution: Created standalone functions in `apps/sms/jobs.py` and used textual references
+
+**Deployment Status:**
+- Railway logs confirm: "SMS scheduler started successfully"
+- Initial send check runs on startup: "Sent 0 SMS, 0 failed, 0 skipped"
+
+---
 
 ### Real-Time SMS Scheduling on Save (NEW)
 

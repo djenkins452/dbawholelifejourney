@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 1)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 2)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,51 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 2 Phase Awareness (ENHANCEMENT)
+
+**Session:** WLJ Admin Tasks - Phase 2 Phase Awareness
+
+**Description:**
+Added phase awareness logic to the admin project task system. This includes rules for phase status management, an active phase query helper, and an internal API endpoint.
+
+**New Features:**
+
+1. **Phase Status Rule**
+   - Only ONE AdminProjectPhase may have status = "in_progress" at a time
+   - When a phase is set to "in_progress", all other non-complete phases are automatically set to "not_started"
+   - Complete phases are not affected
+
+2. **Active Phase Query Helper**
+   - `get_active_phase()` function in `apps/admin_console/services.py`
+   - Returns the phase with status = "in_progress"
+   - If none exists, activates the lowest phase_number that is NOT "complete"
+   - Returns None if no phases exist
+
+3. **Admin-Only API Endpoint**
+   - `GET /admin-console/api/admin/project/active-phase/`
+   - Returns JSON with phase_number, name, status, objective
+   - Returns 403 if not admin, 404 if no phases exist
+
+4. **Phase Status Validation**
+   - Complete phases cannot be changed back to "in_progress" without admin override
+   - `set_in_progress_with_override()` method allows intentional reactivation
+
+**New Files:**
+- `apps/admin_console/services.py` - Phase management service functions
+
+**Modified Files:**
+- `apps/admin_console/models.py` - Added clean(), save() override, set_in_progress_with_override()
+- `apps/admin_console/views.py` - Added ActivePhaseAPIView, added file header
+- `apps/admin_console/urls.py` - Added api_active_phase URL, added file header
+- `apps/admin_console/tests/test_admin_console.py` - Added Phase 2 tests (12 new tests)
+
+**New URL Patterns:**
+- `/admin-console/api/admin/project/active-phase/` - Active phase API endpoint
+
+**Tests:** All 49 admin_console tests pass.
+
+---
 
 ### Admin Project Tasks - Phase 1 Infrastructure (NEW FEATURE)
 

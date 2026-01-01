@@ -1,3 +1,11 @@
+# ==============================================================================
+# File: apps/admin_console/urls.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Admin console URL configuration
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2026-01-01
+# Last Updated: 2026-01-01
+# ==============================================================================
 """
 Admin Console URLs
 """
@@ -66,4 +74,7 @@ urlpatterns = [
     path("projects/activity/new/", views.ActivityLogCreateView.as_view(), name="activity_log_create"),
     path("projects/activity/<int:pk>/edit/", views.ActivityLogUpdateView.as_view(), name="activity_log_update"),
     path("projects/activity/<int:pk>/delete/", views.ActivityLogDeleteView.as_view(), name="activity_log_delete"),
+
+    # API Endpoints
+    path("api/admin/project/active-phase/", views.ActivePhaseAPIView.as_view(), name="api_active_phase"),
 ]

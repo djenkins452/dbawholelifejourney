@@ -7,6 +7,7 @@
 # Last Updated: 2026-01-01
 # ==============================================================================
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -33,6 +34,41 @@ class AdminProjectPhase(models.Model):
 
     def __str__(self):
         return f"Phase {self.phase_number}: {self.name}"
+
+    def clean(self):
+        """Validate phase status transitions."""
+        if self.pk:
+            try:
+                old_instance = AdminProjectPhase.objects.get(pk=self.pk)
+                # Prevent complete -> in_progress without admin_override flag
+                if old_instance.status == 'complete' and self.status == 'in_progress':
+                    if not getattr(self, '_admin_override', False):
+                        raise ValidationError(
+                            "Cannot change a completed phase back to in_progress. "
+                            "Use admin override if this is intentional."
+                        )
+            except AdminProjectPhase.DoesNotExist:
+                pass
+
+    def save(self, *args, **kwargs):
+        """Ensure only one phase is in_progress at a time."""
+        self.full_clean()
+
+        # If this phase is being set to in_progress, update other phases
+        if self.status == 'in_progress':
+            # Set all other non-complete phases to not_started
+            AdminProjectPhase.objects.exclude(pk=self.pk).exclude(
+                status='complete'
+            ).update(status='not_started')
+
+        super().save(*args, **kwargs)
+
+    def set_in_progress_with_override(self):
+        """Set phase to in_progress with admin override (even if complete)."""
+        self._admin_override = True
+        self.status = 'in_progress'
+        self.save()
+        del self._admin_override
 
 
 class AdminTask(models.Model):

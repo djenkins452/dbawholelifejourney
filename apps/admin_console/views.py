@@ -1,3 +1,11 @@
+# ==============================================================================
+# File: apps/admin_console/views.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Admin console views for site and project management
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2026-01-01
+# Last Updated: 2026-01-01
+# ==============================================================================
 """
 Admin Views - Custom admin interface for site management.
 
@@ -8,6 +16,7 @@ the app's design, rather than using Django's default admin.
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
@@ -704,3 +713,44 @@ class ActivityLogDeleteView(AdminRequiredMixin, DeleteView):
     def form_valid(self, form):
         messages.success(self.request, "Activity log deleted.")
         return super().form_valid(form)
+
+
+# ============================================================
+# Project Phase API Views
+# ============================================================
+
+class ActivePhaseAPIView(AdminRequiredMixin, View):
+    """
+    API endpoint to get the currently active project phase.
+
+    GET /api/admin/project/active-phase/
+
+    Returns JSON:
+    {
+        "phase_number": 1,
+        "name": "Core Project Infrastructure",
+        "status": "in_progress",
+        "objective": "..."
+    }
+
+    Returns 403 if not admin.
+    Returns 404 if no phases exist.
+    """
+
+    def get(self, request, *args, **kwargs):
+        from apps.admin_console.services import get_active_phase
+
+        phase = get_active_phase()
+
+        if phase is None:
+            return JsonResponse(
+                {'error': 'No project phases found'},
+                status=404
+            )
+
+        return JsonResponse({
+            'phase_number': phase.phase_number,
+            'name': phase.name,
+            'status': phase.status,
+            'objective': phase.objective,
+        })

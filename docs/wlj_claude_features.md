@@ -1282,7 +1282,7 @@ SMS_TRIGGER_TOKEN=your-random-secret-token
 
 ### Key Files
 - `apps/sms/models.py` - SMSNotification, SMSResponse
-- `apps/sms/services.py` - TwilioService, SMSNotificationService
+- `apps/sms/services.py` - TwilioService (with phone normalization), SMSNotificationService
 - `apps/sms/scheduler.py` - SMSScheduler for all categories
 - `apps/sms/jobs.py` - Importable job functions for APScheduler
 - `apps/sms/signals.py` - Django signals for real-time scheduling
@@ -1294,11 +1294,21 @@ SMS_TRIGGER_TOKEN=your-random-secret-token
 - `templates/sms/history.html` - SMS history page
 - `templates/users/preferences.html` - SMS section in preferences
 
+### Phone Number Normalization
+TwilioService automatically normalizes phone numbers to E.164 format:
+- Removes formatting: `(555) 123-4567` → `+15551234567`
+- Adds +1 prefix: `5551234567` → `+15551234567`
+- Validates: Numbers must match E.164 pattern `^\+[1-9]\d{1,14}$`
+- Invalid numbers are rejected with clear error messages
+
+**Common Error Fix (21212):** If you see "Invalid 'From' number" error, check that `TWILIO_PHONE_NUMBER` is set correctly in Railway environment variables.
+
 ### Tests
-`apps/sms/tests/test_sms_comprehensive.py` - ~50 tests covering:
+`apps/sms/tests/test_sms_comprehensive.py` - 46 tests covering:
 - Model creation and status transitions
 - Reply parsing (D/R/N)
 - TwilioService (test mode)
+- Phone number normalization
 - Notification scheduling
 - Webhook handling
 - View functionality

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (SMS History Timezone Fix)
+# Last Updated: 2025-12-31 (SMS Error 21212 Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,50 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### SMS Error 21212 - Phone Number Validation Fix (FIX)
+
+**Problem Solved:**
+Twilio Error 21212 "Invalid 'From' number" was occurring when sending SMS because the `TWILIO_PHONE_NUMBER` environment variable wasn't properly validated or normalized to E.164 format.
+
+**Error from Twilio Console:**
+- Error Code: 21212
+- Message: "The 'From' parameter you supplied was not a valid phone number, Alphanumeric Sender ID or approved WhatsApp Sender."
+
+**Root Cause:**
+The `TWILIO_PHONE_NUMBER` could be set incorrectly (missing +, wrong format, extra characters) without validation, causing Twilio to reject SMS sends.
+
+**Solution:**
+1. Added `_normalize_phone_number()` method to TwilioService that:
+   - Removes formatting characters (spaces, dashes, parentheses, dots)
+   - Adds +1 prefix for 10-digit US numbers
+   - Adds + prefix for 11-digit numbers starting with 1
+   - Validates against E.164 regex pattern (`^\+[1-9]\d{1,14}$`)
+   - Returns empty string for invalid numbers
+2. Phone number normalization happens at service initialization AND for destination numbers
+3. Added detailed error logging showing actual From/To values when errors occur
+4. Added specific error messages for common Twilio errors (21212, 21211)
+5. Added configuration validation that logs clear errors if TWILIO_PHONE_NUMBER is invalid
+
+**Files Modified:**
+- `apps/sms/services.py`:
+  - Added `E164_PATTERN` regex constant
+  - Added `_normalize_phone_number()` method
+  - Updated `__init__()` to validate/normalize the phone number at startup
+  - Updated `send_sms()` with detailed error messages and normalization
+- `apps/sms/tests/test_sms_comprehensive.py`:
+  - Added `TwilioServicePhoneNormalizationTests` class (6 new tests)
+  - Tests: E.164 format, 10-digit US, 11-digit US, formatting removal, invalid handling
+
+**Test Count:** 46 SMS tests (was 40, added 6 phone normalization tests)
+
+**Action Required for Railway:**
+Verify `TWILIO_PHONE_NUMBER` environment variable is set correctly:
+- Must be in E.164 format: `+1XXXXXXXXXX` (e.g., `+12025551234`)
+- Or 10-digit format: `2025551234` (will be auto-converted)
+- Check in Twilio Console that this number is assigned to your account
+
+---
 
 ### SMS History Timezone Fix (FIX)
 

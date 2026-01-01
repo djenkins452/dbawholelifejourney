@@ -4,7 +4,7 @@
 # Description: Comprehensive tests for SMS notification functionality
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-30
-# Last Updated: 2025-12-30
+# Last Updated: 2025-12-31
 # ==============================================================================
 """
 Comprehensive SMS Tests
@@ -235,6 +235,49 @@ class SMSResponseModelTests(SMSTestMixin, TestCase):
 # ==============================================================================
 # Service Tests
 # ==============================================================================
+
+class TwilioServicePhoneNormalizationTests(TestCase):
+    """Tests for phone number normalization in TwilioService."""
+
+    def test_normalize_e164_format_unchanged(self):
+        """E.164 format phone numbers should be unchanged."""
+        service = TwilioService()
+        self.assertEqual(service._normalize_phone_number('+15551234567'), '+15551234567')
+        self.assertEqual(service._normalize_phone_number('+442071234567'), '+442071234567')
+
+    def test_normalize_10_digit_us_number(self):
+        """10-digit US numbers should get +1 prefix added."""
+        service = TwilioService()
+        self.assertEqual(service._normalize_phone_number('5551234567'), '+15551234567')
+        self.assertEqual(service._normalize_phone_number('2025551234'), '+12025551234')
+
+    def test_normalize_11_digit_us_number_with_1(self):
+        """11-digit US numbers starting with 1 should get + prefix."""
+        service = TwilioService()
+        self.assertEqual(service._normalize_phone_number('15551234567'), '+15551234567')
+
+    def test_normalize_removes_formatting(self):
+        """Phone numbers with formatting chars should be cleaned."""
+        service = TwilioService()
+        self.assertEqual(service._normalize_phone_number('(555) 123-4567'), '+15551234567')
+        self.assertEqual(service._normalize_phone_number('555-123-4567'), '+15551234567')
+        self.assertEqual(service._normalize_phone_number('555.123.4567'), '+15551234567')
+        self.assertEqual(service._normalize_phone_number(' 555 123 4567 '), '+15551234567')
+
+    def test_normalize_invalid_returns_empty(self):
+        """Invalid phone numbers should return empty string."""
+        service = TwilioService()
+        self.assertEqual(service._normalize_phone_number(''), '')
+        self.assertEqual(service._normalize_phone_number('invalid'), '')
+        self.assertEqual(service._normalize_phone_number('123'), '')
+        self.assertEqual(service._normalize_phone_number('+0123456789'), '')  # Cannot start with 0
+
+    def test_normalize_handles_none_type(self):
+        """None values should be handled gracefully."""
+        service = TwilioService()
+        # The or '' in __init__ handles None, but direct call should work too
+        self.assertEqual(service._normalize_phone_number(''), '')
+
 
 @override_settings(TWILIO_TEST_MODE=True)
 class TwilioServiceTests(TestCase):

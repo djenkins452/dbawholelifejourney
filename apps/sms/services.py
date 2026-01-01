@@ -4,7 +4,7 @@
 # Description: Twilio SMS service and notification management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-30
-# Last Updated: 2025-12-30
+# Last Updated: 2025-12-31
 # ==============================================================================
 """
 SMS Services - Twilio integration and notification management.
@@ -17,6 +17,7 @@ Provides:
 import hashlib
 import hmac
 import logging
+import re
 from base64 import b64encode
 from datetime import timedelta
 from typing import Optional
@@ -29,6 +30,9 @@ from django.utils import timezone
 from .models import SMSNotification, SMSResponse
 
 logger = logging.getLogger(__name__)
+
+# E.164 phone number format regex
+E164_PATTERN = re.compile(r'^\+[1-9]\d{1,14}$')
 
 
 class TwilioService:
@@ -45,13 +49,50 @@ class TwilioService:
 
     def __init__(self):
         """Initialize Twilio client with credentials from settings."""
-        self.account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
-        self.auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
-        self.phone_number = getattr(settings, 'TWILIO_PHONE_NUMBER', '')
-        self.verify_service_sid = getattr(settings, 'TWILIO_VERIFY_SERVICE_SID', '')
+        self.account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '') or ''
+        self.auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '') or ''
+        raw_phone = getattr(settings, 'TWILIO_PHONE_NUMBER', '') or ''
+        self.verify_service_sid = getattr(settings, 'TWILIO_VERIFY_SERVICE_SID', '') or ''
         self.test_mode = getattr(settings, 'TWILIO_TEST_MODE', False)
 
+        # Normalize and validate the phone number
+        self.phone_number = self._normalize_phone_number(raw_phone)
+        if raw_phone and not self.phone_number:
+            logger.error(
+                f"TWILIO_PHONE_NUMBER '{raw_phone}' is not valid E.164 format. "
+                "Expected format: +1XXXXXXXXXX (e.g., +12025551234)"
+            )
+
         self._client = None
+
+    def _normalize_phone_number(self, phone: str) -> str:
+        """
+        Normalize a phone number to E.164 format.
+
+        Args:
+            phone: Raw phone number string
+
+        Returns:
+            Normalized phone number or empty string if invalid
+        """
+        if not phone:
+            return ''
+
+        # Remove whitespace, dashes, parentheses, dots
+        cleaned = re.sub(r'[\s\-\(\)\.]', '', phone.strip())
+
+        # If it doesn't start with +, assume US number and add +1
+        if cleaned and not cleaned.startswith('+'):
+            if cleaned.startswith('1') and len(cleaned) == 11:
+                cleaned = '+' + cleaned
+            elif len(cleaned) == 10:
+                cleaned = '+1' + cleaned
+
+        # Validate E.164 format
+        if E164_PATTERN.match(cleaned):
+            return cleaned
+
+        return ''
 
     @property
     def is_configured(self):
@@ -103,30 +144,69 @@ class TwilioService:
             }
 
         if not self.is_configured:
+            # Provide detailed error for missing configuration
+            missing = []
+            if not self.account_sid:
+                missing.append('TWILIO_ACCOUNT_SID')
+            if not self.auth_token:
+                missing.append('TWILIO_AUTH_TOKEN')
+            if not self.phone_number:
+                missing.append('TWILIO_PHONE_NUMBER (must be E.164 format: +1XXXXXXXXXX)')
+            error_msg = f"Twilio not configured. Missing: {', '.join(missing)}"
+            logger.error(error_msg)
             return {
                 'success': False,
                 'sid': None,
-                'error': 'Twilio not configured'
+                'error': error_msg
+            }
+
+        # Normalize destination phone number
+        normalized_to = self._normalize_phone_number(to)
+        if not normalized_to:
+            error_msg = f"Invalid destination phone number: '{to}'. Must be E.164 format."
+            logger.error(error_msg)
+            return {
+                'success': False,
+                'sid': None,
+                'error': error_msg
             }
 
         try:
+            logger.info(f"Sending SMS from {self.phone_number} to {normalized_to}")
             sms = self.client.messages.create(
                 body=message,
                 from_=self.phone_number,
-                to=to
+                to=normalized_to
             )
-            logger.info(f"SMS sent to {to}, SID: {sms.sid}")
+            logger.info(f"SMS sent successfully to {normalized_to}, SID: {sms.sid}")
             return {
                 'success': True,
                 'sid': sms.sid,
                 'error': None
             }
         except Exception as e:
-            logger.error(f"Failed to send SMS to {to}: {e}")
+            # Log detailed error including from/to for debugging
+            error_str = str(e)
+            logger.error(
+                f"Failed to send SMS - From: '{self.phone_number}', To: '{normalized_to}', "
+                f"Error: {error_str}"
+            )
+            # Check for common Twilio errors and provide helpful messages
+            if '21212' in error_str:
+                error_str = (
+                    f"Invalid 'From' number. TWILIO_PHONE_NUMBER='{self.phone_number}' "
+                    "is not valid. Check Railway environment variable is in E.164 format "
+                    "(+1XXXXXXXXXX) and the number is assigned to your Twilio account."
+                )
+            elif '21211' in error_str:
+                error_str = (
+                    f"Invalid 'To' number. Destination '{normalized_to}' is not valid. "
+                    "Ensure the phone number is in E.164 format (+1XXXXXXXXXX)."
+                )
             return {
                 'success': False,
                 'sid': None,
-                'error': str(e)
+                'error': error_str
             }
 
     def send_verification(self, to: str) -> dict:

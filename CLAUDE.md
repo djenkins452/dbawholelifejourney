@@ -12,7 +12,6 @@ All project documentation is organized in the `docs/` directory with consistent 
 - `docs/wlj_claude_features.md` - Detailed feature documentation (onboarding, help system, Dashboard AI, nutrition, medicine, camera scan, biometric login)
 - `docs/wlj_claude_changelog.md` - Historical fixes, migrations, and change history
 - `docs/wlj_claude_beacon.md` - WLJ Financial Dashboard context (Beacon Innovations site)
-- `docs/wlj_claude_tasks.md` - Quick reference for task workflow (source of truth is Django Admin)
 
 ### Operations & Backup
 - `docs/wlj_backup.md` - Backup and disaster recovery playbook
@@ -31,59 +30,12 @@ All project documentation is organized in the `docs/` directory with consistent 
 All documentation files follow this pattern: `wlj_<category>_<descriptor>.md`
 
 Categories:
-- `wlj_claude_*` - Claude Code AI context files (features, changelog, tasks, beacon)
+- `wlj_claude_*` - Claude Code AI context files (features, changelog, beacon)
 - `wlj_backup_*` - Backup and disaster recovery
 - `wlj_security_*` - Security reviews and reports
 - `wlj_system_*` - System audits and reviews
 - `wlj_third_party_*` - Third-party service documentation
 - `wlj_camera_*` - Camera/scan feature architecture
-
-### Claude as Project Manager
-
-**Source of Truth: Django Admin** (`/admin/admin_console/claudetask/`)
-
-Tasks are managed via the ClaudeTask model in Django Admin. The markdown file `docs/wlj_claude_tasks.md` is for quick reference only - Django Admin is the source of truth.
-
-**Admin Interface Features:**
-- Add/edit tasks with title, description, priority, category
-- Color-coded status badges (New, In Progress, Complete, Blocked)
-- Filter by status, priority, category, or source (User vs Claude)
-- Multi-phase task support for complex features
-- Bulk actions to change task status
-
-**Task Categories (by priority order for execution):**
-1. **Bug** - Fix broken functionality (HIGH priority)
-2. **Security** - Security improvements (HIGH priority)
-3. **Performance** - Speed/efficiency (HIGH priority)
-4. **Feature** - New functionality (MEDIUM priority)
-5. **Enhancement** - Improve existing feature (MEDIUM priority)
-6. **Refactor** - Code restructuring (MEDIUM priority)
-7. **Maintenance** - System upkeep (MEDIUM priority)
-8. **Cleanup** - Remove unused code/files (LOW priority)
-9. **Documentation** - Docs updates (LOW priority)
-10. **Idea** - Future consideration (LOW priority)
-
-**Special Categories:**
-- **ACTION REQUIRED** - User must complete this action
-- **REVIEW** - Task complete, user should verify
-
-**Quick Commands:**
-| Command | What Happens |
-|---------|--------------|
-| `"Read CLAUDE.md and continue"` | Full context + status summary |
-| `"What's the status?"` | Quick task queue summary |
-| `"Next item"` or `"Do the next task"` | Execute highest priority NEW task |
-| `"Add task: [description]"` | Claude adds a new task via admin |
-
-**How "Next item" Works:**
-1. Claude checks for any IN_PROGRESS tasks (must finish first)
-2. Then checks HIGH priority tasks (bugs, security, performance)
-3. Then MEDIUM priority tasks (features, enhancements)
-4. Then LOW priority tasks (ideas, cleanup)
-5. Within each priority, category order matters (bugs before features)
-6. Claude presents the next task and asks to proceed
-
-**Multi-Phase Tasks:** Claude completes ONE phase at a time, then asks if you want to continue or save for next session.
 
 ### Auto-Allow Tools (Skip Confirmations)
 To let Claude execute without prompting for each tool, create/edit `.claude/settings.json`:
@@ -123,7 +75,7 @@ Or run: `claude config set permissions.allow "Bash(git *)" "Read" "Write" "Edit"
 - **Claude performs all merges and pushes** - Always merge worktree branches to main and push to GitHub
 - Always push from the main repository (C:\dbawholelifejourney), not from worktrees
 - Use meaningful merge commit messages with `-m` flag when merging to main
-- Procfile runs: migrate → load_initial_data → load_danny_workout_templates → collectstatic → gunicorn
+- Procfile runs: migrate → load_initial_data → reload_help_content → load_danny_workout_templates → load_reading_plans → collectstatic → gunicorn
 - postgres.railway.internal hostname only available at runtime, NOT build time
 - All DB operations must be in startCommand, not build/release phase
 - **Railway has no shell access** - All fixes must be done via code changes and redeployment
@@ -139,10 +91,7 @@ Since Railway has NO shell/console access, one-time data loading must be done vi
 **Example:** `load_danny_workout_templates` - loads workout templates for a specific user, safe to run multiple times.
 
 ## Important Files
-- `Procfile` - Railway deployment startup command (includes task loading)
-- `apps/admin_console/models.py` - ClaudeTask model for project management
-- `apps/admin_console/management/commands/task_status.py` - Query task status from CLI
-- `apps/admin_console/management/commands/load_bible_app_task.py` - Load Bible App tasks
+- `Procfile` - Railway deployment startup command
 - `run_tests.py` - Enhanced test runner with database history
 - `check_dependencies.py` - Verifies all required packages
 - `apps/core/management/commands/load_initial_data.py` - System data loading
@@ -212,31 +161,7 @@ When adding/modifying any third-party service: Update `docs/wlj_third_party_serv
 ### Starting a New Session
 Say: **"Read CLAUDE.md and continue"** - Claude will:
 1. Load full project context from CLAUDE.md
-2. Query the ClaudeTask database for current task status
-3. Give you a status summary (active, pending, blocked counts)
-4. Show the next task by priority
-5. Ask what you want to work on
-
-### "Next item" Workflow
-When you say **"Next item"** or **"Do the next task"**, Claude will:
-1. Query Django Admin for tasks (ClaudeTask model)
-2. Check for any IN_PROGRESS tasks (must finish first)
-3. Find highest priority NEW task:
-   - HIGH: Bugs, Security, Performance issues first
-   - MEDIUM: Features, Enhancements, Refactors next
-   - LOW: Ideas, Cleanup, Documentation last
-4. Present the task with description and acceptance criteria
-5. Ask: "Should I proceed with this task?"
-6. Update task status to IN_PROGRESS when started
-7. Mark COMPLETE when done, then show next task
-
-### Project Manager Workflow
-Claude acts as your PM. After reading context, Claude will:
-- Show active/pending/blocked task counts
-- List top priority items ready to work
-- Wait for your direction or execute "next item"
-- For multi-phase tasks, complete one phase then check in
-- Create follow-up tasks as needed (ACTION REQUIRED, REVIEW)
+2. Ask what you want to work on
 
 ### MANDATORY: Documentation Updates
 **After ANY code changes, you MUST update the relevant documentation files:**
@@ -356,5 +281,4 @@ Before deploying: **"What could this change accidentally break?"** Only test tho
 
 *For detailed feature documentation, see `docs/wlj_claude_features.md`*
 *For historical changes, see `docs/wlj_claude_changelog.md`*
-*For task queue, see Django Admin at `/admin/admin_console/claudetask/`*
 *Last updated: 2026-01-01*

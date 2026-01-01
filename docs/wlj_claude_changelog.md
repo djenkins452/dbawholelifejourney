@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Project Manager App Update)
+# Last Updated: 2026-01-01 (Project Manager App Removed)
 # ==============================================================================
 
 # WLJ Change History
@@ -16,56 +16,52 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-01 Changes
 
-### Project Manager App Update (ENHANCEMENT)
+### Project Manager App Removal (CLEANUP)
 
 **Session:** Update Project Manager App
 
 **Description:**
-Reviewed and enhanced the Claude Task management system to ensure tasks are properly loaded and the "Next item" workflow is clear and functional.
+Removed the ClaudeTask project management feature due to persistent Railway deployment issues preventing the task loading commands from running. The feature was causing confusion and wasn't functioning as expected on Railway due to Nixpacks caching problems.
 
-**Changes Made:**
+**Components Removed:**
 
-1. **New Management Command: `task_status`**
-   - Query task queue status from command line
-   - Options: `--all`, `--next`, `--list`, `--completed`
-   - Shows summary, priority breakdown, and next task
-   - Priority order: HIGH (bugs/security) → MEDIUM (features) → LOW (ideas)
+1. **ClaudeTask Model**
+   - Deleted the entire ClaudeTask model from `apps/admin_console/models.py`
+   - Created migration `0003_delete_claudetask.py` to drop the database table
 
-2. **Updated CLAUDE.md**
-   - Clarified Django Admin is source of truth (not markdown file)
-   - Added "Next item" workflow documentation
-   - Listed task categories in priority order for execution
-   - Added special categories (ACTION REQUIRED, REVIEW)
-   - Added task_status command to important files list
+2. **Admin Registration**
+   - Removed ClaudeTaskAdmin from `apps/admin_console/admin.py`
 
-3. **Updated wlj_claude_tasks.md**
-   - Simplified to quick reference document
-   - Points to Django Admin as source of truth
-   - Documents management commands
-   - Lists expected Bible App tasks
+3. **Management Commands**
+   - Deleted `apps/admin_console/management/commands/task_status.py`
+   - Deleted `apps/admin_console/management/commands/load_bible_app_task.py`
 
-4. **Task Loading Verification**
-   - `load_bible_app_task` command creates 6 Bible App tasks
-   - Already in Procfile, runs on every Railway deploy
-   - Idempotent - safe to run multiple times
+4. **Deployment Configuration**
+   - Removed `load_bible_app_task` from Procfile startup chain
+   - Removed `load_bible_app_task` from nixpacks.toml start command
 
-**Files Created:**
+5. **Documentation**
+   - Removed all PM/ClaudeTask references from CLAUDE.md
+   - Deleted `docs/wlj_claude_tasks.md`
+   - Removed "Claude as Project Manager" workflow documentation
+
+**Files Deleted:**
 - `apps/admin_console/management/commands/task_status.py`
+- `apps/admin_console/management/commands/load_bible_app_task.py`
+- `docs/wlj_claude_tasks.md`
 
 **Files Modified:**
-- `CLAUDE.md` - Updated PM workflow, added task_status command
-- `docs/wlj_claude_tasks.md` - Simplified to reference Django Admin
-- `docs/wlj_claude_changelog.md` - This entry
+- `apps/admin_console/models.py` - Cleared (no models)
+- `apps/admin_console/admin.py` - Cleared (no registrations)
+- `CLAUDE.md` - Removed all PM references
+- `Procfile` - Removed load_bible_app_task
+- `nixpacks.toml` - Removed load_bible_app_task
 
-**Expected Tasks in Database:**
-| Task ID | Title | Status |
-|---------|-------|--------|
-| TASK-001 | Bible App Phase 1: Bible Reading + Study Tools | Complete |
-| TASK-002 | Bible App Phase 2: Prayer Prompts Before Bible Study | New |
-| TASK-003 | Bible App Phase 3: Background Worship Music + Voice Narration | New |
-| TASK-004 | Bible App Phase 4: Interactive Q&A / AI Help | New |
-| TASK-005 | Bible App Phase 5: Learning Tools | New |
-| TASK-006 | Bible App Phase 6: AR/Immersive Experiences | New |
+**Migration Created:**
+- `apps/admin_console/migrations/0003_delete_claudetask.py`
+
+**Reason for Removal:**
+Railway's Nixpacks builder was aggressively caching the old start command configuration, preventing new management commands from running on deploy. After multiple failed deployment attempts, the decision was made to completely remove the feature rather than continue troubleshooting Railway caching issues.
 
 ---
 
@@ -133,44 +129,6 @@ Major enhancement to the Faith module adding Bible reading plans and study tools
 
 ---
 
-### ClaudeTask Admin Interface (NEW FEATURE)
-
-**Session:** New App Ideas/Fixes
-
-**Description:**
-Created a Django Admin interface for managing Claude Code tasks. Danny can now add, edit, and manage tasks through the web admin instead of editing markdown files.
-
-**Features:**
-- **ClaudeTask Model** with fields for title, description, status, priority, category, phases
-- **12 Task Categories:** Bug, Feature, Enhancement, Idea, Refactor, Maintenance, Cleanup, Security, Performance, Documentation, ACTION REQUIRED, Review
-- **Source Tracking:** Tasks marked as "User" (added by Danny) or "Claude" (discovered during session)
-- **Color-coded badges** for status, priority, category, and source
-- **Special Categories for User Actions:**
-  - **ACTION REQUIRED** (pink badge) - User action needed (env vars, config, etc.)
-  - **REVIEW** (teal badge) - Task complete, please review
-- **Parent Task Linking** - Follow-up tasks link to their parent task
-- **Helper Methods for Claude:**
-  - `ClaudeTask.create_action_required()` - Create action item for user
-  - `ClaudeTask.create_review_task()` - Create review task after completing work
-  - `ClaudeTask.create_discovered_task()` - Create task for issues found during session
-  - `ClaudeTask.get_user_action_items()` - Get all pending user actions
-- **Multi-phase support** for complex features (Claude does one phase at a time)
-- **Bulk actions** to mark tasks as New/In Progress/Complete/Blocked
-- **Auto-assigned task numbers** (TASK-001, TASK-002, etc.)
-
-**Admin URL:** `/admin/admin_console/claudetask/`
-
-**Files Created:**
-- `apps/admin_console/migrations/0001_create_claudetask.py`
-
-**Files Modified:**
-- `apps/admin_console/models.py` - ClaudeTask model with helper methods
-- `apps/admin_console/admin.py` - ClaudeTaskAdmin with badges and actions
-- `CLAUDE.md` - Updated PM workflow, added auto-allow tools instructions
-- `docs/wlj_claude_changelog.md` - This entry
-
----
-
 ### Delete Food Entries from History Page (ENHANCEMENT)
 
 **Session:** Delete Food History
@@ -190,31 +148,6 @@ Added the ability to delete food entries directly from the Food History page wit
 - `apps/core/migrations/0033_food_history_delete_release_note.py` - What's New entry
 
 **Tests:** All 82 nutrition tests and 101 health comprehensive tests pass.
-
----
-
-### Claude as Project Manager (ENHANCEMENT)
-
-**Session:** New App Ideas/Fixes
-
-**Description:**
-Enhanced the task queue system so Claude acts as a full Project Manager. Just start a session and Claude automatically:
-1. Reads the task queue
-2. Gives a status summary (active, pending, blocked)
-3. Shows top priority items ready to work
-4. Asks what you want to tackle
-5. Executes work, updates docs, and deploys
-
-**Features:**
-- **Quick Commands:** "What's the status?", "Do the next task", "Add task: [description]"
-- **Multi-Phase Tasks:** Claude completes one phase at a time, then asks if you want to continue or save for next session
-- **Automatic Updates:** Claude updates task status, moves completed tasks to archive, and commits changes
-- **Session Tracking:** Session log records what was worked on and outcomes
-
-**Files Modified:**
-- `docs/wlj_claude_tasks.md` - Complete rewrite with PM workflow, quick commands, status summary section
-- `CLAUDE.md` - Updated session instructions with PM workflow, quick command table
-- `docs/wlj_claude_changelog.md` - This entry
 
 ---
 

@@ -4,7 +4,7 @@
 # Description: Admin console models for project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01
+# Last Updated: 2026-01-01 (Phase 8 - Phase Auto-Unlock)
 # ==============================================================================
 
 from django.core.exceptions import ValidationError
@@ -239,6 +239,11 @@ class AdminTask(models.Model):
             action=action,
             created_by=created_by
         )
+
+        # Phase 8: Auto-unlock - Check phase completion when task transitions to done
+        if new_status == 'done':
+            from .services import on_task_done
+            on_task_done(self, created_by)
 
         return log
 

@@ -4,7 +4,7 @@
 # Description: API URL routes for admin console project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 6 - Project Metrics)
+# Last Updated: 2026-01-01 (Phase 9 - Session Bootstrapping)
 # ==============================================================================
 
 from django.urls import path
@@ -16,4 +16,6 @@ urlpatterns = [
     path("next-tasks/", views.NextTasksAPIView.as_view(), name="api_next_tasks"),
     # GET /api/admin/project/metrics/
     path("metrics/", views.ProjectMetricsAPIView.as_view(), name="api_project_metrics"),
+    # GET /api/admin/project/system-state/
+    path("system-state/", views.SystemStateAPIView.as_view(), name="api_system_state"),
 ]

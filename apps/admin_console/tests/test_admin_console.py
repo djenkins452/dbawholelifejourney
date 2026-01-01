@@ -2183,3 +2183,391 @@ class ProjectMetricsAPITest(AdminTestMixin, TestCase):
         self.assertEqual(data['active_phase_metrics']['total_tasks'], 3)
         self.assertEqual(data['tasks_created_by_claude'], 2)
         self.assertEqual(data['high_priority_remaining_tasks'], 1)
+
+
+# =============================================================================
+# 16. SYSTEM STATE SNAPSHOT TESTS
+# =============================================================================
+
+class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
+    """Tests for the SystemStateSnapshot dataclass and build function."""
+
+    def test_snapshot_with_no_active_phase(self):
+        """Snapshot returns null-safe values when no active phase."""
+        from apps.admin_console.services import build_system_state_snapshot
+
+        snapshot = build_system_state_snapshot()
+
+        self.assertIsNone(snapshot.active_phase_number)
+        self.assertIsNone(snapshot.active_phase_name)
+        self.assertIsNone(snapshot.active_phase_status)
+        self.assertIsNone(snapshot.active_phase_objective)
+        self.assertEqual(snapshot.open_tasks_count, 0)
+        self.assertEqual(snapshot.blocked_tasks_count, 0)
+        self.assertIsNotNone(snapshot.last_updated)
+
+    def test_snapshot_with_active_phase(self):
+        """Snapshot returns correct phase info when active phase exists."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import build_system_state_snapshot
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=5,
+            name='Test Phase',
+            objective='Test objective',
+            status='in_progress'
+        )
+
+        snapshot = build_system_state_snapshot()
+
+        self.assertEqual(snapshot.active_phase_number, 5)
+        self.assertEqual(snapshot.active_phase_name, 'Test Phase')
+        self.assertEqual(snapshot.active_phase_status, 'in_progress')
+        self.assertEqual(snapshot.active_phase_objective, 'Test objective')
+
+    def test_snapshot_counts_open_tasks(self):
+        """Snapshot counts open tasks (backlog, ready, in_progress) correctly."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import build_system_state_snapshot
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Open tasks
+        AdminTask.objects.create(
+            title='Backlog Task', description='D', category='feature',
+            status='backlog', effort='S', phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Ready Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='In Progress Task', description='D', category='feature',
+            status='in_progress', effort='S', phase=phase, created_by='human'
+        )
+
+        # Not open (done)
+        AdminTask.objects.create(
+            title='Done Task', description='D', category='feature',
+            status='done', effort='S', phase=phase, created_by='human'
+        )
+
+        snapshot = build_system_state_snapshot()
+
+        self.assertEqual(snapshot.open_tasks_count, 3)
+
+    def test_snapshot_counts_blocked_tasks(self):
+        """Snapshot counts blocked tasks correctly."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import build_system_state_snapshot
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Blocked tasks
+        AdminTask.objects.create(
+            title='Blocked Task 1', description='D', category='feature',
+            status='blocked', blocked_reason='Waiting', effort='S',
+            phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Blocked Task 2', description='D', category='feature',
+            status='blocked', blocked_reason='API issue', effort='S',
+            phase=phase, created_by='human'
+        )
+
+        # Not blocked
+        AdminTask.objects.create(
+            title='Ready Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
+        )
+
+        snapshot = build_system_state_snapshot()
+
+        self.assertEqual(snapshot.blocked_tasks_count, 2)
+
+    def test_snapshot_only_counts_active_phase_tasks(self):
+        """Snapshot only counts tasks from the active phase."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import build_system_state_snapshot
+
+        active_phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Active Phase',
+            objective='Current',
+            status='in_progress'
+        )
+        future_phase = AdminProjectPhase.objects.create(
+            phase_number=2,
+            name='Future Phase',
+            objective='Later',
+            status='not_started'
+        )
+
+        # Tasks in active phase
+        AdminTask.objects.create(
+            title='Active Task 1', description='D', category='feature',
+            status='ready', effort='S', phase=active_phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Active Task 2', description='D', category='feature',
+            status='blocked', blocked_reason='Wait', effort='S',
+            phase=active_phase, created_by='human'
+        )
+
+        # Tasks in future phase (should not be counted)
+        AdminTask.objects.create(
+            title='Future Task', description='D', category='feature',
+            status='backlog', effort='S', phase=future_phase, created_by='human'
+        )
+
+        snapshot = build_system_state_snapshot()
+
+        self.assertEqual(snapshot.open_tasks_count, 1)
+        self.assertEqual(snapshot.blocked_tasks_count, 1)
+
+    def test_snapshot_is_read_only(self):
+        """Snapshot function does not mutate any data."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import build_system_state_snapshot
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+        task = AdminTask.objects.create(
+            title='Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
+        )
+
+        # Call snapshot multiple times
+        snapshot1 = build_system_state_snapshot()
+        snapshot2 = build_system_state_snapshot()
+
+        # Data should be unchanged
+        task.refresh_from_db()
+        phase.refresh_from_db()
+        self.assertEqual(task.status, 'ready')
+        self.assertEqual(phase.status, 'in_progress')
+
+
+class RequestScopedSnapshotTest(AdminTestMixin, TestCase):
+    """Tests for request-scoped snapshot caching."""
+
+    def test_get_snapshot_without_request_builds_fresh(self):
+        """get_system_state_snapshot without request builds fresh snapshot."""
+        from apps.admin_console.services import get_system_state_snapshot
+
+        snapshot1 = get_system_state_snapshot()
+        snapshot2 = get_system_state_snapshot()
+
+        # Both should work but be independent snapshots
+        self.assertIsNotNone(snapshot1)
+        self.assertIsNotNone(snapshot2)
+
+    def test_get_snapshot_with_request_caches(self):
+        """get_system_state_snapshot with request caches on request object."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import get_system_state_snapshot
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Create a mock request object
+        class MockRequest:
+            pass
+
+        request = MockRequest()
+
+        # First call should build and cache
+        snapshot1 = get_system_state_snapshot(request)
+        self.assertIsNotNone(snapshot1)
+
+        # Second call should return cached snapshot
+        snapshot2 = get_system_state_snapshot(request)
+
+        # Should be the same object
+        self.assertIs(snapshot1, snapshot2)
+
+
+# =============================================================================
+# 17. SYSTEM STATE API TESTS
+# =============================================================================
+
+class SystemStateAPITest(AdminTestMixin, TestCase):
+    """Tests for the system state API endpoint."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.regular_user = self.create_user()
+
+    def test_system_state_requires_authentication(self):
+        """System state API requires authentication."""
+        response = self.client.get('/api/admin/project/system-state/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_system_state_requires_staff(self):
+        """System state API requires staff status."""
+        self.login_user()
+        response = self.client.get('/api/admin/project/system-state/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_system_state_accessible_to_staff(self):
+        """System state API is accessible to staff users."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_system_state_returns_json(self):
+        """System state API returns JSON."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_system_state_returns_expected_structure(self):
+        """System state API returns expected JSON structure."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertIn('active_phase', data)
+        self.assertIn('objective', data)
+        self.assertIn('open_tasks', data)
+        self.assertIn('blocked_tasks', data)
+        self.assertIn('last_updated', data)
+
+    def test_system_state_no_active_phase(self):
+        """System state API returns null for active_phase when no phase active."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertIsNone(data['active_phase'])
+        self.assertIsNone(data['objective'])
+        self.assertEqual(data['open_tasks'], 0)
+        self.assertEqual(data['blocked_tasks'], 0)
+
+    def test_system_state_with_active_phase(self):
+        """System state API returns correct phase info."""
+        from apps.admin_console.models import AdminProjectPhase
+
+        AdminProjectPhase.objects.create(
+            phase_number=5,
+            name='Blocker Task Creation',
+            objective='Define blocker creation logic',
+            status='in_progress'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(data['active_phase']['number'], 5)
+        self.assertEqual(data['active_phase']['name'], 'Blocker Task Creation')
+        self.assertEqual(data['active_phase']['status'], 'in_progress')
+        self.assertEqual(data['objective'], 'Define blocker creation logic')
+
+    def test_system_state_counts_tasks(self):
+        """System state API returns correct task counts."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Open tasks
+        AdminTask.objects.create(
+            title='Ready Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='In Progress Task', description='D', category='feature',
+            status='in_progress', effort='S', phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Backlog Task', description='D', category='feature',
+            status='backlog', effort='S', phase=phase, created_by='human'
+        )
+
+        # Blocked task
+        AdminTask.objects.create(
+            title='Blocked Task', description='D', category='feature',
+            status='blocked', blocked_reason='Waiting', effort='S',
+            phase=phase, created_by='human'
+        )
+
+        # Done task (should not be counted in either)
+        AdminTask.objects.create(
+            title='Done Task', description='D', category='feature',
+            status='done', effort='S', phase=phase, created_by='human'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(data['open_tasks'], 3)
+        self.assertEqual(data['blocked_tasks'], 1)
+
+    def test_system_state_last_updated_is_iso_timestamp(self):
+        """System state API returns ISO formatted timestamp."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        from datetime import datetime
+
+        data = json.loads(response.content)
+
+        # Should be parseable as ISO timestamp
+        timestamp = datetime.fromisoformat(data['last_updated'].replace('Z', '+00:00'))
+        self.assertIsNotNone(timestamp)
+
+    def test_system_state_is_read_only(self):
+        """System state API does not modify any data."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+        task = AdminTask.objects.create(
+            title='Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
+        )
+
+        self.login_admin()
+
+        # Call API multiple times
+        self.client.get('/api/admin/project/system-state/')
+        self.client.get('/api/admin/project/system-state/')
+
+        # Data should be unchanged
+        task.refresh_from_db()
+        phase.refresh_from_db()
+        self.assertEqual(task.status, 'ready')
+        self.assertEqual(phase.status, 'in_progress')

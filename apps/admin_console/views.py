@@ -940,6 +940,58 @@ class ProjectMetricsAPIView(View):
         return JsonResponse(metrics)
 
 
+class SystemStateAPIView(View):
+    """
+    API endpoint to get system state snapshot for session bootstrapping.
+
+    GET /api/admin/project/system-state/
+
+    Returns JSON object with:
+    - active_phase: {number, name, status} or null
+    - objective: Active phase objective or null
+    - open_tasks: Count of open (backlog/ready/in_progress) tasks in active phase
+    - blocked_tasks: Count of blocked tasks in active phase
+    - last_updated: ISO timestamp when snapshot was built
+
+    Returns 403 if user is not admin.
+
+    This endpoint is read-only and does not:
+    - Trigger phase completion
+    - Trigger task updates
+    - Modify any data
+    """
+
+    def get(self, request):
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Get snapshot using request-scope caching
+        from .services import get_system_state_snapshot
+        snapshot = get_system_state_snapshot(request)
+
+        # Build response with null-safe values
+        if snapshot.active_phase_number is not None:
+            active_phase = {
+                'number': snapshot.active_phase_number,
+                'name': snapshot.active_phase_name,
+                'status': snapshot.active_phase_status
+            }
+        else:
+            active_phase = None
+
+        return JsonResponse({
+            'active_phase': active_phase,
+            'objective': snapshot.active_phase_objective,
+            'open_tasks': snapshot.open_tasks_count,
+            'blocked_tasks': snapshot.blocked_tasks_count,
+            'last_updated': snapshot.last_updated.isoformat()
+        })
+
+
 # ============================================================
 # Project Status Page View (Phase 7)
 # ============================================================

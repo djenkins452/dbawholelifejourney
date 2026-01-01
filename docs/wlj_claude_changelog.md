@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Food History Delete Button)
+# Last Updated: 2026-01-01 (ClaudeTask Admin Interface)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,36 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### ClaudeTask Admin Interface (NEW FEATURE)
+
+**Session:** New App Ideas/Fixes
+
+**Description:**
+Created a Django Admin interface for managing Claude Code tasks. Danny can now add, edit, and manage tasks through the web admin instead of editing markdown files.
+
+**Features:**
+- **ClaudeTask Model** with fields for title, description, status, priority, category, phases
+- **10 Task Categories:** Bug, Feature, Enhancement, Idea, Refactor, Maintenance, Cleanup, Security, Performance, Documentation
+- **Source Tracking:** Tasks marked as "User" (added by Danny) or "Claude" (discovered during session)
+- **Color-coded badges** for status (blue=new, yellow=in progress, green=complete, red=blocked)
+- **Priority badges** (HIGH=red, MEDIUM=yellow, LOW=green)
+- **Multi-phase support** for complex features (Claude does one phase at a time)
+- **Bulk actions** to mark tasks as New/In Progress/Complete/Blocked
+- **Auto-assigned task numbers** (TASK-001, TASK-002, etc.)
+
+**Admin URL:** `/admin/admin_console/claudetask/`
+
+**Files Created:**
+- `apps/admin_console/migrations/0001_create_claudetask.py`
+
+**Files Modified:**
+- `apps/admin_console/models.py` - ClaudeTask model
+- `apps/admin_console/admin.py` - ClaudeTaskAdmin with badges and actions
+- `CLAUDE.md` - Updated PM workflow, added auto-allow tools instructions
+- `docs/wlj_claude_changelog.md` - This entry
+
+---
 
 ### Delete Food Entries from History Page (ENHANCEMENT)
 

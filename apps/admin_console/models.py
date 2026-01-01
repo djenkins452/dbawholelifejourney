@@ -50,13 +50,23 @@ class ClaudeTask(models.Model):
     CATEGORY_ENHANCEMENT = 'enhancement'
     CATEGORY_IDEA = 'idea'
     CATEGORY_REFACTOR = 'refactor'
+    CATEGORY_MAINTENANCE = 'maintenance'
+    CATEGORY_CLEANUP = 'cleanup'
+    CATEGORY_SECURITY = 'security'
+    CATEGORY_PERFORMANCE = 'performance'
+    CATEGORY_DOCUMENTATION = 'documentation'
 
     CATEGORY_CHOICES = [
-        (CATEGORY_BUG, 'Bug'),
-        (CATEGORY_FEATURE, 'Feature'),
-        (CATEGORY_ENHANCEMENT, 'Enhancement'),
-        (CATEGORY_IDEA, 'Idea'),
-        (CATEGORY_REFACTOR, 'Refactor'),
+        (CATEGORY_BUG, 'Bug - Fix broken functionality'),
+        (CATEGORY_FEATURE, 'Feature - New functionality'),
+        (CATEGORY_ENHANCEMENT, 'Enhancement - Improve existing feature'),
+        (CATEGORY_IDEA, 'Idea - Future consideration'),
+        (CATEGORY_REFACTOR, 'Refactor - Code restructuring'),
+        (CATEGORY_MAINTENANCE, 'Maintenance - System upkeep'),
+        (CATEGORY_CLEANUP, 'Cleanup - Remove unused code/files'),
+        (CATEGORY_SECURITY, 'Security - Security improvements'),
+        (CATEGORY_PERFORMANCE, 'Performance - Speed/efficiency'),
+        (CATEGORY_DOCUMENTATION, 'Documentation - Docs updates'),
     ]
 
     # Core fields
@@ -107,6 +117,22 @@ class ClaudeTask(models.Model):
     current_phase = models.PositiveIntegerField(
         default=0,
         help_text="Current phase number (0 = not started, 1 = phase 1, etc.)"
+    )
+
+    # Source tracking
+    SOURCE_USER = 'user'
+    SOURCE_CLAUDE = 'claude'
+
+    SOURCE_CHOICES = [
+        (SOURCE_USER, 'User - Added by Danny'),
+        (SOURCE_CLAUDE, 'Claude - Discovered during session'),
+    ]
+
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_USER,
+        help_text="Who identified this task"
     )
 
     # Tracking

@@ -39,11 +39,18 @@ Categories:
 - `wlj_camera_*` - Camera/scan feature architecture
 
 ### Claude as Project Manager
-Claude manages the WLJ project via `docs/wlj_claude_tasks.md`. Just start a session and Claude will:
-1. **Give you a status summary** - Active, pending, and blocked tasks
-2. **Show what's ready** - Top priority items to work on
-3. **Ask what you want** - You pick, or say "do the next task"
-4. **Execute and update** - Complete work, update docs, deploy
+Claude manages the WLJ project via the **Django Admin** (`/admin/admin_console/claudetask/`).
+
+**Admin Interface Features:**
+- Add/edit tasks with title, description, priority, category
+- Color-coded status badges (New, In Progress, Complete, Blocked)
+- Filter by status, priority, category, or source (User vs Claude)
+- Multi-phase task support for complex features
+- Bulk actions to change task status
+
+**Task Categories:**
+- Bug, Feature, Enhancement, Idea, Refactor
+- Maintenance, Cleanup, Security, Performance, Documentation
 
 **Quick Commands:**
 | Command | What Happens |
@@ -51,9 +58,29 @@ Claude manages the WLJ project via `docs/wlj_claude_tasks.md`. Just start a sess
 | `"Read CLAUDE.md and continue"` | Full context + status summary |
 | `"What's the status?"` | Quick task queue summary |
 | `"Do the next task"` | Execute highest priority NEW task |
-| `"Add task: [description]"` | Claude adds a new task |
+| `"Add task: [description]"` | Claude adds a new task to admin |
 
 **Multi-Phase Tasks:** Claude completes ONE phase at a time, then asks if you want to continue or save for next session.
+
+### Auto-Allow Tools (Skip Confirmations)
+To let Claude execute without prompting for each tool, create/edit `.claude/settings.json`:
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(python manage.py *)",
+      "Bash(npm *)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep"
+    ]
+  }
+}
+```
+Or run: `claude config set permissions.allow "Bash(git *)" "Read" "Write" "Edit"`
 
 ## Tech Stack
 - Django 5.x with django-allauth for authentication

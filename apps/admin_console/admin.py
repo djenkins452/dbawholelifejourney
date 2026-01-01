@@ -25,15 +25,16 @@ class ClaudeTaskAdmin(admin.ModelAdmin):
         'status_badge',
         'priority_badge',
         'category',
+        'source_badge',
         'phase_display',
         'created_at',
-        'updated_at',
     ]
 
     list_filter = [
         'status',
         'priority',
         'category',
+        'source',
     ]
 
     search_fields = [
@@ -55,6 +56,7 @@ class ClaudeTaskAdmin(admin.ModelAdmin):
                 'task_number',
                 'title',
                 ('status', 'priority', 'category'),
+                'source',
             ]
         }),
         ('Description', {
@@ -135,6 +137,27 @@ class ClaudeTaskAdmin(admin.ModelAdmin):
         )
     priority_badge.short_description = 'Priority'
     priority_badge.admin_order_field = 'priority'
+
+    def source_badge(self, obj):
+        """Display source as colored badge"""
+        colors = {
+            'user': '#6f42c1',    # purple
+            'claude': '#fd7e14',  # orange
+        }
+        labels = {
+            'user': 'User',
+            'claude': 'Claude',
+        }
+        color = colors.get(obj.source, '#6c757d')
+        label = labels.get(obj.source, obj.source)
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; '
+            'border-radius: 3px; font-size: 11px; font-weight: bold;">{}</span>',
+            color,
+            label
+        )
+    source_badge.short_description = 'Source'
+    source_badge.admin_order_field = 'source'
 
     def phase_display(self, obj):
         """Display current phase progress"""

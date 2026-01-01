@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Claude PM Workflow)
+# Last Updated: 2026-01-01 (Food History Delete Button)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,28 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Delete Food Entries from History Page (ENHANCEMENT)
+
+**Session:** Delete Food History
+
+**Feature:**
+Added the ability to delete food entries directly from the Food History page without navigating to the detail page first.
+
+**Changes Made:**
+1. Added inline delete button with confirmation dialog to each food entry row in history
+2. Added CSS styles for inline-form and text-danger classes to match nutrition home styling
+3. Delete uses existing soft-delete pattern via `FoodEntryDeleteView`
+
+**Files Modified:**
+- `templates/health/nutrition/history.html` - Added delete form and styles
+
+**Migration:**
+- `apps/core/migrations/0033_food_history_delete_release_note.py` - What's New entry
+
+**Tests:** All 82 nutrition tests and 101 health comprehensive tests pass.
+
+---
 
 ### Claude as Project Manager (ENHANCEMENT)
 
@@ -1157,4 +1179,4 @@ Reorganized all project documentation files into a clean, consistent structure i
 
 ---
 
-*Last updated: 2025-12-31*
+*Last updated: 2026-01-01*

@@ -3530,3 +3530,348 @@ class ProviderStaffDeleteView(LoginRequiredMixin, View):
         staff.soft_delete()
         messages.success(request, f"Removed staff member: {staff_name}")
         return redirect("health:provider_detail", pk=provider_pk)
+
+
+# =============================================================================
+# Dexcom CGM Integration Views
+# =============================================================================
+
+
+class DexcomConnectView(LoginRequiredMixin, View):
+    """
+    Initiate Dexcom OAuth connection.
+    """
+
+    def get(self, request):
+        from .services.dexcom import DexcomService
+
+        try:
+            service = DexcomService()
+
+            if not service.is_configured:
+                messages.error(
+                    request,
+                    "Dexcom integration is not configured. "
+                    "Please contact support."
+                )
+                return redirect("health:glucose_dashboard")
+
+            # Generate authorization URL with state for CSRF protection
+            auth_url, state = service.get_authorization_url()
+
+            # Store state in session for verification
+            request.session['dexcom_oauth_state'] = state
+
+            return redirect(auth_url)
+
+        except Exception as e:
+            messages.error(request, f"Failed to initiate Dexcom connection: {e}")
+            return redirect("health:glucose_dashboard")
+
+
+class DexcomCallbackView(LoginRequiredMixin, View):
+    """
+    Handle Dexcom OAuth callback.
+    """
+
+    def get(self, request):
+        from .models import DexcomCredential
+        from .services.dexcom import DexcomService
+
+        # Check for errors from Dexcom
+        error = request.GET.get('error')
+        if error:
+            error_desc = request.GET.get('error_description', 'Unknown error')
+            messages.error(request, f"Dexcom authorization failed: {error_desc}")
+            return redirect("health:glucose_dashboard")
+
+        # Get authorization code and state
+        code = request.GET.get('code')
+        state = request.GET.get('state')
+
+        if not code:
+            messages.error(request, "No authorization code received from Dexcom.")
+            return redirect("health:glucose_dashboard")
+
+        # Verify state matches what we stored (CSRF protection)
+        stored_state = request.session.get('dexcom_oauth_state')
+        if state != stored_state:
+            messages.error(request, "Invalid state parameter. Please try again.")
+            return redirect("health:glucose_dashboard")
+
+        # Clear the state from session
+        request.session.pop('dexcom_oauth_state', None)
+
+        try:
+            service = DexcomService()
+            credentials = service.exchange_code_for_credentials(code)
+
+            # Create or update credential record
+            credential, created = DexcomCredential.objects.update_or_create(
+                user=request.user,
+                defaults={
+                    'access_token': credentials['access_token'],
+                    'refresh_token': credentials.get('refresh_token', ''),
+                    'token_expiry': credentials.get('token_expiry'),
+                }
+            )
+
+            if created:
+                messages.success(
+                    request,
+                    "Dexcom connected successfully! Your glucose readings "
+                    "will now sync automatically."
+                )
+            else:
+                messages.success(request, "Dexcom connection updated.")
+
+            # Trigger initial sync
+            return redirect("health:dexcom_sync")
+
+        except Exception as e:
+            messages.error(request, f"Failed to complete Dexcom connection: {e}")
+            return redirect("health:glucose_dashboard")
+
+
+class DexcomSyncView(LoginRequiredMixin, View):
+    """
+    Manually trigger Dexcom glucose sync.
+    """
+
+    def get(self, request):
+        return self.post(request)
+
+    def post(self, request):
+        from .services.dexcom import DexcomSyncService
+
+        sync_service = DexcomSyncService(request.user)
+        credential = sync_service.get_credential()
+
+        if not credential:
+            messages.warning(
+                request,
+                "Dexcom is not connected. Please connect your Dexcom account first."
+            )
+            return redirect("health:glucose_dashboard")
+
+        # Get days to sync from request or use default
+        days = int(request.POST.get('days', credential.days_to_sync))
+
+        created, updated, error = sync_service.sync_from_dexcom(days=days)
+
+        if error:
+            messages.error(request, f"Sync failed: {error}")
+        else:
+            total = created + updated
+            if total > 0:
+                messages.success(
+                    request,
+                    f"Synced {total} glucose readings ({created} new, {updated} updated)."
+                )
+            else:
+                messages.info(request, "No new glucose readings to sync.")
+
+        return redirect("health:glucose_dashboard")
+
+
+class DexcomDisconnectView(LoginRequiredMixin, View):
+    """
+    Disconnect Dexcom integration.
+    """
+
+    def post(self, request):
+        from .services.dexcom import DexcomSyncService
+
+        sync_service = DexcomSyncService(request.user)
+        sync_service.disconnect()
+
+        messages.success(
+            request,
+            "Dexcom disconnected. Your existing glucose readings have been kept."
+        )
+        return redirect("health:glucose_dashboard")
+
+
+class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    Glucose tracking dashboard with Dexcom integration.
+    """
+
+    template_name = "health/glucose/dashboard.html"
+    help_context_id = "GLUCOSE_DASHBOARD"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        now = timezone.now()
+        today = get_user_today(user)
+        week_ago = now - timedelta(days=7)
+
+        # Check Dexcom connection status
+        from .models import DexcomCredential
+        try:
+            dexcom_credential = user.dexcom_credential
+            context['dexcom_connected'] = dexcom_credential.is_connected
+            context['dexcom_credential'] = dexcom_credential
+            context['dexcom_last_sync'] = dexcom_credential.last_sync
+        except DexcomCredential.DoesNotExist:
+            context['dexcom_connected'] = False
+            context['dexcom_credential'] = None
+
+        # Check if Dexcom is configured
+        from .services.dexcom import DexcomService
+        try:
+            service = DexcomService()
+            context['dexcom_configured'] = service.is_configured
+        except Exception:
+            context['dexcom_configured'] = False
+
+        # Recent glucose entries (last 7 days)
+        glucose_entries = GlucoseEntry.objects.filter(
+            user=user,
+            recorded_at__gte=week_ago
+        ).order_by('-recorded_at')
+
+        context['glucose_entries'] = glucose_entries[:50]  # Last 50 readings
+        context['glucose_count_week'] = glucose_entries.count()
+
+        # Today's readings
+        today_start = timezone.make_aware(
+            timezone.datetime.combine(today, timezone.datetime.min.time())
+        )
+        today_entries = glucose_entries.filter(recorded_at__gte=today_start)
+        context['today_entries'] = today_entries
+        context['today_count'] = today_entries.count()
+
+        # Latest reading
+        if glucose_entries.exists():
+            context['latest_reading'] = glucose_entries.first()
+
+        # Stats for the week
+        if glucose_entries.exists():
+            stats = glucose_entries.aggregate(
+                avg=Avg('value'),
+                min=Min('value'),
+                max=Max('value'),
+            )
+            context['avg_glucose'] = round(stats['avg'], 1) if stats['avg'] else None
+            context['min_glucose'] = stats['min']
+            context['max_glucose'] = stats['max']
+
+            # Time in range (70-180 mg/dL)
+            total = glucose_entries.count()
+            in_range = glucose_entries.filter(value__gte=70, value__lte=180).count()
+            context['time_in_range'] = round((in_range / total) * 100, 1) if total > 0 else 0
+
+            # Low/high counts
+            context['low_count'] = glucose_entries.filter(value__lt=70).count()
+            context['high_count'] = glucose_entries.filter(value__gt=180).count()
+
+        # Prepare chart data (last 24 hours for detailed view)
+        day_ago = now - timedelta(hours=24)
+        chart_entries = GlucoseEntry.objects.filter(
+            user=user,
+            recorded_at__gte=day_ago
+        ).order_by('recorded_at')
+
+        chart_data = []
+        for entry in chart_entries:
+            chart_data.append({
+                'time': entry.recorded_at.isoformat(),
+                'value': float(entry.value),
+                'trend': entry.trend,
+                'trend_arrow': entry.trend_arrow_display,
+                'source': entry.source,
+            })
+        context['chart_data'] = chart_data
+
+        return context
+
+
+class GlucoseListView(HelpContextMixin, LoginRequiredMixin, ListView):
+    """
+    List all glucose entries with pagination.
+    """
+
+    model = GlucoseEntry
+    template_name = "health/glucose/list.html"
+    context_object_name = "entries"
+    paginate_by = 50
+    help_context_id = "GLUCOSE_LIST"
+
+    def get_queryset(self):
+        return GlucoseEntry.objects.filter(
+            user=self.request.user
+        ).order_by('-recorded_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Filters
+        source = self.request.GET.get('source')
+        if source:
+            context['source_filter'] = source
+
+        return context
+
+
+class GlucoseCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
+    """
+    Manually log a glucose reading.
+    """
+
+    model = GlucoseEntry
+    form_class = GlucoseEntryForm
+    template_name = "health/glucose/form.html"
+    success_url = reverse_lazy("health:glucose_dashboard")
+    help_context_id = "GLUCOSE_CREATE"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        form.instance.source = 'manual'
+        messages.success(self.request, "Glucose reading logged.")
+        return super().form_valid(form)
+
+
+class GlucoseUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
+    """
+    Edit a glucose entry.
+    """
+
+    model = GlucoseEntry
+    form_class = GlucoseEntryForm
+    template_name = "health/glucose/form.html"
+    success_url = reverse_lazy("health:glucose_dashboard")
+    help_context_id = "GLUCOSE_UPDATE"
+
+    def get_queryset(self):
+        return GlucoseEntry.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, "Glucose reading updated.")
+        return super().form_valid(form)
+
+
+class GlucoseDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a glucose entry.
+    """
+
+    def post(self, request, pk):
+        entry = get_object_or_404(
+            GlucoseEntry.objects.filter(user=request.user),
+            pk=pk,
+        )
+        entry.soft_delete()
+        messages.success(request, "Glucose reading deleted.")
+        return redirect("health:glucose_dashboard")

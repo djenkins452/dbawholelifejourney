@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Delete Button Contrast Fix)
+# Last Updated: 2025-12-31 (Dexcom CGM Integration)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,75 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Dexcom CGM Integration (NEW FEATURE)
+
+**Session:** Journal Book View (continued)
+
+Added full Dexcom Continuous Glucose Monitor integration to automatically sync blood glucose data.
+
+**Features Added:**
+1. **OAuth 2.0 Authentication**
+   - Secure connection to Dexcom account via OAuth flow
+   - Token storage and automatic refresh
+   - Connect/disconnect UI on glucose dashboard
+
+2. **Glucose Data Sync**
+   - Automatic import of EGV (Estimated Glucose Values)
+   - Trend arrows showing glucose direction (rising/falling)
+   - Trend rate in mg/dL/min
+   - Manual sync trigger with day range selection
+   - Duplicate detection to prevent re-importing same readings
+
+3. **New Glucose Dashboard**
+   - Current reading with large display and trend arrow
+   - Time in Range calculation (70-180 mg/dL)
+   - Low/high event counts
+   - 24-hour chart with color-coded points
+   - Stats: average, min, max for past 7 days
+   - Recent readings list with source indicators
+
+4. **Extended GlucoseEntry Model**
+   - New fields: source, dexcom_record_id, trend, trend_rate, display_device
+   - New context choice: "cgm" for CGM readings
+   - Status display (Very Low, Low, In Range, High, Very High)
+
+5. **DexcomCredential Model**
+   - OAuth token storage (access_token, refresh_token, token_expiry)
+   - Sync settings (enabled, days_to_sync)
+   - Sync status tracking (last_sync, status, count)
+
+**Files Created:**
+- `apps/health/services/__init__.py`
+- `apps/health/services/dexcom.py` - DexcomService, DexcomSyncService
+- `templates/health/glucose/dashboard.html`
+- `templates/health/glucose/form.html`
+- `templates/health/glucose/list.html`
+
+**Files Modified:**
+- `apps/health/models.py` - Added DexcomCredential, extended GlucoseEntry
+- `apps/health/views.py` - Added Dexcom views, GlucoseDashboardView
+- `apps/health/urls.py` - Added Dexcom and glucose dashboard routes
+- `apps/health/admin.py` - Added DexcomCredentialAdmin, updated GlucoseEntryAdmin
+- `config/settings.py` - Added Dexcom configuration settings
+- `docs/wlj_third_party_services.md` - Added Dexcom service documentation
+
+**Migration:**
+- `apps/health/migrations/0012_dexcom_cgm_integration.py`
+
+**Environment Variables Required:**
+- `DEXCOM_CLIENT_ID` - From Dexcom Developer Portal
+- `DEXCOM_CLIENT_SECRET` - From Dexcom Developer Portal
+- `DEXCOM_REDIRECT_URI` - OAuth callback URL
+- `DEXCOM_USE_SANDBOX` - Set to true for sandbox mode (development)
+
+**Setup Instructions:**
+1. Register app at https://developer.dexcom.com/
+2. Create an application with Redirect URI pointing to `/health/glucose/dexcom/callback/`
+3. Set environment variables in Railway
+4. Users can connect from Health > Blood Glucose dashboard
+
+---
 
 ### Delete Button Contrast Fix (BUG FIX)
 

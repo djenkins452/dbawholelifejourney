@@ -176,8 +176,9 @@ class HeartRateEntry(UserOwnedModel):
 class GlucoseEntry(UserOwnedModel):
     """
     Blood glucose tracking entry.
-    
+
     Supports mg/dL and mmol/L units.
+    Integrates with Dexcom CGM for automatic data import.
     """
 
     UNIT_CHOICES = [
@@ -191,7 +192,42 @@ class GlucoseEntry(UserOwnedModel):
         ("after_meal", "After Meal (2 hours)"),
         ("bedtime", "Bedtime"),
         ("random", "Random"),
+        ("cgm", "CGM Reading"),
     ]
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("dexcom", "Dexcom CGM"),
+        ("imported", "Imported"),
+    ]
+
+    # Dexcom trend arrow values
+    TREND_CHOICES = [
+        ("", "N/A"),
+        ("doubleUp", "Rising Rapidly"),
+        ("singleUp", "Rising"),
+        ("fortyFiveUp", "Rising Slowly"),
+        ("flat", "Stable"),
+        ("fortyFiveDown", "Falling Slowly"),
+        ("singleDown", "Falling"),
+        ("doubleDown", "Falling Rapidly"),
+        ("none", "None"),
+        ("notComputable", "Not Computable"),
+        ("rateOutOfRange", "Rate Out of Range"),
+    ]
+
+    TREND_ARROWS = {
+        "doubleUp": "⬆⬆",
+        "singleUp": "⬆",
+        "fortyFiveUp": "↗",
+        "flat": "→",
+        "fortyFiveDown": "↘",
+        "singleDown": "⬇",
+        "doubleDown": "⬇⬇",
+        "none": "—",
+        "notComputable": "?",
+        "rateOutOfRange": "!",
+    }
 
     value = models.DecimalField(
         max_digits=5,
@@ -211,13 +247,55 @@ class GlucoseEntry(UserOwnedModel):
     recorded_at = models.DateTimeField(default=timezone.now)
     notes = models.TextField(blank=True)
 
+    # Dexcom-specific fields
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="manual",
+    )
+    dexcom_record_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="Dexcom recordId for sync tracking"
+    )
+    trend = models.CharField(
+        max_length=20,
+        choices=TREND_CHOICES,
+        blank=True,
+        help_text="Glucose trend direction from CGM"
+    )
+    trend_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Rate of change in mg/dL/min"
+    )
+    display_device = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Device type (receiver, iOS, android)"
+    )
+
     class Meta:
         ordering = ["-recorded_at"]
         verbose_name = "glucose entry"
         verbose_name_plural = "glucose entries"
+        indexes = [
+            models.Index(fields=['user', 'dexcom_record_id']),
+            models.Index(fields=['user', 'source', 'recorded_at']),
+        ]
 
     def __str__(self):
-        return f"{self.value} {self.unit} ({self.context}) on {self.recorded_at.date()}"
+        trend_arrow = self.trend_arrow_display
+        trend_str = f" {trend_arrow}" if trend_arrow else ""
+        return f"{self.value} {self.unit}{trend_str} ({self.context}) on {self.recorded_at.date()}"
+
+    @property
+    def trend_arrow_display(self):
+        """Get the trend arrow character for display."""
+        return self.TREND_ARROWS.get(self.trend, "")
 
     @property
     def value_in_mg_dl(self):
@@ -232,6 +310,38 @@ class GlucoseEntry(UserOwnedModel):
         if self.unit == "mmol/L":
             return float(self.value)
         return float(self.value) / 18.0182
+
+    @property
+    def is_from_dexcom(self):
+        """Check if this reading came from Dexcom."""
+        return self.source == "dexcom"
+
+    @property
+    def glucose_status(self):
+        """Categorize glucose level for display."""
+        mg_dl = self.value_in_mg_dl
+        if mg_dl < 54:
+            return "very_low"
+        elif mg_dl < 70:
+            return "low"
+        elif mg_dl <= 180:
+            return "normal"
+        elif mg_dl <= 250:
+            return "high"
+        else:
+            return "very_high"
+
+    @property
+    def glucose_status_display(self):
+        """Human-readable glucose status."""
+        status_labels = {
+            "very_low": "Very Low",
+            "low": "Low",
+            "normal": "In Range",
+            "high": "High",
+            "very_high": "Very High",
+        }
+        return status_labels.get(self.glucose_status, "Unknown")
 
 
 class BloodPressureEntry(UserOwnedModel):
@@ -2053,3 +2163,107 @@ class NutritionGoals(UserOwnedModel):
             user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
             self.effective_from = user_today
         super().save(*args, **kwargs)
+
+
+# =============================================================================
+# Dexcom CGM Integration
+# =============================================================================
+
+
+class DexcomCredential(models.Model):
+    """
+    Store Dexcom OAuth credentials for CGM data access.
+
+    Follows OAuth 2.0 pattern matching GoogleCalendarCredential.
+    Dexcom API uses standard OAuth2 with access/refresh tokens.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='dexcom_credential'
+    )
+
+    # OAuth tokens
+    access_token = models.TextField()
+    refresh_token = models.TextField(blank=True)
+    token_expiry = models.DateTimeField(null=True, blank=True)
+
+    # Dexcom user ID (hashed, returned by API)
+    dexcom_user_id = models.CharField(max_length=255, blank=True)
+
+    # Sync settings
+    sync_enabled = models.BooleanField(
+        default=True,
+        help_text="Enable automatic glucose sync"
+    )
+    days_to_sync = models.PositiveIntegerField(
+        default=7,
+        help_text="Days of glucose history to sync"
+    )
+
+    # Tracking
+    last_sync = models.DateTimeField(null=True, blank=True)
+    last_sync_status = models.CharField(max_length=50, blank=True)
+    last_sync_message = models.TextField(blank=True)
+    last_sync_count = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Dexcom Credential"
+        verbose_name_plural = "Dexcom Credentials"
+
+    def __str__(self):
+        return f"Dexcom for {self.user.email}"
+
+    @property
+    def is_token_expired(self):
+        """Check if the access token has expired."""
+        if not self.token_expiry:
+            return True
+        return timezone.now() >= self.token_expiry
+
+    @property
+    def is_connected(self):
+        """Check if we have valid credentials."""
+        return bool(self.access_token)
+
+    def get_credentials_dict(self):
+        """Return credentials in format for API calls."""
+        return {
+            'access_token': self.access_token,
+            'refresh_token': self.refresh_token,
+            'token_expiry': self.token_expiry.isoformat() if self.token_expiry else None,
+        }
+
+    def update_from_credentials(self, credentials_dict):
+        """Update model from credentials dictionary."""
+        self.access_token = credentials_dict.get('access_token', '')
+        self.refresh_token = credentials_dict.get('refresh_token', self.refresh_token)
+
+        # Handle expiry
+        expiry = credentials_dict.get('token_expiry')
+        if expiry:
+            if isinstance(expiry, str):
+                from datetime import datetime
+                self.token_expiry = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
+            else:
+                self.token_expiry = expiry
+
+        if credentials_dict.get('dexcom_user_id'):
+            self.dexcom_user_id = credentials_dict['dexcom_user_id']
+
+        self.save()
+
+    def record_sync(self, success=True, message='', count=0):
+        """Record the result of a sync operation."""
+        self.last_sync = timezone.now()
+        self.last_sync_status = 'success' if success else 'error'
+        self.last_sync_message = message
+        self.last_sync_count = count
+        self.save(update_fields=[
+            'last_sync', 'last_sync_status', 'last_sync_message',
+            'last_sync_count', 'updated_at'
+        ])

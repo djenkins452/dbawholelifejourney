@@ -12,6 +12,7 @@ All project documentation is organized in the `docs/` directory with consistent 
 - `docs/wlj_claude_features.md` - Detailed feature documentation (onboarding, help system, Dashboard AI, nutrition, medicine, camera scan, biometric login)
 - `docs/wlj_claude_changelog.md` - Historical fixes, migrations, and change history
 - `docs/wlj_claude_beacon.md` - WLJ Financial Dashboard context (Beacon Innovations site)
+- `docs/wlj_claude_tasks.md` - **Task queue for Claude sessions** (errors, requests, app ideas)
 
 ### Operations & Backup
 - `docs/wlj_backup.md` - Backup and disaster recovery playbook
@@ -30,12 +31,18 @@ All project documentation is organized in the `docs/` directory with consistent 
 All documentation files follow this pattern: `wlj_<category>_<descriptor>.md`
 
 Categories:
-- `wlj_claude_*` - Claude Code AI context files
+- `wlj_claude_*` - Claude Code AI context files (features, changelog, tasks, beacon)
 - `wlj_backup_*` - Backup and disaster recovery
 - `wlj_security_*` - Security reviews and reports
 - `wlj_system_*` - System audits and reviews
 - `wlj_third_party_*` - Third-party service documentation
 - `wlj_camera_*` - Camera/scan feature architecture
+
+### Task Queue System
+The `docs/wlj_claude_tasks.md` file is a queue of tasks for Claude to execute:
+- **Adding tasks:** Add entries with status `NEW`, priority, and description
+- **Executing tasks:** Say "Read wlj_claude_tasks.md and execute the next task"
+- **Status updates:** Claude updates status to `COMPLETE`, `IN_PROGRESS`, or `BLOCKED`
 
 ## Tech Stack
 - Django 5.x with django-allauth for authentication
@@ -259,4 +266,4 @@ Before deploying: **"What could this change accidentally break?"** Only test tho
 
 *For detailed feature documentation, see `docs/wlj_claude_features.md`*
 *For historical changes, see `docs/wlj_claude_changelog.md`*
-*Last updated: 2025-12-30*
+*Last updated: 2026-01-01*

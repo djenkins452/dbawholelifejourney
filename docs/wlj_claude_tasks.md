@@ -1,153 +1,170 @@
 # ==============================================================================
 # File: docs/wlj_claude_tasks.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Task queue for Claude to execute - errors, requests, app ideas
+# Description: Quick reference for Claude task workflow - Source of truth is Django Admin
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
 # Last Updated: 2026-01-01
 # ==============================================================================
 
-# WLJ Project Task Queue
+# WLJ Project Task Workflow
 
-**Claude is your Project Manager.** Just start a session and Claude will:
-1. Give you a status summary
-2. Show you what's ready to work on
-3. Ask what you want to tackle
-4. Execute the work and update this document
+## Source of Truth: Django Admin
+
+**All tasks are managed in Django Admin:**
+- URL: `/admin/admin_console/claudetask/`
+- Model: `apps.admin_console.models.ClaudeTask`
+- Management Command: `python manage.py task_status`
+
+This markdown file is for quick reference only. The database is the source of truth.
 
 ---
 
-## Quick Start Commands
+## Quick Commands
 
 | Command | What Happens |
 |---------|--------------|
 | `"Read CLAUDE.md and continue"` | Full project context + status summary |
-| `"What's the status?"` | Quick summary of task queue |
-| `"Do the next task"` | Execute highest priority NEW task |
-| `"Add task: [description]"` | Claude adds a new task to the queue |
+| `"What's the status?"` | Quick summary from ClaudeTask database |
+| `"Next item"` | Execute highest priority NEW task |
+| `"Add task: [description]"` | Claude adds a task via admin |
 
 ---
 
-## Current Status Summary
+## How "Next item" Works
 
-**Last Updated:** 2026-01-01
-**Active Tasks:** 0 in progress
-**Pending Tasks:** 0 ready to work
-**Blocked Tasks:** 0 waiting
+When you say **"Next item"**, Claude will:
 
----
-
-## Task Queue
-
-### Priority Legend
-- **HIGH** - Bugs, broken features, blocking issues
-- **MEDIUM** - New features, enhancements users requested
-- **LOW** - Ideas, nice-to-haves, future improvements
-
-### Status Legend
-- `NEW` - Ready to work on
-- `IN_PROGRESS` - Started, may have phases remaining
-- `COMPLETE` - Done and deployed
-- `BLOCKED` - Cannot proceed (see notes)
-- `CANCELLED` - No longer needed
+1. **Check for IN_PROGRESS tasks** - Must finish current work first
+2. **Find highest priority NEW task:**
+   - **HIGH Priority** (execute first):
+     - Bugs, Security issues, Performance problems
+   - **MEDIUM Priority** (execute second):
+     - Features, Enhancements, Refactors, Maintenance
+   - **LOW Priority** (execute last):
+     - Ideas, Cleanup, Documentation
+3. **Present the task** with description and acceptance criteria
+4. **Ask**: "Should I proceed with this task?"
+5. **Update status** to IN_PROGRESS when started
+6. **Mark COMPLETE** when done
+7. **Show next task** or confirm queue is empty
 
 ---
 
-### Active Tasks (IN_PROGRESS)
+## Task Statuses
 
-*None currently in progress*
-
----
-
-### Ready to Work (NEW) - HIGH Priority
-
-*No high priority tasks*
-
----
-
-### Ready to Work (NEW) - MEDIUM Priority
-
-*No medium priority tasks*
+| Status | Meaning |
+|--------|---------|
+| `new` | Ready to work on |
+| `in_progress` | Currently being worked on |
+| `complete` | Done and deployed |
+| `blocked` | Cannot proceed (see notes) |
+| `cancelled` | No longer needed |
 
 ---
 
-### Ready to Work (NEW) - LOW Priority
+## Task Categories (Priority Order)
 
-*No low priority tasks*
+### HIGH Priority
+1. **Bug** - Fix broken functionality
+2. **Security** - Security improvements
+3. **Performance** - Speed/efficiency issues
+
+### MEDIUM Priority
+4. **Feature** - New functionality
+5. **Enhancement** - Improve existing feature
+6. **Refactor** - Code restructuring
+7. **Maintenance** - System upkeep
+
+### LOW Priority
+8. **Cleanup** - Remove unused code/files
+9. **Documentation** - Docs updates
+10. **Idea** - Future consideration
+
+### Special Categories
+- **ACTION REQUIRED** - User must do something (env vars, config, etc.)
+- **REVIEW** - Claude completed work, user should verify
 
 ---
 
-### Blocked Tasks
+## Current Tasks (Query from Database)
 
-*No blocked tasks*
+To see current tasks, Claude can read from the database via Django ORM or the user can:
+1. Visit Django Admin at `/admin/admin_console/claudetask/`
+2. Filter by status (New, In Progress, Blocked)
+3. Sort by priority and category
+
+### Expected Tasks
+
+The following Bible App tasks should be loaded via `load_bible_app_task`:
+
+| Task ID | Title | Status |
+|---------|-------|--------|
+| TASK-001 | Bible App Phase 1: Bible Reading + Study Tools | Complete |
+| TASK-002 | Bible App Phase 2: Prayer Prompts Before Bible Study | New |
+| TASK-003 | Bible App Phase 3: Background Worship Music + Voice Narration | New |
+| TASK-004 | Bible App Phase 4: Interactive Q&A / AI Help | New |
+| TASK-005 | Bible App Phase 5: Learning Tools | New |
+| TASK-006 | Bible App Phase 6: AR/Immersive Experiences | New |
 
 ---
 
-## Completed Tasks Archive
+## Multi-Phase Task Workflow
 
-| Task | Category | Completed | Notes |
-|------|----------|-----------|-------|
-| TASK-000: Task Queue System | FEATURE | 2026-01-01 | Initial setup of this document |
+For complex tasks with multiple phases:
+
+1. Claude reads the task and its phases from the database
+2. Claude completes **ONE phase at a time**
+3. After each phase, Claude asks: "Continue to next phase or save for later?"
+4. Claude updates `current_phase` field as phases complete
+5. Task marked COMPLETE only when all phases done
 
 ---
 
-## Task Template
+## Adding Tasks
 
-When adding tasks, use this format:
+### Via Django Admin (Preferred)
+1. Go to `/admin/admin_console/claudetask/`
+2. Click "Add Claude Task"
+3. Fill in title, description, priority, category
+4. Save
 
-```markdown
-### TASK-XXX: [Brief Title]
-- **Status:** NEW
-- **Priority:** HIGH | MEDIUM | LOW
-- **Category:** BUG | FEATURE | ENHANCEMENT | IDEA | REFACTOR
-- **Added:** YYYY-MM-DD
-- **Phases:** (if multi-phase, list them)
-  1. Phase 1 description
-  2. Phase 2 description
-- **Description:**
-  What needs to be done and why.
-- **Acceptance Criteria:**
-  - [ ] Criterion 1
-  - [ ] Criterion 2
-- **Notes:**
-  Any context, links, or implementation hints.
+### Via Claude Session
+Say: "Add task: [description]"
+Claude will ask about priority and category, then create the task.
+
+### Via Management Command (Bulk Loading)
+For loading multiple predefined tasks:
+```bash
+python manage.py load_bible_app_task
 ```
 
 ---
 
 ## Session Log
 
+Recent sessions and their outcomes:
+
 | Date | Session Label | Tasks Worked | Outcome |
 |------|---------------|--------------|---------|
+| 2026-01-01 | Update Project Manager App | Task system review | Setup verified |
+| 2026-01-01 | Bible App Updates | Phase 1 | COMPLETE |
 | 2026-01-01 | New App Ideas/Fixes | Created PM workflow | COMPLETE |
 
 ---
 
-## How Claude Manages This Project
+## Management Commands
 
-### Starting a Session
-When you say "Read CLAUDE.md and continue", Claude will:
-1. Read this task queue
-2. Summarize current status (active, pending, blocked)
-3. List top 3 ready tasks by priority
-4. Ask: "Which task would you like me to work on?"
+| Command | Purpose |
+|---------|---------|
+| `python manage.py task_status` | Show summary and next task |
+| `python manage.py task_status --all` | Show all open tasks by priority |
+| `python manage.py task_status --next` | Show only the next task |
+| `python manage.py task_status --list` | List all tasks in table format |
+| `python manage.py load_bible_app_task` | Load/reload Bible App tasks |
 
-### During a Task
-- If the task has phases, Claude completes ONE phase at a time
-- After each phase, Claude updates this document
-- Claude asks: "Phase X complete. Continue to Phase Y, or save for next session?"
+---
 
-### After Completing a Task
-- Claude updates status to COMPLETE
-- Moves task to Completed Archive
-- Updates the Status Summary section
-- Commits and deploys to GitHub
-- Asks: "What's next?" or suggests the next high-priority item
-
-### Adding New Tasks
-Just say: "Add task: [description]" and Claude will:
-1. Create a properly formatted task entry
-2. Assign a task number (TASK-XXX)
-3. Ask about priority and category
-4. Add acceptance criteria
-5. Update this document and commit
+*For full project documentation, see `CLAUDE.md`*
+*For feature details, see `docs/wlj_claude_features.md`*
+*For change history, see `docs/wlj_claude_changelog.md`*

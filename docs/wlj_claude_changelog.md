@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Bible Reading Plans & Study Tools)
+# Last Updated: 2026-01-01 (Project Manager App Update)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,59 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Project Manager App Update (ENHANCEMENT)
+
+**Session:** Update Project Manager App
+
+**Description:**
+Reviewed and enhanced the Claude Task management system to ensure tasks are properly loaded and the "Next item" workflow is clear and functional.
+
+**Changes Made:**
+
+1. **New Management Command: `task_status`**
+   - Query task queue status from command line
+   - Options: `--all`, `--next`, `--list`, `--completed`
+   - Shows summary, priority breakdown, and next task
+   - Priority order: HIGH (bugs/security) → MEDIUM (features) → LOW (ideas)
+
+2. **Updated CLAUDE.md**
+   - Clarified Django Admin is source of truth (not markdown file)
+   - Added "Next item" workflow documentation
+   - Listed task categories in priority order for execution
+   - Added special categories (ACTION REQUIRED, REVIEW)
+   - Added task_status command to important files list
+
+3. **Updated wlj_claude_tasks.md**
+   - Simplified to quick reference document
+   - Points to Django Admin as source of truth
+   - Documents management commands
+   - Lists expected Bible App tasks
+
+4. **Task Loading Verification**
+   - `load_bible_app_task` command creates 6 Bible App tasks
+   - Already in Procfile, runs on every Railway deploy
+   - Idempotent - safe to run multiple times
+
+**Files Created:**
+- `apps/admin_console/management/commands/task_status.py`
+
+**Files Modified:**
+- `CLAUDE.md` - Updated PM workflow, added task_status command
+- `docs/wlj_claude_tasks.md` - Simplified to reference Django Admin
+- `docs/wlj_claude_changelog.md` - This entry
+
+**Expected Tasks in Database:**
+| Task ID | Title | Status |
+|---------|-------|--------|
+| TASK-001 | Bible App Phase 1: Bible Reading + Study Tools | Complete |
+| TASK-002 | Bible App Phase 2: Prayer Prompts Before Bible Study | New |
+| TASK-003 | Bible App Phase 3: Background Worship Music + Voice Narration | New |
+| TASK-004 | Bible App Phase 4: Interactive Q&A / AI Help | New |
+| TASK-005 | Bible App Phase 5: Learning Tools | New |
+| TASK-006 | Bible App Phase 6: AR/Immersive Experiences | New |
+
+---
 
 ### Bible Reading Plans & Study Tools (NEW FEATURE - Phase 1)
 

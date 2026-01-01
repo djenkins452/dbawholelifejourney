@@ -1835,3 +1835,351 @@ class BlockerModelFieldTests(AdminTestMixin, TestCase):
         self.assertEqual(blocker.blocks.count(), 2)
         self.assertIn(task1, blocker.blocks.all())
         self.assertIn(task2, blocker.blocks.all())
+
+
+# =============================================================================
+# 14. PROJECT METRICS SERVICE TESTS
+# =============================================================================
+
+class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
+    """Tests for the get_project_metrics service function."""
+
+    def test_metrics_with_no_tasks(self):
+        """Metrics returns zeros when no tasks exist."""
+        from apps.admin_console.services import get_project_metrics
+
+        metrics = get_project_metrics()
+
+        self.assertIsNone(metrics['active_phase'])
+        self.assertEqual(metrics['global']['total_tasks'], 0)
+        self.assertEqual(metrics['global']['completed_tasks'], 0)
+        self.assertEqual(metrics['global']['remaining_tasks'], 0)
+        self.assertEqual(metrics['global']['blocked_tasks'], 0)
+        self.assertEqual(metrics['active_phase_metrics']['total_tasks'], 0)
+        self.assertEqual(metrics['tasks_created_by_claude'], 0)
+        self.assertEqual(metrics['high_priority_remaining_tasks'], 0)
+
+    def test_metrics_with_no_active_phase(self):
+        """Metrics returns None for active_phase when no phase is active."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import get_project_metrics
+
+        # Create a phase that's not active
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Inactive Phase',
+            objective='Test',
+            status='not_started'
+        )
+        AdminTask.objects.create(
+            title='Task 1',
+            description='Description',
+            category='feature',
+            status='backlog',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+
+        metrics = get_project_metrics()
+
+        self.assertIsNone(metrics['active_phase'])
+        self.assertEqual(metrics['global']['total_tasks'], 1)
+        self.assertEqual(metrics['active_phase_metrics']['total_tasks'], 0)
+
+    def test_metrics_global_counts(self):
+        """Metrics computes global counts correctly."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import get_project_metrics
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Create tasks with various statuses
+        AdminTask.objects.create(
+            title='Done Task 1', description='D', category='feature',
+            status='done', effort='S', phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Done Task 2', description='D', category='feature',
+            status='done', effort='S', phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Blocked Task', description='D', category='feature',
+            status='blocked', blocked_reason='Waiting', effort='S',
+            phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Ready Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Backlog Task', description='D', category='feature',
+            status='backlog', effort='S', phase=phase, created_by='human'
+        )
+
+        metrics = get_project_metrics()
+
+        self.assertEqual(metrics['global']['total_tasks'], 5)
+        self.assertEqual(metrics['global']['completed_tasks'], 2)
+        self.assertEqual(metrics['global']['remaining_tasks'], 3)
+        self.assertEqual(metrics['global']['blocked_tasks'], 1)
+
+    def test_metrics_active_phase_counts(self):
+        """Metrics computes active phase counts correctly."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import get_project_metrics
+
+        # Create two phases, one active
+        active_phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Active Phase',
+            objective='Current',
+            status='in_progress'
+        )
+        inactive_phase = AdminProjectPhase.objects.create(
+            phase_number=2,
+            name='Inactive Phase',
+            objective='Later',
+            status='not_started'
+        )
+
+        # Create tasks in active phase
+        AdminTask.objects.create(
+            title='Active Done', description='D', category='feature',
+            status='done', effort='S', phase=active_phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Active Ready', description='D', category='feature',
+            status='ready', effort='S', phase=active_phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Active Blocked', description='D', category='feature',
+            status='blocked', blocked_reason='Waiting', effort='S',
+            phase=active_phase, created_by='human'
+        )
+
+        # Create tasks in inactive phase
+        AdminTask.objects.create(
+            title='Inactive Task', description='D', category='feature',
+            status='backlog', effort='S', phase=inactive_phase, created_by='human'
+        )
+
+        metrics = get_project_metrics()
+
+        self.assertEqual(metrics['active_phase'], 1)
+        self.assertEqual(metrics['active_phase_metrics']['total_tasks'], 3)
+        self.assertEqual(metrics['active_phase_metrics']['completed_tasks'], 1)
+        self.assertEqual(metrics['active_phase_metrics']['remaining_tasks'], 2)
+        self.assertEqual(metrics['active_phase_metrics']['blocked_tasks'], 1)
+
+    def test_metrics_tasks_created_by_claude(self):
+        """Metrics counts tasks created by Claude."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import get_project_metrics
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        AdminTask.objects.create(
+            title='Human Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Claude Task 1', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='claude'
+        )
+        AdminTask.objects.create(
+            title='Claude Task 2', description='D', category='infra',
+            status='done', effort='S', phase=phase, created_by='claude'
+        )
+
+        metrics = get_project_metrics()
+
+        self.assertEqual(metrics['tasks_created_by_claude'], 2)
+
+    def test_metrics_high_priority_remaining_tasks(self):
+        """Metrics counts high priority remaining tasks."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import get_project_metrics
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Priority 1 (high), remaining
+        AdminTask.objects.create(
+            title='P1 Ready', description='D', category='feature',
+            priority=1, status='ready', effort='S', phase=phase, created_by='human'
+        )
+        # Priority 2 (high), remaining
+        AdminTask.objects.create(
+            title='P2 Backlog', description='D', category='feature',
+            priority=2, status='backlog', effort='S', phase=phase, created_by='human'
+        )
+        # Priority 1 (high), but done - should not count
+        AdminTask.objects.create(
+            title='P1 Done', description='D', category='feature',
+            priority=1, status='done', effort='S', phase=phase, created_by='human'
+        )
+        # Priority 3 (not high), remaining - should not count
+        AdminTask.objects.create(
+            title='P3 Ready', description='D', category='feature',
+            priority=3, status='ready', effort='S', phase=phase, created_by='human'
+        )
+
+        metrics = get_project_metrics()
+
+        self.assertEqual(metrics['high_priority_remaining_tasks'], 2)
+
+    def test_metrics_is_read_only(self):
+        """Metrics function does not mutate any data."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import get_project_metrics
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+        task = AdminTask.objects.create(
+            title='Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
+        )
+
+        # Call metrics multiple times
+        metrics1 = get_project_metrics()
+        metrics2 = get_project_metrics()
+
+        # Task should still exist and be unchanged
+        task.refresh_from_db()
+        self.assertEqual(task.status, 'ready')
+        self.assertEqual(AdminTask.objects.count(), 1)
+
+        # Results should be consistent
+        self.assertEqual(metrics1, metrics2)
+
+
+# =============================================================================
+# 15. PROJECT METRICS API TESTS
+# =============================================================================
+
+class ProjectMetricsAPITest(AdminTestMixin, TestCase):
+    """Tests for the project metrics API endpoint."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.regular_user = self.create_user()
+
+    def test_metrics_requires_authentication(self):
+        """Metrics API requires authentication."""
+        response = self.client.get('/api/admin/project/metrics/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_metrics_requires_staff(self):
+        """Metrics API requires staff status."""
+        self.login_user()
+        response = self.client.get('/api/admin/project/metrics/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_metrics_accessible_to_staff(self):
+        """Metrics API is accessible to staff users."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/metrics/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_metrics_returns_json(self):
+        """Metrics API returns JSON."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/metrics/')
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_metrics_returns_expected_structure(self):
+        """Metrics API returns expected JSON structure."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/metrics/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertIn('active_phase', data)
+        self.assertIn('global', data)
+        self.assertIn('active_phase_metrics', data)
+        self.assertIn('tasks_created_by_claude', data)
+        self.assertIn('high_priority_remaining_tasks', data)
+
+        # Check nested structure
+        self.assertIn('total_tasks', data['global'])
+        self.assertIn('completed_tasks', data['global'])
+        self.assertIn('remaining_tasks', data['global'])
+        self.assertIn('blocked_tasks', data['global'])
+
+        self.assertIn('total_tasks', data['active_phase_metrics'])
+        self.assertIn('completed_tasks', data['active_phase_metrics'])
+        self.assertIn('remaining_tasks', data['active_phase_metrics'])
+        self.assertIn('blocked_tasks', data['active_phase_metrics'])
+
+    def test_metrics_returns_zeros_when_no_data(self):
+        """Metrics API returns zeros when no tasks exist."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/metrics/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertIsNone(data['active_phase'])
+        self.assertEqual(data['global']['total_tasks'], 0)
+        self.assertEqual(data['global']['completed_tasks'], 0)
+        self.assertEqual(data['global']['remaining_tasks'], 0)
+        self.assertEqual(data['global']['blocked_tasks'], 0)
+
+    def test_metrics_with_tasks(self):
+        """Metrics API returns correct counts with tasks."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=3,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Create various tasks
+        AdminTask.objects.create(
+            title='Done Task', description='D', category='feature',
+            status='done', effort='S', phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Ready Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='claude'
+        )
+        AdminTask.objects.create(
+            title='Blocked Task', description='D', category='feature',
+            status='blocked', blocked_reason='Waiting', effort='S',
+            phase=phase, created_by='claude', priority=1
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/metrics/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(data['active_phase'], 3)
+        self.assertEqual(data['global']['total_tasks'], 3)
+        self.assertEqual(data['global']['completed_tasks'], 1)
+        self.assertEqual(data['global']['remaining_tasks'], 2)
+        self.assertEqual(data['global']['blocked_tasks'], 1)
+        self.assertEqual(data['active_phase_metrics']['total_tasks'], 3)
+        self.assertEqual(data['tasks_created_by_claude'], 2)
+        self.assertEqual(data['high_priority_remaining_tasks'], 1)

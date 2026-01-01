@@ -4,7 +4,7 @@
 # Description: Service functions for admin console task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01
+# Last Updated: 2026-01-01 (Phase 6 - Project Metrics)
 # ==============================================================================
 
 from .models import AdminProjectPhase, AdminTask, AdminActivityLog
@@ -216,3 +216,65 @@ def get_blocker_tasks(phase=None):
     if phase:
         queryset = queryset.filter(phase=phase)
     return queryset.order_by('priority', 'created_at')
+
+
+def get_project_metrics():
+    """
+    Compute project status metrics for admin use.
+
+    Returns a dictionary with:
+    - active_phase: The currently active phase number (or None)
+    - global: Metrics across all phases (total, completed, remaining, blocked)
+    - active_phase_metrics: Metrics for the active phase only
+    - tasks_created_by_claude: Count of tasks created by Claude
+    - high_priority_remaining_tasks: High priority (priority <= 2) tasks not done
+
+    This function is read-only and does not cache or mutate data.
+    """
+    active_phase = get_active_phase()
+
+    # Global metrics (all phases)
+    all_tasks = AdminTask.objects.all()
+    total_tasks = all_tasks.count()
+    completed_tasks = all_tasks.filter(status='done').count()
+    remaining_tasks = all_tasks.exclude(status='done').count()
+    blocked_tasks = all_tasks.filter(status='blocked').count()
+
+    # Active phase metrics
+    if active_phase:
+        phase_tasks = AdminTask.objects.filter(phase=active_phase)
+        total_tasks_in_phase = phase_tasks.count()
+        completed_tasks_in_phase = phase_tasks.filter(status='done').count()
+        remaining_tasks_in_phase = phase_tasks.exclude(status='done').count()
+        blocked_tasks_in_phase = phase_tasks.filter(status='blocked').count()
+        active_phase_number = active_phase.phase_number
+    else:
+        total_tasks_in_phase = 0
+        completed_tasks_in_phase = 0
+        remaining_tasks_in_phase = 0
+        blocked_tasks_in_phase = 0
+        active_phase_number = None
+
+    # Optional metrics
+    tasks_created_by_claude = all_tasks.filter(created_by='claude').count()
+    high_priority_remaining_tasks = all_tasks.filter(
+        priority__lte=2
+    ).exclude(status='done').count()
+
+    return {
+        'active_phase': active_phase_number,
+        'global': {
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'remaining_tasks': remaining_tasks,
+            'blocked_tasks': blocked_tasks,
+        },
+        'active_phase_metrics': {
+            'total_tasks': total_tasks_in_phase,
+            'completed_tasks': completed_tasks_in_phase,
+            'remaining_tasks': remaining_tasks_in_phase,
+            'blocked_tasks': blocked_tasks_in_phase,
+        },
+        'tasks_created_by_claude': tasks_created_by_claude,
+        'high_priority_remaining_tasks': high_priority_remaining_tasks,
+    }

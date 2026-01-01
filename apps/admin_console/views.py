@@ -907,3 +907,34 @@ class TaskStatusUpdateAPIView(View):
             }
 
         return JsonResponse(result)
+
+
+class ProjectMetricsAPIView(View):
+    """
+    API endpoint to get project status metrics.
+
+    GET /api/admin/project/metrics/
+
+    Returns JSON object with:
+    - active_phase: The currently active phase number (or None)
+    - global: Metrics across all phases (total, completed, remaining, blocked)
+    - active_phase_metrics: Metrics for the active phase only
+    - tasks_created_by_claude: Count of tasks created by Claude
+    - high_priority_remaining_tasks: High priority tasks not done
+
+    Returns 403 if user is not admin.
+    """
+
+    def get(self, request):
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Get metrics using service function
+        from .services import get_project_metrics
+        metrics = get_project_metrics()
+
+        return JsonResponse(metrics)

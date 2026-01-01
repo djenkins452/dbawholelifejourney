@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Data Encryption Roadmap)
+# Last Updated: 2025-12-31 (Weight Loss Graph Feature)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,48 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Weight Loss Calculation and Progress Graph (NEW FEATURE)
+
+**Session:** Weight Loss and Graph
+
+Added total weight loss calculation and an interactive progress chart to the Weight History page.
+
+**Features Added:**
+1. **Total Weight Change Calculation**
+   - Shows how much weight lost/gained from first entry to latest entry
+   - Displayed in stats bar with color coding (green for loss, orange for gain)
+   - Shows starting weight, current weight, and total change
+
+2. **Weight Progress Chart**
+   - Interactive line chart showing weight over time (up to 100 entries)
+   - Uses Chart.js for smooth, responsive visualization
+   - Hover tooltips show exact weight and date
+   - Chart displays journey summary with date range and total change
+
+3. **Enhanced Stats Bar**
+   - New "Total Change" stat added to existing Latest/Low/High/Avg bar
+   - Highlighted with accent border for visibility
+
+**Layout:**
+- Stats bar (Latest, Low, High, Avg, Total Change)
+- Weight Progress Chart (new)
+- Weight History table (existing)
+
+**Files Modified:**
+- `apps/health/views.py` - WeightListView: Added weight_change, first_entry, first_weight, latest_weight_lb, and chart_data to context
+- `templates/health/weight_list.html` - Added Total Change stat, chart container with Chart.js, and responsive styles
+
+**Tests Added (4 new tests):**
+- `test_weight_list_has_weight_loss_calculation` - Verifies weight change calculation
+- `test_weight_list_has_chart_data` - Verifies chart data structure
+- `test_weight_list_single_entry_no_change` - No weight_change with single entry
+
+**Test Count:** 1395 tests (was 1392, +3 new tests)
+
+**No migrations required** - View/template changes only.
+
+---
 
 ### Data Encryption Roadmap (DOCUMENTATION)
 

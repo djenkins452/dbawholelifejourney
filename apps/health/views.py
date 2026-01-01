@@ -279,18 +279,42 @@ class WeightListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         entries = self.get_queryset()
-        
+
         if entries.exists():
             context["latest"] = entries.first()
             context["total_count"] = entries.count()
-            
-            # Stats
-            values = [e.value_in_lb for e in entries[:30]]  # Last 30 entries
+
+            # Stats for last 30 entries
+            values = [e.value_in_lb for e in entries[:30]]
             if values:
                 context["min_weight"] = min(values)
                 context["max_weight"] = max(values)
                 context["avg_weight"] = round(sum(values) / len(values), 1)
-        
+
+            # Total weight loss calculation (first entry to last entry)
+            first_entry = entries.last()  # Oldest entry (queryset ordered by -recorded_at)
+            latest_entry = entries.first()  # Most recent entry
+            if first_entry and latest_entry and first_entry != latest_entry:
+                first_weight = float(first_entry.value_in_lb)
+                latest_weight = float(latest_entry.value_in_lb)
+                weight_change = latest_weight - first_weight
+                context["weight_change"] = round(weight_change, 1)
+                context["first_entry"] = first_entry
+                context["first_weight"] = round(first_weight, 1)
+                context["latest_weight_lb"] = round(latest_weight, 1)
+
+            # Chart data - all entries for the graph (up to 100 for performance)
+            chart_entries = list(entries[:100])
+            chart_entries.reverse()  # Show oldest to newest for chart
+            chart_data = []
+            for entry in chart_entries:
+                chart_data.append({
+                    "date": entry.recorded_at.strftime("%b %d, %Y"),
+                    "weight": float(entry.value_in_lb),
+                    "recorded_at": entry.recorded_at.isoformat(),
+                })
+            context["chart_data"] = chart_data
+
         return context
 
 

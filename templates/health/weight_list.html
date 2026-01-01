@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Weight History - Health - Whole Life Journey{% endblock %}
 
@@ -17,7 +18,7 @@
         </div>
         <a href="{% url 'health:weight_create' %}" class="btn btn-primary">Log Weight</a>
     </div>
-    
+
     {% if entries %}
         <!-- Stats Summary -->
         <div class="stats-bar mb-6">
@@ -45,8 +46,37 @@
                     <span class="stat-value">{{ avg_weight }} lb</span>
                 </div>
             {% endif %}
+            {% if weight_change is not None %}
+                <div class="stat-item stat-item-highlight">
+                    <span class="stat-label">Total Change</span>
+                    <span class="stat-value {% if weight_change < 0 %}text-success{% elif weight_change > 0 %}text-warning{% endif %}">
+                        {% if weight_change > 0 %}+{% endif %}{{ weight_change }} lb
+                    </span>
+                </div>
+            {% endif %}
         </div>
-        
+
+        <!-- Weight Progress Chart -->
+        {% if chart_data %}
+            <div class="weight-chart-container mb-6">
+                <div class="chart-header">
+                    <h2 class="chart-title">Weight Progress</h2>
+                    {% if weight_change is not None %}
+                        <div class="weight-journey-summary">
+                            <span class="journey-label">{{ first_entry.recorded_at|date:"M j, Y" }} to {{ latest.recorded_at|date:"M j, Y" }}:</span>
+                            <span class="journey-value {% if weight_change < 0 %}text-success{% elif weight_change > 0 %}text-warning{% endif %}">
+                                {{ first_weight }} lb → {{ latest_weight_lb }} lb
+                                ({% if weight_change > 0 %}+{% endif %}{{ weight_change }} lb)
+                            </span>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="weightChart"></canvas>
+                </div>
+            </div>
+        {% endif %}
+
         <!-- Entry List -->
         <div class="entry-table">
             <table>
@@ -131,6 +161,57 @@
     font-weight: 600;
 }
 
+.stat-item-highlight {
+    border-left: 3px solid var(--color-accent);
+    padding-left: var(--space-3);
+}
+
+.text-success {
+    color: var(--color-success, #10b981);
+}
+
+.text-warning {
+    color: var(--color-warning, #f59e0b);
+}
+
+.weight-chart-container {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.chart-header {
+    margin-bottom: var(--space-4);
+}
+
+.chart-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0 0 var(--space-2) 0;
+}
+
+.weight-journey-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    font-size: var(--font-size-sm);
+}
+
+.journey-label {
+    color: var(--color-text-muted);
+}
+
+.journey-value {
+    font-weight: 600;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+}
+
 .entry-table {
     background: var(--color-background);
     border: 1px solid var(--color-border);
@@ -201,10 +282,106 @@
     .entry-table {
         overflow-x: auto;
     }
-    
+
     .entry-table table {
         min-width: 500px;
     }
+
+    .chart-wrapper {
+        height: 250px;
+    }
+
+    .weight-journey-summary {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 </style>
+
+{% if chart_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('weightChart').getContext('2d');
+    const chartData = {{ chart_data|safe }};
+
+    // Calculate weight change for annotation
+    const firstWeight = chartData.length > 0 ? chartData[0].weight : 0;
+    const lastWeight = chartData.length > 0 ? chartData[chartData.length - 1].weight : 0;
+    const weightChange = (lastWeight - firstWeight).toFixed(1);
+    const changeText = weightChange > 0 ? '+' + weightChange : weightChange;
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.map(d => d.date),
+            datasets: [{
+                label: 'Weight (lb)',
+                data: chartData.map(d => d.weight),
+                borderColor: 'rgb(99, 102, 241)',
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: 'rgb(99, 102, 241)',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: { size: 13 },
+                    bodyFont: { size: 12 },
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            return context.parsed.y.toFixed(1) + ' lb';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        font: { size: 10 },
+                        maxTicksLimit: 10
+                    }
+                },
+                y: {
+                    display: true,
+                    beginAtZero: false,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + ' lb';
+                        }
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+});
+</script>
+{% endif %}
 {% endblock %}

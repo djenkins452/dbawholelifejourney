@@ -21,6 +21,7 @@ class Command(BaseCommand):
     help = "Load Bible App Updates tasks into ClaudeTask queue"
 
     def handle(self, *args, **options):
+        self.stdout.write("Loading Bible App tasks...")
         created_count = 0
         skipped_count = 0
 
@@ -258,7 +259,9 @@ class Command(BaseCommand):
             skipped_count += 1
 
         # Summary
-        self.stdout.write("")
         self.stdout.write(
-            f"Bible App Tasks: {created_count} created, {skipped_count} already existed"
+            self.style.SUCCESS(
+                f"Bible App Tasks: {created_count} created, {skipped_count} already existed"
+            )
         )
+        self.stdout.write("Bible App task loading complete!")

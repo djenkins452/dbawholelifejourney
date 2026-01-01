@@ -31,7 +31,7 @@
             </div>
             <div class="header-actions">
                 <a href="{% url 'life:significant_event_update' event.pk %}" class="btn btn-secondary">Edit</a>
-                <a href="{% url 'life:significant_event_delete' event.pk %}" class="btn btn-ghost btn-danger">Delete</a>
+                <a href="{% url 'life:significant_event_delete' event.pk %}" class="btn btn-danger">Delete</a>
             </div>
         </div>
 
@@ -334,11 +334,13 @@
 }
 
 .btn-danger {
-    color: var(--color-error);
+    background-color: var(--color-error);
+    color: white;
 }
 
 .btn-danger:hover {
-    background: rgba(239, 68, 68, 0.1);
+    background-color: color-mix(in srgb, var(--color-error) 85%, black);
+    color: white;
 }
 </style>
 {% endblock %}

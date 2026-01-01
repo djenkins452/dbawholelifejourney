@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Journal Book View Fix)
+# Last Updated: 2025-12-31 (Delete Button Contrast Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,38 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Delete Button Contrast Fix (BUG FIX)
+
+**Session:** Significant Events
+
+**Problem:**
+The Delete button on the Significant Event detail page had red text on a red background, making the text invisible. The button only showed white text on hover, which is poor accessibility.
+
+**Root Cause:**
+The template used `class="btn btn-ghost btn-danger"` where:
+- `btn-ghost` sets `background-color: transparent`
+- The inline CSS `.btn-danger` set `color: var(--color-error)` (red text)
+- Result: red text on transparent button that appears red due to hover styles
+
+**Solution:**
+1. Removed `btn-ghost` class from the delete button
+2. Updated inline CSS `.btn-danger` to use:
+   - `background-color: var(--color-error)` (red background)
+   - `color: white` (white text for contrast)
+   - Proper hover state with darker red background
+
+**Files Modified:**
+- `templates/life/significant_event_detail.html`:
+  - Line 34: Changed from `class="btn btn-ghost btn-danger"` to `class="btn btn-danger"`
+  - Lines 336-344: Updated `.btn-danger` CSS to have red background with white text
+- `templates/life/pet_detail.html`:
+  - Line 54: Changed from `class="btn btn-ghost btn-danger"` to `class="btn btn-danger"`
+  - (Already had correct `.btn-danger` CSS styling)
+
+**No migrations required** - CSS/template changes only.
+
+---
 
 ### Journal Book View Fix (BUG FIX)
 

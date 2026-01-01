@@ -13,6 +13,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
+        ('core', '0033_bible_reading_plans_release_note'),
         ('core', '0033_food_history_delete_release_note'),
         ('core', '0033_google_calendar_oauth_fix_release_note'),
     ]

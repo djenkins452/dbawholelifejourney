@@ -4,7 +4,7 @@
 # Description: Admin console URL configuration
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 12 - Task Intake & Controls)
+# Last Updated: 2026-01-01 (Phase 13 - Inline Editing & Priority)
 # ==============================================================================
 """
 Admin Console URLs
@@ -74,6 +74,10 @@ urlpatterns = [
 
     # Phase 12: Mark Ready toggle API
     path("api/projects/tasks/<int:pk>/mark-ready/", views.MarkReadyAPIView.as_view(), name="api_mark_ready"),
+
+    # Phase 13: Inline Editing APIs
+    path("api/projects/tasks/<int:pk>/inline-status/", views.InlineStatusUpdateAPIView.as_view(), name="api_inline_status"),
+    path("api/projects/tasks/<int:pk>/inline-priority/", views.InlinePriorityUpdateAPIView.as_view(), name="api_inline_priority"),
 
     # Activity Logs
     path("projects/activity/", views.ActivityLogListView.as_view(), name="activity_log_list"),

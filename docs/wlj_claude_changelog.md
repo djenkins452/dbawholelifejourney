@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 12)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 13)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,58 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 13 Inline Editing & Priority (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 13 Inline Editing & Priority
+
+**Description:**
+Improved admin productivity by allowing quick inline task updates directly from the Task List page. Adds inline dropdowns for status and priority changes that save immediately without needing to navigate to edit pages.
+
+**New API Endpoints:**
+- `PATCH /admin-console/api/projects/tasks/<id>/inline-status/` - Inline status updates
+- `PATCH /admin-console/api/projects/tasks/<id>/inline-priority/` - Inline priority updates
+
+**Inline Status Edit:**
+- Allows changing status via dropdown directly in the Task List
+- Only allows transitions between `backlog` and `ready`
+- Does NOT allow setting `in_progress`, `blocked`, or `done` via inline edit
+- Tasks in other statuses show read-only badge (not dropdown)
+- Changes save immediately on selection
+- Creates activity log entry for each change
+
+**Inline Priority Edit:**
+- Allows changing priority (1-5) via dropdown directly in the Task List
+- Works on tasks in any status
+- Changes save immediately on selection
+- Creates activity log entry for each change
+- Priority dropdown shows color-coded styling matching priority level
+
+**Ordering Helpers:**
+- Default ordering: priority ASC, created_at ASC (most urgent first)
+- Displayed in page subtitle
+
+**Quick Filters:**
+- Added quick filter buttons below main filter bar
+- "Ready Only" - Shows only tasks with status=ready
+- "Backlog Only" - Shows only tasks with status=backlog
+- Active filter is highlighted
+
+**Safety Rules:**
+- Admin-only (returns 403 for non-staff users)
+- No background jobs
+- No execution hooks
+- No auto-advancement of phases or status
+
+**Modified Files:**
+- `apps/admin_console/views.py` - Added InlineStatusUpdateAPIView, InlinePriorityUpdateAPIView
+- `apps/admin_console/urls.py` - Added 2 new API routes
+- `templates/admin_console/admin_task_list.html` - Added inline dropdowns, quick filters, updated JS/CSS
+- `apps/admin_console/tests/test_admin_console.py` - Added 19 new tests for inline editing
+
+**Test Count:** 19 new tests (InlineStatusUpdateAPITest: 9, InlinePriorityUpdateAPITest: 10)
+
+---
 
 ### Admin Project Tasks - Phase 12 Task Intake & Controls (NEW FEATURE)
 

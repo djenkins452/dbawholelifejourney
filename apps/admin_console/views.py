@@ -4,7 +4,7 @@
 # Description: Admin console views for site management and project task intake
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 12 - Task Intake & Controls)
+# Last Updated: 2026-01-01 (Phase 13 - Inline Editing & Priority)
 # ==============================================================================
 """
 Admin Views - Custom admin interface for site management.
@@ -1636,3 +1636,235 @@ class SeedPhasesAPIView(View):
         result = seed_admin_project_phases(created_by='human')
 
         return JsonResponse(result)
+
+
+# ============================================================
+# Phase 13 - Inline Editing & Priority API Views
+# ============================================================
+
+class InlineStatusUpdateAPIView(View):
+    """
+    API endpoint for inline status updates (backlog <-> ready only).
+
+    PATCH /api/admin/project/tasks/<id>/inline-status/
+
+    This is a simplified endpoint for inline editing that:
+    - Only allows transitions between 'backlog' and 'ready'
+    - Does NOT allow setting in_progress, blocked, or done
+    - Saves immediately without confirmation
+
+    Request body:
+    {
+        "status": "backlog" | "ready"
+    }
+
+    Returns:
+    - 200: Success with updated task info
+    - 400: Invalid status or transition not allowed
+    - 403: Permission denied (not admin)
+    - 404: Task not found
+    """
+
+    # Allowed inline transitions: only backlog <-> ready
+    ALLOWED_INLINE_STATUSES = ['backlog', 'ready']
+
+    def patch(self, request, pk):
+        import json
+        from .models import AdminTask, AdminActivityLog
+
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Get the task
+        try:
+            task = AdminTask.objects.select_related('phase').get(pk=pk)
+        except AdminTask.DoesNotExist:
+            return JsonResponse(
+                {'error': 'Task not found'},
+                status=404
+            )
+
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse(
+                {'error': 'Invalid JSON body'},
+                status=400
+            )
+
+        # Get status from body
+        new_status = body.get('status')
+        if not new_status:
+            return JsonResponse(
+                {'error': 'Missing required field: status'},
+                status=400
+            )
+
+        # Validate status is allowed for inline editing
+        if new_status not in self.ALLOWED_INLINE_STATUSES:
+            return JsonResponse(
+                {'error': f"Inline editing only allows: {self.ALLOWED_INLINE_STATUSES}. "
+                          f"Use the full edit form for other status changes."},
+                status=400
+            )
+
+        # Validate current status is also in allowed list
+        if task.status not in self.ALLOWED_INLINE_STATUSES:
+            return JsonResponse(
+                {'error': f"Cannot change status inline when current status is '{task.status}'. "
+                          f"Only tasks in 'backlog' or 'ready' can be changed inline."},
+                status=400
+            )
+
+        # No change needed
+        if task.status == new_status:
+            return JsonResponse({
+                'success': True,
+                'task': {
+                    'id': task.id,
+                    'title': task.title,
+                    'status': task.status,
+                    'phase_number': task.phase.phase_number
+                },
+                'changed': False
+            })
+
+        # Update the task
+        old_status = task.status
+        task.status = new_status
+        task.save()
+
+        # Log the change
+        AdminActivityLog.objects.create(
+            task=task,
+            action=f"Status changed from '{old_status}' to '{new_status}' via inline edit.",
+            created_by='human'
+        )
+
+        # Get ready count for warning
+        ready_count = AdminTask.objects.filter(status='ready').count()
+
+        return JsonResponse({
+            'success': True,
+            'task': {
+                'id': task.id,
+                'title': task.title,
+                'status': task.status,
+                'phase_number': task.phase.phase_number
+            },
+            'changed': True,
+            'ready_count': ready_count,
+            'show_warning': ready_count >= READY_TASKS_WARNING_THRESHOLD
+        })
+
+
+class InlinePriorityUpdateAPIView(View):
+    """
+    API endpoint for inline priority updates.
+
+    PATCH /api/admin/project/tasks/<id>/inline-priority/
+
+    Request body:
+    {
+        "priority": 1-5
+    }
+
+    Returns:
+    - 200: Success with updated task info
+    - 400: Invalid priority value
+    - 403: Permission denied (not admin)
+    - 404: Task not found
+    """
+
+    def patch(self, request, pk):
+        import json
+        from .models import AdminTask, AdminActivityLog
+
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Get the task
+        try:
+            task = AdminTask.objects.select_related('phase').get(pk=pk)
+        except AdminTask.DoesNotExist:
+            return JsonResponse(
+                {'error': 'Task not found'},
+                status=404
+            )
+
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse(
+                {'error': 'Invalid JSON body'},
+                status=400
+            )
+
+        # Get priority from body
+        new_priority = body.get('priority')
+        if new_priority is None:
+            return JsonResponse(
+                {'error': 'Missing required field: priority'},
+                status=400
+            )
+
+        # Validate priority is an integer 1-5
+        try:
+            new_priority = int(new_priority)
+        except (ValueError, TypeError):
+            return JsonResponse(
+                {'error': 'Priority must be an integer'},
+                status=400
+            )
+
+        if new_priority < 1 or new_priority > 5:
+            return JsonResponse(
+                {'error': 'Priority must be between 1 and 5'},
+                status=400
+            )
+
+        # No change needed
+        if task.priority == new_priority:
+            return JsonResponse({
+                'success': True,
+                'task': {
+                    'id': task.id,
+                    'title': task.title,
+                    'priority': task.priority,
+                    'phase_number': task.phase.phase_number
+                },
+                'changed': False
+            })
+
+        # Update the task
+        old_priority = task.priority
+        task.priority = new_priority
+        task.save()
+
+        # Log the change
+        AdminActivityLog.objects.create(
+            task=task,
+            action=f"Priority changed from {old_priority} to {new_priority} via inline edit.",
+            created_by='human'
+        )
+
+        return JsonResponse({
+            'success': True,
+            'task': {
+                'id': task.id,
+                'title': task.title,
+                'priority': task.priority,
+                'phase_number': task.phase.phase_number
+            },
+            'changed': True
+        })

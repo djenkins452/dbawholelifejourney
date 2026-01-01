@@ -2981,3 +2981,396 @@ class SeedAdminProjectPhasesCommandTest(AdminTestMixin, TestCase):
 
         self.assertEqual(AdminProjectPhase.objects.count(), 1)
         self.assertIn('already exist', out.getvalue())
+
+
+# =============================================================================
+# PHASE 13 - INLINE EDITING API TESTS
+# =============================================================================
+
+class InlineStatusUpdateAPITest(AdminTestMixin, TestCase):
+    """Tests for InlineStatusUpdateAPIView (Phase 13)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.regular_user = self.create_user()
+
+        # Create a phase and task
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        self.phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test objective',
+            status='in_progress'
+        )
+        self.task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test description',
+            category='feature',
+            priority=3,
+            status='backlog',
+            effort='M',
+            phase=self.phase,
+            created_by='human'
+        )
+
+    def test_inline_status_requires_admin(self):
+        """Inline status update requires admin permission."""
+        self.login_user()
+        import json
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_inline_status_returns_404_for_missing_task(self):
+        """Inline status update returns 404 for non-existent task."""
+        self.login_admin()
+        import json
+        response = self.client.patch(
+            '/admin-console/api/projects/tasks/99999/inline-status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_inline_status_backlog_to_ready(self):
+        """Can change status from backlog to ready."""
+        from apps.admin_console.models import AdminTask
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertTrue(data['changed'])
+        self.assertEqual(data['task']['status'], 'ready')
+
+        # Verify database was updated
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, 'ready')
+
+    def test_inline_status_ready_to_backlog(self):
+        """Can change status from ready to backlog."""
+        from apps.admin_console.models import AdminTask
+        self.task.status = 'ready'
+        self.task.save()
+
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'backlog'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertTrue(data['changed'])
+        self.assertEqual(data['task']['status'], 'backlog')
+
+    def test_inline_status_rejects_in_progress(self):
+        """Inline status update rejects in_progress."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'in_progress'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+        self.assertIn('Inline editing only allows', data['error'])
+
+    def test_inline_status_rejects_blocked(self):
+        """Inline status update rejects blocked."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'blocked'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_inline_status_rejects_done(self):
+        """Inline status update rejects done."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'done'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_inline_status_rejects_change_from_in_progress(self):
+        """Cannot use inline status edit when task is in_progress."""
+        self.task.status = 'in_progress'
+        self.task.save()
+
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+        data = json.loads(response.content)
+        self.assertIn('Only tasks in', data['error'])
+
+    def test_inline_status_no_change_same_status(self):
+        """No change when setting same status."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'backlog'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertFalse(data['changed'])
+
+    def test_inline_status_creates_activity_log(self):
+        """Inline status change creates an activity log."""
+        from apps.admin_console.models import AdminActivityLog
+        self.login_admin()
+        import json
+
+        initial_count = AdminActivityLog.objects.filter(task=self.task).count()
+
+        self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+
+        final_count = AdminActivityLog.objects.filter(task=self.task).count()
+        self.assertEqual(final_count, initial_count + 1)
+
+        # Check log content
+        log = AdminActivityLog.objects.filter(task=self.task).latest('created_at')
+        self.assertIn('inline edit', log.action)
+        self.assertEqual(log.created_by, 'human')
+
+
+class InlinePriorityUpdateAPITest(AdminTestMixin, TestCase):
+    """Tests for InlinePriorityUpdateAPIView (Phase 13)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.regular_user = self.create_user()
+
+        # Create a phase and task
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        self.phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test objective',
+            status='in_progress'
+        )
+        self.task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test description',
+            category='feature',
+            priority=3,
+            status='backlog',
+            effort='M',
+            phase=self.phase,
+            created_by='human'
+        )
+
+    def test_inline_priority_requires_admin(self):
+        """Inline priority update requires admin permission."""
+        self.login_user()
+        import json
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+            data=json.dumps({'priority': 1}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_inline_priority_returns_404_for_missing_task(self):
+        """Inline priority update returns 404 for non-existent task."""
+        self.login_admin()
+        import json
+        response = self.client.patch(
+            '/admin-console/api/projects/tasks/99999/inline-priority/',
+            data=json.dumps({'priority': 1}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_inline_priority_update_success(self):
+        """Can change priority successfully."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+            data=json.dumps({'priority': 1}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertTrue(data['changed'])
+        self.assertEqual(data['task']['priority'], 1)
+
+        # Verify database was updated
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.priority, 1)
+
+    def test_inline_priority_all_valid_values(self):
+        """All values 1-5 are accepted."""
+        self.login_admin()
+        import json
+
+        for priority in [1, 2, 3, 4, 5]:
+            response = self.client.patch(
+                f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+                data=json.dumps({'priority': priority}),
+                content_type='application/json'
+            )
+            self.assertEqual(response.status_code, 200)
+
+            data = json.loads(response.content)
+            self.assertTrue(data['success'])
+            self.assertEqual(data['task']['priority'], priority)
+
+    def test_inline_priority_rejects_zero(self):
+        """Priority 0 is rejected."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+            data=json.dumps({'priority': 0}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+        data = json.loads(response.content)
+        self.assertIn('must be between 1 and 5', data['error'])
+
+    def test_inline_priority_rejects_six(self):
+        """Priority 6 is rejected."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+            data=json.dumps({'priority': 6}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_inline_priority_rejects_negative(self):
+        """Negative priority is rejected."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+            data=json.dumps({'priority': -1}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_inline_priority_rejects_string(self):
+        """Non-integer priority is rejected."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+            data=json.dumps({'priority': 'high'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+        data = json.loads(response.content)
+        self.assertIn('must be an integer', data['error'])
+
+    def test_inline_priority_no_change_same_value(self):
+        """No change when setting same priority."""
+        self.login_admin()
+        import json
+
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+            data=json.dumps({'priority': 3}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertFalse(data['changed'])
+
+    def test_inline_priority_creates_activity_log(self):
+        """Inline priority change creates an activity log."""
+        from apps.admin_console.models import AdminActivityLog
+        self.login_admin()
+        import json
+
+        initial_count = AdminActivityLog.objects.filter(task=self.task).count()
+
+        self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+            data=json.dumps({'priority': 1}),
+            content_type='application/json'
+        )
+
+        final_count = AdminActivityLog.objects.filter(task=self.task).count()
+        self.assertEqual(final_count, initial_count + 1)
+
+        # Check log content
+        log = AdminActivityLog.objects.filter(task=self.task).latest('created_at')
+        self.assertIn('inline edit', log.action)
+        self.assertEqual(log.created_by, 'human')
+
+    def test_inline_priority_works_on_any_status(self):
+        """Priority can be changed regardless of task status."""
+        self.login_admin()
+        import json
+
+        # Test on various statuses
+        for status in ['backlog', 'ready', 'in_progress', 'blocked', 'done']:
+            self.task.status = status
+            if status == 'blocked':
+                self.task.blocked_reason = 'Test reason'
+            self.task.save()
+
+            response = self.client.patch(
+                f'/admin-console/api/projects/tasks/{self.task.pk}/inline-priority/',
+                data=json.dumps({'priority': 2}),
+                content_type='application/json'
+            )
+            self.assertEqual(response.status_code, 200,
+                           f"Priority change failed for status '{status}'")

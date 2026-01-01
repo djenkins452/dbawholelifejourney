@@ -12,7 +12,7 @@
                 <span>Task List</span>
             </nav>
             <h1 class="page-title">Task List</h1>
-            <p class="page-subtitle">View and manage project tasks</p>
+            <p class="page-subtitle">View and manage project tasks (ordered by priority, then date)</p>
         </div>
         <a href="{% url 'admin_console:task_intake' %}" class="btn btn-primary">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -67,6 +67,19 @@
             <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-ghost btn-sm">Clear</a>
             {% endif %}
         </form>
+
+        <!-- Quick Filters -->
+        <div class="quick-filters">
+            <span class="quick-filter-label">Quick:</span>
+            <a href="{% url 'admin_console:admin_task_list' %}?status=ready"
+               class="quick-filter-btn{% if current_status_filter == 'ready' %} active{% endif %}">
+                Ready Only
+            </a>
+            <a href="{% url 'admin_console:admin_task_list' %}?status=backlog"
+               class="quick-filter-btn{% if current_status_filter == 'backlog' %} active{% endif %}">
+                Backlog Only
+            </a>
+        </div>
     </div>
 
     {% if tasks %}
@@ -94,27 +107,39 @@
                     </td>
                     <td>Phase {{ task.phase.phase_number }}</td>
                     <td>
+                        {% if task.status == 'backlog' or task.status == 'ready' %}
+                        <!-- Inline status dropdown for backlog/ready tasks -->
+                        <select class="inline-status-select status-{{ task.status }}"
+                                data-task-id="{{ task.pk }}"
+                                data-original-status="{{ task.status }}"
+                                id="status-select-{{ task.pk }}">
+                            <option value="backlog" {% if task.status == 'backlog' %}selected{% endif %}>Backlog</option>
+                            <option value="ready" {% if task.status == 'ready' %}selected{% endif %}>Ready</option>
+                        </select>
+                        {% else %}
+                        <!-- Read-only badge for other statuses -->
                         <span class="status-badge status-{{ task.status }}" id="status-{{ task.pk }}">
                             {{ task.get_status_display }}
                         </span>
+                        {% endif %}
                     </td>
-                    <td><span class="priority-badge priority-{{ task.priority }}">{{ task.priority }}</span></td>
+                    <td>
+                        <!-- Inline priority dropdown -->
+                        <select class="inline-priority-select priority-{{ task.priority }}"
+                                data-task-id="{{ task.pk }}"
+                                data-original-priority="{{ task.priority }}"
+                                id="priority-select-{{ task.pk }}">
+                            <option value="1" {% if task.priority == 1 %}selected{% endif %}>1</option>
+                            <option value="2" {% if task.priority == 2 %}selected{% endif %}>2</option>
+                            <option value="3" {% if task.priority == 3 %}selected{% endif %}>3</option>
+                            <option value="4" {% if task.priority == 4 %}selected{% endif %}>4</option>
+                            <option value="5" {% if task.priority == 5 %}selected{% endif %}>5</option>
+                        </select>
+                    </td>
                     <td>{{ task.get_created_by_display }}</td>
                     <td>{{ task.created_at|date:"M j, Y" }}</td>
                     <td>
                         <div class="action-buttons">
-                            {% if task.status == 'backlog' %}
-                            <button type="button"
-                                    class="btn btn-success btn-sm mark-ready-btn"
-                                    data-task-id="{{ task.pk }}"
-                                    data-task-title="{{ task.title }}"
-                                    title="Mark as Ready">
-                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="20 6 9 17 4 12"/>
-                                </svg>
-                                Ready
-                            </button>
-                            {% endif %}
                             <a href="{% url 'admin_console:admin_task_update' task.pk %}" class="btn btn-secondary btn-sm">Edit</a>
                         </div>
                     </td>
@@ -139,59 +164,115 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Handle Mark Ready buttons
-    document.querySelectorAll('.mark-ready-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
+    const csrfToken = '{{ csrf_token }}';
+
+    // Helper to update status select styling
+    function updateStatusSelectClass(select, status) {
+        select.className = 'inline-status-select status-' + status;
+    }
+
+    // Helper to update priority select styling
+    function updatePrioritySelectClass(select, priority) {
+        select.className = 'inline-priority-select priority-' + priority;
+    }
+
+    // Helper to update ready warning
+    function updateReadyWarning(data) {
+        const warningDiv = document.getElementById('ready-warning');
+        const countSpan = document.getElementById('ready-count');
+        if (data.show_warning && warningDiv) {
+            warningDiv.style.display = 'flex';
+        }
+        if (countSpan && data.ready_count !== undefined) {
+            countSpan.textContent = data.ready_count;
+        }
+    }
+
+    // Handle inline status dropdowns
+    document.querySelectorAll('.inline-status-select').forEach(function(select) {
+        select.addEventListener('change', function() {
             const taskId = this.dataset.taskId;
-            const taskTitle = this.dataset.taskTitle;
-            const button = this;
+            const newStatus = this.value;
+            const originalStatus = this.dataset.originalStatus;
+            const selectElement = this;
 
-            // Disable button during request
-            button.disabled = true;
-            button.textContent = 'Updating...';
+            // Disable during request
+            selectElement.disabled = true;
 
-            fetch(`{% url 'admin_console:api_mark_ready' pk=0 %}`.replace('/0/', '/' + taskId + '/'), {
-                method: 'POST',
+            fetch(`{% url 'admin_console:api_inline_status' pk=0 %}`.replace('/0/', '/' + taskId + '/'), {
+                method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                }
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ status: newStatus })
             })
             .then(response => response.json())
             .then(data => {
+                selectElement.disabled = false;
+
                 if (data.success) {
-                    // Update the status badge
-                    const statusBadge = document.getElementById('status-' + taskId);
-                    if (statusBadge) {
-                        statusBadge.className = 'status-badge status-ready';
-                        statusBadge.textContent = 'Ready';
-                    }
+                    // Update styling and data attribute
+                    updateStatusSelectClass(selectElement, newStatus);
+                    selectElement.dataset.originalStatus = newStatus;
 
-                    // Remove the Mark Ready button
-                    button.remove();
-
-                    // Update ready count warning
-                    if (data.show_warning) {
-                        const warningDiv = document.getElementById('ready-warning');
-                        const countSpan = document.getElementById('ready-count');
-                        if (warningDiv) {
-                            warningDiv.style.display = 'flex';
-                        }
-                        if (countSpan) {
-                            countSpan.textContent = data.ready_count;
-                        }
+                    // Update ready warning if needed
+                    if (data.show_warning !== undefined) {
+                        updateReadyWarning(data);
                     }
                 } else {
+                    // Revert to original value
+                    selectElement.value = originalStatus;
                     alert('Error: ' + (data.error || 'Unknown error'));
-                    button.disabled = false;
-                    button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Ready';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error marking task as ready');
-                button.disabled = false;
-                button.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Ready';
+                selectElement.disabled = false;
+                selectElement.value = originalStatus;
+                alert('Error updating status');
+            });
+        });
+    });
+
+    // Handle inline priority dropdowns
+    document.querySelectorAll('.inline-priority-select').forEach(function(select) {
+        select.addEventListener('change', function() {
+            const taskId = this.dataset.taskId;
+            const newPriority = parseInt(this.value, 10);
+            const originalPriority = this.dataset.originalPriority;
+            const selectElement = this;
+
+            // Disable during request
+            selectElement.disabled = true;
+
+            fetch(`{% url 'admin_console:api_inline_priority' pk=0 %}`.replace('/0/', '/' + taskId + '/'), {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ priority: newPriority })
+            })
+            .then(response => response.json())
+            .then(data => {
+                selectElement.disabled = false;
+
+                if (data.success) {
+                    // Update styling and data attribute
+                    updatePrioritySelectClass(selectElement, newPriority);
+                    selectElement.dataset.originalPriority = newPriority;
+                } else {
+                    // Revert to original value
+                    selectElement.value = originalPriority;
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                selectElement.disabled = false;
+                selectElement.value = originalPriority;
+                alert('Error updating priority');
             });
         });
     });
@@ -250,6 +331,45 @@ document.addEventListener('DOMContentLoaded', function() {
     font-size: var(--font-size-sm);
 }
 
+/* Quick Filters */
+.quick-filters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.quick-filter-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.quick-filter-btn {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    transition: all 0.15s ease;
+}
+
+.quick-filter-btn:hover {
+    background: var(--color-background);
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.quick-filter-btn.active {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
 .table-container {
     background: var(--color-background);
     border: 1px solid var(--color-border);
@@ -305,6 +425,47 @@ document.addEventListener('DOMContentLoaded', function() {
 .status-in_progress { background: #dbeafe; color: #1e40af; }
 .status-blocked { background: #fee2e2; color: #991b1b; }
 .status-done { background: #dcfce7; color: #166534; }
+
+/* Inline Select Dropdowns */
+.inline-status-select,
+.inline-priority-select {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    outline: none;
+    transition: all 0.15s ease;
+}
+
+.inline-status-select:hover,
+.inline-priority-select:hover {
+    border-color: var(--color-border);
+}
+
+.inline-status-select:focus,
+.inline-priority-select:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb), 0.2);
+}
+
+.inline-status-select:disabled,
+.inline-priority-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Status Select Colors */
+select.status-backlog { background: var(--color-surface); color: var(--color-text-muted); }
+select.status-ready { background: #fef3c7; color: #92400e; }
+
+/* Priority Select Colors */
+select.priority-1 { background: #fee2e2; color: #991b1b; }
+select.priority-2 { background: #fef3c7; color: #92400e; }
+select.priority-3 { background: var(--color-surface); color: var(--color-text); }
+select.priority-4 { background: #dbeafe; color: #1e40af; }
+select.priority-5 { background: #dcfce7; color: #166534; }
 
 .priority-badge {
     display: inline-flex;

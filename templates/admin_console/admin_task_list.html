@@ -14,13 +14,66 @@
             <h1 class="page-title">Task List</h1>
             <p class="page-subtitle">View and manage project tasks (ordered by priority, then date)</p>
         </div>
-        <a href="{% url 'admin_console:task_intake' %}" class="btn btn-primary">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Task Intake
-        </a>
+        <div class="header-buttons">
+            <button type="button" class="btn btn-accent" id="whats-next-btn">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                What's Next?
+            </button>
+            <a href="{% url 'admin_console:task_intake' %}" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Task Intake
+            </a>
+        </div>
+    </div>
+
+    <!-- What's Next Modal -->
+    <div class="modal-overlay" id="whats-next-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    Ask Claude for Task Suggestions
+                </h2>
+                <button type="button" class="modal-close" id="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Claude can analyze your project tasks and suggest what to work on next based on:</p>
+                <ul>
+                    <li>Task priorities and dependencies</li>
+                    <li>Current project phase status</li>
+                    <li>Tasks marked as "Ready"</li>
+                </ul>
+                <div class="modal-instruction">
+                    <p><strong>To get suggestions:</strong></p>
+                    <p>Open your Claude chat session and ask:</p>
+                    <div class="copy-prompt-container">
+                        <code id="claude-prompt">What's next?</code>
+                        <button type="button" class="btn btn-secondary btn-sm" id="copy-prompt-btn">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                            Copy
+                        </button>
+                    </div>
+                    <p class="copy-feedback" id="copy-feedback">Copied to clipboard!</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="modal-done-btn">Got it</button>
+            </div>
+        </div>
     </div>
 
     {% if show_ready_warning %}
@@ -274,6 +327,74 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectElement.value = originalPriority;
                 alert('Error updating priority');
             });
+        });
+    });
+
+    // "What's Next?" Modal functionality
+    const modal = document.getElementById('whats-next-modal');
+    const openModalBtn = document.getElementById('whats-next-btn');
+    const closeModalBtn = document.getElementById('modal-close-btn');
+    const doneBtn = document.getElementById('modal-done-btn');
+    const copyBtn = document.getElementById('copy-prompt-btn');
+    const copyFeedback = document.getElementById('copy-feedback');
+    const claudePrompt = document.getElementById('claude-prompt');
+
+    function openModal() {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+        copyFeedback.classList.remove('visible');
+    }
+
+    openModalBtn.addEventListener('click', openModal);
+    closeModalBtn.addEventListener('click', closeModal);
+    doneBtn.addEventListener('click', closeModal);
+
+    // Close modal on backdrop click
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    // Copy to clipboard functionality
+    copyBtn.addEventListener('click', function() {
+        const text = claudePrompt.textContent;
+        navigator.clipboard.writeText(text).then(function() {
+            copyFeedback.classList.add('visible');
+            setTimeout(function() {
+                copyFeedback.classList.remove('visible');
+            }, 2000);
+        }).catch(function(err) {
+            console.error('Failed to copy:', err);
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                copyFeedback.classList.add('visible');
+                setTimeout(function() {
+                    copyFeedback.classList.remove('visible');
+                }, 2000);
+            } catch (e) {
+                alert('Failed to copy. Please copy manually: ' + text);
+            }
+            document.body.removeChild(textArea);
         });
     });
 });
@@ -542,6 +663,190 @@ select.priority-5 { background: #dcfce7; color: #166534; }
 .empty-state p {
     color: var(--color-text-muted);
     margin-bottom: var(--space-4);
+}
+
+/* Header buttons */
+.header-buttons {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+/* Accent button style */
+.btn-accent {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    color: white;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+}
+
+.btn-accent:hover {
+    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.4);
+    transform: translateY(-1px);
+}
+
+.btn-accent:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background: var(--color-background);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    transform: scale(0.95) translateY(10px);
+    transition: transform 0.2s ease;
+}
+
+.modal-overlay.active .modal-content {
+    transform: scale(1) translateY(0);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+    color: var(--color-text);
+}
+
+.modal-title svg {
+    color: #8b5cf6;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--space-1);
+    line-height: 1;
+    transition: color 0.15s ease;
+}
+
+.modal-close:hover {
+    color: var(--color-text);
+}
+
+.modal-body {
+    padding: var(--space-5);
+}
+
+.modal-body p {
+    margin: 0 0 var(--space-3) 0;
+    color: var(--color-text);
+}
+
+.modal-body ul {
+    margin: 0 0 var(--space-4) 0;
+    padding-left: var(--space-5);
+    color: var(--color-text-muted);
+}
+
+.modal-body li {
+    margin-bottom: var(--space-2);
+}
+
+.modal-instruction {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+}
+
+.modal-instruction p {
+    margin-bottom: var(--space-2);
+}
+
+.copy-prompt-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.copy-prompt-container code {
+    flex: 1;
+    background: var(--color-background);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: #8b5cf6;
+    border: 2px solid #8b5cf6;
+}
+
+.copy-prompt-container .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    white-space: nowrap;
+}
+
+.copy-feedback {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: #10b981;
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.copy-feedback.visible {
+    opacity: 1;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border);
 }
 </style>
 {% endblock %}

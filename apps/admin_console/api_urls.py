@@ -4,7 +4,7 @@
 # Description: API URL routes for admin console project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 10 - Hardening & Fail-Safes)
+# Last Updated: 2026-01-01 (Phase 11.1 - Preflight Guard & Phase Seeding)
 # ==============================================================================
 
 from django.urls import path
@@ -28,4 +28,10 @@ urlpatterns = [
     path("override/unblock-task/", views.UnblockTaskOverrideAPIView.as_view(), name="api_override_unblock_task"),
     # POST /api/admin/project/override/recheck-phase/
     path("override/recheck-phase/", views.RecheckPhaseOverrideAPIView.as_view(), name="api_override_recheck_phase"),
+
+    # Phase 11.1 - Preflight Guard & Phase Seeding
+    # GET /api/admin/project/preflight/
+    path("preflight/", views.PreflightCheckAPIView.as_view(), name="api_preflight_check"),
+    # POST /api/admin/project/seed-phases/
+    path("seed-phases/", views.SeedPhasesAPIView.as_view(), name="api_seed_phases"),
 ]

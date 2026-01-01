@@ -1331,3 +1331,78 @@ class RecheckPhaseOverrideAPIView(View):
             result['message'] = f'Phase {phase.phase_number} ("{phase.name}") is not yet complete.'
 
         return JsonResponse(result)
+
+
+# ============================================================
+# Phase 11.1 - Preflight Guard API Views
+# ============================================================
+
+class PreflightCheckAPIView(View):
+    """
+    API endpoint to run preflight execution check.
+
+    GET /api/admin/project/preflight/
+
+    This is the mandatory preflight guard for Phase 11 execution.
+    Must be called and pass before any task execution begins.
+
+    Returns JSON object with:
+    - success: bool - True if all preflight checks pass
+    - errors: Array of error messages (empty if success=True)
+
+    If preflight fails:
+    - Execution must stop immediately
+    - No task status changes should occur
+    - No files should be modified
+
+    Returns 403 if user is not admin.
+
+    This endpoint is read-only and does NOT mutate data.
+    """
+
+    def get(self, request):
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        from .services import preflight_execution_check
+        result = preflight_execution_check()
+
+        return JsonResponse({
+            'success': result.success,
+            'errors': result.errors
+        })
+
+
+class SeedPhasesAPIView(View):
+    """
+    API endpoint to seed AdminProjectPhase data.
+
+    POST /api/admin/project/seed-phases/
+
+    Seeds phases 1-11 if the table is empty.
+    This is idempotent and safe for production.
+
+    Returns JSON object with:
+    - seeded: bool - True if phases were created
+    - phase_count: int - Number of phases now in database
+    - message: str - Description of what happened
+
+    Returns 403 if user is not admin.
+    """
+
+    def post(self, request):
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        from .services import seed_admin_project_phases
+        result = seed_admin_project_phases(created_by='human')
+
+        return JsonResponse(result)

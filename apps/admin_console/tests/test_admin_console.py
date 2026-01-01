@@ -2571,3 +2571,413 @@ class SystemStateAPITest(AdminTestMixin, TestCase):
         phase.refresh_from_db()
         self.assertEqual(task.status, 'ready')
         self.assertEqual(phase.status, 'in_progress')
+
+
+# =============================================================================
+# 18. PREFLIGHT GUARD TESTS (Phase 11.1)
+# =============================================================================
+
+class PreflightExecutionCheckServiceTest(AdminTestMixin, TestCase):
+    """Tests for the preflight_execution_check service function."""
+
+    def test_preflight_fails_when_no_phases_exist(self):
+        """Preflight fails when no AdminProjectPhase records exist."""
+        from apps.admin_console.services import preflight_execution_check
+
+        result = preflight_execution_check()
+
+        self.assertFalse(result.success)
+        self.assertEqual(len(result.errors), 1)
+        self.assertIn('No AdminProjectPhase records exist', result.errors[0])
+
+    def test_preflight_fails_when_no_active_phase(self):
+        """Preflight fails when no phase has status='in_progress'."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import preflight_execution_check
+
+        # Create a phase but not active
+        AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='not_started'
+        )
+
+        result = preflight_execution_check()
+
+        self.assertFalse(result.success)
+        self.assertEqual(len(result.errors), 1)
+        self.assertIn('No active phase found', result.errors[0])
+
+    def test_preflight_fails_when_multiple_active_phases(self):
+        """Preflight fails when multiple phases are in_progress."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import preflight_execution_check
+
+        # Create two active phases (normally shouldn't happen)
+        AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Phase 1',
+            objective='Test',
+            status='in_progress'
+        )
+        # Bypass save() validation to create second active phase
+        AdminProjectPhase.objects.create(
+            phase_number=2,
+            name='Phase 2',
+            objective='Test',
+            status='in_progress'
+        )
+        # Force both to be in_progress
+        AdminProjectPhase.objects.update(status='in_progress')
+
+        result = preflight_execution_check()
+
+        self.assertFalse(result.success)
+        self.assertEqual(len(result.errors), 1)
+        self.assertIn('Multiple active phases found', result.errors[0])
+
+    def test_preflight_fails_when_no_tasks_for_active_phase(self):
+        """Preflight fails when active phase has no tasks."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import preflight_execution_check
+
+        AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        result = preflight_execution_check()
+
+        self.assertFalse(result.success)
+        self.assertEqual(len(result.errors), 1)
+        self.assertIn('No tasks found for active phase', result.errors[0])
+
+    def test_preflight_succeeds_when_all_checks_pass(self):
+        """Preflight succeeds when all checks pass."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import preflight_execution_check
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+        AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+
+        result = preflight_execution_check()
+
+        self.assertTrue(result.success)
+        self.assertEqual(len(result.errors), 0)
+
+    def test_preflight_is_read_only(self):
+        """Preflight check does not modify any data."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import preflight_execution_check
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+
+        # Call preflight multiple times
+        preflight_execution_check()
+        preflight_execution_check()
+
+        # Data should be unchanged
+        task.refresh_from_db()
+        phase.refresh_from_db()
+        self.assertEqual(task.status, 'ready')
+        self.assertEqual(phase.status, 'in_progress')
+
+
+class PreflightCheckAPITest(AdminTestMixin, TestCase):
+    """Tests for the preflight check API endpoint."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.regular_user = self.create_user()
+
+    def test_preflight_requires_authentication(self):
+        """Preflight API requires authentication."""
+        response = self.client.get('/api/admin/project/preflight/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_preflight_requires_staff(self):
+        """Preflight API requires staff status."""
+        self.login_user()
+        response = self.client.get('/api/admin/project/preflight/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_preflight_accessible_to_staff(self):
+        """Preflight API is accessible to staff users."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/preflight/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_preflight_returns_json(self):
+        """Preflight API returns JSON."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/preflight/')
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_preflight_returns_expected_structure(self):
+        """Preflight API returns expected JSON structure."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/preflight/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertIn('success', data)
+        self.assertIn('errors', data)
+        self.assertIsInstance(data['success'], bool)
+        self.assertIsInstance(data['errors'], list)
+
+    def test_preflight_fails_when_no_phases(self):
+        """Preflight API returns failure when no phases exist."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/preflight/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertFalse(data['success'])
+        self.assertEqual(len(data['errors']), 1)
+
+    def test_preflight_succeeds_with_valid_data(self):
+        """Preflight API returns success when all checks pass."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+        AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/preflight/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertTrue(data['success'])
+        self.assertEqual(data['errors'], [])
+
+
+# =============================================================================
+# 19. PHASE SEEDING TESTS (Phase 11.1)
+# =============================================================================
+
+class PhaseSeedingServiceTest(AdminTestMixin, TestCase):
+    """Tests for the seed_admin_project_phases service function."""
+
+    def test_seeding_creates_11_phases_when_empty(self):
+        """Seeding creates 11 phases when table is empty."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import seed_admin_project_phases
+
+        result = seed_admin_project_phases()
+
+        self.assertTrue(result['seeded'])
+        self.assertEqual(result['phase_count'], 11)
+        self.assertEqual(AdminProjectPhase.objects.count(), 11)
+
+    def test_seeding_sets_phase_1_to_in_progress(self):
+        """Seeding sets phase 1 to in_progress."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import seed_admin_project_phases
+
+        seed_admin_project_phases()
+
+        phase_1 = AdminProjectPhase.objects.get(phase_number=1)
+        self.assertEqual(phase_1.status, 'in_progress')
+
+    def test_seeding_sets_other_phases_to_not_started(self):
+        """Seeding sets phases 2-11 to not_started."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import seed_admin_project_phases
+
+        seed_admin_project_phases()
+
+        for i in range(2, 12):
+            phase = AdminProjectPhase.objects.get(phase_number=i)
+            self.assertEqual(phase.status, 'not_started')
+
+    def test_seeding_is_idempotent(self):
+        """Seeding does nothing when phases already exist."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import seed_admin_project_phases
+
+        # Create a phase first
+        AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Existing Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        result = seed_admin_project_phases()
+
+        self.assertFalse(result['seeded'])
+        self.assertEqual(result['phase_count'], 1)
+        self.assertEqual(AdminProjectPhase.objects.count(), 1)
+
+    def test_seeding_does_not_overwrite_existing_data(self):
+        """Seeding never modifies existing phases."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import seed_admin_project_phases
+
+        # Create a custom phase
+        AdminProjectPhase.objects.create(
+            phase_number=5,
+            name='Custom Phase 5',
+            objective='Custom objective',
+            status='complete'
+        )
+
+        seed_admin_project_phases()
+
+        phase_5 = AdminProjectPhase.objects.get(phase_number=5)
+        self.assertEqual(phase_5.name, 'Custom Phase 5')
+        self.assertEqual(phase_5.status, 'complete')
+
+
+class SeedPhasesAPITest(AdminTestMixin, TestCase):
+    """Tests for the seed phases API endpoint."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.regular_user = self.create_user()
+
+    def test_seed_phases_requires_authentication(self):
+        """Seed phases API requires authentication."""
+        response = self.client.post('/api/admin/project/seed-phases/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_seed_phases_requires_staff(self):
+        """Seed phases API requires staff status."""
+        self.login_user()
+        response = self.client.post('/api/admin/project/seed-phases/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_seed_phases_accessible_to_staff(self):
+        """Seed phases API is accessible to staff users."""
+        self.login_admin()
+        response = self.client.post('/api/admin/project/seed-phases/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_seed_phases_returns_json(self):
+        """Seed phases API returns JSON."""
+        self.login_admin()
+        response = self.client.post('/api/admin/project/seed-phases/')
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_seed_phases_returns_expected_structure(self):
+        """Seed phases API returns expected JSON structure."""
+        self.login_admin()
+        response = self.client.post('/api/admin/project/seed-phases/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertIn('seeded', data)
+        self.assertIn('phase_count', data)
+        self.assertIn('message', data)
+
+    def test_seed_phases_creates_phases(self):
+        """Seed phases API creates phases when table is empty."""
+        from apps.admin_console.models import AdminProjectPhase
+
+        self.login_admin()
+        response = self.client.post('/api/admin/project/seed-phases/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertTrue(data['seeded'])
+        self.assertEqual(data['phase_count'], 11)
+        self.assertEqual(AdminProjectPhase.objects.count(), 11)
+
+    def test_seed_phases_is_idempotent(self):
+        """Seed phases API does nothing when phases exist."""
+        from apps.admin_console.models import AdminProjectPhase
+
+        AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Existing',
+            objective='Test',
+            status='in_progress'
+        )
+
+        self.login_admin()
+        response = self.client.post('/api/admin/project/seed-phases/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertFalse(data['seeded'])
+        self.assertEqual(data['phase_count'], 1)
+
+
+class SeedAdminProjectPhasesCommandTest(AdminTestMixin, TestCase):
+    """Tests for the seed_admin_project_phases management command."""
+
+    def test_command_creates_phases_when_empty(self):
+        """Command creates 11 phases when table is empty."""
+        from django.core.management import call_command
+        from apps.admin_console.models import AdminProjectPhase
+        from io import StringIO
+
+        out = StringIO()
+        call_command('seed_admin_project_phases', stdout=out)
+
+        self.assertEqual(AdminProjectPhase.objects.count(), 11)
+        self.assertIn('PHASE SEEDING', out.getvalue())
+
+    def test_command_skips_when_phases_exist(self):
+        """Command does nothing when phases already exist."""
+        from django.core.management import call_command
+        from apps.admin_console.models import AdminProjectPhase
+        from io import StringIO
+
+        AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Existing',
+            objective='Test',
+            status='in_progress'
+        )
+
+        out = StringIO()
+        call_command('seed_admin_project_phases', stdout=out)
+
+        self.assertEqual(AdminProjectPhase.objects.count(), 1)
+        self.assertIn('already exist', out.getvalue())

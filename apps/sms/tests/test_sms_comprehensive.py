@@ -779,7 +779,6 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
         """Saving a task due today should trigger SMS scheduling."""
         from apps.life.models import Task
         from apps.core.utils import get_user_today
-        from datetime import time
 
         today = get_user_today(self.user)
 
@@ -789,23 +788,15 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
             category=SMSNotification.CATEGORY_TASK
         ).count()
 
-        # Create task due today at a future time
-        from django.utils import timezone
-        import pytz
-
-        user_tz = pytz.timezone(self.user.preferences.timezone)
-        now_local = timezone.now().astimezone(user_tz)
-        future_time = (now_local + timedelta(hours=2)).time()
-
+        # Create task due today (Task model doesn't have due_time field)
         task = Task.objects.create(
             user=self.user,
             title='Test Task',
             due_date=today,
-            due_time=future_time,
             is_completed=False,
         )
 
-        # Check that an SMS was scheduled
+        # Check that an SMS was scheduled (will be for 9 AM)
         count_after = SMSNotification.objects.filter(
             user=self.user,
             category=SMSNotification.CATEGORY_TASK

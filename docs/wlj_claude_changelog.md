@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Nutrition Breadcrumbs)
+# Last Updated: 2025-12-31 (Real-Time SMS Scheduling)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,27 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Real-Time SMS Scheduling on Save (NEW)
+
+**Problem Solved:**
+If you created a medicine schedule at 2pm for 8pm tonight, the SMS reminder wouldn't be scheduled until the next midnight batch job ran.
+
+**Solution:**
+Added Django signals that trigger SMS scheduling immediately when you save:
+- Medicines and MedicineSchedules → Schedules SMS for any doses due today
+- Tasks → Schedules SMS reminder at 9 AM if due today
+- Events (LifeEvent) → Schedules SMS 30 minutes before event time
+
+**New File:**
+- `apps/sms/signals.py` - Django post_save signal handlers for real-time scheduling
+
+**Files Modified:**
+- `apps/sms/apps.py` - Registers signals in `ready()` method
+
+**Test Count:** 1394 tests (+2 new signal tests)
+
+---
 
 ### Nutrition Breadcrumbs (Enhancement)
 

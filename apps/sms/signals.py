@@ -127,8 +127,8 @@ def schedule_task_sms_for_today(task):
 
     scheduler = SMSScheduler()
 
-    # Schedule for due time or 9 AM if no time set
-    scheduled_time = task.due_time if task.due_time else time(9, 0)
+    # Schedule for 9 AM (Task model doesn't have a time field)
+    scheduled_time = time(9, 0)
     scheduled_datetime = scheduler._combine_date_time(today, scheduled_time, user)
 
     # Only schedule if it's in the future

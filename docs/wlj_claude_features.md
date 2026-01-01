@@ -857,7 +857,7 @@ The Health module home page (`/health/`) includes a "My Providers" card showing:
 
 ### Overview
 OpenAI Vision API integration for scanning items and routing to appropriate modules.
-Now includes dedicated barcode scanning mode for quick food product lookup.
+Includes multiple barcode scanning modes for quick product lookup across different forms.
 
 ### Scan Modes
 
@@ -878,7 +878,7 @@ Uses OpenAI Vision API to identify items in photos.
 - Rate limiting
 - Magic bytes validation
 
-#### 2. Barcode Mode (Added 2025-12-31)
+#### 2. Food Barcode Mode
 Dedicated mode for scanning food product barcodes.
 
 **Features:**
@@ -891,14 +891,66 @@ Dedicated mode for scanning food product barcodes.
 **Lookup Flow:**
 1. Scan barcode → Extract barcode string
 2. Check local FoodItem database first
-3. If not found, use OpenAI to lookup product (with AI consent)
-4. Display product name, brand, and key nutrition info
-5. Pre-fill food entry form with all details
-6. Save AI-found products to database for future lookups
+3. Query Open Food Facts API (4M+ products)
+4. If not found, use OpenAI to lookup product (with AI consent)
+5. Display product name, brand, and key nutrition info
+6. Pre-fill food entry form with all details
+7. Save results to database for future lookups
 
 **Entry Source Tracking:**
 - `entry_source = 'barcode'` set automatically
 - Barcode value passed to food entry form
+
+#### 3. Product Barcode Mode (Added 2025-12-31)
+Scan product barcodes to auto-fill inventory forms.
+
+**Use Cases:**
+- Electronics (phones, tablets, laptops)
+- Tools (DeWalt drills, Makita equipment)
+- Household appliances
+- General retail products
+
+**Lookup Flow:**
+1. Scan barcode on Inventory form
+2. Query UPC Item DB API (free tier)
+3. If not found, use OpenAI fallback
+4. Pre-fill: product_name, brand, category, model_number, description, msrp
+
+**API Endpoint:** `POST /scan/barcode/product/`
+
+#### 4. Medicine Barcode Mode (Added 2025-12-31)
+Scan OTC medicine barcodes to auto-fill medicine forms.
+
+**Use Cases:**
+- Over-the-counter drugs (Tylenol, Advil, etc.)
+- Vitamins and supplements
+- Any product with NDC code
+
+**Lookup Flow:**
+1. Scan barcode on Medicine form
+2. Query FDA OpenData for NDC lookup
+3. Query RxNav API for drug details
+4. If not found, use OpenAI fallback
+5. Pre-fill: medicine_name, dosage, form, purpose, manufacturer
+
+**API Endpoint:** `POST /scan/barcode/medicine/`
+
+### Form Integration
+
+**Forms with Barcode Scanning:**
+| Form | Module | Barcode Type | Lookup Service |
+|------|--------|--------------|----------------|
+| Food Entry | Health | UPC/EAN | Open Food Facts + AI |
+| Inventory | Life | UPC/EAN | UPC Item DB + AI |
+| Medicine | Health | UPC/NDC | FDA + RxNav + AI |
+
+**Scanner UI Features:**
+- "Scan Barcode" button on each form
+- Camera modal with live preview
+- Target overlay for barcode positioning
+- Real-time detection feedback
+- Manual entry fallback for unsupported browsers
+- Success message showing scanned barcode
 
 ### Food Recognition (Vision Mode)
 
@@ -932,27 +984,36 @@ When food is detected, the system:
 See `docs/wlj_camera_scan_architecture.md` for full details.
 
 ### Key Files
-- `apps/scan/views.py` - ScanHomeView, ScanAnalyzeView, BarcodeLookupView
+- `apps/scan/views.py` - ScanHomeView, ScanAnalyzeView, BarcodeLookupView, ProductLookupView, MedicineLookupView
 - `apps/scan/services/vision.py` - OpenAI Vision integration, `_build_actions()`
-- `apps/scan/services/barcode.py` - Barcode lookup service (database + AI)
-- `apps/health/views.py` - FoodEntryCreateView (accepts prefill params)
+- `apps/scan/services/barcode.py` - Food barcode lookup service (database + Open Food Facts + AI)
+- `apps/scan/services/product_lookup.py` - Product barcode lookup service (UPC Item DB + AI)
+- `apps/scan/services/medicine_lookup.py` - Medicine barcode lookup service (FDA + RxNav + AI)
+- `apps/health/views.py` - FoodEntryCreateView, MedicineCreateView (accepts prefill params)
+- `apps/life/views.py` - InventoryCreateView (accepts prefill params)
 - `apps/health/models.py` - FoodItem (has barcode field), FoodEntry (SOURCE_BARCODE)
 - `templates/scan/scan_page.html` - Camera UI with mode toggle
+- `templates/life/inventory_form.html` - Inventory form with barcode scanner
+- `templates/health/medicine/medicine_form.html` - Medicine form with barcode scanner
 
 ### URL Endpoints
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/scan/` | GET | Scan home page with camera interface |
 | `/scan/analyze/` | POST | Submit image for AI analysis |
-| `/scan/barcode/` | POST | Look up barcode and return nutrition info |
+| `/scan/barcode/` | POST | Look up food barcode and return nutrition info |
+| `/scan/barcode/product/` | POST | Look up product barcode for inventory |
+| `/scan/barcode/medicine/` | POST | Look up medicine barcode for medicine form |
 | `/scan/consent/` | POST | Record user consent for scanning |
 | `/scan/history/` | GET | View scan history |
 
 ### Tests
-`apps/scan/tests/` - 100+ tests including:
+`apps/scan/tests/` - 106 tests including:
 - Vision analysis tests
 - Barcode lookup view tests
 - Barcode service tests
+- Product lookup tests
+- Medicine lookup tests
 - Security and isolation tests
 
 ---

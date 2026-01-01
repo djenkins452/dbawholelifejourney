@@ -561,6 +561,96 @@ Railway automatically starts the worker process alongside the web process.
 
 ---
 
+## Product & Barcode Lookup APIs
+
+### 22. Open Food Facts API
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | Open Food Facts Foundation |
+| **Type** | REST API |
+| **Pricing** | Free (Open Source) |
+| **Status** | Active |
+
+**Purpose:**
+- Food product barcode lookups for nutrition tracking
+- Returns nutritional data per serving (calories, protein, carbs, fat, fiber, sugar)
+- 4M+ products in database
+
+**API URL:** `https://world.openfoodfacts.org/api/v2/product/{barcode}.json`
+
+**Key Files:**
+- `apps/scan/services/barcode.py` - BarcodeService
+
+**Note:** No authentication required. User-Agent header required.
+
+---
+
+### 23. UPC Item DB API
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | UPC Item DB |
+| **Type** | REST API |
+| **Pricing** | Free tier (100 req/month) |
+| **Status** | Active |
+
+**Purpose:**
+- General product barcode lookups (electronics, tools, appliances)
+- Returns product name, brand, category, model number, description
+- Used for inventory form auto-fill
+
+**API URL:** `https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}`
+
+**Key Files:**
+- `apps/scan/services/product_lookup.py` - ProductLookupService
+
+**Note:** No API key required for trial tier.
+
+---
+
+### 24. RxNav API (NIH)
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | National Library of Medicine (NIH) |
+| **Type** | REST API |
+| **Pricing** | Free |
+| **Status** | Active |
+
+**Purpose:**
+- Drug name lookups for medicine tracking
+- Returns drug names, RXCUI identifiers, drug classes
+- Supports generic and brand name lookups
+
+**API URL:** `https://rxnav.nlm.nih.gov/REST/`
+
+**Key Files:**
+- `apps/scan/services/medicine_lookup.py` - MedicineLookupService
+
+**Note:** No authentication required. Government-backed, unlimited usage.
+
+---
+
+### 25. FDA OpenData API
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | U.S. Food and Drug Administration |
+| **Type** | REST API |
+| **Pricing** | Free |
+| **Status** | Active |
+
+**Purpose:**
+- NDC (National Drug Code) lookups for OTC medicines
+- Returns official drug labeling information
+- Brand names, generic names, dosage forms, strengths
+
+**API URL:** `https://api.fda.gov/drug/ndc.json`
+
+**Key Files:**
+- `apps/scan/services/medicine_lookup.py` - MedicineLookupService
+
+**Note:** No authentication required. Rate limit: 240 requests/minute.
+
+---
+
 ## Services NOT Currently Used
 
 The following services are NOT integrated but may be considered for future use:
@@ -601,6 +691,10 @@ The following services are NOT integrated but may be considered for future use:
 | 19 | Zippopotam.us | Location API | Free | Deprecated |
 | 20 | Twilio | SMS API | Paid (usage) | Active |
 | 21 | Django-APScheduler | Background Jobs | Free (OSS) | Active |
+| 22 | Open Food Facts | Food Barcode API | Free (OSS) | Active |
+| 23 | UPC Item DB | Product Barcode API | Free tier | Active |
+| 24 | RxNav (NIH) | Drug Lookup API | Free | Active |
+| 25 | FDA OpenData | NDC Lookup API | Free | Active |
 
 ---
 

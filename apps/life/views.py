@@ -617,9 +617,9 @@ class InventoryCreateView(LifeAccessMixin, CreateView):
     success_url = reverse_lazy('life:inventory_list')
 
     def get_initial(self):
-        """Pre-populate form from query parameters (for AI Camera scan)."""
+        """Pre-populate form from query parameters (for AI Camera scan and barcode scan)."""
         initial = super().get_initial()
-        # Support prefill from Camera Scan feature
+        # Support prefill from Camera Scan and Barcode Scan features
         if self.request.GET.get('name'):
             initial['name'] = self.request.GET.get('name')
         if self.request.GET.get('category'):
@@ -630,14 +630,42 @@ class InventoryCreateView(LifeAccessMixin, CreateView):
             initial['model_number'] = self.request.GET.get('model_number')
         if self.request.GET.get('location'):
             initial['location'] = self.request.GET.get('location')
+        if self.request.GET.get('description'):
+            initial['description'] = self.request.GET.get('description')
+        if self.request.GET.get('purchase_price'):
+            try:
+                initial['purchase_price'] = float(self.request.GET.get('purchase_price'))
+            except (ValueError, TypeError):
+                pass
+        if self.request.GET.get('estimated_value'):
+            try:
+                initial['estimated_value'] = float(self.request.GET.get('estimated_value'))
+            except (ValueError, TypeError):
+                pass
         return initial
+
+    def get_context_data(self, **kwargs):
+        """Add barcode scan context to template."""
+        context = super().get_context_data(**kwargs)
+        # Check if user has AI consent for barcode scanning
+        has_ai_consent = (
+            hasattr(self.request.user, 'preferences') and
+            self.request.user.preferences.ai_enabled and
+            self.request.user.preferences.ai_data_consent
+        )
+        context['has_ai_consent'] = has_ai_consent
+        context['barcode_from_scan'] = self.request.GET.get('barcode', '')
+        context['source'] = self.request.GET.get('source', '')
+        return context
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        # Track if created via AI Camera scan
+        # Track if created via AI Camera scan or barcode scan
         source = self.request.GET.get('source')
         if source == 'ai_camera':
             form.instance.created_via = InventoryItem.CREATED_VIA_AI_CAMERA
+        elif source == 'barcode_scan':
+            form.instance.created_via = InventoryItem.CREATED_VIA_AI_CAMERA  # Reuse same constant
 
         # Save the item first
         response = super().form_valid(form)

@@ -17,6 +17,64 @@
         <h1 class="page-title">{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Add Medicine{% endif %}</h1>
     </div>
 
+    {% if not form.instance.pk %}
+    <!-- Barcode Scanner Section (only for new medicines) -->
+    <div class="scan-section">
+        <div class="scan-header">
+            <span class="scan-icon">💊</span>
+            <div class="scan-info">
+                <strong>Scan Medicine Barcode</strong>
+                <span class="scan-hint">Quickly fill in medicine details by scanning the barcode on OTC products</span>
+            </div>
+        </div>
+        <button type="button" id="startBarcodeScanner" class="btn btn-outline">
+            <span class="btn-icon">📱</span>
+            Scan Barcode
+        </button>
+        {% if source == 'barcode_scan' and barcode_from_scan %}
+        <div class="scan-success">
+            <span class="success-icon">✓</span>
+            Form pre-filled from barcode: {{ barcode_from_scan }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Barcode Scanner Modal -->
+    <div id="barcodeScannerModal" class="scanner-modal" style="display: none;">
+        <div class="scanner-modal-content">
+            <div class="scanner-header">
+                <h3>Scan Medicine Barcode</h3>
+                <button type="button" id="closeBarcodeScanner" class="close-btn">&times;</button>
+            </div>
+            <div class="scanner-body">
+                <div id="scannerPreview" class="scanner-preview">
+                    <video id="barcodeVideo" playsinline></video>
+                    <div class="scanner-overlay">
+                        <div class="scanner-target"></div>
+                    </div>
+                </div>
+                <div id="scannerStatus" class="scanner-status">
+                    Point your camera at a medicine barcode
+                </div>
+                <div id="scannerResult" class="scanner-result" style="display: none;">
+                    <div class="result-content">
+                        <span class="result-label">Barcode detected:</span>
+                        <span id="detectedBarcode" class="result-barcode"></span>
+                    </div>
+                    <div class="result-actions">
+                        <button type="button" id="lookupBarcode" class="btn btn-primary btn-sm">Look Up Medicine</button>
+                        <button type="button" id="rescanBarcode" class="btn btn-outline btn-sm">Scan Again</button>
+                    </div>
+                </div>
+                <div id="lookupProgress" class="lookup-progress" style="display: none;">
+                    <div class="spinner"></div>
+                    <span>Looking up medicine...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <form method="post" class="form-container">
         {% csrf_token %}
 
@@ -239,5 +297,379 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Barcode Scanner Styles */
+.scan-section {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 15%, transparent) 0%, var(--color-background) 100%);
+    border: 2px dashed var(--color-accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    max-width: 700px;
+}
+
+.scan-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.scan-icon {
+    font-size: 2rem;
+}
+
+.scan-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.scan-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.scan-success {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-success);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-2);
+}
+
+.success-icon {
+    background: var(--color-success);
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+/* Scanner Modal */
+.scanner-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.scanner-modal-content {
+    background: var(--color-background);
+    border-radius: var(--radius-lg);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow: hidden;
+}
+
+.scanner-modal .scanner-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.scanner-modal .scanner-header h3 {
+    margin: 0;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-text-muted);
+}
+
+.scanner-body {
+    padding: var(--space-4);
+}
+
+.scanner-preview {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: #000;
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.scanner-preview video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.scanner-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.scanner-target {
+    width: 70%;
+    height: 30%;
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius);
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+.scanner-status {
+    text-align: center;
+    padding: var(--space-3);
+    color: var(--color-text-muted);
+}
+
+.scanner-result {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    border: 1px solid var(--color-success);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.result-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.result-barcode {
+    font-family: monospace;
+    font-weight: bold;
+    font-size: var(--font-size-lg);
+}
+
+.result-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.lookup-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    color: var(--color-text-muted);
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 640px) {
+    .scan-section {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+
+    .scan-header {
+        flex-direction: column;
+    }
+}
 </style>
+
+{% if not form.instance.pk %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const startBtn = document.getElementById('startBarcodeScanner');
+    const modal = document.getElementById('barcodeScannerModal');
+    const closeBtn = document.getElementById('closeBarcodeScanner');
+    const video = document.getElementById('barcodeVideo');
+    const statusEl = document.getElementById('scannerStatus');
+    const resultEl = document.getElementById('scannerResult');
+    const detectedBarcodeEl = document.getElementById('detectedBarcode');
+    const lookupBtn = document.getElementById('lookupBarcode');
+    const rescanBtn = document.getElementById('rescanBarcode');
+    const progressEl = document.getElementById('lookupProgress');
+
+    let stream = null;
+    let barcodeDetector = null;
+    let detectedBarcode = '';
+    let isScanning = false;
+
+    // Check if BarcodeDetector is available
+    const hasBarcodeDetector = 'BarcodeDetector' in window;
+
+    startBtn.addEventListener('click', openScanner);
+    closeBtn.addEventListener('click', closeScanner);
+    lookupBtn.addEventListener('click', lookupMedicine);
+    rescanBtn.addEventListener('click', resetScanner);
+
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeScanner();
+        }
+    });
+
+    async function openScanner() {
+        modal.style.display = 'flex';
+        resultEl.style.display = 'none';
+        progressEl.style.display = 'none';
+        statusEl.textContent = 'Starting camera...';
+
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'environment',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            });
+            video.srcObject = stream;
+            await video.play();
+
+            if (hasBarcodeDetector) {
+                barcodeDetector = new BarcodeDetector({
+                    formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
+                });
+                statusEl.textContent = 'Point your camera at a medicine barcode';
+                startDetection();
+            } else {
+                statusEl.textContent = 'Barcode detection not supported. Enter barcode manually.';
+                showManualEntry();
+            }
+        } catch (err) {
+            console.error('Camera error:', err);
+            statusEl.textContent = 'Could not access camera. Please check permissions.';
+        }
+    }
+
+    function closeScanner() {
+        modal.style.display = 'none';
+        isScanning = false;
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+    }
+
+    async function startDetection() {
+        isScanning = true;
+        while (isScanning && stream) {
+            try {
+                const barcodes = await barcodeDetector.detect(video);
+                if (barcodes.length > 0) {
+                    detectedBarcode = barcodes[0].rawValue;
+                    showDetectedBarcode(detectedBarcode);
+                    isScanning = false;
+
+                    // Vibrate on detection (if supported)
+                    if ('vibrate' in navigator) {
+                        navigator.vibrate(100);
+                    }
+                }
+            } catch (err) {
+                console.error('Detection error:', err);
+            }
+            await new Promise(r => setTimeout(r, 200)); // Check every 200ms
+        }
+    }
+
+    function showDetectedBarcode(barcode) {
+        detectedBarcodeEl.textContent = barcode;
+        resultEl.style.display = 'block';
+        statusEl.style.display = 'none';
+    }
+
+    function resetScanner() {
+        resultEl.style.display = 'none';
+        statusEl.style.display = 'block';
+        statusEl.textContent = 'Point your camera at a medicine barcode';
+        detectedBarcode = '';
+        startDetection();
+    }
+
+    function showManualEntry() {
+        // Create manual entry input
+        const manualInput = document.createElement('div');
+        manualInput.innerHTML = `
+            <div style="margin-top: var(--space-3);">
+                <input type="text" id="manualBarcode" class="form-input"
+                       placeholder="Enter barcode number" pattern="[0-9]*">
+                <button type="button" id="submitManualBarcode" class="btn btn-primary btn-sm"
+                        style="margin-top: var(--space-2);">Look Up</button>
+            </div>
+        `;
+        statusEl.parentNode.insertBefore(manualInput, statusEl.nextSibling);
+
+        document.getElementById('submitManualBarcode').addEventListener('click', function() {
+            detectedBarcode = document.getElementById('manualBarcode').value;
+            if (detectedBarcode) {
+                lookupMedicine();
+            }
+        });
+    }
+
+    async function lookupMedicine() {
+        if (!detectedBarcode) return;
+
+        resultEl.style.display = 'none';
+        progressEl.style.display = 'flex';
+
+        try {
+            const response = await fetch('{% url "scan:medicine_lookup" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ barcode: detectedBarcode })
+            });
+
+            const data = await response.json();
+
+            if (data.found && data.medicine_url) {
+                // Redirect to pre-filled form
+                window.location.href = data.medicine_url;
+            } else {
+                // Show not found message
+                progressEl.style.display = 'none';
+                alert('Medicine not found in database. You can still fill in the details manually.');
+                closeScanner();
+            }
+        } catch (err) {
+            console.error('Lookup error:', err);
+            progressEl.style.display = 'none';
+            alert('Error looking up medicine. Please try again.');
+            resetScanner();
+        }
+    }
+});
+</script>
+{% endif %}
 {% endblock %}

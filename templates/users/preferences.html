@@ -519,7 +519,10 @@ Examples:
 
         <!-- SMS Notifications Section -->
         <div class="card mb-6" id="sms-section">
-            <h2 class="card-title">SMS Notifications</h2>
+            <div class="card-title-row">
+                <h2 class="card-title">SMS Notifications</h2>
+                <a href="{% url 'sms:history' %}" class="btn btn-sm btn-secondary">View History</a>
+            </div>
             <p class="text-muted mb-4">Get text message reminders for medicine, tasks, and events. Standard SMS rates may apply.</p>
 
             <!-- Phone Number Section -->
@@ -1092,6 +1095,17 @@ Examples:
 </div>
 
 <style>
+.card-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.card-title-row .card-title {
+    margin-bottom: 0;
+}
+
 .module-section-title {
     font-size: var(--font-size-sm);
     text-transform: uppercase;

@@ -567,3 +567,230 @@ class BarcodeLookupView(LoginRequiredMixin, View):
             return False
         prefs = user.preferences
         return prefs.ai_enabled and prefs.ai_data_consent
+
+
+class ProductLookupView(LoginRequiredMixin, View):
+    """
+    API endpoint to look up a product barcode and return product information.
+
+    Accepts POST with JSON body containing barcode string.
+    Returns JSON with product information for inventory form pre-fill.
+    """
+
+    def post(self, request):
+        """Look up a product barcode."""
+        from .services import product_lookup_service
+        from urllib.parse import quote
+
+        user = request.user
+        request_id = str(uuid.uuid4())
+
+        # Security Check: AI Consent (required for AI fallback)
+        has_ai_consent = self._check_ai_consent(user)
+
+        # Get barcode from request
+        try:
+            import json as json_module
+            body = json_module.loads(request.body)
+            barcode = body.get('barcode', '')
+        except (json_module.JSONDecodeError, KeyError):
+            barcode = request.POST.get('barcode', '')
+
+        if not barcode:
+            return JsonResponse({
+                'error': 'No barcode provided',
+                'error_code': 'NO_BARCODE',
+                'request_id': request_id
+            }, status=400)
+
+        # Look up the product
+        result = product_lookup_service.lookup(
+            barcode=barcode,
+            use_ai=has_ai_consent
+        )
+
+        # Build URL for inventory creation if found
+        if result.found:
+            # Build query params for inventory form
+            url_params = []
+            if result.product_name:
+                url_params.append(f'name={quote(result.product_name)}')
+            if result.brand:
+                url_params.append(f'brand={quote(result.brand)}')
+            if result.category:
+                url_params.append(f'category={quote(result.category)}')
+            if result.model_number:
+                url_params.append(f'model_number={quote(result.model_number)}')
+            if result.description:
+                url_params.append(f'description={quote(result.description)}')
+            if result.msrp:
+                url_params.append(f'purchase_price={result.msrp}')
+                url_params.append(f'estimated_value={result.msrp}')
+
+            # Set source tracking
+            url_params.append('source=barcode_scan')
+            url_params.append(f'barcode={quote(barcode)}')
+
+            # Build the inventory creation URL
+            inventory_url = reverse('life:inventory_create')
+            if url_params:
+                inventory_url += '?' + '&'.join(url_params)
+
+            response_data = result.to_dict()
+            response_data['request_id'] = request_id
+            response_data['inventory_url'] = inventory_url
+
+            # Log the product scan
+            ScanLog.objects.create(
+                user=user,
+                request_id=request_id,
+                status=ScanLog.STATUS_SUCCESS,
+                category='inventory_item',
+                confidence=result.confidence,
+                items_json=[{
+                    'label': result.product_name,
+                    'barcode': barcode,
+                    'source': result.source
+                }]
+            )
+
+            return JsonResponse(response_data)
+
+        else:
+            # Log the failed lookup
+            ScanLog.objects.create(
+                user=user,
+                request_id=request_id,
+                status=ScanLog.STATUS_SUCCESS,
+                category='inventory_item',
+                confidence=0.0,
+                items_json=[{
+                    'barcode': barcode,
+                    'source': 'not_found'
+                }]
+            )
+
+            return JsonResponse({
+                'found': False,
+                'barcode': barcode,
+                'request_id': request_id,
+                'message': 'Product not found. You can add it manually.'
+            })
+
+    def _check_ai_consent(self, user) -> bool:
+        """Check if user has consented to AI processing."""
+        if not hasattr(user, 'preferences'):
+            return False
+        prefs = user.preferences
+        return prefs.ai_enabled and prefs.ai_data_consent
+
+
+class MedicineLookupView(LoginRequiredMixin, View):
+    """
+    API endpoint to look up a medicine barcode and return medicine information.
+
+    Accepts POST with JSON body containing barcode string.
+    Returns JSON with medicine information for medicine form pre-fill.
+    """
+
+    def post(self, request):
+        """Look up a medicine barcode."""
+        from .services import medicine_lookup_service
+        from urllib.parse import quote
+
+        user = request.user
+        request_id = str(uuid.uuid4())
+
+        # Security Check: AI Consent (required for AI fallback)
+        has_ai_consent = self._check_ai_consent(user)
+
+        # Get barcode from request
+        try:
+            import json as json_module
+            body = json_module.loads(request.body)
+            barcode = body.get('barcode', '')
+        except (json_module.JSONDecodeError, KeyError):
+            barcode = request.POST.get('barcode', '')
+
+        if not barcode:
+            return JsonResponse({
+                'error': 'No barcode provided',
+                'error_code': 'NO_BARCODE',
+                'request_id': request_id
+            }, status=400)
+
+        # Look up the medicine
+        result = medicine_lookup_service.lookup_by_barcode(
+            barcode=barcode,
+            use_ai=has_ai_consent
+        )
+
+        # Build URL for medicine creation if found
+        if result.found:
+            # Build query params for medicine form
+            url_params = []
+            if result.medicine_name:
+                url_params.append(f'name={quote(result.medicine_name)}')
+            if result.strength:
+                url_params.append(f'dose={quote(result.strength)}')
+            if result.purpose:
+                url_params.append(f'purpose={quote(result.purpose)}')
+            if result.dosage_form:
+                url_params.append(f'notes={quote(f"Form: {result.dosage_form}")}')
+
+            # Set source tracking
+            url_params.append('source=barcode_scan')
+            url_params.append(f'barcode={quote(barcode)}')
+
+            # Build the medicine creation URL
+            medicine_url = reverse('health:medicine_create')
+            if url_params:
+                medicine_url += '?' + '&'.join(url_params)
+
+            response_data = result.to_dict()
+            response_data['request_id'] = request_id
+            response_data['medicine_url'] = medicine_url
+
+            # Log the medicine scan
+            ScanLog.objects.create(
+                user=user,
+                request_id=request_id,
+                status=ScanLog.STATUS_SUCCESS,
+                category='medicine',
+                confidence=result.confidence,
+                items_json=[{
+                    'label': result.medicine_name,
+                    'barcode': barcode,
+                    'source': result.source
+                }]
+            )
+
+            return JsonResponse(response_data)
+
+        else:
+            # Log the failed lookup
+            ScanLog.objects.create(
+                user=user,
+                request_id=request_id,
+                status=ScanLog.STATUS_SUCCESS,
+                category='medicine',
+                confidence=0.0,
+                items_json=[{
+                    'barcode': barcode,
+                    'source': 'not_found'
+                }]
+            )
+
+            return JsonResponse({
+                'found': False,
+                'barcode': barcode,
+                'request_id': request_id,
+                'message': 'Medicine not found. You can add it manually.'
+            })
+
+    def _check_ai_consent(self, user) -> bool:
+        """Check if user has consented to AI processing."""
+        if not hasattr(user, 'preferences'):
+            return False
+        prefs = user.preferences
+        return prefs.ai_enabled and prefs.ai_data_consent

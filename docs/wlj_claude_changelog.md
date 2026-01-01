@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Nutrition Breadcrumbs)
+# Last Updated: 2025-12-31 (Universal Barcode Scanner)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,57 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Universal Barcode Scanner Integration (MAJOR FEATURE)
+
+Extended the barcode scanner to work throughout the app, enabling users to scan product barcodes to auto-populate forms. This significantly reduces data entry when adding inventory items or medicines.
+
+**Example Use Case:**
+User scans a DeWalt drill barcode → System looks up product in external databases → Returns product name, brand, model, category → Pre-fills Inventory form → User just reviews and submits.
+
+**New Files Created:**
+- `apps/scan/services/product_lookup.py` - Product lookup service for electronics, tools, household items
+  - Uses UPC Item DB API (free tier) for product lookups
+  - OpenAI fallback for unknown products
+  - Returns: product_name, brand, category, model_number, description, msrp
+  - 24-hour caching to minimize API calls
+
+- `apps/scan/services/medicine_lookup.py` - Medicine lookup service for OTC drugs and supplements
+  - Uses RxNav API (NIH, free) for drug name lookups
+  - Uses FDA OpenData API (free) for NDC code lookups
+  - OpenAI fallback for unknown medicines
+  - Returns: medicine_name, generic_name, brand_name, dosage_form, strength, purpose
+
+**Files Modified:**
+- `apps/scan/services/__init__.py` - Export new services
+- `apps/scan/urls.py` - Added `/barcode/product/` and `/barcode/medicine/` endpoints
+- `apps/scan/views.py` - Added `ProductLookupView` and `MedicineLookupView` classes
+- `apps/life/views.py` - Updated `InventoryCreateView` with barcode scan support and additional pre-fill fields
+- `apps/health/views.py` - Updated `MedicineCreateView` with barcode scan support and context data
+- `templates/life/inventory_form.html` - Added barcode scanner UI with camera integration
+- `templates/health/medicine/medicine_form.html` - Added barcode scanner UI with camera integration
+
+**New API Endpoints:**
+- `POST /scan/barcode/product/` - Look up product barcode, returns inventory pre-fill URL
+- `POST /scan/barcode/medicine/` - Look up medicine barcode, returns medicine pre-fill URL
+
+**External APIs Used (All FREE):**
+- UPC Item DB - Product database for electronics, tools, appliances
+- RxNav API (NIH) - Drug database for medication lookups
+- FDA OpenData - Official NDC drug database
+- OpenAI (fallback) - For products not in external databases
+
+**Features:**
+- Native browser barcode detection using `BarcodeDetector` API
+- Manual barcode entry fallback for unsupported browsers
+- Real-time camera preview with scanning target overlay
+- Haptic feedback on successful barcode detection
+- Pre-fill redirect to appropriate form with all fields populated
+- Source tracking (`created_via` = barcode_scan) for analytics
+
+**No migrations required** - No database schema changes.
+
+---
 
 ### Nutrition Breadcrumbs (Enhancement)
 

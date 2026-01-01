@@ -1875,9 +1875,9 @@ class MedicineCreateView(LoginRequiredMixin, CreateView):
     template_name = "health/medicine/medicine_form.html"
 
     def get_initial(self):
-        """Pre-populate form from query parameters (for AI Camera scan)."""
+        """Pre-populate form from query parameters (for AI Camera scan and barcode scan)."""
         initial = super().get_initial()
-        # Support prefill from Camera Scan feature
+        # Support prefill from Camera Scan and Barcode Scan features
         if self.request.GET.get('name'):
             initial['name'] = self.request.GET.get('name')
         if self.request.GET.get('dose'):
@@ -1887,6 +1887,14 @@ class MedicineCreateView(LoginRequiredMixin, CreateView):
         if self.request.GET.get('directions'):
             # Directions can go into notes or be displayed separately
             initial['notes'] = self.request.GET.get('directions')
+        if self.request.GET.get('notes'):
+            # Also support notes directly from barcode scan
+            existing_notes = initial.get('notes', '')
+            new_notes = self.request.GET.get('notes')
+            if existing_notes:
+                initial['notes'] = f"{existing_notes}\n{new_notes}"
+            else:
+                initial['notes'] = new_notes
         if self.request.GET.get('quantity'):
             # Try to extract supply count from quantity like "30 tablets"
             quantity = self.request.GET.get('quantity', '')
@@ -1897,6 +1905,20 @@ class MedicineCreateView(LoginRequiredMixin, CreateView):
                     initial['current_supply'] = int(match.group(1))
         return initial
 
+    def get_context_data(self, **kwargs):
+        """Add barcode scan context to template."""
+        context = super().get_context_data(**kwargs)
+        # Check if user has AI consent for barcode scanning
+        has_ai_consent = (
+            hasattr(self.request.user, 'preferences') and
+            self.request.user.preferences.ai_enabled and
+            self.request.user.preferences.ai_data_consent
+        )
+        context['has_ai_consent'] = has_ai_consent
+        context['barcode_from_scan'] = self.request.GET.get('barcode', '')
+        context['source'] = self.request.GET.get('source', '')
+        return context
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
@@ -1905,11 +1927,14 @@ class MedicineCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.user = self.request.user
 
-        # Track if created via AI Camera scan
+        # Track if created via AI Camera scan or barcode scan
         source = self.request.GET.get('source')
         if source == 'ai_camera':
             from apps.core.models import UserOwnedModel
             form.instance.created_via = UserOwnedModel.CREATED_VIA_AI_CAMERA
+        elif source == 'barcode_scan':
+            from apps.core.models import UserOwnedModel
+            form.instance.created_via = UserOwnedModel.CREATED_VIA_AI_CAMERA  # Reuse same constant
 
         messages.success(self.request, f"Added {form.instance.name} to your medicines.")
         return super().form_valid(form)

@@ -3,6 +3,9 @@ Help Modal Component
 
 This is the modal dialog only (button is in navigation.html).
 Include this once in base.html.
+
+Contextual Links:
+- When on Projects pages (/admin-console/projects/*), shows a link to the Operator Runbook
 {% endcomment %}
 
 <!-- Help Modal -->
@@ -18,6 +21,17 @@ Include this once in base.html.
             </button>
         </header>
 
+        <!-- Contextual Projects Runbook Link (only shown on Projects pages) -->
+        <div id="help-contextual-links" class="help-contextual-links" hidden>
+            <a href="{% url 'admin_console:projects_runbook' %}" class="help-contextual-link" id="help-projects-runbook-link">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5V5a2 2 0 012-2h14v14H6.5a2.5 2.5 0 00-2.5 2.5z"/>
+                    <path d="M9 7h6M9 11h6M9 15h4"/>
+                </svg>
+                Projects Operator Runbook
+            </a>
+        </div>
+
         <div id="help-modal-body" class="help-modal-body">
             <div class="help-loading">
                 <div class="help-loading-spinner"></div>
@@ -31,3 +45,40 @@ Include this once in base.html.
         </footer>
     </div>
 </dialog>
+
+<script>
+// Context-aware help link visibility
+(function() {
+    function updateContextualLinks() {
+        const contextualLinks = document.getElementById('help-contextual-links');
+        const runbookLink = document.getElementById('help-projects-runbook-link');
+
+        if (!contextualLinks || !runbookLink) return;
+
+        // Check if current URL is within Projects pages
+        const isProjectsPage = window.location.pathname.startsWith('/admin-console/projects/');
+
+        if (isProjectsPage) {
+            contextualLinks.hidden = false;
+        } else {
+            contextualLinks.hidden = true;
+        }
+    }
+
+    // Run on page load
+    document.addEventListener('DOMContentLoaded', updateContextualLinks);
+
+    // Also run when modal opens (in case of SPA navigation)
+    const helpModal = document.getElementById('help-modal');
+    if (helpModal) {
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.attributeName === 'open' && helpModal.open) {
+                    updateContextualLinks();
+                }
+            });
+        });
+        observer.observe(helpModal, { attributes: true });
+    }
+})();
+</script>

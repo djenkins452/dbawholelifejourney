@@ -4,7 +4,7 @@
 # Description: Admin console URL configuration
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 13 - Inline Editing & Priority)
+# Last Updated: 2026-01-01 (Phase 15 - Operator Runbook)
 # ==============================================================================
 """
 Admin Console URLs
@@ -87,6 +87,9 @@ urlpatterns = [
 
     # Project Status Page (Phase 7)
     path("projects/status/", views.ProjectStatusView.as_view(), name="project_status"),
+
+    # Projects Operator Runbook (Phase 15)
+    path("projects/help/", views.ProjectsRunbookView.as_view(), name="projects_runbook"),
 
     # API Endpoints
     path("api/admin/project/active-phase/", views.ActivePhaseAPIView.as_view(), name="api_active_phase"),

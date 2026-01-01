@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 3)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 4)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,60 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 4 Task Execution (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 4 Task Execution
+
+**Description:**
+Added minimal logic to allow controlled task execution using status updates only. This includes status transition validation, validation rules for phase awareness and blocked reasons, and an admin-only API endpoint for updating task status.
+
+**Status Transition Rules:**
+- `backlog` → `ready`
+- `ready` → `in_progress`
+- `in_progress` → `done` | `blocked`
+- `blocked` → `ready`
+- `done` → (terminal, no transitions allowed)
+
+**Validation Rules:**
+1. A task can only move to `in_progress` if it belongs to the active phase (phase.status = 'in_progress')
+2. A task cannot move to `done` unless it was `in_progress`
+3. A blocked task must include a reason
+
+**New API Endpoint:**
+- `PATCH /api/admin/project/tasks/<id>/status/` - Update task status
+  - Admin-only (returns 403 for non-staff users)
+  - Request body: `{"status": "in_progress", "reason": "optional, required for blocked"}`
+  - Returns: Updated task JSON with activity log entry
+  - Error responses: 400 (validation error), 403 (not admin), 404 (task not found)
+
+**Activity Logging:**
+Every status change creates an AdminActivityLog entry with:
+- Task reference
+- Previous status → New status
+- Reason (if provided)
+- created_by (human or claude)
+
+**Model Changes:**
+- Added `TaskStatusTransitionError` exception class
+- Added `ALLOWED_TRANSITIONS` constant mapping valid transitions
+- Added `blocked_reason` field to AdminTask model
+- Added `is_valid_transition()` class method
+- Added `validate_status_transition()` instance method
+- Added `transition_status()` instance method with validation and logging
+
+**New Files:**
+- `apps/admin_console/migrations/0005_add_blocked_reason.py` - Migration for blocked_reason field
+
+**Modified Files:**
+- `apps/admin_console/models.py` - Added transition validation, blocked_reason field, logging
+- `apps/admin_console/views.py` - Added TaskStatusUpdateAPIView, ActivePhaseAPIView
+- `apps/admin_console/urls.py` - Added task status API route
+- `apps/admin_console/tests/test_admin_console.py` - Added 31 new tests
+
+**Tests:** 31 tests for Phase 4 functionality (TaskStatusTransitionModelTest + TaskStatusUpdateAPITest), all passing.
+
+---
 
 ### Admin Project Tasks - Phase 3 Task Selection (NEW FEATURE)
 

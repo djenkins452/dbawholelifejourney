@@ -77,4 +77,5 @@ urlpatterns = [
 
     # API Endpoints
     path("api/admin/project/active-phase/", views.ActivePhaseAPIView.as_view(), name="api_active_phase"),
+    path("api/admin/project/tasks/<int:pk>/status/", views.TaskStatusUpdateAPIView.as_view(), name="api_task_status"),
 ]

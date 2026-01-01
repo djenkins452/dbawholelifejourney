@@ -4,7 +4,7 @@
 # Description: Dexcom CGM OAuth and data sync service
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-31
-# Last Updated: 2025-12-31
+# Last Updated: 2026-01-01
 # ==============================================================================
 """
 Dexcom CGM Integration Service
@@ -18,6 +18,7 @@ import secrets
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
+from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
@@ -38,9 +39,9 @@ class DexcomService:
     SANDBOX_BASE_URL = "https://sandbox-api.dexcom.com"
     PRODUCTION_BASE_URL = "https://api.dexcom.com"
 
-    # OAuth endpoints (v3)
-    OAUTH_AUTHORIZE_PATH = "/v2/oauth2/login"
-    OAUTH_TOKEN_PATH = "/v2/oauth2/token"
+    # OAuth endpoints (v3 - updated from v2)
+    OAUTH_AUTHORIZE_PATH = "/v3/oauth2/login"
+    OAUTH_TOKEN_PATH = "/v3/oauth2/token"
 
     # Data endpoints (v3)
     EGV_PATH = "/v3/users/self/egvs"
@@ -87,9 +88,12 @@ class DexcomService:
             'state': state,
         }
 
-        # Build query string
-        query_string = '&'.join(f"{k}={v}" for k, v in params.items())
+        # Build query string with proper URL encoding
+        query_string = urlencode(params)
         full_url = f"{auth_url}?{query_string}"
+
+        logger.info(f"Dexcom auth URL generated - base: {self.base_url}, sandbox: {self.use_sandbox}")
+        logger.debug(f"Dexcom auth URL: {full_url}")
 
         return full_url, state
 
@@ -117,14 +121,32 @@ class DexcomService:
             'Content-Type': 'application/x-www-form-urlencoded',
         }
 
+        logger.info(f"Dexcom token exchange - URL: {token_url}")
+        logger.info(f"Dexcom token exchange - redirect_uri: {self.redirect_uri}")
+        logger.info(f"Dexcom token exchange - code length: {len(code) if code else 0}")
+
         try:
             response = requests.post(token_url, data=data, headers=headers, timeout=30)
+
+            # Log response status and any error details
+            logger.info(f"Dexcom token exchange - Response status: {response.status_code}")
+
+            if response.status_code != 200:
+                # Log error response body for debugging
+                try:
+                    error_body = response.json()
+                    logger.error(f"Dexcom token exchange error response: {error_body}")
+                except Exception:
+                    logger.error(f"Dexcom token exchange error body: {response.text[:500]}")
+
             response.raise_for_status()
             token_data = response.json()
 
             # Calculate token expiry
             expires_in = token_data.get('expires_in', 7200)  # Default 2 hours
             token_expiry = timezone.now() + timedelta(seconds=expires_in)
+
+            logger.info(f"Dexcom token exchange successful - expires_in: {expires_in}")
 
             return {
                 'access_token': token_data.get('access_token', ''),
@@ -133,7 +155,7 @@ class DexcomService:
                 'expires_in': expires_in,
             }
         except requests.exceptions.RequestException as e:
-            logger.error(f"Dexcom token exchange failed: {e}")
+            logger.exception(f"Dexcom token exchange failed: {e}")
             raise ValueError(f"Failed to exchange authorization code: {e}")
 
     def refresh_access_token(self, refresh_token: str) -> dict:

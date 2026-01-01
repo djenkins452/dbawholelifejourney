@@ -3575,13 +3575,21 @@ class DexcomCallbackView(LoginRequiredMixin, View):
     """
 
     def get(self, request):
+        import logging
         from .models import DexcomCredential
         from .services.dexcom import DexcomService
+
+        logger = logging.getLogger(__name__)
+
+        # Log callback receipt for debugging
+        logger.info(f"Dexcom callback received - User: {request.user.email if request.user.is_authenticated else 'Anonymous'}")
+        logger.info(f"Dexcom callback GET params: {dict(request.GET)}")
 
         # Check for errors from Dexcom
         error = request.GET.get('error')
         if error:
             error_desc = request.GET.get('error_description', 'Unknown error')
+            logger.error(f"Dexcom OAuth error: {error} - {error_desc}")
             messages.error(request, f"Dexcom authorization failed: {error_desc}")
             return redirect("health:glucose_dashboard")
 
@@ -3589,13 +3597,19 @@ class DexcomCallbackView(LoginRequiredMixin, View):
         code = request.GET.get('code')
         state = request.GET.get('state')
 
+        logger.info(f"Dexcom callback - code present: {bool(code)}, state: {state[:20] if state else 'None'}...")
+
         if not code:
+            logger.error("Dexcom callback - No authorization code received")
             messages.error(request, "No authorization code received from Dexcom.")
             return redirect("health:glucose_dashboard")
 
         # Verify state matches what we stored (CSRF protection)
         stored_state = request.session.get('dexcom_oauth_state')
+        logger.info(f"Dexcom callback - stored_state: {stored_state[:20] if stored_state else 'None'}...")
+
         if state != stored_state:
+            logger.error(f"Dexcom callback - State mismatch: received={state}, stored={stored_state}")
             messages.error(request, "Invalid state parameter. Please try again.")
             return redirect("health:glucose_dashboard")
 
@@ -3604,7 +3618,10 @@ class DexcomCallbackView(LoginRequiredMixin, View):
 
         try:
             service = DexcomService()
+            logger.info(f"Dexcom token exchange - Using sandbox: {service.use_sandbox}, redirect_uri: {service.redirect_uri}")
+
             credentials = service.exchange_code_for_credentials(code)
+            logger.info("Dexcom token exchange successful")
 
             # Create or update credential record
             credential, created = DexcomCredential.objects.update_or_create(
@@ -3617,18 +3634,21 @@ class DexcomCallbackView(LoginRequiredMixin, View):
             )
 
             if created:
+                logger.info(f"Dexcom credential created for user {request.user.email}")
                 messages.success(
                     request,
                     "Dexcom connected successfully! Your glucose readings "
                     "will now sync automatically."
                 )
             else:
+                logger.info(f"Dexcom credential updated for user {request.user.email}")
                 messages.success(request, "Dexcom connection updated.")
 
             # Trigger initial sync
             return redirect("health:dexcom_sync")
 
         except Exception as e:
+            logger.exception(f"Dexcom token exchange failed: {e}")
             messages.error(request, f"Failed to complete Dexcom connection: {e}")
             return redirect("health:glucose_dashboard")
 

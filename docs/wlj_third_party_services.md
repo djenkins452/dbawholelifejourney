@@ -168,13 +168,20 @@ This document catalogs all external services, APIs, and third-party integrations
 **Configuration (Environment Variables):**
 - `GOOGLE_CALENDAR_CLIENT_ID`
 - `GOOGLE_CALENDAR_CLIENT_SECRET`
-- `GOOGLE_CALENDAR_REDIRECT_URI`
+- `GOOGLE_CALENDAR_REDIRECT_URI` - OAuth callback URL (default: `https://wholelifejourney.com/life/calendar/google/callback/`)
 
 **OAuth Scopes:**
 - `https://www.googleapis.com/auth/calendar`
 
+**Google Cloud Console Setup:**
+1. Create a project in Google Cloud Console
+2. Enable Google Calendar API
+3. Create OAuth 2.0 Client ID (Web application)
+4. Add authorized redirect URI: `https://wholelifejourney.com/life/calendar/google/callback/`
+5. Copy Client ID and Client Secret to environment variables
+
 **Key Files:**
-- `config/settings.py` (lines 526-533)
+- `config/settings.py` (lines 547-558) - Configuration settings
 - `apps/life/services/google_calendar.py` - Service implementation
 - `apps/life/models.py` - GoogleCalendarCredential model
 - `requirements.txt` (google-auth>=2.0.0, google-auth-oauthlib>=1.0.0, google-api-python-client>=2.0.0)

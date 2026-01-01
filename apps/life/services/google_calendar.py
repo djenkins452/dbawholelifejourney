@@ -30,21 +30,30 @@ class GoogleCalendarService:
     """
     Service for Google Calendar integration.
     """
-    
+
     SCOPES = ['https://www.googleapis.com/auth/calendar']
-    
+
     def __init__(self):
         if not GOOGLE_AVAILABLE:
             raise ImportError(
                 "Google Calendar integration requires: "
                 "pip install google-auth google-auth-oauthlib google-api-python-client"
             )
-        
+
         self.client_id = getattr(settings, 'GOOGLE_CALENDAR_CLIENT_ID', None)
         self.client_secret = getattr(settings, 'GOOGLE_CALENDAR_CLIENT_SECRET', None)
         self.redirect_uri = getattr(settings, 'GOOGLE_CALENDAR_REDIRECT_URI', None)
-        
+
+        # Log configuration for debugging OAuth issues
+        logger.info(f"Google Calendar OAuth - Redirect URI: {self.redirect_uri}")
+
         if not all([self.client_id, self.client_secret, self.redirect_uri]):
+            logger.error(
+                f"Google Calendar not configured - "
+                f"client_id: {'set' if self.client_id else 'missing'}, "
+                f"client_secret: {'set' if self.client_secret else 'missing'}, "
+                f"redirect_uri: {'set' if self.redirect_uri else 'missing'}"
+            )
             raise ValueError(
                 "Google Calendar settings not configured. "
                 "Add GOOGLE_CALENDAR_CLIENT_ID, GOOGLE_CALENDAR_CLIENT_SECRET, "

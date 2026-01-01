@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Dexcom OAuth v3 Fix)
+# Last Updated: 2026-01-01 (Google Calendar OAuth Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,31 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Google Calendar OAuth Redirect URI Fix (BUG FIX)
+
+**Session:** Google Calendar Error
+
+**Problem:**
+When trying to connect Google Calendar from production, users received "Access blocked: This app's request is invalid" with error 400: redirect_uri_mismatch.
+
+**Root Cause:**
+The `GOOGLE_CALENDAR_REDIRECT_URI` setting had an empty default for production, requiring the environment variable to be set. When not set, the redirect URI sent to Google was empty or didn't match the authorized URI in Google Cloud Console.
+
+**Solution:**
+1. Added production default redirect URI: `https://wholelifejourney.com/life/calendar/google/callback/`
+2. Added diagnostic logging for redirect URI configuration
+3. Follows same pattern as Dexcom OAuth fix (uses env var with sensible default)
+
+**Files Modified:**
+- `config/settings.py` - Added production default for GOOGLE_CALENDAR_REDIRECT_URI
+- `apps/life/services/google_calendar.py` - Added logging for OAuth configuration
+
+**Required Action:**
+User must add `https://wholelifejourney.com/life/calendar/google/callback/` as an authorized redirect URI in Google Cloud Console under:
+APIs & Services → Credentials → OAuth 2.0 Client IDs → (your client) → Authorized redirect URIs
+
+---
 
 ### Dexcom OAuth v3 Upgrade and Debugging (BUG FIX)
 

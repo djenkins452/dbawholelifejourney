@@ -4,10 +4,134 @@
 # Description: Service functions for admin console task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 8 - Phase Auto-Unlock)
+# Last Updated: 2026-01-01 (Phase 8 - Phase Auto-Unlock, Phase 9 - Session Bootstrapping)
 # ==============================================================================
 
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
+
+from django.utils import timezone
+
 from .models import AdminProjectPhase, AdminTask, AdminActivityLog
+
+
+# ==============================================================================
+# System State Snapshot (Phase 9 - Session Bootstrapping)
+# ==============================================================================
+
+@dataclass
+class SystemStateSnapshot:
+    """
+    Read-only snapshot of system state at a point in time.
+
+    This structure captures the minimal information needed for session
+    bootstrapping. It is built once per request and reused by other
+    admin endpoints if needed. It is NOT persisted to the database.
+    """
+    # Active phase info (None if no active phase)
+    active_phase_number: Optional[int]
+    active_phase_name: Optional[str]
+    active_phase_status: Optional[str]
+
+    # Active phase objective
+    active_phase_objective: Optional[str]
+
+    # Task counts for active phase only
+    open_tasks_count: int
+    blocked_tasks_count: int
+
+    # Timestamp when snapshot was built
+    last_updated: datetime
+
+
+# Request-scope storage key for snapshot
+_REQUEST_SNAPSHOT_KEY = '_admin_system_state_snapshot'
+
+
+def get_system_state_snapshot(request=None) -> SystemStateSnapshot:
+    """
+    Get or build the system state snapshot for the current request.
+
+    If a request object is provided, the snapshot is cached on the request
+    and reused for subsequent calls within the same request. This ensures
+    the snapshot is built once per request.
+
+    If no request is provided, builds and returns a fresh snapshot without
+    caching.
+
+    Args:
+        request: Optional Django request object for request-scope caching
+
+    Returns:
+        SystemStateSnapshot with current system state
+    """
+    if request is not None:
+        # Check if snapshot already cached on request
+        cached = getattr(request, _REQUEST_SNAPSHOT_KEY, None)
+        if cached is not None:
+            return cached
+
+        # Build and cache
+        snapshot = build_system_state_snapshot()
+        setattr(request, _REQUEST_SNAPSHOT_KEY, snapshot)
+        return snapshot
+
+    # No request provided - build fresh snapshot
+    return build_system_state_snapshot()
+
+
+def build_system_state_snapshot() -> SystemStateSnapshot:
+    """
+    Build a read-only snapshot of the current system state.
+
+    This function:
+    - Reads the active phase using existing logic
+    - Counts tasks for the active phase by status
+    - Returns a populated SystemStateSnapshot
+    - Does NOT mutate any data
+
+    Note: Prefer using get_system_state_snapshot(request) for request-scope
+    caching. Use this function directly only when building a fresh snapshot
+    is explicitly needed.
+
+    Returns:
+        SystemStateSnapshot with current system state
+    """
+    active_phase = get_active_phase()
+
+    if active_phase:
+        # Count tasks for active phase only
+        phase_tasks = AdminTask.objects.filter(phase=active_phase)
+
+        # Open tasks = anything not done and not blocked
+        open_tasks_count = phase_tasks.filter(
+            status__in=['backlog', 'ready', 'in_progress']
+        ).count()
+
+        # Blocked tasks
+        blocked_tasks_count = phase_tasks.filter(status='blocked').count()
+
+        return SystemStateSnapshot(
+            active_phase_number=active_phase.phase_number,
+            active_phase_name=active_phase.name,
+            active_phase_status=active_phase.status,
+            active_phase_objective=active_phase.objective,
+            open_tasks_count=open_tasks_count,
+            blocked_tasks_count=blocked_tasks_count,
+            last_updated=timezone.now()
+        )
+    else:
+        # No active phase - return null-safe values
+        return SystemStateSnapshot(
+            active_phase_number=None,
+            active_phase_name=None,
+            active_phase_status=None,
+            active_phase_objective=None,
+            open_tasks_count=0,
+            blocked_tasks_count=0,
+            last_updated=timezone.now()
+        )
 
 
 # Valid blocker categories (per Phase 5 spec)
@@ -279,6 +403,10 @@ def get_project_metrics():
         'high_priority_remaining_tasks': high_priority_remaining_tasks,
     }
 
+
+# ==============================================================================
+# Phase 8 - Phase Auto-Unlock
+# ==============================================================================
 
 def is_phase_complete(phase):
     """

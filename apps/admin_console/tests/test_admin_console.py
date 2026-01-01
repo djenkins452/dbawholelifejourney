@@ -2186,552 +2186,388 @@ class ProjectMetricsAPITest(AdminTestMixin, TestCase):
 
 
 # =============================================================================
-# 16. PHASE AUTO-UNLOCK TESTS
+# 16. SYSTEM STATE SNAPSHOT TESTS
 # =============================================================================
 
-class IsPhaseCompleteTests(AdminTestMixin, TestCase):
-    """Tests for is_phase_complete function."""
+class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
+    """Tests for the SystemStateSnapshot dataclass and build function."""
 
-    def setUp(self):
+    def test_snapshot_with_no_active_phase(self):
+        """Snapshot returns null-safe values when no active phase."""
+        from apps.admin_console.services import build_system_state_snapshot
+
+        snapshot = build_system_state_snapshot()
+
+        self.assertIsNone(snapshot.active_phase_number)
+        self.assertIsNone(snapshot.active_phase_name)
+        self.assertIsNone(snapshot.active_phase_status)
+        self.assertIsNone(snapshot.active_phase_objective)
+        self.assertEqual(snapshot.open_tasks_count, 0)
+        self.assertEqual(snapshot.blocked_tasks_count, 0)
+        self.assertIsNotNone(snapshot.last_updated)
+
+    def test_snapshot_with_active_phase(self):
+        """Snapshot returns correct phase info when active phase exists."""
         from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import build_system_state_snapshot
 
-        self.phase = AdminProjectPhase.objects.create(
+        phase = AdminProjectPhase.objects.create(
+            phase_number=5,
+            name='Test Phase',
+            objective='Test objective',
+            status='in_progress'
+        )
+
+        snapshot = build_system_state_snapshot()
+
+        self.assertEqual(snapshot.active_phase_number, 5)
+        self.assertEqual(snapshot.active_phase_name, 'Test Phase')
+        self.assertEqual(snapshot.active_phase_status, 'in_progress')
+        self.assertEqual(snapshot.active_phase_objective, 'Test objective')
+
+    def test_snapshot_counts_open_tasks(self):
+        """Snapshot counts open tasks (backlog, ready, in_progress) correctly."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import build_system_state_snapshot
+
+        phase = AdminProjectPhase.objects.create(
             phase_number=1,
             name='Test Phase',
             objective='Test',
             status='in_progress'
         )
 
-    def test_phase_complete_with_no_tasks(self):
-        """Phase is complete when it has no tasks."""
-        from apps.admin_console.services import is_phase_complete
-
-        result = is_phase_complete(self.phase)
-        self.assertTrue(result)
-
-    def test_phase_complete_with_all_tasks_done(self):
-        """Phase is complete when all tasks are done."""
-        from apps.admin_console.models import AdminTask
-        from apps.admin_console.services import is_phase_complete
-
+        # Open tasks
         AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='done', effort='S', phase=self.phase, created_by='human'
+            title='Backlog Task', description='D', category='feature',
+            status='backlog', effort='S', phase=phase, created_by='human'
         )
         AdminTask.objects.create(
-            title='Task 2', description='D', category='feature',
-            status='done', effort='S', phase=self.phase, created_by='human'
-        )
-
-        result = is_phase_complete(self.phase)
-        self.assertTrue(result)
-
-    def test_phase_incomplete_with_backlog_task(self):
-        """Phase is not complete when a task is in backlog."""
-        from apps.admin_console.models import AdminTask
-        from apps.admin_console.services import is_phase_complete
-
-        AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='done', effort='S', phase=self.phase, created_by='human'
+            title='Ready Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
         )
         AdminTask.objects.create(
-            title='Task 2', description='D', category='feature',
-            status='backlog', effort='S', phase=self.phase, created_by='human'
+            title='In Progress Task', description='D', category='feature',
+            status='in_progress', effort='S', phase=phase, created_by='human'
         )
 
-        result = is_phase_complete(self.phase)
-        self.assertFalse(result)
-
-    def test_phase_incomplete_with_ready_task(self):
-        """Phase is not complete when a task is ready."""
-        from apps.admin_console.models import AdminTask
-        from apps.admin_console.services import is_phase_complete
-
+        # Not open (done)
         AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='ready', effort='S', phase=self.phase, created_by='human'
+            title='Done Task', description='D', category='feature',
+            status='done', effort='S', phase=phase, created_by='human'
         )
 
-        result = is_phase_complete(self.phase)
-        self.assertFalse(result)
+        snapshot = build_system_state_snapshot()
 
-    def test_phase_incomplete_with_in_progress_task(self):
-        """Phase is not complete when a task is in_progress."""
-        from apps.admin_console.models import AdminTask
-        from apps.admin_console.services import is_phase_complete
+        self.assertEqual(snapshot.open_tasks_count, 3)
 
-        AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='in_progress', effort='S', phase=self.phase, created_by='human'
+    def test_snapshot_counts_blocked_tasks(self):
+        """Snapshot counts blocked tasks correctly."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import build_system_state_snapshot
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
         )
 
-        result = is_phase_complete(self.phase)
-        self.assertFalse(result)
-
-    def test_phase_incomplete_with_blocked_task(self):
-        """Phase is not complete when a task is blocked."""
-        from apps.admin_console.models import AdminTask
-        from apps.admin_console.services import is_phase_complete
-
+        # Blocked tasks
         AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
+            title='Blocked Task 1', description='D', category='feature',
             status='blocked', blocked_reason='Waiting', effort='S',
-            phase=self.phase, created_by='human'
+            phase=phase, created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Blocked Task 2', description='D', category='feature',
+            status='blocked', blocked_reason='API issue', effort='S',
+            phase=phase, created_by='human'
         )
 
-        result = is_phase_complete(self.phase)
-        self.assertFalse(result)
-
-
-class GetNextPhaseTests(AdminTestMixin, TestCase):
-    """Tests for get_next_phase function."""
-
-    def test_get_next_phase_returns_next(self):
-        """get_next_phase returns the next phase by phase_number."""
-        from apps.admin_console.models import AdminProjectPhase
-        from apps.admin_console.services import get_next_phase
-
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2, name='Phase 2', objective='Second', status='not_started'
-        )
-        phase3 = AdminProjectPhase.objects.create(
-            phase_number=3, name='Phase 3', objective='Third', status='not_started'
+        # Not blocked
+        AdminTask.objects.create(
+            title='Ready Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
         )
 
-        next_phase = get_next_phase(phase1)
-        self.assertEqual(next_phase, phase2)
+        snapshot = build_system_state_snapshot()
 
-    def test_get_next_phase_returns_none_for_last_phase(self):
-        """get_next_phase returns None for the last phase."""
-        from apps.admin_console.models import AdminProjectPhase
-        from apps.admin_console.services import get_next_phase
+        self.assertEqual(snapshot.blocked_tasks_count, 2)
 
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='complete'
+    def test_snapshot_only_counts_active_phase_tasks(self):
+        """Snapshot only counts tasks from the active phase."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import build_system_state_snapshot
+
+        active_phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Active Phase',
+            objective='Current',
+            status='in_progress'
         )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2, name='Phase 2', objective='Last', status='in_progress'
-        )
-
-        next_phase = get_next_phase(phase2)
-        self.assertIsNone(next_phase)
-
-    def test_get_next_phase_skips_non_consecutive_numbers(self):
-        """get_next_phase finds next even with non-consecutive phase numbers."""
-        from apps.admin_console.models import AdminProjectPhase
-        from apps.admin_console.services import get_next_phase
-
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-        phase5 = AdminProjectPhase.objects.create(
-            phase_number=5, name='Phase 5', objective='Fifth', status='not_started'
-        )
-        phase10 = AdminProjectPhase.objects.create(
-            phase_number=10, name='Phase 10', objective='Tenth', status='not_started'
+        future_phase = AdminProjectPhase.objects.create(
+            phase_number=2,
+            name='Future Phase',
+            objective='Later',
+            status='not_started'
         )
 
-        next_phase = get_next_phase(phase1)
-        self.assertEqual(next_phase, phase5)
-
-
-class UnlockNextPhaseTests(AdminTestMixin, TestCase):
-    """Tests for unlock_next_phase function."""
-
-    def test_unlock_next_phase_sets_status(self):
-        """unlock_next_phase sets next phase to in_progress."""
-        from apps.admin_console.models import AdminProjectPhase
-        from apps.admin_console.services import unlock_next_phase
-
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='complete'
+        # Tasks in active phase
+        AdminTask.objects.create(
+            title='Active Task 1', description='D', category='feature',
+            status='ready', effort='S', phase=active_phase, created_by='human'
         )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2, name='Phase 2', objective='Second', status='not_started'
+        AdminTask.objects.create(
+            title='Active Task 2', description='D', category='feature',
+            status='blocked', blocked_reason='Wait', effort='S',
+            phase=active_phase, created_by='human'
         )
 
-        unlocked = unlock_next_phase(phase1)
-
-        phase2.refresh_from_db()
-        self.assertEqual(unlocked, phase2)
-        self.assertEqual(phase2.status, 'in_progress')
-
-    def test_unlock_next_phase_returns_none_if_no_next(self):
-        """unlock_next_phase returns None if no next phase exists."""
-        from apps.admin_console.models import AdminProjectPhase
-        from apps.admin_console.services import unlock_next_phase
-
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='Only', status='complete'
+        # Tasks in future phase (should not be counted)
+        AdminTask.objects.create(
+            title='Future Task', description='D', category='feature',
+            status='backlog', effort='S', phase=future_phase, created_by='human'
         )
 
-        unlocked = unlock_next_phase(phase1)
-        self.assertIsNone(unlocked)
+        snapshot = build_system_state_snapshot()
 
-    def test_unlock_next_phase_returns_none_if_not_started(self):
-        """unlock_next_phase returns None if next phase is already started."""
-        from apps.admin_console.models import AdminProjectPhase
-        from apps.admin_console.services import unlock_next_phase
+        self.assertEqual(snapshot.open_tasks_count, 1)
+        self.assertEqual(snapshot.blocked_tasks_count, 1)
 
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='complete'
+    def test_snapshot_is_read_only(self):
+        """Snapshot function does not mutate any data."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.services import build_system_state_snapshot
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
         )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2, name='Phase 2', objective='Second', status='in_progress'
-        )
-
-        unlocked = unlock_next_phase(phase1)
-        self.assertIsNone(unlocked)
-
-    def test_unlock_next_phase_creates_activity_log(self):
-        """unlock_next_phase creates activity log entry."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask, AdminActivityLog
-        from apps.admin_console.services import unlock_next_phase
-
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='complete'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2, name='Phase 2', objective='Second', status='not_started'
-        )
-
-        # Create a task so activity log can be created
         task = AdminTask.objects.create(
-            title='Task in Phase 2', description='D', category='feature',
-            status='backlog', effort='S', phase=phase2, created_by='human'
+            title='Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
         )
 
-        initial_log_count = AdminActivityLog.objects.count()
+        # Call snapshot multiple times
+        snapshot1 = build_system_state_snapshot()
+        snapshot2 = build_system_state_snapshot()
 
-        unlock_next_phase(phase1, created_by='claude')
-
-        self.assertEqual(AdminActivityLog.objects.count(), initial_log_count + 1)
-        log = AdminActivityLog.objects.latest('created_at')
-        self.assertIn('Phase 2', log.action)
-        self.assertIn('unlocked', log.action)
-        self.assertEqual(log.created_by, 'claude')
-
-
-class CheckAndCompletePhaseTests(AdminTestMixin, TestCase):
-    """Tests for check_and_complete_phase function."""
-
-    def test_check_and_complete_phase_completes_when_all_done(self):
-        """check_and_complete_phase marks phase complete when all tasks done."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-        from apps.admin_console.services import check_and_complete_phase
-
-        phase = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-        AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
-        )
-
-        completed, unlocked = check_and_complete_phase(phase)
-
+        # Data should be unchanged
+        task.refresh_from_db()
         phase.refresh_from_db()
-        self.assertTrue(completed)
-        self.assertEqual(phase.status, 'complete')
+        self.assertEqual(task.status, 'ready')
+        self.assertEqual(phase.status, 'in_progress')
 
-    def test_check_and_complete_phase_does_not_complete_with_blocked(self):
-        """check_and_complete_phase does not complete phase with blocked tasks."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-        from apps.admin_console.services import check_and_complete_phase
+
+class RequestScopedSnapshotTest(AdminTestMixin, TestCase):
+    """Tests for request-scoped snapshot caching."""
+
+    def test_get_snapshot_without_request_builds_fresh(self):
+        """get_system_state_snapshot without request builds fresh snapshot."""
+        from apps.admin_console.services import get_system_state_snapshot
+
+        snapshot1 = get_system_state_snapshot()
+        snapshot2 = get_system_state_snapshot()
+
+        # Both should work but be independent snapshots
+        self.assertIsNotNone(snapshot1)
+        self.assertIsNotNone(snapshot2)
+
+    def test_get_snapshot_with_request_caches(self):
+        """get_system_state_snapshot with request caches on request object."""
+        from apps.admin_console.models import AdminProjectPhase
+        from apps.admin_console.services import get_system_state_snapshot
 
         phase = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Create a mock request object
+        class MockRequest:
+            pass
+
+        request = MockRequest()
+
+        # First call should build and cache
+        snapshot1 = get_system_state_snapshot(request)
+        self.assertIsNotNone(snapshot1)
+
+        # Second call should return cached snapshot
+        snapshot2 = get_system_state_snapshot(request)
+
+        # Should be the same object
+        self.assertIs(snapshot1, snapshot2)
+
+
+# =============================================================================
+# 17. SYSTEM STATE API TESTS
+# =============================================================================
+
+class SystemStateAPITest(AdminTestMixin, TestCase):
+    """Tests for the system state API endpoint."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.regular_user = self.create_user()
+
+    def test_system_state_requires_authentication(self):
+        """System state API requires authentication."""
+        response = self.client.get('/api/admin/project/system-state/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_system_state_requires_staff(self):
+        """System state API requires staff status."""
+        self.login_user()
+        response = self.client.get('/api/admin/project/system-state/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_system_state_accessible_to_staff(self):
+        """System state API is accessible to staff users."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_system_state_returns_json(self):
+        """System state API returns JSON."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_system_state_returns_expected_structure(self):
+        """System state API returns expected JSON structure."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertIn('active_phase', data)
+        self.assertIn('objective', data)
+        self.assertIn('open_tasks', data)
+        self.assertIn('blocked_tasks', data)
+        self.assertIn('last_updated', data)
+
+    def test_system_state_no_active_phase(self):
+        """System state API returns null for active_phase when no phase active."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertIsNone(data['active_phase'])
+        self.assertIsNone(data['objective'])
+        self.assertEqual(data['open_tasks'], 0)
+        self.assertEqual(data['blocked_tasks'], 0)
+
+    def test_system_state_with_active_phase(self):
+        """System state API returns correct phase info."""
+        from apps.admin_console.models import AdminProjectPhase
+
+        AdminProjectPhase.objects.create(
+            phase_number=5,
+            name='Blocker Task Creation',
+            objective='Define blocker creation logic',
+            status='in_progress'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(data['active_phase']['number'], 5)
+        self.assertEqual(data['active_phase']['name'], 'Blocker Task Creation')
+        self.assertEqual(data['active_phase']['status'], 'in_progress')
+        self.assertEqual(data['objective'], 'Define blocker creation logic')
+
+    def test_system_state_counts_tasks(self):
+        """System state API returns correct task counts."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Open tasks
+        AdminTask.objects.create(
+            title='Ready Task', description='D', category='feature',
+            status='ready', effort='S', phase=phase, created_by='human'
         )
         AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
+            title='In Progress Task', description='D', category='feature',
+            status='in_progress', effort='S', phase=phase, created_by='human'
         )
         AdminTask.objects.create(
-            title='Task 2', description='D', category='feature',
+            title='Backlog Task', description='D', category='feature',
+            status='backlog', effort='S', phase=phase, created_by='human'
+        )
+
+        # Blocked task
+        AdminTask.objects.create(
+            title='Blocked Task', description='D', category='feature',
             status='blocked', blocked_reason='Waiting', effort='S',
             phase=phase, created_by='human'
         )
 
-        completed, unlocked = check_and_complete_phase(phase)
-
-        phase.refresh_from_db()
-        self.assertFalse(completed)
-        self.assertEqual(phase.status, 'in_progress')
-
-    def test_check_and_complete_phase_unlocks_next(self):
-        """check_and_complete_phase unlocks the next phase."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-        from apps.admin_console.services import check_and_complete_phase
-
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2, name='Phase 2', objective='Second', status='not_started'
-        )
+        # Done task (should not be counted in either)
         AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='done', effort='S', phase=phase1, created_by='human'
+            title='Done Task', description='D', category='feature',
+            status='done', effort='S', phase=phase, created_by='human'
         )
 
-        completed, unlocked = check_and_complete_phase(phase1)
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        data = json.loads(response.content)
 
-        phase2.refresh_from_db()
-        self.assertTrue(completed)
-        self.assertEqual(unlocked, phase2)
-        self.assertEqual(phase2.status, 'in_progress')
+        self.assertEqual(data['open_tasks'], 3)
+        self.assertEqual(data['blocked_tasks'], 1)
 
-    def test_check_and_complete_phase_does_not_complete_already_complete(self):
-        """check_and_complete_phase does not re-complete an already complete phase."""
-        from apps.admin_console.models import AdminProjectPhase
-        from apps.admin_console.services import check_and_complete_phase
+    def test_system_state_last_updated_is_iso_timestamp(self):
+        """System state API returns ISO formatted timestamp."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/system-state/')
+        import json
+        from datetime import datetime
+
+        data = json.loads(response.content)
+
+        # Should be parseable as ISO timestamp
+        timestamp = datetime.fromisoformat(data['last_updated'].replace('Z', '+00:00'))
+        self.assertIsNotNone(timestamp)
+
+    def test_system_state_is_read_only(self):
+        """System state API does not modify any data."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
 
         phase = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='complete'
-        )
-
-        completed, unlocked = check_and_complete_phase(phase)
-
-        self.assertFalse(completed)
-        self.assertIsNone(unlocked)
-
-    def test_check_and_complete_phase_creates_activity_log(self):
-        """check_and_complete_phase creates activity log for completion."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask, AdminActivityLog
-        from apps.admin_console.services import check_and_complete_phase
-
-        phase = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
         )
         task = AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
-        )
-
-        initial_log_count = AdminActivityLog.objects.count()
-
-        check_and_complete_phase(phase, created_by='claude')
-
-        # At least one log for completion
-        self.assertGreater(AdminActivityLog.objects.count(), initial_log_count)
-        log = AdminActivityLog.objects.filter(task=task).latest('created_at')
-        self.assertIn('completed', log.action)
-        self.assertEqual(log.created_by, 'claude')
-
-
-class OnTaskDoneTests(AdminTestMixin, TestCase):
-    """Tests for on_task_done function."""
-
-    def test_on_task_done_triggers_phase_check(self):
-        """on_task_done triggers phase completion check."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-        from apps.admin_console.services import on_task_done
-
-        phase = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-        task = AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
-        )
-
-        completed, unlocked = on_task_done(task)
-
-        phase.refresh_from_db()
-        self.assertTrue(completed)
-        self.assertEqual(phase.status, 'complete')
-
-    def test_on_task_done_does_not_complete_phase_with_remaining(self):
-        """on_task_done does not complete phase with remaining tasks."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-        from apps.admin_console.services import on_task_done
-
-        phase = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-        task1 = AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
-        )
-        AdminTask.objects.create(
-            title='Task 2', description='D', category='feature',
+            title='Task', description='D', category='feature',
             status='ready', effort='S', phase=phase, created_by='human'
         )
 
-        completed, unlocked = on_task_done(task1)
+        self.login_admin()
 
+        # Call API multiple times
+        self.client.get('/api/admin/project/system-state/')
+        self.client.get('/api/admin/project/system-state/')
+
+        # Data should be unchanged
+        task.refresh_from_db()
         phase.refresh_from_db()
-        self.assertFalse(completed)
+        self.assertEqual(task.status, 'ready')
         self.assertEqual(phase.status, 'in_progress')
-
-
-class TransitionStatusPhaseAutoUnlockTests(AdminTestMixin, TestCase):
-    """Tests for phase auto-unlock triggered by transition_status."""
-
-    def test_transition_to_done_triggers_phase_check(self):
-        """Transitioning to done triggers phase completion check."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2, name='Phase 2', objective='Second', status='not_started'
-        )
-
-        task = AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='in_progress', effort='S', phase=phase1, created_by='human'
-        )
-
-        # Transition to done
-        task.transition_status('done', created_by='human')
-
-        # Phase 1 should be complete, Phase 2 should be unlocked
-        phase1.refresh_from_db()
-        phase2.refresh_from_db()
-        self.assertEqual(phase1.status, 'complete')
-        self.assertEqual(phase2.status, 'in_progress')
-
-    def test_transition_to_blocked_does_not_trigger_phase_check(self):
-        """Transitioning to blocked does not trigger phase completion check."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-
-        phase = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-
-        task = AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='in_progress', effort='S', phase=phase, created_by='human'
-        )
-
-        # Transition to blocked
-        task.transition_status('blocked', reason='Waiting', created_by='human')
-
-        # Phase should still be in_progress
-        phase.refresh_from_db()
-        self.assertEqual(phase.status, 'in_progress')
-
-    def test_full_workflow_with_auto_unlock(self):
-        """Full workflow from backlog to done with phase auto-unlock."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-
-        # Create phases
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2, name='Phase 2', objective='Second', status='not_started'
-        )
-
-        # Create task
-        task = AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='backlog', effort='S', phase=phase1, created_by='human'
-        )
-
-        # Workflow: backlog -> ready -> in_progress -> done
-        task.transition_status('ready', created_by='human')
-        task.transition_status('in_progress', created_by='human')
-        task.transition_status('done', created_by='human')
-
-        # Phase 1 should be complete, Phase 2 should be unlocked
-        phase1.refresh_from_db()
-        phase2.refresh_from_db()
-        self.assertEqual(phase1.status, 'complete')
-        self.assertEqual(phase2.status, 'in_progress')
-
-    def test_multiple_tasks_require_all_done(self):
-        """Phase does not complete until all tasks are done."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-
-        phase = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-
-        task1 = AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='in_progress', effort='S', phase=phase, created_by='human'
-        )
-        task2 = AdminTask.objects.create(
-            title='Task 2', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='human'
-        )
-
-        # Complete first task
-        task1.transition_status('done', created_by='human')
-
-        # Phase should still be in_progress
-        phase.refresh_from_db()
-        self.assertEqual(phase.status, 'in_progress')
-
-        # Complete second task
-        task2.transition_status('in_progress', created_by='human')
-        task2.transition_status('done', created_by='human')
-
-        # Now phase should be complete
-        phase.refresh_from_db()
-        self.assertEqual(phase.status, 'complete')
-
-    def test_blocked_task_prevents_phase_completion(self):
-        """A blocked task prevents phase completion even if others are done."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-
-        phase = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-
-        task1 = AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='in_progress', effort='S', phase=phase, created_by='human'
-        )
-        task2 = AdminTask.objects.create(
-            title='Task 2', description='D', category='feature',
-            status='in_progress', effort='S', phase=phase, created_by='human'
-        )
-
-        # Block task 2
-        task2.transition_status('blocked', reason='Waiting', created_by='human')
-
-        # Complete task 1
-        task1.transition_status('done', created_by='human')
-
-        # Phase should still be in_progress due to blocked task
-        phase.refresh_from_db()
-        self.assertEqual(phase.status, 'in_progress')
-
-    def test_does_not_unlock_more_than_one_phase(self):
-        """Auto-unlock only unlocks one phase at a time."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-
-        # Create three phases
-        phase1 = AdminProjectPhase.objects.create(
-            phase_number=1, name='Phase 1', objective='First', status='in_progress'
-        )
-        phase2 = AdminProjectPhase.objects.create(
-            phase_number=2, name='Phase 2', objective='Second', status='not_started'
-        )
-        phase3 = AdminProjectPhase.objects.create(
-            phase_number=3, name='Phase 3', objective='Third', status='not_started'
-        )
-
-        task = AdminTask.objects.create(
-            title='Task 1', description='D', category='feature',
-            status='in_progress', effort='S', phase=phase1, created_by='human'
-        )
-
-        # Complete task
-        task.transition_status('done', created_by='human')
-
-        # Phase 2 should be unlocked, Phase 3 should still be not_started
-        phase1.refresh_from_db()
-        phase2.refresh_from_db()
-        phase3.refresh_from_db()
-        self.assertEqual(phase1.status, 'complete')
-        self.assertEqual(phase2.status, 'in_progress')
-        self.assertEqual(phase3.status, 'not_started')

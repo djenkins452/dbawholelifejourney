@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Dexcom OAuth v3 Fix)
+# Last Updated: 2026-01-01 (Task Queue System)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,35 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Claude Task Queue System (NEW FEATURE)
+
+**Session:** New App Ideas/Fixes
+
+**Description:**
+Created a task queue system for managing errors, feature requests, and app ideas across Claude Code sessions. This allows Danny to add tasks to a document and have Claude execute them one at a time, tracking status as work progresses.
+
+**How It Works:**
+1. Tasks are added to `docs/wlj_claude_tasks.md` with status `NEW`
+2. When starting a session, say: "Read wlj_claude_tasks.md and execute the next task"
+3. Claude finds the first `NEW` or `IN_PROGRESS` task and executes it
+4. Claude updates the status to `COMPLETE`, `IN_PROGRESS`, or `BLOCKED`
+5. Completed tasks are archived at the bottom of the document
+
+**Task Properties:**
+- Status: NEW, IN_PROGRESS, COMPLETE, BLOCKED, CANCELLED
+- Priority: HIGH, MEDIUM, LOW (HIGH executed first)
+- Category: BUG, FEATURE, ENHANCEMENT, IDEA, REFACTOR
+- Acceptance criteria for verification
+
+**Files Created:**
+- `docs/wlj_claude_tasks.md` - Task queue document
+
+**Files Modified:**
+- `CLAUDE.md` - Added task queue reference and usage instructions
+- `docs/wlj_claude_changelog.md` - This entry
+
+---
 
 ### Dexcom OAuth v3 Upgrade and Debugging (BUG FIX)
 

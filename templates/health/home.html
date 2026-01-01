@@ -140,7 +140,7 @@
                     <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 2v6M12 22v-6M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h6M22 12h-6M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24"/>
                     </svg>
-                    Glucose
+                    Blood Glucose
                 </h2>
                 <a href="{% url 'health:glucose_create' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
@@ -149,6 +149,9 @@
                 <div class="metric-display">
                     <span class="metric-value">{{ latest_glucose.value }}</span>
                     <span class="metric-unit">{{ latest_glucose.unit }}</span>
+                    {% if latest_glucose.trend_arrow_display %}
+                        <span class="trend-arrow">{{ latest_glucose.trend_arrow_display }}</span>
+                    {% endif %}
                 </div>
                 <p class="metric-context">{{ latest_glucose.get_context_display }}</p>
                 <p class="metric-date">{{ latest_glucose.recorded_at|date:"M j" }}</p>
@@ -157,11 +160,11 @@
                     <p class="metric-avg">Avg fasting: {{ avg_fasting_glucose }} {{ latest_glucose.unit }}</p>
                 {% endif %}
 
-                <a href="{% url 'health:glucose_list' %}" class="card-link">View history</a>
+                <a href="{% url 'health:glucose_dashboard' %}" class="card-link">View Dashboard</a>
             {% else %}
                 <p class="text-muted">No glucose logged yet.</p>
-                <a href="{% url 'health:glucose_create' %}" class="btn btn-secondary btn-sm mt-4">
-                    Log your first reading
+                <a href="{% url 'health:glucose_dashboard' %}" class="btn btn-secondary btn-sm mt-4">
+                    Open Glucose Dashboard
                 </a>
             {% endif %}
         </div>

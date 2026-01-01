@@ -38,11 +38,22 @@ Categories:
 - `wlj_third_party_*` - Third-party service documentation
 - `wlj_camera_*` - Camera/scan feature architecture
 
-### Task Queue System
-The `docs/wlj_claude_tasks.md` file is a queue of tasks for Claude to execute:
-- **Adding tasks:** Add entries with status `NEW`, priority, and description
-- **Executing tasks:** Say "Read wlj_claude_tasks.md and execute the next task"
-- **Status updates:** Claude updates status to `COMPLETE`, `IN_PROGRESS`, or `BLOCKED`
+### Claude as Project Manager
+Claude manages the WLJ project via `docs/wlj_claude_tasks.md`. Just start a session and Claude will:
+1. **Give you a status summary** - Active, pending, and blocked tasks
+2. **Show what's ready** - Top priority items to work on
+3. **Ask what you want** - You pick, or say "do the next task"
+4. **Execute and update** - Complete work, update docs, deploy
+
+**Quick Commands:**
+| Command | What Happens |
+|---------|--------------|
+| `"Read CLAUDE.md and continue"` | Full context + status summary |
+| `"What's the status?"` | Quick task queue summary |
+| `"Do the next task"` | Execute highest priority NEW task |
+| `"Add task: [description]"` | Claude adds a new task |
+
+**Multi-Phase Tasks:** Claude completes ONE phase at a time, then asks if you want to continue or save for next session.
 
 ## Tech Stack
 - Django 5.x with django-allauth for authentication
@@ -146,7 +157,18 @@ When adding/modifying any third-party service: Update `docs/wlj_third_party_serv
 ## Session Instructions
 
 ### Starting a New Session
-Say: **"Read CLAUDE.md and continue"** - this gives full project context.
+Say: **"Read CLAUDE.md and continue"** - Claude will:
+1. Load full project context
+2. Read the task queue (`docs/wlj_claude_tasks.md`)
+3. Give you a status summary
+4. Ask what you want to work on
+
+### Project Manager Workflow
+Claude acts as your PM. After reading context, Claude will:
+- Show active/pending/blocked task counts
+- List top priority items ready to work
+- Wait for your direction or execute "do the next task"
+- For multi-phase tasks, complete one phase then check in
 
 ### MANDATORY: Documentation Updates
 **After ANY code changes, you MUST update the relevant documentation files:**

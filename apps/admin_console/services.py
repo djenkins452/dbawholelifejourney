@@ -4,7 +4,7 @@
 # Description: Service functions for admin console task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 11.1 - Preflight Guard & Phase Seeding)
+# Last Updated: 2026-01-01 (Prepopulate Phase Dropdown 1-20)
 # ==============================================================================
 
 from dataclasses import dataclass, field
@@ -969,4 +969,76 @@ def seed_admin_project_phases(created_by: str = 'claude') -> dict:
         'seeded': True,
         'phase_count': len(created_phases),
         'message': log_message
+    }
+
+
+def ensure_project_phases_exist(max_phase: int = 20) -> dict:
+    """
+    Ensure AdminProjectPhase records exist for phase_number 1 through max_phase.
+
+    This function is idempotent and safe to run multiple times:
+    - For each phase 1 through max_phase:
+      - If phase already exists: DO NOT overwrite name, objective, or status
+      - If phase does not exist: Create with default name "Phase X" and status based on rules
+    - Phase 1 status is set to "in_progress" ONLY IF no phase is currently in_progress
+    - All other new phases are set to "not_started"
+    - Never deletes phases
+    - Never overwrites existing phase data
+
+    This is suitable for production and safe to call on every startup.
+
+    Args:
+        max_phase: Maximum phase number to ensure exists (default 20)
+
+    Returns:
+        dict with:
+        - 'created_count': int - Number of new phases created
+        - 'existing_count': int - Number of phases that already existed
+        - 'total_count': int - Total phases now in database
+        - 'message': str - Description of what happened
+    """
+    created_count = 0
+    existing_count = 0
+
+    # Check if any phase is currently in_progress
+    has_active_phase = AdminProjectPhase.objects.filter(status='in_progress').exists()
+
+    for phase_number in range(1, max_phase + 1):
+        # Check if phase already exists
+        existing_phase = AdminProjectPhase.objects.filter(phase_number=phase_number).first()
+
+        if existing_phase:
+            # Phase exists - DO NOT modify it
+            existing_count += 1
+        else:
+            # Phase does not exist - create it
+            # Determine status:
+            # - Phase 1 gets "in_progress" only if no phase is currently active
+            # - All others get "not_started"
+            if phase_number == 1 and not has_active_phase:
+                status = 'in_progress'
+                has_active_phase = True  # Mark that we now have an active phase
+            else:
+                status = 'not_started'
+
+            AdminProjectPhase.objects.create(
+                phase_number=phase_number,
+                name=f'Phase {phase_number}',
+                objective=f'Phase {phase_number} objectives',
+                status=status
+            )
+            created_count += 1
+
+    total_count = AdminProjectPhase.objects.count()
+
+    if created_count > 0:
+        message = f'Created {created_count} new phase(s). {existing_count} phase(s) already existed. Total: {total_count} phases.'
+    else:
+        message = f'All {existing_count} phases already exist. No new phases created.'
+
+    return {
+        'created_count': created_count,
+        'existing_count': existing_count,
+        'total_count': total_count,
+        'message': message
     }

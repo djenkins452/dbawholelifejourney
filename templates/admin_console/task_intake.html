@@ -57,15 +57,17 @@
                 <div class="form-group">
                     <label for="id_phase" class="form-label">Phase <span class="required">*</span></label>
                     <select name="phase" id="id_phase" class="form-input" required>
-                        <option value="">-- Select Phase --</option>
+                        {% if not phases %}
+                        <option value="">-- No phases available --</option>
+                        {% else %}
                         {% for phase in phases %}
                         <option value="{{ phase.pk }}" {% if active_phase and phase.pk == active_phase.pk %}selected{% endif %}>
-                            Phase {{ phase.phase_number }}: {{ phase.name }}
-                            {% if phase.status == 'in_progress' %}(Active){% endif %}
+                            Phase {{ phase.phase_number }}{% if phase.status == 'in_progress' %} (Active){% endif %}
                         </option>
                         {% endfor %}
+                        {% endif %}
                     </select>
-                    <p class="form-hint">Task cannot be created without a phase</p>
+                    <p class="form-hint">Select the project phase for this task (required)</p>
                 </div>
 
                 <div class="form-group">

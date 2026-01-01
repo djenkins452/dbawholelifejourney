@@ -89,10 +89,18 @@ Created a Django Admin interface for managing Claude Code tasks. Danny can now a
 
 **Features:**
 - **ClaudeTask Model** with fields for title, description, status, priority, category, phases
-- **10 Task Categories:** Bug, Feature, Enhancement, Idea, Refactor, Maintenance, Cleanup, Security, Performance, Documentation
+- **12 Task Categories:** Bug, Feature, Enhancement, Idea, Refactor, Maintenance, Cleanup, Security, Performance, Documentation, ACTION REQUIRED, Review
 - **Source Tracking:** Tasks marked as "User" (added by Danny) or "Claude" (discovered during session)
-- **Color-coded badges** for status (blue=new, yellow=in progress, green=complete, red=blocked)
-- **Priority badges** (HIGH=red, MEDIUM=yellow, LOW=green)
+- **Color-coded badges** for status, priority, category, and source
+- **Special Categories for User Actions:**
+  - **ACTION REQUIRED** (pink badge) - User action needed (env vars, config, etc.)
+  - **REVIEW** (teal badge) - Task complete, please review
+- **Parent Task Linking** - Follow-up tasks link to their parent task
+- **Helper Methods for Claude:**
+  - `ClaudeTask.create_action_required()` - Create action item for user
+  - `ClaudeTask.create_review_task()` - Create review task after completing work
+  - `ClaudeTask.create_discovered_task()` - Create task for issues found during session
+  - `ClaudeTask.get_user_action_items()` - Get all pending user actions
 - **Multi-phase support** for complex features (Claude does one phase at a time)
 - **Bulk actions** to mark tasks as New/In Progress/Complete/Blocked
 - **Auto-assigned task numbers** (TASK-001, TASK-002, etc.)
@@ -103,7 +111,7 @@ Created a Django Admin interface for managing Claude Code tasks. Danny can now a
 - `apps/admin_console/migrations/0001_create_claudetask.py`
 
 **Files Modified:**
-- `apps/admin_console/models.py` - ClaudeTask model
+- `apps/admin_console/models.py` - ClaudeTask model with helper methods
 - `apps/admin_console/admin.py` - ClaudeTaskAdmin with badges and actions
 - `CLAUDE.md` - Updated PM workflow, added auto-allow tools instructions
 - `docs/wlj_claude_changelog.md` - This entry

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Weight Loss Graph Feature)
+# Last Updated: 2025-12-31 (Journal Book View Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,42 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2025-12-31 Changes
+
+### Journal Book View Fix (BUG FIX)
+
+**Session:** Journal Book View
+
+**Problem:**
+The Journal Book View feature was not working. When users navigated to `/journal/book-view/`, the JavaScript would fail because the `entries_json` context variable was being passed as a Python list directly into the JavaScript code instead of being properly serialized as JSON.
+
+**Root Cause:**
+In `apps/journal/views.py`, the `BookView.get_context_data()` method was passing a Python list to the template:
+```python
+context["entries_json"] = [...]  # Python list with None/True/False
+```
+
+When this was rendered in the template with `{{ entries_json|safe }}`, it produced invalid JavaScript because:
+- Python `None` was output instead of JavaScript `null`
+- Python `True/False` was output instead of JavaScript `true/false`
+- Python string quotes and escaping differ from JSON
+
+**Solution:**
+1. Added `import json` at the top of `apps/journal/views.py`
+2. Changed the context assignment to properly serialize to JSON:
+   ```python
+   context["entries_json"] = json.dumps(entries_data)
+   ```
+
+**Files Modified:**
+- `apps/journal/views.py`:
+  - Added `import json` (line 33)
+  - Changed `entries_json` to use `json.dumps()` for proper JSON serialization (line 163)
+
+**Testing:**
+- All 11 journal view tests pass
+- Book view test (`test_book_view_loads`) passes
+
+---
 
 ### Weight Loss Calculation and Progress Graph (NEW FEATURE)
 

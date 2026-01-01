@@ -30,6 +30,7 @@ Copyright:
     without explicit permission.
 """
 
+import json
 import random
 from datetime import date
 from datetime import timedelta
@@ -147,7 +148,7 @@ class BookView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         entries = list(self.get_queryset())
-        context["entries_json"] = [
+        entries_data = [
             {
                 "id": e.pk,
                 "title": e.title,
@@ -158,6 +159,8 @@ class BookView(LoginRequiredMixin, ListView):
             }
             for e in entries
         ]
+        # Serialize to JSON string for safe JavaScript embedding
+        context["entries_json"] = json.dumps(entries_data)
         context["total_entries"] = len(entries)
         return context
 

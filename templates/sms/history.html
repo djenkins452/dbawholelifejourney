@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static tz %}
 
 {% block title %}SMS History - Whole Life Journey{% endblock %}
 
@@ -71,7 +71,7 @@
                                 {{ notification.get_category_display }}
                             </span>
                             <span class="notification-time">
-                                {{ notification.scheduled_for|time:"g:i A" }}
+                                {% timezone user_timezone %}{{ notification.scheduled_for|time:"g:i A" }}{% endtimezone %}
                             </span>
                         </div>
 

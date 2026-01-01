@@ -354,10 +354,16 @@ def sms_history(request):
         user=request.user
     ).order_by('-scheduled_for')[:100]
 
-    # Group by date
+    # Get user timezone for display
+    import pytz
+    user_tz = pytz.timezone(request.user.preferences.timezone)
+
+    # Group by date (in user's timezone)
     grouped = {}
     for notification in notifications:
-        date_key = notification.scheduled_for.date()
+        # Convert to user timezone for grouping by local date
+        local_time = notification.scheduled_for.astimezone(user_tz)
+        date_key = local_time.date()
         if date_key not in grouped:
             grouped[date_key] = []
         grouped[date_key].append(notification)
@@ -365,6 +371,7 @@ def sms_history(request):
     context = {
         'notifications': notifications,
         'grouped_notifications': grouped,
+        'user_timezone': request.user.preferences.timezone,
     }
 
     return render(request, 'sms/history.html', context)

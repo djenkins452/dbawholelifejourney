@@ -31,11 +31,18 @@ urlpatterns = [
     path("heart-rate/<int:pk>/edit/", views.HeartRateUpdateView.as_view(), name="heartrate_update"),
     path("heart-rate/<int:pk>/delete/", views.HeartRateDeleteView.as_view(), name="heartrate_delete"),
 
-    # Glucose
-    path("glucose/", views.GlucoseListView.as_view(), name="glucose_list"),
+    # Glucose Dashboard (with Dexcom integration)
+    path("glucose/", views.GlucoseDashboardView.as_view(), name="glucose_dashboard"),
+    path("glucose/list/", views.GlucoseListView.as_view(), name="glucose_list"),
     path("glucose/log/", views.GlucoseCreateView.as_view(), name="glucose_create"),
     path("glucose/<int:pk>/edit/", views.GlucoseUpdateView.as_view(), name="glucose_update"),
     path("glucose/<int:pk>/delete/", views.GlucoseDeleteView.as_view(), name="glucose_delete"),
+
+    # Dexcom CGM Integration
+    path("glucose/dexcom/connect/", views.DexcomConnectView.as_view(), name="dexcom_connect"),
+    path("glucose/dexcom/callback/", views.DexcomCallbackView.as_view(), name="dexcom_callback"),
+    path("glucose/dexcom/sync/", views.DexcomSyncView.as_view(), name="dexcom_sync"),
+    path("glucose/dexcom/disconnect/", views.DexcomDisconnectView.as_view(), name="dexcom_disconnect"),
 
     # Blood Pressure
     path("blood-pressure/", views.BloodPressureListView.as_view(), name="blood_pressure_list"),

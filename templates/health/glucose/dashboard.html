@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Blood Glucose Dashboard - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Blood Glucose</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Blood Glucose</h1>
+            <p class="page-subtitle">Track and monitor your blood sugar levels</p>
+        </div>
+        <div class="flex gap-3">
+            {% if dexcom_connected %}
+                <form method="post" action="{% url 'health:dexcom_sync' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost">Sync Now</button>
+                </form>
+            {% endif %}
+            <a href="{% url 'health:glucose_create' %}" class="btn btn-primary">Log Reading</a>
+        </div>
+    </div>
+
+    <!-- Dexcom Connection Card -->
+    <div class="dexcom-card mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="dexcom-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="font-semibold">Dexcom CGM</h3>
+                    {% if dexcom_connected %}
+                        <p class="text-sm text-success">Connected</p>
+                        {% if dexcom_last_sync %}
+                            <p class="text-xs text-muted">Last sync: {{ dexcom_last_sync|timesince }} ago</p>
+                        {% endif %}
+                    {% elif dexcom_configured %}
+                        <p class="text-sm text-muted">Connect your Dexcom account to automatically sync glucose readings</p>
+                    {% else %}
+                        <p class="text-sm text-muted">Dexcom integration not configured</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                {% if dexcom_connected %}
+                    <form method="post" action="{% url 'health:dexcom_disconnect' %}"
+                          onsubmit="return confirm('Are you sure you want to disconnect Dexcom? Your existing readings will be kept.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost btn-sm text-error">Disconnect</button>
+                    </form>
+                {% elif dexcom_configured %}
+                    <a href="{% url 'health:dexcom_connect' %}" class="btn btn-primary btn-sm">Connect Dexcom</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if latest_reading %}
+    <!-- Current Reading Card -->
+    <div class="current-reading-card mb-6">
+        <div class="current-reading-main">
+            <span class="current-value {% if latest_reading.glucose_status == 'low' or latest_reading.glucose_status == 'very_low' %}text-warning{% elif latest_reading.glucose_status == 'high' or latest_reading.glucose_status == 'very_high' %}text-error{% else %}text-success{% endif %}">
+                {{ latest_reading.value }}
+            </span>
+            <span class="current-unit">{{ latest_reading.unit }}</span>
+            {% if latest_reading.trend_arrow_display %}
+                <span class="trend-arrow">{{ latest_reading.trend_arrow_display }}</span>
+            {% endif %}
+        </div>
+        <div class="current-reading-meta">
+            <span class="reading-status {{ latest_reading.glucose_status }}">{{ latest_reading.glucose_status_display }}</span>
+            <span class="reading-time">{{ latest_reading.recorded_at|timesince }} ago</span>
+            {% if latest_reading.is_from_dexcom %}
+                <span class="source-badge dexcom">CGM</span>
+            {% else %}
+                <span class="source-badge manual">Manual</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid mb-6">
+        <div class="stat-card">
+            <span class="stat-label">Average (7d)</span>
+            <span class="stat-value">{{ avg_glucose|default:"--" }} <small>mg/dL</small></span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Time in Range</span>
+            <span class="stat-value text-success">{{ time_in_range|default:"0" }}%</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Low Events</span>
+            <span class="stat-value text-warning">{{ low_count|default:"0" }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">High Events</span>
+            <span class="stat-value text-error">{{ high_count|default:"0" }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Min (7d)</span>
+            <span class="stat-value">{{ min_glucose|default:"--" }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Max (7d)</span>
+            <span class="stat-value">{{ max_glucose|default:"--" }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 24-Hour Chart -->
+    {% if chart_data %}
+    <div class="chart-card mb-6">
+        <h3 class="card-title">Last 24 Hours</h3>
+        <canvas id="glucoseChart" height="200"></canvas>
+    </div>
+    {% endif %}
+
+    <!-- Recent Readings -->
+    <div class="readings-section">
+        <div class="section-header flex justify-between items-center mb-4">
+            <h3 class="section-title">Recent Readings</h3>
+            <a href="{% url 'health:glucose_list' %}" class="btn btn-ghost btn-sm">View All</a>
+        </div>
+
+        {% if glucose_entries %}
+        <div class="readings-list">
+            {% for entry in glucose_entries|slice:":20" %}
+            <div class="reading-row">
+                <div class="reading-value-group">
+                    <span class="reading-value {% if entry.glucose_status == 'low' or entry.glucose_status == 'very_low' %}text-warning{% elif entry.glucose_status == 'high' or entry.glucose_status == 'very_high' %}text-error{% else %}text-success{% endif %}">
+                        {{ entry.value }}
+                    </span>
+                    <span class="reading-unit">{{ entry.unit }}</span>
+                    {% if entry.trend_arrow_display %}
+                        <span class="trend-indicator">{{ entry.trend_arrow_display }}</span>
+                    {% endif %}
+                </div>
+                <div class="reading-meta">
+                    <span class="reading-time">{{ entry.recorded_at|date:"M j, g:i A" }}</span>
+                    <span class="reading-context">{{ entry.get_context_display }}</span>
+                    {% if entry.is_from_dexcom %}
+                        <span class="source-badge dexcom small">CGM</span>
+                    {% endif %}
+                </div>
+                <div class="reading-actions">
+                    <a href="{% url 'health:glucose_update' entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No glucose readings yet</h2>
+            <p class="empty-state-text">
+                {% if dexcom_configured and not dexcom_connected %}
+                    Connect your Dexcom to automatically sync readings, or log manually.
+                {% else %}
+                    Start tracking your blood glucose levels.
+                {% endif %}
+            </p>
+            <div class="flex gap-3 justify-center mt-4">
+                {% if dexcom_configured and not dexcom_connected %}
+                    <a href="{% url 'health:dexcom_connect' %}" class="btn btn-primary">Connect Dexcom</a>
+                {% endif %}
+                <a href="{% url 'health:glucose_create' %}" class="btn {% if dexcom_configured and not dexcom_connected %}btn-ghost{% else %}btn-primary{% endif %}">Log Manually</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">Back to Health</a>
+    </div>
+</div>
+
+<style>
+.dexcom-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.dexcom-icon {
+    width: 48px;
+    height: 48px;
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.current-reading-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+}
+
+.current-reading-main {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.current-value {
+    font-size: 4rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.current-unit {
+    font-size: var(--font-size-xl);
+    color: var(--color-text-muted);
+}
+
+.trend-arrow {
+    font-size: 2rem;
+    margin-left: var(--space-2);
+}
+
+.current-reading-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.reading-status {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.reading-status.normal, .reading-status.in_range {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.reading-status.low, .reading-status.very_low {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+.reading-status.high, .reading-status.very_high {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+}
+
+.source-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.source-badge.dexcom {
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+}
+
+.source-badge.manual {
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+}
+
+.source-badge.small {
+    font-size: 0.65rem;
+    padding: 2px 4px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-4);
+}
+
+.stat-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    text-align: center;
+}
+
+.stat-card .stat-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-1);
+}
+
+.stat-card .stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.stat-card .stat-value small {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+
+.chart-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.card-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+}
+
+.readings-list {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.reading-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.reading-row:last-child {
+    border-bottom: none;
+}
+
+.reading-row:hover {
+    background: var(--color-background);
+}
+
+.reading-value-group {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+}
+
+.reading-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.reading-unit {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.trend-indicator {
+    font-size: var(--font-size-lg);
+    margin-left: var(--space-1);
+}
+
+.reading-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-error { color: var(--color-error); }
+.text-muted { color: var(--color-text-muted); }
+
+@media (max-width: 768px) {
+    .current-value {
+        font-size: 3rem;
+    }
+
+    .reading-row {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .reading-actions {
+        width: 100%;
+        text-align: right;
+    }
+}
+</style>
+
+{% if chart_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('glucoseChart').getContext('2d');
+    const chartData = {{ chart_data|safe }};
+
+    const labels = chartData.map(d => {
+        const date = new Date(d.time);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    });
+    const values = chartData.map(d => d.value);
+
+    // Color points based on glucose status
+    const pointColors = values.map(v => {
+        if (v < 70) return '#f59e0b';  // warning - low
+        if (v > 180) return '#ef4444'; // error - high
+        return '#10b981';  // success - in range
+    });
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Glucose (mg/dL)',
+                data: values,
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                fill: true,
+                tension: 0.3,
+                pointBackgroundColor: pointColors,
+                pointBorderColor: pointColors,
+                pointRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    min: 40,
+                    max: 300,
+                    grid: {
+                        color: 'rgba(0,0,0,0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            // Add target range bands
+            annotation: {
+                annotations: {
+                    lowLine: {
+                        type: 'line',
+                        yMin: 70,
+                        yMax: 70,
+                        borderColor: '#f59e0b',
+                        borderWidth: 1,
+                        borderDash: [5, 5]
+                    },
+                    highLine: {
+                        type: 'line',
+                        yMin: 180,
+                        yMax: 180,
+                        borderColor: '#ef4444',
+                        borderWidth: 1,
+                        borderDash: [5, 5]
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

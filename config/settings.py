@@ -579,6 +579,31 @@ else:
 
 
 # ==============================================================================
+# Dexcom CGM Integration
+# ==============================================================================
+# Register your app at: https://developer.dexcom.com/
+# OAuth 2.0 credentials for blood glucose data access
+
+DEXCOM_CLIENT_ID = env('DEXCOM_CLIENT_ID', default='')
+DEXCOM_CLIENT_SECRET = env('DEXCOM_CLIENT_SECRET', default='')
+
+# Redirect URI - must match exactly what's registered in Dexcom developer portal
+if DEBUG:
+    DEXCOM_REDIRECT_URI = 'http://localhost:8000/health/glucose/dexcom/callback/'
+else:
+    DEXCOM_REDIRECT_URI = env('DEXCOM_REDIRECT_URI', default='')
+
+# Use sandbox for development (simulated data, no real Dexcom account needed)
+DEXCOM_USE_SANDBOX = env.bool('DEXCOM_USE_SANDBOX', default=DEBUG)
+
+# Log Dexcom configuration status
+if DEXCOM_CLIENT_ID and DEXCOM_CLIENT_SECRET:
+    print(f"Dexcom configured - Sandbox Mode: {DEXCOM_USE_SANDBOX}")
+else:
+    print("Dexcom NOT configured - DEXCOM_CLIENT_ID/CLIENT_SECRET not set")
+
+
+# ==============================================================================
 # APScheduler Configuration (Background Jobs)
 # ==============================================================================
 # Used for scheduling SMS reminders and sending pending notifications

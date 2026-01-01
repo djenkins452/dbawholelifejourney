@@ -8,6 +8,7 @@ from .models import (
     CardioDetails,
     CustomFood,
     DailyNutritionSummary,
+    DexcomCredential,
     Exercise,
     ExerciseSet,
     FastingWindow,
@@ -72,11 +73,59 @@ class HeartRateEntryAdmin(admin.ModelAdmin):
 
 @admin.register(GlucoseEntry)
 class GlucoseEntryAdmin(admin.ModelAdmin):
-    list_display = ["user", "value", "unit", "context", "recorded_at", "status"]
-    list_filter = ["unit", "context", "status", "recorded_at"]
-    search_fields = ["user__email"]
+    list_display = ["user", "value", "unit", "trend_arrow", "context", "source", "recorded_at", "status"]
+    list_filter = ["unit", "context", "source", "status", "recorded_at"]
+    search_fields = ["user__email", "dexcom_record_id"]
     raw_id_fields = ["user"]
     date_hierarchy = "recorded_at"
+    readonly_fields = ["dexcom_record_id", "display_device"]
+
+    def trend_arrow(self, obj):
+        return obj.trend_arrow_display or "-"
+    trend_arrow.short_description = "Trend"
+
+    fieldsets = (
+        (None, {
+            'fields': ('user', 'value', 'unit', 'context', 'recorded_at', 'notes', 'status')
+        }),
+        ('Dexcom Data', {
+            'classes': ('collapse',),
+            'fields': ('source', 'dexcom_record_id', 'trend', 'trend_rate', 'display_device')
+        }),
+    )
+
+
+@admin.register(DexcomCredential)
+class DexcomCredentialAdmin(admin.ModelAdmin):
+    list_display = ["user", "is_connected", "sync_enabled", "last_sync", "last_sync_status"]
+    list_filter = ["sync_enabled", "last_sync_status"]
+    search_fields = ["user__email", "dexcom_user_id"]
+    raw_id_fields = ["user"]
+    readonly_fields = ["access_token", "refresh_token", "token_expiry", "dexcom_user_id",
+                       "last_sync", "last_sync_status", "last_sync_message", "last_sync_count",
+                       "created_at", "updated_at"]
+
+    fieldsets = (
+        (None, {
+            'fields': ('user', 'sync_enabled', 'days_to_sync')
+        }),
+        ('OAuth Tokens (Read Only)', {
+            'classes': ('collapse',),
+            'fields': ('access_token', 'refresh_token', 'token_expiry', 'dexcom_user_id')
+        }),
+        ('Sync Status', {
+            'fields': ('last_sync', 'last_sync_status', 'last_sync_message', 'last_sync_count')
+        }),
+        ('Timestamps', {
+            'classes': ('collapse',),
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+    def is_connected(self, obj):
+        return obj.is_connected
+    is_connected.boolean = True
+    is_connected.short_description = "Connected"
 
 
 # =============================================================================

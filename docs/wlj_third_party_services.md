@@ -651,6 +651,58 @@ Railway automatically starts the worker process alongside the web process.
 
 ---
 
+## CGM (Continuous Glucose Monitor) Integration
+
+### 26. Dexcom API
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | Dexcom |
+| **Type** | REST API with OAuth 2.0 |
+| **Pricing** | Free (for personal data access) |
+| **Status** | Active |
+
+**Purpose:**
+- Blood glucose data sync from Dexcom CGM devices
+- OAuth 2.0 authentication for secure user authorization
+- Automatic glucose reading imports with trend data
+- Real-time CGM data visualization on glucose dashboard
+
+**Configuration (Environment Variables):**
+- `DEXCOM_CLIENT_ID` - OAuth client ID from Dexcom Developer Portal
+- `DEXCOM_CLIENT_SECRET` - OAuth client secret
+- `DEXCOM_REDIRECT_URI` - OAuth callback URL (e.g., https://your-app.railway.app/health/glucose/dexcom/callback/)
+- `DEXCOM_USE_SANDBOX` - Set to true for development (uses sandbox API with simulated data)
+
+**API Endpoints Used:**
+- Authorization: `https://api.dexcom.com/v2/oauth2/login`
+- Token Exchange: `https://api.dexcom.com/v2/oauth2/token`
+- EGV (Estimated Glucose Values): `https://api.dexcom.com/v3/users/self/egvs`
+
+**Key Files:**
+- `config/settings.py` - Dexcom configuration settings
+- `apps/health/services/dexcom.py` - DexcomService, DexcomSyncService
+- `apps/health/models.py` - DexcomCredential model, GlucoseEntry (source, trend fields)
+- `apps/health/views.py` - OAuth flow views (connect, callback, sync, disconnect)
+- `apps/health/urls.py` - Dexcom endpoint routes
+
+**Data Fields Synced:**
+- Glucose value (mg/dL)
+- Trend arrow (rising/falling direction)
+- Trend rate (rate of change in mg/dL/min)
+- Display device (receiver, iOS, android)
+- Record timestamp
+
+**User Consent:**
+- Explicit OAuth authorization required
+- Users must approve Dexcom data sharing
+- Can disconnect at any time (data is retained)
+
+**Developer Portal:** https://developer.dexcom.com/
+
+**Note:** Sandbox environment provides simulated CGM data for testing without a real Dexcom device.
+
+---
+
 ## Services NOT Currently Used
 
 The following services are NOT integrated but may be considered for future use:
@@ -695,6 +747,7 @@ The following services are NOT integrated but may be considered for future use:
 | 23 | UPC Item DB | Product Barcode API | Free tier | Active |
 | 24 | RxNav (NIH) | Drug Lookup API | Free | Active |
 | 25 | FDA OpenData | NDC Lookup API | Free | Active |
+| 26 | Dexcom | CGM Data API | Free | Active |
 
 ---
 

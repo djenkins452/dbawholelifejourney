@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Bible Highlights - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:study_tools' %}">Study Tools</a>
+        <span>/</span>
+        <span>Highlights</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Bible Highlights</h1>
+            <p class="page-subtitle">Your highlighted Scripture passages</p>
+        </div>
+        <a href="{% url 'faith:highlight_create' %}" class="btn btn-primary">Add Highlight</a>
+    </div>
+
+    <div class="filters mb-6">
+        <div class="filter-group">
+            <label for="color-filter">Color:</label>
+            <select id="color-filter" onchange="applyFilters()" class="form-select">
+                <option value="">All Colors</option>
+                {% for value, label in color_choices %}
+                <option value="{{ value }}" {% if selected_color == value %}selected{% endif %}>
+                    {{ label }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="book-filter">Book:</label>
+            <select id="book-filter" onchange="applyFilters()" class="form-select">
+                <option value="">All Books</option>
+                {% for book in available_books %}
+                <option value="{{ book }}" {% if selected_book == book %}selected{% endif %}>
+                    {{ book }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    {% if highlights %}
+    <div class="highlights-grid">
+        {% for highlight in highlights %}
+        <div class="highlight-card color-{{ highlight.color }}">
+            <div class="highlight-header">
+                <span class="highlight-ref">{{ highlight.reference }}</span>
+                <span class="highlight-translation">{{ highlight.translation }}</span>
+            </div>
+            <p class="highlight-text">{{ highlight.text }}</p>
+            <div class="highlight-footer">
+                <span class="highlight-date">{{ highlight.created_at|date:"M j, Y" }}</span>
+                <form method="post" action="{% url 'faith:highlight_delete' pk=highlight.pk %}" class="inline-form"
+                      onsubmit="return confirm('Remove this highlight?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm text-error">Remove</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="pagination mt-8">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&color={{ selected_color }}&book={{ selected_book }}" class="btn btn-ghost">Previous</a>
+        {% endif %}
+        <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&color={{ selected_color }}&book={{ selected_book }}" class="btn btn-ghost">Next</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <h2 class="empty-state-title">No highlights yet</h2>
+        <p class="empty-state-text">
+            Highlight important verses as you read to create your personal collection.
+        </p>
+        <a href="{% url 'faith:highlight_create' %}" class="btn btn-primary">Add Your First Highlight</a>
+    </div>
+    {% endif %}
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:study_tools' %}" class="btn btn-ghost">Back to Study Tools</a>
+    </div>
+</div>
+
+<script>
+function applyFilters() {
+    const color = document.getElementById('color-filter').value;
+    const book = document.getElementById('book-filter').value;
+    let url = '?';
+    if (color) url += 'color=' + encodeURIComponent(color) + '&';
+    if (book) url += 'book=' + encodeURIComponent(book) + '&';
+    window.location.href = url.slice(0, -1) || '?';
+}
+</script>
+
+<style>
+.filters {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.filter-group label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.highlights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+
+.highlight-card {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    border-left: 4px solid;
+    display: flex;
+    flex-direction: column;
+}
+
+.highlight-card.color-yellow {
+    background: color-mix(in srgb, yellow 20%, transparent);
+    border-color: #b59700;
+}
+
+.highlight-card.color-green {
+    background: color-mix(in srgb, green 15%, transparent);
+    border-color: green;
+}
+
+.highlight-card.color-blue {
+    background: color-mix(in srgb, blue 15%, transparent);
+    border-color: blue;
+}
+
+.highlight-card.color-pink {
+    background: color-mix(in srgb, pink 30%, transparent);
+    border-color: deeppink;
+}
+
+.highlight-card.color-purple {
+    background: color-mix(in srgb, purple 15%, transparent);
+    border-color: purple;
+}
+
+.highlight-card.color-orange {
+    background: color-mix(in srgb, orange 20%, transparent);
+    border-color: darkorange;
+}
+
+.highlight-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.highlight-ref {
+    font-weight: 600;
+}
+
+.highlight-translation {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.highlight-text {
+    flex: 1;
+    line-height: 1.6;
+    margin-bottom: var(--space-3);
+}
+
+.highlight-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: var(--space-2);
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+}
+
+.highlight-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.page-info {
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Bible Reading Plans - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <span>Reading Plans</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Bible Reading Plans</h1>
+            <p class="page-subtitle">Grow in Scripture with guided reading plans</p>
+        </div>
+    </div>
+
+    {% if active_plans %}
+    <section class="mb-8">
+        <h2 class="section-title">Your Active Plans</h2>
+        <div class="card-grid">
+            {% for user_plan in active_plans %}
+            <div class="card reading-plan-card">
+                <div class="card-body">
+                    <h3 class="card-title">{{ user_plan.template.title }}</h3>
+                    <div class="progress-bar-container mb-3">
+                        <div class="progress-bar" style="width: {{ user_plan.progress_percentage }}%"></div>
+                    </div>
+                    <p class="text-sm text-muted">
+                        {{ user_plan.days_completed }} of {{ user_plan.template.duration_days }} days complete
+                        ({{ user_plan.progress_percentage }}%)
+                    </p>
+                    <div class="card-actions mt-4">
+                        <a href="{% url 'faith:reading_plan_progress' pk=user_plan.pk %}" class="btn btn-primary btn-sm">
+                            Continue Reading
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if featured_plans %}
+    <section class="mb-8">
+        <h2 class="section-title">Featured Plans</h2>
+        <div class="card-grid">
+            {% for plan in featured_plans %}
+            <div class="card reading-plan-card featured">
+                <div class="card-body">
+                    <span class="badge badge-accent mb-2">Featured</span>
+                    <h3 class="card-title">{{ plan.title }}</h3>
+                    <p class="card-text">{{ plan.description|truncatewords:25 }}</p>
+                    <div class="plan-meta">
+                        <span class="meta-item">{{ plan.duration_days }} days</span>
+                        <span class="meta-item">{{ plan.get_difficulty_display }}</span>
+                    </div>
+                    {% if plan.topics %}
+                    <div class="topic-tags mt-2">
+                        {% for topic in plan.topics|slice:":3" %}
+                        <span class="topic-tag">{{ topic }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="card-actions mt-4">
+                        <a href="{% url 'faith:reading_plan_detail' slug=plan.slug %}" class="btn btn-primary btn-sm">
+                            View Plan
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="mb-8">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="section-title mb-0">All Reading Plans</h2>
+            {% if available_topics %}
+            <div class="filter-dropdown">
+                <select onchange="window.location.href='?topic='+this.value" class="form-select">
+                    <option value="">All Topics</option>
+                    {% for topic in available_topics %}
+                    <option value="{{ topic }}" {% if selected_topic == topic %}selected{% endif %}>
+                        {{ topic|title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if all_plans %}
+        <div class="card-grid">
+            {% for plan in all_plans %}
+            <div class="card reading-plan-card">
+                <div class="card-body">
+                    <span class="badge badge-{{ plan.category }} mb-2">{{ plan.get_category_display }}</span>
+                    <h3 class="card-title">{{ plan.title }}</h3>
+                    <p class="card-text">{{ plan.description|truncatewords:20 }}</p>
+                    <div class="plan-meta">
+                        <span class="meta-item">{{ plan.duration_days }} days</span>
+                        <span class="meta-item">{{ plan.get_difficulty_display }}</span>
+                    </div>
+                    {% if plan.topics %}
+                    <div class="topic-tags mt-2">
+                        {% for topic in plan.topics|slice:":3" %}
+                        <span class="topic-tag">{{ topic }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="card-actions mt-4">
+                        <a href="{% url 'faith:reading_plan_detail' slug=plan.slug %}" class="btn btn-ghost btn-sm">
+                            Learn More
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No reading plans available</h2>
+            <p class="empty-state-text">
+                Check back soon for new reading plans to help you grow in Scripture.
+            </p>
+        </div>
+        {% endif %}
+    </section>
+
+    {% if completed_plans %}
+    <section class="mb-8">
+        <h2 class="section-title">Completed Plans</h2>
+        <div class="completed-plans-list">
+            {% for user_plan in completed_plans %}
+            <div class="completed-plan-item">
+                <span class="completed-icon">&#10003;</span>
+                <div class="completed-plan-info">
+                    <h4>{{ user_plan.template.title }}</h4>
+                    <p class="text-sm text-muted">
+                        Completed {{ user_plan.completed_at|date:"F j, Y" }}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:home' %}" class="btn btn-ghost">Back to Faith</a>
+    </div>
+</div>
+
+<style>
+.reading-plan-card {
+    transition: transform 0.2s ease;
+}
+
+.reading-plan-card:hover {
+    transform: translateY(-2px);
+}
+
+.reading-plan-card.featured {
+    border-color: var(--color-accent);
+}
+
+.progress-bar-container {
+    height: 8px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: var(--color-accent);
+    transition: width 0.3s ease;
+}
+
+.plan-meta {
+    display: flex;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.meta-item::before {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    background: var(--color-text-muted);
+    border-radius: 50%;
+    margin-right: var(--space-2);
+    vertical-align: middle;
+}
+
+.meta-item:first-child::before {
+    display: none;
+}
+
+.topic-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+.topic-tag {
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.badge-topical {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+}
+
+.badge-book {
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+}
+
+.badge-chronological {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.badge-devotional {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+.completed-plans-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.completed-plan-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.completed-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--color-success);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.section-title {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-4);
+}
+</style>
+{% endblock %}

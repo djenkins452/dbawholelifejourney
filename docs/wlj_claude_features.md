@@ -33,6 +33,7 @@ For core project context, see `CLAUDE.md` (project root).
 15. [Task Management](#task-management)
 16. [Memory Verse](#memory-verse)
 17. [Significant Events](#significant-events)
+18. [Bible Reading Plans & Study Tools](#bible-reading-plans--study-tools)
 
 ---
 
@@ -1585,4 +1586,120 @@ class SignificantEvent(UserOwnedModel):
 
 ---
 
-*Last updated: 2025-12-31*
+## Bible Reading Plans & Study Tools
+
+### Overview
+The Bible Reading Plans and Study Tools feature enhances the Faith module to help users build consistent Scripture engagement habits. Users can follow structured reading plans and use tools like highlighting, bookmarking, and note-taking while studying the Bible.
+
+### Bible Reading Plans
+
+#### Available Plans (Pre-loaded)
+| Plan | Days | Category | Topics |
+|------|------|----------|--------|
+| Finding Forgiveness | 7 | Topical | forgiveness, healing, grace, relationships |
+| Learning to Pray | 7 | Topical | prayer, faith, spiritual growth |
+| Peace in Troubled Times | 7 | Topical | peace, anxiety, stress, trust |
+| Building a Godly Marriage | 7 | Topical | marriage, love, relationships, family |
+| Journey Through John | 21 | Book Study | Jesus, Gospel, faith, salvation |
+| Psalms of Comfort | 5 | Devotional | comfort, peace, hope, trust |
+
+#### Models
+```python
+ReadingPlanTemplate  # System-defined reading plans
+ReadingPlanDay       # Daily readings within a plan
+UserReadingPlan      # User's progress on a plan
+UserReadingProgress  # Daily completion tracking
+```
+
+#### Plan Template Fields
+- `title` - Plan name
+- `slug` - URL-friendly identifier
+- `description` - Plan overview
+- `category` - topical, book, chronological, devotional
+- `difficulty` - beginner, intermediate, advanced
+- `duration_days` - Total days
+- `topics` - JSON list of topics
+- `is_featured` - Show prominently
+- `is_active` - Available to users
+
+#### User Progress Tracking
+- Start a plan → Creates UserReadingPlan + progress entries for all days
+- Mark day complete → Records completion time and notes
+- Progress percentage calculated automatically
+- Plan automatically marked complete when all days done
+- Pause/Resume/Abandon functionality
+
+### Bible Study Tools
+
+#### BibleHighlight Model
+Color-coded verse highlighting with 6 colors:
+- Yellow, Green, Blue, Pink, Purple, Orange
+
+Fields: reference, text, translation, book_name, book_order, chapter, verse_start, verse_end, color
+
+#### BibleBookmark Model
+Save locations to easily return to later.
+
+Fields: reference, translation, book_name, book_order, chapter, verse, title, notes
+
+#### BibleStudyNote Model
+In-depth study notes attached to Scripture passages.
+
+Fields: reference, translation, book_name, book_order, chapter, verse_start, verse_end, title, content, tags (JSON)
+
+### URL Routes
+
+#### Reading Plans (`/faith/reading-plans/`)
+| Route | View | Description |
+|-------|------|-------------|
+| `/faith/reading-plans/` | List | Browse plans, view active/completed |
+| `/faith/reading-plans/<slug>/` | Detail | View plan details, start option |
+| `/faith/reading-plans/<slug>/start/` | Start | Begin a plan |
+| `/faith/reading-plans/progress/<pk>/` | Progress | Current reading, overall progress |
+| `/faith/reading-plans/progress/<pk>/day/<pk>/complete/` | Complete | Mark day done |
+| `/faith/reading-plans/progress/<pk>/pause/` | Pause | Pause plan |
+| `/faith/reading-plans/progress/<pk>/resume/` | Resume | Resume plan |
+| `/faith/reading-plans/progress/<pk>/abandon/` | Abandon | Remove from active |
+
+#### Study Tools (`/faith/study-tools/`)
+| Route | View | Description |
+|-------|------|-------------|
+| `/faith/study-tools/` | Home | Dashboard with all tools |
+| `/faith/study-tools/highlights/` | List | All highlights, filter by color/book |
+| `/faith/study-tools/highlights/new/` | Create | Add highlight |
+| `/faith/study-tools/highlights/<pk>/delete/` | Delete | Remove highlight |
+| `/faith/study-tools/bookmarks/` | List | All bookmarks |
+| `/faith/study-tools/bookmarks/new/` | Create | Add bookmark |
+| `/faith/study-tools/bookmarks/<pk>/delete/` | Delete | Remove bookmark |
+| `/faith/study-tools/notes/` | List | All notes, filter by tag/book |
+| `/faith/study-tools/notes/new/` | Create | Add study note |
+| `/faith/study-tools/notes/<pk>/` | Detail | View note |
+| `/faith/study-tools/notes/<pk>/edit/` | Update | Edit note |
+| `/faith/study-tools/notes/<pk>/delete/` | Delete | Remove note |
+
+### Key Files
+- `apps/faith/models.py` - All models (ReadingPlanTemplate, ReadingPlanDay, UserReadingPlan, UserReadingProgress, BibleHighlight, BibleBookmark, BibleStudyNote)
+- `apps/faith/forms.py` - Forms for reading plans and study tools
+- `apps/faith/views.py` - All view classes
+- `apps/faith/urls.py` - URL patterns
+- `apps/faith/admin.py` - Admin registrations with inlines
+- `apps/faith/management/commands/load_reading_plans.py` - Initial data loader
+- `templates/faith/reading_plans/` - Reading plan templates
+- `templates/faith/study_tools/` - Study tools templates
+
+### Management Command
+```bash
+python manage.py load_reading_plans
+```
+Loads initial reading plan templates. Idempotent - safe to run multiple times.
+
+### Future Phases (Planned)
+- Phase 2: Prayer prompts before Bible study
+- Phase 3: Background worship music with voice narration
+- Phase 4: Interactive Q&A / AI-powered faith questions
+- Phase 5: Bible character profiles, topical verse collections
+- Phase 6: AR guided experiences, interactive timelines
+
+---
+
+*Last updated: 2026-01-01*

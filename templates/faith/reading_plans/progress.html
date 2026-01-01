@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user_plan.template.title }} - Progress - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:reading_plans' %}">Reading Plans</a>
+        <span>/</span>
+        <span>{{ user_plan.template.title }}</span>
+    </nav>
+
+    <div class="reading-progress-page">
+        <div class="progress-header">
+            <h1 class="page-title">{{ user_plan.template.title }}</h1>
+            <div class="progress-stats">
+                <div class="progress-bar-large">
+                    <div class="progress-fill" style="width: {{ user_plan.progress_percentage }}%"></div>
+                </div>
+                <p class="progress-text">
+                    {{ user_plan.days_completed }} of {{ user_plan.template.duration_days }} days complete
+                    ({{ user_plan.progress_percentage }}%)
+                </p>
+            </div>
+
+            <div class="plan-actions">
+                {% if user_plan.status == 'active' %}
+                <form method="post" action="{% url 'faith:pause_reading_plan' pk=user_plan.pk %}" class="inline-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm">Pause Plan</button>
+                </form>
+                {% elif user_plan.status == 'paused' %}
+                <form method="post" action="{% url 'faith:resume_reading_plan' pk=user_plan.pk %}" class="inline-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary btn-sm">Resume Plan</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{% url 'faith:abandon_reading_plan' pk=user_plan.pk %}" class="inline-form"
+                      onsubmit="return confirm('Are you sure you want to abandon this reading plan?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm text-error">Remove Plan</button>
+                </form>
+            </div>
+        </div>
+
+        {% if user_plan.status == 'completed' %}
+        <div class="completion-banner">
+            <div class="completion-icon">&#10003;</div>
+            <h2>Congratulations!</h2>
+            <p>You've completed this reading plan. Well done on your commitment to Scripture!</p>
+        </div>
+        {% elif current_day %}
+        <section class="current-reading mb-8">
+            <h2 class="section-title">Today's Reading - Day {{ current_day.day_number }}</h2>
+            <div class="reading-card">
+                {% if current_day.title %}
+                <h3 class="reading-title">{{ current_day.title }}</h3>
+                {% endif %}
+
+                <div class="scripture-passages">
+                    <h4>Scriptures to Read:</h4>
+                    <div class="scripture-list">
+                        {% for ref in current_day.scripture_references %}
+                        <a href="{% url 'faith:scripture_list' %}?lookup={{ ref|urlencode }}" class="scripture-ref-link">
+                            {{ ref }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {% if current_day.devotional_text %}
+                <div class="devotional-text">
+                    <h4>Devotional</h4>
+                    <p>{{ current_day.devotional_text }}</p>
+                </div>
+                {% endif %}
+
+                {% if current_day.reflection_prompt %}
+                <div class="reflection-prompt">
+                    <h4>Reflection</h4>
+                    <p><em>{{ current_day.reflection_prompt }}</em></p>
+                </div>
+                {% endif %}
+
+                {% if not current_progress.is_completed %}
+                <form method="post" action="{% url 'faith:mark_day_complete' pk=user_plan.pk day_pk=current_day.pk %}"
+                      class="completion-form">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="notes" class="form-label">Your Reflections (Optional)</label>
+                        <textarea name="notes" id="notes" class="form-textarea" rows="3"
+                                  placeholder="What stood out to you in today's reading?">{{ current_progress.notes }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        Mark Day {{ current_day.day_number }} Complete
+                    </button>
+                </form>
+                {% else %}
+                <div class="completed-badge">
+                    <span class="completed-check">&#10003;</span>
+                    Day Complete!
+                </div>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="all-days">
+            <h2 class="section-title">All Days</h2>
+            <div class="days-grid">
+                {% for progress in all_progress %}
+                <div class="day-item {% if progress.is_completed %}completed{% endif %} {% if progress.plan_day.day_number == user_plan.current_day %}current{% endif %}">
+                    <div class="day-number">{{ progress.plan_day.day_number }}</div>
+                    {% if progress.is_completed %}
+                    <span class="day-status">&#10003;</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:reading_plans' %}" class="btn btn-ghost">Back to Reading Plans</a>
+    </div>
+</div>
+
+<style>
+.reading-progress-page {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.progress-header {
+    text-align: center;
+    margin-bottom: var(--space-8);
+}
+
+.progress-stats {
+    margin: var(--space-4) 0;
+}
+
+.progress-bar-large {
+    height: 16px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--space-2);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-accent), var(--color-primary));
+    transition: width 0.5s ease;
+}
+
+.progress-text {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+}
+
+.plan-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.completion-banner {
+    background: linear-gradient(135deg, var(--color-success), color-mix(in srgb, var(--color-success) 80%, black));
+    color: white;
+    padding: var(--space-8);
+    border-radius: var(--radius-lg);
+    text-align: center;
+    margin-bottom: var(--space-8);
+}
+
+.completion-icon {
+    width: 64px;
+    height: 64px;
+    background: white;
+    color: var(--color-success);
+    border-radius: 50%;
+    font-size: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--space-4);
+}
+
+.current-reading {
+    background: var(--color-background);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.reading-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.reading-title {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-2);
+}
+
+.scripture-passages h4,
+.devotional-text h4,
+.reflection-prompt h4 {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.scripture-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.scripture-ref-link {
+    display: inline-block;
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    transition: background 0.2s ease;
+}
+
+.scripture-ref-link:hover {
+    background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+.devotional-text p,
+.reflection-prompt p {
+    line-height: 1.6;
+}
+
+.completion-form {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.completed-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+}
+
+.completed-check {
+    font-size: var(--font-size-lg);
+}
+
+.days-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+    gap: var(--space-2);
+}
+
+.day-item {
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+}
+
+.day-item.completed {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    border-color: var(--color-success);
+}
+
+.day-item.current {
+    border-color: var(--color-accent);
+    border-width: 2px;
+}
+
+.day-status {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: var(--font-size-xs);
+    color: var(--color-success);
+}
+
+.section-title {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

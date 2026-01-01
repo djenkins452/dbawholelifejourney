@@ -24,7 +24,7 @@ class ClaudeTaskAdmin(admin.ModelAdmin):
         'title',
         'status_badge',
         'priority_badge',
-        'category',
+        'category_badge',
         'source_badge',
         'phase_display',
         'created_at',
@@ -56,7 +56,7 @@ class ClaudeTaskAdmin(admin.ModelAdmin):
                 'task_number',
                 'title',
                 ('status', 'priority', 'category'),
-                'source',
+                ('source', 'parent_task'),
             ]
         }),
         ('Description', {
@@ -137,6 +137,30 @@ class ClaudeTaskAdmin(admin.ModelAdmin):
         )
     priority_badge.short_description = 'Priority'
     priority_badge.admin_order_field = 'priority'
+
+    def category_badge(self, obj):
+        """Display category with special styling for ACTION_REQUIRED and REVIEW"""
+        # Special categories get eye-catching colors
+        special_colors = {
+            'action_required': '#e83e8c',  # pink/magenta - attention!
+            'review': '#20c997',           # teal - review needed
+        }
+        special_labels = {
+            'action_required': 'ACTION REQUIRED',
+            'review': 'REVIEW',
+        }
+
+        if obj.category in special_colors:
+            return format_html(
+                '<span style="background-color: {}; color: white; padding: 3px 8px; '
+                'border-radius: 3px; font-size: 11px; font-weight: bold;">{}</span>',
+                special_colors[obj.category],
+                special_labels[obj.category]
+            )
+        # Regular categories just show text
+        return obj.get_category_display().split(' - ')[0]
+    category_badge.short_description = 'Category'
+    category_badge.admin_order_field = 'category'
 
     def source_badge(self, obj):
         """Display source as colored badge"""

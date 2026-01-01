@@ -55,8 +55,12 @@ class ClaudeTask(models.Model):
     CATEGORY_SECURITY = 'security'
     CATEGORY_PERFORMANCE = 'performance'
     CATEGORY_DOCUMENTATION = 'documentation'
+    CATEGORY_ACTION_REQUIRED = 'action_required'
+    CATEGORY_REVIEW = 'review'
 
     CATEGORY_CHOICES = [
+        (CATEGORY_ACTION_REQUIRED, 'ACTION REQUIRED - User action needed'),
+        (CATEGORY_REVIEW, 'Review - Task complete, please review'),
         (CATEGORY_BUG, 'Bug - Fix broken functionality'),
         (CATEGORY_FEATURE, 'Feature - New functionality'),
         (CATEGORY_ENHANCEMENT, 'Enhancement - Improve existing feature'),
@@ -133,6 +137,16 @@ class ClaudeTask(models.Model):
         choices=SOURCE_CHOICES,
         default=SOURCE_USER,
         help_text="Who identified this task"
+    )
+
+    # Related task (for follow-up tasks)
+    parent_task = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='followup_tasks',
+        help_text="Parent task this was created from (for follow-ups)"
     )
 
     # Tracking
@@ -229,4 +243,75 @@ class ClaudeTask(models.Model):
             'blocked': cls.objects.filter(status=cls.STATUS_BLOCKED).count(),
             'complete': cls.objects.filter(status=cls.STATUS_COMPLETE).count(),
             'cancelled': cls.objects.filter(status=cls.STATUS_CANCELLED).count(),
+            'action_required': cls.objects.filter(
+                status=cls.STATUS_NEW,
+                category=cls.CATEGORY_ACTION_REQUIRED
+            ).count(),
+            'review': cls.objects.filter(
+                status=cls.STATUS_NEW,
+                category=cls.CATEGORY_REVIEW
+            ).count(),
         }
+
+    @classmethod
+    def create_action_required(cls, title, description, parent_task=None,
+                                session_label='', priority=None):
+        """
+        Create an ACTION REQUIRED task for user to complete.
+        Use this when Claude needs the user to do something (env vars, config, etc.)
+        """
+        return cls.objects.create(
+            title=f"ACTION REQUIRED: {title}",
+            description=description,
+            category=cls.CATEGORY_ACTION_REQUIRED,
+            priority=priority or cls.PRIORITY_HIGH,
+            source=cls.SOURCE_CLAUDE,
+            parent_task=parent_task,
+            session_label=session_label,
+        )
+
+    @classmethod
+    def create_review_task(cls, title, description, parent_task=None,
+                           session_label='', completion_summary=''):
+        """
+        Create a REVIEW task for user to verify completed work.
+        Use this when Claude completes a task and wants user to verify.
+        """
+        full_description = description
+        if completion_summary:
+            full_description = f"{description}\n\n**What was done:**\n{completion_summary}"
+
+        return cls.objects.create(
+            title=f"REVIEW: {title}",
+            description=full_description,
+            category=cls.CATEGORY_REVIEW,
+            priority=cls.PRIORITY_MEDIUM,
+            source=cls.SOURCE_CLAUDE,
+            parent_task=parent_task,
+            session_label=session_label,
+        )
+
+    @classmethod
+    def create_discovered_task(cls, title, description, category=None,
+                               priority=None, session_label='', notes=''):
+        """
+        Create a task that Claude discovered during a session.
+        Use this when Claude notices something that should be fixed/improved.
+        """
+        return cls.objects.create(
+            title=title,
+            description=description,
+            category=category or cls.CATEGORY_ENHANCEMENT,
+            priority=priority or cls.PRIORITY_LOW,
+            source=cls.SOURCE_CLAUDE,
+            session_label=session_label,
+            notes=notes,
+        )
+
+    @classmethod
+    def get_user_action_items(cls):
+        """Get all tasks requiring user action (ACTION_REQUIRED or REVIEW)"""
+        return cls.objects.filter(
+            status=cls.STATUS_NEW,
+            category__in=[cls.CATEGORY_ACTION_REQUIRED, cls.CATEGORY_REVIEW]
+        ).order_by('-priority', 'created_at')

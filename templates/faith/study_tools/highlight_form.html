@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Add Highlight - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:study_tools' %}">Study Tools</a>
+        <span>/</span>
+        <a href="{% url 'faith:highlight_list' %}">Highlights</a>
+        <span>/</span>
+        <span>Add</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Add Highlight</h1>
+        <p class="page-subtitle">Highlight a Scripture passage to remember</p>
+    </div>
+
+    <div class="form-container">
+        <form method="post" class="form">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="{{ form.reference.id_for_label }}" class="form-label">Scripture Reference</label>
+                {{ form.reference }}
+                {% if form.reference.errors %}
+                <p class="form-error">{{ form.reference.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.text.id_for_label }}" class="form-label">Verse Text</label>
+                {{ form.text }}
+                {% if form.text.errors %}
+                <p class="form-error">{{ form.text.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.translation.id_for_label }}" class="form-label">Translation</label>
+                    {{ form.translation }}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.color.id_for_label }}" class="form-label">Highlight Color</label>
+                    {{ form.color }}
+                </div>
+            </div>
+
+            <div class="color-preview" id="color-preview">
+                <p class="preview-text">Preview: This is how your highlight will look.</p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Highlight</button>
+                <a href="{% url 'faith:highlight_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('{{ form.color.id_for_label }}').addEventListener('change', function() {
+    const preview = document.getElementById('color-preview');
+    preview.className = 'color-preview color-' + this.value;
+});
+
+// Set initial preview
+document.addEventListener('DOMContentLoaded', function() {
+    const colorSelect = document.getElementById('{{ form.color.id_for_label }}');
+    const preview = document.getElementById('color-preview');
+    preview.className = 'color-preview color-' + colorSelect.value;
+});
+</script>
+
+<style>
+.form-container {
+    max-width: 600px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.color-preview {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    border-left: 4px solid;
+    margin: var(--space-4) 0;
+    transition: all 0.2s ease;
+}
+
+.color-preview.color-yellow {
+    background: color-mix(in srgb, yellow 20%, transparent);
+    border-color: #b59700;
+}
+
+.color-preview.color-green {
+    background: color-mix(in srgb, green 15%, transparent);
+    border-color: green;
+}
+
+.color-preview.color-blue {
+    background: color-mix(in srgb, blue 15%, transparent);
+    border-color: blue;
+}
+
+.color-preview.color-pink {
+    background: color-mix(in srgb, pink 30%, transparent);
+    border-color: deeppink;
+}
+
+.color-preview.color-purple {
+    background: color-mix(in srgb, purple 15%, transparent);
+    border-color: purple;
+}
+
+.color-preview.color-orange {
+    background: color-mix(in srgb, orange 20%, transparent);
+    border-color: darkorange;
+}
+
+.preview-text {
+    margin: 0;
+    font-style: italic;
+    color: var(--color-text-muted);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+</style>
+{% endblock %}

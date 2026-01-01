@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Task Queue System)
+# Last Updated: 2026-01-01 (Claude PM Workflow)
 # ==============================================================================
 
 # WLJ Change History
@@ -16,31 +16,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-01 Changes
 
-### Claude Task Queue System (NEW FEATURE)
+### Claude as Project Manager (ENHANCEMENT)
 
 **Session:** New App Ideas/Fixes
 
 **Description:**
-Created a task queue system for managing errors, feature requests, and app ideas across Claude Code sessions. This allows Danny to add tasks to a document and have Claude execute them one at a time, tracking status as work progresses.
+Enhanced the task queue system so Claude acts as a full Project Manager. Just start a session and Claude automatically:
+1. Reads the task queue
+2. Gives a status summary (active, pending, blocked)
+3. Shows top priority items ready to work
+4. Asks what you want to tackle
+5. Executes work, updates docs, and deploys
 
-**How It Works:**
-1. Tasks are added to `docs/wlj_claude_tasks.md` with status `NEW`
-2. When starting a session, say: "Read wlj_claude_tasks.md and execute the next task"
-3. Claude finds the first `NEW` or `IN_PROGRESS` task and executes it
-4. Claude updates the status to `COMPLETE`, `IN_PROGRESS`, or `BLOCKED`
-5. Completed tasks are archived at the bottom of the document
-
-**Task Properties:**
-- Status: NEW, IN_PROGRESS, COMPLETE, BLOCKED, CANCELLED
-- Priority: HIGH, MEDIUM, LOW (HIGH executed first)
-- Category: BUG, FEATURE, ENHANCEMENT, IDEA, REFACTOR
-- Acceptance criteria for verification
-
-**Files Created:**
-- `docs/wlj_claude_tasks.md` - Task queue document
+**Features:**
+- **Quick Commands:** "What's the status?", "Do the next task", "Add task: [description]"
+- **Multi-Phase Tasks:** Claude completes one phase at a time, then asks if you want to continue or save for next session
+- **Automatic Updates:** Claude updates task status, moves completed tasks to archive, and commits changes
+- **Session Tracking:** Session log records what was worked on and outcomes
 
 **Files Modified:**
-- `CLAUDE.md` - Added task queue reference and usage instructions
+- `docs/wlj_claude_tasks.md` - Complete rewrite with PM workflow, quick commands, status summary section
+- `CLAUDE.md` - Updated session instructions with PM workflow, quick command table
 - `docs/wlj_claude_changelog.md` - This entry
 
 ---

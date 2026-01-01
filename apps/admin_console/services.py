@@ -4,7 +4,7 @@
 # Description: Service functions for admin console task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 6 - Project Metrics)
+# Last Updated: 2026-01-01 (Phase 8 - Phase Auto-Unlock)
 # ==============================================================================
 
 from .models import AdminProjectPhase, AdminTask, AdminActivityLog
@@ -278,3 +278,170 @@ def get_project_metrics():
         'tasks_created_by_claude': tasks_created_by_claude,
         'high_priority_remaining_tasks': high_priority_remaining_tasks,
     }
+
+
+def is_phase_complete(phase):
+    """
+    Check if a phase is complete based on task status.
+
+    A phase is considered COMPLETE when:
+    - All AdminTask records for that phase have status = "done"
+    - OR no tasks exist for that phase
+
+    Blocked tasks do NOT count as complete.
+
+    Args:
+        phase: AdminProjectPhase instance to check
+
+    Returns:
+        True if the phase is complete, False otherwise
+    """
+    tasks = AdminTask.objects.filter(phase=phase)
+
+    # No tasks = complete
+    if not tasks.exists():
+        return True
+
+    # All tasks must be done
+    non_done_tasks = tasks.exclude(status='done')
+    return not non_done_tasks.exists()
+
+
+def get_next_phase(phase):
+    """
+    Get the next phase by ascending phase_number.
+
+    Args:
+        phase: AdminProjectPhase instance
+
+    Returns:
+        The next AdminProjectPhase by phase_number, or None if none exists
+    """
+    return AdminProjectPhase.objects.filter(
+        phase_number__gt=phase.phase_number
+    ).order_by('phase_number').first()
+
+
+def unlock_next_phase(completed_phase, created_by='claude'):
+    """
+    Unlock the next phase after a phase is completed.
+
+    Only unlocks if:
+    - A next phase exists (by ascending phase_number)
+    - The next phase has status = "not_started"
+
+    Does NOT unlock more than one phase at a time.
+
+    Args:
+        completed_phase: AdminProjectPhase that was just completed
+        created_by: 'human' or 'claude' for activity log
+
+    Returns:
+        The unlocked phase, or None if no phase was unlocked
+    """
+    next_phase = get_next_phase(completed_phase)
+
+    if not next_phase:
+        return None
+
+    if next_phase.status != 'not_started':
+        return None
+
+    # Unlock the next phase
+    next_phase.status = 'in_progress'
+    next_phase.save()
+
+    # Create activity log for the unlock
+    # We use a task from the next phase if one exists, otherwise from completed phase
+    reference_task = AdminTask.objects.filter(phase=next_phase).first()
+    if not reference_task:
+        reference_task = AdminTask.objects.filter(phase=completed_phase).first()
+
+    if reference_task:
+        AdminActivityLog.objects.create(
+            task=reference_task,
+            action=(
+                f"Phase {next_phase.phase_number} ('{next_phase.name}') unlocked. "
+                f"Previous phase {completed_phase.phase_number} ('{completed_phase.name}') completed."
+            ),
+            created_by=created_by
+        )
+
+    return next_phase
+
+
+def check_and_complete_phase(phase, created_by='claude'):
+    """
+    Check if a phase is complete and mark it as such.
+
+    This function:
+    1. Evaluates tasks for the given phase
+    2. If completion rule is met (all tasks done OR no tasks):
+       - Sets phase.status = "complete"
+       - Writes an AdminActivityLog entry describing phase completion
+       - Unlocks the next phase if one exists
+
+    Safety rules:
+    - Never auto-complete a phase with blocked tasks
+    - Never skip phase numbers
+    - Never unlock future phases early
+
+    Args:
+        phase: AdminProjectPhase instance to check
+        created_by: 'human' or 'claude' for activity log
+
+    Returns:
+        Tuple of (phase_completed: bool, unlocked_phase: AdminProjectPhase or None)
+    """
+    # Check if phase is already complete
+    if phase.status == 'complete':
+        return (False, None)
+
+    # Check if phase has blocked tasks - never auto-complete with blocked tasks
+    blocked_count = AdminTask.objects.filter(phase=phase, status='blocked').count()
+    if blocked_count > 0:
+        return (False, None)
+
+    # Check if phase is complete
+    if not is_phase_complete(phase):
+        return (False, None)
+
+    # Mark phase as complete
+    phase.status = 'complete'
+    phase.save()
+
+    # Create activity log for phase completion
+    reference_task = AdminTask.objects.filter(phase=phase).first()
+    if reference_task:
+        AdminActivityLog.objects.create(
+            task=reference_task,
+            action=(
+                f"Phase {phase.phase_number} ('{phase.name}') completed. "
+                f"All tasks in phase are done."
+            ),
+            created_by=created_by
+        )
+
+    # Unlock the next phase
+    unlocked_phase = unlock_next_phase(phase, created_by)
+
+    return (True, unlocked_phase)
+
+
+def on_task_done(task, created_by='claude'):
+    """
+    Handler to call when a task transitions to 'done' status.
+
+    This triggers the phase completion check and auto-unlock logic.
+
+    Should ONLY be called when a task status transitions to 'done'.
+    Should NOT be called on reads or page loads.
+
+    Args:
+        task: The AdminTask that was just marked as done
+        created_by: 'human' or 'claude' for activity log
+
+    Returns:
+        Tuple of (phase_completed: bool, unlocked_phase: AdminProjectPhase or None)
+    """
+    return check_and_complete_phase(task.phase, created_by)

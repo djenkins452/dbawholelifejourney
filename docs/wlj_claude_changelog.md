@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 5)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 8)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,56 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 8 Phase Auto-Unlock (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 8 Phase Auto-Unlock
+
+**Description:**
+Added minimal logic so phases automatically complete and unlock based on task status. When all tasks in a phase are marked as done, the phase is marked complete and the next phase is automatically unlocked.
+
+**Phase Completion Rule:**
+A phase is considered COMPLETE when:
+- All AdminTask records for that phase have status = "done"
+- OR no tasks exist for that phase
+- Blocked tasks do NOT count as complete (phase won't complete with blocked tasks)
+
+**New Service Functions (in `services.py`):**
+1. `is_phase_complete(phase)` - Check if a phase meets completion criteria
+2. `get_next_phase(phase)` - Get the next phase by ascending phase_number
+3. `unlock_next_phase(completed_phase, created_by)` - Unlock the next phase
+4. `check_and_complete_phase(phase, created_by)` - Main function that checks and completes phase
+5. `on_task_done(task, created_by)` - Handler called when task transitions to done
+
+**Integration Point:**
+- Phase completion logic is called ONLY when a task status transitions to "done"
+- Integrated into `AdminTask.transition_status()` method
+- Does NOT run on reads or page loads
+
+**Safety Rules:**
+- Never auto-complete a phase with blocked tasks
+- Never skip phase numbers
+- Never unlock future phases early (only unlocks immediate next phase)
+- If no next phase exists, stops quietly
+
+**Activity Logging:**
+- Phase completion: "Phase X ('Name') completed. All tasks in phase are done."
+- Phase unlock: "Phase X ('Name') unlocked. Previous phase Y ('Name') completed."
+
+**Modified Files:**
+- `apps/admin_console/models.py` - Added on_task_done call in transition_status method
+- `apps/admin_console/services.py` - Added 5 new service functions for phase auto-unlock
+- `apps/admin_console/tests/test_admin_console.py` - Added 25 new tests
+
+**Tests:** 25 new tests for Phase 8 functionality:
+- IsPhaseCompleteTests (6 tests): no tasks, all done, various incomplete states
+- GetNextPhaseTests (3 tests): next phase, last phase, non-consecutive numbers
+- UnlockNextPhaseTests (4 tests): sets status, no next, already started, activity log
+- CheckAndCompletePhaseTests (5 tests): completion, blocked tasks, unlock next, already complete, activity log
+- OnTaskDoneTests (2 tests): triggers check, does not complete with remaining
+- TransitionStatusPhaseAutoUnlockTests (5 tests): full workflow, blocked prevention, multiple phases
+
+---
 
 ### Admin Project Tasks - Phase 5 Blocker Task Creation (NEW FEATURE)
 

@@ -1868,3 +1868,29 @@ class InlinePriorityUpdateAPIView(View):
             },
             'changed': True
         })
+
+
+# ============================================================
+# Phase 15: Projects Operator Runbook
+# ============================================================
+
+class ProjectsRunbookView(AdminRequiredMixin, TemplateView):
+    """
+    Read-only Operator Runbook page for Projects.
+
+    GET /admin-console/projects/help/
+
+    This view displays a static runbook with:
+    - What the Projects System Is
+    - Daily Operating Workflow
+    - Task Status Meanings
+    - When Execution Stops
+    - Golden Rules
+
+    Safety rules:
+    - Admin-only access (via AdminRequiredMixin)
+    - Read-only content (no forms, no data modification)
+    - Does not log activity
+    - Does not auto-open
+    """
+    template_name = "admin_console/projects_runbook.html"

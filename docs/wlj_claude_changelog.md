@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 13)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 15)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,43 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 15 Operator Runbook (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 15 Operator Runbook (Contextual Help)
+
+**Description:**
+Added an Operator Runbook that appears as contextual help when the user is working in Projects. The runbook is a read-only reference document that explains how to operate the Projects system.
+
+**New Route:**
+- `GET /admin-console/projects/help/` - Projects Operator Runbook page
+
+**Contextual Help Integration:**
+- When user is on any Projects page (`/admin-console/projects/*`), the Help modal shows a "Projects Operator Runbook" button
+- When user is outside Projects, the button is hidden
+- Context-awareness implemented via JavaScript URL path detection
+
+**Runbook Content (5 Sections):**
+1. **What the Projects System Is** - Purpose of Projects, Phases, and Tasks; why tasks must be entered intentionally
+2. **Daily Operating Workflow** - 6-step workflow from Task Intake to reviewing execution results
+3. **Task Status Meanings** - Definitions for backlog, ready, in_progress, blocked, done
+4. **When Execution Stops** - Explains 4 stop conditions and their resolutions
+5. **Golden Rules** - 5 operating principles (database is truth, Claude never invents work, one task at a time, humans control readiness, safety stops are expected)
+
+**Safety Rules:**
+- Admin-only access (returns 403 for non-staff users via AdminRequiredMixin)
+- Read-only content (no forms, no data modification)
+- Does not log activity
+- Does not auto-open
+
+**Modified Files:**
+- `apps/admin_console/urls.py` - Added projects_runbook route
+- `apps/admin_console/views.py` - Added ProjectsRunbookView
+- `templates/admin_console/projects_runbook.html` - New runbook template
+- `templates/components/help_modal.html` - Added contextual links section with Projects Runbook
+- `static/css/help.css` - Added styles for contextual links
+
+---
 
 ### Admin Project Tasks - Phase 13 Inline Editing & Priority (NEW FEATURE)
 

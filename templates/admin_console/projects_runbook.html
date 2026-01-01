@@ -1,0 +1,539 @@
+{% extends "base.html" %}
+{% comment %}
+==============================================================================
+File: templates/admin_console/projects_runbook.html
+Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+Description: Projects Operator Runbook - Read-only contextual help
+Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+Created: 2026-01-01
+Last Updated: 2026-01-01 (Phase 15)
+==============================================================================
+{% endcomment %}
+
+{% block title %}Projects Operator Runbook - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:project_status' %}">Projects</a>
+                <span>/</span>
+                <span>Operator Runbook</span>
+            </nav>
+            <h1 class="page-title">Projects Operator Runbook</h1>
+            <p class="page-subtitle">Read-only reference for project operations</p>
+        </div>
+        <a href="{% url 'admin_console:project_status' %}" class="btn btn-outline">Back to Projects</a>
+    </div>
+
+    <!-- Section 1: What the Projects System Is -->
+    <section class="runbook-section">
+        <h2 class="runbook-section-title">
+            <span class="section-number">1</span>
+            What the Projects System Is
+        </h2>
+        <div class="runbook-content">
+            <h3>Purpose</h3>
+            <p>The Projects system manages development work through <strong>Phases</strong> and <strong>Tasks</strong>. It provides a structured workflow where:</p>
+            <ul>
+                <li><strong>Phases</strong> represent major milestones or development stages (e.g., "Phase 10: Hardening")</li>
+                <li><strong>Tasks</strong> are individual work items that belong to a phase</li>
+                <li>Only one phase is <strong>active</strong> at a time</li>
+            </ul>
+
+            <h3>Why Tasks Must Be Entered Intentionally</h3>
+            <p>The system enforces <strong>human control</strong> over what work gets done:</p>
+            <ul>
+                <li>Tasks are created through <strong>Task Intake</strong> by a human operator</li>
+                <li>New tasks start in <strong>backlog</strong> status</li>
+                <li>A human must explicitly mark a task as <strong>ready</strong> before it can be worked on</li>
+                <li>This prevents unplanned or accidental work from entering the queue</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Section 2: Daily Operating Workflow -->
+    <section class="runbook-section">
+        <h2 class="runbook-section-title">
+            <span class="section-number">2</span>
+            Daily Operating Workflow
+        </h2>
+        <div class="runbook-content">
+            <ol class="workflow-steps">
+                <li>
+                    <strong>Enter tasks via Task Intake</strong>
+                    <p>Create new tasks with a clear title and description. All new tasks start as "backlog".</p>
+                </li>
+                <li>
+                    <strong>Leave ideas as "backlog"</strong>
+                    <p>Tasks in backlog are not ready for execution. Keep them there until you're ready to work on them.</p>
+                </li>
+                <li>
+                    <strong>Mark only intentional work as "ready"</strong>
+                    <p>When you decide a task should be worked on next, change its status from "backlog" to "ready".</p>
+                </li>
+                <li>
+                    <strong>Ask Claude: "What's next?"</strong>
+                    <p>Claude will query the system for ready tasks in the active phase, ordered by priority.</p>
+                </li>
+                <li>
+                    <strong>Select a task number</strong>
+                    <p>Tell Claude which task to work on. The task moves to "in_progress".</p>
+                </li>
+                <li>
+                    <strong>Review execution results</strong>
+                    <p>When Claude completes a task, review the changes. The task moves to "done".</p>
+                </li>
+            </ol>
+        </div>
+    </section>
+
+    <!-- Section 3: Task Status Meanings -->
+    <section class="runbook-section">
+        <h2 class="runbook-section-title">
+            <span class="section-number">3</span>
+            Task Status Meanings
+        </h2>
+        <div class="runbook-content">
+            <table class="status-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Meaning</th>
+                        <th>Who Controls It</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="status-badge status-backlog">backlog</span></td>
+                        <td>Task exists but is not ready for execution. Ideas, future work, or tasks awaiting approval.</td>
+                        <td>Human creates via Task Intake</td>
+                    </tr>
+                    <tr>
+                        <td><span class="status-badge status-ready">ready</span></td>
+                        <td>Task is approved and waiting to be picked up. Claude can see and select these tasks.</td>
+                        <td>Human marks ready</td>
+                    </tr>
+                    <tr>
+                        <td><span class="status-badge status-in_progress">in_progress</span></td>
+                        <td>Task is currently being worked on. Only one task should be in progress at a time.</td>
+                        <td>Set when task is selected for execution</td>
+                    </tr>
+                    <tr>
+                        <td><span class="status-badge status-blocked">blocked</span></td>
+                        <td>Task cannot proceed. Requires a reason explaining the blocker.</td>
+                        <td>Set when a blocker is encountered</td>
+                    </tr>
+                    <tr>
+                        <td><span class="status-badge status-done">done</span></td>
+                        <td>Task is complete. Work has been verified and committed.</td>
+                        <td>Set when task is finished</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Section 4: When Execution Stops -->
+    <section class="runbook-section">
+        <h2 class="runbook-section-title">
+            <span class="section-number">4</span>
+            When Execution Stops
+        </h2>
+        <div class="runbook-content">
+            <p>Execution will stop in these situations. Each has a specific resolution:</p>
+
+            <div class="stop-condition">
+                <h4>No Active Phase</h4>
+                <p class="stop-symptom">There is no phase with status "in_progress".</p>
+                <p class="stop-action"><strong>Action:</strong> Go to Project Phases and set a phase to "in_progress" status.</p>
+            </div>
+
+            <div class="stop-condition">
+                <h4>No Ready Tasks</h4>
+                <p class="stop-symptom">The active phase has no tasks with status "ready".</p>
+                <p class="stop-action"><strong>Action:</strong> Mark existing backlog tasks as "ready", or create new tasks via Task Intake.</p>
+            </div>
+
+            <div class="stop-condition">
+                <h4>Blocker Created</h4>
+                <p class="stop-symptom">A task was moved to "blocked" status with a reason.</p>
+                <p class="stop-action"><strong>Action:</strong> Read the blocked_reason, resolve the issue, then unblock the task.</p>
+            </div>
+
+            <div class="stop-condition">
+                <h4>Preflight Guard Fails</h4>
+                <p class="stop-symptom">The preflight check detected system issues (no active phase, no ready tasks, etc.).</p>
+                <p class="stop-action"><strong>Action:</strong> Review the preflight errors and fix each issue before proceeding.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 5: Golden Rules -->
+    <section class="runbook-section">
+        <h2 class="runbook-section-title">
+            <span class="section-number">5</span>
+            Golden Rules
+        </h2>
+        <div class="runbook-content">
+            <div class="golden-rules">
+                <div class="golden-rule">
+                    <div class="rule-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                        </svg>
+                    </div>
+                    <div class="rule-content">
+                        <h4>Database is the Source of Truth</h4>
+                        <p>All task and phase data lives in the database. Claude reads from the database to know what to do. Never rely on memory or conversation history for task state.</p>
+                    </div>
+                </div>
+
+                <div class="golden-rule">
+                    <div class="rule-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+                        </svg>
+                    </div>
+                    <div class="rule-content">
+                        <h4>Claude Never Invents Work</h4>
+                        <p>Claude can only work on tasks that exist in the database and are marked "ready". If there's no ready task, Claude asks for instructions. Claude does not create its own tasks.</p>
+                    </div>
+                </div>
+
+                <div class="golden-rule">
+                    <div class="rule-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                    </div>
+                    <div class="rule-content">
+                        <h4>One Task at a Time</h4>
+                        <p>Only one task should be in "in_progress" at any moment. Complete the current task before starting a new one. This ensures focused, trackable work.</p>
+                    </div>
+                </div>
+
+                <div class="golden-rule">
+                    <div class="rule-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="8.5" cy="7" r="4"/>
+                            <path d="M20 8v6M23 11h-6"/>
+                        </svg>
+                    </div>
+                    <div class="rule-content">
+                        <h4>Humans Control Readiness</h4>
+                        <p>Only a human can move a task from "backlog" to "ready". This is the control point that decides what work enters the execution queue.</p>
+                    </div>
+                </div>
+
+                <div class="golden-rule">
+                    <div class="rule-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                    </div>
+                    <div class="rule-content">
+                        <h4>Safety Stops Are Expected Behavior</h4>
+                        <p>When execution stops due to preflight failures, blockers, or empty queues, this is the system working correctly. These stops prevent uncontrolled work. Resolve the issue and continue.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<style>
+/* Breadcrumb */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-8);
+}
+
+/* Runbook Sections */
+.runbook-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+    overflow: hidden;
+}
+
+.runbook-section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    margin: 0;
+    background: var(--color-background);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+.section-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--color-accent);
+    color: white;
+    border-radius: 50%;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+}
+
+.runbook-content {
+    padding: var(--space-5);
+    line-height: 1.6;
+}
+
+.runbook-content h3 {
+    margin-top: var(--space-4);
+    margin-bottom: var(--space-2);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.runbook-content h3:first-child {
+    margin-top: 0;
+}
+
+.runbook-content p {
+    margin-bottom: var(--space-3);
+    color: var(--color-text);
+}
+
+.runbook-content ul,
+.runbook-content ol {
+    margin-bottom: var(--space-4);
+    padding-left: var(--space-5);
+}
+
+.runbook-content li {
+    margin-bottom: var(--space-2);
+}
+
+/* Workflow Steps */
+.workflow-steps {
+    counter-reset: step;
+    list-style: none;
+    padding-left: 0;
+}
+
+.workflow-steps li {
+    position: relative;
+    padding-left: var(--space-8);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px dashed var(--color-border);
+}
+
+.workflow-steps li:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.workflow-steps li::before {
+    content: counter(step);
+    counter-increment: step;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 24px;
+    height: 24px;
+    background: var(--color-accent);
+    color: white;
+    border-radius: 50%;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.workflow-steps li strong {
+    display: block;
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-1);
+}
+
+.workflow-steps li p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* Status Table */
+.status-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.status-table th,
+.status-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+}
+
+.status-table th {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--color-background);
+}
+
+.status-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.status-backlog { background: var(--color-surface); color: var(--color-text-muted); border: 1px solid var(--color-border); }
+.status-ready { background: #fef3c7; color: #92400e; }
+.status-in_progress { background: #dbeafe; color: #1e40af; }
+.status-blocked { background: #fee2e2; color: #991b1b; }
+.status-done { background: #dcfce7; color: #166534; }
+
+/* Stop Conditions */
+.stop-condition {
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.stop-condition:last-child {
+    margin-bottom: 0;
+}
+
+.stop-condition h4 {
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.stop-symptom {
+    margin-bottom: var(--space-2);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.stop-action {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border-left: 3px solid var(--color-accent);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: var(--font-size-sm);
+}
+
+/* Golden Rules */
+.golden-rules {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.golden-rule {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.rule-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--color-accent);
+}
+
+.rule-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.rule-content h4 {
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.rule-content p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        gap: var(--space-4);
+    }
+
+    .golden-rule {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .status-table {
+        font-size: var(--font-size-sm);
+    }
+
+    .status-table th,
+    .status-table td {
+        padding: var(--space-2) var(--space-3);
+    }
+}
+</style>
+{% endblock %}

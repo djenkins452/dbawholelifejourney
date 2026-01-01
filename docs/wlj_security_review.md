@@ -634,6 +634,80 @@ The application demonstrates reasonable security practices for an early-stage pe
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-12-28 | Security Review (Claude) | Initial security review |
+| 1.1 | 2025-12-31 | Security Review (Claude) | Added encryption roadmap (Appendix D) |
+
+---
+
+### Appendix D: Data Encryption Roadmap
+
+**Decision Date:** December 31, 2025
+**Status:** Planned for Pre-Launch Implementation
+
+#### Current State
+
+Sensitive user data is stored as plaintext in PostgreSQL:
+- Journal entries (title, body)
+- Prayer requests (title, description, answer_notes)
+- Faith milestones (description)
+- Health data notes
+- Medicine information
+- Google OAuth credentials
+
+**Current Protection:** Data protected by HTTPS in transit, PostgreSQL access controls, Railway infrastructure security.
+
+#### Encryption Options Evaluated
+
+| Option | Description | Complexity | Search Impact |
+|--------|-------------|------------|---------------|
+| **A: Full Encryption** | Encrypt all sensitive fields | Medium | Breaks keyword search |
+| **B: Selective Encryption** | Encrypt most sensitive only | Low | Minimal - prayers/medicine not searched |
+| **C: Encryption + Search Index** | Full encryption with search solution | High | Preserves search with limitations |
+
+#### Recommended Implementation Phases
+
+**Phase 1: Pre-Launch (Option B - Selective Encryption)**
+- Target: Before public user access
+- Scope: Encrypt most sensitive fields that don't require search
+  - `PrayerRequest.description`, `PrayerRequest.answer_notes`
+  - `FaithMilestone.description`
+  - `Medicine.notes`, `MedicineLog.notes`, `Medicine.rx_number`
+  - `GoogleCalendarCredential.access_token`, `refresh_token`, `client_secret`
+  - `MedicalProvider.portal_username`
+  - Health entry notes fields
+- Library: `django-encrypted-model-fields` or `django-fernet-fields`
+- Impact: No functionality loss, minimal performance impact
+
+**Phase 2: Post-Launch Evaluation (Option C if Needed)**
+- Trigger: Regulatory requirements, enterprise customers, or security incident
+- Scope: Full encryption of journal entries with search index
+- Approach: Blind index or dedicated search service
+- Trade-offs: Partial search only, increased complexity
+
+#### Key Management Requirements
+
+When encryption is implemented:
+1. Generate 32-byte Fernet encryption key
+2. Store as `FIELD_ENCRYPTION_KEY` environment variable in Railway
+3. Document key backup procedure (separate from database backups)
+4. Establish key rotation schedule (annual recommended)
+5. Test recovery procedure before launch
+
+#### AI Feature Compatibility
+
+Encryption will NOT break AI features because:
+- Data is decrypted automatically when loaded into Python
+- OpenAI receives plaintext after decryption
+- Dashboard AI, Personal Assistant, trend analysis all load data first
+
+Only database-level searches (`__icontains`, `__search`) are affected.
+
+#### Decision Rationale
+
+Deferred full implementation during development phase to:
+- Reduce debugging complexity (can inspect data directly)
+- Avoid key management overhead during rapid iteration
+- Maintain full search functionality for testing
+- Focus development resources on features
 
 ---
 

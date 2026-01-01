@@ -55,7 +55,15 @@
       "Bash(git commit -m \"$(cat <<''EOF''\nFix Twilio Error 21212 - Add phone number validation and normalization\n\nProblem: SMS sends were failing with Twilio Error 21212 (Invalid ''From'' number)\nbecause TWILIO_PHONE_NUMBER wasn''t validated or normalized to E.164 format.\n\nSolution:\n- Added _normalize_phone_number() to TwilioService that:\n  - Removes formatting chars (spaces, dashes, parens, dots)\n  - Adds +1 prefix for 10-digit US numbers\n  - Validates against E.164 regex pattern\n- Phone normalization at service init AND for destination numbers\n- Detailed error logging showing From/To values on failures\n- Specific error messages for Twilio 21212/21211 errors\n\nFiles modified:\n- apps/sms/services.py - Phone normalization and error handling\n- apps/sms/tests/test_sms_comprehensive.py - 6 new tests (46 total)\n- docs/wlj_claude_changelog.md - Documented fix\n- docs/wlj_claude_features.md - Added Phone Number Normalization section\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(set SECRET_KEY=dev-secret-key)",
       "Bash(copy:*)",
-      "Bash(python manage.py collectstatic:*)"
+      "Bash(python manage.py collectstatic:*)",
+      "Bash(set SECRET_KEY=dev-test-key-only)",
+      "Bash(set DEBUG=1)",
+      "Bash(set DATABASE_URL=sqlite:///./db.sqlite3)",
+      "Bash(C:dbawholelifejourney.venvScriptspython.exe manage.py test apps.admin_console --verbosity=1)",
+      "Bash(.venv/Scripts/python.exe manage.py test:*)",
+      "Bash(venv/Scripts/python.exe manage.py test:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd task_status command and improve PM workflow documentation\n\n- New management command: task_status\n  - Query task queue status from CLI\n  - Options: --all, --next, --list, --completed\n  - Shows summary, priority breakdown, and next task\n  - Priority order: HIGH (bugs) → MEDIUM (features) → LOW (ideas)\n\n- Updated CLAUDE.md:\n  - Clarified Django Admin is source of truth for tasks\n  - Added detailed \"Next item\" workflow documentation\n  - Listed task categories in execution priority order\n  - Added special categories (ACTION REQUIRED, REVIEW)\n\n- Updated docs/wlj_claude_tasks.md:\n  - Simplified to quick reference document\n  - Points to Django Admin as source of truth\n  - Documents management commands\n  - Lists expected Bible App tasks (TASK-001 through TASK-006)\n\nSession: Update Project Manager App\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")"
     ]
   }
 }

@@ -20,21 +20,25 @@ from apps.admin_console.models import ClaudeTask
 class Command(BaseCommand):
     help = "Load Bible App Updates tasks into ClaudeTask queue"
 
+    def get_next_task_number(self):
+        """Get the next available task number."""
+        last_task = ClaudeTask.objects.order_by('-task_number').first()
+        return (last_task.task_number + 1) if last_task else 1
+
     def handle(self, *args, **options):
         self.stdout.write("Loading Bible App tasks...")
+        self.stdout.write(f"Current task count: {ClaudeTask.objects.count()}")
         created_count = 0
         skipped_count = 0
 
-        # Phase 1 - COMPLETE
-        if not ClaudeTask.objects.filter(title__icontains='Phase 1').filter(
-            title__icontains='Bible'
-        ).exists():
-            ClaudeTask.objects.create(
-                title='Bible App Phase 1: Bible Reading + Study Tools',
-                status=ClaudeTask.STATUS_COMPLETE,
-                priority=ClaudeTask.PRIORITY_MEDIUM,
-                category=ClaudeTask.CATEGORY_FEATURE,
-                description=(
+        # Define all tasks
+        tasks = [
+            {
+                'title': 'Bible App Phase 1: Bible Reading + Study Tools',
+                'status': ClaudeTask.STATUS_COMPLETE,
+                'priority': ClaudeTask.PRIORITY_MEDIUM,
+                'category': ClaudeTask.CATEGORY_FEATURE,
+                'description': (
                     "Add Bible reading plans and study tools to help users build "
                     "consistent Scripture engagement habits.\n\n"
                     "Reading Plans:\n"
@@ -49,7 +53,7 @@ class Command(BaseCommand):
                     "- Bookmark passages to return to\n"
                     "- Create in-depth study notes with tagging"
                 ),
-                acceptance_criteria=(
+                'acceptance_criteria': (
                     "- Reading plans browsable at /faith/reading-plans/\n"
                     "- Can start a plan and track progress\n"
                     "- Study tools accessible at /faith/study-tools/\n"
@@ -57,7 +61,7 @@ class Command(BaseCommand):
                     "- Navigation menu updated with Reading Plans and Study Tools links\n"
                     "- All tests pass"
                 ),
-                notes=(
+                'notes': (
                     "Deployed 2026-01-01:\n"
                     "- 7 new models: ReadingPlanTemplate, ReadingPlanDay, "
                     "UserReadingPlan, UserReadingProgress, BibleHighlight, "
@@ -68,26 +72,16 @@ class Command(BaseCommand):
                     "- Navigation updated\n"
                     "- All 1395 tests pass"
                 ),
-                source=ClaudeTask.SOURCE_USER,
-                session_label='Bible App Updates',
-                completed_at=timezone.now(),
-                completion_notes='Phase 1 fully deployed. Reading plans and study tools working.'
-            )
-            self.stdout.write(self.style.SUCCESS("Created: Phase 1 (COMPLETE)"))
-            created_count += 1
-        else:
-            skipped_count += 1
-
-        # Phase 2 - Prayer Prompts
-        if not ClaudeTask.objects.filter(title__icontains='Phase 2').filter(
-            title__icontains='Bible'
-        ).exists():
-            ClaudeTask.objects.create(
-                title='Bible App Phase 2: Prayer Prompts Before Bible Study',
-                status=ClaudeTask.STATUS_NEW,
-                priority=ClaudeTask.PRIORITY_MEDIUM,
-                category=ClaudeTask.CATEGORY_FEATURE,
-                description=(
+                'completed_at': timezone.now(),
+                'completion_notes': 'Phase 1 fully deployed. Reading plans and study tools working.',
+                'search_key': 'Phase 1',
+            },
+            {
+                'title': 'Bible App Phase 2: Prayer Prompts Before Bible Study',
+                'status': ClaudeTask.STATUS_NEW,
+                'priority': ClaudeTask.PRIORITY_MEDIUM,
+                'category': ClaudeTask.CATEGORY_FEATURE,
+                'description': (
                     "Add prayer prompts that appear before starting a Bible study "
                     "session.\n\n"
                     "When a user begins a reading plan day or opens study tools, "
@@ -100,31 +94,21 @@ class Command(BaseCommand):
                     "- \"Don't show again\" preference\n"
                     "- Smooth transition into Bible reading after prayer"
                 ),
-                acceptance_criteria=(
+                'acceptance_criteria': (
                     "- Prayer prompt appears when starting a reading plan day\n"
                     "- User can choose to pray, skip, or disable prompts\n"
                     "- Pre-written prayers available for selection\n"
                     "- User preference saved for future sessions\n"
                     "- Smooth UX that doesn't feel intrusive"
                 ),
-                source=ClaudeTask.SOURCE_USER,
-                session_label='Bible App Updates'
-            )
-            self.stdout.write(self.style.SUCCESS("Created: Phase 2"))
-            created_count += 1
-        else:
-            skipped_count += 1
-
-        # Phase 3 - Music + Narration
-        if not ClaudeTask.objects.filter(title__icontains='Phase 3').filter(
-            title__icontains='Bible'
-        ).exists():
-            ClaudeTask.objects.create(
-                title='Bible App Phase 3: Background Worship Music + Voice Narration',
-                status=ClaudeTask.STATUS_NEW,
-                priority=ClaudeTask.PRIORITY_MEDIUM,
-                category=ClaudeTask.CATEGORY_FEATURE,
-                description=(
+                'search_key': 'Phase 2',
+            },
+            {
+                'title': 'Bible App Phase 3: Background Worship Music + Voice Narration',
+                'status': ClaudeTask.STATUS_NEW,
+                'priority': ClaudeTask.PRIORITY_MEDIUM,
+                'category': ClaudeTask.CATEGORY_FEATURE,
+                'description': (
                     "Add ambient worship music and voice narration options for "
                     "Bible reading.\n\n"
                     "Background Music:\n"
@@ -136,31 +120,21 @@ class Command(BaseCommand):
                     "- Play/pause/speed controls\n"
                     "- Option to listen while following along visually"
                 ),
-                acceptance_criteria=(
+                'acceptance_criteria': (
                     "- Background music plays during reading sessions\n"
                     "- User can control volume, mute, or disable\n"
                     "- Voice narration available for Scripture text\n"
                     "- Audio controls are intuitive and accessible\n"
                     "- Works on mobile browsers"
                 ),
-                source=ClaudeTask.SOURCE_USER,
-                session_label='Bible App Updates'
-            )
-            self.stdout.write(self.style.SUCCESS("Created: Phase 3"))
-            created_count += 1
-        else:
-            skipped_count += 1
-
-        # Phase 4 - AI Q&A
-        if not ClaudeTask.objects.filter(title__icontains='Phase 4').filter(
-            title__icontains='Bible'
-        ).exists():
-            ClaudeTask.objects.create(
-                title='Bible App Phase 4: Interactive Q&A / AI Help',
-                status=ClaudeTask.STATUS_NEW,
-                priority=ClaudeTask.PRIORITY_MEDIUM,
-                category=ClaudeTask.CATEGORY_FEATURE,
-                description=(
+                'search_key': 'Phase 3',
+            },
+            {
+                'title': 'Bible App Phase 4: Interactive Q&A / AI Help',
+                'status': ClaudeTask.STATUS_NEW,
+                'priority': ClaudeTask.PRIORITY_MEDIUM,
+                'category': ClaudeTask.CATEGORY_FEATURE,
+                'description': (
                     "Add AI-powered Q&A for Bible study assistance.\n\n"
                     "Features:\n"
                     "- Ask questions about the current passage\n"
@@ -170,31 +144,21 @@ class Command(BaseCommand):
                     "- Study suggestions based on current reading\n\n"
                     "Integration with existing AI service (OpenAI GPT-4o-mini)."
                 ),
-                acceptance_criteria=(
+                'acceptance_criteria': (
                     "- Q&A button/panel available during Bible reading\n"
                     "- User can ask questions and get helpful answers\n"
                     "- Context-aware responses based on current passage\n"
                     "- Cross-references provided when relevant\n"
                     "- Follows existing AI service patterns"
                 ),
-                source=ClaudeTask.SOURCE_USER,
-                session_label='Bible App Updates'
-            )
-            self.stdout.write(self.style.SUCCESS("Created: Phase 4"))
-            created_count += 1
-        else:
-            skipped_count += 1
-
-        # Phase 5 - Learning Tools
-        if not ClaudeTask.objects.filter(title__icontains='Phase 5').filter(
-            title__icontains='Bible'
-        ).exists():
-            ClaudeTask.objects.create(
-                title='Bible App Phase 5: Learning Tools (Characters, Topics, Media)',
-                status=ClaudeTask.STATUS_NEW,
-                priority=ClaudeTask.PRIORITY_LOW,
-                category=ClaudeTask.CATEGORY_FEATURE,
-                description=(
+                'search_key': 'Phase 4',
+            },
+            {
+                'title': 'Bible App Phase 5: Learning Tools (Characters, Topics, Media)',
+                'status': ClaudeTask.STATUS_NEW,
+                'priority': ClaudeTask.PRIORITY_LOW,
+                'category': ClaudeTask.CATEGORY_FEATURE,
+                'description': (
                     "Add learning resources to enrich Bible study.\n\n"
                     "Features:\n"
                     "- Bible character profiles (Abraham, Moses, David, Paul, etc.)\n"
@@ -204,31 +168,21 @@ class Command(BaseCommand):
                     "- Historical timeline\n\n"
                     "Content can be curated or sourced from public domain resources."
                 ),
-                acceptance_criteria=(
+                'acceptance_criteria': (
                     "- Character profiles accessible and informative\n"
                     "- Topical verse collections browsable\n"
                     "- Audio/video content playable in-app\n"
                     "- Maps and visual aids display properly\n"
                     "- Resources linked from relevant reading plan days"
                 ),
-                source=ClaudeTask.SOURCE_USER,
-                session_label='Bible App Updates'
-            )
-            self.stdout.write(self.style.SUCCESS("Created: Phase 5"))
-            created_count += 1
-        else:
-            skipped_count += 1
-
-        # Phase 6 - AR/Immersive
-        if not ClaudeTask.objects.filter(title__icontains='Phase 6').filter(
-            title__icontains='Bible'
-        ).exists():
-            ClaudeTask.objects.create(
-                title='Bible App Phase 6: AR/Immersive Experiences',
-                status=ClaudeTask.STATUS_NEW,
-                priority=ClaudeTask.PRIORITY_LOW,
-                category=ClaudeTask.CATEGORY_IDEA,
-                description=(
+                'search_key': 'Phase 5',
+            },
+            {
+                'title': 'Bible App Phase 6: AR/Immersive Experiences',
+                'status': ClaudeTask.STATUS_NEW,
+                'priority': ClaudeTask.PRIORITY_LOW,
+                'category': ClaudeTask.CATEGORY_IDEA,
+                'description': (
                     "Future: Add augmented reality and immersive experiences for "
                     "Bible study.\n\n"
                     "Potential Features:\n"
@@ -240,28 +194,52 @@ class Command(BaseCommand):
                     "Note: This is a long-term goal requiring significant research "
                     "and potentially native app development."
                 ),
-                acceptance_criteria=(
+                'acceptance_criteria': (
                     "- Research AR/VR web technologies\n"
                     "- Proof of concept for one immersive experience\n"
                     "- Works on AR-capable devices\n"
                     "- Graceful fallback for unsupported devices"
                 ),
-                notes=(
+                'notes': (
                     "This phase is exploratory and may require native app "
                     "development rather than web-only."
                 ),
-                source=ClaudeTask.SOURCE_USER,
-                session_label='Bible App Updates'
-            )
-            self.stdout.write(self.style.SUCCESS("Created: Phase 6"))
-            created_count += 1
-        else:
-            skipped_count += 1
+                'search_key': 'Phase 6',
+            },
+        ]
+
+        # Create each task
+        for task_data in tasks:
+            search_key = task_data.pop('search_key')
+
+            # Check if task already exists
+            if ClaudeTask.objects.filter(
+                title__icontains=search_key,
+                title__icontains='Bible'
+            ).exists():
+                self.stdout.write(f"  Skipped: {search_key} (already exists)")
+                skipped_count += 1
+                continue
+
+            try:
+                # Explicitly set task_number
+                task_data['task_number'] = self.get_next_task_number()
+                task_data['source'] = ClaudeTask.SOURCE_USER
+                task_data['session_label'] = 'Bible App Updates'
+
+                task = ClaudeTask.objects.create(**task_data)
+                self.stdout.write(self.style.SUCCESS(
+                    f"  Created: {task.task_id} - {search_key}"
+                ))
+                created_count += 1
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(
+                    f"  ERROR creating {search_key}: {str(e)}"
+                ))
 
         # Summary
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Bible App Tasks: {created_count} created, {skipped_count} already existed"
-            )
-        )
-        self.stdout.write("Bible App task loading complete!")
+        self.stdout.write("")
+        self.stdout.write(self.style.SUCCESS(
+            f"Bible App Tasks: {created_count} created, {skipped_count} skipped"
+        ))
+        self.stdout.write(f"Total tasks now: {ClaudeTask.objects.count()}")

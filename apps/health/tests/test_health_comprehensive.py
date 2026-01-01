@@ -565,14 +565,67 @@ class HealthContextTest(HealthTestMixin, TestCase):
     def test_weight_list_has_entries(self):
         """Weight list includes entries in context."""
         self.create_weight(self.user)
-        
+
         response = self.client.get(reverse('health:weight_list'))
-        
+
         self.assertTrue(
-            'object_list' in response.context or 
+            'object_list' in response.context or
             'entries' in response.context or
             'weights' in response.context
         )
+
+    def test_weight_list_has_weight_loss_calculation(self):
+        """Weight list shows total weight change from first to last entry."""
+        # Create entries with different dates
+        first_entry = WeightEntry.objects.create(
+            user=self.user,
+            value=Decimal('200.0'),
+            unit='lb',
+            recorded_at=timezone.now() - timedelta(days=30)
+        )
+        latest_entry = WeightEntry.objects.create(
+            user=self.user,
+            value=Decimal('190.0'),
+            unit='lb',
+            recorded_at=timezone.now()
+        )
+
+        response = self.client.get(reverse('health:weight_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('weight_change', response.context)
+        # Lost 10 lbs (200 - 190 = -10)
+        self.assertEqual(response.context['weight_change'], -10.0)
+
+    def test_weight_list_has_chart_data(self):
+        """Weight list provides chart data for graphing."""
+        # Create multiple entries
+        for i in range(5):
+            WeightEntry.objects.create(
+                user=self.user,
+                value=Decimal(str(200 - i * 2)),
+                unit='lb',
+                recorded_at=timezone.now() - timedelta(days=5 - i)
+            )
+
+        response = self.client.get(reverse('health:weight_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('chart_data', response.context)
+        chart_data = response.context['chart_data']
+        self.assertEqual(len(chart_data), 5)
+        # Check data structure
+        self.assertIn('date', chart_data[0])
+        self.assertIn('weight', chart_data[0])
+
+    def test_weight_list_single_entry_no_change(self):
+        """With only one entry, weight_change should not be in context."""
+        self.create_weight(self.user)
+
+        response = self.client.get(reverse('health:weight_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('weight_change', response.context)
     
     def test_health_home_has_stats(self):
         """Health home includes stats in context."""

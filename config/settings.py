@@ -591,7 +591,10 @@ DEXCOM_CLIENT_SECRET = env('DEXCOM_CLIENT_SECRET', default='')
 if DEBUG:
     DEXCOM_REDIRECT_URI = 'http://localhost:8000/health/glucose/dexcom/callback/'
 else:
-    DEXCOM_REDIRECT_URI = env('DEXCOM_REDIRECT_URI', default='')
+    DEXCOM_REDIRECT_URI = env(
+        'DEXCOM_REDIRECT_URI',
+        default='https://wholelifejourney.com/health/glucose/dexcom/callback/'
+    )
 
 # Use sandbox for development (simulated data, no real Dexcom account needed)
 DEXCOM_USE_SANDBOX = env.bool('DEXCOM_USE_SANDBOX', default=DEBUG)

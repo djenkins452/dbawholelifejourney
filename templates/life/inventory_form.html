@@ -487,6 +487,8 @@
 </style>
 
 {% if not object %}
+<!-- ZXing library for cross-browser barcode detection (Safari/iOS compatible) -->
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const startBtn = document.getElementById('startBarcodeScanner');
@@ -501,12 +503,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const progressEl = document.getElementById('lookupProgress');
 
     let stream = null;
-    let barcodeDetector = null;
+    let zxingReader = null;
     let detectedBarcode = '';
     let isScanning = false;
-
-    // Check if BarcodeDetector is available
-    const hasBarcodeDetector = 'BarcodeDetector' in window;
+    let scanInterval = null;
 
     startBtn.addEventListener('click', openScanner);
     closeBtn.addEventListener('click', closeScanner);
@@ -520,10 +520,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Initialize ZXing reader
+    function getZXingReader() {
+        if (!zxingReader && typeof ZXingBrowser !== 'undefined' && ZXingBrowser.BrowserMultiFormatReader) {
+            zxingReader = new ZXingBrowser.BrowserMultiFormatReader();
+            console.log('ZXing reader initialized');
+        }
+        return zxingReader;
+    }
+
     async function openScanner() {
         modal.style.display = 'flex';
         resultEl.style.display = 'none';
         progressEl.style.display = 'none';
+        statusEl.style.display = 'block';
         statusEl.textContent = 'Starting camera...';
 
         try {
@@ -537,12 +547,12 @@ document.addEventListener('DOMContentLoaded', function() {
             video.srcObject = stream;
             await video.play();
 
-            if (hasBarcodeDetector) {
-                barcodeDetector = new BarcodeDetector({
-                    formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39']
-                });
+            // Check if ZXing is available
+            const reader = getZXingReader();
+            if (reader) {
                 statusEl.textContent = 'Point your camera at a barcode';
-                startDetection();
+                // Wait for video to be ready then start detection
+                setTimeout(startDetection, 500);
             } else {
                 statusEl.textContent = 'Barcode detection not supported. Enter barcode manually.';
                 showManualEntry();
@@ -550,38 +560,93 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (err) {
             console.error('Camera error:', err);
             statusEl.textContent = 'Could not access camera. Please check permissions.';
+            showManualEntry();
         }
     }
 
     function closeScanner() {
         modal.style.display = 'none';
-        isScanning = false;
+        stopDetection();
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
             stream = null;
         }
     }
 
-    async function startDetection() {
-        isScanning = true;
-        while (isScanning && stream) {
-            try {
-                const barcodes = await barcodeDetector.detect(video);
-                if (barcodes.length > 0) {
-                    detectedBarcode = barcodes[0].rawValue;
-                    showDetectedBarcode(detectedBarcode);
-                    isScanning = false;
+    function stopDetection() {
+        isScanning = false;
+        if (scanInterval) {
+            clearInterval(scanInterval);
+            scanInterval = null;
+        }
+    }
 
-                    // Vibrate on detection (if supported)
-                    if ('vibrate' in navigator) {
-                        navigator.vibrate(100);
+    function startDetection() {
+        const reader = getZXingReader();
+        if (!reader || !video || video.readyState < 2) {
+            setTimeout(startDetection, 200);
+            return;
+        }
+
+        isScanning = true;
+        const processCanvas = document.createElement('canvas');
+        let isProcessing = false;
+
+        scanInterval = setInterval(async () => {
+            if (!isScanning || isProcessing || video.paused || video.ended || video.readyState < 2) {
+                return;
+            }
+
+            isProcessing = true;
+
+            try {
+                // Capture frame to canvas
+                processCanvas.width = video.videoWidth;
+                processCanvas.height = video.videoHeight;
+                const ctx = processCanvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+
+                // Create image for ZXing
+                const imageData = processCanvas.toDataURL('image/png');
+                const img = new Image();
+                img.src = imageData;
+
+                await new Promise(resolve => {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                });
+
+                // Decode barcode
+                const result = await reader.decodeFromImageElement(img);
+
+                if (result && result.text) {
+                    const code = result.text;
+                    console.log('Barcode detected:', code);
+
+                    // Validate it looks like a product barcode
+                    if (/^\d{8,14}$/.test(code)) {
+                        detectedBarcode = code;
+                        stopDetection();
+                        showDetectedBarcode(code);
+
+                        // Vibrate on detection
+                        if (navigator.vibrate) {
+                            navigator.vibrate(100);
+                        }
                     }
                 }
             } catch (err) {
-                console.error('Detection error:', err);
+                // NotFoundException is normal when no barcode visible
+                const errName = err.name || err.constructor?.name || '';
+                if (errName !== 'NotFoundException' && !errName.includes('NotFound')) {
+                    // Only log unexpected errors occasionally
+                }
+            } finally {
+                isProcessing = false;
             }
-            await new Promise(r => setTimeout(r, 200)); // Check every 200ms
-        }
+        }, 200);
+
+        console.log('ZXing barcode detection started');
     }
 
     function showDetectedBarcode(barcode) {
@@ -599,12 +664,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function showManualEntry() {
+        // Check if manual entry already exists
+        if (document.getElementById('manualBarcode')) return;
+
         // Create manual entry input
         const manualInput = document.createElement('div');
         manualInput.innerHTML = `
             <div style="margin-top: var(--space-3);">
                 <input type="text" id="manualBarcode" class="form-input"
-                       placeholder="Enter barcode number" pattern="[0-9]*">
+                       placeholder="Enter barcode number" pattern="[0-9]*" inputmode="numeric">
                 <button type="button" id="submitManualBarcode" class="btn btn-primary btn-sm"
                         style="margin-top: var(--space-2);">Look Up</button>
             </div>
@@ -615,6 +683,16 @@ document.addEventListener('DOMContentLoaded', function() {
             detectedBarcode = document.getElementById('manualBarcode').value;
             if (detectedBarcode) {
                 lookupProduct();
+            }
+        });
+
+        // Allow Enter key to submit
+        document.getElementById('manualBarcode').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                detectedBarcode = this.value;
+                if (detectedBarcode) {
+                    lookupProduct();
+                }
             }
         });
     }

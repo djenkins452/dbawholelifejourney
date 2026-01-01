@@ -758,3 +758,152 @@ class NextTasksAPIView(View):
         ]
 
         return JsonResponse(result, safe=False)
+
+
+class ActivePhaseAPIView(View):
+    """
+    API endpoint to get the active project phase.
+
+    GET /api/admin/project/active-phase/
+
+    Returns JSON object with active phase info.
+    Returns 403 if user is not admin.
+    """
+
+    def get(self, request):
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Get active phase using service function
+        from .services import get_active_phase
+        phase = get_active_phase()
+
+        if not phase:
+            return JsonResponse({'phase': None})
+
+        return JsonResponse({
+            'phase': {
+                'id': phase.id,
+                'phase_number': phase.phase_number,
+                'name': phase.name,
+                'objective': phase.objective,
+                'status': phase.status
+            }
+        })
+
+
+class TaskStatusUpdateAPIView(View):
+    """
+    API endpoint to update a task's status.
+
+    PATCH /api/admin/project/tasks/<id>/status/
+
+    Request body:
+    {
+        "status": "in_progress",
+        "reason": "optional, required only for blocked"
+    }
+
+    Returns:
+    - 200: Updated task JSON
+    - 400: Validation error (invalid transition, missing reason, etc.)
+    - 403: Permission denied (not admin)
+    - 404: Task not found
+    """
+
+    def patch(self, request, pk):
+        import json
+        from .models import AdminTask, TaskStatusTransitionError
+
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Get the task
+        try:
+            task = AdminTask.objects.select_related('phase').get(pk=pk)
+        except AdminTask.DoesNotExist:
+            return JsonResponse(
+                {'error': 'Task not found'},
+                status=404
+            )
+
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse(
+                {'error': 'Invalid JSON body'},
+                status=400
+            )
+
+        # Get status from body
+        new_status = body.get('status')
+        if not new_status:
+            return JsonResponse(
+                {'error': 'Missing required field: status'},
+                status=400
+            )
+
+        # Validate status is a valid choice
+        valid_statuses = [choice[0] for choice in AdminTask.STATUS_CHOICES]
+        if new_status not in valid_statuses:
+            return JsonResponse(
+                {'error': f"Invalid status '{new_status}'. Valid statuses: {valid_statuses}"},
+                status=400
+            )
+
+        # Get optional reason
+        reason = body.get('reason')
+
+        # Attempt the status transition
+        try:
+            log = task.transition_status(
+                new_status=new_status,
+                reason=reason,
+                created_by='human'  # API calls are from humans
+            )
+        except TaskStatusTransitionError as e:
+            return JsonResponse(
+                {'error': str(e)},
+                status=400
+            )
+
+        # Build response
+        result = {
+            'id': task.id,
+            'title': task.title,
+            'description': task.description,
+            'category': task.category,
+            'priority': task.priority,
+            'status': task.status,
+            'effort': task.effort,
+            'blocked_reason': task.blocked_reason,
+            'phase': {
+                'id': task.phase.id,
+                'phase_number': task.phase.phase_number,
+                'name': task.phase.name,
+                'status': task.phase.status
+            },
+            'created_by': task.created_by,
+            'created_at': task.created_at.isoformat(),
+            'updated_at': task.updated_at.isoformat()
+        }
+
+        # Include log info if status changed
+        if log:
+            result['activity_log'] = {
+                'id': log.id,
+                'action': log.action,
+                'created_by': log.created_by,
+                'created_at': log.created_at.isoformat()
+            }
+
+        return JsonResponse(result)

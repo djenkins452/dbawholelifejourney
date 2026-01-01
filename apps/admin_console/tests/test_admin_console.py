@@ -839,3 +839,499 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
         self.assertEqual(data[0]['priority'], 1)
         self.assertEqual(data[1]['priority'], 1)
         self.assertEqual(data[2]['priority'], 2)
+
+
+# =============================================================================
+# 11. TASK STATUS TRANSITION TESTS
+# =============================================================================
+
+class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
+    """Tests for AdminTask status transition validation."""
+
+    def setUp(self):
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        self.client = Client()
+
+        # Create an active phase
+        self.active_phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Active Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Create an inactive phase
+        self.inactive_phase = AdminProjectPhase.objects.create(
+            phase_number=2,
+            name='Future Phase',
+            objective='Later',
+            status='not_started'
+        )
+
+    def test_valid_transition_backlog_to_ready(self):
+        """Task can transition from backlog to ready."""
+        from apps.admin_console.models import AdminTask
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='backlog',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+        self.assertTrue(AdminTask.is_valid_transition('backlog', 'ready'))
+
+    def test_valid_transition_ready_to_in_progress(self):
+        """Task can transition from ready to in_progress."""
+        from apps.admin_console.models import AdminTask
+        self.assertTrue(AdminTask.is_valid_transition('ready', 'in_progress'))
+
+    def test_valid_transition_in_progress_to_done(self):
+        """Task can transition from in_progress to done."""
+        from apps.admin_console.models import AdminTask
+        self.assertTrue(AdminTask.is_valid_transition('in_progress', 'done'))
+
+    def test_valid_transition_in_progress_to_blocked(self):
+        """Task can transition from in_progress to blocked."""
+        from apps.admin_console.models import AdminTask
+        self.assertTrue(AdminTask.is_valid_transition('in_progress', 'blocked'))
+
+    def test_valid_transition_blocked_to_ready(self):
+        """Task can transition from blocked to ready."""
+        from apps.admin_console.models import AdminTask
+        self.assertTrue(AdminTask.is_valid_transition('blocked', 'ready'))
+
+    def test_invalid_transition_backlog_to_in_progress(self):
+        """Task cannot transition directly from backlog to in_progress."""
+        from apps.admin_console.models import AdminTask
+        self.assertFalse(AdminTask.is_valid_transition('backlog', 'in_progress'))
+
+    def test_invalid_transition_backlog_to_done(self):
+        """Task cannot transition directly from backlog to done."""
+        from apps.admin_console.models import AdminTask
+        self.assertFalse(AdminTask.is_valid_transition('backlog', 'done'))
+
+    def test_invalid_transition_done_to_anything(self):
+        """Done tasks cannot transition to any status."""
+        from apps.admin_console.models import AdminTask
+        self.assertFalse(AdminTask.is_valid_transition('done', 'ready'))
+        self.assertFalse(AdminTask.is_valid_transition('done', 'in_progress'))
+        self.assertFalse(AdminTask.is_valid_transition('done', 'backlog'))
+
+    def test_transition_to_in_progress_requires_active_phase(self):
+        """Task cannot move to in_progress if phase is not active."""
+        from apps.admin_console.models import AdminTask, TaskStatusTransitionError
+
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='ready',
+            effort='S',
+            phase=self.inactive_phase,
+            created_by='human'
+        )
+
+        with self.assertRaises(TaskStatusTransitionError) as context:
+            task.validate_status_transition('in_progress')
+        self.assertIn('not active', str(context.exception))
+
+    def test_transition_to_blocked_requires_reason(self):
+        """Task cannot move to blocked without a reason."""
+        from apps.admin_console.models import AdminTask, TaskStatusTransitionError
+
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='in_progress',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+
+        with self.assertRaises(TaskStatusTransitionError) as context:
+            task.validate_status_transition('blocked')
+        self.assertIn('reason', str(context.exception))
+
+    def test_transition_to_blocked_with_reason_succeeds(self):
+        """Task can move to blocked with a reason."""
+        from apps.admin_console.models import AdminTask
+
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='in_progress',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+
+        self.assertTrue(task.validate_status_transition('blocked', reason='Waiting for approval'))
+
+    def test_transition_status_creates_activity_log(self):
+        """transition_status creates an activity log entry."""
+        from apps.admin_console.models import AdminTask, AdminActivityLog
+
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='backlog',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+
+        log = task.transition_status('ready', created_by='human')
+
+        self.assertIsNotNone(log)
+        self.assertEqual(log.task, task)
+        self.assertIn('backlog', log.action)
+        self.assertIn('ready', log.action)
+        self.assertEqual(log.created_by, 'human')
+
+    def test_transition_status_with_reason_includes_reason_in_log(self):
+        """transition_status includes reason in activity log."""
+        from apps.admin_console.models import AdminTask
+
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='in_progress',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+
+        log = task.transition_status('blocked', reason='API unavailable', created_by='claude')
+
+        self.assertIn('API unavailable', log.action)
+        self.assertEqual(log.created_by, 'claude')
+
+    def test_transition_status_updates_blocked_reason_field(self):
+        """transition_status sets blocked_reason when moving to blocked."""
+        from apps.admin_console.models import AdminTask
+
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='in_progress',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+
+        task.transition_status('blocked', reason='Waiting for review')
+        task.refresh_from_db()
+
+        self.assertEqual(task.blocked_reason, 'Waiting for review')
+
+    def test_transition_status_clears_blocked_reason_on_unblock(self):
+        """transition_status clears blocked_reason when unblocking."""
+        from apps.admin_console.models import AdminTask
+
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='blocked',
+            blocked_reason='Some reason',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+
+        task.transition_status('ready')
+        task.refresh_from_db()
+
+        self.assertEqual(task.blocked_reason, '')
+
+    def test_same_status_transition_returns_none(self):
+        """Transitioning to same status returns None (no-op)."""
+        from apps.admin_console.models import AdminTask
+
+        task = AdminTask.objects.create(
+            title='Test Task',
+            description='Test',
+            category='feature',
+            status='ready',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+
+        log = task.transition_status('ready')
+        self.assertIsNone(log)
+
+
+# =============================================================================
+# 12. TASK STATUS UPDATE API TESTS
+# =============================================================================
+
+class TaskStatusUpdateAPITest(AdminTestMixin, TestCase):
+    """Tests for the task status update API endpoint."""
+
+    def setUp(self):
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.regular_user = self.create_user()
+
+        # Create an active phase
+        self.active_phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Active Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Create test tasks
+        self.backlog_task = AdminTask.objects.create(
+            title='Backlog Task',
+            description='In backlog',
+            category='feature',
+            status='backlog',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+        self.ready_task = AdminTask.objects.create(
+            title='Ready Task',
+            description='Ready to start',
+            category='feature',
+            status='ready',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+        self.in_progress_task = AdminTask.objects.create(
+            title='In Progress Task',
+            description='Being worked on',
+            category='feature',
+            status='in_progress',
+            effort='S',
+            phase=self.active_phase,
+            created_by='human'
+        )
+
+    def test_status_update_requires_authentication(self):
+        """Status update API requires authentication."""
+        import json
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_status_update_requires_staff(self):
+        """Status update API requires staff status."""
+        import json
+        self.login_user()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_status_update_accessible_to_staff(self):
+        """Status update API is accessible to staff users."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_status_update_returns_json(self):
+        """Status update API returns JSON."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_status_update_returns_updated_task(self):
+        """Status update API returns updated task data."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        data = json.loads(response.content)
+        self.assertEqual(data['id'], self.backlog_task.pk)
+        self.assertEqual(data['status'], 'ready')
+        self.assertEqual(data['title'], 'Backlog Task')
+
+    def test_status_update_includes_activity_log(self):
+        """Status update API includes activity log in response."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        data = json.loads(response.content)
+        self.assertIn('activity_log', data)
+        self.assertIn('backlog', data['activity_log']['action'])
+        self.assertIn('ready', data['activity_log']['action'])
+
+    def test_status_update_invalid_transition_returns_400(self):
+        """Status update API returns 400 for invalid transition."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'done'}),  # backlog -> done is invalid
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+
+    def test_status_update_missing_status_returns_400(self):
+        """Status update API returns 400 when status is missing."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+        self.assertIn('status', data['error'])
+
+    def test_status_update_invalid_status_returns_400(self):
+        """Status update API returns 400 for invalid status value."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'invalid_status'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('error', data)
+
+    def test_status_update_nonexistent_task_returns_404(self):
+        """Status update API returns 404 for nonexistent task."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            '/admin-console/api/admin/project/tasks/99999/status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_status_update_blocked_without_reason_returns_400(self):
+        """Status update API returns 400 when blocking without reason."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.in_progress_task.pk}/status/',
+            data=json.dumps({'status': 'blocked'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('reason', data['error'])
+
+    def test_status_update_blocked_with_reason_succeeds(self):
+        """Status update API succeeds when blocking with reason."""
+        import json
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.in_progress_task.pk}/status/',
+            data=json.dumps({'status': 'blocked', 'reason': 'Waiting for API'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'blocked')
+        self.assertEqual(data['blocked_reason'], 'Waiting for API')
+
+    def test_status_update_invalid_json_returns_400(self):
+        """Status update API returns 400 for invalid JSON."""
+        self.login_admin()
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data='not valid json',
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_full_workflow_backlog_to_done(self):
+        """Full workflow from backlog to done."""
+        import json
+        self.login_admin()
+
+        # backlog -> ready
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # ready -> in_progress
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'in_progress'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # in_progress -> done
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.backlog_task.pk}/status/',
+            data=json.dumps({'status': 'done'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'done')
+
+    def test_workflow_with_blocking(self):
+        """Workflow with blocking and unblocking."""
+        import json
+        self.login_admin()
+
+        # in_progress -> blocked
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.in_progress_task.pk}/status/',
+            data=json.dumps({'status': 'blocked', 'reason': 'Waiting for approval'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'blocked')
+        self.assertEqual(data['blocked_reason'], 'Waiting for approval')
+
+        # blocked -> ready
+        response = self.client.patch(
+            f'/admin-console/api/admin/project/tasks/{self.in_progress_task.pk}/status/',
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'ready')
+        self.assertEqual(data['blocked_reason'], '')  # Cleared

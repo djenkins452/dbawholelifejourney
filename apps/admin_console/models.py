@@ -11,6 +11,11 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 
+class TaskStatusTransitionError(Exception):
+    """Exception raised for invalid task status transitions."""
+    pass
+
+
 class AdminProjectPhase(models.Model):
     """Project phase for organizing admin tasks."""
 
@@ -90,6 +95,15 @@ class AdminTask(models.Model):
         ('done', 'Done'),
     ]
 
+    # Allowed status transitions: from_status -> [allowed_to_statuses]
+    ALLOWED_TRANSITIONS = {
+        'backlog': ['ready'],
+        'ready': ['in_progress'],
+        'in_progress': ['done', 'blocked'],
+        'blocked': ['ready'],
+        'done': [],  # Done is terminal
+    }
+
     EFFORT_CHOICES = [
         ('S', 'Small'),
         ('M', 'Medium'),
@@ -112,6 +126,7 @@ class AdminTask(models.Model):
         on_delete=models.CASCADE,
         related_name='tasks'
     )
+    blocked_reason = models.TextField(blank=True, default='')
     created_by = models.CharField(max_length=10, choices=CREATED_BY_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -123,6 +138,101 @@ class AdminTask(models.Model):
 
     def __str__(self):
         return self.title
+
+    @classmethod
+    def is_valid_transition(cls, from_status, to_status):
+        """Check if a status transition is allowed."""
+        if from_status == to_status:
+            return True  # No change
+        allowed = cls.ALLOWED_TRANSITIONS.get(from_status, [])
+        return to_status in allowed
+
+    def validate_status_transition(self, new_status, reason=None):
+        """
+        Validate a status transition.
+
+        Raises TaskStatusTransitionError if:
+        - Transition is not allowed
+        - Moving to in_progress but phase is not active
+        - Moving to blocked without a reason
+
+        Args:
+            new_status: The target status
+            reason: Optional reason (required for blocked status)
+
+        Returns:
+            True if valid
+        """
+        # Check if transition is allowed
+        if not self.is_valid_transition(self.status, new_status):
+            raise TaskStatusTransitionError(
+                f"Cannot transition from '{self.status}' to '{new_status}'. "
+                f"Allowed transitions: {self.ALLOWED_TRANSITIONS.get(self.status, [])}"
+            )
+
+        # Check if moving to in_progress requires active phase
+        if new_status == 'in_progress':
+            if self.phase.status != 'in_progress':
+                raise TaskStatusTransitionError(
+                    f"Cannot move task to 'in_progress'. "
+                    f"Phase '{self.phase.name}' is not active (status: {self.phase.status})."
+                )
+
+        # Check if blocked requires a reason
+        if new_status == 'blocked':
+            if not reason:
+                raise TaskStatusTransitionError(
+                    "Cannot move task to 'blocked' without a reason."
+                )
+
+        return True
+
+    def transition_status(self, new_status, reason=None, created_by='human'):
+        """
+        Transition the task to a new status with validation and logging.
+
+        Args:
+            new_status: The target status
+            reason: Optional reason (required for blocked status)
+            created_by: Who initiated the change ('human' or 'claude')
+
+        Returns:
+            The created AdminActivityLog entry
+
+        Raises:
+            TaskStatusTransitionError if transition is invalid
+        """
+        old_status = self.status
+
+        # No-op if status unchanged
+        if old_status == new_status:
+            return None
+
+        # Validate the transition
+        self.validate_status_transition(new_status, reason)
+
+        # Update the task
+        self.status = new_status
+        if new_status == 'blocked':
+            self.blocked_reason = reason
+        elif new_status != 'blocked' and self.blocked_reason:
+            # Clear blocked reason when leaving blocked state
+            self.blocked_reason = ''
+        self.save()
+
+        # Create activity log
+        if reason:
+            action = f"Status changed from '{old_status}' to '{new_status}'. Reason: {reason}"
+        else:
+            action = f"Status changed from '{old_status}' to '{new_status}'."
+
+        log = AdminActivityLog.objects.create(
+            task=self,
+            action=action,
+            created_by=created_by
+        )
+
+        return log
 
 
 class AdminActivityLog(models.Model):

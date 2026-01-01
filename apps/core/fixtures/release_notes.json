@@ -1,6 +1,20 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 16,
+        "fields": {
+            "title": "Dexcom CGM Integration",
+            "description": "Connect your Dexcom CGM account to automatically sync blood glucose readings. View current glucose with trend arrows, time-in-range stats, 24-hour charts, and automatic background syncing.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-01-01",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": ""
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 15,
         "fields": {
             "title": "Barcode Scanner for Food",

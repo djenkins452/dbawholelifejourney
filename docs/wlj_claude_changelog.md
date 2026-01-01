@@ -4,13 +4,43 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-31 (Dexcom CGM Integration)
+# Last Updated: 2026-01-01 (Dexcom OAuth v3 Fix)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2026-01-01 Changes
+
+### Dexcom OAuth v3 Upgrade and Debugging (BUG FIX)
+
+**Session:** Dexcom Fix
+
+**Problem:**
+Dexcom OAuth connection was failing with blank screen after user consent. User could log in to Dexcom but after granting permission, the callback resulted in no redirect or error.
+
+**Root Cause:**
+1. OAuth endpoints were using v2 paths (`/v2/oauth2/login`, `/v2/oauth2/token`) instead of v3
+2. Authorization URL query parameters were not properly URL-encoded
+3. Insufficient logging made it impossible to diagnose issues
+
+**Solution:**
+1. Updated OAuth endpoints to v3 (`/v3/oauth2/login`, `/v3/oauth2/token`)
+2. Added `urllib.parse.urlencode()` for proper URL encoding of query parameters
+3. Added comprehensive logging throughout the OAuth flow:
+   - Callback receipt with user info and GET parameters
+   - Code presence, state comparison, and stored state validation
+   - Token exchange URL, redirect_uri, and response status
+   - Full error response body for troubleshooting
+   - Stack traces for exception handling
+
+**Files Modified:**
+- `apps/health/services/dexcom.py` - v3 endpoints, URL encoding, logging
+- `apps/health/views.py` - Detailed logging in DexcomCallbackView
 
 ---
 

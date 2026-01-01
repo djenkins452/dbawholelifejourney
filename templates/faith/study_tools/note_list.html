@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Bible Study Notes - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:study_tools' %}">Study Tools</a>
+        <span>/</span>
+        <span>Study Notes</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Bible Study Notes</h1>
+            <p class="page-subtitle">In-depth study and reflections</p>
+        </div>
+        <a href="{% url 'faith:study_note_create' %}" class="btn btn-primary">Add Note</a>
+    </div>
+
+    <div class="filters mb-6">
+        {% if available_tags %}
+        <div class="filter-group">
+            <label for="tag-filter">Tag:</label>
+            <select id="tag-filter" onchange="applyFilters()" class="form-select">
+                <option value="">All Tags</option>
+                {% for tag in available_tags %}
+                <option value="{{ tag }}" {% if selected_tag == tag %}selected{% endif %}>
+                    {{ tag }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        {% if available_books %}
+        <div class="filter-group">
+            <label for="book-filter">Book:</label>
+            <select id="book-filter" onchange="applyFilters()" class="form-select">
+                <option value="">All Books</option>
+                {% for book in available_books %}
+                <option value="{{ book }}" {% if selected_book == book %}selected{% endif %}>
+                    {{ book }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if notes %}
+    <div class="notes-list">
+        {% for note in notes %}
+        <a href="{% url 'faith:study_note_detail' pk=note.pk %}" class="note-card">
+            <div class="note-header">
+                <div class="note-title-section">
+                    {% if note.title %}
+                    <h3 class="note-title">{{ note.title }}</h3>
+                    {% endif %}
+                    <span class="note-ref">{{ note.reference }}</span>
+                </div>
+                <span class="note-translation">{{ note.translation }}</span>
+            </div>
+            <p class="note-excerpt">{{ note.content|truncatewords:30 }}</p>
+            {% if note.tags %}
+            <div class="note-tags">
+                {% for tag in note.tags %}
+                <span class="note-tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="note-meta">
+                <span class="note-date">{{ note.created_at|date:"M j, Y" }}</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="pagination mt-8">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&tag={{ selected_tag }}&book={{ selected_book }}" class="btn btn-ghost">Previous</a>
+        {% endif %}
+        <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&tag={{ selected_tag }}&book={{ selected_book }}" class="btn btn-ghost">Next</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <h2 class="empty-state-title">No study notes yet</h2>
+        <p class="empty-state-text">
+            Create study notes to capture insights as you dig deeper into Scripture.
+        </p>
+        <a href="{% url 'faith:study_note_create' %}" class="btn btn-primary">Add Your First Note</a>
+    </div>
+    {% endif %}
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:study_tools' %}" class="btn btn-ghost">Back to Study Tools</a>
+    </div>
+</div>
+
+<script>
+function applyFilters() {
+    const tag = document.getElementById('tag-filter')?.value || '';
+    const book = document.getElementById('book-filter')?.value || '';
+    let url = '?';
+    if (tag) url += 'tag=' + encodeURIComponent(tag) + '&';
+    if (book) url += 'book=' + encodeURIComponent(book) + '&';
+    window.location.href = url.slice(0, -1) || '?';
+}
+</script>
+
+<style>
+.filters {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.filter-group label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.note-card {
+    display: block;
+    padding: var(--space-5);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.note-card:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-2px);
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-3);
+}
+
+.note-title-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.note-title {
+    font-size: var(--font-size-lg);
+    margin: 0;
+}
+
+.note-ref {
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+.note-translation {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.note-excerpt {
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    margin-bottom: var(--space-3);
+}
+
+.note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.note-tag {
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.note-meta {
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+}
+
+.note-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.page-info {
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

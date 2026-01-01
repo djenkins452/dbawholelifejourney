@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block title %}Bible Study Tools - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <span>Study Tools</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Bible Study Tools</h1>
+        <p class="page-subtitle">Highlights, bookmarks, and notes to deepen your Scripture study</p>
+    </div>
+
+    <div class="tools-overview">
+        <div class="tool-card">
+            <div class="tool-icon highlight-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+            </div>
+            <div class="tool-info">
+                <h2>Highlights</h2>
+                <p class="tool-count">{{ highlight_count }} highlight{{ highlight_count|pluralize }}</p>
+                <p class="tool-desc">Mark important verses with colors</p>
+            </div>
+            <div class="tool-actions">
+                <a href="{% url 'faith:highlight_list' %}" class="btn btn-ghost btn-sm">View All</a>
+                <a href="{% url 'faith:highlight_create' %}" class="btn btn-primary btn-sm">Add New</a>
+            </div>
+        </div>
+
+        <div class="tool-card">
+            <div class="tool-icon bookmark-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+            </div>
+            <div class="tool-info">
+                <h2>Bookmarks</h2>
+                <p class="tool-count">{{ bookmark_count }} bookmark{{ bookmark_count|pluralize }}</p>
+                <p class="tool-desc">Save places to return to</p>
+            </div>
+            <div class="tool-actions">
+                <a href="{% url 'faith:bookmark_list' %}" class="btn btn-ghost btn-sm">View All</a>
+                <a href="{% url 'faith:bookmark_create' %}" class="btn btn-primary btn-sm">Add New</a>
+            </div>
+        </div>
+
+        <div class="tool-card">
+            <div class="tool-icon note-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+            </div>
+            <div class="tool-info">
+                <h2>Study Notes</h2>
+                <p class="tool-count">{{ note_count }} note{{ note_count|pluralize }}</p>
+                <p class="tool-desc">In-depth study and reflections</p>
+            </div>
+            <div class="tool-actions">
+                <a href="{% url 'faith:study_note_list' %}" class="btn btn-ghost btn-sm">View All</a>
+                <a href="{% url 'faith:study_note_create' %}" class="btn btn-primary btn-sm">Add New</a>
+            </div>
+        </div>
+    </div>
+
+    {% if recent_highlights %}
+    <section class="recent-section mt-8">
+        <div class="section-header">
+            <h2 class="section-title">Recent Highlights</h2>
+            <a href="{% url 'faith:highlight_list' %}" class="btn btn-ghost btn-sm">View All</a>
+        </div>
+        <div class="highlights-grid">
+            {% for highlight in recent_highlights %}
+            <div class="highlight-item color-{{ highlight.color }}">
+                <span class="highlight-ref">{{ highlight.reference }}</span>
+                <p class="highlight-text">{{ highlight.text|truncatewords:15 }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if recent_bookmarks %}
+    <section class="recent-section mt-8">
+        <div class="section-header">
+            <h2 class="section-title">Recent Bookmarks</h2>
+            <a href="{% url 'faith:bookmark_list' %}" class="btn btn-ghost btn-sm">View All</a>
+        </div>
+        <div class="bookmarks-list">
+            {% for bookmark in recent_bookmarks %}
+            <div class="bookmark-item">
+                <svg class="bookmark-icon-small" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+                <div class="bookmark-info">
+                    <span class="bookmark-ref">{{ bookmark.reference }}</span>
+                    {% if bookmark.title %}
+                    <span class="bookmark-title">{{ bookmark.title }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if recent_notes %}
+    <section class="recent-section mt-8">
+        <div class="section-header">
+            <h2 class="section-title">Recent Study Notes</h2>
+            <a href="{% url 'faith:study_note_list' %}" class="btn btn-ghost btn-sm">View All</a>
+        </div>
+        <div class="notes-list">
+            {% for note in recent_notes %}
+            <a href="{% url 'faith:study_note_detail' pk=note.pk %}" class="note-item">
+                <div class="note-header">
+                    {% if note.title %}
+                    <h3 class="note-title">{{ note.title }}</h3>
+                    {% endif %}
+                    <span class="note-ref">{{ note.reference }}</span>
+                </div>
+                <p class="note-excerpt">{{ note.content|truncatewords:20 }}</p>
+                {% if note.tags %}
+                <div class="note-tags">
+                    {% for tag in note.tags|slice:":3" %}
+                    <span class="note-tag">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:home' %}" class="btn btn-ghost">Back to Faith</a>
+    </div>
+</div>
+
+<style>
+.tools-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+
+.tool-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.tool-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+}
+
+.highlight-icon {
+    background: color-mix(in srgb, yellow 30%, transparent);
+    color: #b59700;
+}
+
+.bookmark-icon {
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+    color: var(--color-primary);
+}
+
+.note-icon {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+}
+
+.tool-info h2 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-1);
+}
+
+.tool-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.tool-desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.tool-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: auto;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+.highlights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-3);
+}
+
+.highlight-item {
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border-left: 4px solid;
+}
+
+.highlight-item.color-yellow {
+    background: color-mix(in srgb, yellow 20%, transparent);
+    border-color: #b59700;
+}
+
+.highlight-item.color-green {
+    background: color-mix(in srgb, green 15%, transparent);
+    border-color: green;
+}
+
+.highlight-item.color-blue {
+    background: color-mix(in srgb, blue 15%, transparent);
+    border-color: blue;
+}
+
+.highlight-item.color-pink {
+    background: color-mix(in srgb, pink 30%, transparent);
+    border-color: deeppink;
+}
+
+.highlight-item.color-purple {
+    background: color-mix(in srgb, purple 15%, transparent);
+    border-color: purple;
+}
+
+.highlight-item.color-orange {
+    background: color-mix(in srgb, orange 20%, transparent);
+    border-color: darkorange;
+}
+
+.highlight-ref {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    display: block;
+    margin-bottom: var(--space-1);
+}
+
+.highlight-text {
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.bookmarks-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.bookmark-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.bookmark-icon-small {
+    color: var(--color-primary);
+}
+
+.bookmark-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.bookmark-ref {
+    font-weight: 500;
+}
+
+.bookmark-title {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.note-item {
+    display: block;
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s ease;
+}
+
+.note-item:hover {
+    border-color: var(--color-accent);
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-2);
+}
+
+.note-title {
+    font-size: var(--font-size-md);
+    margin: 0;
+}
+
+.note-ref {
+    font-size: var(--font-size-sm);
+    color: var(--color-primary);
+}
+
+.note-excerpt {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-2);
+    line-height: 1.5;
+}
+
+.note-tags {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.note-tag {
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+</style>
+{% endblock %}

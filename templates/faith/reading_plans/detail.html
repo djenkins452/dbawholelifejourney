@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}{{ plan.title }} - Bible Reading Plan - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:reading_plans' %}">Reading Plans</a>
+        <span>/</span>
+        <span>{{ plan.title }}</span>
+    </nav>
+
+    <div class="plan-detail">
+        <div class="plan-header">
+            <div class="plan-badges mb-3">
+                <span class="badge badge-{{ plan.category }}">{{ plan.get_category_display }}</span>
+                <span class="badge badge-difficulty-{{ plan.difficulty }}">{{ plan.get_difficulty_display }}</span>
+                {% if plan.is_featured %}
+                <span class="badge badge-accent">Featured</span>
+                {% endif %}
+            </div>
+            <h1 class="page-title">{{ plan.title }}</h1>
+            <p class="plan-description">{{ plan.description }}</p>
+
+            <div class="plan-meta-row">
+                <div class="meta-box">
+                    <span class="meta-label">Duration</span>
+                    <span class="meta-value">{{ plan.duration_days }} days</span>
+                </div>
+                {% if plan.topics %}
+                <div class="meta-box">
+                    <span class="meta-label">Topics</span>
+                    <div class="topic-tags">
+                        {% for topic in plan.topics %}
+                        <span class="topic-tag">{{ topic }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if user_plan %}
+        <div class="alert alert-info mb-6">
+            <p><strong>You're already reading this plan!</strong></p>
+            <p class="text-sm mb-3">
+                You've completed {{ user_plan.days_completed }} of {{ plan.duration_days }} days
+                ({{ user_plan.progress_percentage }}%).
+            </p>
+            <a href="{% url 'faith:reading_plan_progress' pk=user_plan.pk %}" class="btn btn-primary">
+                Continue Reading
+            </a>
+        </div>
+        {% else %}
+        <div class="start-plan-section mb-6">
+            <form method="post" action="{% url 'faith:start_reading_plan' slug=plan.slug %}" class="start-plan-form">
+                {% csrf_token %}
+                <div class="form-group optional-reminder">
+                    <label for="reminder_time" class="form-label">Daily Reminder (Optional)</label>
+                    <input type="time" name="reminder_time" id="reminder_time" class="form-input"
+                           placeholder="Set a daily reminder">
+                    <p class="form-hint">Set a time to be reminded each day</p>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg">
+                    Start This Plan
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if days %}
+        <section class="plan-preview">
+            <h2 class="section-title">Plan Preview (First Week)</h2>
+            <div class="day-list">
+                {% for day in days %}
+                <div class="day-preview">
+                    <div class="day-number">Day {{ day.day_number }}</div>
+                    <div class="day-content">
+                        {% if day.title %}
+                        <h3 class="day-title">{{ day.title }}</h3>
+                        {% endif %}
+                        <div class="scripture-list">
+                            {% for ref in day.scripture_references %}
+                            <span class="scripture-ref">{{ ref }}</span>
+                            {% endfor %}
+                        </div>
+                        {% if day.reflection_prompt %}
+                        <p class="reflection-preview">
+                            <em>Reflection:</em> {{ day.reflection_prompt|truncatewords:15 }}
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% if plan.duration_days > 7 %}
+            <p class="text-center text-muted mt-4">
+                + {{ plan.duration_days|add:"-7" }} more days...
+            </p>
+            {% endif %}
+        </section>
+        {% endif %}
+    </div>
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:reading_plans' %}" class="btn btn-ghost">Back to Reading Plans</a>
+    </div>
+</div>
+
+<style>
+.plan-detail {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.plan-header {
+    margin-bottom: var(--space-6);
+}
+
+.plan-badges {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.plan-description {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+    line-height: 1.6;
+}
+
+.plan-meta-row {
+    display: flex;
+    gap: var(--space-6);
+    flex-wrap: wrap;
+}
+
+.meta-box {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.meta-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.meta-value {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+.start-plan-section {
+    background: var(--color-background);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+}
+
+.start-plan-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.optional-reminder {
+    max-width: 250px;
+}
+
+.day-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.day-preview {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.day-number {
+    min-width: 60px;
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.day-content {
+    flex: 1;
+}
+
+.day-title {
+    font-size: var(--font-size-md);
+    margin-bottom: var(--space-2);
+}
+
+.scripture-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.scripture-ref {
+    font-size: var(--font-size-sm);
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    color: var(--color-primary);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.reflection-preview {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.badge-difficulty-beginner {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.badge-difficulty-intermediate {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+.badge-difficulty-advanced {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+}
+
+.topic-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+.topic-tag {
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+</style>
+{% endblock %}

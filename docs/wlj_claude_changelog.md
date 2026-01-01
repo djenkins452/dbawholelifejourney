@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Dexcom OAuth v3 Fix)
+# Last Updated: 2026-01-01 (Bible Reading Plans & Study Tools)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,70 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Bible Reading Plans & Study Tools (NEW FEATURE - Phase 1)
+
+**Session:** Bible App Updates
+
+**Description:**
+Major enhancement to the Faith module adding Bible reading plans and study tools to help users build consistent Scripture engagement habits.
+
+**New Features:**
+
+1. **Bible Reading Plans**
+   - ReadingPlanTemplate model for system-defined plans
+   - ReadingPlanDay model for daily readings within a plan
+   - UserReadingPlan model for tracking user progress
+   - UserReadingProgress model for daily completion tracking
+   - Pre-loaded plans: Forgiveness (7 days), Prayer (7 days), Peace in Troubled Times (7 days), Marriage (7 days), Gospel of John (21 days), Psalms of Comfort (5 days)
+   - Progress tracking with percentage complete
+   - Pause/Resume/Abandon functionality
+   - Topic-based filtering
+
+2. **Bible Study Tools**
+   - BibleHighlight model - color-coded verse highlighting (yellow, green, blue, pink, purple, orange)
+   - BibleBookmark model - save locations to return to
+   - BibleStudyNote model - in-depth study notes with tagging
+   - Study Tools dashboard showing all tools in one place
+   - Filtering by color, book, or tag
+
+**New Files:**
+- `apps/faith/migrations/0006_bible_reading_plans_and_study_tools.py`
+- `apps/faith/management/commands/load_reading_plans.py`
+- `templates/faith/reading_plans/list.html`
+- `templates/faith/reading_plans/detail.html`
+- `templates/faith/reading_plans/progress.html`
+- `templates/faith/study_tools/home.html`
+- `templates/faith/study_tools/highlight_list.html`
+- `templates/faith/study_tools/highlight_form.html`
+- `templates/faith/study_tools/bookmark_list.html`
+- `templates/faith/study_tools/bookmark_form.html`
+- `templates/faith/study_tools/note_list.html`
+- `templates/faith/study_tools/note_form.html`
+- `templates/faith/study_tools/note_detail.html`
+
+**Modified Files:**
+- `apps/faith/models.py` - Added 7 new models
+- `apps/faith/forms.py` - Added forms for reading plans and study tools
+- `apps/faith/views.py` - Added 20+ new views
+- `apps/faith/urls.py` - Added URL patterns for reading plans and study tools
+- `apps/faith/admin.py` - Added admin registrations for new models
+
+**URL Patterns Added:**
+- `/faith/reading-plans/` - Browse reading plans
+- `/faith/reading-plans/<slug>/` - View plan details
+- `/faith/reading-plans/<slug>/start/` - Start a plan
+- `/faith/reading-plans/progress/<pk>/` - View progress
+- `/faith/reading-plans/progress/<pk>/day/<pk>/complete/` - Mark day complete
+- `/faith/study-tools/` - Study tools dashboard
+- `/faith/study-tools/highlights/` - View highlights
+- `/faith/study-tools/bookmarks/` - View bookmarks
+- `/faith/study-tools/notes/` - View study notes
+
+**Tests:**
+- All 1395 tests pass including 100 faith tests
+
+---
 
 ### Dexcom OAuth v3 Upgrade and Debugging (BUG FIX)
 

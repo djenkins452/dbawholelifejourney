@@ -1,5 +1,14 @@
+# ==============================================================================
+# File: apps/faith/views.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Faith module views for Scripture, prayers, reading plans, and
+#              Bible study tools
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2024-01-01
+# Last Updated: 2026-01-01
+# ==============================================================================
 """
-Faith Views - Scripture, prayers, and spiritual growth.
+Faith Views - Scripture, prayers, reading plans, and spiritual growth.
 """
 
 import json
@@ -14,7 +23,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import (
     CreateView,
@@ -31,8 +40,30 @@ from apps.help.mixins import HelpContextMixin
 from apps.journal.models import JournalEntry
 from apps.journal.forms import JournalEntryForm
 
-from .forms import FaithMilestoneForm, PrayerRequestForm, SavedVerseForm
-from .models import DailyVerse, FaithMilestone, PrayerRequest, SavedVerse, ScriptureVerse
+from .forms import (
+    BibleBookmarkForm,
+    BibleHighlightForm,
+    BibleStudyNoteForm,
+    FaithMilestoneForm,
+    PrayerRequestForm,
+    ReadingProgressForm,
+    SavedVerseForm,
+    StartReadingPlanForm,
+)
+from .models import (
+    BibleBookmark,
+    BibleHighlight,
+    BibleStudyNote,
+    DailyVerse,
+    FaithMilestone,
+    PrayerRequest,
+    ReadingPlanDay,
+    ReadingPlanTemplate,
+    SavedVerse,
+    ScriptureVerse,
+    UserReadingPlan,
+    UserReadingProgress,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -915,3 +946,641 @@ class ToggleMemoryVerseView(LoginRequiredMixin, FaithRequiredMixin, View):
         if referer:
             return redirect(referer)
         return redirect("faith:scripture_list")
+
+
+# =============================================================================
+# READING PLAN VIEWS
+# =============================================================================
+
+
+class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, TemplateView):
+    """
+    Browse available reading plans and view active plans.
+
+    Shows featured plans, user's active plans, and completed plans.
+    """
+
+    template_name = "faith/reading_plans/list.html"
+    help_context_id = "FAITH_READING_PLANS"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Available reading plan templates
+        context["featured_plans"] = ReadingPlanTemplate.objects.filter(
+            is_active=True, is_featured=True
+        )
+        context["all_plans"] = ReadingPlanTemplate.objects.filter(
+            is_active=True
+        )
+
+        # User's active plans
+        context["active_plans"] = UserReadingPlan.objects.filter(
+            user=user, status="active"
+        ).select_related("template")
+
+        # User's completed plans
+        context["completed_plans"] = UserReadingPlan.objects.filter(
+            user=user, status="completed"
+        ).select_related("template")[:5]
+
+        # Filter by topic if requested
+        topic = self.request.GET.get("topic")
+        if topic:
+            context["all_plans"] = context["all_plans"].filter(topics__icontains=topic)
+            context["selected_topic"] = topic
+
+        # Get all unique topics for filtering
+        topics = set()
+        for plan in ReadingPlanTemplate.objects.filter(is_active=True):
+            topics.update(plan.topics)
+        context["available_topics"] = sorted(topics)
+
+        return context
+
+
+class ReadingPlanDetailView(LoginRequiredMixin, FaithRequiredMixin, DetailView):
+    """
+    View details of a reading plan template.
+
+    Shows plan description, duration, and option to start.
+    """
+
+    model = ReadingPlanTemplate
+    template_name = "faith/reading_plans/detail.html"
+    context_object_name = "plan"
+    slug_url_kwarg = "slug"
+
+    def get_queryset(self):
+        return ReadingPlanTemplate.objects.filter(is_active=True)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Check if user already has this plan active
+        context["user_plan"] = UserReadingPlan.objects.filter(
+            user=self.request.user,
+            template=self.object,
+            status="active",
+        ).first()
+
+        # Show all days for preview
+        context["days"] = self.object.days.all()[:7]  # Preview first week
+
+        return context
+
+
+class StartReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Start a new reading plan.
+    """
+
+    def post(self, request, slug):
+        template = get_object_or_404(
+            ReadingPlanTemplate.objects.filter(is_active=True),
+            slug=slug
+        )
+
+        # Check if user already has an active plan for this template
+        existing = UserReadingPlan.objects.filter(
+            user=request.user,
+            template=template,
+            status="active",
+        ).first()
+
+        if existing:
+            messages.info(request, f"You already have '{template.title}' in progress.")
+            return redirect("faith:reading_plan_progress", pk=existing.pk)
+
+        # Create new user reading plan
+        user_plan = UserReadingPlan.objects.create(
+            user=request.user,
+            template=template,
+            status="active",
+        )
+
+        # Optionally set reminder time from form
+        reminder_time = request.POST.get("reminder_time")
+        if reminder_time:
+            try:
+                from datetime import datetime
+                user_plan.reminder_time = datetime.strptime(reminder_time, "%H:%M").time()
+                user_plan.save(update_fields=["reminder_time"])
+            except ValueError:
+                pass
+
+        # Create progress entries for all days
+        for plan_day in template.days.all():
+            UserReadingProgress.objects.create(
+                user=request.user,
+                user_plan=user_plan,
+                plan_day=plan_day,
+            )
+
+        messages.success(request, f"Started '{template.title}'! Happy reading!")
+        return redirect("faith:reading_plan_progress", pk=user_plan.pk)
+
+
+class ReadingPlanProgressView(LoginRequiredMixin, FaithRequiredMixin, DetailView):
+    """
+    View progress on a reading plan.
+
+    Shows current day's reading and overall progress.
+    """
+
+    model = UserReadingPlan
+    template_name = "faith/reading_plans/progress.html"
+    context_object_name = "user_plan"
+
+    def get_queryset(self):
+        return UserReadingPlan.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user_plan = self.object
+
+        # Get current day's reading
+        current_day_num = user_plan.current_day
+        context["current_day"] = ReadingPlanDay.objects.filter(
+            plan=user_plan.template,
+            day_number=current_day_num,
+        ).first()
+
+        # Get progress for current day
+        if context["current_day"]:
+            context["current_progress"] = UserReadingProgress.objects.filter(
+                user_plan=user_plan,
+                plan_day=context["current_day"],
+            ).first()
+
+        # Get all progress entries
+        context["all_progress"] = user_plan.day_completions.select_related(
+            "plan_day"
+        ).order_by("plan_day__day_number")
+
+        return context
+
+
+class MarkDayCompleteView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Mark a reading plan day as complete.
+    """
+
+    def post(self, request, pk, day_pk):
+        user_plan = get_object_or_404(
+            UserReadingPlan.objects.filter(user=request.user),
+            pk=pk
+        )
+        progress = get_object_or_404(
+            UserReadingProgress.objects.filter(user_plan=user_plan),
+            plan_day__pk=day_pk
+        )
+
+        # Save any notes
+        notes = request.POST.get("notes", "")
+        progress.notes = notes
+        progress.mark_complete()
+
+        messages.success(request, f"Day {progress.plan_day.day_number} complete!")
+
+        # Check if plan is now complete
+        if user_plan.is_complete:
+            messages.success(
+                request,
+                f"Congratulations! You've completed '{user_plan.template.title}'!"
+            )
+
+        return redirect("faith:reading_plan_progress", pk=pk)
+
+
+class PauseReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Pause a reading plan.
+    """
+
+    def post(self, request, pk):
+        user_plan = get_object_or_404(
+            UserReadingPlan.objects.filter(user=request.user, status="active"),
+            pk=pk
+        )
+        user_plan.status = "paused"
+        user_plan.save(update_fields=["status", "updated_at"])
+        messages.info(request, f"'{user_plan.template.title}' has been paused.")
+        return redirect("faith:reading_plans")
+
+
+class ResumeReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Resume a paused reading plan.
+    """
+
+    def post(self, request, pk):
+        user_plan = get_object_or_404(
+            UserReadingPlan.objects.filter(user=request.user, status="paused"),
+            pk=pk
+        )
+        user_plan.status = "active"
+        user_plan.save(update_fields=["status", "updated_at"])
+        messages.success(request, f"Welcome back! '{user_plan.template.title}' resumed.")
+        return redirect("faith:reading_plan_progress", pk=pk)
+
+
+class AbandonReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Abandon a reading plan.
+    """
+
+    def post(self, request, pk):
+        user_plan = get_object_or_404(
+            UserReadingPlan.objects.filter(user=request.user),
+            pk=pk
+        )
+        user_plan.status = "abandoned"
+        user_plan.save(update_fields=["status", "updated_at"])
+        messages.info(request, f"'{user_plan.template.title}' has been removed from your active plans.")
+        return redirect("faith:reading_plans")
+
+
+# =============================================================================
+# BIBLE STUDY TOOLS VIEWS - Highlights
+# =============================================================================
+
+
+class HighlightListView(LoginRequiredMixin, FaithRequiredMixin, ListView):
+    """
+    List all Bible highlights for the user.
+    """
+
+    model = BibleHighlight
+    template_name = "faith/study_tools/highlight_list.html"
+    context_object_name = "highlights"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = BibleHighlight.objects.filter(user=self.request.user)
+
+        # Filter by color
+        color = self.request.GET.get("color")
+        if color:
+            queryset = queryset.filter(color=color)
+
+        # Filter by book
+        book = self.request.GET.get("book")
+        if book:
+            queryset = queryset.filter(book_name=book)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user_highlights = BibleHighlight.objects.filter(user=self.request.user)
+
+        # Get unique books for filtering
+        context["available_books"] = sorted(
+            set(user_highlights.values_list("book_name", flat=True))
+        )
+        context["color_choices"] = BibleHighlight.COLOR_CHOICES
+        context["selected_color"] = self.request.GET.get("color", "")
+        context["selected_book"] = self.request.GET.get("book", "")
+        return context
+
+
+class HighlightCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
+    """
+    Create a new Bible highlight.
+    """
+
+    model = BibleHighlight
+    form_class = BibleHighlightForm
+    template_name = "faith/study_tools/highlight_form.html"
+    success_url = reverse_lazy("faith:highlight_list")
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+
+        # Parse the reference to extract book info
+        reference = form.cleaned_data["reference"]
+        book_info = self._parse_reference(reference)
+        form.instance.book_name = book_info["book_name"]
+        form.instance.book_order = book_info["book_order"]
+        form.instance.chapter = book_info["chapter"]
+        form.instance.verse_start = book_info["verse_start"]
+        form.instance.verse_end = book_info.get("verse_end")
+
+        messages.success(self.request, "Highlight saved!")
+        return super().form_valid(form)
+
+    def _parse_reference(self, reference):
+        """Parse a reference like 'John 3:16-17' into components."""
+        from apps.faith.views import ScriptureSaveView
+
+        # Default values
+        result = {
+            "book_name": reference.split()[0] if reference else "Unknown",
+            "book_order": 1,
+            "chapter": 1,
+            "verse_start": 1,
+            "verse_end": None,
+        }
+
+        # Try to parse more accurately
+        import re
+        # Match patterns like "1 John 3:16-17" or "Genesis 1:1"
+        match = re.match(r"^(\d?\s?[A-Za-z]+)\s+(\d+):(\d+)(?:-(\d+))?", reference)
+        if match:
+            book_name = match.group(1).strip()
+            result["book_name"] = book_name
+            result["book_order"] = ScriptureSaveView.BOOK_ORDER.get(book_name, 1)
+            result["chapter"] = int(match.group(2))
+            result["verse_start"] = int(match.group(3))
+            if match.group(4):
+                result["verse_end"] = int(match.group(4))
+
+        return result
+
+
+class HighlightDeleteView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Delete a Bible highlight.
+    """
+
+    def post(self, request, pk):
+        highlight = get_object_or_404(
+            BibleHighlight.objects.filter(user=request.user),
+            pk=pk
+        )
+        highlight.soft_delete()
+        messages.success(request, "Highlight removed.")
+        return redirect("faith:highlight_list")
+
+
+# =============================================================================
+# BIBLE STUDY TOOLS VIEWS - Bookmarks
+# =============================================================================
+
+
+class BookmarkListView(LoginRequiredMixin, FaithRequiredMixin, ListView):
+    """
+    List all Bible bookmarks for the user.
+    """
+
+    model = BibleBookmark
+    template_name = "faith/study_tools/bookmark_list.html"
+    context_object_name = "bookmarks"
+    paginate_by = 50
+
+    def get_queryset(self):
+        return BibleBookmark.objects.filter(user=self.request.user)
+
+
+class BookmarkCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
+    """
+    Create a new Bible bookmark.
+    """
+
+    model = BibleBookmark
+    form_class = BibleBookmarkForm
+    template_name = "faith/study_tools/bookmark_form.html"
+    success_url = reverse_lazy("faith:bookmark_list")
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+
+        # Parse the reference
+        reference = form.cleaned_data["reference"]
+        book_info = self._parse_reference(reference)
+        form.instance.book_name = book_info["book_name"]
+        form.instance.book_order = book_info["book_order"]
+        form.instance.chapter = book_info["chapter"]
+        form.instance.verse = book_info.get("verse")
+
+        messages.success(self.request, "Bookmark saved!")
+        return super().form_valid(form)
+
+    def _parse_reference(self, reference):
+        """Parse a reference like 'John 3' or 'John 3:16' into components."""
+        from apps.faith.views import ScriptureSaveView
+
+        result = {
+            "book_name": reference.split()[0] if reference else "Unknown",
+            "book_order": 1,
+            "chapter": 1,
+            "verse": None,
+        }
+
+        import re
+        # Match "1 John 3:16" or "Genesis 1" (chapter only)
+        match = re.match(r"^(\d?\s?[A-Za-z]+)\s+(\d+)(?::(\d+))?", reference)
+        if match:
+            book_name = match.group(1).strip()
+            result["book_name"] = book_name
+            result["book_order"] = ScriptureSaveView.BOOK_ORDER.get(book_name, 1)
+            result["chapter"] = int(match.group(2))
+            if match.group(3):
+                result["verse"] = int(match.group(3))
+
+        return result
+
+
+class BookmarkDeleteView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Delete a Bible bookmark.
+    """
+
+    def post(self, request, pk):
+        bookmark = get_object_or_404(
+            BibleBookmark.objects.filter(user=request.user),
+            pk=pk
+        )
+        bookmark.soft_delete()
+        messages.success(request, "Bookmark removed.")
+        return redirect("faith:bookmark_list")
+
+
+# =============================================================================
+# BIBLE STUDY TOOLS VIEWS - Study Notes
+# =============================================================================
+
+
+class StudyNoteListView(LoginRequiredMixin, FaithRequiredMixin, ListView):
+    """
+    List all Bible study notes for the user.
+    """
+
+    model = BibleStudyNote
+    template_name = "faith/study_tools/note_list.html"
+    context_object_name = "notes"
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = BibleStudyNote.objects.filter(user=self.request.user)
+
+        # Filter by tag
+        tag = self.request.GET.get("tag")
+        if tag:
+            queryset = queryset.filter(tags__icontains=tag)
+
+        # Filter by book
+        book = self.request.GET.get("book")
+        if book:
+            queryset = queryset.filter(book_name=book)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user_notes = BibleStudyNote.objects.filter(user=self.request.user)
+
+        # Get unique tags and books for filtering
+        tags = set()
+        for note in user_notes:
+            tags.update(note.tags)
+        context["available_tags"] = sorted(tags)
+        context["available_books"] = sorted(
+            set(user_notes.values_list("book_name", flat=True))
+        )
+        context["selected_tag"] = self.request.GET.get("tag", "")
+        context["selected_book"] = self.request.GET.get("book", "")
+        return context
+
+
+class StudyNoteDetailView(LoginRequiredMixin, FaithRequiredMixin, DetailView):
+    """
+    View a single study note.
+    """
+
+    model = BibleStudyNote
+    template_name = "faith/study_tools/note_detail.html"
+    context_object_name = "note"
+
+    def get_queryset(self):
+        return BibleStudyNote.objects.filter(user=self.request.user)
+
+
+class StudyNoteCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
+    """
+    Create a new Bible study note.
+    """
+
+    model = BibleStudyNote
+    form_class = BibleStudyNoteForm
+    template_name = "faith/study_tools/note_form.html"
+    success_url = reverse_lazy("faith:study_note_list")
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+
+        # Parse the reference
+        reference = form.cleaned_data["reference"]
+        book_info = self._parse_reference(reference)
+        form.instance.book_name = book_info["book_name"]
+        form.instance.book_order = book_info["book_order"]
+        form.instance.chapter = book_info["chapter"]
+        form.instance.verse_start = book_info["verse_start"]
+        form.instance.verse_end = book_info.get("verse_end")
+
+        messages.success(self.request, "Study note saved!")
+        return super().form_valid(form)
+
+    def _parse_reference(self, reference):
+        """Parse a reference like 'John 3:16-21' into components."""
+        from apps.faith.views import ScriptureSaveView
+
+        result = {
+            "book_name": reference.split()[0] if reference else "Unknown",
+            "book_order": 1,
+            "chapter": 1,
+            "verse_start": 1,
+            "verse_end": None,
+        }
+
+        import re
+        match = re.match(r"^(\d?\s?[A-Za-z]+)\s+(\d+):(\d+)(?:-(\d+))?", reference)
+        if match:
+            book_name = match.group(1).strip()
+            result["book_name"] = book_name
+            result["book_order"] = ScriptureSaveView.BOOK_ORDER.get(book_name, 1)
+            result["chapter"] = int(match.group(2))
+            result["verse_start"] = int(match.group(3))
+            if match.group(4):
+                result["verse_end"] = int(match.group(4))
+
+        return result
+
+
+class StudyNoteUpdateView(LoginRequiredMixin, FaithRequiredMixin, UpdateView):
+    """
+    Edit a Bible study note.
+    """
+
+    model = BibleStudyNote
+    form_class = BibleStudyNoteForm
+    template_name = "faith/study_tools/note_form.html"
+
+    def get_queryset(self):
+        return BibleStudyNote.objects.filter(user=self.request.user)
+
+    def get_success_url(self):
+        return reverse_lazy("faith:study_note_detail", kwargs={"pk": self.object.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, "Study note updated!")
+        return super().form_valid(form)
+
+
+class StudyNoteDeleteView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Delete a Bible study note.
+    """
+
+    def post(self, request, pk):
+        note = get_object_or_404(
+            BibleStudyNote.objects.filter(user=request.user),
+            pk=pk
+        )
+        note.soft_delete()
+        messages.success(request, "Study note deleted.")
+        return redirect("faith:study_note_list")
+
+
+# =============================================================================
+# STUDY TOOLS COMBINED VIEW
+# =============================================================================
+
+
+class StudyToolsHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, TemplateView):
+    """
+    Combined view of all Bible study tools.
+
+    Shows recent highlights, bookmarks, and notes in one place.
+    """
+
+    template_name = "faith/study_tools/home.html"
+    help_context_id = "FAITH_STUDY_TOOLS"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Recent highlights
+        context["recent_highlights"] = BibleHighlight.objects.filter(
+            user=user
+        ).order_by("-created_at")[:10]
+
+        # Recent bookmarks
+        context["recent_bookmarks"] = BibleBookmark.objects.filter(
+            user=user
+        ).order_by("-created_at")[:10]
+
+        # Recent study notes
+        context["recent_notes"] = BibleStudyNote.objects.filter(
+            user=user
+        ).order_by("-created_at")[:5]
+
+        # Counts
+        context["highlight_count"] = BibleHighlight.objects.filter(user=user).count()
+        context["bookmark_count"] = BibleBookmark.objects.filter(user=user).count()
+        context["note_count"] = BibleStudyNote.objects.filter(user=user).count()
+
+        return context

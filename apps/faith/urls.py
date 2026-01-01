@@ -1,5 +1,13 @@
+# ==============================================================================
+# File: apps/faith/urls.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: URL patterns for faith module including reading plans and study tools
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2024-01-01
+# Last Updated: 2026-01-01
+# ==============================================================================
 """
-Faith URLs
+Faith URLs - Scripture, prayers, reading plans, and study tools.
 """
 
 from django.urls import path
@@ -41,7 +49,44 @@ urlpatterns = [
     path("reflections/", views.FaithReflectionsView.as_view(), name="reflections"),
     path("reflections/new/", views.ReflectionCreateView.as_view(), name="reflection_create"),
 
-    # Bible API Proxy (Security: keeps API key server-side)
+    # ==========================================================================
+    # READING PLANS
+    # ==========================================================================
+    path("reading-plans/", views.ReadingPlanListView.as_view(), name="reading_plans"),
+    path("reading-plans/<slug:slug>/", views.ReadingPlanDetailView.as_view(), name="reading_plan_detail"),
+    path("reading-plans/<slug:slug>/start/", views.StartReadingPlanView.as_view(), name="start_reading_plan"),
+    path("reading-plans/progress/<int:pk>/", views.ReadingPlanProgressView.as_view(), name="reading_plan_progress"),
+    path("reading-plans/progress/<int:pk>/day/<int:day_pk>/complete/", views.MarkDayCompleteView.as_view(), name="mark_day_complete"),
+    path("reading-plans/progress/<int:pk>/pause/", views.PauseReadingPlanView.as_view(), name="pause_reading_plan"),
+    path("reading-plans/progress/<int:pk>/resume/", views.ResumeReadingPlanView.as_view(), name="resume_reading_plan"),
+    path("reading-plans/progress/<int:pk>/abandon/", views.AbandonReadingPlanView.as_view(), name="abandon_reading_plan"),
+
+    # ==========================================================================
+    # BIBLE STUDY TOOLS
+    # ==========================================================================
+    # Study Tools Home
+    path("study-tools/", views.StudyToolsHomeView.as_view(), name="study_tools"),
+
+    # Highlights
+    path("study-tools/highlights/", views.HighlightListView.as_view(), name="highlight_list"),
+    path("study-tools/highlights/new/", views.HighlightCreateView.as_view(), name="highlight_create"),
+    path("study-tools/highlights/<int:pk>/delete/", views.HighlightDeleteView.as_view(), name="highlight_delete"),
+
+    # Bookmarks
+    path("study-tools/bookmarks/", views.BookmarkListView.as_view(), name="bookmark_list"),
+    path("study-tools/bookmarks/new/", views.BookmarkCreateView.as_view(), name="bookmark_create"),
+    path("study-tools/bookmarks/<int:pk>/delete/", views.BookmarkDeleteView.as_view(), name="bookmark_delete"),
+
+    # Study Notes
+    path("study-tools/notes/", views.StudyNoteListView.as_view(), name="study_note_list"),
+    path("study-tools/notes/new/", views.StudyNoteCreateView.as_view(), name="study_note_create"),
+    path("study-tools/notes/<int:pk>/", views.StudyNoteDetailView.as_view(), name="study_note_detail"),
+    path("study-tools/notes/<int:pk>/edit/", views.StudyNoteUpdateView.as_view(), name="study_note_edit"),
+    path("study-tools/notes/<int:pk>/delete/", views.StudyNoteDeleteView.as_view(), name="study_note_delete"),
+
+    # ==========================================================================
+    # BIBLE API PROXY (Security: keeps API key server-side)
+    # ==========================================================================
     path("api/bible/status/", views.BibleAPIStatusView.as_view(), name="bible_api_status"),
     path("api/bible/bibles/", views.BibleAPIBiblesView.as_view(), name="bible_api_bibles"),
     path("api/bible/bibles/<str:bible_id>/books/", views.BibleAPIBooksView.as_view(), name="bible_api_books"),

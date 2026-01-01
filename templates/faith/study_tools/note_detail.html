@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}{{ note.title|default:note.reference }} - Study Note - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:study_tools' %}">Study Tools</a>
+        <span>/</span>
+        <a href="{% url 'faith:study_note_list' %}">Study Notes</a>
+        <span>/</span>
+        <span>{{ note.title|default:note.reference|truncatechars:20 }}</span>
+    </nav>
+
+    <article class="note-detail">
+        <header class="note-header">
+            {% if note.title %}
+            <h1 class="page-title">{{ note.title }}</h1>
+            {% endif %}
+            <div class="note-meta-row">
+                <span class="note-ref">{{ note.reference }}</span>
+                <span class="note-translation">{{ note.translation }}</span>
+            </div>
+            {% if note.tags %}
+            <div class="note-tags">
+                {% for tag in note.tags %}
+                <span class="note-tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </header>
+
+        <div class="note-content">
+            {{ note.content|linebreaks }}
+        </div>
+
+        <footer class="note-footer">
+            <div class="note-dates">
+                <span>Created: {{ note.created_at|date:"F j, Y" }}</span>
+                {% if note.updated_at != note.created_at %}
+                <span>Updated: {{ note.updated_at|date:"F j, Y" }}</span>
+                {% endif %}
+            </div>
+            <div class="note-actions">
+                <a href="{% url 'faith:study_note_edit' pk=note.pk %}" class="btn btn-ghost">Edit</a>
+                <form method="post" action="{% url 'faith:study_note_delete' pk=note.pk %}" class="inline-form"
+                      onsubmit="return confirm('Delete this study note?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost text-error">Delete</button>
+                </form>
+            </div>
+        </footer>
+    </article>
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'faith:study_note_list' %}" class="btn btn-ghost">Back to Study Notes</a>
+    </div>
+</div>
+
+<style>
+.note-detail {
+    max-width: 800px;
+    margin: 0 auto;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.note-header {
+    padding: var(--space-6);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.note-meta-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.note-ref {
+    font-size: var(--font-size-lg);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.note-translation {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.note-tag {
+    font-size: var(--font-size-sm);
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+}
+
+.note-content {
+    padding: var(--space-6);
+    line-height: 1.8;
+    font-size: var(--font-size-md);
+}
+
+.note-content p {
+    margin-bottom: var(--space-4);
+}
+
+.note-content p:last-child {
+    margin-bottom: 0;
+}
+
+.note-footer {
+    padding: var(--space-4) var(--space-6);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.note-dates {
+    display: flex;
+    gap: var(--space-4);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.note-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+</style>
+{% endblock %}

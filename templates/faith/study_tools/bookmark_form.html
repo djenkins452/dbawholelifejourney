@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Add Bookmark - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'faith:home' %}">Faith</a>
+        <span>/</span>
+        <a href="{% url 'faith:study_tools' %}">Study Tools</a>
+        <span>/</span>
+        <a href="{% url 'faith:bookmark_list' %}">Bookmarks</a>
+        <span>/</span>
+        <span>Add</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Add Bookmark</h1>
+        <p class="page-subtitle">Save a passage to return to later</p>
+    </div>
+
+    <div class="form-container">
+        <form method="post" class="form">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="{{ form.reference.id_for_label }}" class="form-label">Scripture Reference</label>
+                {{ form.reference }}
+                <p class="form-hint">e.g., "Psalm 23" or "Romans 8:28"</p>
+                {% if form.reference.errors %}
+                <p class="form-error">{{ form.reference.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.translation.id_for_label }}" class="form-label">Translation</label>
+                {{ form.translation }}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.title.id_for_label }}" class="form-label">Label (Optional)</label>
+                {{ form.title }}
+                {% if form.title.errors %}
+                <p class="form-error">{{ form.title.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.notes.id_for_label }}" class="form-label">Notes (Optional)</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                <p class="form-error">{{ form.notes.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Bookmark</button>
+                <a href="{% url 'faith:bookmark_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.form-container {
+    max-width: 600px;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+</style>
+{% endblock %}

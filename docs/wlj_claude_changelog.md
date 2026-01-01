@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 8)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 10)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,54 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 10 Hardening & Fail-Safes (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 10 Hardening & Fail-Safes
+
+**Description:**
+Added minimal safeguards so the project system cannot get stuck or corrupted. This phase adds detection of stuck states, admin override actions, and guardrails to prevent data corruption.
+
+**Stuck State Detection:**
+New `detect_system_issues()` function detects:
+- A) No active phase exists (critical)
+- B) More than one phase is marked "in_progress" (critical)
+- C) A phase is "in_progress" but has zero tasks AND no next phase unlocked (warning)
+- D) A task is "in_progress" longer than 24 hours (warning)
+
+**Admin Override Actions:**
+Three new service functions for admin-only recovery actions:
+1. `reset_active_phase(phase_id, created_by)` - Force exactly one phase to in_progress
+2. `force_unblock_task(task_id, reason, created_by)` - Move task from blocked to ready (requires reason)
+3. `recheck_phase_completion(phase_id, created_by)` - Re-run phase completion check safely
+
+**New API Endpoints:**
+- `GET /api/admin/project/system-issues/` - Detect system issues (read-only)
+- `POST /api/admin/project/override/reset-phase/` - Reset active phase
+- `POST /api/admin/project/override/unblock-task/` - Force-unblock a task (requires reason)
+- `POST /api/admin/project/override/recheck-phase/` - Re-run phase completion check
+
+**Guardrails:**
+1. `DeletionProtectedError` exception for protected resources
+2. `AdminProjectPhase.delete()` prevents deletion if tasks exist for the phase
+3. `AdminTask.delete()` prevents deletion if activity logs exist for the task
+4. Invalid status transitions rejected with 400 error (existing behavior, now enforced in API)
+
+**Activity Logging:**
+All override/recovery actions are logged with `[ADMIN OVERRIDE]` prefix:
+- Phase reset: "[ADMIN OVERRIDE] Active phase reset to Phase X..."
+- Task unblock: "[ADMIN OVERRIDE] Task force-unblocked from 'blocked' to 'ready'..."
+- Phase recheck: "[ADMIN OVERRIDE] Phase completion recheck initiated..."
+
+**Modified Files:**
+- `apps/admin_console/models.py` - Added DeletionProtectedError, delete() guardrails
+- `apps/admin_console/services.py` - Added detect_system_issues, reset/unblock/recheck functions
+- `apps/admin_console/views.py` - Added 4 new API views, updated delete views
+- `apps/admin_console/api_urls.py` - Added 4 new API routes
+
+**Tests:** All 129 admin_console tests pass.
+
+---
 
 ### Admin Project Tasks - Phase 8 Phase Auto-Unlock (NEW FEATURE)
 

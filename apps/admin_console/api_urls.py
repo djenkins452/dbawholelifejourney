@@ -4,7 +4,7 @@
 # Description: API URL routes for admin console project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 9 - Session Bootstrapping)
+# Last Updated: 2026-01-01 (Phase 10 - Hardening & Fail-Safes)
 # ==============================================================================
 
 from django.urls import path
@@ -18,4 +18,14 @@ urlpatterns = [
     path("metrics/", views.ProjectMetricsAPIView.as_view(), name="api_project_metrics"),
     # GET /api/admin/project/system-state/
     path("system-state/", views.SystemStateAPIView.as_view(), name="api_system_state"),
+
+    # Phase 10 - Hardening & Fail-Safes
+    # GET /api/admin/project/system-issues/
+    path("system-issues/", views.SystemIssuesAPIView.as_view(), name="api_system_issues"),
+    # POST /api/admin/project/override/reset-phase/
+    path("override/reset-phase/", views.ResetPhaseOverrideAPIView.as_view(), name="api_override_reset_phase"),
+    # POST /api/admin/project/override/unblock-task/
+    path("override/unblock-task/", views.UnblockTaskOverrideAPIView.as_view(), name="api_override_unblock_task"),
+    # POST /api/admin/project/override/recheck-phase/
+    path("override/recheck-phase/", views.RecheckPhaseOverrideAPIView.as_view(), name="api_override_recheck_phase"),
 ]

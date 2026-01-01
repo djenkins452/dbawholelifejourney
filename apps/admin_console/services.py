@@ -4,12 +4,12 @@
 # Description: Service functions for admin console task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 8 - Phase Auto-Unlock, Phase 9 - Session Bootstrapping)
+# Last Updated: 2026-01-01 (Phase 10 - Hardening & Fail-Safes)
 # ==============================================================================
 
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import List, Optional
 
 from django.utils import timezone
 
@@ -573,3 +573,237 @@ def on_task_done(task, created_by='claude'):
         Tuple of (phase_completed: bool, unlocked_phase: AdminProjectPhase or None)
     """
     return check_and_complete_phase(task.phase, created_by)
+
+
+# ==============================================================================
+# Phase 10 - Hardening & Fail-Safes
+# ==============================================================================
+
+# Safe threshold for task in_progress - 24 hours
+TASK_IN_PROGRESS_THRESHOLD_HOURS = 24
+
+
+@dataclass
+class SystemIssue:
+    """Represents a detected system issue."""
+    issue_type: str  # 'no_active_phase', 'multiple_active_phases', 'stuck_phase', 'stuck_task'
+    severity: str  # 'critical', 'warning'
+    description: str
+    affected_ids: List[int] = field(default_factory=list)
+
+
+def detect_system_issues() -> List[SystemIssue]:
+    """
+    Detect stuck states in the project system.
+
+    Evaluates the following conditions:
+    A) No active phase exists
+    B) More than one phase is marked "in_progress"
+    C) A phase is "in_progress" but has:
+       - zero tasks AND
+       - no next phase unlocked
+    D) A task is "in_progress" longer than the safe threshold
+
+    Returns:
+        List of SystemIssue objects (empty list if none detected)
+
+    This function is read-only and does NOT mutate data.
+    """
+    issues = []
+
+    # Get all phases in_progress
+    active_phases = list(AdminProjectPhase.objects.filter(status='in_progress'))
+
+    # A) No active phase exists
+    if len(active_phases) == 0:
+        # Only flag if there are incomplete phases (not all complete)
+        incomplete_phases = AdminProjectPhase.objects.exclude(status='complete').exists()
+        if incomplete_phases:
+            issues.append(SystemIssue(
+                issue_type='no_active_phase',
+                severity='critical',
+                description='No active phase exists. The project system has no phase marked as in_progress.',
+                affected_ids=[]
+            ))
+
+    # B) More than one phase is marked "in_progress"
+    elif len(active_phases) > 1:
+        issues.append(SystemIssue(
+            issue_type='multiple_active_phases',
+            severity='critical',
+            description=f'{len(active_phases)} phases are marked as in_progress. Only one phase should be active.',
+            affected_ids=[p.pk for p in active_phases]
+        ))
+
+    # C) A phase is "in_progress" but has zero tasks AND no next phase unlocked
+    for phase in active_phases:
+        task_count = AdminTask.objects.filter(phase=phase).count()
+        if task_count == 0:
+            # Check if there's a next phase that's unlocked (in_progress or complete)
+            next_phase = get_next_phase(phase)
+            if next_phase is None or next_phase.status == 'not_started':
+                issues.append(SystemIssue(
+                    issue_type='stuck_phase',
+                    severity='warning',
+                    description=(
+                        f'Phase {phase.phase_number} ("{phase.name}") is in_progress '
+                        f'but has zero tasks and no next phase is unlocked.'
+                    ),
+                    affected_ids=[phase.pk]
+                ))
+
+    # D) A task is "in_progress" longer than the safe threshold
+    threshold_time = timezone.now() - timedelta(hours=TASK_IN_PROGRESS_THRESHOLD_HOURS)
+    stuck_tasks = AdminTask.objects.filter(
+        status='in_progress',
+        updated_at__lt=threshold_time
+    )
+    for task in stuck_tasks:
+        hours_stuck = (timezone.now() - task.updated_at).total_seconds() / 3600
+        issues.append(SystemIssue(
+            issue_type='stuck_task',
+            severity='warning',
+            description=(
+                f'Task "{task.title}" (ID: {task.pk}) has been in_progress '
+                f'for {hours_stuck:.1f} hours (threshold: {TASK_IN_PROGRESS_THRESHOLD_HOURS}h).'
+            ),
+            affected_ids=[task.pk]
+        ))
+
+    return issues
+
+
+def reset_active_phase(phase_id: int, created_by: str = 'human') -> AdminProjectPhase:
+    """
+    Force exactly one phase to "in_progress".
+
+    This is an admin override that:
+    - Sets the specified phase to in_progress
+    - Sets all other non-complete phases to not_started
+    - Logs the override action
+
+    Args:
+        phase_id: The ID of the phase to set as active
+        created_by: 'human' or 'claude' for activity log
+
+    Returns:
+        The phase that was set to in_progress
+
+    Raises:
+        AdminProjectPhase.DoesNotExist: If phase_id is invalid
+    """
+    phase = AdminProjectPhase.objects.get(pk=phase_id)
+
+    # Use the existing override method which handles:
+    # - Setting this phase to in_progress
+    # - Setting other non-complete phases to not_started
+    phase.set_in_progress_with_override()
+
+    # Log the override action
+    reference_task = AdminTask.objects.filter(phase=phase).first()
+    if reference_task:
+        AdminActivityLog.objects.create(
+            task=reference_task,
+            action=(
+                f"[ADMIN OVERRIDE] Active phase reset to Phase {phase.phase_number} "
+                f"('{phase.name}'). All other non-complete phases set to not_started."
+            ),
+            created_by=created_by
+        )
+
+    return phase
+
+
+def force_unblock_task(task_id: int, reason: str, created_by: str = 'human') -> AdminTask:
+    """
+    Move a task from "blocked" to "ready".
+
+    This is an admin override that:
+    - Changes task status from blocked to ready
+    - Clears the blocked_reason and blocking_task
+    - Logs the override action with the provided reason
+
+    Args:
+        task_id: The ID of the task to unblock
+        reason: Required explanation of why the task is being force-unblocked
+        created_by: 'human' or 'claude' for activity log
+
+    Returns:
+        The unblocked task
+
+    Raises:
+        AdminTask.DoesNotExist: If task_id is invalid
+        ValueError: If task is not in blocked status
+        ValueError: If reason is empty
+    """
+    if not reason or not reason.strip():
+        raise ValueError("A reason is required to force-unblock a task.")
+
+    task = AdminTask.objects.get(pk=task_id)
+
+    if task.status != 'blocked':
+        raise ValueError(
+            f"Cannot force-unblock task. Task is '{task.status}', not 'blocked'."
+        )
+
+    old_blocked_reason = task.blocked_reason
+    old_blocking_task_id = task.blocking_task_id
+
+    # Update task
+    task.status = 'ready'
+    task.blocked_reason = ''
+    task.blocking_task = None
+    task.save()
+
+    # Log the override
+    AdminActivityLog.objects.create(
+        task=task,
+        action=(
+            f"[ADMIN OVERRIDE] Task force-unblocked from 'blocked' to 'ready'. "
+            f"Previous blocked_reason: '{old_blocked_reason}'. "
+            f"Previous blocking_task_id: {old_blocking_task_id}. "
+            f"Override reason: {reason}"
+        ),
+        created_by=created_by
+    )
+
+    return task
+
+
+def recheck_phase_completion(phase_id: int, created_by: str = 'human'):
+    """
+    Re-run phase completion check safely.
+
+    This is an admin override that:
+    - Re-evaluates the phase completion logic
+    - If phase is complete, marks it and unlocks next phase
+    - Logs the recheck action
+
+    Args:
+        phase_id: The ID of the phase to recheck
+        created_by: 'human' or 'claude' for activity log
+
+    Returns:
+        Tuple of (was_completed: bool, unlocked_phase: AdminProjectPhase or None)
+
+    Raises:
+        AdminProjectPhase.DoesNotExist: If phase_id is invalid
+    """
+    phase = AdminProjectPhase.objects.get(pk=phase_id)
+
+    # Log that we're doing a recheck
+    reference_task = AdminTask.objects.filter(phase=phase).first()
+    if reference_task:
+        AdminActivityLog.objects.create(
+            task=reference_task,
+            action=(
+                f"[ADMIN OVERRIDE] Phase completion recheck initiated for "
+                f"Phase {phase.phase_number} ('{phase.name}')."
+            ),
+            created_by=created_by
+        )
+
+    # Run the existing completion check
+    was_completed, unlocked_phase = check_and_complete_phase(phase, created_by)
+
+    return was_completed, unlocked_phase

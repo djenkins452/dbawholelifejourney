@@ -558,8 +558,15 @@ class ProjectPhaseDeleteView(AdminRequiredMixin, DeleteView):
         return AdminProjectPhase.objects.all()
 
     def form_valid(self, form):
-        messages.success(self.request, f"Phase '{self.object.name}' deleted.")
-        return super().form_valid(form)
+        from apps.admin_console.models import DeletionProtectedError
+        try:
+            phase_name = self.object.name
+            self.object.delete()
+            messages.success(self.request, f"Phase '{phase_name}' deleted.")
+            return redirect(self.success_url)
+        except DeletionProtectedError as e:
+            messages.error(self.request, str(e))
+            return redirect('admin_console:project_phase_list')
 
 
 # ============================================================
@@ -633,8 +640,15 @@ class AdminTaskDeleteView(AdminRequiredMixin, DeleteView):
         return AdminTask.objects.all()
 
     def form_valid(self, form):
-        messages.success(self.request, f"Task '{self.object.title}' deleted.")
-        return super().form_valid(form)
+        from apps.admin_console.models import DeletionProtectedError
+        try:
+            task_title = self.object.title
+            self.object.delete()
+            messages.success(self.request, f"Task '{task_title}' deleted.")
+            return redirect(self.success_url)
+        except DeletionProtectedError as e:
+            messages.error(self.request, str(e))
+            return redirect('admin_console:admin_task_list')
 
 
 # ============================================================
@@ -1032,3 +1046,288 @@ class ProjectStatusView(AdminRequiredMixin, TemplateView):
         context['tasks_created_by_claude'] = metrics['tasks_created_by_claude']
 
         return context
+
+
+# ============================================================
+# Phase 10 - Hardening & Fail-Safes API Views
+# ============================================================
+
+class SystemIssuesAPIView(View):
+    """
+    API endpoint to detect system issues.
+
+    GET /api/admin/project/system-issues/
+
+    Returns JSON object with:
+    - issues: Array of detected issues, each with:
+      - issue_type: Type of issue
+      - severity: 'critical' or 'warning'
+      - description: Human-readable description
+      - affected_ids: List of affected resource IDs
+
+    Returns 403 if user is not admin.
+
+    This endpoint is read-only and does NOT mutate data.
+    """
+
+    def get(self, request):
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        from .services import detect_system_issues
+        issues = detect_system_issues()
+
+        result = {
+            'issues': [
+                {
+                    'issue_type': issue.issue_type,
+                    'severity': issue.severity,
+                    'description': issue.description,
+                    'affected_ids': issue.affected_ids
+                }
+                for issue in issues
+            ]
+        }
+
+        return JsonResponse(result)
+
+
+class ResetPhaseOverrideAPIView(View):
+    """
+    API endpoint to reset the active phase (admin override).
+
+    POST /api/admin/project/override/reset-phase/
+
+    Request body:
+    {
+        "phase_id": 123
+    }
+
+    Returns:
+    - 200: Success with phase info
+    - 400: Validation error
+    - 403: Permission denied
+    - 404: Phase not found
+    """
+
+    def post(self, request):
+        import json
+        from .models import AdminProjectPhase
+        from .services import reset_active_phase
+
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse(
+                {'error': 'Invalid JSON body'},
+                status=400
+            )
+
+        phase_id = body.get('phase_id')
+        if not phase_id:
+            return JsonResponse(
+                {'error': 'Missing required field: phase_id'},
+                status=400
+            )
+
+        try:
+            phase = reset_active_phase(phase_id, created_by='human')
+        except AdminProjectPhase.DoesNotExist:
+            return JsonResponse(
+                {'error': f'Phase with ID {phase_id} not found'},
+                status=404
+            )
+
+        return JsonResponse({
+            'success': True,
+            'phase': {
+                'id': phase.id,
+                'phase_number': phase.phase_number,
+                'name': phase.name,
+                'status': phase.status
+            },
+            'message': f'Active phase reset to Phase {phase.phase_number} ("{phase.name}").'
+        })
+
+
+class UnblockTaskOverrideAPIView(View):
+    """
+    API endpoint to force-unblock a task (admin override).
+
+    POST /api/admin/project/override/unblock-task/
+
+    Request body:
+    {
+        "task_id": 123,
+        "reason": "Required explanation for the override"
+    }
+
+    Returns:
+    - 200: Success with task info
+    - 400: Validation error (missing reason, task not blocked)
+    - 403: Permission denied
+    - 404: Task not found
+    """
+
+    def post(self, request):
+        import json
+        from .models import AdminTask
+        from .services import force_unblock_task
+
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse(
+                {'error': 'Invalid JSON body'},
+                status=400
+            )
+
+        task_id = body.get('task_id')
+        if not task_id:
+            return JsonResponse(
+                {'error': 'Missing required field: task_id'},
+                status=400
+            )
+
+        reason = body.get('reason')
+        if not reason or not reason.strip():
+            return JsonResponse(
+                {'error': 'Missing required field: reason. A reason is required for this override.'},
+                status=400
+            )
+
+        try:
+            task = force_unblock_task(task_id, reason, created_by='human')
+        except AdminTask.DoesNotExist:
+            return JsonResponse(
+                {'error': f'Task with ID {task_id} not found'},
+                status=404
+            )
+        except ValueError as e:
+            return JsonResponse(
+                {'error': str(e)},
+                status=400
+            )
+
+        return JsonResponse({
+            'success': True,
+            'task': {
+                'id': task.id,
+                'title': task.title,
+                'status': task.status,
+                'blocked_reason': task.blocked_reason,
+                'phase': {
+                    'id': task.phase.id,
+                    'phase_number': task.phase.phase_number,
+                    'name': task.phase.name
+                }
+            },
+            'message': f'Task "{task.title}" has been force-unblocked.'
+        })
+
+
+class RecheckPhaseOverrideAPIView(View):
+    """
+    API endpoint to re-run phase completion check (admin override).
+
+    POST /api/admin/project/override/recheck-phase/
+
+    Request body:
+    {
+        "phase_id": 123
+    }
+
+    Returns:
+    - 200: Success with completion status
+    - 400: Validation error
+    - 403: Permission denied
+    - 404: Phase not found
+    """
+
+    def post(self, request):
+        import json
+        from .models import AdminProjectPhase
+        from .services import recheck_phase_completion
+
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Parse request body
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse(
+                {'error': 'Invalid JSON body'},
+                status=400
+            )
+
+        phase_id = body.get('phase_id')
+        if not phase_id:
+            return JsonResponse(
+                {'error': 'Missing required field: phase_id'},
+                status=400
+            )
+
+        try:
+            was_completed, unlocked_phase = recheck_phase_completion(phase_id, created_by='human')
+        except AdminProjectPhase.DoesNotExist:
+            return JsonResponse(
+                {'error': f'Phase with ID {phase_id} not found'},
+                status=404
+            )
+
+        # Build response
+        phase = AdminProjectPhase.objects.get(pk=phase_id)
+        result = {
+            'success': True,
+            'phase': {
+                'id': phase.id,
+                'phase_number': phase.phase_number,
+                'name': phase.name,
+                'status': phase.status
+            },
+            'was_completed': was_completed,
+            'unlocked_phase': None
+        }
+
+        if unlocked_phase:
+            result['unlocked_phase'] = {
+                'id': unlocked_phase.id,
+                'phase_number': unlocked_phase.phase_number,
+                'name': unlocked_phase.name,
+                'status': unlocked_phase.status
+            }
+            result['message'] = (
+                f'Phase {phase.phase_number} completed. '
+                f'Phase {unlocked_phase.phase_number} ("{unlocked_phase.name}") unlocked.'
+            )
+        elif was_completed:
+            result['message'] = f'Phase {phase.phase_number} ("{phase.name}") marked as complete.'
+        else:
+            result['message'] = f'Phase {phase.phase_number} ("{phase.name}") is not yet complete.'
+
+        return JsonResponse(result)

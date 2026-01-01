@@ -4,7 +4,7 @@
 # Description: Admin console models for project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 8 - Phase Auto-Unlock)
+# Last Updated: 2026-01-01 (Phase 10 - Hardening & Fail-Safes)
 # ==============================================================================
 
 from django.core.exceptions import ValidationError
@@ -13,6 +13,11 @@ from django.db import models
 
 class TaskStatusTransitionError(Exception):
     """Exception raised for invalid task status transitions."""
+    pass
+
+
+class DeletionProtectedError(Exception):
+    """Exception raised when attempting to delete a protected resource."""
     pass
 
 
@@ -74,6 +79,20 @@ class AdminProjectPhase(models.Model):
         self.status = 'in_progress'
         self.save()
         del self._admin_override
+
+    def delete(self, *args, **kwargs):
+        """
+        Prevent deletion if tasks exist for this phase.
+
+        Raises DeletionProtectedError if the phase has any tasks.
+        """
+        task_count = self.tasks.count()
+        if task_count > 0:
+            raise DeletionProtectedError(
+                f"Cannot delete Phase {self.phase_number} ('{self.name}'). "
+                f"It has {task_count} task(s). Delete or reassign tasks first."
+            )
+        return super().delete(*args, **kwargs)
 
 
 class AdminTask(models.Model):
@@ -246,6 +265,21 @@ class AdminTask(models.Model):
             on_task_done(self, created_by)
 
         return log
+
+    def delete(self, *args, **kwargs):
+        """
+        Prevent deletion if task has activity logs.
+
+        Raises DeletionProtectedError if the task has any activity logs.
+        """
+        log_count = self.activity_logs.count()
+        if log_count > 0:
+            raise DeletionProtectedError(
+                f"Cannot delete task '{self.title}' (ID: {self.pk}). "
+                f"It has {log_count} activity log(s). "
+                f"Activity logs preserve audit history and cannot be orphaned."
+            )
+        return super().delete(*args, **kwargs)
 
 
 class AdminActivityLog(models.Model):

@@ -8,6 +8,7 @@ the app's design, rather than using Django's default admin.
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
@@ -704,3 +705,56 @@ class ActivityLogDeleteView(AdminRequiredMixin, DeleteView):
     def form_valid(self, form):
         messages.success(self.request, "Activity log deleted.")
         return super().form_valid(form)
+
+
+# ============================================================
+# Project Task API Views
+# ============================================================
+
+class NextTasksAPIView(View):
+    """
+    API endpoint to get next tasks from the active phase.
+
+    GET /api/admin/project/next-tasks/
+    Query params:
+        - limit (optional, default 5): Maximum tasks to return
+
+    Returns JSON array of task objects.
+    Returns 403 if user is not admin.
+    """
+
+    def get(self, request):
+        # Check admin permission
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse(
+                {'error': 'Permission denied'},
+                status=403
+            )
+
+        # Get limit from query params
+        try:
+            limit = int(request.GET.get('limit', 5))
+            if limit < 1:
+                limit = 5
+            elif limit > 100:
+                limit = 100
+        except (ValueError, TypeError):
+            limit = 5
+
+        # Get next tasks using service function
+        from .services import get_next_tasks
+        tasks = get_next_tasks(limit=limit)
+
+        # Build response
+        result = [
+            {
+                'id': task.id,
+                'title': task.title,
+                'priority': task.priority,
+                'status': task.status,
+                'phase_number': task.phase.phase_number
+            }
+            for task in tasks
+        ]
+
+        return JsonResponse(result, safe=False)

@@ -549,3 +549,293 @@ class RunTestsViewTest(AdminTestMixin, TestCase):
 
         resolved = resolve('/admin-console/tests/run/')
         self.assertEqual(resolved.view_name, 'admin_console:run_tests')
+
+
+# =============================================================================
+# 10. NEXT TASKS API TESTS
+# =============================================================================
+
+class NextTasksAPITest(AdminTestMixin, TestCase):
+    """Tests for the next tasks API endpoint."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.regular_user = self.create_user()
+
+    def test_next_tasks_requires_authentication(self):
+        """Next tasks API requires authentication."""
+        response = self.client.get('/api/admin/project/next-tasks/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_next_tasks_requires_staff(self):
+        """Next tasks API requires staff status."""
+        self.login_user()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_next_tasks_accessible_to_staff(self):
+        """Next tasks API is accessible to staff users."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_next_tasks_returns_json(self):
+        """Next tasks API returns JSON."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_next_tasks_returns_empty_list_when_no_active_phase(self):
+        """Next tasks API returns empty list when no active phase."""
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+        self.assertEqual(data, [])
+
+    def test_next_tasks_returns_tasks_from_active_phase(self):
+        """Next tasks API returns tasks from active phase."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        # Create an active phase
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test objective',
+            status='in_progress'
+        )
+
+        # Create tasks
+        task1 = AdminTask.objects.create(
+            title='Task 1',
+            description='Description 1',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+        task2 = AdminTask.objects.create(
+            title='Task 2',
+            description='Description 2',
+            category='bug',
+            priority=2,
+            status='backlog',
+            effort='M',
+            phase=phase,
+            created_by='claude'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]['title'], 'Task 1')
+        self.assertEqual(data[0]['priority'], 1)
+        self.assertEqual(data[0]['status'], 'ready')
+        self.assertEqual(data[0]['phase_number'], 1)
+
+    def test_next_tasks_does_not_return_done_tasks(self):
+        """Next tasks API does not return done tasks."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        AdminTask.objects.create(
+            title='Done Task',
+            description='Done',
+            category='feature',
+            priority=1,
+            status='done',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Ready Task',
+            description='Ready',
+            category='feature',
+            priority=2,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['title'], 'Ready Task')
+
+    def test_next_tasks_does_not_return_tasks_from_future_phases(self):
+        """Next tasks API does not return tasks from future phases."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        active_phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Active Phase',
+            objective='Current',
+            status='in_progress'
+        )
+        future_phase = AdminProjectPhase.objects.create(
+            phase_number=2,
+            name='Future Phase',
+            objective='Later',
+            status='not_started'
+        )
+
+        AdminTask.objects.create(
+            title='Active Task',
+            description='Current task',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=active_phase,
+            created_by='human'
+        )
+        AdminTask.objects.create(
+            title='Future Task',
+            description='Later task',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=future_phase,
+            created_by='human'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['title'], 'Active Task')
+
+    def test_next_tasks_respects_limit_param(self):
+        """Next tasks API respects limit parameter."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        for i in range(10):
+            AdminTask.objects.create(
+                title=f'Task {i}',
+                description=f'Description {i}',
+                category='feature',
+                priority=i,
+                status='ready',
+                effort='S',
+                phase=phase,
+                created_by='human'
+            )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/?limit=3')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data), 3)
+
+    def test_next_tasks_default_limit_is_5(self):
+        """Next tasks API defaults to limit of 5."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        for i in range(10):
+            AdminTask.objects.create(
+                title=f'Task {i}',
+                description=f'Description {i}',
+                category='feature',
+                priority=i,
+                status='ready',
+                effort='S',
+                phase=phase,
+                created_by='human'
+            )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data), 5)
+
+    def test_next_tasks_orders_by_priority_then_created_at(self):
+        """Next tasks API orders by priority, then created_at."""
+        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from django.utils import timezone
+        import datetime
+
+        phase = AdminProjectPhase.objects.create(
+            phase_number=1,
+            name='Test Phase',
+            objective='Test',
+            status='in_progress'
+        )
+
+        # Create tasks with same priority but different created times
+        task1 = AdminTask.objects.create(
+            title='Task A',
+            description='A',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+        task2 = AdminTask.objects.create(
+            title='Task B',
+            description='B',
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+        task3 = AdminTask.objects.create(
+            title='Task C',
+            description='C',
+            category='feature',
+            priority=2,
+            status='ready',
+            effort='S',
+            phase=phase,
+            created_by='human'
+        )
+
+        self.login_admin()
+        response = self.client.get('/api/admin/project/next-tasks/')
+        import json
+        data = json.loads(response.content)
+
+        # Should be ordered by priority first, then by created_at (oldest first)
+        self.assertEqual(data[0]['priority'], 1)
+        self.assertEqual(data[1]['priority'], 1)
+        self.assertEqual(data[2]['priority'], 2)

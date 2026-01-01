@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 1)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 3)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,45 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 3 Task Selection (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 3 Task Selection
+
+**Description:**
+Added minimal logic to list the next tasks for the active project phase. This includes a helper function and an admin-only API endpoint.
+
+**New Features:**
+
+1. **get_next_tasks(limit=5) Helper Function**
+   - Reads the active phase (status='in_progress')
+   - Queries AdminTask where phase=active and status IN ('ready', 'backlog')
+   - Orders by priority ASC, then created_at ASC
+   - Returns up to `limit` tasks
+
+2. **GET /api/admin/project/next-tasks/ API Endpoint**
+   - Admin-only (returns 403 for non-staff users)
+   - Query params: `limit` (optional, default 5)
+   - Returns JSON array of task objects with: id, title, priority, status, phase_number
+   - Returns empty list if no active phase or no matching tasks
+
+**Safety Rules Implemented:**
+- Does NOT return tasks from future phases (only from active phase)
+- Does NOT return tasks with status='done'
+- Returns empty list when no tasks exist
+
+**New Files:**
+- `apps/admin_console/services.py` - Service functions (get_active_phase, get_next_tasks)
+- `apps/admin_console/api_urls.py` - API URL routes
+
+**Modified Files:**
+- `apps/admin_console/views.py` - Added NextTasksAPIView
+- `config/urls.py` - Added /api/admin/project/ route
+- `apps/admin_console/tests/test_admin_console.py` - Added 11 tests for NextTasksAPITest
+
+**Tests:** 11 new tests for NextTasksAPITest, all passing.
+
+---
 
 ### Admin Project Tasks - Phase 1 Infrastructure (NEW FEATURE)
 

@@ -120,7 +120,9 @@
     {% if chart_data %}
     <div class="chart-card mb-6">
         <h3 class="card-title">Last 24 Hours</h3>
-        <canvas id="glucoseChart" height="200"></canvas>
+        <div class="chart-container">
+            <canvas id="glucoseChart"></canvas>
+        </div>
     </div>
     {% endif %}
 
@@ -326,6 +328,12 @@
     padding: var(--space-4);
 }
 
+.chart-container {
+    position: relative;
+    height: 250px;
+    width: 100%;
+}
+
 .card-title {
     font-size: var(--font-size-lg);
     font-weight: 600;
@@ -445,6 +453,7 @@ document.addEventListener('DOMContentLoaded', function() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            resizeDelay: 0,
             plugins: {
                 legend: {
                     display: false

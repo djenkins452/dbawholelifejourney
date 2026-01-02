@@ -2686,6 +2686,11 @@ class ReadyTasksAPIView(View):
         return JsonResponse(result)
 
 
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class UpdateTaskStatusAPIView(View):
     """
     API endpoint for Claude Code to update task status.

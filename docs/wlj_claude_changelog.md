@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-02 (Nightly Scheduler Fix)
+# Last Updated: 2026-01-02 (Run Task Mode Execution Contract)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,61 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-02 Changes
+
+### Run Task Mode Execution Contract
+
+**Session:** Define Run Task execution behavior
+
+**Task:** WLJ Executable Work Orchestration System - Phase 1
+
+**Objective:**
+Ensure Claude executes tasks deterministically and never guesses or infers missing information.
+
+**Implementation:**
+
+Added comprehensive "RUN TASK MODE (MANDATORY EXECUTION CONTRACT)" section to CLAUDE.md:
+
+1. **Core Principle:** No Guessing, No Inference
+   - Claude must execute tasks deterministically
+   - Never guess missing information
+   - Never infer unstated requirements
+   - Fail with specific error rather than proceeding with assumptions
+
+2. **Step 1: Load CLAUDE.md First (MANDATORY)**
+   - Non-negotiable requirement before any task execution
+   - Ensures project context is always loaded
+
+3. **Step 2: Validate Task Structure**
+   - Verify all four required fields: objective, inputs, actions, output
+   - Halt execution on validation failure
+
+4. **Step 3: Gather Inputs**
+   - Process each input in the inputs array
+   - Halt if any input cannot be gathered
+
+5. **Step 4: Execute Actions In Order**
+   - Execute each action exactly as written
+   - Sequential execution (no reordering)
+   - No actions skipped, added, or modified
+   - Stop immediately on any action failure
+
+6. **Step 5: Verify Output**
+   - Confirm output criteria is met before marking complete
+
+7. **Step 6: Mark Complete (Only On Success)**
+   - Only mark task done if all steps succeeded
+   - Task remains in_progress on any failure
+
+**Additional Sections:**
+- Failure Modes table with specific responses
+- Example Execution Flow diagram
+- "What Run Task Mode Does NOT Do" list
+- Integration with Task API documentation
+
+**Files Changed:**
+- `CLAUDE.md` - Added 160+ lines of Run Task Mode documentation
+
+---
 
 ### Nightly Task Priority Scheduler Fix
 

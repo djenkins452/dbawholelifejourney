@@ -478,7 +478,167 @@ When a task is malformed, Claude MUST:
 2. Provide an example of correct structure
 3. Not save the task until corrected
 
-### Run Task Mode Behavior
+---
+
+## RUN TASK MODE (MANDATORY EXECUTION CONTRACT)
+
+Run Task Mode is the deterministic execution mode for AI task processing. When Claude receives a task via "Run Task" or the task API, it MUST follow this contract exactly.
+
+### Core Principle: No Guessing, No Inference
+
+Claude MUST execute tasks deterministically. This means:
+- **Never guess** missing information
+- **Never infer** unstated requirements
+- **Never assume** context not provided
+- **Execute exactly** what is written in the task
+
+If information is missing or unclear, Claude MUST fail the task with a specific error rather than proceeding with assumptions.
+
+### Step 1: Load CLAUDE.md First (MANDATORY)
+
+**Before any task execution**, Claude MUST read CLAUDE.md completely to:
+- Understand project architecture and conventions
+- Load tech stack and deployment context
+- Know file locations and patterns
+- Understand testing requirements
+
+**This step is non-negotiable.** A task cannot be executed without first loading project context.
+
+```
+ALWAYS: Read CLAUDE.md → Then execute task
+NEVER: Skip CLAUDE.md → Execute task directly
+```
+
+### Step 2: Validate Task Structure
+
+Before execution, verify the task conforms to the Executable Task Standard:
+
+```json
+{
+    "objective": "string (required, non-empty)",
+    "inputs": ["array of strings (required, can be empty)"],
+    "actions": ["array of strings (required, at least one)"],
+    "output": "string (required, non-empty)"
+}
+```
+
+**Validation failures MUST halt execution:**
+- Missing any of the four required fields → FAIL
+- Empty `objective` → FAIL
+- Empty `actions` array → FAIL
+- Empty `output` → FAIL
+- Wrong types for any field → FAIL
+
+On validation failure, return a clear error message and do NOT proceed.
+
+### Step 3: Gather Inputs
+
+Process each item in the `inputs` array:
+- Read files mentioned
+- Gather context specified
+- Verify resources exist
+
+If any input cannot be gathered:
+- Log which input failed
+- Explain why it failed
+- Halt execution (do not proceed with partial inputs)
+
+### Step 4: Execute Actions In Order
+
+Execute each action in the `actions` array **exactly as written** and **in order**:
+
+1. Actions are executed sequentially (action 2 only starts after action 1 completes)
+2. Each action is executed verbatim - no reinterpretation
+3. No actions are skipped
+4. No actions are added
+5. No actions are reordered
+
+**Action Execution Rules:**
+- If an action says "Add X to file Y", add exactly X to file Y
+- If an action says "Run tests", run tests
+- If an action says "Create file Z", create file Z with appropriate content
+- Do not embellish, optimize, or "improve" beyond what is specified
+
+**Action Failure Handling:**
+- If any action fails, stop execution immediately
+- Log which action failed and why
+- Do not continue to subsequent actions
+- Do not mark task as complete
+
+### Step 5: Verify Output
+
+After all actions complete successfully, verify the `output` criteria is met:
+
+- Check that the deliverable described in `output` exists
+- Verify it meets the stated requirements
+- Run any verification steps implied by the output
+
+**Output verification is mandatory.** A task is not complete until output is verified.
+
+### Step 6: Mark Complete (Only On Success)
+
+Only mark a task as `done` if:
+1. ✓ CLAUDE.md was loaded
+2. ✓ Task validated successfully
+3. ✓ All inputs were gathered
+4. ✓ All actions executed successfully
+5. ✓ Output criteria verified
+
+If ANY step failed, the task remains in `in_progress` status with an error log.
+
+### Failure Modes
+
+| Failure Type | Response |
+|--------------|----------|
+| Missing CLAUDE.md | HALT - Cannot execute without project context |
+| Invalid task structure | HALT - Return validation errors |
+| Input not found | HALT - Log missing input, explain error |
+| Action failed | HALT - Log failed action, do not continue |
+| Output not achieved | HALT - Log what's missing from output |
+| Ambiguous instruction | HALT - Request clarification, do not guess |
+
+### Example Execution Flow
+
+```
+Task: "Add logging to API views"
+├── Step 1: Read CLAUDE.md ✓
+├── Step 2: Validate task structure ✓
+├── Step 3: Gather inputs
+│   └── Read apps/api/views.py ✓
+├── Step 4: Execute actions (in order)
+│   ├── Action 1: Add import for logging module ✓
+│   ├── Action 2: Add logger initialization ✓
+│   └── Action 3: Add log statements to each view ✓
+├── Step 5: Verify output
+│   └── Confirm all views have logging ✓
+└── Step 6: Mark task as done ✓
+```
+
+### What Run Task Mode Does NOT Do
+
+- Does NOT ask clarifying questions mid-execution
+- Does NOT deviate from specified actions
+- Does NOT add "helpful" extras not in the task
+- Does NOT skip steps it thinks are unnecessary
+- Does NOT reorder steps for "efficiency"
+- Does NOT mark tasks complete without verifying output
+
+### Integration with Task API
+
+When a task is retrieved via the Ready Tasks API:
+1. The task JSON is already validated by the server
+2. Claude loads CLAUDE.md immediately
+3. Claude executes the task per this contract
+4. Claude updates status via `POST /admin-console/api/claude/tasks/<id>/status/`
+
+Status updates:
+- `in_progress` - Set immediately when starting execution
+- `done` - Set only after successful completion with verified output
+- Task remains `in_progress` on failure (with error logged)
+
+---
+
+### Run Task Mode Behavior (Summary)
 
 When executing a task ("Run Task" mode):
 
@@ -525,4 +685,4 @@ If any step fails:
 
 *For detailed feature documentation, see `docs/wlj_claude_features.md`*
 *For historical changes, see `docs/wlj_claude_changelog.md`*
-*Last updated: 2026-01-01*
+*Last updated: 2026-01-02*

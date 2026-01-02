@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-02 (Run Task Mode Execution Contract)
+# Last Updated: 2026-01-02 (Timezone IANA Format Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,55 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-02 Changes
+
+### CRITICAL: Timezone IANA Format Fix
+
+**Session:** Encryption of Data (task was actually timezone fix)
+
+**Issue:**
+Dashboard and AI Assistant returning 500 error with message:
+`time zone "US/Eastern" not recognized`
+
+**Root Cause:**
+PostgreSQL requires IANA timezone names (e.g., 'America/New_York') and does not recognize legacy US/* format (e.g., 'US/Eastern'). The `TimezoneMiddleware` added earlier in the day was activating the user's timezone using Django's `timezone.activate()`, which then passed the timezone to PostgreSQL for date/time operations.
+
+**Solution:**
+1. Updated `TIMEZONE_CHOICES` in UserPreferences model to use IANA format
+2. Added `TIMEZONE_LEGACY_MAP` dict for converting legacy values
+3. Added `timezone_iana` property to UserPreferences for safe access
+4. Updated `TimezoneMiddleware` to use `timezone_iana` property
+5. Updated all code using `preferences.timezone` directly:
+   - `apps/core/utils.py` (get_user_today, get_user_now)
+   - `apps/dashboard/views.py`
+   - `apps/health/views.py`, `forms.py`, `models.py`
+   - `apps/sms/views.py`
+6. Created data migration `0024_convert_legacy_timezones.py` to convert existing legacy values
+7. Updated onboarding form with IANA timezone choices
+8. Fixed test assertions to use new IANA format
+
+**New Timezone Choices:**
+- America/New_York (Eastern Time)
+- America/Chicago (Central Time)
+- America/Denver (Mountain Time)
+- America/Los_Angeles (Pacific Time)
+- America/Anchorage (Alaska Time)
+- Pacific/Honolulu (Hawaii Time)
+- UTC
+
+**Files Changed:**
+- `apps/users/models.py` - TIMEZONE_CHOICES, TIMEZONE_LEGACY_MAP, timezone_iana property
+- `apps/users/middleware.py` - TimezoneMiddleware
+- `apps/users/forms.py` - onboarding form
+- `apps/core/utils.py` - get_user_today, get_user_now
+- `apps/dashboard/views.py`
+- `apps/health/views.py`, `forms.py`, `models.py`
+- `apps/sms/views.py`
+- `apps/users/migrations/0024_convert_legacy_timezones.py` (new)
+- `apps/users/tests/test_onboarding_wizard.py`
+
+**Migration:** `0024_convert_legacy_timezones` - Converts US/Eastern, US/Central, US/Mountain, US/Pacific to IANA equivalents
+
+---
 
 ### Run Task Mode Execution Contract
 

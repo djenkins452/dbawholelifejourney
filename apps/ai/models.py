@@ -590,6 +590,22 @@ class UserStateSnapshot(models.Model):
         help_text="AI-assessed alignment with stated intentions (0-100)"
     )
 
+    # Habit goal tracking
+    active_habit_goals = models.PositiveIntegerField(default=0)
+    habit_completion_rate = models.DecimalField(
+        max_digits=5, decimal_places=1, null=True, blank=True,
+        help_text="Average completion rate across active habit goals"
+    )
+    habit_current_streak = models.PositiveIntegerField(
+        default=0,
+        help_text="Current longest streak across habit goals"
+    )
+    habit_goals_data = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Detailed habit goal data for AI analysis"
+    )
+
     # AI-generated assessments (stored for trend analysis)
     ai_assessment = models.TextField(
         blank=True,

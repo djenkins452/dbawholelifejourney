@@ -95,6 +95,8 @@ urlpatterns = [
     path("projects/", views.AdminProjectListView.as_view(), name="admin_project_list"),
     path("projects/new/", views.AdminProjectCreateView.as_view(), name="admin_project_create"),
     path("projects/<int:pk>/", views.AdminProjectDetailView.as_view(), name="admin_project_detail"),
+    path("projects/<int:pk>/edit/", views.AdminProjectUpdateView.as_view(), name="admin_project_update"),
+    path("projects/<int:pk>/delete/", views.AdminProjectDeleteView.as_view(), name="admin_project_delete"),
 
     # API Endpoints
     path("api/admin/project/active-phase/", views.ActivePhaseAPIView.as_view(), name="api_active_phase"),

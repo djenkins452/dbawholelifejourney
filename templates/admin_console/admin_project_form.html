@@ -41,6 +41,17 @@
                 <p class="form-error">{{ form.description.errors.0 }}</p>
                 {% endif %}
             </div>
+
+            {% if object %}
+            <div class="form-group">
+                <label for="id_status" class="form-label">Status</label>
+                {{ form.status }}
+                <p class="form-hint">Open projects can have tasks assigned; complete projects are finished</p>
+                {% if form.status.errors %}
+                <p class="form-error">{{ form.status.errors.0 }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
 
         <div class="form-actions">

@@ -638,10 +638,10 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
 
 
 class AdminTaskCreateView(AdminRequiredMixin, CreateView):
-    """Create a new admin task."""
+    """Create a new admin task with executable description."""
     template_name = "admin_console/admin_task_form.html"
     success_url = reverse_lazy('admin_console:admin_task_list')
-    fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
+    fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
@@ -654,28 +654,80 @@ class AdminTaskCreateView(AdminRequiredMixin, CreateView):
         class AdminTaskForm(forms.ModelForm):
             class Meta:
                 model = AdminTask
-                fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
+                fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
 
         return AdminTaskForm
 
     def form_valid(self, form):
-        messages.success(self.request, f"Task '{form.instance.title}' created.")
-        return super().form_valid(form)
+        from apps.admin_console.models import ExecutableTaskValidationError
+
+        # Extract executable task description fields from POST
+        objective = self.request.POST.get('objective', '').strip()
+        inputs_raw = self.request.POST.get('inputs', '').strip()
+        actions_raw = self.request.POST.get('actions', '').strip()
+        output = self.request.POST.get('output', '').strip()
+
+        # Parse inputs and actions from newline-separated text
+        inputs = [line.strip() for line in inputs_raw.split('\n') if line.strip()] if inputs_raw else []
+        actions = [line.strip() for line in actions_raw.split('\n') if line.strip()] if actions_raw else []
+
+        # Build executable task description
+        form.instance.description = {
+            'objective': objective,
+            'inputs': inputs,
+            'actions': actions,
+            'output': output
+        }
+
+        try:
+            response = super().form_valid(form)
+            messages.success(self.request, f"Task '{form.instance.title}' created.")
+            return response
+        except ExecutableTaskValidationError as e:
+            for error in e.messages:
+                messages.error(self.request, error)
+            return self.form_invalid(form)
 
 
 class AdminTaskUpdateView(AdminRequiredMixin, UpdateView):
-    """Edit an admin task."""
+    """Edit an admin task with executable description."""
     template_name = "admin_console/admin_task_form.html"
     success_url = reverse_lazy('admin_console:admin_task_list')
-    fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
+    fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
         return AdminTask.objects.all()
 
     def form_valid(self, form):
-        messages.success(self.request, f"Task '{form.instance.title}' updated.")
-        return super().form_valid(form)
+        from apps.admin_console.models import ExecutableTaskValidationError
+
+        # Extract executable task description fields from POST
+        objective = self.request.POST.get('objective', '').strip()
+        inputs_raw = self.request.POST.get('inputs', '').strip()
+        actions_raw = self.request.POST.get('actions', '').strip()
+        output = self.request.POST.get('output', '').strip()
+
+        # Parse inputs and actions from newline-separated text
+        inputs = [line.strip() for line in inputs_raw.split('\n') if line.strip()] if inputs_raw else []
+        actions = [line.strip() for line in actions_raw.split('\n') if line.strip()] if actions_raw else []
+
+        # Build executable task description
+        form.instance.description = {
+            'objective': objective,
+            'inputs': inputs,
+            'actions': actions,
+            'output': output
+        }
+
+        try:
+            response = super().form_valid(form)
+            messages.success(self.request, f"Task '{form.instance.title}' updated.")
+            return response
+        except ExecutableTaskValidationError as e:
+            for error in e.messages:
+                messages.error(self.request, error)
+            return self.form_invalid(form)
 
 
 class AdminTaskDeleteView(AdminRequiredMixin, DeleteView):
@@ -768,13 +820,13 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
         from apps.admin_console.models import (
             AdminProject, AdminProjectPhase, AdminTask,
             AdminTaskStatusConfig, AdminTaskPriorityConfig,
-            AdminTaskCategoryConfig, AdminTaskEffortConfig
+            AdminTaskCategoryConfig, AdminTaskEffortConfig,
+            ExecutableTaskValidationError
         )
         from .services import get_or_create_default_project
 
         # Extract form data
         title = request.POST.get('title', '').strip()
-        description = request.POST.get('description', '').strip()
         phase_id = request.POST.get('phase')
         project_id = request.POST.get('project')
         priority_config_id = request.POST.get('priority_config')
@@ -782,12 +834,37 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
         category_config_id = request.POST.get('category_config')
         effort_config_id = request.POST.get('effort_config')
 
+        # Extract Executable Task Description fields
+        objective = request.POST.get('objective', '').strip()
+        inputs_raw = request.POST.get('inputs', '').strip()
+        actions_raw = request.POST.get('actions', '').strip()
+        output = request.POST.get('output', '').strip()
+
+        # Parse inputs and actions from newline-separated text
+        inputs = [line.strip() for line in inputs_raw.split('\n') if line.strip()] if inputs_raw else []
+        actions = [line.strip() for line in actions_raw.split('\n') if line.strip()] if actions_raw else []
+
+        # Build executable task description
+        description = {
+            'objective': objective,
+            'inputs': inputs,
+            'actions': actions,
+            'output': output
+        }
+
         # Validate required fields
         errors = []
         if not title:
             errors.append("Title is required.")
-        if not description:
-            errors.append("Description is required.")
+
+        # Validate executable task description (mandatory fields per WLJ Executable Task Standard)
+        if not objective:
+            errors.append("Objective is required. Describe what the task should accomplish.")
+        if not actions:
+            errors.append("At least one action is required. Provide step-by-step instructions for execution.")
+        if not output:
+            errors.append("Output is required. Specify the expected deliverable or result.")
+
         if not phase_id:
             errors.append("Phase is required. Cannot create a task without a phase.")
 

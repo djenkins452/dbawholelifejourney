@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Prayer Request Button Text Fix)
+# Last Updated: 2026-01-01 (Phase 17.5 - Executable Task Standard)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,59 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Phase 17.5: WLJ Executable Task Standard (MAJOR FEATURE)
+
+**Session:** Admin Tasks - Phase 17 Configurable Task Fields (continued)
+
+**Objective:**
+Make all AdminTask objects machine-readable and executable by AI by enforcing a structured JSON description format.
+
+**Implementation:**
+
+1. **Model Changes (`apps/admin_console/models.py`):**
+   - Changed `AdminTask.description` from TextField to JSONField
+   - Added `validate_executable_task_description()` validator
+   - Added `ExecutableTaskValidationError` exception class
+   - Added `save()` method override with validation enforcement
+   - Added `clean()` method for model-level validation
+   - Legacy string descriptions are allowed during migration (logs warning)
+
+2. **Required Description Structure:**
+   ```json
+   {
+       "objective": "What the task should accomplish",
+       "inputs": ["Required context or resources"],
+       "actions": ["Step 1", "Step 2", "At least one required"],
+       "output": "Expected deliverable or result"
+   }
+   ```
+
+3. **Validation Rules:**
+   - All four fields are mandatory
+   - `objective` must be non-empty string
+   - `inputs` must be array of strings (can be empty)
+   - `actions` must have at least one non-empty string
+   - `output` must be non-empty string
+
+4. **Form Updates:**
+   - `templates/admin_console/task_intake.html` - New executable task fields UI
+   - `templates/admin_console/admin_task_form.html` - Updated with JSON fields
+   - `apps/admin_console/views.py` - TaskIntakeView, AdminTaskCreateView, AdminTaskUpdateView updated to parse form fields into JSON
+
+5. **Migrations:**
+   - `0010_convert_description_to_json.py` - Data migration to convert existing text to JSON
+   - `0011_alter_admintask_description.py` - Schema migration to change field type
+
+6. **Documentation:**
+   - Added "WLJ EXECUTABLE TASK STANDARD (MANDATORY)" section to CLAUDE.md
+   - Defines Run Task mode behavior for AI execution
+
+**Test Impact:**
+- All 178 admin_console tests pass
+- Legacy string descriptions allowed during migration period
+
+---
 
 ### Remove "Your First" Button Text Across All Templates (UI FIX)
 

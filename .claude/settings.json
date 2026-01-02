@@ -1,12 +1,25 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)",
-      "Read(*)",
-      "Write(*)",
-      "Edit(*)",
-      "Glob(*)",
-      "Grep(*)"
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(git:*)",
+      "Bash(cat:*)",
+      "Bash(dir:*)",
+      "Bash(cd:*)",
+      "Bash(rm:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(mkdir:*)",
+      "Bash(grep:*)",
+      "Bash(SECRET_KEY=*)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep"
     ]
   }
 }

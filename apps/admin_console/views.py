@@ -951,6 +951,9 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
                 messages.error(request, error)
             return redirect('admin_console:task_intake')
 
+        # Get optional attachment
+        attachment = request.FILES.get('attachment')
+
         # Create the task with config references
         task = AdminTask.objects.create(
             title=title,
@@ -967,6 +970,7 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
             priority=priority_config.value if priority_config else 3,
             category=category_config.name if category_config else 'feature',
             effort=effort_config.value if effort_config else 'M',
+            attachment=attachment,
             created_by='human'  # Always human for intake
         )
 

@@ -32,7 +32,7 @@
     </div>
     {% endif %}
 
-    <form method="post" class="admin-form">
+    <form method="post" class="admin-form" enctype="multipart/form-data">
         {% csrf_token %}
 
         <div class="form-section">
@@ -191,6 +191,19 @@
                         {% endfor %}
                     </select>
                 </div>
+            </div>
+
+            <div class="form-group">
+                <label for="id_attachment" class="form-label">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    Attachment (Screenshot/Image)
+                </label>
+                <input type="file" name="attachment" id="id_attachment" class="form-input" accept="image/*">
+                <p class="form-hint">Optional screenshot or image to provide visual context for this task</p>
             </div>
         </div>
 

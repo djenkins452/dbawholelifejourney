@@ -508,6 +508,12 @@ class AdminTask(models.Model):
         related_name='blocks',
         help_text='The blocker task that is preventing this task from proceeding'
     )
+    attachment = models.ImageField(
+        upload_to='admin_tasks/attachments/',
+        null=True,
+        blank=True,
+        help_text='Optional screenshot or image attachment for task context'
+    )
     created_by = models.CharField(max_length=10, choices=CREATED_BY_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

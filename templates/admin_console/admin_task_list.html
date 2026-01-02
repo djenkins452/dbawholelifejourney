@@ -138,11 +138,23 @@
             <span class="quick-filter-label">Quick:</span>
             <a href="{% url 'admin_console:admin_task_list' %}?status=ready"
                class="quick-filter-btn{% if current_status_filter == 'ready' %} active{% endif %}">
-                Ready Only
+                Ready
             </a>
             <a href="{% url 'admin_console:admin_task_list' %}?status=backlog"
                class="quick-filter-btn{% if current_status_filter == 'backlog' %} active{% endif %}">
-                Backlog Only
+                Backlog
+            </a>
+            <a href="{% url 'admin_console:admin_task_list' %}?status=in_progress"
+               class="quick-filter-btn{% if current_status_filter == 'in_progress' %} active{% endif %}">
+                In Progress
+            </a>
+            <a href="{% url 'admin_console:admin_task_list' %}?status=blocked"
+               class="quick-filter-btn{% if current_status_filter == 'blocked' %} active{% endif %}">
+                Blocked
+            </a>
+            <a href="{% url 'admin_console:admin_task_list' %}?status=done"
+               class="quick-filter-btn{% if current_status_filter == 'done' %} active{% endif %}">
+                Done
             </a>
         </div>
     </div>

@@ -233,6 +233,23 @@
             </svg>
         </a>
 
+        <!-- Task Configuration -->
+        <a href="{% url 'admin_console:config_dashboard' %}" class="admin-card">
+            <div class="admin-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+                    <circle cx="12" cy="12" r="4"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Task Config</h3>
+                <p>Status, priority, category, effort</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+
         <!-- Django Admin (escape hatch) -->
         <a href="/{{ admin_url_path }}/" class="admin-card admin-card-secondary">
             <div class="admin-card-icon">

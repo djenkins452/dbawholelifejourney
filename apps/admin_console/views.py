@@ -1989,3 +1989,56 @@ class AdminProjectDetailView(AdminRequiredMixin, TemplateView):
         )
 
         return context
+
+
+class AdminProjectCreateView(AdminRequiredMixin, CreateView):
+    """
+    Create a new admin project.
+
+    GET /admin-console/projects/new/
+    POST /admin-console/projects/new/
+    """
+    template_name = "admin_console/admin_project_form.html"
+    success_url = reverse_lazy('admin_console:admin_project_list')
+
+    def get_form_class(self):
+        from django import forms
+        from apps.admin_console.models import AdminProject
+
+        class AdminProjectForm(forms.ModelForm):
+            class Meta:
+                model = AdminProject
+                fields = ['name', 'description']
+                widgets = {
+                    'name': forms.TextInput(attrs={
+                        'class': 'form-input',
+                        'placeholder': 'e.g., Q1 Feature Development'
+                    }),
+                    'description': forms.Textarea(attrs={
+                        'class': 'form-textarea',
+                        'rows': 3,
+                        'placeholder': 'Optional description of this project...'
+                    }),
+                }
+
+        return AdminProjectForm
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminProject
+        return AdminProject.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Project '{form.instance.name}' created.")
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Check if we came from task intake
+        context['from_intake'] = self.request.GET.get('from') == 'intake'
+        return context
+
+    def get_success_url(self):
+        # If we came from task intake, go back there
+        if self.request.GET.get('from') == 'intake':
+            return reverse_lazy('admin_console:task_intake')
+        return reverse_lazy('admin_console:admin_project_list')

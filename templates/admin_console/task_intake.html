@@ -55,16 +55,25 @@
 
             <div class="form-group">
                 <label for="id_project" class="form-label">Project <span class="required">*</span></label>
-                <select name="project" id="id_project" class="form-input" required>
-                    {% for project in projects %}
-                    <option value="{{ project.pk }}" {% if default_project and project.pk == default_project.pk %}selected{% endif %}>
-                        {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
-                    </option>
-                    {% empty %}
-                    <option value="">-- No projects available --</option>
-                    {% endfor %}
-                </select>
-                <p class="form-hint">Select the project this task belongs to</p>
+                <div class="input-with-action">
+                    <select name="project" id="id_project" class="form-input" required>
+                        {% for project in projects %}
+                        <option value="{{ project.pk }}" {% if default_project and project.pk == default_project.pk %}selected{% endif %}>
+                            {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
+                        </option>
+                        {% empty %}
+                        <option value="">-- No projects available --</option>
+                        {% endfor %}
+                    </select>
+                    <a href="{% url 'admin_console:admin_project_create' %}?from=intake" class="btn btn-sm btn-ghost" title="Create new project">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        New
+                    </a>
+                </div>
+                <p class="form-hint">Select the project this task belongs to, or <a href="{% url 'admin_console:admin_project_create' %}?from=intake">create a new project</a></p>
             </div>
 
             <div class="form-row">
@@ -203,6 +212,25 @@
 
 .form-group {
     margin-bottom: var(--space-4);
+}
+
+.input-with-action {
+    display: flex;
+    gap: var(--space-2);
+    align-items: stretch;
+}
+
+.input-with-action select {
+    flex: 1;
+}
+
+.input-with-action .btn-sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    white-space: nowrap;
 }
 
 .form-label {

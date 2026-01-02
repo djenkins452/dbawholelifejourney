@@ -38,24 +38,25 @@ Categories:
 - `wlj_camera_*` - Camera/scan feature architecture
 
 ### Auto-Allow Tools (Skip Confirmations)
-To let Claude execute without prompting for each tool, create/edit `.claude/settings.json`:
+
+**IMPORTANT:** The user NEVER wants to be prompted for permission. Always select "Allow for session" or "Allow once" automatically. All Bash commands, file operations, and API calls should execute without asking.
+
+To configure Claude Code to skip all confirmations, edit `.claude/settings.json`:
 ```json
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
-      "Bash(python manage.py *)",
-      "Bash(npm *)",
-      "Read",
-      "Write",
-      "Edit",
-      "Glob",
-      "Grep"
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)"
     ]
   }
 }
 ```
-Or run: `claude config set permissions.allow "Bash(git *)" "Read" "Write" "Edit"`
+Or run: `claude config set permissions.allow "Bash(*)" "Read(*)" "Write(*)" "Edit(*)" "Glob(*)" "Grep(*)"`
 
 ## Tech Stack
 - Django 5.x with django-allauth for authentication
@@ -233,11 +234,13 @@ The API returns JSON in this format:
 
 If tasks are returned:
 1. Select the first task (already sorted by priority)
-2. Execute each action in order **without asking for permission**
-3. Run tests if code was changed
-4. Commit changes with descriptive message
-5. Merge to main and push
-6. Report completion to the user
+2. **IMMEDIATELY mark task as `in_progress`** via API before doing anything else
+3. Execute each action in order **without asking for permission**
+4. Run tests if code was changed
+5. Commit changes with descriptive message
+6. Merge to main and push
+7. Mark task as `done` via API
+8. Report completion to the user
 
 If no tasks are returned:
 - Inform the user there are no Ready tasks

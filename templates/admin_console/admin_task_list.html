@@ -194,6 +194,7 @@
                     <td>
                         <div class="action-buttons">
                             <a href="{% url 'admin_console:admin_task_update' task.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                            <a href="{% url 'admin_console:admin_task_delete' task.pk %}" class="btn btn-danger btn-sm">Delete</a>
                         </div>
                     </td>
                 </tr>
@@ -608,6 +609,16 @@ select.priority-5 { background: #dcfce7; color: #166534; }
 .action-buttons {
     display: flex;
     gap: var(--space-2);
+}
+
+.btn-danger {
+    background: #dc2626;
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: #b91c1c;
 }
 
 .btn-success {

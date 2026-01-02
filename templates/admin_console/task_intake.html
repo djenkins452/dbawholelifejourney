@@ -53,6 +53,20 @@
                 <p class="form-hint">Full description of what needs to be done</p>
             </div>
 
+            <div class="form-group">
+                <label for="id_project" class="form-label">Project <span class="required">*</span></label>
+                <select name="project" id="id_project" class="form-input" required>
+                    {% for project in projects %}
+                    <option value="{{ project.pk }}" {% if default_project and project.pk == default_project.pk %}selected{% endif %}>
+                        {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
+                    </option>
+                    {% empty %}
+                    <option value="">-- No projects available --</option>
+                    {% endfor %}
+                </select>
+                <p class="form-hint">Select the project this task belongs to</p>
+            </div>
+
             <div class="form-row">
                 <div class="form-group">
                     <label for="id_phase" class="form-label">Phase <span class="required">*</span></label>

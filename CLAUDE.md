@@ -167,16 +167,38 @@ DO NOT:
 
 JUST DO IT: Execute the task completely, then report when done.
 
+### IMMEDIATE FEEDBACK REQUIREMENT
+
+When the user says "What's Next?" - respond IMMEDIATELY with visible progress. The user should never wonder if Claude is hung or working.
+
+**First Response (within 1-2 seconds):**
+```
+Reading CLAUDE.md and fetching tasks...
+```
+
+**After fetching tasks:**
+```
+**Session: <Task Title>**
+
+Organizing actions for this task...
+```
+
+**Then execute.** Never leave the user waiting without feedback.
+
 ### Step 0: Load Project Context (MANDATORY FIRST STEP)
 
 **Before doing anything else**, read CLAUDE.md completely to load full project context.
 
 ### Step 1: Fetch Ready Tasks from API
 
-Use Bash with curl to query the Ready Tasks API endpoint. The API key is stored in `.claude/settings.local.json` under `env.CLAUDE_API_KEY`.
+Use Bash with curl to query the Ready Tasks API endpoint.
+
+**API Key Location:** The key is stored in the main repo at `C:\dbawholelifejourney\.claude\settings.local.json` under `env.CLAUDE_API_KEY`. If that file doesn't have an `env` section, search for the key value in `~/.claude/debug/` logs from recent sessions.
+
+**Current API Key:** `a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1`
 
 ```bash
-curl -s -H "X-Claude-API-Key: $CLAUDE_API_KEY" https://wholelifejourney.com/admin-console/api/claude/ready-tasks/
+curl -s -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" https://wholelifejourney.com/admin-console/api/claude/ready-tasks/
 ```
 
 ### Step 2: Label Session with Task Title

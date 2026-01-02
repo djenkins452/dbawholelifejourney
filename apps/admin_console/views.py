@@ -658,6 +658,7 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
             'priority': 'priority',
             'created_by': 'created_by',
             'created_at': 'created_at',
+            'project': 'project__name',
         }
 
         # Get the actual field to sort by, default to priority

@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - Projects - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:admin_project_list' %}">Projects</a>
+                <span>/</span>
+                <span>{{ project.name }}</span>
+            </nav>
+            <h1 class="page-title">{{ project.name }}</h1>
+            <p class="page-subtitle">
+                <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
+                <span class="task-count">{{ project.completed_tasks }}/{{ project.total_tasks }} tasks completed</span>
+            </p>
+        </div>
+    </div>
+
+    {% if project.description %}
+    <div class="project-description">
+        <h3>Description</h3>
+        <p>{{ project.description }}</p>
+    </div>
+    {% endif %}
+
+    {% if tasks_by_phase %}
+    <div class="tasks-section">
+        <h2>Tasks by Phase</h2>
+
+        {% for phase, tasks in tasks_by_phase %}
+        <div class="phase-group">
+            <div class="phase-header">
+                <h3>Phase {{ phase.phase_number }}: {{ phase.name }}</h3>
+                <span class="phase-status status-badge status-{{ phase.status }}">{{ phase.get_status_display }}</span>
+            </div>
+
+            <div class="table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Category</th>
+                            <th>Effort</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr>
+                            <td><strong>{{ task.title }}</strong></td>
+                            <td>
+                                <span class="task-status-badge task-status-{{ task.status }}">
+                                    {{ task.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="priority-badge priority-{{ task.priority }}">P{{ task.priority }}</span>
+                            </td>
+                            <td>{{ task.get_category_display }}</td>
+                            <td>{{ task.get_effort_display }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h2>No tasks yet</h2>
+        <p>This project has no tasks assigned.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.page-header {
+    margin-bottom: var(--space-6);
+}
+
+.page-subtitle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+}
+
+.task-count {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.project-description {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.project-description h3 {
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.project-description p {
+    color: var(--color-text);
+}
+
+.tasks-section h2 {
+    margin-bottom: var(--space-4);
+}
+
+.phase-group {
+    margin-bottom: var(--space-6);
+}
+
+.phase-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.phase-header h3 {
+    font-size: var(--font-size-lg);
+    color: var(--color-text);
+    margin: 0;
+}
+
+.table-container {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.admin-table th {
+    background: var(--color-surface);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+
+.admin-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+    background: var(--color-surface);
+}
+
+.status-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.status-open {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-complete,
+.status-done {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-not_started {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.status-in_progress {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.task-status-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.task-status-backlog {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.task-status-ready {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.task-status-in_progress {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.task-status-blocked {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.task-status-done {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.priority-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.priority-1 {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.priority-2 {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.priority-3 {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.priority-4, .priority-5 {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+    color: var(--color-text);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

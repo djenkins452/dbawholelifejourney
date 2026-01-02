@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 15)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 16)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,51 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 16 Projects Introduction (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 16 Projects Introduction
+
+**Description:**
+Introduced Projects as a first-class object to organize admin tasks. Each task must now belong to a project. Projects can be marked as complete when all their tasks are done.
+
+**New Model:**
+- `AdminProject` - Groups related tasks together
+  - Fields: id, name, description, status (open/complete), created_at, updated_at
+  - Status: 'open' or 'complete'
+  - Deletion protection: Cannot delete a project that has tasks
+
+**New Routes:**
+- `GET /admin-console/projects/` - Project list page
+- `GET /admin-console/projects/<id>/` - Project detail page
+
+**AdminTask Changes:**
+- Added required `project` ForeignKey to AdminProject
+- All existing tasks assigned to default "General" project via migration
+- Task transitions to 'done' now check if project should be completed
+
+**Project Completion Logic:**
+- `check_and_complete_project(project)` - Checks if all tasks are done and marks project complete
+- `on_task_done_check_project(task)` - Called when task transitions to 'done'
+- Creates AdminActivityLog entry when project is completed
+
+**Safety Rules:**
+- Project must exist for every task (enforced at DB level)
+- Tasks cannot exist without a project
+- Deleting projects with tasks raises `DeletionProtectedError`
+- No data loss during migration (existing tasks get "General" project)
+
+**Modified Files:**
+- `apps/admin_console/models.py` - Added AdminProject model, project FK to AdminTask
+- `apps/admin_console/services.py` - Added project completion functions
+- `apps/admin_console/views.py` - Added AdminProjectListView, AdminProjectDetailView
+- `apps/admin_console/urls.py` - Added project routes
+- `apps/admin_console/migrations/0007_add_admin_project.py` - Migration for AdminProject
+- `templates/admin_console/admin_project_list.html` - Project list template
+- `templates/admin_console/admin_project_detail.html` - Project detail template
+- `apps/admin_console/tests/test_admin_console.py` - Updated tests with project field
+
+---
 
 ### Admin Project Tasks - Phase 15 Operator Runbook (NEW FEATURE)
 

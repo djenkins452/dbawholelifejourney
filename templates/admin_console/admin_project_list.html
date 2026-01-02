@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <span>Projects</span>
+            </nav>
+            <h1 class="page-title">Projects</h1>
+            <p class="page-subtitle">View and manage admin projects</p>
+        </div>
+    </div>
+
+    {% if projects %}
+    <div class="table-container">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Total Tasks</th>
+                    <th>Completed</th>
+                    <th>Progress</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in projects %}
+                <tr>
+                    <td><strong>{{ project.name }}</strong></td>
+                    <td>
+                        <span class="status-badge status-{{ project.status }}">
+                            {{ project.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ project.total_tasks }}</td>
+                    <td>{{ project.completed_tasks }}</td>
+                    <td>
+                        {% if project.total_tasks > 0 %}
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {% widthratio project.completed_tasks project.total_tasks 100 %}%"></div>
+                        </div>
+                        <span class="progress-text">{% widthratio project.completed_tasks project.total_tasks 100 %}%</span>
+                        {% else %}
+                        <span class="text-muted">No tasks</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <a href="{% url 'admin_console:admin_project_detail' project.pk %}" class="btn btn-secondary btn-sm">View</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h2>No projects yet</h2>
+        <p>Projects are created when tasks are assigned to them.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+}
+
+.table-container {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.admin-table th {
+    background: var(--color-surface);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+
+.admin-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+    background: var(--color-surface);
+}
+
+.status-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.status-open {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-complete {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.progress-bar {
+    width: 100px;
+    height: 8px;
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: var(--space-2);
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-accent);
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.action-buttons {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+    color: var(--color-text);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

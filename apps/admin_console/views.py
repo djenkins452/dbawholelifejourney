@@ -4,7 +4,7 @@
 # Description: Admin console views for site management and project task intake
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Prepopulate Phase Dropdown 1-20)
+# Last Updated: 2026-01-01 (Phase 16 - Projects Introduction)
 # ==============================================================================
 """
 Admin Views - Custom admin interface for site management.
@@ -641,7 +641,7 @@ class AdminTaskCreateView(AdminRequiredMixin, CreateView):
     """Create a new admin task."""
     template_name = "admin_console/admin_task_form.html"
     success_url = reverse_lazy('admin_console:admin_task_list')
-    fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'created_by']
+    fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
@@ -654,7 +654,7 @@ class AdminTaskCreateView(AdminRequiredMixin, CreateView):
         class AdminTaskForm(forms.ModelForm):
             class Meta:
                 model = AdminTask
-                fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'created_by']
+                fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
 
         return AdminTaskForm
 
@@ -667,7 +667,7 @@ class AdminTaskUpdateView(AdminRequiredMixin, UpdateView):
     """Edit an admin task."""
     template_name = "admin_console/admin_task_form.html"
     success_url = reverse_lazy('admin_console:admin_task_list')
-    fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'created_by']
+    fields = ['title', 'description', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
@@ -724,11 +724,18 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
-        from .services import get_active_phase
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
+        from .services import get_active_phase, get_or_create_default_project
 
         # Get phases for dropdown
         context['phases'] = AdminProjectPhase.objects.all().order_by('phase_number')
+
+        # Get projects for dropdown
+        context['projects'] = AdminProject.objects.all().order_by('name')
+
+        # Get default project
+        default_project = get_or_create_default_project()
+        context['default_project'] = default_project
 
         # Get active phase as default
         active_phase = get_active_phase()
@@ -748,12 +755,14 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
 
     def post(self, request):
         from django import forms
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
+        from .services import get_or_create_default_project
 
         # Extract form data
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         phase_id = request.POST.get('phase')
+        project_id = request.POST.get('project')
         priority = request.POST.get('priority', '3')
         status = request.POST.get('status', 'backlog')
         category = request.POST.get('category', '')
@@ -775,6 +784,17 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
                 phase = AdminProjectPhase.objects.get(pk=phase_id)
             except AdminProjectPhase.DoesNotExist:
                 errors.append(f"Phase with ID {phase_id} does not exist.")
+
+        # Validate project exists or use default
+        project = None
+        if project_id:
+            try:
+                project = AdminProject.objects.get(pk=project_id)
+            except AdminProject.DoesNotExist:
+                errors.append(f"Project with ID {project_id} does not exist.")
+        else:
+            # Use default project if none specified
+            project = get_or_create_default_project()
 
         # Validate priority
         try:
@@ -798,6 +818,7 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
             title=title,
             description=description,
             phase=phase,
+            project=project,
             priority=priority,
             status=status,
             category=category if category else 'feature',
@@ -1894,3 +1915,77 @@ class ProjectsRunbookView(AdminRequiredMixin, TemplateView):
     - Does not auto-open
     """
     template_name = "admin_console/projects_runbook.html"
+
+
+# ============================================================
+# Phase 16: Admin Project Views
+# ============================================================
+
+class AdminProjectListView(AdminRequiredMixin, ListView):
+    """
+    List all admin projects with task counts.
+
+    GET /admin-console/projects/
+
+    Displays:
+    - Project name
+    - Status (open/complete)
+    - Total tasks count
+    - Completed tasks count
+    """
+    template_name = "admin_console/admin_project_list.html"
+    context_object_name = "projects"
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminProject
+        from django.db.models import Count, Q
+
+        return AdminProject.objects.annotate(
+            total_tasks=Count('tasks'),
+            completed_tasks=Count('tasks', filter=Q(tasks__status='done'))
+        ).order_by('name')
+
+
+class AdminProjectDetailView(AdminRequiredMixin, TemplateView):
+    """
+    Project detail page showing tasks grouped by phase.
+
+    GET /admin-console/projects/<id>/
+
+    Displays:
+    - Project information (name, description, status)
+    - Tasks grouped by phase number
+    """
+    template_name = "admin_console/admin_project_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.admin_console.models import AdminProject, AdminTask, AdminProjectPhase
+        from django.db.models import Count, Q
+        from collections import defaultdict
+
+        project_id = self.kwargs.get('pk')
+        project = AdminProject.objects.annotate(
+            total_tasks=Count('tasks'),
+            completed_tasks=Count('tasks', filter=Q(tasks__status='done'))
+        ).get(pk=project_id)
+
+        context['project'] = project
+
+        # Get all tasks for this project, grouped by phase
+        tasks = AdminTask.objects.filter(project=project).select_related('phase').order_by(
+            'phase__phase_number', 'priority', 'created_at'
+        )
+
+        # Group tasks by phase
+        tasks_by_phase = defaultdict(list)
+        for task in tasks:
+            tasks_by_phase[task.phase].append(task)
+
+        # Convert to list of tuples for template, sorted by phase number
+        context['tasks_by_phase'] = sorted(
+            tasks_by_phase.items(),
+            key=lambda x: x[0].phase_number
+        )
+
+        return context

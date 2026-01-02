@@ -4,7 +4,7 @@
 # Description: Admin console views for site management and project task intake
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 16 - Projects Introduction)
+# Last Updated: 2026-01-01 (Phase 17 - Configurable Task Fields)
 # ==============================================================================
 """
 Admin Views - Custom admin interface for site management.
@@ -719,12 +719,17 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
     - Status defaults to 'backlog', not auto-set to 'ready'
     - Validates required fields
     - Requires a phase to be selected
+    - Phase 17: Uses config tables for dropdowns, only shows active configs
     """
     template_name = "admin_console/task_intake.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
+        from apps.admin_console.models import (
+            AdminProject, AdminProjectPhase, AdminTask,
+            AdminTaskStatusConfig, AdminTaskPriorityConfig,
+            AdminTaskCategoryConfig, AdminTaskEffortConfig
+        )
         from .services import get_active_phase, get_or_create_default_project
 
         # Get phases for dropdown
@@ -741,7 +746,13 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
         active_phase = get_active_phase()
         context['active_phase'] = active_phase
 
-        # Category and effort choices
+        # Phase 17: Get active config options for dropdowns
+        context['status_configs'] = AdminTaskStatusConfig.objects.filter(active=True).order_by('order')
+        context['priority_configs'] = AdminTaskPriorityConfig.objects.filter(active=True).order_by('order')
+        context['category_configs'] = AdminTaskCategoryConfig.objects.filter(active=True).order_by('order')
+        context['effort_configs'] = AdminTaskEffortConfig.objects.filter(active=True).order_by('order')
+
+        # Legacy choices (kept for backward compatibility)
         context['category_choices'] = AdminTask.CATEGORY_CHOICES
         context['effort_choices'] = AdminTask.EFFORT_CHOICES
 
@@ -754,8 +765,11 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
         return context
 
     def post(self, request):
-        from django import forms
-        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
+        from apps.admin_console.models import (
+            AdminProject, AdminProjectPhase, AdminTask,
+            AdminTaskStatusConfig, AdminTaskPriorityConfig,
+            AdminTaskCategoryConfig, AdminTaskEffortConfig
+        )
         from .services import get_or_create_default_project
 
         # Extract form data
@@ -763,10 +777,10 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
         description = request.POST.get('description', '').strip()
         phase_id = request.POST.get('phase')
         project_id = request.POST.get('project')
-        priority = request.POST.get('priority', '3')
-        status = request.POST.get('status', 'backlog')
-        category = request.POST.get('category', '')
-        effort = request.POST.get('effort', '')
+        priority_config_id = request.POST.get('priority_config')
+        status_config_id = request.POST.get('status_config')
+        category_config_id = request.POST.get('category_config')
+        effort_config_id = request.POST.get('effort_config')
 
         # Validate required fields
         errors = []
@@ -796,33 +810,76 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
             # Use default project if none specified
             project = get_or_create_default_project()
 
-        # Validate priority
-        try:
-            priority = int(priority)
-            if priority < 1 or priority > 5:
-                errors.append("Priority must be between 1 and 5.")
-        except (ValueError, TypeError):
-            priority = 3
+        # Validate config selections
+        status_config = None
+        if status_config_id:
+            try:
+                status_config = AdminTaskStatusConfig.objects.get(pk=status_config_id, active=True)
+            except AdminTaskStatusConfig.DoesNotExist:
+                errors.append("Invalid status selection.")
+        else:
+            # Default to backlog status
+            status_config = AdminTaskStatusConfig.objects.filter(name='backlog', active=True).first()
+            if not status_config:
+                errors.append("No active backlog status found in configuration.")
 
-        # Validate status - only backlog or ready allowed on intake
-        if status not in ('backlog', 'ready'):
-            status = 'backlog'
+        priority_config = None
+        if priority_config_id:
+            try:
+                priority_config = AdminTaskPriorityConfig.objects.get(pk=priority_config_id, active=True)
+            except AdminTaskPriorityConfig.DoesNotExist:
+                errors.append("Invalid priority selection.")
+        else:
+            # Default to Normal priority (value 3)
+            priority_config = AdminTaskPriorityConfig.objects.filter(value=3, active=True).first()
+            if not priority_config:
+                errors.append("No active Normal priority found in configuration.")
+
+        category_config = None
+        if category_config_id:
+            try:
+                category_config = AdminTaskCategoryConfig.objects.get(pk=category_config_id, active=True)
+            except AdminTaskCategoryConfig.DoesNotExist:
+                errors.append("Invalid category selection.")
+        else:
+            # Default to Feature category
+            category_config = AdminTaskCategoryConfig.objects.filter(name='feature', active=True).first()
+            if not category_config:
+                errors.append("No active Feature category found in configuration.")
+
+        effort_config = None
+        if effort_config_id:
+            try:
+                effort_config = AdminTaskEffortConfig.objects.get(pk=effort_config_id, active=True)
+            except AdminTaskEffortConfig.DoesNotExist:
+                errors.append("Invalid effort selection.")
+        else:
+            # Default to Medium effort
+            effort_config = AdminTaskEffortConfig.objects.filter(value='M', active=True).first()
+            if not effort_config:
+                errors.append("No active Medium effort found in configuration.")
 
         if errors:
             for error in errors:
                 messages.error(request, error)
             return redirect('admin_console:task_intake')
 
-        # Create the task
+        # Create the task with config references
         task = AdminTask.objects.create(
             title=title,
             description=description,
             phase=phase,
             project=project,
-            priority=priority,
-            status=status,
-            category=category if category else 'feature',
-            effort=effort if effort else 'M',
+            # Config ForeignKey fields
+            status_config=status_config,
+            priority_config=priority_config,
+            category_config=category_config,
+            effort_config=effort_config,
+            # Legacy fields (kept in sync for backward compatibility)
+            status=status_config.name if status_config else 'backlog',
+            priority=priority_config.value if priority_config else 3,
+            category=category_config.name if category_config else 'feature',
+            effort=effort_config.value if effort_config else 'M',
             created_by='human'  # Always human for intake
         )
 
@@ -1989,3 +2046,332 @@ class AdminProjectDetailView(AdminRequiredMixin, TemplateView):
         )
 
         return context
+
+
+# ============================================================
+# Phase 17: Task Configuration Management Views
+# ============================================================
+
+class TaskConfigDashboardView(AdminRequiredMixin, TemplateView):
+    """
+    Dashboard for managing task field configurations.
+
+    GET /admin-console/projects/config/
+
+    Displays links to manage:
+    - Status configurations
+    - Priority configurations
+    - Category configurations
+    - Effort configurations
+    """
+    template_name = "admin_console/config/config_dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .models import (
+            AdminTaskStatusConfig, AdminTaskPriorityConfig,
+            AdminTaskCategoryConfig, AdminTaskEffortConfig
+        )
+
+        context['status_count'] = AdminTaskStatusConfig.objects.count()
+        context['priority_count'] = AdminTaskPriorityConfig.objects.count()
+        context['category_count'] = AdminTaskCategoryConfig.objects.count()
+        context['effort_count'] = AdminTaskEffortConfig.objects.count()
+
+        return context
+
+
+# ---- Status Config Views ----
+
+class StatusConfigListView(AdminRequiredMixin, ListView):
+    """List all status configurations."""
+    template_name = "admin_console/config/status_list.html"
+    context_object_name = "configs"
+
+    def get_queryset(self):
+        from .models import AdminTaskStatusConfig
+        return AdminTaskStatusConfig.objects.all().order_by('order', 'name')
+
+
+class StatusConfigCreateView(AdminRequiredMixin, CreateView):
+    """Create a new status configuration."""
+    template_name = "admin_console/config/status_form.html"
+    fields = ['name', 'display_name', 'execution_allowed', 'terminal', 'order', 'active']
+    success_url = reverse_lazy('admin_console:config_status_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskStatusConfig
+        return AdminTaskStatusConfig.objects.all()
+
+    def get_form_class(self):
+        from django import forms
+        from .models import AdminTaskStatusConfig
+
+        class StatusConfigForm(forms.ModelForm):
+            class Meta:
+                model = AdminTaskStatusConfig
+                fields = ['name', 'display_name', 'execution_allowed', 'terminal', 'order', 'active']
+
+        return StatusConfigForm
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Status '{form.instance.display_name}' created.")
+        return super().form_valid(form)
+
+
+class StatusConfigUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit a status configuration."""
+    template_name = "admin_console/config/status_form.html"
+    fields = ['name', 'display_name', 'execution_allowed', 'terminal', 'order', 'active']
+    success_url = reverse_lazy('admin_console:config_status_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskStatusConfig
+        return AdminTaskStatusConfig.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Status '{form.instance.display_name}' updated.")
+        return super().form_valid(form)
+
+
+class StatusConfigDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a status configuration."""
+    template_name = "admin_console/config/status_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:config_status_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskStatusConfig
+        return AdminTaskStatusConfig.objects.all()
+
+    def form_valid(self, form):
+        from .models import DeletionProtectedError
+        try:
+            config_name = self.object.display_name
+            self.object.delete()
+            messages.success(self.request, f"Status '{config_name}' deleted.")
+            return redirect(self.success_url)
+        except DeletionProtectedError as e:
+            messages.error(self.request, str(e))
+            return redirect('admin_console:config_status_list')
+
+
+# ---- Priority Config Views ----
+
+class PriorityConfigListView(AdminRequiredMixin, ListView):
+    """List all priority configurations."""
+    template_name = "admin_console/config/priority_list.html"
+    context_object_name = "configs"
+
+    def get_queryset(self):
+        from .models import AdminTaskPriorityConfig
+        return AdminTaskPriorityConfig.objects.all().order_by('order', 'value')
+
+
+class PriorityConfigCreateView(AdminRequiredMixin, CreateView):
+    """Create a new priority configuration."""
+    template_name = "admin_console/config/priority_form.html"
+    fields = ['value', 'label', 'order', 'active']
+    success_url = reverse_lazy('admin_console:config_priority_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskPriorityConfig
+        return AdminTaskPriorityConfig.objects.all()
+
+    def get_form_class(self):
+        from django import forms
+        from .models import AdminTaskPriorityConfig
+
+        class PriorityConfigForm(forms.ModelForm):
+            class Meta:
+                model = AdminTaskPriorityConfig
+                fields = ['value', 'label', 'order', 'active']
+
+        return PriorityConfigForm
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Priority '{form.instance.label}' created.")
+        return super().form_valid(form)
+
+
+class PriorityConfigUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit a priority configuration."""
+    template_name = "admin_console/config/priority_form.html"
+    fields = ['value', 'label', 'order', 'active']
+    success_url = reverse_lazy('admin_console:config_priority_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskPriorityConfig
+        return AdminTaskPriorityConfig.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Priority '{form.instance.label}' updated.")
+        return super().form_valid(form)
+
+
+class PriorityConfigDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a priority configuration."""
+    template_name = "admin_console/config/priority_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:config_priority_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskPriorityConfig
+        return AdminTaskPriorityConfig.objects.all()
+
+    def form_valid(self, form):
+        from .models import DeletionProtectedError
+        try:
+            config_name = self.object.label
+            self.object.delete()
+            messages.success(self.request, f"Priority '{config_name}' deleted.")
+            return redirect(self.success_url)
+        except DeletionProtectedError as e:
+            messages.error(self.request, str(e))
+            return redirect('admin_console:config_priority_list')
+
+
+# ---- Category Config Views ----
+
+class CategoryConfigListView(AdminRequiredMixin, ListView):
+    """List all category configurations."""
+    template_name = "admin_console/config/category_list.html"
+    context_object_name = "configs"
+
+    def get_queryset(self):
+        from .models import AdminTaskCategoryConfig
+        return AdminTaskCategoryConfig.objects.all().order_by('order', 'name')
+
+
+class CategoryConfigCreateView(AdminRequiredMixin, CreateView):
+    """Create a new category configuration."""
+    template_name = "admin_console/config/category_form.html"
+    fields = ['name', 'display_name', 'order', 'active']
+    success_url = reverse_lazy('admin_console:config_category_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskCategoryConfig
+        return AdminTaskCategoryConfig.objects.all()
+
+    def get_form_class(self):
+        from django import forms
+        from .models import AdminTaskCategoryConfig
+
+        class CategoryConfigForm(forms.ModelForm):
+            class Meta:
+                model = AdminTaskCategoryConfig
+                fields = ['name', 'display_name', 'order', 'active']
+
+        return CategoryConfigForm
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Category '{form.instance.display_name}' created.")
+        return super().form_valid(form)
+
+
+class CategoryConfigUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit a category configuration."""
+    template_name = "admin_console/config/category_form.html"
+    fields = ['name', 'display_name', 'order', 'active']
+    success_url = reverse_lazy('admin_console:config_category_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskCategoryConfig
+        return AdminTaskCategoryConfig.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Category '{form.instance.display_name}' updated.")
+        return super().form_valid(form)
+
+
+class CategoryConfigDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete a category configuration."""
+    template_name = "admin_console/config/category_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:config_category_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskCategoryConfig
+        return AdminTaskCategoryConfig.objects.all()
+
+    def form_valid(self, form):
+        from .models import DeletionProtectedError
+        try:
+            config_name = self.object.display_name
+            self.object.delete()
+            messages.success(self.request, f"Category '{config_name}' deleted.")
+            return redirect(self.success_url)
+        except DeletionProtectedError as e:
+            messages.error(self.request, str(e))
+            return redirect('admin_console:config_category_list')
+
+
+# ---- Effort Config Views ----
+
+class EffortConfigListView(AdminRequiredMixin, ListView):
+    """List all effort configurations."""
+    template_name = "admin_console/config/effort_list.html"
+    context_object_name = "configs"
+
+    def get_queryset(self):
+        from .models import AdminTaskEffortConfig
+        return AdminTaskEffortConfig.objects.all().order_by('order', 'value')
+
+
+class EffortConfigCreateView(AdminRequiredMixin, CreateView):
+    """Create a new effort configuration."""
+    template_name = "admin_console/config/effort_form.html"
+    fields = ['value', 'label', 'order', 'active']
+    success_url = reverse_lazy('admin_console:config_effort_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskEffortConfig
+        return AdminTaskEffortConfig.objects.all()
+
+    def get_form_class(self):
+        from django import forms
+        from .models import AdminTaskEffortConfig
+
+        class EffortConfigForm(forms.ModelForm):
+            class Meta:
+                model = AdminTaskEffortConfig
+                fields = ['value', 'label', 'order', 'active']
+
+        return EffortConfigForm
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Effort '{form.instance.label}' created.")
+        return super().form_valid(form)
+
+
+class EffortConfigUpdateView(AdminRequiredMixin, UpdateView):
+    """Edit an effort configuration."""
+    template_name = "admin_console/config/effort_form.html"
+    fields = ['value', 'label', 'order', 'active']
+    success_url = reverse_lazy('admin_console:config_effort_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskEffortConfig
+        return AdminTaskEffortConfig.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Effort '{form.instance.label}' updated.")
+        return super().form_valid(form)
+
+
+class EffortConfigDeleteView(AdminRequiredMixin, DeleteView):
+    """Delete an effort configuration."""
+    template_name = "admin_console/config/effort_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:config_effort_list')
+
+    def get_queryset(self):
+        from .models import AdminTaskEffortConfig
+        return AdminTaskEffortConfig.objects.all()
+
+    def form_valid(self, form):
+        from .models import DeletionProtectedError
+        try:
+            config_name = self.object.label
+            self.object.delete()
+            messages.success(self.request, f"Effort '{config_name}' deleted.")
+            return redirect(self.success_url)
+        except DeletionProtectedError as e:
+            messages.error(self.request, str(e))
+            return redirect('admin_console:config_effort_list')

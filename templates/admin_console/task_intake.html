@@ -71,13 +71,15 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="id_priority" class="form-label">Priority <span class="required">*</span></label>
-                    <select name="priority" id="id_priority" class="form-input" required>
-                        <option value="1">1 - Highest</option>
-                        <option value="2">2 - High</option>
-                        <option value="3" selected>3 - Normal</option>
-                        <option value="4">4 - Low</option>
-                        <option value="5">5 - Lowest</option>
+                    <label for="id_priority_config" class="form-label">Priority <span class="required">*</span></label>
+                    <select name="priority_config" id="id_priority_config" class="form-input" required>
+                        {% for config in priority_configs %}
+                        <option value="{{ config.pk }}" {% if config.value == 3 %}selected{% endif %}>
+                            {{ config.value }} - {{ config.label }}
+                        </option>
+                        {% empty %}
+                        <option value="">-- No priorities configured --</option>
+                        {% endfor %}
                     </select>
                     <p class="form-hint">1 = highest priority, 5 = lowest</p>
                 </div>
@@ -85,12 +87,33 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="id_status" class="form-label">Status</label>
-                    <select name="status" id="id_status" class="form-input">
-                        <option value="backlog" selected>Backlog</option>
-                        <option value="ready">Ready</option>
+                    <label for="id_status_config" class="form-label">Status</label>
+                    <select name="status_config" id="id_status_config" class="form-input">
+                        {% for config in status_configs %}
+                        {% if config.name == 'backlog' or config.name == 'ready' %}
+                        <option value="{{ config.pk }}" {% if config.name == 'backlog' %}selected{% endif %}>
+                            {{ config.display_name }}
+                        </option>
+                        {% endif %}
+                        {% empty %}
+                        <option value="">-- No statuses configured --</option>
+                        {% endfor %}
                     </select>
                     <p class="form-hint">Tasks default to "Backlog" - mark as "Ready" only when actionable</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_project" class="form-label">Project</label>
+                    <select name="project" id="id_project" class="form-input">
+                        {% for project in projects %}
+                        <option value="{{ project.pk }}" {% if default_project and project.pk == default_project.pk %}selected{% endif %}>
+                            {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
+                        </option>
+                        {% empty %}
+                        <option value="">-- Default project will be used --</option>
+                        {% endfor %}
+                    </select>
+                    <p class="form-hint">Select a project or leave default</p>
                 </div>
             </div>
         </div>
@@ -100,19 +123,27 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="id_category" class="form-label">Category</label>
-                    <select name="category" id="id_category" class="form-input">
-                        {% for value, label in category_choices %}
-                        <option value="{{ value }}" {% if value == 'feature' %}selected{% endif %}>{{ label }}</option>
+                    <label for="id_category_config" class="form-label">Category</label>
+                    <select name="category_config" id="id_category_config" class="form-input">
+                        {% for config in category_configs %}
+                        <option value="{{ config.pk }}" {% if config.name == 'feature' %}selected{% endif %}>
+                            {{ config.display_name }}
+                        </option>
+                        {% empty %}
+                        <option value="">-- No categories configured --</option>
                         {% endfor %}
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="id_effort" class="form-label">Effort</label>
-                    <select name="effort" id="id_effort" class="form-input">
-                        {% for value, label in effort_choices %}
-                        <option value="{{ value }}" {% if value == 'M' %}selected{% endif %}>{{ label }}</option>
+                    <label for="id_effort_config" class="form-label">Effort</label>
+                    <select name="effort_config" id="id_effort_config" class="form-input">
+                        {% for config in effort_configs %}
+                        <option value="{{ config.pk }}" {% if config.value == 'M' %}selected{% endif %}>
+                            {{ config.value }} - {{ config.label }}
+                        </option>
+                        {% empty %}
+                        <option value="">-- No effort levels configured --</option>
                         {% endfor %}
                     </select>
                 </div>

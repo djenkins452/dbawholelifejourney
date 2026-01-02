@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 16)
+# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 17)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,65 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Admin Project Tasks - Phase 17 Configurable Task Fields (NEW FEATURE)
+
+**Session:** WLJ Admin Tasks - Phase 17 Configurable Task Fields
+
+**Description:**
+Made task intake fields fully configurable via admin-defined database tables instead of hardcoded enums. Admins can now create, edit, and manage task field options (status, priority, category, effort) through the admin console.
+
+**New Models:**
+- `AdminTaskStatusConfig` - Configurable status options (backlog, ready, in_progress, blocked, done)
+  - Fields: name, display_name, execution_allowed, terminal, order, active
+- `AdminTaskPriorityConfig` - Configurable priority levels (1-5)
+  - Fields: value (integer), label, order, active
+- `AdminTaskCategoryConfig` - Configurable categories (feature, bug, infra, content, business)
+  - Fields: name, display_name, order, active
+- `AdminTaskEffortConfig` - Configurable effort levels (S, M, L)
+  - Fields: value, label, order, active
+
+**AdminTask Model Changes:**
+- Added ForeignKey fields: `status_config`, `priority_config`, `category_config`, `effort_config`
+- Legacy fields retained for backward compatibility during migration
+- Helper methods: `get_status_display_value()`, `get_priority_display_value()`, etc.
+
+**New Routes (Admin Config Management):**
+- `GET /admin-console/projects/config/` - Config dashboard
+- Status: `/config/status/`, `/config/status/new/`, `/config/status/<pk>/edit/`, `/config/status/<pk>/delete/`
+- Priority: `/config/priority/`, `/config/priority/new/`, `/config/priority/<pk>/edit/`, `/config/priority/<pk>/delete/`
+- Category: `/config/category/`, `/config/category/new/`, `/config/category/<pk>/edit/`, `/config/category/<pk>/delete/`
+- Effort: `/config/effort/`, `/config/effort/new/`, `/config/effort/<pk>/edit/`, `/config/effort/<pk>/delete/`
+
+**Task Intake Form Updates:**
+- Dropdowns now populated from active config tables
+- Only active config values appear in dropdowns
+- Form creates tasks with both config ForeignKeys and legacy field values for backward compatibility
+
+**Safety Rules (Deletion Protection):**
+- Config items in use by tasks cannot be deleted (raises `DeletionProtectedError`)
+- Inactive config items cannot be assigned to new tasks
+- All existing tasks linked to config records via data migration
+
+**Migrations:**
+- `0008_phase17_configurable_task_fields.py` - Creates config models, adds FK fields to AdminTask
+- `0009_populate_task_configs.py` - Data migration to populate config tables and link existing tasks
+
+**Modified Files:**
+- `apps/admin_console/models.py` - Added 4 config models, updated AdminTask
+- `apps/admin_console/views.py` - Added TaskConfigDashboardView and CRUD views for all config types
+- `apps/admin_console/urls.py` - Added 17 new URL patterns for config management
+- `templates/admin_console/task_intake.html` - Updated to use config dropdowns
+- `templates/admin_console/config/` - New directory with 13 templates:
+  - `config_dashboard.html`,
+  - `status_list.html`, `status_form.html`, `status_confirm_delete.html`
+  - `priority_list.html`, `priority_form.html`, `priority_confirm_delete.html`
+  - `category_list.html`, `category_form.html`, `category_confirm_delete.html`
+  - `effort_list.html`, `effort_form.html`, `effort_confirm_delete.html`
+
+**Tests:** All 178 admin_console tests pass.
+
+---
 
 ### Admin Project Tasks - Phase 16 Projects Introduction (NEW FEATURE)
 

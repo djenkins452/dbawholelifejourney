@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Effort - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:config_dashboard' %}">Task Configuration</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:config_effort_list' %}">Effort</a>
+                <span>/</span>
+                <span>Delete</span>
+            </nav>
+            <h1 class="page-title">Delete Effort</h1>
+        </div>
+    </div>
+
+    <div class="delete-confirm">
+        <div class="delete-warning">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <h2>Are you sure you want to delete this effort level?</h2>
+            <p><strong>{{ object.value }} - {{ object.label }}</strong></p>
+            <p class="warning-note">This action cannot be undone. If this effort level is used by any tasks, deletion will be blocked.</p>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-actions">
+                <button type="submit" class="btn btn-danger">Delete Effort</button>
+                <a href="{% url 'admin_console:config_effort_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.delete-confirm {
+    max-width: 500px;
+}
+
+.delete-warning {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+    margin-bottom: var(--space-6);
+}
+
+.delete-warning svg {
+    color: #dc2626;
+    margin-bottom: var(--space-4);
+}
+
+.delete-warning h2 {
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-size-lg);
+}
+
+.delete-warning p {
+    margin: 0;
+    color: var(--color-text-muted);
+}
+
+.warning-note {
+    margin-top: var(--space-4) !important;
+    font-size: var(--font-size-sm);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.btn-danger {
+    background: #dc2626;
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: #b91c1c;
+}
+</style>
+{% endblock %}

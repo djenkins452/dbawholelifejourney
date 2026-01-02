@@ -1,0 +1,120 @@
+{
+  "project": {
+    "name": "WLJ Goals & Habit Matrix System Upgrade",
+    "description": "Redesign and implement a structured goals system with habit-based visual tracking using an optimized matrix layout that supports missed days, backfilled entries, and AI-driven progress analysis."
+  },
+  "tasks": [
+    {
+      "phase": "Phase 1",
+      "name": "Define Goal Structure and Habit Rules",
+      "description": {
+        "objective": "Establish a clear and enforceable data model for goals that support start/end dates, habits, and daily completion tracking.",
+        "inputs": [
+          "Existing WLJ Goals data model",
+          "Current Goals UI and backend logic"
+        ],
+        "actions": [
+          "Define required goal fields: name, purpose, start_date, end_date, habit_required (boolean).",
+          "Define habit rules: one habit entry per calendar day between start and end dates.",
+          "Document that missed days are valid data states, not errors.",
+          "Specify that goals with habits must generate a habit matrix automatically."
+        ],
+        "output": "A documented goal and habit rule set that can be enforced by both backend validation and AI execution."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Implement Optimized Habit Matrix Sizing Logic",
+      "description": {
+        "objective": "Create a habit matrix that minimizes unused space while preserving a clean, readable grid.",
+        "inputs": [
+          "Goal start_date and end_date",
+          "Total calculated habit days"
+        ],
+        "actions": [
+          "Calculate total_days = number of days between start_date and end_date (inclusive).",
+          "Set rows = floor(sqrt(total_days)).",
+          "Set columns = ceil(total_days / rows).",
+          "Generate rows × columns boxes.",
+          "Mark any box with index greater than total_days as disabled."
+        ],
+        "output": "Habit matrix grid is generated using a rectangular layout (e.g., 12x13) with minimal unused boxes."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 3",
+      "name": "Map Habit Completion to Matrix Boxes",
+      "description": {
+        "objective": "Ensure each habit day maps deterministically to a matrix box and visually reflects completion or missed status.",
+        "inputs": [
+          "Habit completion records",
+          "System current date"
+        ],
+        "actions": [
+          "Assign box numbers sequentially starting at 1.",
+          "Map Day 1 to box 1, Day 2 to box 2, continuing sequentially.",
+          "Mark completed days as green.",
+          "Mark missed days as light yellow once the day has passed with no entry.",
+          "Ensure disabled boxes are grey and non-interactive."
+        ],
+        "output": "Each habit day is correctly mapped to a visual box with accurate status coloring."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Add Habit Logging Controls",
+      "description": {
+        "objective": "Allow users to log habits in real time or retroactively without breaking data integrity.",
+        "inputs": [
+          "Goal habit matrix",
+          "User interaction events"
+        ],
+        "actions": [
+          "Add an 'I Did It' button that logs completion for the current date.",
+          "Add a 'Pick a Date' button that allows selecting a past date.",
+          "Validate that selected dates fall within the goal date range.",
+          "Update the corresponding matrix box upon successful entry."
+        ],
+        "output": "Users can log habit completion for today or missed days, and the matrix updates immediately."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Expose Habit Matrix to AI for Analysis",
+      "description": {
+        "objective": "Enable WLJ AI to read, reason over, and coach based on habit consistency patterns.",
+        "inputs": [
+          "Habit completion data",
+          "Matrix box statuses"
+        ],
+        "actions": [
+          "Expose habit matrix data to the AI context.",
+          "Allow AI to calculate streaks, recovery patterns, and consistency ratios.",
+          "Allow AI to reference missed days without judgment language.",
+          "Ensure AI recommendations align with the user's stated goal purpose."
+        ],
+        "output": "AI can analyze habit adherence and provide actionable, supportive guidance."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": true
+    }
+  ]
+}

@@ -4,7 +4,7 @@
 # Description: Admin console models for project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 17.5 - Executable Task Standard)
+# Last Updated: 2026-01-02 (Removed phase status validation for task execution)
 # ==============================================================================
 
 from django.core.exceptions import ValidationError
@@ -607,14 +607,6 @@ class AdminTask(models.Model):
                 f"Cannot transition from '{self.status}' to '{new_status}'. "
                 f"Allowed transitions: {self.ALLOWED_TRANSITIONS.get(self.status, [])}"
             )
-
-        # Check if moving to in_progress requires active phase
-        if new_status == 'in_progress':
-            if self.phase.status != 'in_progress':
-                raise TaskStatusTransitionError(
-                    f"Cannot move task to 'in_progress'. "
-                    f"Phase '{self.phase.name}' is not active (status: {self.phase.status})."
-                )
 
         # Check if blocked requires a reason
         if new_status == 'blocked':

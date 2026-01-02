@@ -959,9 +959,13 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
         self.assertFalse(AdminTask.is_valid_transition('done', 'in_progress'))
         self.assertFalse(AdminTask.is_valid_transition('done', 'backlog'))
 
-    def test_transition_to_in_progress_requires_active_phase(self):
-        """Task cannot move to in_progress if phase is not active."""
-        from apps.admin_console.models import AdminTask, TaskStatusTransitionError
+    def test_transition_to_in_progress_allowed_regardless_of_phase(self):
+        """Task can move to in_progress regardless of phase status.
+
+        This test verifies that the phase status validation has been removed,
+        allowing Claude to work on Ready tasks in any phase.
+        """
+        from apps.admin_console.models import AdminTask
 
         task = AdminTask.objects.create(
             title='Test Task',
@@ -974,9 +978,9 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             created_by='human'
         )
 
-        with self.assertRaises(TaskStatusTransitionError) as context:
-            task.validate_status_transition('in_progress')
-        self.assertIn('not active', str(context.exception))
+        # Should NOT raise - phase status no longer blocks transition
+        result = task.validate_status_transition('in_progress')
+        self.assertTrue(result)
 
     def test_transition_to_blocked_requires_reason(self):
         """Task cannot move to blocked without a reason."""

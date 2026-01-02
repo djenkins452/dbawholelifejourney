@@ -396,19 +396,11 @@ a:hover {
         background: var(--color-surface);
     }
 
-    /* Keep the ? in a circle on mobile */
-    .help-button .help-icon-text {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 28px;
-        height: 28px;
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: 50%;
+    /* Style the help icon on mobile */
+    .help-button .help-icon {
+        width: 24px;
+        height: 24px;
         flex-shrink: 0;
-        /* Adjust for font metrics - shift ? slightly right to center visually */
-        padding-left: 2px;
     }
 
     /* User menu - show name on mobile */

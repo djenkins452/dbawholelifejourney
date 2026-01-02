@@ -2161,6 +2161,8 @@ class AdminProjectCreateView(AdminRequiredMixin, CreateView):
 
     GET /admin-console/projects/new/
     POST /admin-console/projects/new/
+
+    Supports popup mode (?popup=1) for creating projects from Task Intake form.
     """
     template_name = "admin_console/admin_project_form.html"
     success_url = reverse_lazy('admin_console:admin_project_list')
@@ -2192,16 +2194,30 @@ class AdminProjectCreateView(AdminRequiredMixin, CreateView):
         return AdminProject.objects.all()
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        # For popup mode, we'll re-render the template with the created project
+        # so it can notify the opener window
+        if self.request.GET.get('popup') == '1':
+            return render(self.request, self.template_name, {
+                'form': self.get_form_class()(),
+                'is_popup': True,
+                'created_project': self.object
+            })
         messages.success(self.request, f"Project '{form.instance.name}' created.")
-        return super().form_valid(form)
+        return response
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # Check if we came from task intake
         context['from_intake'] = self.request.GET.get('from') == 'intake'
+        # Check if this is a popup window
+        context['is_popup'] = self.request.GET.get('popup') == '1'
         return context
 
     def get_success_url(self):
+        # If popup mode, this won't be used (we render the template with JS to close)
+        if self.request.GET.get('popup') == '1':
+            return reverse_lazy('admin_console:admin_project_create') + '?popup=1'
         # If we came from task intake, go back there
         if self.request.GET.get('from') == 'intake':
             return reverse_lazy('admin_console:task_intake')

@@ -38,6 +38,30 @@
         <div class="form-section">
             <h2 class="form-section-title">Required Fields</h2>
 
+            <!-- Project field FIRST -->
+            <div class="form-group">
+                <label for="id_project" class="form-label">Project <span class="required">*</span></label>
+                <div class="input-with-action">
+                    <select name="project" id="id_project" class="form-input" required>
+                        {% for project in projects %}
+                        <option value="{{ project.pk }}" {% if default_project and project.pk == default_project.pk %}selected{% endif %}>
+                            {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
+                        </option>
+                        {% empty %}
+                        <option value="">-- No projects available --</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" id="add-project-btn" class="btn btn-sm btn-ghost" title="Create new project">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        New
+                    </button>
+                </div>
+                <p class="form-hint">Select the project this task belongs to, or click "New" to create one</p>
+            </div>
+
             <div class="form-group">
                 <label for="id_title" class="form-label">Title <span class="required">*</span></label>
                 <input type="text" name="title" id="id_title" class="form-input"
@@ -89,29 +113,6 @@
                 </div>
             </div>
 
-            <div class="form-group">
-                <label for="id_project" class="form-label">Project <span class="required">*</span></label>
-                <div class="input-with-action">
-                    <select name="project" id="id_project" class="form-input" required>
-                        {% for project in projects %}
-                        <option value="{{ project.pk }}" {% if default_project and project.pk == default_project.pk %}selected{% endif %}>
-                            {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
-                        </option>
-                        {% empty %}
-                        <option value="">-- No projects available --</option>
-                        {% endfor %}
-                    </select>
-                    <a href="{% url 'admin_console:admin_project_create' %}?from=intake" class="btn btn-sm btn-ghost" title="Create new project">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19"/>
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                        </svg>
-                        New
-                    </a>
-                </div>
-                <p class="form-hint">Select the project this task belongs to, or <a href="{% url 'admin_console:admin_project_create' %}?from=intake">create a new project</a></p>
-            </div>
-
             <div class="form-row">
                 <div class="form-group">
                     <label for="id_phase" class="form-label">Phase <span class="required">*</span></label>
@@ -144,36 +145,20 @@
                 </div>
             </div>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="id_status_config" class="form-label">Status</label>
-                    <select name="status_config" id="id_status_config" class="form-input">
-                        {% for config in status_configs %}
-                        {% if config.name == 'backlog' or config.name == 'ready' %}
-                        <option value="{{ config.pk }}" {% if config.name == 'backlog' %}selected{% endif %}>
-                            {{ config.display_name }}
-                        </option>
-                        {% endif %}
-                        {% empty %}
-                        <option value="">-- No statuses configured --</option>
-                        {% endfor %}
-                    </select>
-                    <p class="form-hint">Tasks default to "Backlog" - mark as "Ready" only when actionable</p>
-                </div>
-
-                <div class="form-group">
-                    <label for="id_project" class="form-label">Project</label>
-                    <select name="project" id="id_project" class="form-input">
-                        {% for project in projects %}
-                        <option value="{{ project.pk }}" {% if default_project and project.pk == default_project.pk %}selected{% endif %}>
-                            {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
-                        </option>
-                        {% empty %}
-                        <option value="">-- Default project will be used --</option>
-                        {% endfor %}
-                    </select>
-                    <p class="form-hint">Select a project or leave default</p>
-                </div>
+            <div class="form-group">
+                <label for="id_status_config" class="form-label">Status</label>
+                <select name="status_config" id="id_status_config" class="form-input">
+                    {% for config in status_configs %}
+                    {% if config.name == 'backlog' or config.name == 'ready' %}
+                    <option value="{{ config.pk }}" {% if config.name == 'backlog' %}selected{% endif %}>
+                        {{ config.display_name }}
+                    </option>
+                    {% endif %}
+                    {% empty %}
+                    <option value="">-- No statuses configured --</option>
+                    {% endfor %}
+                </select>
+                <p class="form-hint">Tasks default to "Backlog" - mark as "Ready" only when actionable</p>
             </div>
         </div>
 
@@ -388,4 +373,50 @@
     border-bottom: 1px solid var(--color-border);
 }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addProjectBtn = document.getElementById('add-project-btn');
+    const projectSelect = document.getElementById('id_project');
+
+    if (addProjectBtn) {
+        addProjectBtn.addEventListener('click', function() {
+            // Open project create form in a popup window
+            const popupWidth = 600;
+            const popupHeight = 500;
+            const left = (window.screen.width - popupWidth) / 2;
+            const top = (window.screen.height - popupHeight) / 2;
+
+            const popup = window.open(
+                '{% url "admin_console:admin_project_create" %}?popup=1',
+                'CreateProject',
+                `width=${popupWidth},height=${popupHeight},left=${left},top=${top},scrollbars=yes,resizable=yes`
+            );
+
+            // Check if popup was blocked
+            if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+                alert('Popup was blocked. Please allow popups for this site.');
+                return;
+            }
+
+            // Listen for message from popup when project is created
+            window.addEventListener('message', function handler(event) {
+                if (event.data && event.data.type === 'projectCreated') {
+                    const newProject = event.data.project;
+
+                    // Add new option to select and select it
+                    const option = document.createElement('option');
+                    option.value = newProject.id;
+                    option.textContent = newProject.name;
+                    option.selected = true;
+                    projectSelect.appendChild(option);
+
+                    // Remove this listener
+                    window.removeEventListener('message', handler);
+                }
+            });
+        });
+    }
+});
+</script>
 {% endblock %}

@@ -9,7 +9,7 @@
             <nav class="breadcrumb">
                 <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
                 <span>/</span>
-                <a href="{% url 'admin_console:admin_task_list' %}">Admin Tasks</a>
+                <a href="{% url 'admin_console:admin_task_list' %}">Task List</a>
                 <span>/</span>
                 <span>{% if object %}Edit{% else %}New{% endif %}</span>
             </nav>
@@ -17,15 +17,42 @@
         </div>
     </div>
 
-    <form method="post" class="admin-form">
+    <form method="post" class="admin-form" enctype="multipart/form-data">
         {% csrf_token %}
 
         <div class="form-section">
+            <h2 class="form-section-title">Required Fields</h2>
+
+            <!-- Project field with New button -->
+            <div class="form-group">
+                <label for="id_project" class="form-label">Project <span class="required">*</span></label>
+                <div class="input-with-action">
+                    <select name="project" id="id_project" class="form-input" required>
+                        {% for project in projects %}
+                        <option value="{{ project.pk }}" {% if object and object.project_id == project.pk %}selected{% endif %}>
+                            {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
+                        </option>
+                        {% empty %}
+                        <option value="">-- No projects available --</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" id="add-project-btn" class="btn btn-sm btn-ghost" title="Create new project">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        New
+                    </button>
+                </div>
+                <p class="form-hint">Select the project this task belongs to, or click "New" to create one</p>
+            </div>
+
             <div class="form-group">
                 <label for="id_title" class="form-label">Title <span class="required">*</span></label>
                 <input type="text" name="title" id="id_title" class="form-input"
-                       value="{{ form.title.value|default:'' }}" required maxlength="200"
+                       value="{{ object.title|default:'' }}" required maxlength="200"
                        placeholder="e.g., Implement user authentication">
+                <p class="form-hint">Short, descriptive title for the task</p>
             </div>
 
             <!-- Executable Task Description Section (WLJ Executable Task Standard) -->
@@ -75,75 +102,163 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="id_category" class="form-label">Category</label>
-                    <select name="category" id="id_category" class="form-input" required>
-                        <option value="feature" {% if form.category.value == 'feature' %}selected{% endif %}>Feature</option>
-                        <option value="bug" {% if form.category.value == 'bug' %}selected{% endif %}>Bug</option>
-                        <option value="infra" {% if form.category.value == 'infra' %}selected{% endif %}>Infrastructure</option>
-                        <option value="content" {% if form.category.value == 'content' %}selected{% endif %}>Content</option>
-                        <option value="business" {% if form.category.value == 'business' %}selected{% endif %}>Business</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="id_priority" class="form-label">Priority (1=highest)</label>
-                    <input type="number" name="priority" id="id_priority" class="form-input"
-                           value="{{ form.priority.value|default:'3' }}" required min="1" max="10">
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="id_status" class="form-label">Status</label>
-                    <select name="status" id="id_status" class="form-input" required>
-                        <option value="backlog" {% if form.status.value == 'backlog' %}selected{% endif %}>Backlog</option>
-                        <option value="ready" {% if form.status.value == 'ready' %}selected{% endif %}>Ready</option>
-                        <option value="in_progress" {% if form.status.value == 'in_progress' %}selected{% endif %}>In Progress</option>
-                        <option value="blocked" {% if form.status.value == 'blocked' %}selected{% endif %}>Blocked</option>
-                        <option value="done" {% if form.status.value == 'done' %}selected{% endif %}>Done</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="id_effort" class="form-label">Effort</label>
-                    <select name="effort" id="id_effort" class="form-input" required>
-                        <option value="S" {% if form.effort.value == 'S' %}selected{% endif %}>Small</option>
-                        <option value="M" {% if form.effort.value == 'M' %}selected{% endif %}>Medium</option>
-                        <option value="L" {% if form.effort.value == 'L' %}selected{% endif %}>Large</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="id_phase" class="form-label">Phase</label>
+                    <label for="id_phase" class="form-label">Phase <span class="required">*</span></label>
                     <select name="phase" id="id_phase" class="form-input" required>
-                        {% for phase in form.fields.phase.queryset %}
-                        <option value="{{ phase.pk }}" {% if form.phase.value == phase.pk|stringformat:"s" %}selected{% endif %}>
-                            Phase {{ phase.phase_number }}: {{ phase.name }}
+                        {% for phase in phases %}
+                        <option value="{{ phase.pk }}" {% if object and object.phase_id == phase.pk %}selected{% endif %}>
+                            Phase {{ phase.phase_number }}{% if phase.name %}: {{ phase.name }}{% endif %}{% if phase.status == 'in_progress' %} (Active){% endif %}
                         </option>
+                        {% empty %}
+                        <option value="">-- No phases available --</option>
+                        {% endfor %}
+                    </select>
+                    <p class="form-hint">Select the project phase for this task</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_priority" class="form-label">Priority <span class="required">*</span></label>
+                    <select name="priority" id="id_priority" class="form-input" required>
+                        {% for config in priority_configs %}
+                        <option value="{{ config.value }}" {% if object and object.priority == config.value %}selected{% elif not object and config.value == 3 %}selected{% endif %}>
+                            {{ config.value }} - {{ config.label }}
+                        </option>
+                        {% empty %}
+                        <option value="1" {% if object.priority == 1 %}selected{% endif %}>1 - Highest</option>
+                        <option value="2" {% if object.priority == 2 %}selected{% endif %}>2 - High</option>
+                        <option value="3" {% if object.priority == 3 or not object %}selected{% endif %}>3 - Medium</option>
+                        <option value="4" {% if object.priority == 4 %}selected{% endif %}>4 - Low</option>
+                        <option value="5" {% if object.priority == 5 %}selected{% endif %}>5 - Lowest</option>
+                        {% endfor %}
+                    </select>
+                    <p class="form-hint">1 = highest priority, 5 = lowest</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="id_status" class="form-label">Status</label>
+                <select name="status" id="id_status" class="form-input">
+                    {% for config in status_configs %}
+                    <option value="{{ config.name }}" {% if object and object.status == config.name %}selected{% elif not object and config.name == 'backlog' %}selected{% endif %}>
+                        {{ config.display_name }}
+                    </option>
+                    {% empty %}
+                    <option value="backlog" {% if object.status == 'backlog' or not object %}selected{% endif %}>Backlog</option>
+                    <option value="ready" {% if object.status == 'ready' %}selected{% endif %}>Ready</option>
+                    <option value="in_progress" {% if object.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                    <option value="blocked" {% if object.status == 'blocked' %}selected{% endif %}>Blocked</option>
+                    <option value="done" {% if object.status == 'done' %}selected{% endif %}>Done</option>
+                    {% endfor %}
+                </select>
+                <p class="form-hint">Current status of this task</p>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">Optional Fields</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_category" class="form-label">Category</label>
+                    <select name="category" id="id_category" class="form-input">
+                        {% for config in category_configs %}
+                        <option value="{{ config.name }}" {% if object and object.category == config.name %}selected{% elif not object and config.name == 'feature' %}selected{% endif %}>
+                            {{ config.display_name }}
+                        </option>
+                        {% empty %}
+                        <option value="feature" {% if object.category == 'feature' or not object %}selected{% endif %}>Feature</option>
+                        <option value="bug" {% if object.category == 'bug' %}selected{% endif %}>Bug</option>
+                        <option value="infra" {% if object.category == 'infra' %}selected{% endif %}>Infrastructure</option>
+                        <option value="content" {% if object.category == 'content' %}selected{% endif %}>Content</option>
+                        <option value="business" {% if object.category == 'business' %}selected{% endif %}>Business</option>
                         {% endfor %}
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="id_created_by" class="form-label">Created By</label>
-                    <select name="created_by" id="id_created_by" class="form-input" required>
-                        <option value="human" {% if form.created_by.value == 'human' %}selected{% endif %}>Human</option>
-                        <option value="claude" {% if form.created_by.value == 'claude' %}selected{% endif %}>Claude</option>
+                    <label for="id_effort" class="form-label">Effort</label>
+                    <select name="effort" id="id_effort" class="form-input">
+                        {% for config in effort_configs %}
+                        <option value="{{ config.value }}" {% if object and object.effort == config.value %}selected{% elif not object and config.value == 'M' %}selected{% endif %}>
+                            {{ config.value }} - {{ config.label }}
+                        </option>
+                        {% empty %}
+                        <option value="S" {% if object.effort == 'S' %}selected{% endif %}>S - Small</option>
+                        <option value="M" {% if object.effort == 'M' or not object %}selected{% endif %}>M - Medium</option>
+                        <option value="L" {% if object.effort == 'L' %}selected{% endif %}>L - Large</option>
+                        {% endfor %}
                     </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_created_by" class="form-label">Created By</label>
+                    <select name="created_by" id="id_created_by" class="form-input">
+                        <option value="human" {% if object.created_by == 'human' or not object %}selected{% endif %}>Human</option>
+                        <option value="claude" {% if object.created_by == 'claude' %}selected{% endif %}>Claude</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_attachment" class="form-label">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                        Attachment
+                    </label>
+                    <input type="file" name="attachment" id="id_attachment" class="form-input" accept="image/*">
+                    <p class="form-hint">Optional screenshot or image</p>
                 </div>
             </div>
         </div>
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
                 {% if object %}Save Changes{% else %}Create Task{% endif %}
             </button>
             <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-ghost">Cancel</a>
         </div>
     </form>
 </div>
+
+<!-- JavaScript for New Project popup -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addProjectBtn = document.getElementById('add-project-btn');
+    if (addProjectBtn) {
+        addProjectBtn.addEventListener('click', function() {
+            const popup = window.open(
+                '{% url "admin_console:admin_project_create" %}?popup=1',
+                'NewProject',
+                'width=500,height=400,resizable=yes,scrollbars=yes'
+            );
+
+            // Listen for message from popup
+            window.addEventListener('message', function handler(event) {
+                if (event.data && event.data.type === 'projectCreated') {
+                    const project = event.data.project;
+                    const select = document.getElementById('id_project');
+
+                    // Add new option
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    option.selected = true;
+                    select.appendChild(option);
+
+                    // Remove the event listener
+                    window.removeEventListener('message', handler);
+                }
+            });
+        });
+    }
+});
+</script>
 
 <style>
 .breadcrumb {
@@ -171,6 +286,14 @@
     margin-bottom: var(--space-6);
 }
 
+.form-section-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0 0 var(--space-4) 0;
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -185,6 +308,22 @@
 
 .form-group {
     margin-bottom: var(--space-4);
+}
+
+.input-with-action {
+    display: flex;
+    gap: var(--space-2);
+    align-items: stretch;
+}
+
+.input-with-action select {
+    flex: 1;
+}
+
+.input-with-action .btn-sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
 }
 
 .form-label {

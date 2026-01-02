@@ -3704,3 +3704,29 @@ class AdminProjectCreateViewTest(AdminTestMixin, TestCase):
         self.assertIn(b'popup-container', response.content)
         # Should include the form
         self.assertIn(b'id_name', response.content)
+
+    def test_create_project_from_intake_redirects_back(self):
+        """Test creating a project from task intake redirects back to intake."""
+        from apps.admin_console.models import AdminProject
+
+        response = self.client.post(
+            '/admin-console/projects/new/?from=intake',
+            {
+                'name': 'Project From Intake',
+                'description': 'Created from task intake form'
+            }
+        )
+
+        # Should redirect to task intake
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin-console/projects/intake/', response.url)
+
+        # Project should be created
+        self.assertTrue(AdminProject.objects.filter(name='Project From Intake').exists())
+
+    def test_create_project_from_intake_cancel_links_to_intake(self):
+        """Test that cancel button goes back to intake when from=intake."""
+        response = self.client.get('/admin-console/projects/new/?from=intake')
+        self.assertEqual(response.status_code, 200)
+        # Cancel link should point to task intake
+        self.assertIn(b'/admin-console/projects/intake/', response.content)

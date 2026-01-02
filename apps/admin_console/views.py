@@ -2684,3 +2684,101 @@ class ReadyTasksAPIView(View):
         }
 
         return JsonResponse(result)
+
+
+class UpdateTaskStatusAPIView(View):
+    """
+    API endpoint for Claude Code to update task status.
+
+    This endpoint allows Claude Code to mark tasks as done or change status
+    after completing work on them.
+
+    Authentication:
+        Requires CLAUDE_API_KEY header matching settings.CLAUDE_API_KEY
+
+    POST /admin-console/api/claude/tasks/<id>/status/
+    Body (JSON):
+        - status: New status value (e.g., 'done', 'in_progress', 'blocked')
+        - reason: Optional reason (required for 'blocked' status)
+
+    Returns:
+        JSON object with success status and updated task info
+    """
+
+    def post(self, request, pk):
+        import json
+        from django.conf import settings
+        from .models import AdminTask, TaskStatusTransitionError
+
+        # Authenticate via API key
+        api_key = request.headers.get('X-Claude-API-Key', '')
+
+        # Check if API key is configured
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse(
+                {'error': 'CLAUDE_API_KEY not configured on server'},
+                status=500
+            )
+
+        # Validate API key
+        if not api_key or api_key != settings.CLAUDE_API_KEY:
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401
+            )
+
+        # Get the task
+        try:
+            task = AdminTask.objects.get(pk=pk)
+        except AdminTask.DoesNotExist:
+            return JsonResponse(
+                {'error': f'Task with id {pk} not found'},
+                status=404
+            )
+
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse(
+                {'error': 'Invalid JSON in request body'},
+                status=400
+            )
+
+        new_status = data.get('status')
+        reason = data.get('reason', '')
+
+        if not new_status:
+            return JsonResponse(
+                {'error': 'Missing required field: status'},
+                status=400
+            )
+
+        # Validate status value
+        valid_statuses = [s[0] for s in AdminTask.STATUS_CHOICES]
+        if new_status not in valid_statuses:
+            return JsonResponse(
+                {'error': f'Invalid status: {new_status}. Valid values: {valid_statuses}'},
+                status=400
+            )
+
+        # Attempt the status transition
+        try:
+            old_status = task.status
+            task.transition_status(new_status, reason=reason, created_by='claude')
+
+            return JsonResponse({
+                'success': True,
+                'task': {
+                    'id': task.id,
+                    'title': task.title,
+                    'old_status': old_status,
+                    'new_status': task.status,
+                }
+            })
+
+        except TaskStatusTransitionError as e:
+            return JsonResponse(
+                {'error': str(e)},
+                status=400
+            )

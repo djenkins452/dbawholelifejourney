@@ -2584,3 +2584,103 @@ class EffortConfigDeleteView(AdminRequiredMixin, DeleteView):
         except DeletionProtectedError as e:
             messages.error(self.request, str(e))
             return redirect('admin_console:config_effort_list')
+
+
+# ==============================================================================
+# Claude Code API - Ready Tasks Endpoint
+# ==============================================================================
+
+class ReadyTasksAPIView(View):
+    """
+    API endpoint for Claude Code to fetch tasks with 'ready' status.
+
+    This endpoint is used by Claude Code's "What's Next?" protocol to
+    automatically discover and execute ready tasks.
+
+    Authentication:
+        Requires CLAUDE_API_KEY header matching settings.CLAUDE_API_KEY
+
+    GET /admin-console/api/claude/ready-tasks/
+    Query params:
+        - limit (optional, default 10): Maximum tasks to return
+
+    Returns:
+        JSON object with:
+        - count: Number of ready tasks
+        - tasks: Array of task objects with full executable description
+
+    Example response:
+        {
+            "count": 1,
+            "tasks": [{
+                "id": 123,
+                "title": "Update CLAUDE.md with Executable Task Standard",
+                "phase": "Phase 1",
+                "priority": 1,
+                "project": "WLJ Executable Work Orchestration System",
+                "description": {
+                    "objective": "Define a permanent system-level standard...",
+                    "inputs": ["CLAUDE.md file in the project root"],
+                    "actions": ["Open the CLAUDE.md file", "Add a section..."],
+                    "output": "CLAUDE.md contains a clearly documented..."
+                }
+            }]
+        }
+    """
+
+    def get(self, request):
+        from django.conf import settings
+        from .models import AdminTask
+
+        # Authenticate via API key
+        api_key = request.headers.get('X-Claude-API-Key', '')
+
+        # Check if API key is configured
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse(
+                {'error': 'CLAUDE_API_KEY not configured on server'},
+                status=500
+            )
+
+        # Validate API key
+        if not api_key or api_key != settings.CLAUDE_API_KEY:
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401
+            )
+
+        # Get limit from query params
+        try:
+            limit = int(request.GET.get('limit', 10))
+            if limit < 1:
+                limit = 10
+            elif limit > 50:
+                limit = 50
+        except (ValueError, TypeError):
+            limit = 10
+
+        # Fetch ready tasks ordered by priority (lowest number = highest priority)
+        tasks = AdminTask.objects.filter(
+            status='ready'
+        ).select_related(
+            'phase', 'project'
+        ).order_by('priority', 'created_at')[:limit]
+
+        # Build response with full executable task structure
+        result = {
+            'count': tasks.count(),
+            'tasks': [
+                {
+                    'id': task.id,
+                    'title': task.title,
+                    'phase': str(task.phase),
+                    'priority': task.priority,
+                    'project': task.project.name,
+                    'description': task.description,
+                    'created_at': task.created_at.isoformat(),
+                }
+                for task in tasks
+            ]
+        }
+
+        return JsonResponse(result)

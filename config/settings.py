@@ -50,6 +50,10 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
 
+# Claude Code API Key for task fetching
+# Used by Claude Code to authenticate with the Ready Tasks API endpoint
+CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
+
 # Log OpenAI configuration status at startup
 if OPENAI_API_KEY:
     print(f"OpenAI configured with model: {OPENAI_MODEL}")

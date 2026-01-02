@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Admin Project Tasks - Phase 17)
+# Last Updated: 2026-01-01 (Prayer Request Button Text Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,21 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Prayer Request Button Text Fix (UI FIX)
+
+**Session:** Prayer Request Fix
+
+**Problem:**
+The button to add a prayer request on the Faith home page said "Add your first prayer request" even when the user already had prayer requests. The text implied it was the user's first prayer.
+
+**Solution:**
+Changed the button text from "Add your first prayer request" to "Add a prayer request" to be accurate regardless of whether the user has existing prayers.
+
+**Files Modified:**
+- `templates/faith/home.html` - Updated button text on line 66
+
+---
 
 ### Admin Project Tasks - Phase 17 Configurable Task Fields (NEW FEATURE)
 

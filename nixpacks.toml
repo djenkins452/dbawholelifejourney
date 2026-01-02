@@ -4,11 +4,12 @@
 # Description: Nixpacks configuration for Railway deployment
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-29
-# Last Updated: 2025-12-29
+# Last Updated: 2026-01-01 (Added load_project_from_json)
 # ==============================================================================
 
 # This file configures Nixpacks to use our Procfile for the start command
 # instead of auto-detecting it (which can cause caching issues)
+# IMPORTANT: Keep this in sync with Procfile!
 
 [start]
-cmd = "python manage.py migrate --noinput && python manage.py load_initial_data && python manage.py reload_help_content && python manage.py load_danny_workout_templates && python manage.py load_reading_plans && python manage.py load_phase1_data && python manage.py collectstatic --noinput && gunicorn config.wsgi --log-file -"
+cmd = "python manage.py migrate --noinput && python manage.py load_initial_data && python manage.py reload_help_content && python manage.py load_danny_workout_templates && python manage.py load_reading_plans && python manage.py load_phase1_data && python manage.py load_project_from_json project_blueprints/wlj_executable_work_orchestration.json && python manage.py recalculate_task_priorities && python manage.py collectstatic --noinput && gunicorn config.wsgi --log-file -"

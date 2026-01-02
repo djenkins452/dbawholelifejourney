@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-02 (Habit Goal Matrix Sizing)
+# Last Updated: 2026-01-02 (Nightly Scheduler Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,36 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-02 Changes
+
+### Nightly Task Priority Scheduler Fix
+
+**Issue:** Tasks due "today" were not automatically moving from "Soon" to "Now" priority overnight.
+
+**Root Causes:**
+1. **Missing --preload flag:** The gunicorn command was missing `--preload`, causing APScheduler to start in worker processes instead of the master process. When workers are recycled, the scheduler dies with them.
+
+2. **Wrong scheduler time:** The scheduler was running at 00:05 UTC, which is 7:05 PM EST the previous evening. This meant tasks that should be "Now" on the current day weren't updated until the next day.
+
+**Solution:**
+1. Added `--preload` flag to gunicorn in both Procfile and railway.json
+   - Scheduler now starts once in master process before forking workers
+   - Survives worker recycling
+
+2. Changed scheduler time from 00:05 UTC to 06:00 UTC (01:00 EST)
+   - Ensures tasks update at the right time for US Eastern timezone
+   - Tasks due "today" correctly show as "now" priority
+
+3. Improved logging throughout
+   - Clear startup logs confirm scheduler is running
+   - Job execution logs include UTC timestamps
+
+**Files Modified:**
+- `Procfile` - Added --preload flag
+- `railway.json` - Added --preload flag and recalculate_task_priorities command
+- `config/wsgi.py` - Better startup logging
+- `apps/life/jobs.py` - Added execution timestamps
+
+---
 
 ### Habit Goal Matrix Sizing Implementation (Phase 2)
 

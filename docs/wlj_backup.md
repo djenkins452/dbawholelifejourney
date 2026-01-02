@@ -4,13 +4,13 @@
 # Description: Disaster recovery playbook and backup procedures
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30
+# Last Updated: 2026-01-02
 # ==============================================================================
 
 # WLJ Backup - Disaster Recovery Playbook
 
-**Document Version:** 1.0
-**Last Updated:** 2025-12-30
+**Document Version:** 1.1
+**Last Updated:** 2026-01-02
 **Authority:** This document is the SOLE operational authority for backup, restore, and disaster recovery operations. Claude instances executing recovery operations treat this document as executable specification.
 
 ---
@@ -157,5 +157,21 @@ After any restore:
 
 ---
 
+## 6. BACKUP TAG HISTORY
+
+| Tag | Date | Description | Command to Restore |
+|-----|------|-------------|-------------------|
+| `backup-2026-01-02-timezone-fix` | 2026-01-02 | After timezone IANA format fix - Dashboard working | `git checkout backup-2026-01-02-timezone-fix` |
+
+### Most Recent Backup Command Used
+
+```bash
+# Created 2026-01-02 after fixing timezone error (US/Eastern → America/New_York)
+git tag -a "backup-2026-01-02-timezone-fix" -m "Backup after timezone IANA format fix - Dashboard working"
+git push origin "backup-2026-01-02-timezone-fix"
+```
+
+---
+
 *For backup operation reports, see `docs/wlj_backup_report.md`*
-*Last updated: 2025-12-30*
+*Last updated: 2026-01-02*

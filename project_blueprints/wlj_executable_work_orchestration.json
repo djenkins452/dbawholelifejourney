@@ -1,0 +1,209 @@
+{
+  "project": {
+    "name": "WLJ Executable Work Orchestration System",
+    "description": "Implement a fully governed, AI-executable task system where phases control order, priorities control focus, and all work is deterministic and auditable."
+  },
+  "tasks": [
+    {
+      "phase": "Phase 1",
+      "name": "Update CLAUDE.md with Executable Task Standard",
+      "description": {
+        "objective": "Define a permanent system-level standard that specifies what information every WLJ task must contain to be executable by AI.",
+        "inputs": [
+          "CLAUDE.md file in the project root"
+        ],
+        "actions": [
+          "Open the CLAUDE.md file.",
+          "Add a section titled 'WLJ EXECUTABLE TASK STANDARD (MANDATORY)'.",
+          "Document that every task must include objective, inputs, actions, and output.",
+          "Document that Claude must refuse execution if any field is missing."
+        ],
+        "output": "CLAUDE.md contains a clearly documented Executable Task Standard."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 1",
+      "name": "Define Run Task execution behavior",
+      "description": {
+        "objective": "Ensure Claude executes tasks deterministically and never guesses or infers missing information.",
+        "inputs": [
+          "CLAUDE.md file in the project root"
+        ],
+        "actions": [
+          "Add a section describing Run Task mode.",
+          "Specify that CLAUDE.md must always be loaded first.",
+          "Specify that task validation occurs before execution.",
+          "Specify that actions are executed exactly as written and in order.",
+          "Specify that completion requires producing the defined output."
+        ],
+        "output": "CLAUDE.md includes a clear Run Task execution contract."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+
+    {
+      "phase": "Phase 2",
+      "name": "Enforce executable task validation in Django model",
+      "description": {
+        "objective": "Prevent tasks without executable instructions from being persisted.",
+        "inputs": [
+          "Django Task model source code"
+        ],
+        "actions": [
+          "Add validation requiring objective, inputs, actions, and output.",
+          "Ensure actions is a non-empty list.",
+          "Block save() when validation fails.",
+          "Return explicit validation errors."
+        ],
+        "output": "The Task model rejects non-executable tasks."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Enforce executable task validation at API level",
+      "description": {
+        "objective": "Ensure executable task requirements apply to all API entry points.",
+        "inputs": [
+          "Task serializers",
+          "Task create/update endpoints"
+        ],
+        "actions": [
+          "Add serializer validation for task.description.",
+          "Ensure validation runs on create and update.",
+          "Return consistent error messages."
+        ],
+        "output": "API layer enforces executable task structure."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+
+    {
+      "phase": "Phase 3",
+      "name": "Update task intake form to use structured executable fields",
+      "description": {
+        "objective": "Make it easy for users to create valid executable tasks.",
+        "inputs": [
+          "Task creation UI",
+          "Task model requirements"
+        ],
+        "actions": [
+          "Add structured fields for objective and actions.",
+          "Auto-generate inputs and output placeholders.",
+          "Collapse advanced fields by default.",
+          "Prevent form submission if required fields are missing."
+        ],
+        "output": "Task intake form reliably produces executable tasks."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+
+    {
+      "phase": "Phase 4",
+      "name": "Implement project JSON loader",
+      "description": {
+        "objective": "Allow full projects with executable tasks to be loaded from JSON.",
+        "inputs": [
+          "Project loader code",
+          "Executable task validation rules"
+        ],
+        "actions": [
+          "Parse project name and description.",
+          "Create project record.",
+          "Create tasks with validation enforced.",
+          "Fail load if any task is invalid."
+        ],
+        "output": "Projects with executable tasks can be loaded safely from JSON."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+
+    {
+      "phase": "Phase 5",
+      "name": "Implement Run Task execution pipeline",
+      "description": {
+        "objective": "Allow Claude to execute tasks deterministically using Run Task mode.",
+        "inputs": [
+          "CLAUDE.md",
+          "Task execution endpoint"
+        ],
+        "actions": [
+          "Load CLAUDE.md at execution time.",
+          "Validate the task description.",
+          "Pass task description verbatim to Claude.",
+          "Capture execution output.",
+          "Update task status upon completion."
+        ],
+        "output": "Tasks can be executed end-to-end using Run Task mode."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+
+    {
+      "phase": "Phase 6",
+      "name": "Implement Claude decision orchestration logic",
+      "description": {
+        "objective": "Allow Claude to recommend what to work on next using phase and priority rules.",
+        "inputs": [
+          "Project priority values",
+          "Task phase, priority, and status"
+        ],
+        "actions": [
+          "Select project by highest priority.",
+          "Determine active phase within the project.",
+          "Select highest priority eligible task.",
+          "Return clear recommendation and next action."
+        ],
+        "output": "Claude can reliably recommend the next task to execute."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+
+    {
+      "phase": "Phase 7",
+      "name": "Add admin validation and safety checks",
+      "description": {
+        "objective": "Ensure no path exists to bypass executable task requirements.",
+        "inputs": [
+          "Admin UI",
+          "Bulk import tools"
+        ],
+        "actions": [
+          "Apply validation in admin save.",
+          "Apply validation in bulk imports.",
+          "Add logging for validation failures."
+        ],
+        "output": "Executable task requirements are enforced system-wide."
+      },
+      "priority": "Low",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    }
+  ]
+}

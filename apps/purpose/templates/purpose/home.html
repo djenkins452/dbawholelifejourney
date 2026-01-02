@@ -137,6 +137,18 @@
         </div>
     </div>
     
+    <!-- Habit Goals Quick Access -->
+    <div class="habit-goals-section mt-8">
+        <div class="section-header">
+            <h3>Habit Goals</h3>
+            <a href="{% url 'purpose:habit_goal_list' %}" class="btn btn-ghost btn-sm">View All →</a>
+        </div>
+        <div class="habit-goals-intro">
+            <p>Track daily habits with visual progress matrices. Perfect for 30-day challenges, building new routines, or any time-bounded commitment.</p>
+            <a href="{% url 'purpose:habit_goal_create' %}" class="btn btn-primary">+ New Habit Goal</a>
+        </div>
+    </div>
+
     <!-- Quick Actions -->
     <div class="quick-actions mt-8">
         <h3>Seasonal Activities</h3>
@@ -469,6 +481,33 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     margin-top: var(--space-1);
+}
+
+.habit-goals-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.habit-goals-intro {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.habit-goals-intro p {
+    margin: 0;
+    color: var(--color-text-muted);
+    flex: 1;
+}
+
+@media (max-width: 768px) {
+    .habit-goals-intro {
+        flex-direction: column;
+        text-align: center;
+    }
 }
 </style>
 {% endblock %}

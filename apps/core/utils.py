@@ -45,12 +45,13 @@ def get_user_today(user):
     the UTC date, which can be a day ahead/behind the user's local date.
 
     Args:
-        user: The User object (must have preferences.timezone)
+        user: The User object (must have preferences.timezone_iana)
 
     Returns:
         date: Today's date in the user's timezone
     """
-    user_tz = pytz.timezone(user.preferences.timezone)
+    # Use timezone_iana to handle legacy US/Eastern format
+    user_tz = pytz.timezone(user.preferences.timezone_iana)
     user_now = timezone.now().astimezone(user_tz)
     return user_now.date()
 
@@ -60,12 +61,13 @@ def get_user_now(user):
     Get the current datetime in the user's configured timezone.
 
     Args:
-        user: The User object (must have preferences.timezone)
+        user: The User object (must have preferences.timezone_iana)
 
     Returns:
         datetime: Current datetime in the user's timezone (timezone-aware)
     """
-    user_tz = pytz.timezone(user.preferences.timezone)
+    # Use timezone_iana to handle legacy US/Eastern format
+    user_tz = pytz.timezone(user.preferences.timezone_iana)
     return timezone.now().astimezone(user_tz)
 
 

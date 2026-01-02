@@ -339,19 +339,21 @@ class PreferencesForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Generate timezone choices
+        # Generate timezone choices - IANA format required for PostgreSQL compatibility
         common_timezones = [
+            ("America/New_York", "Eastern Time (US)"),
+            ("America/Chicago", "Central Time (US)"),
+            ("America/Denver", "Mountain Time (US)"),
+            ("America/Los_Angeles", "Pacific Time (US)"),
+            ("America/Anchorage", "Alaska Time"),
+            ("Pacific/Honolulu", "Hawaii Time"),
+            ("Europe/London", "London (UK)"),
+            ("Europe/Paris", "Paris (France)"),
+            ("Europe/Berlin", "Berlin (Germany)"),
+            ("Asia/Tokyo", "Tokyo (Japan)"),
+            ("Asia/Shanghai", "Shanghai (China)"),
+            ("Australia/Sydney", "Sydney (Australia)"),
             ("UTC", "UTC"),
-            ("US/Eastern", "US Eastern"),
-            ("US/Central", "US Central"),
-            ("US/Mountain", "US Mountain"),
-            ("US/Pacific", "US Pacific"),
-            ("Europe/London", "London"),
-            ("Europe/Paris", "Paris"),
-            ("Europe/Berlin", "Berlin"),
-            ("Asia/Tokyo", "Tokyo"),
-            ("Asia/Shanghai", "Shanghai"),
-            ("Australia/Sydney", "Sydney"),
         ]
         self.fields["timezone"].widget = forms.Select(
             choices=common_timezones,

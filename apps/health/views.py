@@ -192,9 +192,9 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                             # Check if overdue using user's timezone
                             from datetime import datetime, timedelta as td
 
-                            # Get user's timezone
+                            # Get user's timezone (use timezone_iana for legacy format support)
                             try:
-                                user_tz = pytz.timezone(user.preferences.timezone or 'UTC')
+                                user_tz = pytz.timezone(user.preferences.timezone_iana)
                             except (AttributeError, pytz.UnknownTimeZoneError):
                                 user_tz = pytz.UTC
 
@@ -394,9 +394,9 @@ class FastingListView(LoginRequiredMixin, ListView):
             user=self.request.user,
             ended_at__isnull=True,
         ).first()
-        # Get user's timezone for template display
+        # Get user's timezone for template display (use timezone_iana for legacy format support)
         try:
-            tz_name = self.request.user.preferences.timezone or "UTC"
+            tz_name = self.request.user.preferences.timezone_iana
             context["user_timezone"] = pytz.timezone(tz_name)
         except Exception:
             context["user_timezone"] = pytz.UTC
@@ -1785,10 +1785,10 @@ class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         from datetime import datetime, timedelta
         import pytz
 
-        # Get user's timezone
+        # Get user's timezone (use timezone_iana for legacy format support)
         user = self.request.user
         try:
-            user_tz = pytz.timezone(user.preferences.timezone or 'UTC')
+            user_tz = pytz.timezone(user.preferences.timezone_iana)
         except (AttributeError, pytz.UnknownTimeZoneError):
             user_tz = pytz.UTC
 
@@ -2326,9 +2326,9 @@ class MedicineHistoryView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["medicines"] = Medicine.objects.filter(user=self.request.user)
         context["selected_medicine"] = self.request.GET.get("medicine")
-        # Add user timezone for template display
+        # Add user timezone for template display (use timezone_iana for legacy format support)
         try:
-            context["user_timezone"] = self.request.user.preferences.timezone or "UTC"
+            context["user_timezone"] = self.request.user.preferences.timezone_iana
         except AttributeError:
             context["user_timezone"] = "UTC"
         return context

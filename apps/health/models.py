@@ -1246,8 +1246,8 @@ class MedicineLog(UserOwnedModel):
         from datetime import datetime, timedelta
         import pytz
 
-        # Get user's timezone for proper comparison
-        user_tz = pytz.timezone(self.user.preferences.timezone)
+        # Get user's timezone for proper comparison (use timezone_iana for legacy format support)
+        user_tz = pytz.timezone(self.user.preferences.timezone_iana)
 
         # Convert taken_at to user's local timezone
         taken_local = self.taken_at.astimezone(user_tz) if self.taken_at.tzinfo else user_tz.localize(self.taken_at)
@@ -1272,8 +1272,8 @@ class MedicineLog(UserOwnedModel):
         from datetime import datetime
         import pytz
 
-        # Get user's timezone for proper comparison
-        user_tz = pytz.timezone(self.user.preferences.timezone)
+        # Get user's timezone for proper comparison (use timezone_iana for legacy format support)
+        user_tz = pytz.timezone(self.user.preferences.timezone_iana)
 
         # Convert taken_at to user's local timezone
         taken_local = self.taken_at.astimezone(user_tz) if self.taken_at.tzinfo else user_tz.localize(self.taken_at)
@@ -1294,8 +1294,8 @@ class MedicineLog(UserOwnedModel):
             from datetime import datetime, timedelta
             import pytz
 
-            # Get user's timezone for proper comparison
-            user_tz = pytz.timezone(self.user.preferences.timezone)
+            # Get user's timezone for proper comparison (use timezone_iana for legacy format support)
+            user_tz = pytz.timezone(self.user.preferences.timezone_iana)
 
             # Convert taken_at to user's local timezone
             taken_local = self.taken_at.astimezone(user_tz) if self.taken_at.tzinfo else user_tz.localize(self.taken_at)

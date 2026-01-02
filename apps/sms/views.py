@@ -354,9 +354,9 @@ def sms_history(request):
         user=request.user
     ).order_by('-scheduled_for')[:100]
 
-    # Get user timezone for display
+    # Get user timezone for display (use timezone_iana for legacy format support)
     import pytz
-    user_tz = pytz.timezone(request.user.preferences.timezone)
+    user_tz = pytz.timezone(request.user.preferences.timezone_iana)
 
     # Group by date (in user's timezone)
     grouped = {}
@@ -371,7 +371,7 @@ def sms_history(request):
     context = {
         'notifications': notifications,
         'grouped_notifications': grouped,
-        'user_timezone': request.user.preferences.timezone,
+        'user_timezone': request.user.preferences.timezone_iana,
     }
 
     return render(request, 'sms/history.html', context)

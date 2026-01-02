@@ -178,12 +178,25 @@ class UserPreferences(models.Model):
     # AI_COACHING_STYLE_CHOICES - Now loaded dynamically from database
     # See apps.ai.models.CoachingStyle
 
+    # IANA timezone names - required for PostgreSQL compatibility
+    # Note: Legacy US/Eastern format is not recognized by PostgreSQL
     TIMEZONE_CHOICES = [
-        ("US/Eastern", "US/Eastern"),
-        ("US/Central", "US/Central"),
-        ("US/Mountain", "US/Mountain"),
-        ("US/Pacific", "US/Pacific"),
+        ("America/New_York", "Eastern Time (US/Eastern)"),
+        ("America/Chicago", "Central Time (US/Central)"),
+        ("America/Denver", "Mountain Time (US/Mountain)"),
+        ("America/Los_Angeles", "Pacific Time (US/Pacific)"),
+        ("America/Anchorage", "Alaska Time"),
+        ("Pacific/Honolulu", "Hawaii Time"),
+        ("UTC", "UTC (Coordinated Universal Time)"),
     ]
+
+    # Mapping for converting legacy timezone names to IANA format
+    TIMEZONE_LEGACY_MAP = {
+        "US/Eastern": "America/New_York",
+        "US/Central": "America/Chicago",
+        "US/Mountain": "America/Denver",
+        "US/Pacific": "America/Los_Angeles",
+    }
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -524,6 +537,19 @@ class UserPreferences(models.Model):
 
     def __str__(self):
         return f"Preferences for {self.user.email}"
+
+    @property
+    def timezone_iana(self):
+        """
+        Get the IANA timezone string, converting legacy US/Eastern format if needed.
+
+        PostgreSQL requires IANA timezone names (e.g., 'America/New_York').
+        This property handles legacy timezone values that may have been stored
+        in the old US/Eastern format.
+        """
+        tz = self.timezone or "UTC"
+        # Convert legacy timezone names to IANA format
+        return self.TIMEZONE_LEGACY_MAP.get(tz, tz)
 
     @property
     def has_weight_goal(self):

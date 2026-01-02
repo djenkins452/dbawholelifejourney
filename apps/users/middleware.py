@@ -120,7 +120,8 @@ class TimezoneMiddleware:
     def __call__(self, request):
         if request.user.is_authenticated:
             try:
-                user_timezone = request.user.preferences.timezone
+                # Use timezone_iana property which handles legacy US/Eastern format
+                user_timezone = request.user.preferences.timezone_iana
                 if user_timezone:
                     tz = zoneinfo.ZoneInfo(user_timezone)
                     timezone.activate(tz)

@@ -41,7 +41,8 @@ def get_user_timezone(user):
     if not user:
         return pytz.UTC
     try:
-        tz_name = user.preferences.timezone or "UTC"
+        # Use timezone_iana to handle legacy US/Eastern format
+        tz_name = user.preferences.timezone_iana
         return pytz.timezone(tz_name)
     except (AttributeError, pytz.UnknownTimeZoneError):
         return pytz.UTC

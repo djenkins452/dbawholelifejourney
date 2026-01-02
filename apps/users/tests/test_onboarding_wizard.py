@@ -213,14 +213,14 @@ class OnboardingWizardSubmissionTest(TestCase):
         self.client.post(
             reverse("users:onboarding_wizard_step", kwargs={"step": "location"}),
             {
-                "timezone": "US/Eastern",
+                "timezone": "America/New_York",
                 "location_city": "Nashville",
                 "location_country": "Tennessee, US",
                 "action": "next"
             }
         )
         self.user.preferences.refresh_from_db()
-        self.assertEqual(self.user.preferences.timezone, "US/Eastern")
+        self.assertEqual(self.user.preferences.timezone, "America/New_York")
         self.assertEqual(self.user.preferences.location_city, "Nashville")
         self.assertEqual(self.user.preferences.location_country, "Tennessee, US")
 

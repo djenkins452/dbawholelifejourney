@@ -4,7 +4,7 @@
 # Description: Admin console models for project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 16 - Projects Introduction)
+# Last Updated: 2026-01-01 (Phase 17 - Configurable Task Fields)
 # ==============================================================================
 
 from django.core.exceptions import ValidationError
@@ -19,6 +19,159 @@ class TaskStatusTransitionError(Exception):
 class DeletionProtectedError(Exception):
     """Exception raised when attempting to delete a protected resource."""
     pass
+
+
+# ==============================================================================
+# Phase 17: Task Field Configuration Models
+# ==============================================================================
+
+class AdminTaskStatusConfig(models.Model):
+    """
+    Configuration for task status values.
+
+    Replaces hardcoded STATUS_CHOICES with database-driven configuration.
+    Allows admin to define custom status values with execution semantics.
+    """
+    name = models.CharField(max_length=50, unique=True)
+    display_name = models.CharField(max_length=100)
+    execution_allowed = models.BooleanField(
+        default=False,
+        help_text='If True, tasks in this status can be executed/worked on'
+    )
+    terminal = models.BooleanField(
+        default=False,
+        help_text='If True, this is a terminal status (no further transitions allowed)'
+    )
+    order = models.IntegerField(default=0, help_text='Display order in dropdowns')
+    active = models.BooleanField(default=True, help_text='If False, cannot be assigned to new tasks')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'Task Status Config'
+        verbose_name_plural = 'Task Status Configs'
+
+    def __str__(self):
+        return self.display_name
+
+    def delete(self, *args, **kwargs):
+        """Prevent deletion if status is in use by tasks."""
+        from django.db.models import Q
+        task_count = AdminTask.objects.filter(
+            Q(status_config=self) | Q(status=self.name)
+        ).count()
+        if task_count > 0:
+            raise DeletionProtectedError(
+                f"Cannot delete status '{self.name}'. "
+                f"It is used by {task_count} task(s)."
+            )
+        return super().delete(*args, **kwargs)
+
+
+class AdminTaskPriorityConfig(models.Model):
+    """
+    Configuration for task priority values.
+
+    Replaces hardcoded priority integer range with database-driven configuration.
+    """
+    label = models.CharField(max_length=50, help_text='Display label, e.g., "Highest"')
+    value = models.IntegerField(unique=True, help_text='Numeric value, e.g., 1 for highest')
+    order = models.IntegerField(default=0, help_text='Display order in dropdowns')
+    active = models.BooleanField(default=True, help_text='If False, cannot be assigned to new tasks')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'value']
+        verbose_name = 'Task Priority Config'
+        verbose_name_plural = 'Task Priority Configs'
+
+    def __str__(self):
+        return f"{self.value} - {self.label}"
+
+    def delete(self, *args, **kwargs):
+        """Prevent deletion if priority is in use by tasks."""
+        from django.db.models import Q
+        task_count = AdminTask.objects.filter(
+            Q(priority_config=self) | Q(priority=self.value)
+        ).count()
+        if task_count > 0:
+            raise DeletionProtectedError(
+                f"Cannot delete priority '{self.label}'. "
+                f"It is used by {task_count} task(s)."
+            )
+        return super().delete(*args, **kwargs)
+
+
+class AdminTaskCategoryConfig(models.Model):
+    """
+    Configuration for task category values.
+
+    Replaces hardcoded CATEGORY_CHOICES with database-driven configuration.
+    """
+    name = models.CharField(max_length=50, unique=True)
+    display_name = models.CharField(max_length=100)
+    order = models.IntegerField(default=0, help_text='Display order in dropdowns')
+    active = models.BooleanField(default=True, help_text='If False, cannot be assigned to new tasks')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = 'Task Category Config'
+        verbose_name_plural = 'Task Category Configs'
+
+    def __str__(self):
+        return self.display_name
+
+    def delete(self, *args, **kwargs):
+        """Prevent deletion if category is in use by tasks."""
+        from django.db.models import Q
+        task_count = AdminTask.objects.filter(
+            Q(category_config=self) | Q(category=self.name)
+        ).count()
+        if task_count > 0:
+            raise DeletionProtectedError(
+                f"Cannot delete category '{self.name}'. "
+                f"It is used by {task_count} task(s)."
+            )
+        return super().delete(*args, **kwargs)
+
+
+class AdminTaskEffortConfig(models.Model):
+    """
+    Configuration for task effort/size values.
+
+    Replaces hardcoded EFFORT_CHOICES with database-driven configuration.
+    """
+    label = models.CharField(max_length=50, help_text='Display label, e.g., "Small"')
+    value = models.CharField(max_length=10, unique=True, help_text='Short code, e.g., "S"')
+    order = models.IntegerField(default=0, help_text='Display order in dropdowns')
+    active = models.BooleanField(default=True, help_text='If False, cannot be assigned to new tasks')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'value']
+        verbose_name = 'Task Effort Config'
+        verbose_name_plural = 'Task Effort Configs'
+
+    def __str__(self):
+        return f"{self.value} - {self.label}"
+
+    def delete(self, *args, **kwargs):
+        """Prevent deletion if effort is in use by tasks."""
+        from django.db.models import Q
+        task_count = AdminTask.objects.filter(
+            Q(effort_config=self) | Q(effort=self.value)
+        ).count()
+        if task_count > 0:
+            raise DeletionProtectedError(
+                f"Cannot delete effort '{self.label}'. "
+                f"It is used by {task_count} task(s)."
+            )
+        return super().delete(*args, **kwargs)
 
 
 class AdminProject(models.Model):
@@ -140,6 +293,7 @@ class AdminProjectPhase(models.Model):
 class AdminTask(models.Model):
     """Admin task for project management."""
 
+    # Legacy choices - kept for backward compatibility during migration
     CATEGORY_CHOICES = [
         ('feature', 'Feature'),
         ('bug', 'Bug'),
@@ -178,10 +332,47 @@ class AdminTask(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField()
+
+    # Legacy fields (kept for backward compatibility)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     priority = models.IntegerField(default=3)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='backlog')
-    effort = models.CharField(max_length=1, choices=EFFORT_CHOICES)
+    effort = models.CharField(max_length=10, choices=EFFORT_CHOICES)
+
+    # Phase 17: Config ForeignKey fields (nullable during migration)
+    status_config = models.ForeignKey(
+        AdminTaskStatusConfig,
+        on_delete=models.PROTECT,
+        related_name='tasks',
+        null=True,
+        blank=True,
+        help_text='Configured status for this task'
+    )
+    priority_config = models.ForeignKey(
+        AdminTaskPriorityConfig,
+        on_delete=models.PROTECT,
+        related_name='tasks',
+        null=True,
+        blank=True,
+        help_text='Configured priority for this task'
+    )
+    category_config = models.ForeignKey(
+        AdminTaskCategoryConfig,
+        on_delete=models.PROTECT,
+        related_name='tasks',
+        null=True,
+        blank=True,
+        help_text='Configured category for this task'
+    )
+    effort_config = models.ForeignKey(
+        AdminTaskEffortConfig,
+        on_delete=models.PROTECT,
+        related_name='tasks',
+        null=True,
+        blank=True,
+        help_text='Configured effort level for this task'
+    )
+
     phase = models.ForeignKey(
         AdminProjectPhase,
         on_delete=models.CASCADE,
@@ -204,6 +395,30 @@ class AdminTask(models.Model):
     created_by = models.CharField(max_length=10, choices=CREATED_BY_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def get_status_display_value(self):
+        """Get the display value for status from config or legacy field."""
+        if self.status_config:
+            return self.status_config.display_name
+        return dict(self.STATUS_CHOICES).get(self.status, self.status)
+
+    def get_priority_display_value(self):
+        """Get the display value for priority from config or legacy field."""
+        if self.priority_config:
+            return self.priority_config.label
+        return str(self.priority)
+
+    def get_category_display_value(self):
+        """Get the display value for category from config or legacy field."""
+        if self.category_config:
+            return self.category_config.display_name
+        return dict(self.CATEGORY_CHOICES).get(self.category, self.category)
+
+    def get_effort_display_value(self):
+        """Get the display value for effort from config or legacy field."""
+        if self.effort_config:
+            return self.effort_config.label
+        return dict(self.EFFORT_CHOICES).get(self.effort, self.effort)
 
     class Meta:
         ordering = ['priority', '-created_at']

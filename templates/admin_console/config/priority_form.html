@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} Priority - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:config_dashboard' %}">Task Configuration</a>
+                <span>/</span>
+                <a href="{% url 'admin_console:config_priority_list' %}">Priority</a>
+                <span>/</span>
+                <span>{% if object %}Edit{% else %}Add{% endif %}</span>
+            </nav>
+            <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Priority</h1>
+        </div>
+    </div>
+
+    <form method="post" class="config-form">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_value" class="form-label">Value <span class="required">*</span></label>
+                    <input type="number" name="value" id="id_value" class="form-input"
+                           value="{{ form.instance.value|default:'' }}" required min="1">
+                    <p class="form-hint">Numeric value (1 = highest priority)</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_label" class="form-label">Label <span class="required">*</span></label>
+                    <input type="text" name="label" id="id_label" class="form-input"
+                           value="{{ form.instance.label|default:'' }}" required maxlength="50"
+                           placeholder="e.g., High">
+                    <p class="form-hint">Human-readable label</p>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_order" class="form-label">Order</label>
+                    <input type="number" name="order" id="id_order" class="form-input"
+                           value="{{ form.instance.order|default:0 }}" min="0">
+                    <p class="form-hint">Display order in dropdowns</p>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="active" id="id_active"
+                               {% if form.instance.active or not object %}checked{% endif %}>
+                        <span>Active</span>
+                    </label>
+                    <p class="form-hint">Inactive priorities cannot be assigned to new tasks</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Update{% else %}Create{% endif %} Priority
+            </button>
+            <a href="{% url 'admin_console:config_priority_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.config-form {
+    max-width: 600px;
+}
+
+.form-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+}
+
+.required {
+    color: #dc2626;
+}
+
+.form-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.checkbox-group {
+    padding-top: var(--space-2);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

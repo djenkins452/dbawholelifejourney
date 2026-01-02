@@ -4,7 +4,7 @@
 # Description: Admin console URL configuration
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 16 - Projects Introduction)
+# Last Updated: 2026-01-01 (Phase 17 - Configurable Task Fields)
 # ==============================================================================
 """
 Admin Console URLs
@@ -101,4 +101,31 @@ urlpatterns = [
     # API Endpoints
     path("api/admin/project/active-phase/", views.ActivePhaseAPIView.as_view(), name="api_active_phase"),
     path("api/admin/project/tasks/<int:pk>/status/", views.TaskStatusUpdateAPIView.as_view(), name="api_task_status"),
+
+    # Phase 17: Task Configuration Management
+    path("projects/config/", views.TaskConfigDashboardView.as_view(), name="config_dashboard"),
+
+    # Status Config
+    path("projects/config/status/", views.StatusConfigListView.as_view(), name="config_status_list"),
+    path("projects/config/status/new/", views.StatusConfigCreateView.as_view(), name="config_status_create"),
+    path("projects/config/status/<int:pk>/edit/", views.StatusConfigUpdateView.as_view(), name="config_status_update"),
+    path("projects/config/status/<int:pk>/delete/", views.StatusConfigDeleteView.as_view(), name="config_status_delete"),
+
+    # Priority Config
+    path("projects/config/priority/", views.PriorityConfigListView.as_view(), name="config_priority_list"),
+    path("projects/config/priority/new/", views.PriorityConfigCreateView.as_view(), name="config_priority_create"),
+    path("projects/config/priority/<int:pk>/edit/", views.PriorityConfigUpdateView.as_view(), name="config_priority_update"),
+    path("projects/config/priority/<int:pk>/delete/", views.PriorityConfigDeleteView.as_view(), name="config_priority_delete"),
+
+    # Category Config
+    path("projects/config/category/", views.CategoryConfigListView.as_view(), name="config_category_list"),
+    path("projects/config/category/new/", views.CategoryConfigCreateView.as_view(), name="config_category_create"),
+    path("projects/config/category/<int:pk>/edit/", views.CategoryConfigUpdateView.as_view(), name="config_category_update"),
+    path("projects/config/category/<int:pk>/delete/", views.CategoryConfigDeleteView.as_view(), name="config_category_delete"),
+
+    # Effort Config
+    path("projects/config/effort/", views.EffortConfigListView.as_view(), name="config_effort_list"),
+    path("projects/config/effort/new/", views.EffortConfigCreateView.as_view(), name="config_effort_create"),
+    path("projects/config/effort/<int:pk>/edit/", views.EffortConfigUpdateView.as_view(), name="config_effort_update"),
+    path("projects/config/effort/<int:pk>/delete/", views.EffortConfigDeleteView.as_view(), name="config_effort_delete"),
 ]

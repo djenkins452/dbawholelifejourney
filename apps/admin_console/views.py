@@ -609,10 +609,10 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
             except (ValueError, TypeError):
                 pass
 
-        # Filter by status if provided
-        status_filter = self.request.GET.get('status')
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
+        # Filter by status if provided (supports multiple values)
+        status_filters = self.request.GET.getlist('status')
+        if status_filters:
+            queryset = queryset.filter(status__in=status_filters)
 
         # Filter by project if provided
         project_filter = self.request.GET.get('project')
@@ -635,7 +635,7 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
 
         # Preserve filter values
         context['current_phase_filter'] = self.request.GET.get('phase', '')
-        context['current_status_filter'] = self.request.GET.get('status', '')
+        context['current_status_filters'] = self.request.GET.getlist('status')
         context['current_project_filter'] = self.request.GET.get('project', '')
 
         # Ready tasks warning (soft guardrail)

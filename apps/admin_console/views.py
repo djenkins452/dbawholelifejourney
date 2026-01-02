@@ -2042,3 +2042,82 @@ class AdminProjectCreateView(AdminRequiredMixin, CreateView):
         if self.request.GET.get('from') == 'intake':
             return reverse_lazy('admin_console:task_intake')
         return reverse_lazy('admin_console:admin_project_list')
+
+
+class AdminProjectUpdateView(AdminRequiredMixin, UpdateView):
+    """
+    Edit an existing admin project.
+
+    GET /admin-console/projects/<id>/edit/
+    POST /admin-console/projects/<id>/edit/
+    """
+    template_name = "admin_console/admin_project_form.html"
+    success_url = reverse_lazy('admin_console:admin_project_list')
+
+    def get_form_class(self):
+        from django import forms
+        from apps.admin_console.models import AdminProject
+
+        class AdminProjectForm(forms.ModelForm):
+            class Meta:
+                model = AdminProject
+                fields = ['name', 'description', 'status']
+                widgets = {
+                    'name': forms.TextInput(attrs={
+                        'class': 'form-input',
+                        'placeholder': 'e.g., Q1 Feature Development'
+                    }),
+                    'description': forms.Textarea(attrs={
+                        'class': 'form-textarea',
+                        'rows': 3,
+                        'placeholder': 'Optional description of this project...'
+                    }),
+                    'status': forms.Select(attrs={
+                        'class': 'form-input'
+                    }),
+                }
+
+        return AdminProjectForm
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminProject
+        return AdminProject.objects.all()
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Project '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+
+class AdminProjectDeleteView(AdminRequiredMixin, DeleteView):
+    """
+    Delete an admin project.
+
+    GET /admin-console/projects/<id>/delete/ - confirmation page
+    POST /admin-console/projects/<id>/delete/ - actual deletion
+
+    Safety: Projects with tasks cannot be deleted (enforced by model).
+    """
+    template_name = "admin_console/admin_project_confirm_delete.html"
+    success_url = reverse_lazy('admin_console:admin_project_list')
+    context_object_name = "project"
+
+    def get_queryset(self):
+        from apps.admin_console.models import AdminProject
+        return AdminProject.objects.all()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get task count for the confirmation message
+        context['task_count'] = self.object.tasks.count()
+        return context
+
+    def form_valid(self, form):
+        from apps.admin_console.models import DeletionProtectedError
+        try:
+            project_name = self.object.name
+            response = super().form_valid(form)
+            messages.success(self.request, f"Project '{project_name}' deleted.")
+            return response
+        except DeletionProtectedError as e:
+            messages.error(self.request, str(e))
+            return redirect('admin_console:admin_project_list')

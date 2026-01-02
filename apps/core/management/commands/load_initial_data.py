@@ -54,4 +54,16 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(self.style.WARNING(f' Skipped ({e})'))
 
+        # Load project blueprints (added here to work around Railway caching issue)
+        try:
+            self.stdout.write('  Loading project blueprints...')
+            call_command(
+                'load_project_from_json',
+                'project_blueprints/wlj_executable_work_orchestration.json',
+                verbosity=1
+            )
+            self.stdout.write(self.style.SUCCESS(' OK'))
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f' Skipped ({e})'))
+
         self.stdout.write(self.style.SUCCESS('\nInitial data loading complete!'))

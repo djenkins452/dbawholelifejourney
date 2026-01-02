@@ -598,8 +598,18 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
+        from django.db.models import Q
 
         queryset = AdminTask.objects.select_related('phase', 'project').all()
+
+        # Search across text fields if query provided
+        search_query = self.request.GET.get('q', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(title__icontains=search_query) |
+                Q(category__icontains=search_query) |
+                Q(description__icontains=search_query)
+            )
 
         # Filter by phase if provided
         phase_filter = self.request.GET.get('phase')
@@ -634,6 +644,7 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
         context['status_choices'] = AdminTask.STATUS_CHOICES
 
         # Preserve filter values
+        context['current_search_query'] = self.request.GET.get('q', '')
         context['current_phase_filter'] = self.request.GET.get('phase', '')
         context['current_status_filters'] = self.request.GET.getlist('status')
         context['current_project_filter'] = self.request.GET.get('project', '')

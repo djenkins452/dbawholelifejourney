@@ -94,6 +94,13 @@
     <div class="filter-bar mb-4">
         <form method="get" class="filter-form">
             <div class="filter-group">
+                <label for="filter-search">Search:</label>
+                <input type="text" name="q" id="filter-search" class="form-input form-input-sm"
+                       placeholder="Search tasks..." value="{{ current_search_query }}"
+                       style="min-width: 200px;">
+            </div>
+
+            <div class="filter-group">
                 <label for="filter-phase">Phase:</label>
                 <select name="phase" id="filter-phase" class="form-input form-input-sm">
                     <option value="">All Phases</option>
@@ -128,7 +135,7 @@
             </div>
 
             <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
-            {% if current_phase_filter or current_status_filters or current_project_filter %}
+            {% if current_phase_filter or current_status_filters or current_project_filter or current_search_query %}
             <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-ghost btn-sm">Clear</a>
             {% endif %}
         </form>

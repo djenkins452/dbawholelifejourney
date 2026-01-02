@@ -32,9 +32,12 @@ Copyright:
     without explicit permission.
 """
 
+import zoneinfo
+
 from django.conf import settings
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils import timezone
 
 
 class TermsAcceptanceMiddleware:
@@ -90,6 +93,43 @@ class TermsAcceptanceMiddleware:
                         pass  # Let it through
                     else:
                         return redirect("users:onboarding_wizard")
+
+        response = self.get_response(request)
+        return response
+
+
+class TimezoneMiddleware:
+    """
+    Middleware to activate the user's timezone for each request.
+
+    This ensures that Django's timezone-aware template filters (like |date)
+    automatically convert UTC times to the user's local timezone.
+
+    Flow:
+    1. Check if user is authenticated
+    2. Get user's timezone from preferences
+    3. Activate timezone for the request
+    4. Deactivate timezone after response (Django handles this automatically)
+
+    Note: This must run AFTER authentication middleware so request.user is available.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.user.is_authenticated:
+            try:
+                user_timezone = request.user.preferences.timezone
+                if user_timezone:
+                    tz = zoneinfo.ZoneInfo(user_timezone)
+                    timezone.activate(tz)
+            except (AttributeError, zoneinfo.ZoneInfoNotFoundError):
+                # If timezone is invalid or preferences don't exist, use UTC
+                timezone.deactivate()
+        else:
+            # For anonymous users, deactivate to use default (UTC)
+            timezone.deactivate()
 
         response = self.get_response(request)
         return response

@@ -241,9 +241,30 @@ If tasks are returned:
 6. Merge to main and push
 7. Mark task as `done` via API
 8. Report completion to the user
+9. **Automatically check for next task** (see Step 4 below)
 
 If no tasks are returned:
 - Inform the user there are no Ready tasks
+
+### Step 4: After Task Completion - Check for Next Task
+
+After completing a task, Claude MUST automatically:
+
+1. **Fetch the next ready task** from the API
+2. **Present the next task to the user** with this format:
+   ```
+   **Next Task Available:**
+   - **Title:** <Task Title>
+   - **Project:** <Project Name>
+   - **Objective:** <Brief objective>
+
+   Would you like me to proceed with this task?
+   ```
+3. **Wait for user confirmation** before starting the next task
+4. If user confirms, proceed with execution (back to Step 3)
+5. If no more tasks, inform the user: "No more Ready tasks available."
+
+**Important:** This check-and-ask behavior only applies AFTER completing a task. The initial "What's Next?" still grants full authority to execute the first task without asking.
 
 ### API Details
 

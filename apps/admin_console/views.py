@@ -603,12 +603,21 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
         queryset = AdminTask.objects.select_related('phase', 'project').all()
 
         # Search across text fields if query provided
+        # Note: description is a JSONField with objective, inputs, actions, output
+        # We search title, category, and the JSON description fields
         search_query = self.request.GET.get('q', '').strip()
         if search_query:
-            queryset = queryset.filter(
+            # For JSONField, use key lookups for text fields
+            # For arrays (inputs, actions), convert to string representation
+            from django.db.models.functions import Cast
+            from django.db.models import TextField
+
+            queryset = queryset.annotate(
+                description_text=Cast('description', TextField())
+            ).filter(
                 Q(title__icontains=search_query) |
                 Q(category__icontains=search_query) |
-                Q(description__icontains=search_query)
+                Q(description_text__icontains=search_query)
             )
 
         # Filter by phase if provided

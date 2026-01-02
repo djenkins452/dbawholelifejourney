@@ -3637,3 +3637,70 @@ class ReadyTasksAPITests(AdminTestMixin, TestCase):
             HTTP_X_CLAUDE_API_KEY='any-key'
         )
         self.assertEqual(response.status_code, 500)
+
+
+class AdminProjectCreateViewTest(AdminTestMixin, TestCase):
+    """Tests for AdminProjectCreateView including popup mode."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.admin = self.create_admin()
+        self.client.login(email='admin@example.com', password='adminpass123')
+
+    def test_create_project_normal_mode(self):
+        """Test creating a project in normal (non-popup) mode."""
+        from apps.admin_console.models import AdminProject
+
+        initial_count = AdminProject.objects.count()
+
+        response = self.client.post(
+            '/admin-console/projects/new/',
+            {
+                'name': 'Test New Project',
+                'description': 'A test project description'
+            }
+        )
+
+        # Should redirect to project list
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin-console/projects/', response.url)
+
+        # Project should be created
+        self.assertEqual(AdminProject.objects.count(), initial_count + 1)
+        project = AdminProject.objects.get(name='Test New Project')
+        self.assertEqual(project.description, 'A test project description')
+
+    def test_create_project_popup_mode(self):
+        """Test creating a project in popup mode."""
+        from apps.admin_console.models import AdminProject
+
+        initial_count = AdminProject.objects.count()
+
+        response = self.client.post(
+            '/admin-console/projects/new/?popup=1',
+            {
+                'name': 'Popup Test Project',
+                'description': 'Created from popup'
+            }
+        )
+
+        # Should render success page (not redirect)
+        self.assertEqual(response.status_code, 200)
+
+        # Project should be created
+        self.assertEqual(AdminProject.objects.count(), initial_count + 1)
+        project = AdminProject.objects.get(name='Popup Test Project')
+        self.assertEqual(project.description, 'Created from popup')
+
+        # Response should contain the created project info for JavaScript
+        self.assertIn(b'projectCreated', response.content)
+        self.assertIn(b'Popup Test Project', response.content)
+
+    def test_create_project_popup_mode_get(self):
+        """Test GET request to popup mode renders form."""
+        response = self.client.get('/admin-console/projects/new/?popup=1')
+        self.assertEqual(response.status_code, 200)
+        # Popup mode should render standalone HTML (not extending base.html)
+        self.assertIn(b'popup-container', response.content)
+        # Should include the form
+        self.assertIn(b'id_name', response.content)

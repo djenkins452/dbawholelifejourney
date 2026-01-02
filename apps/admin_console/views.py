@@ -16,7 +16,7 @@ the app's design, rather than using Django's default admin.
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import UserPassesTestMixin
-from django.http import JsonResponse
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
@@ -2215,7 +2215,13 @@ class AdminProjectCreateView(AdminRequiredMixin, CreateView):
     Supports popup mode (?popup=1) for creating projects from Task Intake form.
     """
     template_name = "admin_console/admin_project_form.html"
+    popup_template_name = "admin_console/admin_project_form_popup.html"
     success_url = reverse_lazy('admin_console:admin_project_list')
+
+    def get_template_names(self):
+        if self.request.GET.get('popup') == '1':
+            return [self.popup_template_name]
+        return [self.template_name]
 
     def get_form_class(self):
         from django import forms
@@ -2244,17 +2250,28 @@ class AdminProjectCreateView(AdminRequiredMixin, CreateView):
         return AdminProject.objects.all()
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        # For popup mode, we'll re-render the template with the created project
-        # so it can notify the opener window
-        if self.request.GET.get('popup') == '1':
-            return render(self.request, self.template_name, {
-                'form': self.get_form_class()(),
-                'is_popup': True,
-                'created_project': self.object
-            })
-        messages.success(self.request, f"Project '{form.instance.name}' created.")
-        return response
+        import logging
+        logger = logging.getLogger(__name__)
+        try:
+            logger.info(f"AdminProjectCreateView.form_valid: Creating project with name='{form.cleaned_data.get('name')}'")
+            # Save the form manually to get the object
+            self.object = form.save()
+            logger.info(f"AdminProjectCreateView.form_valid: Project created with pk={self.object.pk}")
+
+            # For popup mode, we'll re-render the template with the created project
+            # so it can notify the opener window
+            if self.request.GET.get('popup') == '1':
+                logger.info("AdminProjectCreateView.form_valid: Rendering popup response")
+                return render(self.request, self.popup_template_name, {
+                    'form': self.get_form_class()(),
+                    'created_project': self.object
+                })
+
+            messages.success(self.request, f"Project '{self.object.name}' created.")
+            return HttpResponseRedirect(self.get_success_url())
+        except Exception as e:
+            logger.exception(f"AdminProjectCreateView.form_valid: Error creating project: {e}")
+            raise
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -4,7 +4,7 @@
 # Description: Service functions for admin console task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Prepopulate Phase Dropdown 1-20)
+# Last Updated: 2026-01-01 (Phase 16 - Projects Introduction)
 # ==============================================================================
 
 from dataclasses import dataclass, field
@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from django.utils import timezone
 
-from .models import AdminProjectPhase, AdminTask, AdminActivityLog
+from .models import AdminProject, AdminProjectPhase, AdminTask, AdminActivityLog
 
 
 # ==============================================================================
@@ -275,6 +275,7 @@ def create_blocker_task(
         status='ready',
         effort=effort,
         phase=blocked_task.phase,
+        project=blocked_task.project,  # Inherit project from blocked task
         created_by=created_by
     )
 
@@ -1042,3 +1043,103 @@ def ensure_project_phases_exist(max_phase: int = 20) -> dict:
         'total_count': total_count,
         'message': message
     }
+
+
+# ==============================================================================
+# Phase 16 - Project Completion
+# ==============================================================================
+
+def check_and_complete_project(project, created_by='claude'):
+    """
+    Check if a project is complete and mark it as such.
+
+    A project is considered COMPLETE when ALL tasks in the project have
+    status = "done".
+
+    This function:
+    1. Evaluates tasks for the given project
+    2. If all tasks are done:
+       - Sets project.status = "complete"
+       - Writes an AdminActivityLog entry describing project completion
+
+    Safety rules:
+    - Never auto-complete a project with non-done tasks
+    - If there are no tasks, project is NOT automatically completed
+
+    Args:
+        project: AdminProject instance to check
+        created_by: 'human' or 'claude' for activity log (default: 'claude')
+
+    Returns:
+        bool: True if project was completed, False otherwise
+    """
+    # Check if project is already complete
+    if project.status == 'complete':
+        return False
+
+    # Get all tasks for this project
+    tasks = AdminTask.objects.filter(project=project)
+
+    # If no tasks exist, don't auto-complete
+    if not tasks.exists():
+        return False
+
+    # Check if all tasks are done
+    non_done_tasks = tasks.exclude(status='done')
+    if non_done_tasks.exists():
+        return False
+
+    # All tasks are done - mark project as complete
+    project.status = 'complete'
+    project.save()
+
+    # Create activity log for project completion
+    # Use any task from the project to log against
+    reference_task = tasks.first()
+    if reference_task:
+        AdminActivityLog.objects.create(
+            task=reference_task,
+            action=(
+                f"Project '{project.name}' (ID: {project.pk}) completed. "
+                f"All {tasks.count()} task(s) in project are done."
+            ),
+            created_by=created_by
+        )
+
+    return True
+
+
+def on_task_done_check_project(task, created_by='claude'):
+    """
+    Handler to check project completion when a task transitions to 'done'.
+
+    This should be called after a task transitions to 'done' status.
+    It checks if the task's project should be marked as complete.
+
+    Args:
+        task: The AdminTask that was just marked as done
+        created_by: 'human' or 'claude' for activity log
+
+    Returns:
+        bool: True if project was completed, False otherwise
+    """
+    return check_and_complete_project(task.project, created_by)
+
+
+def get_or_create_default_project():
+    """
+    Get or create the default 'General' project.
+
+    This function is idempotent and safe to call multiple times.
+
+    Returns:
+        AdminProject: The default project instance
+    """
+    project, created = AdminProject.objects.get_or_create(
+        name='General',
+        defaults={
+            'description': 'Default project for existing and uncategorized tasks.',
+            'status': 'open',
+        }
+    )
+    return project

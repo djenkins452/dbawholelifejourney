@@ -4,7 +4,7 @@
 # Description: Admin console models for project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 10 - Hardening & Fail-Safes)
+# Last Updated: 2026-01-01 (Phase 16 - Projects Introduction)
 # ==============================================================================
 
 from django.core.exceptions import ValidationError
@@ -19,6 +19,48 @@ class TaskStatusTransitionError(Exception):
 class DeletionProtectedError(Exception):
     """Exception raised when attempting to delete a protected resource."""
     pass
+
+
+class AdminProject(models.Model):
+    """
+    Project model for organizing admin tasks.
+
+    Projects are first-class objects that group related tasks together.
+    Each task must belong to a project.
+    """
+
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('complete', 'Complete'),
+    ]
+
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Admin Project'
+        verbose_name_plural = 'Admin Projects'
+
+    def __str__(self):
+        return self.name
+
+    def delete(self, *args, **kwargs):
+        """
+        Prevent deletion if tasks exist for this project.
+
+        Raises DeletionProtectedError if the project has any tasks.
+        """
+        task_count = self.tasks.count()
+        if task_count > 0:
+            raise DeletionProtectedError(
+                f"Cannot delete project '{self.name}' (ID: {self.pk}). "
+                f"It has {task_count} task(s). Delete or reassign tasks first."
+            )
+        return super().delete(*args, **kwargs)
 
 
 class AdminProjectPhase(models.Model):
@@ -145,6 +187,11 @@ class AdminTask(models.Model):
         on_delete=models.CASCADE,
         related_name='tasks'
     )
+    project = models.ForeignKey(
+        AdminProject,
+        on_delete=models.PROTECT,
+        related_name='tasks'
+    )
     blocked_reason = models.TextField(blank=True, default='')
     blocking_task = models.ForeignKey(
         'self',
@@ -260,9 +307,11 @@ class AdminTask(models.Model):
         )
 
         # Phase 8: Auto-unlock - Check phase completion when task transitions to done
+        # Phase 16: Also check project completion
         if new_status == 'done':
-            from .services import on_task_done
+            from .services import on_task_done, on_task_done_check_project
             on_task_done(self, created_by)
+            on_task_done_check_project(self, created_by)
 
         return log
 

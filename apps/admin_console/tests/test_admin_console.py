@@ -67,10 +67,22 @@ class AdminTestMixin:
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
+    def get_or_create_default_project(self):
+        """Get or create a default project for tests."""
+        from apps.admin_console.models import AdminProject
+        project, _ = AdminProject.objects.get_or_create(
+            name='Test Project',
+            defaults={
+                'description': 'Default project for tests',
+                'status': 'open'
+            }
+        )
+        return project
+
     def login_admin(self, email='admin@example.com', password='adminpass123'):
         return self.client.login(email=email, password=password)
-    
+
     def login_user(self, email='user@example.com', password='testpass123'):
         return self.client.login(email=email, password=password)
 
@@ -596,7 +608,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
 
     def test_next_tasks_returns_tasks_from_active_phase(self):
         """Next tasks API returns tasks from active phase."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         # Create an active phase
         phase = AdminProjectPhase.objects.create(
@@ -605,6 +617,9 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             objective='Test objective',
             status='in_progress'
         )
+
+        # Create default project for tasks
+        project = self.get_or_create_default_project()
 
         # Create tasks
         task1 = AdminTask.objects.create(
@@ -615,6 +630,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=phase,
+            project=project,
             created_by='human'
         )
         task2 = AdminTask.objects.create(
@@ -625,6 +641,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             status='backlog',
             effort='M',
             phase=phase,
+            project=project,
             created_by='claude'
         )
 
@@ -641,7 +658,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
 
     def test_next_tasks_does_not_return_done_tasks(self):
         """Next tasks API does not return done tasks."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         phase = AdminProjectPhase.objects.create(
             phase_number=1,
@@ -658,6 +675,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             status='done',
             effort='S',
             phase=phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
         AdminTask.objects.create(
@@ -668,6 +686,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -681,7 +700,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
 
     def test_next_tasks_does_not_return_tasks_from_future_phases(self):
         """Next tasks API does not return tasks from future phases."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         active_phase = AdminProjectPhase.objects.create(
             phase_number=1,
@@ -704,6 +723,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
         AdminTask.objects.create(
@@ -714,6 +734,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=future_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -727,7 +748,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
 
     def test_next_tasks_respects_limit_param(self):
         """Next tasks API respects limit parameter."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         phase = AdminProjectPhase.objects.create(
             phase_number=1,
@@ -745,6 +766,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
                 status='ready',
                 effort='S',
                 phase=phase,
+                project=self.get_or_create_default_project(),
                 created_by='human'
             )
 
@@ -757,7 +779,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
 
     def test_next_tasks_default_limit_is_5(self):
         """Next tasks API defaults to limit of 5."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         phase = AdminProjectPhase.objects.create(
             phase_number=1,
@@ -775,6 +797,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
                 status='ready',
                 effort='S',
                 phase=phase,
+                project=self.get_or_create_default_project(),
                 created_by='human'
             )
 
@@ -787,7 +810,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
 
     def test_next_tasks_orders_by_priority_then_created_at(self):
         """Next tasks API orders by priority, then created_at."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from django.utils import timezone
         import datetime
 
@@ -807,6 +830,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
         task2 = AdminTask.objects.create(
@@ -817,6 +841,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
         task3 = AdminTask.objects.create(
@@ -827,6 +852,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -849,7 +875,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
     """Tests for AdminTask status transition validation."""
 
     def setUp(self):
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         self.client = Client()
 
         # Create an active phase
@@ -878,6 +904,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             status='backlog',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
         self.assertTrue(AdminTask.is_valid_transition('backlog', 'ready'))
@@ -930,6 +957,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=self.inactive_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -948,6 +976,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             status='in_progress',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -966,6 +995,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             status='in_progress',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -982,6 +1012,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             status='backlog',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1004,6 +1035,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             status='in_progress',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1023,6 +1055,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             status='in_progress',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1043,6 +1076,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             blocked_reason='Some reason',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1062,6 +1096,7 @@ class TaskStatusTransitionModelTest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1077,7 +1112,7 @@ class TaskStatusUpdateAPITest(AdminTestMixin, TestCase):
     """Tests for the task status update API endpoint."""
 
     def setUp(self):
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         self.client = Client()
         self.admin = self.create_admin()
         self.regular_user = self.create_user()
@@ -1098,6 +1133,7 @@ class TaskStatusUpdateAPITest(AdminTestMixin, TestCase):
             status='backlog',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
         self.ready_task = AdminTask.objects.create(
@@ -1107,6 +1143,7 @@ class TaskStatusUpdateAPITest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
         self.in_progress_task = AdminTask.objects.create(
@@ -1116,6 +1153,7 @@ class TaskStatusUpdateAPITest(AdminTestMixin, TestCase):
             status='in_progress',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1345,7 +1383,7 @@ class BlockerTaskCreationTest(AdminTestMixin, TestCase):
     """Tests for blocker task creation functionality."""
 
     def setUp(self):
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         self.client = Client()
         self.admin = self.create_admin()
 
@@ -1366,6 +1404,7 @@ class BlockerTaskCreationTest(AdminTestMixin, TestCase):
             status='in_progress',
             effort='M',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='claude'
         )
 
@@ -1509,6 +1548,7 @@ class BlockerTaskCreationTest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=self.active_phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1567,7 +1607,7 @@ class BlockerTaskQueryTests(AdminTestMixin, TestCase):
     """Tests for blocker task query functions."""
 
     def setUp(self):
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         # Create phases
         self.phase1 = AdminProjectPhase.objects.create(
@@ -1592,6 +1632,7 @@ class BlockerTaskQueryTests(AdminTestMixin, TestCase):
             status='in_progress',
             effort='M',
             phase=self.phase1,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1628,6 +1669,7 @@ class BlockerTaskQueryTests(AdminTestMixin, TestCase):
             status='in_progress',
             effort='M',
             phase=self.phase2,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1691,6 +1733,7 @@ class BlockerTaskQueryTests(AdminTestMixin, TestCase):
             status='in_progress',
             effort='M',
             phase=self.phase2,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1722,7 +1765,7 @@ class BlockerModelFieldTests(AdminTestMixin, TestCase):
     """Tests for the blocking_task model field."""
 
     def setUp(self):
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         self.phase = AdminProjectPhase.objects.create(
             phase_number=1,
@@ -1739,6 +1782,7 @@ class BlockerModelFieldTests(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=self.phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1758,6 +1802,7 @@ class BlockerModelFieldTests(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=self.phase,
+            project=self.get_or_create_default_project(),
             created_by='claude'
         )
 
@@ -1779,6 +1824,7 @@ class BlockerModelFieldTests(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=self.phase,
+            project=self.get_or_create_default_project(),
             created_by='claude'
         )
 
@@ -1804,6 +1850,7 @@ class BlockerModelFieldTests(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=self.phase,
+            project=self.get_or_create_default_project(),
             created_by='claude'
         )
 
@@ -1816,6 +1863,7 @@ class BlockerModelFieldTests(AdminTestMixin, TestCase):
             status='blocked',
             effort='S',
             phase=self.phase,
+            project=self.get_or_create_default_project(),
             created_by='human',
             blocking_task=blocker
         )
@@ -1827,6 +1875,7 @@ class BlockerModelFieldTests(AdminTestMixin, TestCase):
             status='blocked',
             effort='S',
             phase=self.phase,
+            project=self.get_or_create_default_project(),
             created_by='human',
             blocking_task=blocker
         )
@@ -1861,7 +1910,7 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
 
     def test_metrics_with_no_active_phase(self):
         """Metrics returns None for active_phase when no phase is active."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import get_project_metrics
 
         # Create a phase that's not active
@@ -1878,6 +1927,7 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
             status='backlog',
             effort='S',
             phase=phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -1889,7 +1939,7 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
 
     def test_metrics_global_counts(self):
         """Metrics computes global counts correctly."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import get_project_metrics
 
         phase = AdminProjectPhase.objects.create(
@@ -1902,24 +1952,24 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
         # Create tasks with various statuses
         AdminTask.objects.create(
             title='Done Task 1', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
+            status='done', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Done Task 2', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
+            status='done', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Blocked Task', description='D', category='feature',
             status='blocked', blocked_reason='Waiting', effort='S',
-            phase=phase, created_by='human'
+            phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Ready Task', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='human'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Backlog Task', description='D', category='feature',
-            status='backlog', effort='S', phase=phase, created_by='human'
+            status='backlog', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         metrics = get_project_metrics()
@@ -1931,7 +1981,7 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
 
     def test_metrics_active_phase_counts(self):
         """Metrics computes active phase counts correctly."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import get_project_metrics
 
         # Create two phases, one active
@@ -1951,22 +2001,22 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
         # Create tasks in active phase
         AdminTask.objects.create(
             title='Active Done', description='D', category='feature',
-            status='done', effort='S', phase=active_phase, created_by='human'
+            status='done', effort='S', phase=active_phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Active Ready', description='D', category='feature',
-            status='ready', effort='S', phase=active_phase, created_by='human'
+            status='ready', effort='S', phase=active_phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Active Blocked', description='D', category='feature',
             status='blocked', blocked_reason='Waiting', effort='S',
-            phase=active_phase, created_by='human'
+            phase=active_phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         # Create tasks in inactive phase
         AdminTask.objects.create(
             title='Inactive Task', description='D', category='feature',
-            status='backlog', effort='S', phase=inactive_phase, created_by='human'
+            status='backlog', effort='S', phase=inactive_phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         metrics = get_project_metrics()
@@ -1979,7 +2029,7 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
 
     def test_metrics_tasks_created_by_claude(self):
         """Metrics counts tasks created by Claude."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import get_project_metrics
 
         phase = AdminProjectPhase.objects.create(
@@ -1991,15 +2041,15 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
 
         AdminTask.objects.create(
             title='Human Task', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='human'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Claude Task 1', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='claude'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='claude'
         )
         AdminTask.objects.create(
             title='Claude Task 2', description='D', category='infra',
-            status='done', effort='S', phase=phase, created_by='claude'
+            status='done', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='claude'
         )
 
         metrics = get_project_metrics()
@@ -2008,7 +2058,7 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
 
     def test_metrics_high_priority_remaining_tasks(self):
         """Metrics counts high priority remaining tasks."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import get_project_metrics
 
         phase = AdminProjectPhase.objects.create(
@@ -2021,22 +2071,22 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
         # Priority 1 (high), remaining
         AdminTask.objects.create(
             title='P1 Ready', description='D', category='feature',
-            priority=1, status='ready', effort='S', phase=phase, created_by='human'
+            priority=1, status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         # Priority 2 (high), remaining
         AdminTask.objects.create(
             title='P2 Backlog', description='D', category='feature',
-            priority=2, status='backlog', effort='S', phase=phase, created_by='human'
+            priority=2, status='backlog', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         # Priority 1 (high), but done - should not count
         AdminTask.objects.create(
             title='P1 Done', description='D', category='feature',
-            priority=1, status='done', effort='S', phase=phase, created_by='human'
+            priority=1, status='done', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         # Priority 3 (not high), remaining - should not count
         AdminTask.objects.create(
             title='P3 Ready', description='D', category='feature',
-            priority=3, status='ready', effort='S', phase=phase, created_by='human'
+            priority=3, status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         metrics = get_project_metrics()
@@ -2045,7 +2095,7 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
 
     def test_metrics_is_read_only(self):
         """Metrics function does not mutate any data."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import get_project_metrics
 
         phase = AdminProjectPhase.objects.create(
@@ -2056,7 +2106,7 @@ class ProjectMetricsServiceTest(AdminTestMixin, TestCase):
         )
         task = AdminTask.objects.create(
             title='Task', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='human'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         # Call metrics multiple times
@@ -2146,7 +2196,7 @@ class ProjectMetricsAPITest(AdminTestMixin, TestCase):
 
     def test_metrics_with_tasks(self):
         """Metrics API returns correct counts with tasks."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         phase = AdminProjectPhase.objects.create(
             phase_number=3,
@@ -2158,16 +2208,16 @@ class ProjectMetricsAPITest(AdminTestMixin, TestCase):
         # Create various tasks
         AdminTask.objects.create(
             title='Done Task', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
+            status='done', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Ready Task', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='claude'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='claude'
         )
         AdminTask.objects.create(
             title='Blocked Task', description='D', category='feature',
             status='blocked', blocked_reason='Waiting', effort='S',
-            phase=phase, created_by='claude', priority=1
+            phase=phase, project=self.get_or_create_default_project(), created_by='claude', priority=1
         )
 
         self.login_admin()
@@ -2227,7 +2277,7 @@ class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
 
     def test_snapshot_counts_open_tasks(self):
         """Snapshot counts open tasks (backlog, ready, in_progress) correctly."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import build_system_state_snapshot
 
         phase = AdminProjectPhase.objects.create(
@@ -2240,21 +2290,21 @@ class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
         # Open tasks
         AdminTask.objects.create(
             title='Backlog Task', description='D', category='feature',
-            status='backlog', effort='S', phase=phase, created_by='human'
+            status='backlog', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Ready Task', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='human'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='In Progress Task', description='D', category='feature',
-            status='in_progress', effort='S', phase=phase, created_by='human'
+            status='in_progress', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         # Not open (done)
         AdminTask.objects.create(
             title='Done Task', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
+            status='done', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         snapshot = build_system_state_snapshot()
@@ -2263,7 +2313,7 @@ class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
 
     def test_snapshot_counts_blocked_tasks(self):
         """Snapshot counts blocked tasks correctly."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import build_system_state_snapshot
 
         phase = AdminProjectPhase.objects.create(
@@ -2277,18 +2327,18 @@ class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
         AdminTask.objects.create(
             title='Blocked Task 1', description='D', category='feature',
             status='blocked', blocked_reason='Waiting', effort='S',
-            phase=phase, created_by='human'
+            phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Blocked Task 2', description='D', category='feature',
             status='blocked', blocked_reason='API issue', effort='S',
-            phase=phase, created_by='human'
+            phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         # Not blocked
         AdminTask.objects.create(
             title='Ready Task', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='human'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         snapshot = build_system_state_snapshot()
@@ -2297,7 +2347,7 @@ class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
 
     def test_snapshot_only_counts_active_phase_tasks(self):
         """Snapshot only counts tasks from the active phase."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import build_system_state_snapshot
 
         active_phase = AdminProjectPhase.objects.create(
@@ -2316,18 +2366,18 @@ class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
         # Tasks in active phase
         AdminTask.objects.create(
             title='Active Task 1', description='D', category='feature',
-            status='ready', effort='S', phase=active_phase, created_by='human'
+            status='ready', effort='S', phase=active_phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Active Task 2', description='D', category='feature',
             status='blocked', blocked_reason='Wait', effort='S',
-            phase=active_phase, created_by='human'
+            phase=active_phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         # Tasks in future phase (should not be counted)
         AdminTask.objects.create(
             title='Future Task', description='D', category='feature',
-            status='backlog', effort='S', phase=future_phase, created_by='human'
+            status='backlog', effort='S', phase=future_phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         snapshot = build_system_state_snapshot()
@@ -2337,7 +2387,7 @@ class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
 
     def test_snapshot_is_read_only(self):
         """Snapshot function does not mutate any data."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import build_system_state_snapshot
 
         phase = AdminProjectPhase.objects.create(
@@ -2348,7 +2398,7 @@ class SystemStateSnapshotServiceTest(AdminTestMixin, TestCase):
         )
         task = AdminTask.objects.create(
             title='Task', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='human'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         # Call snapshot multiple times
@@ -2488,7 +2538,7 @@ class SystemStateAPITest(AdminTestMixin, TestCase):
 
     def test_system_state_counts_tasks(self):
         """System state API returns correct task counts."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         phase = AdminProjectPhase.objects.create(
             phase_number=1,
@@ -2500,28 +2550,28 @@ class SystemStateAPITest(AdminTestMixin, TestCase):
         # Open tasks
         AdminTask.objects.create(
             title='Ready Task', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='human'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='In Progress Task', description='D', category='feature',
-            status='in_progress', effort='S', phase=phase, created_by='human'
+            status='in_progress', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
         AdminTask.objects.create(
             title='Backlog Task', description='D', category='feature',
-            status='backlog', effort='S', phase=phase, created_by='human'
+            status='backlog', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         # Blocked task
         AdminTask.objects.create(
             title='Blocked Task', description='D', category='feature',
             status='blocked', blocked_reason='Waiting', effort='S',
-            phase=phase, created_by='human'
+            phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         # Done task (should not be counted in either)
         AdminTask.objects.create(
             title='Done Task', description='D', category='feature',
-            status='done', effort='S', phase=phase, created_by='human'
+            status='done', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         self.login_admin()
@@ -2547,7 +2597,7 @@ class SystemStateAPITest(AdminTestMixin, TestCase):
 
     def test_system_state_is_read_only(self):
         """System state API does not modify any data."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         phase = AdminProjectPhase.objects.create(
             phase_number=1,
@@ -2557,7 +2607,7 @@ class SystemStateAPITest(AdminTestMixin, TestCase):
         )
         task = AdminTask.objects.create(
             title='Task', description='D', category='feature',
-            status='ready', effort='S', phase=phase, created_by='human'
+            status='ready', effort='S', phase=phase, project=self.get_or_create_default_project(), created_by='human'
         )
 
         self.login_admin()
@@ -2657,7 +2707,7 @@ class PreflightExecutionCheckServiceTest(AdminTestMixin, TestCase):
 
     def test_preflight_succeeds_when_all_checks_pass(self):
         """Preflight succeeds when all checks pass."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import preflight_execution_check
 
         phase = AdminProjectPhase.objects.create(
@@ -2673,6 +2723,7 @@ class PreflightExecutionCheckServiceTest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -2683,7 +2734,7 @@ class PreflightExecutionCheckServiceTest(AdminTestMixin, TestCase):
 
     def test_preflight_is_read_only(self):
         """Preflight check does not modify any data."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         from apps.admin_console.services import preflight_execution_check
 
         phase = AdminProjectPhase.objects.create(
@@ -2699,6 +2750,7 @@ class PreflightExecutionCheckServiceTest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -2768,7 +2820,7 @@ class PreflightCheckAPITest(AdminTestMixin, TestCase):
 
     def test_preflight_succeeds_with_valid_data(self):
         """Preflight API returns success when all checks pass."""
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
 
         phase = AdminProjectPhase.objects.create(
             phase_number=1,
@@ -2783,6 +2835,7 @@ class PreflightCheckAPITest(AdminTestMixin, TestCase):
             status='ready',
             effort='S',
             phase=phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -2996,7 +3049,7 @@ class InlineStatusUpdateAPITest(AdminTestMixin, TestCase):
         self.regular_user = self.create_user()
 
         # Create a phase and task
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         self.phase = AdminProjectPhase.objects.create(
             phase_number=1,
             name='Test Phase',
@@ -3011,6 +3064,7 @@ class InlineStatusUpdateAPITest(AdminTestMixin, TestCase):
             status='backlog',
             effort='M',
             phase=self.phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 
@@ -3185,7 +3239,7 @@ class InlinePriorityUpdateAPITest(AdminTestMixin, TestCase):
         self.regular_user = self.create_user()
 
         # Create a phase and task
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
         self.phase = AdminProjectPhase.objects.create(
             phase_number=1,
             name='Test Phase',
@@ -3200,6 +3254,7 @@ class InlinePriorityUpdateAPITest(AdminTestMixin, TestCase):
             status='backlog',
             effort='M',
             phase=self.phase,
+            project=self.get_or_create_default_project(),
             created_by='human'
         )
 

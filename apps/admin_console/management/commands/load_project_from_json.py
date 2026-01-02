@@ -38,6 +38,8 @@ The JSON file must have the following structure:
 """
 
 import json
+import os
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
@@ -94,6 +96,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         json_path = options['json_file']
         dry_run = options['dry_run']
+
+        # If path is relative, resolve it from BASE_DIR
+        if not os.path.isabs(json_path):
+            json_path = os.path.join(settings.BASE_DIR, json_path)
 
         self.stdout.write(f"Loading project from: {json_path}")
 

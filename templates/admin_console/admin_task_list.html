@@ -115,8 +115,20 @@
                 </select>
             </div>
 
+            <div class="filter-group">
+                <label for="filter-project">Project:</label>
+                <select name="project" id="filter-project" class="form-input form-input-sm">
+                    <option value="">All Projects</option>
+                    {% for project in projects %}
+                    <option value="{{ project.pk }}" {% if current_project_filter == project.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
-            {% if current_phase_filter or current_status_filter %}
+            {% if current_phase_filter or current_status_filter or current_project_filter %}
             <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-ghost btn-sm">Clear</a>
             {% endif %}
         </form>
@@ -160,21 +172,15 @@
                     </td>
                     <td>Phase {{ task.phase.phase_number }}</td>
                     <td>
-                        {% if task.status == 'backlog' or task.status == 'ready' %}
-                        <!-- Inline status dropdown for backlog/ready tasks -->
+                        <!-- Inline status dropdown for all tasks -->
                         <select class="inline-status-select status-{{ task.status }}"
                                 data-task-id="{{ task.pk }}"
                                 data-original-status="{{ task.status }}"
                                 id="status-select-{{ task.pk }}">
-                            <option value="backlog" {% if task.status == 'backlog' %}selected{% endif %}>Backlog</option>
-                            <option value="ready" {% if task.status == 'ready' %}selected{% endif %}>Ready</option>
+                            {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if task.status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
                         </select>
-                        {% else %}
-                        <!-- Read-only badge for other statuses -->
-                        <span class="status-badge status-{{ task.status }}" id="status-{{ task.pk }}">
-                            {{ task.get_status_display }}
-                        </span>
-                        {% endif %}
                     </td>
                     <td>
                         <!-- Inline priority dropdown -->
@@ -205,7 +211,7 @@
     {% else %}
     <div class="empty-state">
         <h2>No tasks found</h2>
-        {% if current_phase_filter or current_status_filter %}
+        {% if current_phase_filter or current_status_filter or current_project_filter %}
         <p>No tasks match your current filters.</p>
         <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-secondary">Clear Filters</a>
         {% else %}

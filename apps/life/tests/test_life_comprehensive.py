@@ -880,3 +880,151 @@ class LifeDashboardStatsTest(LifeTestMixin, TestCase):
 
         response = self.client.get(reverse('life:home'))
         self.assertEqual(response.context['overdue_tasks'], 2)
+
+
+# =============================================================================
+# 12. MANAGEMENT COMMAND TESTS
+# =============================================================================
+
+class RecalculateTaskPrioritiesCommandTest(LifeTestMixin, TestCase):
+    """Tests for the recalculate_task_priorities management command."""
+
+    def setUp(self):
+        self.user = self.create_user()
+
+    def test_command_runs_without_errors(self):
+        """Command runs successfully with no tasks."""
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command('recalculate_task_priorities', stdout=out)
+        output = out.getvalue()
+        self.assertIn('No task priority changes needed', output)
+
+    def test_command_updates_stale_soon_to_now(self):
+        """Command updates 'soon' tasks to 'now' when due date arrives."""
+        # Create a task that should be 'now' but is stored as 'soon'
+        task = self.create_task(self.user, due_date=date.today())
+
+        # Manually set priority to 'soon' to simulate stale data
+        Task.objects.filter(pk=task.pk).update(priority='soon')
+        task.refresh_from_db()
+        self.assertEqual(task.priority, 'soon')
+
+        # Run command
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command('recalculate_task_priorities', stdout=out)
+
+        # Verify task was updated
+        task.refresh_from_db()
+        self.assertEqual(task.priority, 'now')
+
+    def test_command_updates_stale_someday_to_soon(self):
+        """Command updates 'someday' tasks to 'soon' when within 7 days."""
+        # Create a task due in 5 days
+        task = self.create_task(self.user, due_date=date.today() + timedelta(days=5))
+
+        # Manually set priority to 'someday' to simulate stale data
+        Task.objects.filter(pk=task.pk).update(priority='someday')
+        task.refresh_from_db()
+        self.assertEqual(task.priority, 'someday')
+
+        # Run command
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command('recalculate_task_priorities', stdout=out)
+
+        # Verify task was updated
+        task.refresh_from_db()
+        self.assertEqual(task.priority, 'soon')
+
+    def test_command_does_not_update_correct_priorities(self):
+        """Command doesn't change tasks with correct priorities."""
+        # Create tasks with correct priorities
+        now_task = self.create_task(self.user, due_date=date.today())
+        soon_task = self.create_task(self.user, due_date=date.today() + timedelta(days=5))
+        someday_task = self.create_task(self.user, due_date=date.today() + timedelta(days=15))
+
+        # Run command
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command('recalculate_task_priorities', stdout=out)
+        output = out.getvalue()
+
+        # No changes needed
+        self.assertIn('No task priority changes needed', output)
+
+    def test_command_ignores_completed_tasks(self):
+        """Command doesn't update completed tasks."""
+        # Create a completed task with stale priority
+        task = self.create_task(self.user, due_date=date.today(), is_completed=True)
+
+        # Manually set priority to 'someday' to simulate stale data
+        Task.objects.filter(pk=task.pk).update(priority='someday')
+
+        # Run command
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command('recalculate_task_priorities', stdout=out)
+
+        # Task should not be updated (still someday)
+        task.refresh_from_db()
+        self.assertEqual(task.priority, 'someday')
+
+    def test_command_dry_run_mode(self):
+        """Dry run mode shows changes without making them."""
+        # Create a task that should be 'now' but is stored as 'soon'
+        task = self.create_task(self.user, due_date=date.today())
+        Task.objects.filter(pk=task.pk).update(priority='soon')
+
+        # Run command with --dry-run
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command('recalculate_task_priorities', '--dry-run', stdout=out)
+        output = out.getvalue()
+
+        # Should show dry run message
+        self.assertIn('[DRY RUN]', output)
+        self.assertIn('Would update 1 task(s)', output)
+
+        # Task should NOT be updated
+        task.refresh_from_db()
+        self.assertEqual(task.priority, 'soon')
+
+    def test_command_handles_multiple_users(self):
+        """Command updates tasks across all users."""
+        user2 = self.create_user(email='user2@example.com')
+
+        # Create stale tasks for both users
+        task1 = self.create_task(self.user, due_date=date.today())
+        task2 = self.create_task(user2, due_date=date.today())
+
+        Task.objects.filter(pk__in=[task1.pk, task2.pk]).update(priority='someday')
+
+        # Run command
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command('recalculate_task_priorities', stdout=out)
+        output = out.getvalue()
+
+        # Both tasks should be updated
+        self.assertIn('Updated 2 task priorities', output)
+
+        task1.refresh_from_db()
+        task2.refresh_from_db()
+        self.assertEqual(task1.priority, 'now')
+        self.assertEqual(task2.priority, 'now')

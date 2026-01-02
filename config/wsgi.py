@@ -14,7 +14,9 @@ Key Responsibilities:
     - Expose the WSGI application callable
     - Set the Django settings module environment variable
     - Initialize the Django application for request handling
-    - Start the SMS scheduler in production (non-DEBUG mode)
+    - Start background schedulers in production (non-DEBUG mode):
+      - SMS scheduler for notifications
+      - Life scheduler for task priority recalculation
 
 Deployment:
     Used by Gunicorn in production via Procfile:
@@ -38,10 +40,10 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 application = get_wsgi_application()
 
-# Start SMS scheduler in production (only once, not in each worker)
+# Start background schedulers in production (only once, not in each worker)
 # We use an environment variable to ensure only one scheduler runs
 def start_scheduler():
-    """Start the SMS background scheduler if not already running."""
+    """Start background schedulers if not already running."""
     from django.conf import settings
 
     # Only run in production (non-DEBUG) and only if not already started
@@ -50,10 +52,10 @@ def start_scheduler():
 
     # Check if we're the main process (not a forked worker)
     # Gunicorn preload mode or single worker setup
-    if os.environ.get('SMS_SCHEDULER_STARTED'):
+    if os.environ.get('SCHEDULER_STARTED'):
         return
 
-    os.environ['SMS_SCHEDULER_STARTED'] = '1'
+    os.environ['SCHEDULER_STARTED'] = '1'
 
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -61,13 +63,17 @@ def start_scheduler():
         from apscheduler.triggers.interval import IntervalTrigger
         import logging
 
-        logger = logging.getLogger('apps.sms')
+        logger = logging.getLogger('scheduler')
 
         # Use MemoryJobStore instead of DjangoJobStore to avoid serialization issues
         # Jobs are re-registered on each startup anyway with replace_existing=True
         scheduler = BackgroundScheduler(timezone=settings.TIME_ZONE)
 
-        # Job 1: Daily scheduling at midnight (textual reference)
+        # =====================================================================
+        # SMS Jobs
+        # =====================================================================
+
+        # Job 1: Daily SMS scheduling at midnight
         scheduler.add_job(
             'apps.sms.jobs:schedule_daily_reminders',
             trigger=CronTrigger(hour=0, minute=0),
@@ -76,7 +82,7 @@ def start_scheduler():
             replace_existing=True,
         )
 
-        # Job 2: Send pending SMS every 5 minutes (textual reference)
+        # Job 2: Send pending SMS every 5 minutes
         scheduler.add_job(
             'apps.sms.jobs:send_pending_sms',
             trigger=IntervalTrigger(minutes=5),
@@ -85,19 +91,42 @@ def start_scheduler():
             replace_existing=True,
         )
 
+        # =====================================================================
+        # Life Module Jobs (Tasks)
+        # =====================================================================
+
+        # Job 3: Recalculate task priorities nightly at 12:05 AM
+        # Runs after SMS scheduling to avoid conflicts
+        scheduler.add_job(
+            'apps.life.jobs:recalculate_task_priorities',
+            trigger=CronTrigger(hour=0, minute=5),
+            id="recalculate_task_priorities",
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # Job 4: Process recurring tasks nightly at 12:10 AM
+        scheduler.add_job(
+            'apps.life.jobs:process_recurring_tasks',
+            trigger=CronTrigger(hour=0, minute=10),
+            id="process_recurring_tasks",
+            max_instances=1,
+            replace_existing=True,
+        )
+
         scheduler.start()
-        logger.info("SMS scheduler started successfully")
+        logger.info("Background scheduler started with 4 jobs: SMS (2), Life (2)")
 
         # Ensure scheduler shuts down on exit
         atexit.register(lambda: scheduler.shutdown(wait=False))
 
-        # Run initial send check
+        # Run initial SMS send check
         from apps.sms.jobs import send_pending_sms
         send_pending_sms()
 
     except Exception as e:
         import logging
-        logging.getLogger('apps.sms').exception(f"Failed to start SMS scheduler: {e}")
+        logging.getLogger('scheduler').exception(f"Failed to start background scheduler: {e}")
 
 # Start scheduler when WSGI app loads
 start_scheduler()

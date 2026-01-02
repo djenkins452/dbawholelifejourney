@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Prayer Request Button Text Fix)
+# Last Updated: 2026-01-01 (Nightly Task Priority Recalculation)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,40 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-01 Changes
+
+### Nightly Task Priority Recalculation (NEW FEATURE)
+
+**Session:** Prayer Request Fix
+
+**Problem:**
+Task priorities (Now/Soon/Someday) are calculated based on due dates, but they only updated when a task was saved. If a task was set to "Soon" because it was due in 5 days, it would remain "Soon" forever unless edited - even after the due date arrived.
+
+**Solution:**
+Added a nightly scheduled job that automatically recalculates task priorities for all incomplete tasks based on their due dates:
+- **Now**: Due today or overdue
+- **Soon**: Due within 7 days
+- **Someday**: Due more than 7 days away or no due date
+
+**New Files:**
+- `apps/life/management/commands/recalculate_task_priorities.py` - Management command to recalculate priorities
+- `apps/life/jobs.py` - APScheduler job functions for life module
+
+**Modified Files:**
+- `config/wsgi.py` - Added two new nightly jobs:
+  - `recalculate_task_priorities` at 12:05 AM
+  - `process_recurring_tasks` at 12:10 AM (existing command, now scheduled)
+- `apps/life/tests/test_life_comprehensive.py` - Added 7 tests for the new command
+
+**Scheduler Jobs:**
+The background scheduler now runs 4 jobs:
+1. SMS: Daily scheduling at midnight
+2. SMS: Send pending every 5 minutes
+3. Life: Recalculate task priorities at 12:05 AM
+4. Life: Process recurring tasks at 12:10 AM
+
+**Note:** Task priorities also recalculate immediately when a task is saved (due date changed), so the nightly job only catches time-based transitions.
+
+---
 
 ### Remove "Your First" Button Text Across All Templates (UI FIX)
 

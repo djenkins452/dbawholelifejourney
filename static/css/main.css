@@ -357,6 +357,10 @@ a:hover {
         padding: var(--space-4);
         flex-direction: column;
         align-items: stretch;
+        /* Mobile scrolling fix */
+        max-height: calc(100vh - 60px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .nav-menu.open {

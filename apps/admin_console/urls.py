@@ -93,6 +93,7 @@ urlpatterns = [
 
     # Admin Projects (Phase 16)
     path("projects/", views.AdminProjectListView.as_view(), name="admin_project_list"),
+    path("projects/new/", views.AdminProjectCreateView.as_view(), name="admin_project_create"),
     path("projects/<int:pk>/", views.AdminProjectDetailView.as_view(), name="admin_project_detail"),
 
     # API Endpoints

@@ -334,6 +334,100 @@ document.addEventListener('DOMContentLoaded', function() {
     const currentSort = '{{ current_sort }}';
     const currentDir = '{{ current_dir }}';
 
+    // =========================================================================
+    // Filter Persistence using sessionStorage
+    // =========================================================================
+    const FILTER_STORAGE_KEY = 'admin_task_list_filters';
+
+    // Save current filters to sessionStorage
+    function saveFiltersToSession() {
+        const filterState = {
+            search: document.getElementById('filter-search')?.value || '',
+            phase: document.getElementById('filter-phase')?.value || '',
+            project: document.getElementById('filter-project')?.value || '',
+            statuses: Array.from(document.querySelectorAll('#status-dropdown input[type="checkbox"]:checked'))
+                         .map(cb => cb.value),
+            sort: currentSort,
+            dir: currentDir
+        };
+        sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterState));
+    }
+
+    // Check if we should restore filters (returning to page without explicit filter params)
+    function shouldRestoreFilters() {
+        // If URL has any filter params, user explicitly set filters - don't restore
+        const url = new URL(window.location.href);
+        const hasExplicitFilters = url.searchParams.has('q') ||
+                                   url.searchParams.has('phase') ||
+                                   url.searchParams.has('status') ||
+                                   url.searchParams.has('project') ||
+                                   url.searchParams.has('sort');
+
+        // If no explicit filters and we have saved state, restore
+        return !hasExplicitFilters && sessionStorage.getItem(FILTER_STORAGE_KEY);
+    }
+
+    // Restore filters from sessionStorage and redirect
+    function restoreFiltersFromSession() {
+        const savedState = sessionStorage.getItem(FILTER_STORAGE_KEY);
+        if (!savedState) return false;
+
+        try {
+            const state = JSON.parse(savedState);
+            const url = new URL(window.location.href);
+
+            // Check if there's anything to restore
+            const hasFilters = state.search || state.phase || state.project ||
+                               (state.statuses && state.statuses.length > 0 &&
+                                state.statuses.length < {{ status_choices|length }}) ||
+                               state.sort;
+
+            if (!hasFilters) return false;
+
+            // Build URL with saved filters
+            if (state.search) url.searchParams.set('q', state.search);
+            if (state.phase) url.searchParams.set('phase', state.phase);
+            if (state.project) url.searchParams.set('project', state.project);
+            if (state.statuses && state.statuses.length > 0) {
+                // Clear existing status params
+                url.searchParams.delete('status');
+                state.statuses.forEach(s => url.searchParams.append('status', s));
+            }
+            if (state.sort) {
+                url.searchParams.set('sort', state.sort);
+                url.searchParams.set('dir', state.dir || 'asc');
+            }
+
+            // Only redirect if URL would actually change
+            if (url.toString() !== window.location.href) {
+                window.location.href = url.toString();
+                return true;
+            }
+        } catch (e) {
+            console.error('Error restoring filters:', e);
+            sessionStorage.removeItem(FILTER_STORAGE_KEY);
+        }
+        return false;
+    }
+
+    // Check if we need to restore filters on page load
+    if (shouldRestoreFilters()) {
+        if (restoreFiltersFromSession()) {
+            return; // Stop execution, page is redirecting
+        }
+    }
+
+    // Save filters whenever the page loads with filters applied
+    saveFiltersToSession();
+
+    // Clear saved filters when user clicks "Clear" link
+    const clearLink = document.querySelector('a[href="{% url 'admin_console:admin_task_list' %}"].btn-ghost');
+    if (clearLink) {
+        clearLink.addEventListener('click', function() {
+            sessionStorage.removeItem(FILTER_STORAGE_KEY);
+        });
+    }
+
     document.querySelectorAll('th.sortable').forEach(function(th) {
         th.addEventListener('click', function() {
             const sortField = this.dataset.sort;

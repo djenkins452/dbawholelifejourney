@@ -620,9 +620,13 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
                 pass
 
         # Filter by status if provided (supports multiple values)
+        # When checkboxes are used, no selection means show nothing
         status_filters = self.request.GET.getlist('status')
         if status_filters:
             queryset = queryset.filter(status__in=status_filters)
+        elif 'status' in self.request.GET:
+            # Status parameter was in URL but empty = show nothing
+            queryset = queryset.none()
 
         # Filter by project if provided
         project_filter = self.request.GET.get('project')

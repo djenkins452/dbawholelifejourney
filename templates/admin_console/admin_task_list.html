@@ -182,6 +182,7 @@
         <table class="admin-table">
             <thead>
                 <tr>
+                    <th>#</th>
                     <th>Title</th>
                     <th>Phase</th>
                     <th>Status</th>
@@ -194,6 +195,7 @@
             <tbody>
                 {% for task in tasks %}
                 <tr id="task-row-{{ task.pk }}" class="task-row">
+                    <td class="task-id">{{ task.pk }}</td>
                     <td>
                         <strong>{{ task.title }}</strong>
                         {% if task.description %}
@@ -685,6 +687,13 @@ document.addEventListener('DOMContentLoaded', function() {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     margin: var(--space-1) 0 0 0;
+}
+
+.task-id {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
 }
 
 .status-badge {

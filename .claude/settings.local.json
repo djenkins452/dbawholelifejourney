@@ -78,7 +78,8 @@
       "Bash(git push)",
       "Bash(curl -s -H \"X-Claude-API-Key: 7f7d5855321170078ffebdc0e1568b31da7f95e78ecb1b54303b9950b6c989b8\" https://wholelifejourney.com/admin-console/api/claude/ready-tasks/)",
       "Bash(https://wholelifejourney.com/admin-console/api/claude/tasks/2/status/)",
-      "Bash(https://wholelifejourney.com/admin-console/api/claude/tasks/11/status/)"
+      "Bash(https://wholelifejourney.com/admin-console/api/claude/tasks/11/status/)",
+      "Bash(SECRET_KEY=dev-test-key DATABASE_URL=sqlite:///./db.sqlite3 python manage.py test:*)"
     ]
   }
 }

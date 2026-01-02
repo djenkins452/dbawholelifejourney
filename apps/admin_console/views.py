@@ -1834,7 +1834,10 @@ class InlineStatusUpdateAPIView(View):
 
     def patch(self, request, pk):
         import json
+        import logging
         from .models import AdminTask, AdminActivityLog
+
+        logger = logging.getLogger(__name__)
 
         # Check admin permission
         if not request.user.is_authenticated or not request.user.is_staff:
@@ -1885,57 +1888,64 @@ class InlineStatusUpdateAPIView(View):
                 status=400
             )
 
-        # No change needed
-        if task.status == new_status:
+        try:
+            # No change needed
+            if task.status == new_status:
+                return JsonResponse({
+                    'success': True,
+                    'task': {
+                        'id': task.id,
+                        'title': task.title,
+                        'status': task.status,
+                        'phase_number': task.phase.phase_number if task.phase else None
+                    },
+                    'changed': False
+                })
+
+            # Update the task
+            old_status = task.status
+            task.status = new_status
+
+            # Handle blocked reason
+            if new_status == 'blocked':
+                task.blocked_reason = reason
+            elif old_status == 'blocked':
+                # Clear blocked reason when leaving blocked status
+                task.blocked_reason = ''
+
+            task.save()
+
+            # Log the change
+            log_action = f"Status changed from '{old_status}' to '{new_status}' via inline edit."
+            if new_status == 'blocked' and reason:
+                log_action += f" Reason: {reason}"
+            AdminActivityLog.objects.create(
+                task=task,
+                action=log_action,
+                created_by='human'
+            )
+
+            # Get ready count for warning
+            ready_count = AdminTask.objects.filter(status='ready').count()
+
             return JsonResponse({
                 'success': True,
                 'task': {
                     'id': task.id,
                     'title': task.title,
                     'status': task.status,
-                    'phase_number': task.phase.phase_number
+                    'phase_number': task.phase.phase_number if task.phase else None
                 },
-                'changed': False
+                'changed': True,
+                'ready_count': ready_count,
+                'show_warning': ready_count >= READY_TASKS_WARNING_THRESHOLD
             })
-
-        # Update the task
-        old_status = task.status
-        task.status = new_status
-
-        # Handle blocked reason
-        if new_status == 'blocked':
-            task.blocked_reason = reason
-        elif old_status == 'blocked':
-            # Clear blocked reason when leaving blocked status
-            task.blocked_reason = ''
-
-        task.save()
-
-        # Log the change
-        log_action = f"Status changed from '{old_status}' to '{new_status}' via inline edit."
-        if new_status == 'blocked' and reason:
-            log_action += f" Reason: {reason}"
-        AdminActivityLog.objects.create(
-            task=task,
-            action=log_action,
-            created_by='human'
-        )
-
-        # Get ready count for warning
-        ready_count = AdminTask.objects.filter(status='ready').count()
-
-        return JsonResponse({
-            'success': True,
-            'task': {
-                'id': task.id,
-                'title': task.title,
-                'status': task.status,
-                'phase_number': task.phase.phase_number
-            },
-            'changed': True,
-            'ready_count': ready_count,
-            'show_warning': ready_count >= READY_TASKS_WARNING_THRESHOLD
-        })
+        except Exception as e:
+            logger.exception(f"Error updating task {pk} status to {new_status}")
+            return JsonResponse(
+                {'error': f'Server error: {str(e)}'},
+                status=500
+            )
 
 
 class InlinePriorityUpdateAPIView(View):

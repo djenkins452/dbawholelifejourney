@@ -182,13 +182,76 @@
         <table class="admin-table">
             <thead>
                 <tr>
-                    <th>#</th>
-                    <th>Title</th>
-                    <th>Phase</th>
-                    <th>Status</th>
-                    <th>Priority</th>
-                    <th>Created By</th>
-                    <th>Created At</th>
+                    <th class="sortable{% if current_sort == 'id' %} sorted{% endif %}" data-sort="id">
+                        #
+                        <span class="sort-icon">
+                            {% if current_sort == 'id' %}
+                                {% if current_dir == 'asc' %}▲{% else %}▼{% endif %}
+                            {% else %}
+                                ⇅
+                            {% endif %}
+                        </span>
+                    </th>
+                    <th class="sortable{% if current_sort == 'title' %} sorted{% endif %}" data-sort="title">
+                        Title
+                        <span class="sort-icon">
+                            {% if current_sort == 'title' %}
+                                {% if current_dir == 'asc' %}▲{% else %}▼{% endif %}
+                            {% else %}
+                                ⇅
+                            {% endif %}
+                        </span>
+                    </th>
+                    <th class="sortable{% if current_sort == 'phase' %} sorted{% endif %}" data-sort="phase">
+                        Phase
+                        <span class="sort-icon">
+                            {% if current_sort == 'phase' %}
+                                {% if current_dir == 'asc' %}▲{% else %}▼{% endif %}
+                            {% else %}
+                                ⇅
+                            {% endif %}
+                        </span>
+                    </th>
+                    <th class="sortable{% if current_sort == 'status' %} sorted{% endif %}" data-sort="status">
+                        Status
+                        <span class="sort-icon">
+                            {% if current_sort == 'status' %}
+                                {% if current_dir == 'asc' %}▲{% else %}▼{% endif %}
+                            {% else %}
+                                ⇅
+                            {% endif %}
+                        </span>
+                    </th>
+                    <th class="sortable{% if current_sort == 'priority' %} sorted{% endif %}" data-sort="priority">
+                        Priority
+                        <span class="sort-icon">
+                            {% if current_sort == 'priority' %}
+                                {% if current_dir == 'asc' %}▲{% else %}▼{% endif %}
+                            {% else %}
+                                ⇅
+                            {% endif %}
+                        </span>
+                    </th>
+                    <th class="sortable{% if current_sort == 'created_by' %} sorted{% endif %}" data-sort="created_by">
+                        Created By
+                        <span class="sort-icon">
+                            {% if current_sort == 'created_by' %}
+                                {% if current_dir == 'asc' %}▲{% else %}▼{% endif %}
+                            {% else %}
+                                ⇅
+                            {% endif %}
+                        </span>
+                    </th>
+                    <th class="sortable{% if current_sort == 'created_at' %} sorted{% endif %}" data-sort="created_at">
+                        Created At
+                        <span class="sort-icon">
+                            {% if current_sort == 'created_at' %}
+                                {% if current_dir == 'asc' %}▲{% else %}▼{% endif %}
+                            {% else %}
+                                ⇅
+                            {% endif %}
+                        </span>
+                    </th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -257,6 +320,29 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';
+
+    // Sortable column headers
+    const currentSort = '{{ current_sort }}';
+    const currentDir = '{{ current_dir }}';
+
+    document.querySelectorAll('th.sortable').forEach(function(th) {
+        th.addEventListener('click', function() {
+            const sortField = this.dataset.sort;
+            let newDir = 'asc';
+
+            // If clicking the same column, toggle direction
+            if (sortField === currentSort) {
+                newDir = currentDir === 'asc' ? 'desc' : 'asc';
+            }
+
+            // Build new URL with sort parameters while preserving filters
+            const url = new URL(window.location.href);
+            url.searchParams.set('sort', sortField);
+            url.searchParams.set('dir', newDir);
+
+            window.location.href = url.toString();
+        });
+    });
 
     // Helper to update status select styling
     function updateStatusSelectClass(select, status) {
@@ -673,6 +759,35 @@ document.addEventListener('DOMContentLoaded', function() {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--color-text-muted);
+}
+
+/* Sortable column headers */
+.admin-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+}
+
+.admin-table th.sortable:hover {
+    background: var(--color-border);
+    color: var(--color-text);
+}
+
+.admin-table th.sortable.sorted {
+    color: var(--color-accent);
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.admin-table th .sort-icon {
+    margin-left: var(--space-1);
+    font-size: 0.75em;
+    opacity: 0.5;
+}
+
+.admin-table th.sortable:hover .sort-icon,
+.admin-table th.sorted .sort-icon {
+    opacity: 1;
 }
 
 .admin-table tbody tr:last-child td {

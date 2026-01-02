@@ -645,8 +645,29 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
             except (ValueError, TypeError):
                 pass
 
-        # Order by priority ASC, created_at ASC (per Phase 12 spec)
-        return queryset.order_by('priority', 'created_at')
+        # Handle sorting - default to priority ASC, created_at ASC
+        sort_field = self.request.GET.get('sort', 'priority')
+        sort_dir = self.request.GET.get('dir', 'asc')
+
+        # Map frontend column names to model fields
+        sort_field_map = {
+            'id': 'pk',
+            'title': 'title',
+            'phase': 'phase__phase_number',
+            'status': 'status',
+            'priority': 'priority',
+            'created_by': 'created_by',
+            'created_at': 'created_at',
+        }
+
+        # Get the actual field to sort by, default to priority
+        actual_field = sort_field_map.get(sort_field, 'priority')
+
+        # Apply sort direction
+        if sort_dir == 'desc':
+            actual_field = '-' + actual_field
+
+        return queryset.order_by(actual_field)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -661,6 +682,10 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
         context['current_phase_filter'] = self.request.GET.get('phase', '')
         context['current_status_filters'] = self.request.GET.getlist('status')
         context['current_project_filter'] = self.request.GET.get('project', '')
+
+        # Sort state for sortable headers
+        context['current_sort'] = self.request.GET.get('sort', 'priority')
+        context['current_dir'] = self.request.GET.get('dir', 'asc')
 
         # Ready tasks warning (soft guardrail)
         ready_count = AdminTask.objects.filter(status='ready').count()

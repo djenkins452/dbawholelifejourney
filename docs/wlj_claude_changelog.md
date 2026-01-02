@@ -16,18 +16,38 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-01 Changes
 
-### Prayer Request Button Text Fix (UI FIX)
+### Remove "Your First" Button Text Across All Templates (UI FIX)
 
 **Session:** Prayer Request Fix
 
 **Problem:**
-The button to add a prayer request on the Faith home page said "Add your first prayer request" even when the user already had prayer requests. The text implied it was the user's first prayer.
+Multiple buttons and links throughout the app said things like "Add your first prayer request", "Log your first weight", "Create your first tag", etc. even when the user already had existing items. The text implied it was the user's first when it may not be.
 
 **Solution:**
-Changed the button text from "Add your first prayer request" to "Add a prayer request" to be accurate regardless of whether the user has existing prayers.
+Changed all button/link text to remove "your first" phrasing, making them accurate regardless of whether the user has existing items.
 
-**Files Modified:**
-- `templates/faith/home.html` - Updated button text on line 66
+**Files Modified (13 instances fixed):**
+- `templates/faith/home.html`:
+  - "Add your first prayer request" → "Add a prayer request"
+  - "Write your first reflection" → "Write a reflection"
+  - "Add your first milestone" → "Add a milestone"
+- `templates/health/home.html`:
+  - "Log your first weight" → "Log weight"
+  - "Log your first reading" → "Log a reading" (heart rate)
+  - "Log your first reading" → "Log a reading" (blood pressure)
+  - "Log your first reading" → "Log a reading" (blood oxygen)
+  - "Add your first medicine" → "Add a medicine"
+  - "Log your first workout" → "Log a workout"
+- `templates/health/fasting_list.html`:
+  - "Start your first fast" → "Start a fast" (text and button)
+- `templates/health/medicine/medicine_list.html`:
+  - "adding your first medicine" → "adding a medicine"
+- `templates/journal/tag_list.html`:
+  - "Create your first tag" → "Create a tag" (text and button)
+- `templates/journal/entry_form.html`:
+  - "Create your first tag" → "Create a tag"
+- `templates/admin_console/theme_list.html`:
+  - "Create your first theme" → "Create a theme"
 
 ---
 

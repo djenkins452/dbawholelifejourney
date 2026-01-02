@@ -101,7 +101,7 @@
         {% elif current_status == 'completed' %}
         <p class="text-muted">No completed medicines.</p>
         {% else %}
-        <p class="text-muted">Start by adding your first medicine.</p>
+        <p class="text-muted">Start by adding a medicine.</p>
         {% endif %}
         <a href="{% url 'health:medicine_create' %}" class="btn btn-primary mt-4">Add Medicine</a>
     </div>

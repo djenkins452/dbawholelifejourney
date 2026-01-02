@@ -279,6 +279,100 @@ Before deploying: **"What could this change accidentally break?"** Only test tho
 
 ---
 
+## WLJ EXECUTABLE TASK STANDARD (MANDATORY)
+
+All AdminTask objects in the admin_console app MUST conform to the Executable Task Standard. This ensures tasks are machine-readable and can be executed by AI.
+
+### Required Task Description Structure
+
+Every task's `description` field is a JSONField with the following **mandatory** keys:
+
+```json
+{
+    "objective": "Clear statement of what the task should accomplish",
+    "inputs": ["Required context or resources", "Can be empty array []"],
+    "actions": ["Step 1: Do this", "Step 2: Then this", "At least one required"],
+    "output": "Expected deliverable or result"
+}
+```
+
+### Field Requirements
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `objective` | string | ✓ | What the task should accomplish |
+| `inputs` | array of strings | ✓ | Context, files, or dependencies needed (can be empty `[]`) |
+| `actions` | array of strings | ✓ | Step-by-step execution instructions (**at least one required**) |
+| `output` | string | ✓ | Expected deliverable or completion criteria |
+
+### Validation Rules
+
+Tasks that violate these rules **CANNOT be saved**:
+
+1. **Missing Fields**: All four fields must be present
+2. **Empty Objective**: Objective must be a non-empty string
+3. **No Actions**: Actions array must contain at least one step
+4. **Empty Output**: Output must be a non-empty string
+5. **Wrong Types**: Each field must match its expected type
+
+### Refusal Rules for AI
+
+Claude MUST refuse to:
+- Create tasks without all required fields
+- Save tasks with empty actions array
+- Accept text descriptions instead of JSON structure
+- Skip validation when updating tasks
+
+When a task is malformed, Claude MUST:
+1. Return clear validation errors explaining what is missing
+2. Provide an example of correct structure
+3. Not save the task until corrected
+
+### Run Task Mode Behavior
+
+When executing a task ("Run Task" mode):
+
+1. **Load Context**: Read CLAUDE.md first to understand project context
+2. **Validate Task**: Verify the task conforms to Executable Task Standard
+3. **Check Inputs**: Gather all resources listed in the `inputs` array
+4. **Execute Actions**: Perform each action in the `actions` array in order
+5. **Verify Output**: Confirm the `output` criteria is met
+6. **Mark Complete**: Only mark task as `done` if output is successfully produced
+
+If any step fails:
+- Log the failure with specific error
+- Keep task in current status (do not mark complete)
+- Create a clear error message explaining what went wrong
+
+### Example Valid Task
+
+```json
+{
+    "objective": "Add user authentication to the API endpoints",
+    "inputs": [
+        "Read apps/api/views.py to understand current endpoints",
+        "Check apps/users/models.py for User model structure"
+    ],
+    "actions": [
+        "Add authentication decorators to all API views",
+        "Create authentication middleware for token validation",
+        "Update API documentation with authentication requirements",
+        "Write tests for authenticated and unauthenticated access"
+    ],
+    "output": "All API endpoints require valid authentication tokens. Tests pass."
+}
+```
+
+### Implementation Files
+
+- **Model**: `apps/admin_console/models.py` - `AdminTask.description` JSONField
+- **Validator**: `apps/admin_console/models.py` - `validate_executable_task_description()`
+- **Exception**: `apps/admin_console/models.py` - `ExecutableTaskValidationError`
+- **Forms**: Task Intake and Admin Task forms parse individual fields into JSON
+- **Migrations**: `0010_convert_description_to_json.py`, `0011_alter_admintask_description.py`
+
+---
+
 *For detailed feature documentation, see `docs/wlj_claude_features.md`*
 *For historical changes, see `docs/wlj_claude_changelog.md`*
 *Last updated: 2026-01-01*

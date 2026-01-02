@@ -80,6 +80,19 @@ class AdminTestMixin:
         )
         return project
 
+    def make_executable_description(self, title='Test Task'):
+        """
+        Create a valid executable task description for tests.
+
+        Returns a dict conforming to the WLJ Executable Task Standard.
+        """
+        return {
+            'objective': f'Complete {title}',
+            'inputs': [],
+            'actions': ['Execute the task'],
+            'output': 'Task completed successfully'
+        }
+
     def login_admin(self, email='admin@example.com', password='adminpass123'):
         return self.client.login(email=email, password=password)
 
@@ -624,7 +637,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
         # Create tasks
         task1 = AdminTask.objects.create(
             title='Task 1',
-            description='Description 1',
+            description=self.make_executable_description('Task 1'),
             category='feature',
             priority=1,
             status='ready',
@@ -635,7 +648,7 @@ class NextTasksAPITest(AdminTestMixin, TestCase):
         )
         task2 = AdminTask.objects.create(
             title='Task 2',
-            description='Description 2',
+            description=self.make_executable_description('Task 2'),
             category='bug',
             priority=2,
             status='backlog',

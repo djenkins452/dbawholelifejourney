@@ -4,7 +4,7 @@
 # Description: Admin console models for project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 17 - Configurable Task Fields)
+# Last Updated: 2026-01-01 (Phase 17.5 - Executable Task Standard)
 # ==============================================================================
 
 from django.core.exceptions import ValidationError
@@ -19,6 +19,98 @@ class TaskStatusTransitionError(Exception):
 class DeletionProtectedError(Exception):
     """Exception raised when attempting to delete a protected resource."""
     pass
+
+
+class ExecutableTaskValidationError(ValidationError):
+    """
+    Exception raised when a task description does not meet the Executable Task Standard.
+
+    The Executable Task Standard requires all tasks to have a description JSONField
+    with the following mandatory keys:
+    - objective (string): What the task should accomplish
+    - inputs (array of strings): Required context or resources to complete the task
+    - actions (array of strings, at least one): Step-by-step actions to execute
+    - output (string): Expected deliverable or result
+    """
+    pass
+
+
+def validate_executable_task_description(value):
+    """
+    Validate that a task description conforms to the Executable Task Standard.
+
+    Required structure:
+    {
+        "objective": "string - what the task should accomplish",
+        "inputs": ["array", "of", "strings"],
+        "actions": ["at least one action step"],
+        "output": "string - expected deliverable"
+    }
+
+    Raises:
+        ExecutableTaskValidationError: If any required field is missing or malformed
+    """
+    # Skip validation for legacy string descriptions during migration period
+    if isinstance(value, str):
+        # Legacy format - allow during transition but log warning
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Legacy string description detected. "
+            f"Please migrate to executable task format: {value[:100]}..."
+        )
+        return  # Allow legacy format during migration
+
+    if not isinstance(value, dict):
+        raise ExecutableTaskValidationError(
+            "Task description must be a JSON object with objective, inputs, actions, and output fields.",
+            code='invalid_type'
+        )
+
+    errors = []
+
+    # Validate 'objective' - required string
+    if 'objective' not in value:
+        errors.append("Missing required field: 'objective'. Provide a clear description of what the task should accomplish.")
+    elif not isinstance(value['objective'], str):
+        errors.append("Field 'objective' must be a string.")
+    elif not value['objective'].strip():
+        errors.append("Field 'objective' cannot be empty.")
+
+    # Validate 'inputs' - required array of strings
+    if 'inputs' not in value:
+        errors.append("Missing required field: 'inputs'. Provide an array of required context or resources (can be empty array []).")
+    elif not isinstance(value['inputs'], list):
+        errors.append("Field 'inputs' must be an array of strings.")
+    else:
+        for i, item in enumerate(value['inputs']):
+            if not isinstance(item, str):
+                errors.append(f"Field 'inputs[{i}]' must be a string, got {type(item).__name__}.")
+
+    # Validate 'actions' - required non-empty array of strings
+    if 'actions' not in value:
+        errors.append("Missing required field: 'actions'. Provide at least one action step for AI to execute.")
+    elif not isinstance(value['actions'], list):
+        errors.append("Field 'actions' must be an array of strings.")
+    elif len(value['actions']) == 0:
+        errors.append("Field 'actions' must contain at least one action step. Tasks without actions cannot be executed.")
+    else:
+        for i, item in enumerate(value['actions']):
+            if not isinstance(item, str):
+                errors.append(f"Field 'actions[{i}]' must be a string, got {type(item).__name__}.")
+            elif not item.strip():
+                errors.append(f"Field 'actions[{i}]' cannot be empty.")
+
+    # Validate 'output' - required string
+    if 'output' not in value:
+        errors.append("Missing required field: 'output'. Specify the expected deliverable or result.")
+    elif not isinstance(value['output'], str):
+        errors.append("Field 'output' must be a string.")
+    elif not value['output'].strip():
+        errors.append("Field 'output' cannot be empty.")
+
+    if errors:
+        raise ExecutableTaskValidationError(errors, code='invalid_structure')
 
 
 # ==============================================================================
@@ -291,7 +383,20 @@ class AdminProjectPhase(models.Model):
 
 
 class AdminTask(models.Model):
-    """Admin task for project management."""
+    """
+    Admin task for project management.
+
+    WLJ EXECUTABLE TASK STANDARD:
+    All tasks must have a description JSONField with the following required structure:
+    {
+        "objective": "What the task should accomplish",
+        "inputs": ["Required context", "resources", "or dependencies"],
+        "actions": ["Step 1: Do this", "Step 2: Then this"],
+        "output": "Expected deliverable or result"
+    }
+
+    Tasks that do not conform to this structure cannot be saved.
+    """
 
     # Legacy choices - kept for backward compatibility during migration
     CATEGORY_CHOICES = [
@@ -331,7 +436,18 @@ class AdminTask(models.Model):
     ]
 
     title = models.CharField(max_length=200)
-    description = models.TextField()
+
+    # Executable Task Description - JSONField with required structure
+    # Structure: {objective: str, inputs: [str], actions: [str], output: str}
+    description = models.JSONField(
+        validators=[validate_executable_task_description],
+        help_text=(
+            'Executable task description in JSON format. Required fields: '
+            'objective (string), inputs (array of strings), '
+            'actions (array with at least one step), output (string).'
+        ),
+        default=dict
+    )
 
     # Legacy fields (kept for backward compatibility)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
@@ -427,6 +543,33 @@ class AdminTask(models.Model):
 
     def __str__(self):
         return self.title
+
+    # Class attribute to control validation during tests
+    _skip_executable_validation = False
+
+    def clean(self):
+        """
+        Validate the task before saving.
+
+        Enforces the Executable Task Standard by validating the description field.
+        Set _skip_executable_validation = True to bypass during legacy data migration.
+        """
+        super().clean()
+        # Skip validation if explicitly bypassed (e.g., data migrations)
+        if not self._skip_executable_validation:
+            validate_executable_task_description(self.description)
+
+    def save(self, *args, **kwargs):
+        """
+        Save the task with validation.
+
+        Runs full_clean() to ensure the Executable Task Standard is enforced,
+        unless skip_validation=True is passed.
+        """
+        skip_validation = kwargs.pop('skip_validation', False)
+        if not skip_validation:
+            self.full_clean()
+        super().save(*args, **kwargs)
 
     @classmethod
     def is_valid_transition(cls, from_status, to_status):

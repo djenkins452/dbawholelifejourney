@@ -720,6 +720,28 @@ class AdminTaskUpdateView(AdminRequiredMixin, UpdateView):
         from apps.admin_console.models import AdminTask
         return AdminTask.objects.all()
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.admin_console.models import (
+            AdminProject, AdminProjectPhase,
+            AdminTaskStatusConfig, AdminTaskPriorityConfig,
+            AdminTaskCategoryConfig, AdminTaskEffortConfig
+        )
+
+        # Get phases for dropdown
+        context['phases'] = AdminProjectPhase.objects.all().order_by('phase_number')
+
+        # Get projects for dropdown
+        context['projects'] = AdminProject.objects.all().order_by('name')
+
+        # Get active config options for dropdowns (same as TaskIntakeView)
+        context['status_configs'] = AdminTaskStatusConfig.objects.filter(active=True).order_by('order')
+        context['priority_configs'] = AdminTaskPriorityConfig.objects.filter(active=True).order_by('order')
+        context['category_configs'] = AdminTaskCategoryConfig.objects.filter(active=True).order_by('order')
+        context['effort_configs'] = AdminTaskEffortConfig.objects.filter(active=True).order_by('order')
+
+        return context
+
     def form_valid(self, form):
         from apps.admin_console.models import ExecutableTaskValidationError
 

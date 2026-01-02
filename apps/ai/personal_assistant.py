@@ -625,7 +625,12 @@ class PersonalAssistant:
             current_streak = goal.current_streak
             total_days = goal.total_days
             completed_days = goal.completed_days
-            missed_days = goal.days_elapsed - completed_days if goal.days_elapsed > 0 else 0
+
+            # Calculate days_elapsed and days_remaining (not properties on model)
+            end_check = min(goal.end_date, today)
+            days_elapsed = max(0, (end_check - goal.start_date).days + 1) if end_check >= goal.start_date else 0
+            days_remaining = max(0, (goal.end_date - today).days) if goal.end_date > today else 0
+            days_without_entry = max(0, days_elapsed - completed_days)
 
             total_rate += completion_rate
             if current_streak > max_streak:
@@ -638,13 +643,12 @@ class PersonalAssistant:
                 'start_date': goal.start_date.isoformat(),
                 'end_date': goal.end_date.isoformat(),
                 'total_days': total_days,
-                'days_elapsed': goal.days_elapsed,
-                'days_remaining': goal.days_remaining,
+                'days_elapsed': days_elapsed,
+                'days_remaining': days_remaining,
                 'completed_days': completed_days,
-                'days_without_entry': missed_days,  # Non-judgmental: not "missed"
+                'days_without_entry': days_without_entry,  # Non-judgmental: not "missed"
                 'completion_rate': round(completion_rate, 1),
                 'current_streak': current_streak,
-                'longest_streak': goal.longest_streak,
                 # Recovery pattern: days since last missed day
                 'recovery_opportunity': self._calculate_recovery_pattern(goal, today),
             }

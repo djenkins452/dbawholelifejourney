@@ -589,7 +589,7 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
     Phase 12 requirements:
     - Display: title, phase number, status, priority, created_by, created_at
     - Order by: priority ASC, created_at ASC
-    - Filterable by: phase, status (optional)
+    - Filterable by: phase, status, project (optional)
     - Read-only list (no inline editing required)
     - Includes Mark Ready control for backlog tasks
     """
@@ -599,7 +599,7 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
 
-        queryset = AdminTask.objects.select_related('phase').all()
+        queryset = AdminTask.objects.select_related('phase', 'project').all()
 
         # Filter by phase if provided
         phase_filter = self.request.GET.get('phase')
@@ -614,19 +614,29 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
 
+        # Filter by project if provided
+        project_filter = self.request.GET.get('project')
+        if project_filter:
+            try:
+                queryset = queryset.filter(project_id=int(project_filter))
+            except (ValueError, TypeError):
+                pass
+
         # Order by priority ASC, created_at ASC (per Phase 12 spec)
         return queryset.order_by('priority', 'created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from apps.admin_console.models import AdminProjectPhase, AdminTask
+        from apps.admin_console.models import AdminProjectPhase, AdminProject, AdminTask
 
         context['phases'] = AdminProjectPhase.objects.all().order_by('phase_number')
+        context['projects'] = AdminProject.objects.all().order_by('name')
         context['status_choices'] = AdminTask.STATUS_CHOICES
 
         # Preserve filter values
         context['current_phase_filter'] = self.request.GET.get('phase', '')
         context['current_status_filter'] = self.request.GET.get('status', '')
+        context['current_project_filter'] = self.request.GET.get('project', '')
 
         # Ready tasks warning (soft guardrail)
         ready_count = AdminTask.objects.filter(status='ready').count()
@@ -1799,29 +1809,28 @@ class SeedPhasesAPIView(View):
 
 class InlineStatusUpdateAPIView(View):
     """
-    API endpoint for inline status updates (backlog <-> ready only).
+    API endpoint for inline status updates.
 
     PATCH /api/admin/project/tasks/<id>/inline-status/
 
-    This is a simplified endpoint for inline editing that:
-    - Only allows transitions between 'backlog' and 'ready'
-    - Does NOT allow setting in_progress, blocked, or done
-    - Saves immediately without confirmation
+    This endpoint allows changing task status directly from the task list.
+    All status values are allowed: backlog, ready, in_progress, blocked, done.
 
     Request body:
     {
-        "status": "backlog" | "ready"
+        "status": "backlog" | "ready" | "in_progress" | "blocked" | "done",
+        "reason": "optional reason (required for blocked status)"
     }
 
     Returns:
     - 200: Success with updated task info
-    - 400: Invalid status or transition not allowed
+    - 400: Invalid status or missing reason for blocked
     - 403: Permission denied (not admin)
     - 404: Task not found
     """
 
-    # Allowed inline transitions: only backlog <-> ready
-    ALLOWED_INLINE_STATUSES = ['backlog', 'ready']
+    # All status values are allowed
+    ALLOWED_INLINE_STATUSES = ['backlog', 'ready', 'in_progress', 'blocked', 'done']
 
     def patch(self, request, pk):
         import json
@@ -1860,19 +1869,19 @@ class InlineStatusUpdateAPIView(View):
                 status=400
             )
 
-        # Validate status is allowed for inline editing
+        # Validate status is a valid choice
         if new_status not in self.ALLOWED_INLINE_STATUSES:
             return JsonResponse(
-                {'error': f"Inline editing only allows: {self.ALLOWED_INLINE_STATUSES}. "
-                          f"Use the full edit form for other status changes."},
+                {'error': f"Invalid status: {new_status}. "
+                          f"Allowed values: {self.ALLOWED_INLINE_STATUSES}"},
                 status=400
             )
 
-        # Validate current status is also in allowed list
-        if task.status not in self.ALLOWED_INLINE_STATUSES:
+        # Check for blocked status requiring a reason
+        reason = body.get('reason', '')
+        if new_status == 'blocked' and not reason:
             return JsonResponse(
-                {'error': f"Cannot change status inline when current status is '{task.status}'. "
-                          f"Only tasks in 'backlog' or 'ready' can be changed inline."},
+                {'error': "Reason is required when setting status to 'blocked'."},
                 status=400
             )
 
@@ -1892,12 +1901,23 @@ class InlineStatusUpdateAPIView(View):
         # Update the task
         old_status = task.status
         task.status = new_status
+
+        # Handle blocked reason
+        if new_status == 'blocked':
+            task.blocked_reason = reason
+        elif old_status == 'blocked':
+            # Clear blocked reason when leaving blocked status
+            task.blocked_reason = ''
+
         task.save()
 
         # Log the change
+        log_action = f"Status changed from '{old_status}' to '{new_status}' via inline edit."
+        if new_status == 'blocked' and reason:
+            log_action += f" Reason: {reason}"
         AdminActivityLog.objects.create(
             task=task,
-            action=f"Status changed from '{old_status}' to '{new_status}' via inline edit.",
+            action=log_action,
             created_by='human'
         )
 

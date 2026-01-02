@@ -51,13 +51,13 @@
                         <option value="">-- No projects available --</option>
                         {% endfor %}
                     </select>
-                    <button type="button" id="add-project-btn" class="btn btn-sm btn-ghost" title="Create new project">
+                    <a href="{% url 'admin_console:admin_project_create' %}?from=intake" class="btn btn-sm btn-ghost" title="Create new project">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"/>
                             <line x1="5" y1="12" x2="19" y2="12"/>
                         </svg>
                         New
-                    </button>
+                    </a>
                 </div>
                 <p class="form-hint">Select the project this task belongs to, or click "New" to create one</p>
             </div>
@@ -386,50 +386,4 @@
     border-bottom: 1px solid var(--color-border);
 }
 </style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const addProjectBtn = document.getElementById('add-project-btn');
-    const projectSelect = document.getElementById('id_project');
-
-    if (addProjectBtn) {
-        addProjectBtn.addEventListener('click', function() {
-            // Open project create form in a popup window
-            const popupWidth = 600;
-            const popupHeight = 500;
-            const left = (window.screen.width - popupWidth) / 2;
-            const top = (window.screen.height - popupHeight) / 2;
-
-            const popup = window.open(
-                '{% url "admin_console:admin_project_create" %}?popup=1',
-                'CreateProject',
-                `width=${popupWidth},height=${popupHeight},left=${left},top=${top},scrollbars=yes,resizable=yes`
-            );
-
-            // Check if popup was blocked
-            if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-                alert('Popup was blocked. Please allow popups for this site.');
-                return;
-            }
-
-            // Listen for message from popup when project is created
-            window.addEventListener('message', function handler(event) {
-                if (event.data && event.data.type === 'projectCreated') {
-                    const newProject = event.data.project;
-
-                    // Add new option to select and select it
-                    const option = document.createElement('option');
-                    option.value = newProject.id;
-                    option.textContent = newProject.name;
-                    option.selected = true;
-                    projectSelect.appendChild(option);
-
-                    // Remove this listener
-                    window.removeEventListener('message', handler);
-                }
-            });
-        });
-    }
-});
-</script>
 {% endblock %}

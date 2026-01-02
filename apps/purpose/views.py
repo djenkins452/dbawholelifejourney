@@ -7,7 +7,9 @@ Visited seasonally, not daily.
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
@@ -32,6 +34,8 @@ from .models import (
     Reflection,
     ReflectionResponse,
     PlanningAction,
+    HabitGoal,
+    HabitEntry,
 )
 
 
@@ -578,9 +582,273 @@ class PlanningActionDeleteView(PurposeAccessMixin, DeleteView):
     """Delete a planning action."""
     model = PlanningAction
     template_name = "purpose/planning_action_confirm_delete.html"
-    
+
     def get_queryset(self):
         return PlanningAction.objects.filter(user=self.request.user)
-    
+
     def get_success_url(self):
         return reverse('purpose:direction_detail', kwargs={'pk': self.object.annual_direction.pk})
+
+
+# =============================================================================
+# Habit Goals
+# =============================================================================
+
+class HabitGoalListView(PurposeAccessMixin, ListView):
+    """List all habit goals."""
+    model = HabitGoal
+    template_name = "purpose/habit_goal_list.html"
+    context_object_name = "habit_goals"
+
+    def get_queryset(self):
+        queryset = HabitGoal.objects.filter(
+            user=self.request.user
+        ).select_related('domain')
+
+        # Filter by status
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+        else:
+            # Default: show active
+            queryset = queryset.filter(status='active')
+
+        return queryset.order_by('-start_date', 'name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['current_status'] = self.request.GET.get('status', 'active')
+        return context
+
+
+class HabitGoalDetailView(HelpContextMixin, PurposeAccessMixin, DetailView):
+    """View habit goal details with matrix."""
+    model = HabitGoal
+    template_name = "purpose/habit_goal_detail.html"
+    context_object_name = "goal"
+    help_context_id = "HABIT_GOAL_DETAIL"
+
+    def get_queryset(self):
+        return HabitGoal.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        today = timezone.now().date()
+
+        # Get matrix data organized as rows
+        context['matrix_rows'] = self.object.get_matrix_as_rows()
+
+        # Check if today is within goal range for "I Did It" button
+        context['can_log_today'] = (
+            self.object.start_date <= today <= self.object.end_date
+            and self.object.habit_required
+        )
+
+        # Check if today already logged
+        context['today_logged'] = self.object.habit_entries.filter(
+            date=today, completed=True
+        ).exists()
+
+        # Get the min/max valid dates for the date picker
+        context['min_date'] = self.object.start_date.isoformat()
+        context['max_date'] = min(self.object.end_date, today).isoformat()
+
+        return context
+
+
+class HabitGoalCreateView(PurposeAccessMixin, CreateView):
+    """Create a new habit goal."""
+    model = HabitGoal
+    template_name = "purpose/habit_goal_form.html"
+    fields = [
+        'name', 'purpose', 'description', 'success_criteria',
+        'start_date', 'end_date', 'habit_required', 'domain',
+        'annual_direction'
+    ]
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.fields['domain'].queryset = LifeDomain.objects.filter(is_active=True)
+        form.fields['annual_direction'].queryset = AnnualDirection.objects.filter(
+            user=self.request.user
+        ).order_by('-year')
+        return form
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        messages.success(self.request, f"Habit goal '{form.instance.name}' created.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('purpose:habit_goal_detail', kwargs={'pk': self.object.pk})
+
+
+class HabitGoalUpdateView(PurposeAccessMixin, UpdateView):
+    """Edit a habit goal."""
+    model = HabitGoal
+    template_name = "purpose/habit_goal_form.html"
+    fields = [
+        'name', 'purpose', 'description', 'success_criteria',
+        'start_date', 'end_date', 'habit_required', 'domain',
+        'status', 'annual_direction'
+    ]
+
+    def get_queryset(self):
+        return HabitGoal.objects.filter(user=self.request.user)
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.fields['domain'].queryset = LifeDomain.objects.filter(is_active=True)
+        form.fields['annual_direction'].queryset = AnnualDirection.objects.filter(
+            user=self.request.user
+        ).order_by('-year')
+        return form
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Habit goal '{form.instance.name}' updated.")
+        return super().form_valid(form)
+
+
+class HabitGoalDeleteView(PurposeAccessMixin, DeleteView):
+    """Delete a habit goal."""
+    model = HabitGoal
+    template_name = "purpose/habit_goal_confirm_delete.html"
+    success_url = reverse_lazy('purpose:habit_goal_list')
+
+    def get_queryset(self):
+        return HabitGoal.objects.filter(user=self.request.user)
+
+
+# =============================================================================
+# Habit Logging Controls
+# =============================================================================
+
+class HabitLogTodayView(PurposeAccessMixin, View):
+    """
+    Log habit completion for today via AJAX.
+
+    POST /purpose/habits/<pk>/log-today/
+    Returns JSON with success status and updated box state.
+    """
+
+    def post(self, request, pk):
+        goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
+        today = timezone.now().date()
+
+        # Validate goal has habit tracking
+        if not goal.habit_required:
+            return JsonResponse({
+                'success': False,
+                'error': 'This goal does not have habit tracking enabled.'
+            }, status=400)
+
+        # Validate today is within goal range
+        if today < goal.start_date:
+            return JsonResponse({
+                'success': False,
+                'error': 'Goal has not started yet.'
+            }, status=400)
+
+        if today > goal.end_date:
+            return JsonResponse({
+                'success': False,
+                'error': 'Goal has already ended.'
+            }, status=400)
+
+        # Create or update today's entry
+        entry, created = HabitEntry.objects.update_or_create(
+            goal=goal,
+            date=today,
+            defaults={'completed': True}
+        )
+
+        # Calculate which box number this corresponds to
+        day_number = (today - goal.start_date).days + 1
+
+        return JsonResponse({
+            'success': True,
+            'created': created,
+            'date': today.isoformat(),
+            'day_number': day_number,
+            'state': 'completed',
+            'message': 'Great job! Habit logged for today.' if created else 'Already logged for today.'
+        })
+
+
+class HabitLogDateView(PurposeAccessMixin, View):
+    """
+    Log habit completion for a specific date via AJAX.
+
+    POST /purpose/habits/<pk>/log-date/
+    Body: {"date": "YYYY-MM-DD"}
+    Returns JSON with success status and updated box state.
+    """
+
+    def post(self, request, pk):
+        import json
+        goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
+        today = timezone.now().date()
+
+        # Parse date from request body
+        try:
+            data = json.loads(request.body)
+            date_str = data.get('date')
+            if not date_str:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Date is required.'
+                }, status=400)
+
+            from datetime import datetime
+            selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except (json.JSONDecodeError, ValueError) as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Invalid date format. Use YYYY-MM-DD.'
+            }, status=400)
+
+        # Validate goal has habit tracking
+        if not goal.habit_required:
+            return JsonResponse({
+                'success': False,
+                'error': 'This goal does not have habit tracking enabled.'
+            }, status=400)
+
+        # Validate date is within goal range
+        if selected_date < goal.start_date:
+            return JsonResponse({
+                'success': False,
+                'error': f'Date cannot be before goal start date ({goal.start_date}).'
+            }, status=400)
+
+        if selected_date > goal.end_date:
+            return JsonResponse({
+                'success': False,
+                'error': f'Date cannot be after goal end date ({goal.end_date}).'
+            }, status=400)
+
+        # Validate not future date
+        if selected_date > today:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cannot log habits for future dates.'
+            }, status=400)
+
+        # Create or update entry for selected date
+        entry, created = HabitEntry.objects.update_or_create(
+            goal=goal,
+            date=selected_date,
+            defaults={'completed': True}
+        )
+
+        # Calculate which box number this corresponds to
+        day_number = (selected_date - goal.start_date).days + 1
+
+        return JsonResponse({
+            'success': True,
+            'created': created,
+            'date': selected_date.isoformat(),
+            'day_number': day_number,
+            'state': 'completed',
+            'message': f'Habit logged for {selected_date}.' if created else f'Already logged for {selected_date}.'
+        })

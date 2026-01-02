@@ -35,6 +35,14 @@ from .views import (
     # Planning Actions
     PlanningActionCreateView,
     PlanningActionDeleteView,
+    # Habit Goals
+    HabitGoalListView,
+    HabitGoalDetailView,
+    HabitGoalCreateView,
+    HabitGoalUpdateView,
+    HabitGoalDeleteView,
+    HabitLogTodayView,
+    HabitLogDateView,
 )
 
 app_name = "purpose"
@@ -75,4 +83,15 @@ urlpatterns = [
     path("reflections/<int:pk>/", ReflectionDetailView.as_view(), name="reflection_detail"),
     path("reflections/<int:pk>/edit/", ReflectionEditView.as_view(), name="reflection_edit"),
     path("reflections/<int:pk>/delete/", ReflectionDeleteView.as_view(), name="reflection_delete"),
+
+    # Habit Goals
+    path("habits/", HabitGoalListView.as_view(), name="habit_goal_list"),
+    path("habits/new/", HabitGoalCreateView.as_view(), name="habit_goal_create"),
+    path("habits/<int:pk>/", HabitGoalDetailView.as_view(), name="habit_goal_detail"),
+    path("habits/<int:pk>/edit/", HabitGoalUpdateView.as_view(), name="habit_goal_update"),
+    path("habits/<int:pk>/delete/", HabitGoalDeleteView.as_view(), name="habit_goal_delete"),
+
+    # Habit Logging (AJAX endpoints)
+    path("habits/<int:pk>/log-today/", HabitLogTodayView.as_view(), name="habit_log_today"),
+    path("habits/<int:pk>/log-date/", HabitLogDateView.as_view(), name="habit_log_date"),
 ]

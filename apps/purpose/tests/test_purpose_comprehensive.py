@@ -971,3 +971,234 @@ class HabitEntryModelTest(PurposeTestMixin, TestCase):
             completed=True,
         )
         self.assertEqual(entry.date, past_date)
+
+
+# =============================================================================
+# 13. HABIT LOGGING VIEW TESTS
+# =============================================================================
+
+class HabitLogTodayViewTest(PurposeTestMixin, TestCase):
+    """Tests for the HabitLogTodayView (I Did It Today button)."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.client.login(email='test@example.com', password='testpass123')
+        self.today = timezone.now().date()
+        self.goal = HabitGoal.objects.create(
+            user=self.user,
+            name='Test Habit',
+            purpose='Testing',
+            start_date=self.today - timedelta(days=5),
+            end_date=self.today + timedelta(days=24),
+            habit_required=True,
+        )
+
+    def test_log_today_success(self):
+        """Logging today creates a new entry."""
+        from django.urls import reverse
+        import json
+
+        response = self.client.post(
+            reverse('purpose:habit_log_today', kwargs={'pk': self.goal.pk}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertTrue(data['created'])
+        self.assertEqual(data['state'], 'completed')
+
+        # Verify entry was created
+        self.assertTrue(
+            HabitEntry.objects.filter(goal=self.goal, date=self.today).exists()
+        )
+
+    def test_log_today_already_logged(self):
+        """Re-logging today returns success but not created."""
+        from django.urls import reverse
+        import json
+
+        # Create initial entry
+        HabitEntry.objects.create(
+            goal=self.goal, date=self.today, completed=True
+        )
+
+        response = self.client.post(
+            reverse('purpose:habit_log_today', kwargs={'pk': self.goal.pk}),
+            content_type='application/json'
+        )
+
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertFalse(data['created'])
+
+    def test_log_today_goal_not_started(self):
+        """Cannot log today if goal hasn't started."""
+        from django.urls import reverse
+        import json
+
+        future_goal = HabitGoal.objects.create(
+            user=self.user,
+            name='Future Goal',
+            purpose='Testing',
+            start_date=self.today + timedelta(days=1),
+            end_date=self.today + timedelta(days=30),
+            habit_required=True,
+        )
+
+        response = self.client.post(
+            reverse('purpose:habit_log_today', kwargs={'pk': future_goal.pk}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('not started', data['error'])
+
+    def test_log_today_goal_ended(self):
+        """Cannot log today if goal has ended."""
+        from django.urls import reverse
+        import json
+
+        past_goal = HabitGoal.objects.create(
+            user=self.user,
+            name='Past Goal',
+            purpose='Testing',
+            start_date=self.today - timedelta(days=30),
+            end_date=self.today - timedelta(days=1),
+            habit_required=True,
+        )
+
+        response = self.client.post(
+            reverse('purpose:habit_log_today', kwargs={'pk': past_goal.pk}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('ended', data['error'])
+
+
+class HabitLogDateViewTest(PurposeTestMixin, TestCase):
+    """Tests for the HabitLogDateView (Pick a Date button)."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.client.login(email='test@example.com', password='testpass123')
+        self.today = timezone.now().date()
+        self.goal = HabitGoal.objects.create(
+            user=self.user,
+            name='Test Habit',
+            purpose='Testing',
+            start_date=self.today - timedelta(days=10),
+            end_date=self.today + timedelta(days=19),
+            habit_required=True,
+        )
+
+    def test_log_past_date_success(self):
+        """Can log a past date within goal range."""
+        from django.urls import reverse
+        import json
+
+        past_date = self.today - timedelta(days=3)
+        response = self.client.post(
+            reverse('purpose:habit_log_date', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'date': past_date.isoformat()}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertTrue(data['created'])
+
+        # Verify entry was created
+        self.assertTrue(
+            HabitEntry.objects.filter(goal=self.goal, date=past_date).exists()
+        )
+
+    def test_log_date_before_start(self):
+        """Cannot log date before goal start."""
+        from django.urls import reverse
+        import json
+
+        invalid_date = self.goal.start_date - timedelta(days=1)
+        response = self.client.post(
+            reverse('purpose:habit_log_date', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'date': invalid_date.isoformat()}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('before', data['error'].lower())
+
+    def test_log_date_after_end(self):
+        """Cannot log date after goal end."""
+        from django.urls import reverse
+        import json
+
+        invalid_date = self.goal.end_date + timedelta(days=1)
+        response = self.client.post(
+            reverse('purpose:habit_log_date', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'date': invalid_date.isoformat()}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('after', data['error'].lower())
+
+    def test_log_future_date(self):
+        """Cannot log a future date."""
+        from django.urls import reverse
+        import json
+
+        future_date = self.today + timedelta(days=1)
+        response = self.client.post(
+            reverse('purpose:habit_log_date', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'date': future_date.isoformat()}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('future', data['error'].lower())
+
+    def test_log_date_no_date_provided(self):
+        """Returns error if no date provided."""
+        from django.urls import reverse
+        import json
+
+        response = self.client.post(
+            reverse('purpose:habit_log_date', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('required', data['error'].lower())
+
+    def test_log_date_invalid_format(self):
+        """Returns error for invalid date format."""
+        from django.urls import reverse
+        import json
+
+        response = self.client.post(
+            reverse('purpose:habit_log_date', kwargs={'pk': self.goal.pk}),
+            data=json.dumps({'date': 'not-a-date'}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('format', data['error'].lower())

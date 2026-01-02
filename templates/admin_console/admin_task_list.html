@@ -113,13 +113,24 @@
             </div>
 
             <div class="filter-group">
-                <label for="filter-status">Status:</label>
-                <select name="status" id="filter-status" class="form-input form-input-sm" multiple size="5" style="min-width: 140px;">
-                    {% for value, label in status_choices %}
-                    <option value="{{ value }}" {% if value in current_status_filters %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <small class="filter-hint" style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-top: 2px;">Ctrl+click to select multiple</small>
+                <label>Status:</label>
+                <div class="checkbox-dropdown" id="status-dropdown">
+                    <button type="button" class="checkbox-dropdown-toggle form-input form-input-sm">
+                        <span class="dropdown-label">All Statuses</span>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </button>
+                    <div class="checkbox-dropdown-menu">
+                        {% for value, label in status_choices %}
+                        <label class="checkbox-dropdown-item">
+                            <input type="checkbox" name="status" value="{{ value }}"
+                                   {% if not current_status_filters or value in current_status_filters %}checked{% endif %}>
+                            <span class="checkbox-label">{{ label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
 
             <div class="filter-group">
@@ -356,6 +367,49 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Status Checkbox Dropdown functionality
+    const statusDropdown = document.getElementById('status-dropdown');
+    if (statusDropdown) {
+        const toggle = statusDropdown.querySelector('.checkbox-dropdown-toggle');
+        const dropdownLabel = toggle.querySelector('.dropdown-label');
+        const checkboxes = statusDropdown.querySelectorAll('input[type="checkbox"]');
+
+        // Update the label based on selected checkboxes
+        function updateDropdownLabel() {
+            const checked = Array.from(checkboxes).filter(cb => cb.checked);
+            if (checked.length === 0) {
+                dropdownLabel.textContent = 'None';
+            } else if (checked.length === checkboxes.length) {
+                dropdownLabel.textContent = 'All Statuses';
+            } else if (checked.length <= 2) {
+                dropdownLabel.textContent = checked.map(cb => cb.nextElementSibling.textContent).join(', ');
+            } else {
+                dropdownLabel.textContent = checked.length + ' selected';
+            }
+        }
+
+        // Toggle dropdown open/close
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            statusDropdown.classList.toggle('open');
+        });
+
+        // Update label when checkboxes change
+        checkboxes.forEach(function(checkbox) {
+            checkbox.addEventListener('change', updateDropdownLabel);
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!statusDropdown.contains(e.target)) {
+                statusDropdown.classList.remove('open');
+            }
+        });
+
+        // Initialize label on page load
+        updateDropdownLabel();
+    }
+
     // "What's Next?" Modal functionality
     const modal = document.getElementById('whats-next-modal');
     const openModalBtn = document.getElementById('whats-next-btn');
@@ -476,6 +530,80 @@ document.addEventListener('DOMContentLoaded', function() {
 .form-input-sm {
     padding: var(--space-1) var(--space-2);
     font-size: var(--font-size-sm);
+}
+
+/* Checkbox Dropdown Styles */
+.checkbox-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.checkbox-dropdown-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 140px;
+    justify-content: space-between;
+    cursor: pointer;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.checkbox-dropdown-toggle:hover {
+    border-color: var(--color-accent);
+}
+
+.checkbox-dropdown-toggle svg {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.checkbox-dropdown.open .checkbox-dropdown-toggle svg {
+    transform: rotate(180deg);
+}
+
+.checkbox-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 160px;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    margin-top: 4px;
+    display: none;
+}
+
+.checkbox-dropdown.open .checkbox-dropdown-menu {
+    display: block;
+}
+
+.checkbox-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.checkbox-dropdown-item:hover {
+    background: var(--color-surface);
+}
+
+.checkbox-dropdown-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--color-accent);
+}
+
+.checkbox-dropdown-item .checkbox-label {
+    font-size: var(--font-size-sm);
+    user-select: none;
 }
 
 /* Quick Filters */

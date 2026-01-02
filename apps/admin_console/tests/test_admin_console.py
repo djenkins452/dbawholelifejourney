@@ -3146,8 +3146,8 @@ class InlineStatusUpdateAPITest(AdminTestMixin, TestCase):
         self.assertTrue(data['changed'])
         self.assertEqual(data['task']['status'], 'backlog')
 
-    def test_inline_status_rejects_in_progress(self):
-        """Inline status update rejects in_progress."""
+    def test_inline_status_allows_in_progress(self):
+        """Inline status update allows in_progress."""
         self.login_admin()
         import json
 
@@ -3156,17 +3156,18 @@ class InlineStatusUpdateAPITest(AdminTestMixin, TestCase):
             data=json.dumps({'status': 'in_progress'}),
             content_type='application/json'
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
 
         data = json.loads(response.content)
-        self.assertIn('error', data)
-        self.assertIn('Inline editing only allows', data['error'])
+        self.assertTrue(data['success'])
+        self.assertEqual(data['task']['status'], 'in_progress')
 
-    def test_inline_status_rejects_blocked(self):
-        """Inline status update rejects blocked."""
+    def test_inline_status_blocked_requires_reason(self):
+        """Inline status update to blocked requires reason."""
         self.login_admin()
         import json
 
+        # Without reason should fail
         response = self.client.patch(
             f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
             data=json.dumps({'status': 'blocked'}),
@@ -3174,8 +3175,16 @@ class InlineStatusUpdateAPITest(AdminTestMixin, TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_inline_status_rejects_done(self):
-        """Inline status update rejects done."""
+        # With reason should succeed
+        response = self.client.patch(
+            f'/admin-console/api/projects/tasks/{self.task.pk}/inline-status/',
+            data=json.dumps({'status': 'blocked', 'reason': 'Waiting for dependency'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_inline_status_allows_done(self):
+        """Inline status update allows done."""
         self.login_admin()
         import json
 
@@ -3184,10 +3193,14 @@ class InlineStatusUpdateAPITest(AdminTestMixin, TestCase):
             data=json.dumps({'status': 'done'}),
             content_type='application/json'
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
 
-    def test_inline_status_rejects_change_from_in_progress(self):
-        """Cannot use inline status edit when task is in_progress."""
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['task']['status'], 'done')
+
+    def test_inline_status_allows_change_from_in_progress(self):
+        """Can use inline status edit when task is in_progress."""
         self.task.status = 'in_progress'
         self.task.save()
 
@@ -3199,10 +3212,11 @@ class InlineStatusUpdateAPITest(AdminTestMixin, TestCase):
             data=json.dumps({'status': 'ready'}),
             content_type='application/json'
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
 
         data = json.loads(response.content)
-        self.assertIn('Only tasks in', data['error'])
+        self.assertTrue(data['success'])
+        self.assertEqual(data['task']['status'], 'ready')
 
     def test_inline_status_no_change_same_status(self):
         """No change when setting same status."""

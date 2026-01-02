@@ -44,26 +44,29 @@ application = get_wsgi_application()
 # We use an environment variable to ensure only one scheduler runs
 def start_scheduler():
     """Start background schedulers if not already running."""
+    import logging
     from django.conf import settings
+
+    logger = logging.getLogger('scheduler')
 
     # Only run in production (non-DEBUG) and only if not already started
     if settings.DEBUG:
+        logger.info("Scheduler skipped: DEBUG mode is enabled")
         return
 
     # Check if we're the main process (not a forked worker)
-    # Gunicorn preload mode or single worker setup
+    # Gunicorn preload mode ensures this runs once before workers fork
     if os.environ.get('SCHEDULER_STARTED'):
+        logger.debug("Scheduler already started in this process")
         return
 
     os.environ['SCHEDULER_STARTED'] = '1'
+    logger.info("Initializing APScheduler background jobs...")
 
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         from apscheduler.triggers.cron import CronTrigger
         from apscheduler.triggers.interval import IntervalTrigger
-        import logging
-
-        logger = logging.getLogger('scheduler')
 
         # Use MemoryJobStore instead of DjangoJobStore to avoid serialization issues
         # Jobs are re-registered on each startup anyway with replace_existing=True
@@ -95,27 +98,35 @@ def start_scheduler():
         # Life Module Jobs (Tasks)
         # =====================================================================
 
-        # Job 3: Recalculate task priorities nightly at 12:05 AM
-        # Runs after SMS scheduling to avoid conflicts
+        # Job 3: Recalculate task priorities at 6:00 AM UTC (1:00 AM EST)
+        # This ensures tasks update correctly for US Eastern timezone users.
+        # Running at 1:00 AM EST gives time for the day to "turn over" in user's timezone
+        # while still updating priorities early enough to be accurate all day.
         scheduler.add_job(
             'apps.life.jobs:recalculate_task_priorities',
-            trigger=CronTrigger(hour=0, minute=5),
+            trigger=CronTrigger(hour=6, minute=0),
             id="recalculate_task_priorities",
             max_instances=1,
             replace_existing=True,
         )
 
-        # Job 4: Process recurring tasks nightly at 12:10 AM
+        # Job 4: Process recurring tasks at 6:05 AM UTC (1:05 AM EST)
         scheduler.add_job(
             'apps.life.jobs:process_recurring_tasks',
-            trigger=CronTrigger(hour=0, minute=10),
+            trigger=CronTrigger(hour=6, minute=5),
             id="process_recurring_tasks",
             max_instances=1,
             replace_existing=True,
         )
 
         scheduler.start()
-        logger.info("Background scheduler started with 4 jobs: SMS (2), Life (2)")
+        logger.info("=" * 60)
+        logger.info("APScheduler STARTED successfully with 4 jobs:")
+        logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC)")
+        logger.info("  - SMS: send_pending_sms (every 5 minutes)")
+        logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
+        logger.info("  - Life: process_recurring_tasks (daily at 06:05 UTC / 01:05 EST)")
+        logger.info("=" * 60)
 
         # Ensure scheduler shuts down on exit
         atexit.register(lambda: scheduler.shutdown(wait=False))
@@ -125,8 +136,7 @@ def start_scheduler():
         send_pending_sms()
 
     except Exception as e:
-        import logging
-        logging.getLogger('scheduler').exception(f"Failed to start background scheduler: {e}")
+        logger.exception(f"FAILED to start background scheduler: {e}")
 
 # Start scheduler when WSGI app loads
 start_scheduler()

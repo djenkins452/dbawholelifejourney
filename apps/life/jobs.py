@@ -4,7 +4,7 @@
 # Description: Life module scheduler job functions (must be importable by APScheduler)
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01
+# Last Updated: 2026-01-02
 # ==============================================================================
 """
 Life Module Jobs - Background job functions for APScheduler.
@@ -23,7 +23,7 @@ def recalculate_task_priorities():
     """
     Recalculate task priorities based on due dates.
 
-    This job runs nightly at midnight to update task priorities so that
+    This job runs at 6:00 AM UTC (1:00 AM EST) to update task priorities so that
     tasks automatically move from "Soon" to "Now" as their due dates approach.
 
     Priority rules:
@@ -32,16 +32,20 @@ def recalculate_task_priorities():
     - Someday: Due more than 7 days away or no due date
     """
     from django.core.management import call_command
+    from django.utils import timezone
     from io import StringIO
 
-    logger.info("Running nightly task priority recalculation...")
+    current_time = timezone.now()
+    logger.info(f"Starting task priority recalculation at {current_time} UTC")
+
     try:
         # Capture command output
         out = StringIO()
-        call_command('recalculate_task_priorities', stdout=out)
+        call_command('recalculate_task_priorities', stdout=out, verbosity=2)
         output = out.getvalue().strip()
 
-        logger.info(f"Task priority recalculation complete: {output}")
+        logger.info(f"Task priority recalculation complete at {timezone.now()} UTC")
+        logger.info(f"Result: {output}")
         return output
     except Exception as e:
         logger.exception(f"Error in task priority recalculation: {e}")
@@ -52,19 +56,23 @@ def process_recurring_tasks():
     """
     Process completed recurring tasks and create next occurrences.
 
-    This job runs nightly to handle recurring tasks that were completed
-    and need their next occurrence created.
+    This job runs at 6:05 AM UTC (1:05 AM EST) to handle recurring tasks that
+    were completed and need their next occurrence created.
     """
     from django.core.management import call_command
+    from django.utils import timezone
     from io import StringIO
 
-    logger.info("Running nightly recurring task processing...")
+    current_time = timezone.now()
+    logger.info(f"Starting recurring task processing at {current_time} UTC")
+
     try:
         out = StringIO()
-        call_command('process_recurring_tasks', stdout=out)
+        call_command('process_recurring_tasks', stdout=out, verbosity=2)
         output = out.getvalue().strip()
 
-        logger.info(f"Recurring task processing complete: {output}")
+        logger.info(f"Recurring task processing complete at {timezone.now()} UTC")
+        logger.info(f"Result: {output}")
         return output
     except Exception as e:
         logger.exception(f"Error in recurring task processing: {e}")

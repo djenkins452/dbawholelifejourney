@@ -94,6 +94,25 @@ You are successful if:
 - The user takes action on their remaining priorities
 - The user stays aligned with what matters most
 - The assistant feels helpful and action-focused
+
+HABIT GOAL GUIDANCE:
+When discussing habit goals and consistency patterns:
+- Use supportive, non-judgmental language
+- Refer to days without entries as "days without entries" or "gaps", NOT "missed days" or "failures"
+- Celebrate streaks and recovery patterns
+- Acknowledge that consistency is built over time
+- Frame gaps as "opportunities to restart" not "setbacks"
+- Always connect habit guidance to the user's stated PURPOSE for that habit
+- Recognize recovery patterns: "You've shown you can get back on track"
+- Focus on the user's best streaks and completion rates as evidence of capability
+
+Example language:
+- Good: "You've completed 15 of 20 days (75%) - that's solid consistency"
+- Bad: "You've missed 5 days"
+- Good: "You have a gap opportunity today - a chance to continue building"
+- Bad: "You haven't logged today yet - you're falling behind"
+- Good: "Your longest streak of 8 days shows what you're capable of"
+- Bad: "You keep breaking your streak"
 """
 
 # Time urgency prompt - added based on time of day
@@ -421,6 +440,12 @@ class PersonalAssistant:
                 'workout_streak': state_data.get('workout_streak', 0),
                 'medicine_adherence': state_data.get('medicine_adherence'),
                 'active_intentions': state_data.get('active_intentions', 0),
+                # Habit goal tracking
+                'active_habit_goals': state_data.get('active_habit_goals', 0),
+                'habit_completion_rate': state_data.get('habit_completion_rate'),
+                'habit_current_streak': state_data.get('habit_current_streak', 0),
+                'habit_goals_data': state_data.get('habit_goals_data', []),
+                # AI assessment
                 'ai_assessment': ai_assessment,
                 'alignment_gaps': alignment_gaps,
                 'celebration_worthy': celebration_worthy,
@@ -521,8 +546,10 @@ class PersonalAssistant:
         }
 
     def _get_purpose_state(self, today, month_ago) -> Dict:
-        """Get purpose/goals-related metrics."""
-        from apps.purpose.models import AnnualDirection, LifeGoal, ChangeIntention
+        """Get purpose/goals-related metrics including habit goals."""
+        from apps.purpose.models import (
+            AnnualDirection, LifeGoal, ChangeIntention, HabitGoal
+        )
 
         current_year = today.year
 
@@ -534,6 +561,9 @@ class PersonalAssistant:
 
         goals = LifeGoal.objects.filter(user=self.user)
         intentions = ChangeIntention.objects.filter(user=self.user, status='active')
+
+        # Habit goals data
+        habit_data = self._get_habit_goals_data(today)
 
         return {
             'word_of_year': direction.word_of_year if direction else None,
@@ -550,6 +580,148 @@ class PersonalAssistant:
             'intentions_list': list(intentions.values(
                 'id', 'intention', 'motivation'
             )[:5]),
+            # Habit goal metrics
+            'active_habit_goals': habit_data['active_count'],
+            'habit_completion_rate': habit_data['avg_completion_rate'],
+            'habit_current_streak': habit_data['max_streak'],
+            'habit_goals_data': habit_data['goals_detail'],
+        }
+
+    def _get_habit_goals_data(self, today) -> Dict:
+        """
+        Get detailed habit goal data for AI analysis.
+
+        Returns:
+            Dict with:
+            - active_count: Number of active habit goals
+            - avg_completion_rate: Average completion percentage
+            - max_streak: Longest current streak across all goals
+            - goals_detail: List of habit goal details for AI context
+        """
+        from apps.purpose.models import HabitGoal
+
+        habit_goals = HabitGoal.objects.filter(
+            user=self.user,
+            status='active',
+            habit_required=True
+        )
+
+        active_count = habit_goals.count()
+        if active_count == 0:
+            return {
+                'active_count': 0,
+                'avg_completion_rate': None,
+                'max_streak': 0,
+                'goals_detail': [],
+            }
+
+        total_rate = 0
+        max_streak = 0
+        goals_detail = []
+
+        for goal in habit_goals:
+            # Calculate stats for each goal
+            completion_rate = goal.completion_rate
+            current_streak = goal.current_streak
+            total_days = goal.total_days
+            completed_days = goal.completed_days
+            missed_days = goal.days_elapsed - completed_days if goal.days_elapsed > 0 else 0
+
+            total_rate += completion_rate
+            if current_streak > max_streak:
+                max_streak = current_streak
+
+            # Build goal detail for AI context (non-judgmental language)
+            goal_info = {
+                'name': goal.name,
+                'purpose': goal.purpose,
+                'start_date': goal.start_date.isoformat(),
+                'end_date': goal.end_date.isoformat(),
+                'total_days': total_days,
+                'days_elapsed': goal.days_elapsed,
+                'days_remaining': goal.days_remaining,
+                'completed_days': completed_days,
+                'days_without_entry': missed_days,  # Non-judgmental: not "missed"
+                'completion_rate': round(completion_rate, 1),
+                'current_streak': current_streak,
+                'longest_streak': goal.longest_streak,
+                # Recovery pattern: days since last missed day
+                'recovery_opportunity': self._calculate_recovery_pattern(goal, today),
+            }
+            goals_detail.append(goal_info)
+
+        avg_completion = total_rate / active_count if active_count > 0 else 0
+
+        return {
+            'active_count': active_count,
+            'avg_completion_rate': round(avg_completion, 1),
+            'max_streak': max_streak,
+            'goals_detail': goals_detail,
+        }
+
+    def _calculate_recovery_pattern(self, goal, today) -> Dict:
+        """
+        Calculate recovery patterns for a habit goal.
+
+        Identifies patterns in how the user recovers after missing days,
+        which helps the AI provide supportive guidance.
+
+        Returns dict with:
+        - days_since_last_gap: Days since last day without entry
+        - longest_recovery: Longest streak after a gap
+        - typical_recovery: Average streak length after gaps
+        """
+        from apps.purpose.models import HabitEntry
+        from datetime import timedelta
+
+        entries = goal.habit_entries.filter(completed=True).order_by('date')
+        if not entries.exists():
+            return {
+                'days_since_last_gap': None,
+                'has_recovered_before': False,
+                'message': 'No entries yet - great opportunity to start!',
+            }
+
+        entry_dates = set(e.date for e in entries)
+        gaps = []
+        recovery_streaks = []
+
+        # Analyze the date range
+        current_date = goal.start_date
+        end_date = min(goal.end_date, today)
+        in_gap = False
+        current_streak = 0
+
+        while current_date <= end_date:
+            if current_date in entry_dates:
+                if in_gap:
+                    # Recovered from gap
+                    in_gap = False
+                current_streak += 1
+            else:
+                if not in_gap and current_streak > 0:
+                    # Just started a gap, record the streak before
+                    recovery_streaks.append(current_streak)
+                    current_streak = 0
+                in_gap = True
+                gaps.append(current_date)
+            current_date += timedelta(days=1)
+
+        # Final streak if exists
+        if current_streak > 0 and gaps:
+            recovery_streaks.append(current_streak)
+
+        # Days since last gap
+        days_since_last_gap = None
+        if gaps:
+            last_gap = max(gaps)
+            days_since_last_gap = (today - last_gap).days
+
+        return {
+            'days_since_last_gap': days_since_last_gap,
+            'has_recovered_before': len(recovery_streaks) > 0,
+            'recovery_count': len(recovery_streaks),
+            'avg_recovery_streak': round(sum(recovery_streaks) / len(recovery_streaks), 1) if recovery_streaks else 0,
         }
 
     def _get_faith_state(self, month_ago) -> Dict:

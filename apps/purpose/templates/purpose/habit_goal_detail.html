@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ goal.name }} - Habit Goal{% endblock %}
+
+{% block content %}
+<div class="habit-goal-container">
+    <!-- Header -->
+    <div class="habit-goal-header">
+        <nav class="breadcrumb">
+            <a href="{% url 'purpose:home' %}">Purpose</a>
+            <span>/</span>
+            <a href="{% url 'purpose:habit_goal_list' %}">Habit Goals</a>
+            <span>/</span>
+            <span>{{ goal.name }}</span>
+        </nav>
+        <div class="header-content">
+            <h1>{{ goal.name }}</h1>
+            <div class="header-actions">
+                <a href="{% url 'purpose:habit_goal_update' goal.pk %}" class="btn btn-secondary">Edit</a>
+            </div>
+        </div>
+        <p class="goal-purpose">{{ goal.purpose }}</p>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat">
+            <span class="stat-value">{{ goal.total_days }}</span>
+            <span class="stat-label">Total Days</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value">{{ goal.completed_days }}</span>
+            <span class="stat-label">Completed</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value">{{ goal.completion_rate|floatformat:0 }}%</span>
+            <span class="stat-label">Success Rate</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value">{{ goal.current_streak }}</span>
+            <span class="stat-label">Current Streak</span>
+        </div>
+    </div>
+
+    <!-- Logging Controls -->
+    {% if goal.habit_required %}
+    <div class="logging-controls">
+        <h2>Log Your Habit</h2>
+        <div class="control-buttons">
+            {% if can_log_today %}
+            <button type="button"
+                    id="log-today-btn"
+                    class="btn btn-primary btn-lg{% if today_logged %} btn-success{% endif %}"
+                    {% if today_logged %}disabled{% endif %}>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                {% if today_logged %}Done for Today{% else %}I Did It Today!{% endif %}
+            </button>
+            {% endif %}
+
+            <button type="button" id="pick-date-btn" class="btn btn-secondary btn-lg">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                Pick a Date
+            </button>
+        </div>
+
+        <!-- Date Picker (hidden by default) -->
+        <div id="date-picker-container" class="date-picker-container" style="display: none;">
+            <label for="habit-date">Select a date to log:</label>
+            <input type="date"
+                   id="habit-date"
+                   name="habit-date"
+                   min="{{ min_date }}"
+                   max="{{ max_date }}"
+                   class="form-control">
+            <button type="button" id="log-date-btn" class="btn btn-primary">Log This Date</button>
+            <button type="button" id="cancel-date-btn" class="btn btn-secondary">Cancel</button>
+        </div>
+
+        <!-- Feedback Message -->
+        <div id="feedback-message" class="feedback-message" style="display: none;"></div>
+    </div>
+    {% endif %}
+
+    <!-- Habit Matrix -->
+    {% if goal.habit_required and matrix_rows %}
+    <div class="habit-matrix-section">
+        <h2>Progress Matrix</h2>
+        <p class="matrix-legend">
+            <span class="legend-item"><span class="box box-completed"></span> Completed</span>
+            <span class="legend-item"><span class="box box-missed"></span> Missed</span>
+            <span class="legend-item"><span class="box box-today"></span> Today</span>
+            <span class="legend-item"><span class="box box-future"></span> Future</span>
+        </p>
+        <div class="habit-matrix" id="habit-matrix">
+            {% for row in matrix_rows %}
+            <div class="matrix-row">
+                {% for box in row %}
+                <div class="matrix-box box-{{ box.state }}"
+                     data-box-number="{{ box.box_number }}"
+                     data-day-number="{{ box.day_number }}"
+                     data-date="{{ box.date|date:'Y-m-d' }}"
+                     title="{% if box.date %}Day {{ box.day_number }}: {{ box.date|date:'M j, Y' }}{% else %}Disabled{% endif %}">
+                    {% if box.day_number %}{{ box.day_number }}{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Goal Details -->
+    <div class="goal-details">
+        {% if goal.description %}
+        <div class="detail-section">
+            <h3>Description</h3>
+            <p>{{ goal.description|linebreaks }}</p>
+        </div>
+        {% endif %}
+
+        {% if goal.success_criteria %}
+        <div class="detail-section">
+            <h3>Success Criteria</h3>
+            <p>{{ goal.success_criteria|linebreaks }}</p>
+        </div>
+        {% endif %}
+
+        <div class="detail-section">
+            <h3>Date Range</h3>
+            <p>{{ goal.start_date|date:"M j, Y" }} - {{ goal.end_date|date:"M j, Y" }}</p>
+        </div>
+
+        {% if goal.domain %}
+        <div class="detail-section">
+            <h3>Life Domain</h3>
+            <p>{{ goal.domain.name }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = '{{ csrf_token }}';
+    const goalPk = {{ goal.pk }};
+    const logTodayBtn = document.getElementById('log-today-btn');
+    const pickDateBtn = document.getElementById('pick-date-btn');
+    const datePicker = document.getElementById('date-picker-container');
+    const habitDateInput = document.getElementById('habit-date');
+    const logDateBtn = document.getElementById('log-date-btn');
+    const cancelDateBtn = document.getElementById('cancel-date-btn');
+    const feedbackMessage = document.getElementById('feedback-message');
+
+    function showFeedback(message, isError) {
+        feedbackMessage.textContent = message;
+        feedbackMessage.className = 'feedback-message ' + (isError ? 'error' : 'success');
+        feedbackMessage.style.display = 'block';
+        setTimeout(() => {
+            feedbackMessage.style.display = 'none';
+        }, 4000);
+    }
+
+    function updateMatrixBox(dayNumber, newState) {
+        const boxes = document.querySelectorAll('.matrix-box');
+        boxes.forEach(box => {
+            if (box.dataset.dayNumber === String(dayNumber)) {
+                // Remove all state classes
+                box.classList.remove('box-missed', 'box-today', 'box-future', 'box-completed');
+                // Add new state class
+                box.classList.add('box-' + newState);
+            }
+        });
+    }
+
+    // Log Today button
+    if (logTodayBtn && !logTodayBtn.disabled) {
+        logTodayBtn.addEventListener('click', function() {
+            logTodayBtn.disabled = true;
+            logTodayBtn.textContent = 'Logging...';
+
+            fetch(`/purpose/habits/${goalPk}/log-today/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showFeedback(data.message, false);
+                    logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done for Today';
+                    logTodayBtn.classList.add('btn-success');
+                    updateMatrixBox(data.day_number, 'completed');
+                } else {
+                    showFeedback(data.error, true);
+                    logTodayBtn.disabled = false;
+                    logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> I Did It Today!';
+                }
+            })
+            .catch(error => {
+                showFeedback('An error occurred. Please try again.', true);
+                logTodayBtn.disabled = false;
+                logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> I Did It Today!';
+            });
+        });
+    }
+
+    // Pick Date button
+    if (pickDateBtn) {
+        pickDateBtn.addEventListener('click', function() {
+            datePicker.style.display = 'flex';
+            pickDateBtn.style.display = 'none';
+        });
+    }
+
+    // Cancel Date button
+    if (cancelDateBtn) {
+        cancelDateBtn.addEventListener('click', function() {
+            datePicker.style.display = 'none';
+            pickDateBtn.style.display = 'inline-flex';
+            habitDateInput.value = '';
+        });
+    }
+
+    // Log Date button
+    if (logDateBtn) {
+        logDateBtn.addEventListener('click', function() {
+            const selectedDate = habitDateInput.value;
+            if (!selectedDate) {
+                showFeedback('Please select a date.', true);
+                return;
+            }
+
+            logDateBtn.disabled = true;
+            logDateBtn.textContent = 'Logging...';
+
+            fetch(`/purpose/habits/${goalPk}/log-date/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ date: selectedDate })
+            })
+            .then(response => response.json())
+            .then(data => {
+                logDateBtn.disabled = false;
+                logDateBtn.textContent = 'Log This Date';
+
+                if (data.success) {
+                    showFeedback(data.message, false);
+                    updateMatrixBox(data.day_number, 'completed');
+                    // Hide date picker after success
+                    datePicker.style.display = 'none';
+                    pickDateBtn.style.display = 'inline-flex';
+                    habitDateInput.value = '';
+                } else {
+                    showFeedback(data.error, true);
+                }
+            })
+            .catch(error => {
+                logDateBtn.disabled = false;
+                logDateBtn.textContent = 'Log This Date';
+                showFeedback('An error occurred. Please try again.', true);
+            });
+        });
+    }
+});
+</script>
+
+<style>
+.habit-goal-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--space-4);
+}
+
+.habit-goal-header {
+    margin-bottom: var(--space-6);
+}
+
+.breadcrumb {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.breadcrumb a:hover {
+    text-decoration: underline;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.header-content h1 {
+    margin: 0;
+    font-size: var(--font-size-2xl);
+}
+
+.goal-purpose {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-lg);
+    font-style: italic;
+}
+
+/* Stats Bar */
+.stats-bar {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+}
+
+.stat {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Logging Controls */
+.logging-controls {
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.logging-controls h2 {
+    margin: 0 0 var(--space-4) 0;
+    font-size: var(--font-size-lg);
+}
+
+.control-buttons {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-4);
+}
+
+.btn-lg {
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--font-size-base);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.btn-success {
+    background: var(--color-success, #22c55e) !important;
+    border-color: var(--color-success, #22c55e) !important;
+}
+
+.date-picker-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: var(--space-4);
+    background: var(--color-bg);
+    border-radius: var(--radius-sm);
+}
+
+.date-picker-container label {
+    font-weight: 500;
+}
+
+.date-picker-container input[type="date"] {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-base);
+}
+
+.feedback-message {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+
+.feedback-message.success {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--color-success, #22c55e);
+    border: 1px solid var(--color-success, #22c55e);
+}
+
+.feedback-message.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-danger, #ef4444);
+    border: 1px solid var(--color-danger, #ef4444);
+}
+
+/* Habit Matrix */
+.habit-matrix-section {
+    margin-bottom: var(--space-6);
+}
+
+.habit-matrix-section h2 {
+    margin: 0 0 var(--space-3) 0;
+    font-size: var(--font-size-lg);
+}
+
+.matrix-legend {
+    display: flex;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.legend-item .box {
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-xs);
+}
+
+.habit-matrix {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.matrix-row {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.matrix-box {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    cursor: default;
+    transition: transform 0.15s ease;
+}
+
+.matrix-box:hover:not(.box-disabled) {
+    transform: scale(1.1);
+}
+
+.box-completed {
+    background: var(--color-success, #22c55e);
+    color: white;
+}
+
+.box-missed {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.box-today {
+    background: var(--color-accent);
+    color: white;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+.box-future {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border: 1px dashed var(--color-border);
+}
+
+.box-disabled {
+    background: var(--color-bg);
+    color: transparent;
+    border: 1px solid var(--color-border);
+    cursor: not-allowed;
+}
+
+/* Goal Details */
+.goal-details {
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.detail-section {
+    margin-bottom: var(--space-4);
+}
+
+.detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.detail-section h3 {
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-size-base);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.detail-section p {
+    margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .matrix-box {
+        width: 32px;
+        height: 32px;
+        font-size: 10px;
+    }
+
+    .control-buttons {
+        flex-direction: column;
+    }
+
+    .btn-lg {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .stats-bar {
+        gap: var(--space-2);
+    }
+
+    .stat {
+        min-width: 80px;
+    }
+}
+</style>
+{% endblock %}

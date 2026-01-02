@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if object %}Edit{% else %}Create{% endif %} Habit Goal{% endblock %}
+
+{% block content %}
+<div class="habit-goal-form-container">
+    <div class="page-header">
+        <nav class="breadcrumb">
+            <a href="{% url 'purpose:home' %}">Purpose</a>
+            <span>/</span>
+            <a href="{% url 'purpose:habit_goal_list' %}">Habit Goals</a>
+            <span>/</span>
+            <span>{% if object %}Edit{% else %}New{% endif %}</span>
+        </nav>
+        <h1>{% if object %}Edit Habit Goal{% else %}Create Habit Goal{% endif %}</h1>
+    </div>
+
+    <form method="post" class="habit-goal-form">
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="form-errors">
+            <p>Please correct the errors below:</p>
+            {{ form.non_field_errors }}
+        </div>
+        {% endif %}
+
+        <div class="form-section">
+            <h2>Basic Information</h2>
+
+            <div class="form-group">
+                <label for="id_name">Name *</label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                <div class="field-error">{{ form.name.errors }}</div>
+                {% endif %}
+                <p class="field-help">Give your habit goal a clear, memorable name.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="id_purpose">Purpose *</label>
+                {{ form.purpose }}
+                {% if form.purpose.errors %}
+                <div class="field-error">{{ form.purpose.errors }}</div>
+                {% endif %}
+                <p class="field-help">Why does this goal matter to you? What's your deeper motivation?</p>
+            </div>
+
+            <div class="form-group">
+                <label for="id_description">Description</label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                <div class="field-error">{{ form.description.errors }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="id_success_criteria">Success Criteria</label>
+                {{ form.success_criteria }}
+                {% if form.success_criteria.errors %}
+                <div class="field-error">{{ form.success_criteria.errors }}</div>
+                {% endif %}
+                <p class="field-help">How will you know when you've succeeded?</p>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2>Date Range</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_start_date">Start Date *</label>
+                    {{ form.start_date }}
+                    {% if form.start_date.errors %}
+                    <div class="field-error">{{ form.start_date.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="id_end_date">End Date *</label>
+                    {{ form.end_date }}
+                    {% if form.end_date.errors %}
+                    <div class="field-error">{{ form.end_date.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2>Settings</h2>
+
+            <div class="form-group checkbox-group">
+                <label>
+                    {{ form.habit_required }}
+                    Enable daily habit tracking
+                </label>
+                <p class="field-help">When enabled, you can log daily completions and see a visual matrix.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="id_domain">Life Domain</label>
+                {{ form.domain }}
+                {% if form.domain.errors %}
+                <div class="field-error">{{ form.domain.errors }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="id_annual_direction">Annual Direction</label>
+                {{ form.annual_direction }}
+                {% if form.annual_direction.errors %}
+                <div class="field-error">{{ form.annual_direction.errors }}</div>
+                {% endif %}
+                <p class="field-help">Link this goal to a year's direction for alignment.</p>
+            </div>
+
+            {% if object %}
+            <div class="form-group">
+                <label for="id_status">Status</label>
+                {{ form.status }}
+                {% if form.status.errors %}
+                <div class="field-error">{{ form.status.errors }}</div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Create Habit Goal{% endif %}
+            </button>
+            <a href="{% if object %}{% url 'purpose:habit_goal_detail' object.pk %}{% else %}{% url 'purpose:habit_goal_list' %}{% endif %}"
+               class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.habit-goal-form-container {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: var(--space-4);
+}
+
+.page-header {
+    margin-bottom: var(--space-6);
+}
+
+.breadcrumb {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.page-header h1 {
+    margin: 0;
+}
+
+.form-errors {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--color-danger, #ef4444);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    color: var(--color-danger, #ef4444);
+}
+
+.form-section {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+
+.form-section h2 {
+    margin: 0 0 var(--space-4) 0;
+    font-size: var(--font-size-lg);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+}
+
+.form-group input[type="text"],
+.form-group input[type="date"],
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-base);
+    font-family: inherit;
+    background: var(--color-bg);
+}
+
+.form-group textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.field-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.field-error {
+    color: var(--color-danger, #ef4444);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-1);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+@media (max-width: 600px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

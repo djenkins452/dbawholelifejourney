@@ -90,6 +90,46 @@ Since Railway has NO shell/console access, one-time data loading must be done vi
 
 **Example:** `load_danny_workout_templates` - loads workout templates for a specific user, safe to run multiple times.
 
+### CRITICAL: Railway Nixpacks Caching Issue
+
+**Problem:** Railway aggressively caches the `nixpacks.toml` start command. Changing `nixpacks.toml` or `Procfile` may NOT take effect even after multiple pushes. The build log will show the OLD start command even when the files have been updated.
+
+**Symptoms:**
+- Build log shows old start command (missing new commands)
+- All build steps show "cached"
+- File changes to nixpacks.toml/Procfile don't appear in build output
+- No way to clear build cache in Railway dashboard
+
+**Workaround - Embed commands in existing startup:**
+Instead of adding new commands to Procfile/nixpacks.toml, add them INSIDE an existing command that's already running:
+
+```python
+# In apps/core/management/commands/load_initial_data.py
+# Add call_command() for new loaders inside this command:
+try:
+    self.stdout.write('  Loading project blueprints...')
+    call_command(
+        'load_project_from_json',
+        'project_blueprints/wlj_executable_work_orchestration.json',
+        verbosity=1
+    )
+    self.stdout.write(self.style.SUCCESS(' OK'))
+except Exception as e:
+    self.stdout.write(self.style.WARNING(f' Skipped ({e})'))
+```
+
+This bypasses the cache because the code inside `load_initial_data` is not cached - only the start command string is cached.
+
+**Things that DON'T work:**
+- Changing nixpacks.toml comments or metadata
+- Adding force rebuild comments to Procfile
+- Changing requirements.txt to force pip reinstall
+- Removing and re-adding nixpacks.toml
+- Setting RAILWAY_RUN_COMMAND or NIXPACKS_START_CMD env vars
+
+**Future Prevention:**
+When adding new startup commands, add them inside `load_initial_data.py` using `call_command()` rather than modifying Procfile/nixpacks.toml.
+
 ## Important Files
 - `Procfile` - Railway deployment startup command
 - `run_tests.py` - Enhanced test runner with database history

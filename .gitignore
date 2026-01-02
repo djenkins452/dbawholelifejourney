@@ -86,6 +86,9 @@ npm-debug.log
 *.tmp
 *.temp
 
+# Claude Code local settings (contains secrets)
+.claude/settings.local.json
+
 # Temp/test output files
 nul
 test_errors.txt

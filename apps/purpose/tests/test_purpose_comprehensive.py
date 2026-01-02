@@ -19,7 +19,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from apps.purpose.models import (
-    AnnualDirection, LifeGoal, ChangeIntention, Reflection, LifeDomain
+    AnnualDirection, LifeGoal, ChangeIntention, Reflection, LifeDomain,
+    HabitGoal, HabitEntry
 )
 
 User = get_user_model()
@@ -581,9 +582,392 @@ class PurposeContextTest(PurposeTestMixin, TestCase):
     def test_goal_detail_has_goal(self):
         """Goal detail includes goal in context."""
         goal = self.create_goal(self.user)
-        
+
         response = self.client.get(
             reverse('purpose:goal_detail', kwargs={'pk': goal.pk})
         )
-        
+
         self.assertEqual(response.context['object'], goal)
+
+
+# =============================================================================
+# 11. HABIT GOAL MODEL TESTS
+# =============================================================================
+
+class HabitGoalModelTest(PurposeTestMixin, TestCase):
+    """Tests for the HabitGoal model and matrix sizing algorithm."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.today = timezone.now().date()
+
+    def create_habit_goal(self, **kwargs):
+        """Helper to create a habit goal."""
+        defaults = {
+            'user': self.user,
+            'name': 'Test Habit Goal',
+            'purpose': 'To build a daily habit',
+            'start_date': self.today,
+            'end_date': self.today + timedelta(days=29),  # 30 days
+            'habit_required': True,
+        }
+        defaults.update(kwargs)
+        return HabitGoal.objects.create(**defaults)
+
+    # -------------------------------------------------------------------------
+    # Basic Model Tests
+    # -------------------------------------------------------------------------
+
+    def test_create_habit_goal(self):
+        """Test creating a basic habit goal."""
+        goal = self.create_habit_goal()
+        self.assertEqual(goal.name, 'Test Habit Goal')
+        self.assertEqual(goal.purpose, 'To build a daily habit')
+        self.assertTrue(goal.habit_required)
+
+    def test_habit_goal_str(self):
+        """Test string representation."""
+        goal = self.create_habit_goal(name='My 30 Day Challenge')
+        self.assertEqual(str(goal), 'My 30 Day Challenge')
+
+    def test_habit_goal_requires_purpose_when_habit_required(self):
+        """Purpose is required when habit_required is True."""
+        from django.core.exceptions import ValidationError
+        with self.assertRaises(ValidationError):
+            HabitGoal.objects.create(
+                user=self.user,
+                name='Test',
+                purpose='',  # Empty purpose
+                start_date=self.today,
+                end_date=self.today + timedelta(days=10),
+                habit_required=True,
+            )
+
+    def test_end_date_must_be_after_start_date(self):
+        """End date must be >= start date."""
+        from django.core.exceptions import ValidationError
+        with self.assertRaises(ValidationError):
+            HabitGoal.objects.create(
+                user=self.user,
+                name='Test',
+                purpose='Test purpose',
+                start_date=self.today,
+                end_date=self.today - timedelta(days=1),  # End before start
+                habit_required=True,
+            )
+
+    # -------------------------------------------------------------------------
+    # Matrix Sizing Tests (The Task Requirements)
+    # -------------------------------------------------------------------------
+
+    def test_total_days_calculation(self):
+        """Test total_days calculation is inclusive."""
+        # 30-day goal (Jan 1 - Jan 30)
+        goal = self.create_habit_goal(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 30),
+        )
+        self.assertEqual(goal.total_days, 30)
+
+    def test_matrix_sizing_30_days(self):
+        """Test matrix sizing for 30 days: rows=5, cols=6."""
+        goal = self.create_habit_goal(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 30),
+        )
+        # floor(sqrt(30)) = 5
+        self.assertEqual(goal.matrix_rows, 5)
+        # ceil(30/5) = 6
+        self.assertEqual(goal.matrix_columns, 6)
+        # 5 * 6 = 30
+        self.assertEqual(goal.total_boxes, 30)
+        # No disabled boxes
+        self.assertEqual(goal.disabled_boxes, 0)
+
+    def test_matrix_sizing_100_days(self):
+        """Test matrix sizing for 100 days: rows=10, cols=10."""
+        goal = self.create_habit_goal(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 4, 10),  # 100 days
+        )
+        self.assertEqual(goal.total_days, 100)
+        # floor(sqrt(100)) = 10
+        self.assertEqual(goal.matrix_rows, 10)
+        # ceil(100/10) = 10
+        self.assertEqual(goal.matrix_columns, 10)
+        # 10 * 10 = 100
+        self.assertEqual(goal.total_boxes, 100)
+        # No disabled boxes
+        self.assertEqual(goal.disabled_boxes, 0)
+
+    def test_matrix_sizing_45_days(self):
+        """Test matrix sizing for 45 days: rows=6, cols=8, 3 disabled."""
+        goal = self.create_habit_goal(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 2, 14),  # 45 days
+        )
+        self.assertEqual(goal.total_days, 45)
+        # floor(sqrt(45)) = 6
+        self.assertEqual(goal.matrix_rows, 6)
+        # ceil(45/6) = 8
+        self.assertEqual(goal.matrix_columns, 8)
+        # 6 * 8 = 48
+        self.assertEqual(goal.total_boxes, 48)
+        # 48 - 45 = 3 disabled boxes
+        self.assertEqual(goal.disabled_boxes, 3)
+
+    def test_matrix_sizing_7_days(self):
+        """Test matrix sizing for 7 days (one week)."""
+        goal = self.create_habit_goal(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 7),  # 7 days
+        )
+        self.assertEqual(goal.total_days, 7)
+        # floor(sqrt(7)) = 2
+        self.assertEqual(goal.matrix_rows, 2)
+        # ceil(7/2) = 4
+        self.assertEqual(goal.matrix_columns, 4)
+        # 2 * 4 = 8
+        self.assertEqual(goal.total_boxes, 8)
+        # 8 - 7 = 1 disabled box
+        self.assertEqual(goal.disabled_boxes, 1)
+
+    def test_matrix_sizing_1_day(self):
+        """Test matrix sizing for 1 day goal."""
+        goal = self.create_habit_goal(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 1),  # Same day
+        )
+        self.assertEqual(goal.total_days, 1)
+        # floor(sqrt(1)) = 1
+        self.assertEqual(goal.matrix_rows, 1)
+        # ceil(1/1) = 1
+        self.assertEqual(goal.matrix_columns, 1)
+        self.assertEqual(goal.total_boxes, 1)
+        self.assertEqual(goal.disabled_boxes, 0)
+
+    # -------------------------------------------------------------------------
+    # Matrix Data Generation Tests
+    # -------------------------------------------------------------------------
+
+    def test_get_matrix_data_returns_correct_count(self):
+        """Matrix data should have total_boxes entries."""
+        goal = self.create_habit_goal(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 30),
+        )
+        matrix = goal.get_matrix_data()
+        self.assertEqual(len(matrix), goal.total_boxes)
+
+    def test_get_matrix_data_disabled_boxes_at_end(self):
+        """Disabled boxes should be at the end of the matrix."""
+        goal = self.create_habit_goal(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 2, 14),  # 45 days, 3 disabled
+        )
+        matrix = goal.get_matrix_data()
+
+        # First 45 should have dates
+        for i in range(45):
+            self.assertIsNotNone(matrix[i]['date'])
+            self.assertNotEqual(matrix[i]['state'], 'disabled')
+
+        # Last 3 should be disabled
+        for i in range(45, 48):
+            self.assertIsNone(matrix[i]['date'])
+            self.assertEqual(matrix[i]['state'], 'disabled')
+
+    def test_get_matrix_data_box_states(self):
+        """Test correct box states for different dates."""
+        # Goal starts 5 days ago
+        start = self.today - timedelta(days=5)
+        goal = self.create_habit_goal(
+            start_date=start,
+            end_date=start + timedelta(days=9),  # 10 days total
+        )
+
+        # Mark day 2 as completed
+        HabitEntry.objects.create(
+            goal=goal,
+            date=start + timedelta(days=1),
+            completed=True,
+        )
+
+        matrix = goal.get_matrix_data()
+
+        # Day 1 (5 days ago, not completed) should be 'missed'
+        self.assertEqual(matrix[0]['state'], 'missed')
+
+        # Day 2 (completed) should be 'completed'
+        self.assertEqual(matrix[1]['state'], 'completed')
+
+        # Day 6 (today) should be 'today'
+        today_box = None
+        for box in matrix:
+            if box['date'] == self.today:
+                today_box = box
+                break
+        self.assertIsNotNone(today_box)
+        self.assertEqual(today_box['state'], 'today')
+
+        # Future days should be 'future'
+        future_box = None
+        for box in matrix:
+            if box['date'] and box['date'] > self.today:
+                future_box = box
+                break
+        if future_box:
+            self.assertEqual(future_box['state'], 'future')
+
+    def test_get_matrix_as_rows(self):
+        """Test matrix organized into rows."""
+        goal = self.create_habit_goal(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 30),  # 5 rows, 6 columns
+        )
+        rows = goal.get_matrix_as_rows()
+
+        self.assertEqual(len(rows), 5)  # 5 rows
+        for row in rows:
+            self.assertEqual(len(row), 6)  # 6 columns each
+
+    # -------------------------------------------------------------------------
+    # Statistics Tests
+    # -------------------------------------------------------------------------
+
+    def test_completed_days_count(self):
+        """Test completed_days property."""
+        goal = self.create_habit_goal(
+            start_date=self.today - timedelta(days=10),
+            end_date=self.today + timedelta(days=19),
+        )
+
+        # Mark 5 days as completed
+        for i in range(5):
+            HabitEntry.objects.create(
+                goal=goal,
+                date=self.today - timedelta(days=i),
+                completed=True,
+            )
+
+        self.assertEqual(goal.completed_days, 5)
+
+    def test_completion_rate(self):
+        """Test completion_rate calculation."""
+        # Goal started 10 days ago
+        goal = self.create_habit_goal(
+            start_date=self.today - timedelta(days=9),  # 10 days including today
+            end_date=self.today + timedelta(days=20),
+        )
+
+        # Mark 5 out of 10 trackable days as completed
+        for i in range(5):
+            HabitEntry.objects.create(
+                goal=goal,
+                date=self.today - timedelta(days=i),
+                completed=True,
+            )
+
+        # 5/10 = 50%
+        self.assertEqual(goal.completion_rate, 50.0)
+
+
+# =============================================================================
+# 12. HABIT ENTRY MODEL TESTS
+# =============================================================================
+
+class HabitEntryModelTest(PurposeTestMixin, TestCase):
+    """Tests for the HabitEntry model."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.today = timezone.now().date()
+        self.goal = HabitGoal.objects.create(
+            user=self.user,
+            name='Test Goal',
+            purpose='Testing',
+            start_date=self.today - timedelta(days=5),
+            end_date=self.today + timedelta(days=24),  # 30 days total
+            habit_required=True,
+        )
+
+    def test_create_habit_entry(self):
+        """Test creating a habit entry."""
+        entry = HabitEntry.objects.create(
+            goal=self.goal,
+            date=self.today,
+            completed=True,
+        )
+        self.assertEqual(entry.goal, self.goal)
+        self.assertTrue(entry.completed)
+
+    def test_habit_entry_str(self):
+        """Test string representation."""
+        entry = HabitEntry.objects.create(
+            goal=self.goal,
+            date=self.today,
+            completed=True,
+        )
+        self.assertIn('Test Goal', str(entry))
+        self.assertIn('✓', str(entry))
+
+    def test_unique_together_constraint(self):
+        """Only one entry per goal per date."""
+        from django.core.exceptions import ValidationError
+
+        HabitEntry.objects.create(
+            goal=self.goal,
+            date=self.today,
+            completed=True,
+        )
+
+        # Validation happens in full_clean() before save
+        with self.assertRaises(ValidationError):
+            HabitEntry.objects.create(
+                goal=self.goal,
+                date=self.today,  # Same date
+                completed=False,
+            )
+
+    def test_cannot_create_entry_before_goal_start(self):
+        """Entry date cannot be before goal start_date."""
+        from django.core.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError):
+            HabitEntry.objects.create(
+                goal=self.goal,
+                date=self.goal.start_date - timedelta(days=1),
+                completed=True,
+            )
+
+    def test_cannot_create_entry_after_goal_end(self):
+        """Entry date cannot be after goal end_date."""
+        from django.core.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError):
+            HabitEntry.objects.create(
+                goal=self.goal,
+                date=self.goal.end_date + timedelta(days=1),
+                completed=True,
+            )
+
+    def test_cannot_create_future_entry(self):
+        """Cannot create entries for future dates."""
+        from django.core.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError):
+            HabitEntry.objects.create(
+                goal=self.goal,
+                date=self.today + timedelta(days=1),
+                completed=True,
+            )
+
+    def test_can_backfill_past_entry(self):
+        """Can create entries for past dates within goal range."""
+        past_date = self.today - timedelta(days=2)
+        entry = HabitEntry.objects.create(
+            goal=self.goal,
+            date=past_date,
+            completed=True,
+        )
+        self.assertEqual(entry.date, past_date)

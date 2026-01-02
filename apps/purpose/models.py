@@ -1,3 +1,11 @@
+# ==============================================================================
+# File: apps/purpose/models.py
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: Purpose module models including life goals, habit goals, and reflections
+# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Created: 2024-01-01
+# Last Updated: 2026-01-02
+# ==============================================================================
 """
 Purpose Module Models
 
@@ -6,9 +14,13 @@ It helps users reflect deeply, plan intentionally, and define long-term directio
 
 This is the map and compass, not the daily log.
 Visited seasonally, not daily.
+
+Also includes HabitGoal for shorter-term habit tracking with visual matrix display.
 """
 
+import math
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
@@ -524,3 +536,353 @@ class PlanningAction(UserOwnedModel):
     
     def __str__(self):
         return f"{self.get_action_type_display()}: {self.description[:50]}..."
+
+
+# =============================================================================
+# Habit Goals (Short-term with Daily Tracking)
+# =============================================================================
+
+class HabitGoal(UserOwnedModel):
+    """
+    Short-term habit goals with daily tracking and visual matrix display.
+
+    Unlike LifeGoal (12-36 month direction), HabitGoal is for focused daily execution
+    over a defined period with visual progress tracking via a habit matrix.
+
+    See docs/wlj_goals_habit_rules.md for full specification.
+    """
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('paused', 'Paused'),
+        ('completed', 'Completed'),
+        ('abandoned', 'Abandoned'),
+    ]
+
+    # Core required fields
+    name = models.CharField(
+        max_length=200,
+        help_text="The goal name/title"
+    )
+    purpose = models.TextField(
+        help_text="Why this goal matters - the deeper meaning"
+    )
+    start_date = models.DateField(
+        help_text="When the goal period begins"
+    )
+    end_date = models.DateField(
+        help_text="When the goal period ends"
+    )
+    habit_required = models.BooleanField(
+        default=True,
+        help_text="Whether this goal requires daily habit tracking"
+    )
+
+    # Optional fields
+    description = models.TextField(
+        blank=True,
+        help_text="Additional details about the goal"
+    )
+    success_criteria = models.TextField(
+        blank=True,
+        help_text="What does success look like?"
+    )
+    domain = models.ForeignKey(
+        LifeDomain,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='habit_goals',
+        help_text="Life area this goal belongs to"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active'
+    )
+
+    # Link to annual direction
+    annual_direction = models.ForeignKey(
+        AnnualDirection,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='habit_goals',
+        help_text="Link this goal to a year's direction"
+    )
+
+    class Meta:
+        ordering = ['-start_date', 'name']
+        verbose_name = "Habit Goal"
+        verbose_name_plural = "Habit Goals"
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse('purpose:habit_goal_detail', kwargs={'pk': self.pk})
+
+    def clean(self):
+        """Validate goal data."""
+        super().clean()
+
+        # Validate date range
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError({
+                'end_date': "End date must be on or after start date."
+            })
+
+        # Validate purpose for habit goals
+        if self.habit_required and not (self.purpose and self.purpose.strip()):
+            raise ValidationError({
+                'purpose': "Purpose is required for habit-tracking goals."
+            })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    # =========================================================================
+    # Habit Matrix Sizing Methods
+    # =========================================================================
+
+    @property
+    def total_days(self):
+        """Calculate total days in the goal period (inclusive)."""
+        if not self.start_date or not self.end_date:
+            return 0
+        return (self.end_date - self.start_date).days + 1
+
+    @property
+    def matrix_rows(self):
+        """Calculate optimal number of rows for the habit matrix.
+
+        Uses floor(sqrt(total_days)) for a nearly-square layout.
+        """
+        if self.total_days <= 0:
+            return 0
+        return math.floor(math.sqrt(self.total_days))
+
+    @property
+    def matrix_columns(self):
+        """Calculate optimal number of columns for the habit matrix.
+
+        Uses ceil(total_days / rows) to ensure all days fit.
+        """
+        if self.total_days <= 0 or self.matrix_rows <= 0:
+            return 0
+        return math.ceil(self.total_days / self.matrix_rows)
+
+    @property
+    def total_boxes(self):
+        """Total boxes in the matrix grid (rows × columns)."""
+        return self.matrix_rows * self.matrix_columns
+
+    @property
+    def disabled_boxes(self):
+        """Number of disabled boxes (total_boxes - total_days)."""
+        return max(0, self.total_boxes - self.total_days)
+
+    def get_matrix_data(self):
+        """Generate the complete matrix data for rendering.
+
+        Returns a list of box dictionaries with state information:
+        - box_number: Sequential number (1-based)
+        - date: The date this box represents (or None if disabled)
+        - state: One of 'completed', 'missed', 'today', 'future', 'disabled'
+        - day_number: Day number within the goal (1-based)
+        """
+        if not self.habit_required or self.total_days <= 0:
+            return []
+
+        today = timezone.now().date()
+
+        # Get all habit entries for this goal
+        entries_by_date = {
+            entry.date: entry
+            for entry in self.habit_entries.all()
+        }
+
+        matrix = []
+        current_date = self.start_date
+
+        for box_num in range(1, self.total_boxes + 1):
+            if box_num <= self.total_days:
+                # This is a valid date box
+                day_number = box_num
+                box_date = self.start_date + timezone.timedelta(days=box_num - 1)
+
+                # Determine state
+                entry = entries_by_date.get(box_date)
+
+                if entry and entry.completed:
+                    state = 'completed'
+                elif box_date > today:
+                    state = 'future'
+                elif box_date == today:
+                    state = 'today'
+                else:
+                    # Past date with no completed entry
+                    state = 'missed'
+
+                matrix.append({
+                    'box_number': box_num,
+                    'date': box_date,
+                    'state': state,
+                    'day_number': day_number,
+                    'row': (box_num - 1) // self.matrix_columns,
+                    'column': (box_num - 1) % self.matrix_columns,
+                })
+            else:
+                # Disabled box (for grid alignment)
+                matrix.append({
+                    'box_number': box_num,
+                    'date': None,
+                    'state': 'disabled',
+                    'day_number': None,
+                    'row': (box_num - 1) // self.matrix_columns,
+                    'column': (box_num - 1) % self.matrix_columns,
+                })
+
+        return matrix
+
+    def get_matrix_as_rows(self):
+        """Get matrix data organized into rows for template rendering."""
+        matrix = self.get_matrix_data()
+        if not matrix:
+            return []
+
+        rows = []
+        for row_num in range(self.matrix_rows):
+            row_boxes = [
+                box for box in matrix
+                if box['row'] == row_num
+            ]
+            rows.append(row_boxes)
+
+        return rows
+
+    # =========================================================================
+    # Statistics Methods
+    # =========================================================================
+
+    @property
+    def completed_days(self):
+        """Count of days marked as completed."""
+        return self.habit_entries.filter(completed=True).count()
+
+    @property
+    def completion_rate(self):
+        """Percentage of completed days (up to today)."""
+        today = timezone.now().date()
+
+        # Only count days up to today (not future days)
+        end = min(self.end_date, today)
+        if end < self.start_date:
+            return 0.0
+
+        trackable_days = (end - self.start_date).days + 1
+        if trackable_days <= 0:
+            return 0.0
+
+        return (self.completed_days / trackable_days) * 100
+
+    @property
+    def current_streak(self):
+        """Calculate current consecutive completion streak."""
+        today = timezone.now().date()
+
+        # Get completed entries ordered by date descending
+        completed_dates = set(
+            self.habit_entries.filter(completed=True)
+            .values_list('date', flat=True)
+        )
+
+        if not completed_dates:
+            return 0
+
+        # Start from today or end_date (whichever is earlier)
+        check_date = min(today, self.end_date)
+        streak = 0
+
+        while check_date >= self.start_date:
+            if check_date in completed_dates:
+                streak += 1
+                check_date -= timezone.timedelta(days=1)
+            elif check_date > today:
+                # Skip future dates
+                check_date -= timezone.timedelta(days=1)
+            else:
+                break
+
+        return streak
+
+
+class HabitEntry(models.Model):
+    """
+    Daily habit completion entry for a HabitGoal.
+
+    One entry per goal per calendar day.
+    """
+    goal = models.ForeignKey(
+        HabitGoal,
+        on_delete=models.CASCADE,
+        related_name='habit_entries'
+    )
+    date = models.DateField(
+        help_text="The calendar date for this entry"
+    )
+    completed = models.BooleanField(
+        default=True,
+        help_text="Whether the habit was completed"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Optional notes about this day"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['goal', 'date']
+        ordering = ['-date']
+        verbose_name = "Habit Entry"
+        verbose_name_plural = "Habit Entries"
+
+    def __str__(self):
+        status = "✓" if self.completed else "✗"
+        return f"{self.goal.name} - {self.date} [{status}]"
+
+    def clean(self):
+        """Validate habit entry data."""
+        super().clean()
+
+        if not self.goal_id:
+            return
+
+        # Validate goal has habit tracking enabled
+        if not self.goal.habit_required:
+            raise ValidationError(
+                "This goal does not have habit tracking enabled."
+            )
+
+        # Validate date is within goal range
+        if self.date < self.goal.start_date:
+            raise ValidationError({
+                'date': "Date cannot be before goal start date."
+            })
+        if self.date > self.goal.end_date:
+            raise ValidationError({
+                'date': "Date cannot be after goal end date."
+            })
+
+        # Validate not future date
+        today = timezone.now().date()
+        if self.date > today:
+            raise ValidationError({
+                'date': "Cannot create habit entries for future dates."
+            })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

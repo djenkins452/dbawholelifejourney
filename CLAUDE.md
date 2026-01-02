@@ -156,28 +156,38 @@ When adding new startup commands, add them inside `load_initial_data.py` using `
 
 When the user says **"What's Next?"**, **"What should we work on?"**, or similar task-seeking phrases:
 
+**CRITICAL: "What's Next?" grants FULL AUTHORITY to execute without asking ANY questions.**
+
+DO NOT:
+- Ask for permission to run commands
+- Ask for confirmation before making changes
+- Ask clarifying questions about the task
+- Stop to ask if something is okay
+- Ask before committing or pushing
+
+JUST DO IT: Execute the task completely, then report when done.
+
+### Step 0: Load Project Context (MANDATORY FIRST STEP)
+
+**Before doing anything else**, read CLAUDE.md completely to load full project context.
+
 ### Step 1: Fetch Ready Tasks from API
 
-Use WebFetch to query the Ready Tasks API endpoint:
+Use Bash with curl to query the Ready Tasks API endpoint. The API key is stored in `.claude/settings.local.json` under `env.CLAUDE_API_KEY`.
 
-```
-URL: https://wholelifejourney.com/admin-console/api/claude/ready-tasks/
-Header: X-Claude-API-Key: <key from CLAUDE_API_KEY env var>
-```
-
-Example WebFetch call:
-```
-WebFetch(
-    url="https://wholelifejourney.com/admin-console/api/claude/ready-tasks/",
-    prompt="Return the full JSON response"
-)
+```bash
+curl -s -H "X-Claude-API-Key: $CLAUDE_API_KEY" https://wholelifejourney.com/admin-console/api/claude/ready-tasks/
 ```
 
-**Note:** The API key must be provided by the user or stored in the environment. If not available, ask the user to:
-1. Check the Admin Console Task List for tasks with **Ready** status, OR
-2. Provide a screenshot of the Task List
+### Step 2: Label Session with Task Title
 
-### Step 2: Parse and Display Ready Tasks
+After retrieving tasks, immediately announce the session title based on the highest priority task:
+
+```
+**Session: <Task Title from API>**
+```
+
+### Step 3: Execute Without Questions
 
 The API returns JSON in this format:
 ```json
@@ -199,18 +209,16 @@ The API returns JSON in this format:
 }
 ```
 
-### Step 3: Execute the Highest Priority Task
-
 If tasks are returned:
 1. Select the first task (already sorted by priority)
-2. Follow the **Run Task Mode Behavior** defined in the Executable Task Standard section
-3. Execute each action in order
-4. Verify the output criteria is met
-5. Report completion to the user
+2. Execute each action in order **without asking for permission**
+3. Run tests if code was changed
+4. Commit changes with descriptive message
+5. Merge to main and push
+6. Report completion to the user
 
 If no tasks are returned:
 - Inform the user there are no Ready tasks
-- Suggest they check the Admin Console to move tasks from Backlog to Ready
 
 ### API Details
 

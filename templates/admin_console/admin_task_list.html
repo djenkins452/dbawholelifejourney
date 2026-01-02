@@ -250,6 +250,16 @@
                             {% endif %}
                         </span>
                     </th>
+                    <th class="sortable{% if current_sort == 'project' %} sorted{% endif %}" data-sort="project">
+                        Project
+                        <span class="sort-icon">
+                            {% if current_sort == 'project' %}
+                                {% if current_dir == 'asc' %}▲{% else %}▼{% endif %}
+                            {% else %}
+                                ⇅
+                            {% endif %}
+                        </span>
+                    </th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -290,6 +300,7 @@
                     </td>
                     <td>{{ task.get_created_by_display }}</td>
                     <td>{{ task.created_at|date:"M j, Y" }}</td>
+                    <td>{{ task.project.name|default:"-" }}</td>
                     <td>
                         <div class="action-buttons">
                             <a href="{% url 'admin_console:admin_task_update' task.pk %}" class="btn btn-secondary btn-sm">Edit</a>

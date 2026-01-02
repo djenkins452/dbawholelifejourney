@@ -13,7 +13,7 @@ This test file covers:
 Location: apps/admin_console/tests.py
 """
 
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 
@@ -3442,3 +3442,184 @@ class InlinePriorityUpdateAPITest(AdminTestMixin, TestCase):
             )
             self.assertEqual(response.status_code, 200,
                            f"Priority change failed for status '{status}'")
+
+
+# =============================================================================
+# Claude Code Ready Tasks API Tests
+# =============================================================================
+
+class ReadyTasksAPITests(AdminTestMixin, TestCase):
+    """
+    Tests for the Claude Code Ready Tasks API endpoint.
+
+    This endpoint allows Claude Code to fetch tasks with 'ready' status
+    for the "What's Next?" protocol.
+    """
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.client = Client()
+        self.admin = self.create_admin()
+
+        # Create phase and project
+        from apps.admin_console.models import AdminProjectPhase, AdminProject, AdminTask
+        self.phase, _ = AdminProjectPhase.objects.get_or_create(
+            phase_number=1,
+            defaults={
+                'name': 'Phase 1',
+                'objective': 'Test phase',
+                'status': 'in_progress'
+            }
+        )
+        self.project = self.get_or_create_default_project()
+
+        # Create tasks with different statuses
+        AdminTask._skip_executable_validation = True
+        self.ready_task = AdminTask.objects.create(
+            title='Ready Task 1',
+            description=self.make_executable_description('Ready Task 1'),
+            category='feature',
+            priority=1,
+            status='ready',
+            effort='M',
+            phase=self.phase,
+            project=self.project,
+            created_by='claude'
+        )
+        self.backlog_task = AdminTask.objects.create(
+            title='Backlog Task',
+            description=self.make_executable_description('Backlog Task'),
+            category='feature',
+            priority=2,
+            status='backlog',
+            effort='S',
+            phase=self.phase,
+            project=self.project,
+            created_by='human'
+        )
+        AdminTask._skip_executable_validation = False
+
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_requires_api_key(self):
+        """Request without API key returns 401."""
+        response = self.client.get('/admin-console/api/claude/ready-tasks/')
+        self.assertEqual(response.status_code, 401)
+
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_invalid_api_key_returns_401(self):
+        """Request with wrong API key returns 401."""
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/',
+            HTTP_X_CLAUDE_API_KEY='wrong-key'
+        )
+        self.assertEqual(response.status_code, 401)
+
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_valid_api_key_returns_200(self):
+        """Request with valid API key returns 200."""
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/',
+            HTTP_X_CLAUDE_API_KEY='test-api-key-12345'
+        )
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_returns_only_ready_tasks(self):
+        """Only tasks with status='ready' are returned."""
+        import json
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/',
+            HTTP_X_CLAUDE_API_KEY='test-api-key-12345'
+        )
+        data = json.loads(response.content)
+
+        # Should only include ready tasks
+        self.assertEqual(data['count'], 1)
+        self.assertEqual(len(data['tasks']), 1)
+        self.assertEqual(data['tasks'][0]['title'], 'Ready Task 1')
+
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_returns_executable_task_structure(self):
+        """Response includes full executable task description."""
+        import json
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/',
+            HTTP_X_CLAUDE_API_KEY='test-api-key-12345'
+        )
+        data = json.loads(response.content)
+
+        task = data['tasks'][0]
+        self.assertIn('description', task)
+        self.assertIn('objective', task['description'])
+        self.assertIn('inputs', task['description'])
+        self.assertIn('actions', task['description'])
+        self.assertIn('output', task['description'])
+
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_respects_limit_parameter(self):
+        """Limit parameter restricts number of returned tasks."""
+        import json
+        from apps.admin_console.models import AdminTask
+
+        # Create more ready tasks
+        AdminTask._skip_executable_validation = True
+        for i in range(5):
+            AdminTask.objects.create(
+                title=f'Ready Task Extra {i}',
+                description=self.make_executable_description(f'Extra {i}'),
+                category='feature',
+                priority=i + 2,
+                status='ready',
+                effort='S',
+                phase=self.phase,
+                project=self.project,
+                created_by='claude'
+            )
+        AdminTask._skip_executable_validation = False
+
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/?limit=3',
+            HTTP_X_CLAUDE_API_KEY='test-api-key-12345'
+        )
+        data = json.loads(response.content)
+
+        self.assertEqual(len(data['tasks']), 3)
+
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_tasks_ordered_by_priority(self):
+        """Tasks are returned ordered by priority (lowest first)."""
+        import json
+        from apps.admin_console.models import AdminTask
+
+        # Create task with lower priority (higher number = lower priority)
+        AdminTask._skip_executable_validation = True
+        AdminTask.objects.create(
+            title='Lower Priority Task',
+            description=self.make_executable_description('Lower Priority'),
+            category='feature',
+            priority=10,
+            status='ready',
+            effort='M',
+            phase=self.phase,
+            project=self.project,
+            created_by='human'
+        )
+        AdminTask._skip_executable_validation = False
+
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/',
+            HTTP_X_CLAUDE_API_KEY='test-api-key-12345'
+        )
+        data = json.loads(response.content)
+
+        # First task should be highest priority (lowest number)
+        self.assertEqual(data['tasks'][0]['priority'], 1)
+
+    @override_settings(CLAUDE_API_KEY='')
+    def test_returns_500_if_api_key_not_configured(self):
+        """Returns 500 if CLAUDE_API_KEY is not set on server."""
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/',
+            HTTP_X_CLAUDE_API_KEY='any-key'
+        )
+        self.assertEqual(response.status_code, 500)

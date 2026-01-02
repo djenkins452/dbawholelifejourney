@@ -152,6 +152,73 @@ When adding new startup commands, add them inside `load_initial_data.py` using `
 - User's timezone: America/New_York (EST)
 - Prefers descriptive merge commit messages, not auto-generated ones
 
+## "What's Next?" Protocol
+
+When the user says **"What's Next?"**, **"What should we work on?"**, or similar task-seeking phrases:
+
+### Step 1: Fetch Ready Tasks from API
+
+Use WebFetch to query the Ready Tasks API endpoint:
+
+```
+URL: https://wholelifejourney.com/admin-console/api/claude/ready-tasks/
+Header: X-Claude-API-Key: <key from CLAUDE_API_KEY env var>
+```
+
+Example WebFetch call:
+```
+WebFetch(
+    url="https://wholelifejourney.com/admin-console/api/claude/ready-tasks/",
+    prompt="Return the full JSON response"
+)
+```
+
+**Note:** The API key must be provided by the user or stored in the environment. If not available, ask the user to:
+1. Check the Admin Console Task List for tasks with **Ready** status, OR
+2. Provide a screenshot of the Task List
+
+### Step 2: Parse and Display Ready Tasks
+
+The API returns JSON in this format:
+```json
+{
+    "count": 1,
+    "tasks": [{
+        "id": 123,
+        "title": "Task title here",
+        "phase": "Phase 1: Name",
+        "priority": 1,
+        "project": "Project Name",
+        "description": {
+            "objective": "What the task should accomplish",
+            "inputs": ["Required context or resources"],
+            "actions": ["Step 1", "Step 2", "..."],
+            "output": "Expected deliverable"
+        }
+    }]
+}
+```
+
+### Step 3: Execute the Highest Priority Task
+
+If tasks are returned:
+1. Select the first task (already sorted by priority)
+2. Follow the **Run Task Mode Behavior** defined in the Executable Task Standard section
+3. Execute each action in order
+4. Verify the output criteria is met
+5. Report completion to the user
+
+If no tasks are returned:
+- Inform the user there are no Ready tasks
+- Suggest they check the Admin Console to move tasks from Backlog to Ready
+
+### API Details
+
+- **Endpoint:** `GET /admin-console/api/claude/ready-tasks/`
+- **Authentication:** `X-Claude-API-Key` header
+- **Query Params:** `limit` (optional, default 10, max 50)
+- **Returns:** JSON with count and array of executable task objects
+
 ## Code Style & Documentation Standards
 
 ### File Header Comments (MANDATORY)

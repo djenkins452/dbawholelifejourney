@@ -128,4 +128,7 @@ urlpatterns = [
     path("projects/config/effort/new/", views.EffortConfigCreateView.as_view(), name="config_effort_create"),
     path("projects/config/effort/<int:pk>/edit/", views.EffortConfigUpdateView.as_view(), name="config_effort_update"),
     path("projects/config/effort/<int:pk>/delete/", views.EffortConfigDeleteView.as_view(), name="config_effort_delete"),
+
+    # Claude Code API - Ready Tasks (for "What's Next?" protocol)
+    path("api/claude/ready-tasks/", views.ReadyTasksAPIView.as_view(), name="api_claude_ready_tasks"),
 ]

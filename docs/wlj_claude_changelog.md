@@ -4,13 +4,83 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-01 (Phase 17.5 - Executable Task Standard)
+# Last Updated: 2026-01-02 (Claude Code Ready Tasks API)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2026-01-02 Changes
+
+### Claude Code Ready Tasks API ("What's Next?" Protocol)
+
+**Session:** Admin Console - Task Orchestration Enhancement
+
+**Objective:**
+Enable Claude Code to automatically discover and execute Ready tasks when the user asks "What's Next?" without requiring screenshots or manual task lookups.
+
+**Implementation:**
+
+1. **New API Endpoint:**
+   - `GET /admin-console/api/claude/ready-tasks/`
+   - Returns all tasks with `status='ready'`, ordered by priority
+   - Authenticated via `X-Claude-API-Key` header
+   - Returns full executable task description for AI execution
+
+2. **Files Changed:**
+   - `config/settings.py` - Added `CLAUDE_API_KEY` environment variable
+   - `apps/admin_console/views.py` - Added `ReadyTasksAPIView` class
+   - `apps/admin_console/urls.py` - Added URL route for API endpoint
+   - `CLAUDE.md` - Added "What's Next?" Protocol section
+
+3. **API Response Format:**
+   ```json
+   {
+       "count": 1,
+       "tasks": [{
+           "id": 123,
+           "title": "Task title",
+           "phase": "Phase 1: Name",
+           "priority": 1,
+           "project": "Project Name",
+           "description": {
+               "objective": "...",
+               "inputs": ["..."],
+               "actions": ["..."],
+               "output": "..."
+           },
+           "created_at": "2026-01-02T00:00:00Z"
+       }]
+   }
+   ```
+
+4. **Authentication:**
+   - API key stored in `CLAUDE_API_KEY` environment variable
+   - Passed via `X-Claude-API-Key` HTTP header
+   - Returns 401 if key missing/invalid, 500 if not configured
+
+5. **Tests Added:**
+   - 8 new tests in `apps/admin_console/tests/test_admin_console.py`
+   - `ReadyTasksAPITests` class covering:
+     - API key validation (missing, invalid, valid)
+     - Only ready tasks returned
+     - Executable task structure in response
+     - Limit parameter
+     - Priority ordering
+     - 500 error when key not configured
+
+**Usage:**
+When user says "What's Next?", Claude Code will:
+1. WebFetch the API endpoint with API key
+2. Parse the ready tasks from response
+3. Execute the highest priority task per Executable Task Standard
+
+**Deployment Note:**
+You must set `CLAUDE_API_KEY` environment variable in Railway before the endpoint will work.
 
 ---
 

@@ -110,7 +110,9 @@
       "Bash(timeout 240 python manage.py test:*)",
       "Bash(timeout 30 bash -c \"while ! grep -q ''Migrations'' /tmp/claude/tasks/b6f5599.output 2>/dev/null && ! grep -q ''No changes'' /tmp/claude/tasks/b6f5599.output 2>/dev/null; do sleep 1; done; cat /tmp/claude/tasks/b6f5599.output\")",
       "Bash(git restore:*)",
-      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"in_progress\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/59/status/\")"
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"in_progress\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/59/status/\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/59/status/\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"in_progress\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/60/status/\")"
     ]
   }
 }

@@ -1,0 +1,13 @@
+Welcome to Whole Life Journey!
+
+Please verify your email address by clicking the link below:
+
+{{ activate_url }}
+
+This link will expire in 3 days.
+
+If you did not create an account, you can safely ignore this email.
+
+---
+Whole Life Journey
+Your personal wellness companion

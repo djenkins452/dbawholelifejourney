@@ -927,6 +927,55 @@ class DashboardDebugView(LoginRequiredMixin, View):
         prefs = user.preferences
         data['user'] = user.email
 
+        # =========================================
+        # AI Configuration Check (CRITICAL)
+        # =========================================
+        data['ai_config'] = {
+            'ai_enabled': prefs.ai_enabled,
+            'ai_data_consent': prefs.ai_data_consent,
+            'ai_coaching_style': prefs.ai_coaching_style,
+        }
+
+        # Check if OpenAI API key is configured
+        try:
+            from apps.ai.services import ai_service
+            data['ai_config']['openai_available'] = ai_service.is_available
+            if not ai_service.is_available:
+                errors.append("OpenAI API key not configured - AI insights disabled")
+        except Exception as e:
+            data['ai_config']['openai_available'] = False
+            errors.append(f"AI service import error: {e}")
+
+        # =========================================
+        # Test AI Insight Generation
+        # =========================================
+        if prefs.ai_enabled and data['ai_config'].get('openai_available'):
+            try:
+                from apps.ai.dashboard_ai import DashboardAI
+                dashboard_ai = DashboardAI(user)
+
+                # Try to get daily insight
+                daily_insight = dashboard_ai.get_daily_insight()
+                data['ai_daily_insight'] = {
+                    'generated': daily_insight is not None,
+                    'content_preview': daily_insight[:100] + '...' if daily_insight else None,
+                }
+
+                # Check for cached insights
+                from apps.ai.models import AIInsight
+                cached = AIInsight.objects.filter(
+                    user=user,
+                    insight_type='daily',
+                    valid_until__gt=timezone.now()
+                ).first()
+                data['ai_daily_insight']['cached'] = cached is not None
+                if cached:
+                    data['ai_daily_insight']['cached_style'] = cached.coaching_style
+
+            except Exception as e:
+                errors.append(f"AI insight generation error: {e}\n{traceback.format_exc()}")
+                data['ai_daily_insight'] = {'error': str(e)}
+
         # Test the actual DashboardView methods
         dashboard_view = DashboardView()
         dashboard_view.request = request
@@ -955,8 +1004,15 @@ class DashboardDebugView(LoginRequiredMixin, View):
             if prefs.ai_enabled:
                 ai_insights = dashboard_view._get_ai_insights(user, prefs, user_data)
                 data['ai_insights'] = 'generated' if ai_insights else 'none'
+                if ai_insights:
+                    data['ai_insights_detail'] = {
+                        'daily_insight': bool(ai_insights.get('daily_insight')),
+                        'weekly_summary': bool(ai_insights.get('weekly_summary')),
+                        'celebrations_count': len(ai_insights.get('celebrations', [])),
+                        'nudges_count': len(ai_insights.get('nudges', [])),
+                    }
             else:
-                data['ai_insights'] = 'disabled'
+                data['ai_insights'] = 'disabled (ai_enabled=False)'
         except Exception as e:
             errors.append(f"_get_ai_insights error: {e}\n{traceback.format_exc()}")
 

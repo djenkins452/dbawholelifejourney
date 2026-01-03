@@ -176,7 +176,7 @@ class AIInsight(models.Model):
 
     # Coaching style used when generating (for cache invalidation)
     coaching_style = models.CharField(
-        max_length=20,
+        max_length=50,  # Match CoachingStyle.key max_length
         blank=True,
         default='supportive',
         help_text="Coaching style used when generating this insight"

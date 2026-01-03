@@ -35,6 +35,7 @@ Copyright:
 """
 
 import datetime
+import uuid
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
@@ -957,3 +958,180 @@ class DisposableEmailDomain(models.Model):
 
         # Check if domain is in confirmed disposable list
         return cls.objects.filter(domain=domain, confirmed=True).exists()
+
+
+class SignupAttempt(models.Model):
+    """
+    Log all signup attempts for audit and fraud detection.
+
+    Stores hashed PII (email, IP, fingerprint) rather than raw values
+    to enable pattern matching while preserving privacy.
+
+    Used for:
+    - Rate limiting by IP or email
+    - Fraud detection and risk scoring
+    - Audit trail for security investigations
+    - Analytics on signup funnel
+    """
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("allowed", "Allowed"),
+        ("challenged", "Challenged"),
+        ("blocked", "Blocked"),
+        ("completed", "Completed"),
+        ("abandoned", "Abandoned"),
+    ]
+
+    BLOCK_REASON_CHOICES = [
+        ("rate_limited", "Rate Limited"),
+        ("high_risk", "High Risk Score"),
+        ("disposable_email", "Disposable Email"),
+        ("honeypot", "Honeypot Triggered"),
+        ("blocklist", "IP/Email Blocklist"),
+        ("captcha_failed", "CAPTCHA Failed"),
+    ]
+
+    RISK_LEVEL_CHOICES = [
+        ("unknown", "Unknown"),
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+        ("critical", "Critical"),
+    ]
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    # Hashed PII for privacy-preserving storage
+    email_hash = models.CharField(
+        max_length=64,
+        help_text="SHA-256 hash of normalized email address",
+    )
+    ip_hash = models.CharField(
+        max_length=64,
+        help_text="SHA-256 hash of IP address",
+    )
+    fingerprint_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="SHA-256 hash of device fingerprint data",
+    )
+
+    # Additional metadata (not hashed - not directly identifying)
+    user_agent = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Browser user agent string",
+    )
+    country_code = models.CharField(
+        max_length=2,
+        blank=True,
+        help_text="Two-letter country code from IP geolocation",
+    )
+
+    # Risk assessment
+    risk_score = models.FloatField(
+        default=0.0,
+        help_text="Composite risk score (0.0 = safe, 1.0 = high risk)",
+    )
+    risk_level = models.CharField(
+        max_length=20,
+        choices=RISK_LEVEL_CHOICES,
+        default="unknown",
+        help_text="Categorized risk level",
+    )
+
+    # Individual risk components
+    captcha_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="reCAPTCHA v3 score (0.0-1.0, higher is more human)",
+    )
+    ip_reputation_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="IP reputation score from external service",
+    )
+    email_risk_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Email risk score (disposable, typosquat, etc.)",
+    )
+    behavioral_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Behavioral analysis score (timing, mouse movement)",
+    )
+    device_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Device fingerprint uniqueness/trust score",
+    )
+
+    # Status tracking
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        help_text="Current status of signup attempt",
+    )
+    block_reason = models.CharField(
+        max_length=30,
+        choices=BLOCK_REASON_CHOICES,
+        blank=True,
+        help_text="Reason for blocking if status is 'blocked'",
+    )
+
+    # Verification flags
+    captcha_verified = models.BooleanField(
+        default=False,
+        help_text="CAPTCHA challenge passed",
+    )
+    phone_verified = models.BooleanField(
+        default=False,
+        help_text="Phone number verified via SMS",
+    )
+    email_verified = models.BooleanField(
+        default=False,
+        help_text="Email address verified via link",
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        db_index=True,
+        help_text="When the signup attempt was initiated",
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the signup was completed (user created)",
+    )
+
+    # Link to created user (if signup completed)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="signup_attempts",
+        help_text="User created from this attempt (if completed)",
+    )
+
+    class Meta:
+        db_table = "users_signup_attempt"
+        ordering = ["-created_at"]
+        verbose_name = "Signup attempt"
+        verbose_name_plural = "Signup attempts"
+        indexes = [
+            models.Index(fields=["created_at", "status"]),
+            models.Index(fields=["ip_hash", "created_at"]),
+            models.Index(fields=["email_hash", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"SignupAttempt {self.id} - {self.status}"

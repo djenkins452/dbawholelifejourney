@@ -5,7 +5,7 @@
   },
   "tasks": [
     {
-      "phase": "Phase 1: Enable Email Verification [TIER 1]",
+      "phase": "Phase 1",
       "name": "Enable mandatory email verification",
       "description": {
         "objective": "Change django-allauth from no email verification to mandatory email verification",
@@ -25,7 +25,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 1: Enable Email Verification [TIER 1]",
+      "phase": "Phase 1",
       "name": "Create email verification templates",
       "description": {
         "objective": "Ensure branded email templates exist for verification emails",
@@ -45,7 +45,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 1: Enable Email Verification [TIER 1]",
+      "phase": "Phase 1",
       "name": "Test email verification flow end-to-end",
       "description": {
         "objective": "Verify the complete email verification flow works correctly",
@@ -67,7 +67,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "phase": "Phase 2",
       "name": "Create security hash functions",
       "description": {
         "objective": "Create utility functions for hashing PII (email, IP) for privacy-preserving storage",
@@ -90,7 +90,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "phase": "Phase 2",
       "name": "Create SignupAttempt model",
       "description": {
         "objective": "Create database model to log all signup attempts for audit and fraud detection",
@@ -109,7 +109,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "phase": "Phase 2",
       "name": "Create IPBlocklist model",
       "description": {
         "objective": "Create database model to store blocked IP addresses",
@@ -128,7 +128,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "phase": "Phase 2",
       "name": "Create DisposableEmailDomain model",
       "description": {
         "objective": "Create database model to store known disposable email domains",
@@ -147,7 +147,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "phase": "Phase 2",
       "name": "Create database migration for security models",
       "description": {
         "objective": "Generate and apply migration for SignupAttempt, IPBlocklist, and DisposableEmailDomain models",
@@ -166,7 +166,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "phase": "Phase 2",
       "name": "Create admin interface for security models",
       "description": {
         "objective": "Add Django admin classes for monitoring signup attempts and managing blocklists",
@@ -185,7 +185,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "phase": "Phase 2",
       "name": "Create management command to purge old signup attempts",
       "description": {
         "objective": "Create command to enforce 90-day retention policy on SignupAttempt records",
@@ -207,7 +207,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 3: Honeypot Protection [TIER 1]",
+      "phase": "Phase 3",
       "name": "Add honeypot field to signup form",
       "description": {
         "objective": "Add hidden honeypot field that bots will fill but humans won't see",
@@ -226,7 +226,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 3: Honeypot Protection [TIER 1]",
+      "phase": "Phase 3",
       "name": "Create honeypot validation in signup view",
       "description": {
         "objective": "Reject signup attempts where honeypot field is filled",
@@ -247,7 +247,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 4: Disposable Email Blocking [TIER 1]",
+      "phase": "Phase 4",
       "name": "Create disposable email domain fixture",
       "description": {
         "objective": "Create fixture file with 2000+ known disposable email domains",
@@ -266,7 +266,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 4: Disposable Email Blocking [TIER 1]",
+      "phase": "Phase 4",
       "name": "Create management command to load disposable domains",
       "description": {
         "objective": "Create idempotent command to load disposable email domains from fixture",
@@ -288,7 +288,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 4: Disposable Email Blocking [TIER 1]",
+      "phase": "Phase 4",
       "name": "Add disposable email validation to signup",
       "description": {
         "objective": "Block signups from disposable email domains with user-friendly message",
@@ -308,7 +308,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
+      "phase": "Phase 5",
       "name": "Add reCAPTCHA configuration settings",
       "description": {
         "objective": "Add reCAPTCHA v3 configuration to Django settings",
@@ -326,7 +326,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
+      "phase": "Phase 5",
       "name": "Create RecaptchaService class",
       "description": {
         "objective": "Create service class for reCAPTCHA v3 token verification",
@@ -350,7 +350,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
+      "phase": "Phase 5",
       "name": "Add reCAPTCHA v3 to signup template",
       "description": {
         "objective": "Add invisible reCAPTCHA v3 script and token capture to signup form",
@@ -370,7 +370,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
+      "phase": "Phase 5",
       "name": "Verify reCAPTCHA token on signup",
       "description": {
         "objective": "Verify reCAPTCHA token server-side and log score to SignupAttempt",
@@ -392,7 +392,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
+      "phase": "Phase 6",
       "name": "Create RateLimiter class",
       "description": {
         "objective": "Create rate limiter using Django cache for tracking signup attempts per IP",
@@ -415,7 +415,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
+      "phase": "Phase 6",
       "name": "Apply rate limiting to signup endpoint",
       "description": {
         "objective": "Enforce rate limits on signup and block excessive attempts",
@@ -436,7 +436,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
+      "phase": "Phase 6",
       "name": "Add rate limit settings to configuration",
       "description": {
         "objective": "Add configurable rate limit thresholds to settings",
@@ -454,7 +454,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
+      "phase": "Phase 6",
       "name": "Create SignupAttempt logging integration",
       "description": {
         "objective": "Ensure all signup attempts (success and failure) are logged to SignupAttempt",
@@ -476,7 +476,7 @@
       "priority": "High"
     },
     {
-      "phase": "Phase 7: IP Reputation Integration [TIER 2]",
+      "phase": "Phase 7",
       "name": "Add IPQualityScore configuration",
       "description": {
         "objective": "Add IPQualityScore API configuration to Django settings",
@@ -494,7 +494,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 7: IP Reputation Integration [TIER 2]",
+      "phase": "Phase 7",
       "name": "Create IPQualityService class",
       "description": {
         "objective": "Create service class for IPQualityScore API integration with caching",
@@ -516,7 +516,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 7: IP Reputation Integration [TIER 2]",
+      "phase": "Phase 7",
       "name": "Integrate IP reputation into signup flow",
       "description": {
         "objective": "Check IP reputation during signup and store score",
@@ -537,7 +537,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 8: Simplified Risk Scoring [TIER 2]",
+      "phase": "Phase 8",
       "name": "Create RiskScoringService class",
       "description": {
         "objective": "Create service that combines CAPTCHA, IP, and email signals into overall risk score",
@@ -562,7 +562,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 8: Simplified Risk Scoring [TIER 2]",
+      "phase": "Phase 8",
       "name": "Add risk threshold settings",
       "description": {
         "objective": "Add configurable risk thresholds to settings",
@@ -580,7 +580,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 8: Simplified Risk Scoring [TIER 2]",
+      "phase": "Phase 8",
       "name": "Integrate risk scoring into signup flow",
       "description": {
         "objective": "Calculate and store risk score for each signup, enforce actions based on risk level",
@@ -601,7 +601,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
+      "phase": "Phase 9",
       "name": "Add account state field to User model",
       "description": {
         "objective": "Add account_state field to track user trust level",
@@ -620,7 +620,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
+      "phase": "Phase 9",
       "name": "Create account state transition logic",
       "description": {
         "objective": "Implement automatic account state transitions",
@@ -640,7 +640,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
+      "phase": "Phase 9",
       "name": "Create feature gating middleware",
       "description": {
         "objective": "Create middleware to enforce feature restrictions based on account state",
@@ -664,7 +664,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
+      "phase": "Phase 9",
       "name": "Add days-until-trusted configuration",
       "description": {
         "objective": "Make trust promotion timing configurable",
@@ -682,7 +682,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 10: Visible CAPTCHA Challenge [TIER 2]",
+      "phase": "Phase 10",
       "name": "Add reCAPTCHA v2 configuration",
       "description": {
         "objective": "Add reCAPTCHA v2 (checkbox) as fallback challenge for medium-risk signups",
@@ -700,7 +700,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 10: Visible CAPTCHA Challenge [TIER 2]",
+      "phase": "Phase 10",
       "name": "Create CAPTCHA challenge template and view",
       "description": {
         "objective": "Create page for visible CAPTCHA challenge after medium-risk detection",
@@ -722,7 +722,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 11: Behavioral Signal Collection [TIER 3]",
+      "phase": "Phase 11",
       "name": "Create behavioral signal JavaScript",
       "description": {
         "objective": "Create JavaScript to collect behavioral signals during signup form completion",
@@ -742,7 +742,7 @@
       "priority": "Low"
     },
     {
-      "phase": "Phase 11: Behavioral Signal Collection [TIER 3]",
+      "phase": "Phase 11",
       "name": "Create behavioral risk scoring function",
       "description": {
         "objective": "Score behavioral signals to detect bot-like patterns",
@@ -762,7 +762,7 @@
       "priority": "Low"
     },
     {
-      "phase": "Phase 11: Behavioral Signal Collection [TIER 3]",
+      "phase": "Phase 11",
       "name": "Integrate behavioral scoring into signup",
       "description": {
         "objective": "Extract behavioral signals from form and include in risk calculation",
@@ -782,7 +782,7 @@
       "priority": "Low"
     },
     {
-      "phase": "Phase 12: Device Fingerprinting [TIER 3]",
+      "phase": "Phase 12",
       "name": "Add device fingerprinting JavaScript",
       "description": {
         "objective": "Create lightweight browser fingerprinting for multi-account detection",
@@ -802,7 +802,7 @@
       "priority": "Low"
     },
     {
-      "phase": "Phase 12: Device Fingerprinting [TIER 3]",
+      "phase": "Phase 12",
       "name": "Create device fingerprint risk scoring",
       "description": {
         "objective": "Score device fingerprint for signs of automation or multi-account abuse",
@@ -823,7 +823,7 @@
       "priority": "Low"
     },
     {
-      "phase": "Phase 13: Phone Verification Option [TIER 3]",
+      "phase": "Phase 13",
       "name": "Create phone verification flow",
       "description": {
         "objective": "Offer phone verification to high-risk signups as optional trust boost",
@@ -846,7 +846,7 @@
       "priority": "Low"
     },
     {
-      "phase": "Phase 13: Phone Verification Option [TIER 3]",
+      "phase": "Phase 13",
       "name": "Integrate phone verification into signup flow",
       "description": {
         "objective": "Offer phone verification to HIGH risk signups before completing signup",
@@ -866,7 +866,7 @@
       "priority": "Low"
     },
     {
-      "phase": "Phase 14: Full 5-Factor Risk Scoring [TIER 3]",
+      "phase": "Phase 14",
       "name": "Upgrade to full 5-factor risk scoring",
       "description": {
         "objective": "Combine all 5 risk signals with proper weights",
@@ -886,7 +886,7 @@
       "priority": "Low"
     },
     {
-      "phase": "Phase 15: Configuration and Environment [ALL TIERS]",
+      "phase": "Phase 15",
       "name": "Create comprehensive .env.example",
       "description": {
         "objective": "Document all security-related environment variables",
@@ -905,7 +905,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 15: Configuration and Environment [ALL TIERS]",
+      "phase": "Phase 15",
       "name": "Add settings validation for production",
       "description": {
         "objective": "Warn if required security settings are missing in production",
@@ -924,7 +924,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 16: Admin Dashboard and Monitoring [ALL TIERS]",
+      "phase": "Phase 16",
       "name": "Create signup security admin dashboard",
       "description": {
         "objective": "Create admin view showing signup security metrics",
@@ -944,7 +944,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 16: Admin Dashboard and Monitoring [ALL TIERS]",
+      "phase": "Phase 16",
       "name": "Add anomaly alerting",
       "description": {
         "objective": "Alert when signup anomalies detected (high block rate)",
@@ -964,7 +964,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 17: Testing Suite [ALL TIERS]",
+      "phase": "Phase 17",
       "name": "Create comprehensive signup security tests",
       "description": {
         "objective": "Create test file covering all security controls",
@@ -985,7 +985,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 17: Testing Suite [ALL TIERS]",
+      "phase": "Phase 17",
       "name": "Run full test suite and verify",
       "description": {
         "objective": "Run all tests including new security tests and ensure no regressions",
@@ -1005,7 +1005,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 18: Documentation [ALL TIERS]",
+      "phase": "Phase 18",
       "name": "Update feature documentation",
       "description": {
         "objective": "Document secure signup system in project documentation",
@@ -1024,7 +1024,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 18: Documentation [ALL TIERS]",
+      "phase": "Phase 18",
       "name": "Create security operations guide",
       "description": {
         "objective": "Create runbook for security operations",
@@ -1043,7 +1043,7 @@
       "priority": "Medium"
     },
     {
-      "phase": "Phase 18: Documentation [ALL TIERS]",
+      "phase": "Phase 18",
       "name": "Update changelog",
       "description": {
         "objective": "Document all changes in changelog",

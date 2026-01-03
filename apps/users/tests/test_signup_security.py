@@ -2,6 +2,7 @@
 # File: test_signup_security.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Tests for signup security features including email verification
+#              and PII hashing functions
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
@@ -15,6 +16,7 @@ Tests for:
 2. Unverified user restrictions
 3. Verification link activation
 4. Post-verification flow to terms acceptance
+5. PII hash functions (hash_email, hash_ip, hash_fingerprint)
 """
 
 from django.test import TestCase, Client, override_settings
@@ -178,3 +180,169 @@ class EmailVerificationEdgeCasesTest(TestCase):
         self.client.post(confirm_url)
         email_address.refresh_from_db()
         self.assertTrue(email_address.verified)
+
+
+class HashEmailTest(TestCase):
+    """Tests for the hash_email function."""
+
+    def test_hash_email_returns_64_char_hex(self):
+        """hash_email should return a 64-character hex string (SHA-256)."""
+        from apps.users.security import hash_email
+
+        result = hash_email("test@example.com")
+        self.assertEqual(len(result), 64)
+        self.assertTrue(all(c in "0123456789abcdef" for c in result))
+
+    def test_hash_email_consistent(self):
+        """Same email should produce same hash."""
+        from apps.users.security import hash_email
+
+        hash1 = hash_email("test@example.com")
+        hash2 = hash_email("test@example.com")
+        self.assertEqual(hash1, hash2)
+
+    def test_hash_email_normalizes_case(self):
+        """Email hashing should be case-insensitive."""
+        from apps.users.security import hash_email
+
+        hash_lower = hash_email("test@example.com")
+        hash_upper = hash_email("TEST@EXAMPLE.COM")
+        hash_mixed = hash_email("Test@Example.COM")
+
+        self.assertEqual(hash_lower, hash_upper)
+        self.assertEqual(hash_lower, hash_mixed)
+
+    def test_hash_email_strips_whitespace(self):
+        """Email hashing should strip leading/trailing whitespace."""
+        from apps.users.security import hash_email
+
+        hash_clean = hash_email("test@example.com")
+        hash_spaces = hash_email("  test@example.com  ")
+
+        self.assertEqual(hash_clean, hash_spaces)
+
+    def test_hash_email_different_inputs_different_hashes(self):
+        """Different emails should produce different hashes."""
+        from apps.users.security import hash_email
+
+        hash1 = hash_email("user1@example.com")
+        hash2 = hash_email("user2@example.com")
+
+        self.assertNotEqual(hash1, hash2)
+
+    def test_hash_email_empty_returns_empty(self):
+        """Empty email should return empty string."""
+        from apps.users.security import hash_email
+
+        self.assertEqual(hash_email(""), "")
+        self.assertEqual(hash_email(None), "")
+
+
+class HashIPTest(TestCase):
+    """Tests for the hash_ip function."""
+
+    def test_hash_ip_returns_64_char_hex(self):
+        """hash_ip should return a 64-character hex string (SHA-256)."""
+        from apps.users.security import hash_ip
+
+        result = hash_ip("192.168.1.1")
+        self.assertEqual(len(result), 64)
+        self.assertTrue(all(c in "0123456789abcdef" for c in result))
+
+    def test_hash_ip_consistent(self):
+        """Same IP should produce same hash."""
+        from apps.users.security import hash_ip
+
+        hash1 = hash_ip("192.168.1.1")
+        hash2 = hash_ip("192.168.1.1")
+        self.assertEqual(hash1, hash2)
+
+    def test_hash_ip_strips_whitespace(self):
+        """IP hashing should strip leading/trailing whitespace."""
+        from apps.users.security import hash_ip
+
+        hash_clean = hash_ip("192.168.1.1")
+        hash_spaces = hash_ip("  192.168.1.1  ")
+
+        self.assertEqual(hash_clean, hash_spaces)
+
+    def test_hash_ip_different_inputs_different_hashes(self):
+        """Different IPs should produce different hashes."""
+        from apps.users.security import hash_ip
+
+        hash1 = hash_ip("192.168.1.1")
+        hash2 = hash_ip("192.168.1.2")
+
+        self.assertNotEqual(hash1, hash2)
+
+    def test_hash_ip_ipv6(self):
+        """IPv6 addresses should be hashed correctly."""
+        from apps.users.security import hash_ip
+
+        result = hash_ip("2001:0db8:85a3:0000:0000:8a2e:0370:7334")
+        self.assertEqual(len(result), 64)
+
+    def test_hash_ip_empty_returns_empty(self):
+        """Empty IP should return empty string."""
+        from apps.users.security import hash_ip
+
+        self.assertEqual(hash_ip(""), "")
+        self.assertEqual(hash_ip(None), "")
+
+
+class HashFingerprintTest(TestCase):
+    """Tests for the hash_fingerprint function."""
+
+    def test_hash_fingerprint_returns_64_char_hex(self):
+        """hash_fingerprint should return a 64-character hex string (SHA-256)."""
+        from apps.users.security import hash_fingerprint
+
+        result = hash_fingerprint({"browser": "Chrome", "os": "Windows"})
+        self.assertEqual(len(result), 64)
+        self.assertTrue(all(c in "0123456789abcdef" for c in result))
+
+    def test_hash_fingerprint_consistent(self):
+        """Same fingerprint should produce same hash."""
+        from apps.users.security import hash_fingerprint
+
+        data = {"browser": "Chrome", "os": "Windows", "screen": "1920x1080"}
+        hash1 = hash_fingerprint(data)
+        hash2 = hash_fingerprint(data)
+        self.assertEqual(hash1, hash2)
+
+    def test_hash_fingerprint_order_independent(self):
+        """Fingerprint hashing should be key order independent."""
+        from apps.users.security import hash_fingerprint
+
+        hash1 = hash_fingerprint({"browser": "Chrome", "os": "Windows"})
+        hash2 = hash_fingerprint({"os": "Windows", "browser": "Chrome"})
+
+        self.assertEqual(hash1, hash2)
+
+    def test_hash_fingerprint_different_inputs_different_hashes(self):
+        """Different fingerprints should produce different hashes."""
+        from apps.users.security import hash_fingerprint
+
+        hash1 = hash_fingerprint({"browser": "Chrome", "os": "Windows"})
+        hash2 = hash_fingerprint({"browser": "Firefox", "os": "Mac"})
+
+        self.assertNotEqual(hash1, hash2)
+
+    def test_hash_fingerprint_nested_data(self):
+        """Nested fingerprint data should be hashed correctly."""
+        from apps.users.security import hash_fingerprint
+
+        data = {
+            "browser": "Chrome",
+            "plugins": ["PDF", "Flash"],
+            "canvas": {"hash": "abc123"},
+        }
+        result = hash_fingerprint(data)
+        self.assertEqual(len(result), 64)
+
+    def test_hash_fingerprint_empty_returns_empty(self):
+        """Empty fingerprint should return empty string."""
+        from apps.users.security import hash_fingerprint
+
+        self.assertEqual(hash_fingerprint({}), "")
+        self.assertEqual(hash_fingerprint(None), "")

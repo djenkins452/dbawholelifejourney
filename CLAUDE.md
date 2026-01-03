@@ -4,6 +4,85 @@
 **Repo:** C:\dbawholelifejourney (GitHub: djenkins452/dbawholelifejourney)
 **Deployment:** Railway with PostgreSQL (via DATABASE_URL env var)
 
+---
+
+## Quick Reference (Session Start)
+
+| Item | Value |
+|------|-------|
+| **API Key** | `a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1` |
+| **Ready Tasks** | `GET /admin-console/api/claude/ready-tasks/` |
+| **Update Status** | `POST /admin-console/api/claude/tasks/<id>/status/` |
+| **Test Count** | 1395 tests (as of 2025-12-31) |
+| **Push From** | Main repo (C:\dbawholelifejourney), NOT worktrees |
+
+**Key Commands:**
+```bash
+# Fetch tasks
+curl -s -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" https://wholelifejourney.com/admin-console/api/claude/ready-tasks/
+
+# Update task status
+curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" -H "Content-Type: application/json" -d '{"status": "done"}' "https://wholelifejourney.com/admin-console/api/claude/tasks/<ID>/status/"
+
+# Run tests
+python manage.py test
+```
+
+---
+
+## Known Issues & Solutions (CHECK BEFORE IMPLEMENTING)
+
+### 1. Property Shadowing Database Fields
+**Error:** `FieldError: Cannot resolve keyword 'fieldname' into field`
+**Cause:** Python property with same name as inherited DB field shadows it
+**Solution:** Rename property (e.g., `status` → `health_status`)
+**Example:** Budget model had `status` property that shadowed `SoftDeleteModel.status` field
+
+### 2. Railway Migration State Issues
+**Error:** Missing columns even though migration shows as "applied"
+**Cause:** Migration recorded in `django_migrations` but schema change failed
+**Solution:** Add fix function to `load_initial_data.py` (runs on every deploy)
+```python
+def _fix_missing_column(self):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema = 'public'  -- CRITICAL for PostgreSQL!
+              AND table_name = 'your_table' AND column_name = 'missing_col'
+        """)
+        if cursor.fetchone() is None:
+            cursor.execute("ALTER TABLE your_table ADD COLUMN missing_col...")
+```
+
+### 3. Railway Nixpacks Caching
+**Problem:** Changes to `nixpacks.toml` or `Procfile` ignored due to caching
+**Solution:** Embed new commands inside `load_initial_data.py` using `call_command()`
+```python
+# In load_initial_data.py handle() method:
+call_command('your_new_command', verbosity=1)
+```
+
+### 4. Test Users Require Onboarding
+**Error:** 302 redirects instead of 200 in tests
+**Solution:** All test users MUST have onboarding completed:
+```python
+user.preferences.has_completed_onboarding = True
+user.preferences.save()
+TermsAcceptance.objects.create(user=user, terms_version='1.0')
+```
+
+### 5. CSRF Trusted Origins
+**Error:** "Origin checking failed" on forms
+**Cause:** `CSRF_TRUSTED_ORIGINS` was inside `if not DEBUG:` block
+**Solution:** Keep `CSRF_TRUSTED_ORIGINS` outside any DEBUG conditional
+
+### 6. PostgreSQL Schema Checks
+**Error:** Column appears to exist but doesn't
+**Cause:** Query missing `table_schema = 'public'`
+**Solution:** ALWAYS include `table_schema = 'public'` in PostgreSQL info_schema queries
+
+---
+
 ## Documentation Structure
 
 All project documentation is organized in the `docs/` directory with consistent naming:
@@ -738,53 +817,14 @@ Status updates:
 - `done` - Set only after successful completion with verified output
 - Task remains `in_progress` on failure (with error logged)
 
----
-
-### Run Task Mode Behavior (Summary)
-
-When executing a task ("Run Task" mode):
-
-1. **Load Context**: Read CLAUDE.md first to understand project context
-2. **Validate Task**: Verify the task conforms to Executable Task Standard
-3. **Check Inputs**: Gather all resources listed in the `inputs` array
-4. **Execute Actions**: Perform each action in the `actions` array in order
-5. **Verify Output**: Confirm the `output` criteria is met
-6. **Mark Complete**: Only mark task as `done` if output is successfully produced
-
-If any step fails:
-- Log the failure with specific error
-- Keep task in current status (do not mark complete)
-- Create a clear error message explaining what went wrong
-
-### Example Valid Task
-
-```json
-{
-    "objective": "Add user authentication to the API endpoints",
-    "inputs": [
-        "Read apps/api/views.py to understand current endpoints",
-        "Check apps/users/models.py for User model structure"
-    ],
-    "actions": [
-        "Add authentication decorators to all API views",
-        "Create authentication middleware for token validation",
-        "Update API documentation with authentication requirements",
-        "Write tests for authenticated and unauthenticated access"
-    ],
-    "output": "All API endpoints require valid authentication tokens. Tests pass."
-}
-```
-
 ### Implementation Files
 
 - **Model**: `apps/admin_console/models.py` - `AdminTask.description` JSONField
 - **Validator**: `apps/admin_console/models.py` - `validate_executable_task_description()`
-- **Exception**: `apps/admin_console/models.py` - `ExecutableTaskValidationError`
 - **Forms**: Task Intake and Admin Task forms parse individual fields into JSON
-- **Migrations**: `0010_convert_description_to_json.py`, `0011_alter_admintask_description.py`
 
 ---
 
 *For detailed feature documentation, see `docs/wlj_claude_features.md`*
-*For historical changes, see `docs/wlj_claude_changelog.md`*
-*Last updated: 2026-01-02*
+*For historical changes and error patterns, see `docs/wlj_claude_changelog.md`*
+*Last updated: 2026-01-03*

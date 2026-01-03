@@ -32,6 +32,7 @@ See docs/wlj_finance_module_scope.md for full specification.
 
 from decimal import Decimal
 
+import django.core.files.storage
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -1112,9 +1113,16 @@ class TransactionImport(UserOwnedModel):
     ]
 
     # File information
+    # NOTE: We do NOT store the actual file for security reasons.
+    # Transaction files contain sensitive financial data and should be
+    # processed immediately and discarded. We only keep metadata for audit trail.
+    # The file field is kept but set to blank/null after processing.
     file = models.FileField(
         upload_to='finance/imports/%Y/%m/',
-        help_text="Uploaded transaction file"
+        storage=django.core.files.storage.FileSystemStorage(),
+        blank=True,
+        null=True,
+        help_text="Uploaded transaction file (deleted after processing for security)"
     )
     original_filename = models.CharField(
         max_length=255,

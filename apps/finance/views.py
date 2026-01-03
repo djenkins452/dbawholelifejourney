@@ -798,20 +798,52 @@ class ImportDetailView(FinanceUserMixin, DetailView):
 
 @login_required
 def import_upload_view(request):
-    """Handle transaction file upload and processing."""
+    """
+    Handle transaction file upload and processing.
+
+    Security: Files are processed in memory and NOT stored permanently.
+    Transaction files contain sensitive financial data, so we:
+    1. Read the file content directly from the upload
+    2. Process and create transactions
+    3. Never save the file to disk/cloud storage
+    4. Only keep metadata (filename, row counts) for audit trail
+    """
     if request.method == 'POST':
         form = TransactionImportForm(request.user, request.POST, request.FILES)
         if form.is_valid():
-            # Create the import record
-            import_record = form.save()
+            # Get file data BEFORE creating record (don't save file to storage)
+            uploaded_file = form.cleaned_data['file']
+            file_content = uploaded_file.read()
+            original_filename = uploaded_file.name
+            file_size = uploaded_file.size
 
-            # Process the file
+            # Detect file type
+            filename_lower = original_filename.lower()
+            if filename_lower.endswith('.csv'):
+                file_type = 'csv'
+            elif filename_lower.endswith('.ofx'):
+                file_type = 'ofx'
+            elif filename_lower.endswith('.qfx'):
+                file_type = 'qfx'
+            elif filename_lower.endswith('.qif'):
+                file_type = 'qif'
+            else:
+                file_type = 'csv'
+
+            # Create import record WITHOUT the file (security best practice)
+            import_record = TransactionImport.objects.create(
+                user=request.user,
+                account=form.cleaned_data['account'],
+                original_filename=original_filename,
+                file_type=file_type,
+                file_size=file_size,
+                notes=form.cleaned_data.get('notes', ''),
+                # file field intentionally left empty - we don't store the file
+            )
+
+            # Process the file in memory
             try:
                 from .import_service import TransactionImportService
-
-                # Read file content
-                file_content = import_record.file.read()
-                import_record.file.seek(0)  # Reset file pointer
 
                 # Initialize service
                 service = TransactionImportService(
@@ -822,8 +854,8 @@ def import_upload_view(request):
                 # Mark as processing
                 import_record.mark_processing()
 
-                # Parse file
-                parsed = service.parse_file(file_content, import_record.file_type)
+                # Parse file from memory
+                parsed = service.parse_file(file_content, file_type)
                 import_record.rows_total = len(parsed)
                 import_record.save(update_fields=['rows_total'])
 
@@ -862,6 +894,7 @@ def import_upload_view(request):
                 return redirect('finance:import_detail', pk=import_record.pk)
 
             except Exception as e:
+                logger.error(f"Import failed for user {request.user.id}: {e}")
                 import_record.mark_failed(str(e))
                 messages.error(request, f"Import failed: {e}")
                 return redirect('finance:import_detail', pk=import_record.pk)

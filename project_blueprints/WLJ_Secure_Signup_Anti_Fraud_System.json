@@ -1,6 +1,6 @@
 {
   "project": {
-    "name": "WLJ Secure Signup & Anti-Fraud System",
+    "name": "WLJ Secure Signup & Anti-Fraud System v2",
     "description": "Tiered security system for signup protection, preparing for financial aggregator integration. TIER 1: Immediate deployment (email verification, honeypot, disposable email blocking, reCAPTCHA, rate limiting, audit logging). TIER 2: Before finance launch (IP reputation, risk scoring, account states, feature gating). TIER 3: Only if abuse detected (behavioral analysis, device fingerprinting, phone verification)."
   },
   "tasks": [

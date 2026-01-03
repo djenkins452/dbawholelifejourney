@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-03 (Finance Security Controls)
+# Last Updated: 2026-01-03 (Finance Module Audit)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,60 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-03 Changes
+
+### Finance Module under Preferences
+
+**Session:** Enable Finance Module in Preferences
+
+Moved Finance module from "Coming Soon" to "Active Modules" section in preferences.
+
+**Files Modified:**
+- `templates/users/preferences.html` - Moved Finance toggle to Active Modules section
+
+### Finance Module Audit & Bug Fix
+
+**Session:** Testing, Validation, and Audit Review
+
+**Issue Found:**
+- Budget table missing `status` field in production database
+- Caused 500 errors on `/finance/` and `/finance/budgets/` pages
+- Root cause: Migration 0001 defined the field, but database state was corrupted
+
+**Fix Applied:**
+- Created migration 0005 with conditional logic
+- Checks if `status` column exists before adding
+- Handles both PostgreSQL and SQLite databases
+- Migration is idempotent (safe to run multiple times)
+
+**Files Created/Modified:**
+- `apps/finance/migrations/0005_add_missing_budget_status.py` - Conditional migration fix
+
+**Testing Status:**
+- Production site now loads correctly
+- 22 of 28 finance tests passing
+- 6 test errors remain related to test database creation (investigation ongoing)
+
+**Audit Results:**
+
+1. **AI Outputs Validation:**
+   - Consent checking implemented (`check_consent()` in ai_insights.py)
+   - Data aggregation before AI (no raw transactions sent)
+   - Standard disclaimer included in all insights
+   - Observational language enforced via system prompt
+   - Faith context respected when enabled
+
+2. **Security & Permissions:**
+   - All views require `LoginRequiredMixin` or `@login_required`
+   - `FinanceUserMixin` filters all querysets by user
+   - Audit logging via `FinanceAuditLogger` with IP tracking
+   - Sensitive data redaction implemented
+   - Rate limiting for AI queries, imports, transfers
+
+3. **Financial Calculations:**
+   - Income/expense aggregation using Django ORM (`Sum`, `Count`, `Avg`)
+   - Budget spent_amount calculated from related transactions
+   - Trend comparison uses same-day-range for fair comparison
+   - Savings rate calculation properly handles zero income case
 
 ### Finance Security Controls
 

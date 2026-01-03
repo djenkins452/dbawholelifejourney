@@ -840,12 +840,47 @@ document.addEventListener('DOMContentLoaded', function() {
     background: var(--color-background);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    overflow: hidden;
+    overflow-x: auto;
 }
 
 .admin-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
+    min-width: 900px;
+}
+
+/* Column widths */
+.admin-table th:nth-child(1),
+.admin-table td:nth-child(1) { width: 50px; } /* # */
+.admin-table th:nth-child(2),
+.admin-table td:nth-child(2) { width: 280px; } /* Title */
+.admin-table th:nth-child(3),
+.admin-table td:nth-child(3) { width: 80px; } /* Phase */
+.admin-table th:nth-child(4),
+.admin-table td:nth-child(4) { width: 100px; } /* Status */
+.admin-table th:nth-child(5),
+.admin-table td:nth-child(5) { width: 80px; } /* Priority */
+.admin-table th:nth-child(6),
+.admin-table td:nth-child(6) { width: 90px; } /* Created By */
+.admin-table th:nth-child(7),
+.admin-table td:nth-child(7) { width: 100px; } /* Created At */
+.admin-table th:nth-child(8),
+.admin-table td:nth-child(8) { width: 120px; } /* Project */
+.admin-table th:nth-child(9),
+.admin-table td:nth-child(9) { width: 130px; } /* Actions */
+
+/* Title column text handling */
+.admin-table td:nth-child(2) strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-table td:nth-child(2):hover strong {
+    white-space: normal;
+    word-break: break-word;
 }
 
 .admin-table th,

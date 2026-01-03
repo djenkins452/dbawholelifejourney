@@ -428,6 +428,13 @@ else:
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@wholelifejourney.com")
 
 
+# CSRF Trusted Origins - must be set for both production and development
+# Django 4.0+ requires this for HTTPS requests
+CSRF_TRUSTED_ORIGINS = [
+    "https://wholelifejourney.com",
+    "https://www.wholelifejourney.com",
+]
+
 # Security Settings - ONLY apply in production (when DEBUG is False)
 # These settings require HTTPS and will break local development if enabled
 if not DEBUG:
@@ -440,10 +447,6 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    CSRF_TRUSTED_ORIGINS = [
-        "https://wholelifejourney.com",
-        "https://www.wholelifejourney.com",
-    ]
 else:
     # Explicitly disable SSL for local development
     SECURE_SSL_REDIRECT = False

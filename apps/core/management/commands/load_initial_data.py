@@ -25,19 +25,22 @@ class Command(BaseCommand):
         """
         with connection.cursor() as cursor:
             if connection.vendor == 'postgresql':
-                # Check if finance_budget table exists
+                # Check if finance_budget table exists (with explicit schema)
                 cursor.execute("""
                     SELECT 1 FROM information_schema.tables
-                    WHERE table_name = 'finance_budget'
+                    WHERE table_schema = 'public'
+                      AND table_name = 'finance_budget'
                 """)
                 if cursor.fetchone() is None:
                     self.stdout.write('  finance_budget table does not exist yet, skipping fix')
                     return
 
-                # Check if status column exists
+                # Check if status column exists (with explicit schema)
                 cursor.execute("""
                     SELECT column_name FROM information_schema.columns
-                    WHERE table_name = 'finance_budget' AND column_name = 'status'
+                    WHERE table_schema = 'public'
+                      AND table_name = 'finance_budget'
+                      AND column_name = 'status'
                 """)
                 if cursor.fetchone() is None:
                     self.stdout.write('  Adding missing status column to finance_budget...')

@@ -20,10 +20,12 @@ def force_add_status_column(apps, schema_editor):
     """Unconditionally add status column to Budget table."""
     with connection.cursor() as cursor:
         if connection.vendor == 'postgresql':
-            # First check if column exists
+            # First check if column exists (with explicit schema)
             cursor.execute("""
                 SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'finance_budget' AND column_name = 'status'
+                WHERE table_schema = 'public'
+                  AND table_name = 'finance_budget'
+                  AND column_name = 'status'
             """)
             column_exists = cursor.fetchone() is not None
 

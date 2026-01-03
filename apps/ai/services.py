@@ -135,11 +135,18 @@ class AIService:
             from .models import CoachingStyle
             style_obj = CoachingStyle.get_by_key(style)
             if style_obj:
-                return "\n" + style_obj.prompt_instructions
+                if style_obj.prompt_instructions:
+                    logger.debug(f"Loaded coaching style '{style}' (actual: {style_obj.key})")
+                    return "\n" + style_obj.prompt_instructions
+                else:
+                    logger.warning(f"Coaching style '{style}' has empty prompt_instructions")
+            else:
+                logger.warning(f"Coaching style '{style}' not found in database")
         except Exception as e:
             logger.warning(f"Could not load coaching style from DB: {e}")
 
         # Fallback if database unavailable
+        logger.info(f"Using fallback coaching prompt for style '{style}'")
         return FALLBACK_COACHING_PROMPT
 
     def _get_prompt_config(self, prompt_type: str):

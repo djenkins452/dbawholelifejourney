@@ -936,6 +936,21 @@ class DashboardDebugView(LoginRequiredMixin, View):
             'ai_coaching_style': prefs.ai_coaching_style,
         }
 
+        # Check if the selected coaching style exists and has prompt
+        try:
+            from apps.ai.models import CoachingStyle
+            style_obj = CoachingStyle.get_by_key(prefs.ai_coaching_style)
+            if style_obj:
+                data['ai_config']['style_found'] = True
+                data['ai_config']['style_actual_key'] = style_obj.key
+                data['ai_config']['style_has_prompt'] = bool(style_obj.prompt_instructions)
+                data['ai_config']['style_prompt_length'] = len(style_obj.prompt_instructions) if style_obj.prompt_instructions else 0
+            else:
+                data['ai_config']['style_found'] = False
+                errors.append(f"Coaching style '{prefs.ai_coaching_style}' not found in database")
+        except Exception as e:
+            data['ai_config']['style_error'] = str(e)
+
         # Check if OpenAI API key is configured
         try:
             from apps.ai.services import ai_service

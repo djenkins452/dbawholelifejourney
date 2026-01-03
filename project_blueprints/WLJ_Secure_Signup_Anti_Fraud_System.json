@@ -21,7 +21,7 @@
         ],
         "output": "Email verification is mandatory. New users cannot access the app until they click the verification link. Verify by creating a test account and confirming redirect to 'check your email' page. Definition of done: New signup redirects to verification pending page, clicking email link activates account."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -41,7 +41,7 @@
         ],
         "output": "All email verification templates exist and are branded. Definition of done: Test signup shows branded 'check your email' page, verification email has WLJ branding, clicking link shows success page."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -63,7 +63,7 @@
         ],
         "output": "Email verification flow works end-to-end. Tests pass. Definition of done: test_signup_requires_email_verification passes, manual test confirms flow works."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -86,7 +86,7 @@
         ],
         "output": "apps/users/security.py exists with hash_email(), hash_ip(), hash_fingerprint() functions. Tests verify consistent hashing and that different inputs produce different hashes. Definition of done: Functions work, tests pass."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -105,7 +105,7 @@
         ],
         "output": "SignupAttempt model added to apps/users/models.py with all specified fields and indexes. Definition of done: Model code is complete and follows existing patterns."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -124,7 +124,7 @@
         ],
         "output": "IPBlocklist model added to apps/users/models.py. Definition of done: Model code is complete with is_blocked classmethod."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -143,7 +143,7 @@
         ],
         "output": "DisposableEmailDomain model added to apps/users/models.py. Definition of done: Model code is complete with is_disposable classmethod."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -162,7 +162,7 @@
         ],
         "output": "Migration apps/users/migrations/0025_signup_security.py created and applied. Tables users_signup_attempt, users_ip_blocklist, users_disposable_email_domain exist in database. Definition of done: migrate runs without errors, tables exist."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -181,7 +181,7 @@
         ],
         "output": "Admin classes registered for all three security models. Definition of done: Django admin shows SignupAttempt (read-only), IPBlocklist (editable), DisposableEmailDomain (editable) with proper filtering and display."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -203,7 +203,7 @@
         ],
         "output": "Management command apps/users/management/commands/purge_old_signups.py exists and works. Definition of done: Command runs without error, --dry-run shows count, actual run deletes old records."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -222,7 +222,7 @@
         ],
         "output": "Honeypot field added to signup form. Field is invisible to humans but will be filled by bots. Definition of done: View page source shows honeypot field, field is not visible in browser."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -243,7 +243,7 @@
         ],
         "output": "Honeypot validation rejects submissions where hidden field is filled. Blocked attempts are logged to SignupAttempt. Definition of done: Manually submitting form with honeypot filled shows error, SignupAttempt record exists with block_reason='honeypot'."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -262,7 +262,7 @@
         ],
         "output": "Fixture file apps/users/fixtures/disposable_domains.json exists with 2000+ domains. Definition of done: File is valid JSON and loadable."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -284,7 +284,7 @@
         ],
         "output": "Management command exists and loads domains idempotently. Definition of done: Running twice produces same database state, no duplicates."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -304,7 +304,7 @@
         ],
         "output": "Disposable email addresses are rejected at signup with friendly message. Definition of done: Signup with tempmail.com email shows error message, SignupAttempt logged with block_reason='disposable_email'."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -322,7 +322,7 @@
         ],
         "output": "reCAPTCHA settings added to config/settings.py with env var support. Definition of done: Settings load without error, log shows configuration status."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -346,7 +346,7 @@
         ],
         "output": "apps/users/services/captcha.py exists with RecaptchaService class. Definition of done: Class instantiates without error, mock test for verify() method passes."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -366,7 +366,7 @@
         ],
         "output": "Signup form includes reCAPTCHA v3 script and captures token on submit. Definition of done: Network tab shows reCAPTCHA API call on form submit, hidden field contains token."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -388,7 +388,7 @@
         ],
         "output": "reCAPTCHA tokens are verified and scores logged to SignupAttempt. Definition of done: New signup creates SignupAttempt with captcha_score populated."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -411,7 +411,7 @@
         ],
         "output": "apps/users/rate_limits.py exists with RateLimiter class and check_signup_limit function. Definition of done: Unit tests verify rate limiting logic works correctly."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -432,7 +432,7 @@
         ],
         "output": "Rate limiting enforced on signup endpoint. Definition of done: Making 6 signups from same IP within 1 hour blocks the 6th attempt with appropriate message."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -450,7 +450,7 @@
         ],
         "output": "Rate limits are configurable via environment variables. Definition of done: Changing env var changes rate limit behavior."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -472,7 +472,7 @@
         ],
         "output": "Every signup attempt creates a SignupAttempt record with appropriate status and metadata. Definition of done: Admin shows SignupAttempt records for all signup attempts with correct status values."
       },
-      "status": "Ready",
+      "status": "Backlog",
       "priority": "High"
     },
     {
@@ -490,7 +490,7 @@
         ],
         "output": "IPQualityScore settings added to config/settings.py. Definition of done: Settings load without error."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -512,7 +512,7 @@
         ],
         "output": "apps/users/services/ip_reputation.py exists with IPQualityService class. Definition of done: Class instantiates without error, mock test passes."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -533,7 +533,7 @@
         ],
         "output": "IP reputation scores are captured and logged to SignupAttempt. Definition of done: New signup creates SignupAttempt with ip_reputation_score populated (when IPQS configured)."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -558,7 +558,7 @@
         ],
         "output": "apps/users/services/risk_scoring.py exists with RiskScoringService. Definition of done: Unit tests verify scoring logic produces expected results for sample inputs."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -576,7 +576,7 @@
         ],
         "output": "Risk thresholds are configurable via environment variables. Definition of done: Changing threshold env vars changes risk level classification."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -597,7 +597,7 @@
         ],
         "output": "Risk scores calculated and enforced for all signups. Definition of done: SignupAttempt records show risk_score and risk_level, CRITICAL risk blocks signup."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -616,7 +616,7 @@
         ],
         "output": "User model has account_state field. Migration created and applied. Definition of done: User.objects.first().account_state returns 'pending'."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -636,7 +636,7 @@
         ],
         "output": "Account state transitions work automatically. Definition of done: Verifying email changes state to 'verified', 30-day-old verified accounts can be promoted to 'trusted'."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -660,7 +660,7 @@
         ],
         "output": "Feature gating enforced based on account state. Definition of done: Pending user redirected when trying to access journal, verified user cannot access finance, trusted user has full access."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -678,7 +678,7 @@
         ],
         "output": "Trust promotion timing is configurable. Definition of done: Changing DAYS_UNTIL_TRUSTED changes promotion behavior."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -696,7 +696,7 @@
         ],
         "output": "reCAPTCHA v2 settings added. Definition of done: Settings load without error."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -718,7 +718,7 @@
         ],
         "output": "CAPTCHA challenge flow works for medium-risk signups. Definition of done: Medium-risk signup redirects to challenge page, completing CAPTCHA allows signup."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -738,7 +738,7 @@
         ],
         "output": "static/js/signup-security.js collects behavioral signals. Definition of done: Form submission includes behavioral data in hidden fields."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Low"
     },
     {
@@ -758,7 +758,7 @@
         ],
         "output": "behavioral_risk function exists and scores signals. Definition of done: Unit tests pass for sample behavioral patterns."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Low"
     },
     {
@@ -778,7 +778,7 @@
         ],
         "output": "Behavioral scores captured in SignupAttempt. Definition of done: SignupAttempt records include behavioral_score."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Low"
     },
     {
@@ -798,7 +798,7 @@
         ],
         "output": "Fingerprint hash captured on form submission. Definition of done: Hidden field contains consistent hash for same browser."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Low"
     },
     {
@@ -819,7 +819,7 @@
         ],
         "output": "device_fingerprint_risk function exists. Definition of done: Function returns higher score for fingerprints with prior account history."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Low"
     },
     {
@@ -842,7 +842,7 @@
         ],
         "output": "Phone verification flow works. Definition of done: High-risk signup can optionally verify phone, verification recorded in SignupAttempt."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Low"
     },
     {
@@ -862,7 +862,7 @@
         ],
         "output": "Phone verification offered to HIGH risk signups. Definition of done: HIGH risk signup sees phone verification option, can skip or complete."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Low"
     },
     {
@@ -882,7 +882,7 @@
         ],
         "output": "Full 5-factor risk scoring implemented. Definition of done: SignupAttempt shows all 5 scores, total calculated with correct weights."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Low"
     },
     {
@@ -901,7 +901,7 @@
         ],
         "output": ".env.example documents all security environment variables. Definition of done: New developer can configure security features from .env.example."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -920,7 +920,7 @@
         ],
         "output": "Production deployments log warnings for missing security settings. Definition of done: Starting app with DEBUG=False and missing keys shows warnings."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -940,7 +940,7 @@
         ],
         "output": "Admin dashboard shows signup security metrics. Definition of done: Admin can view signup statistics and trends."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -960,7 +960,7 @@
         ],
         "output": "Anomaly alerting implemented. Definition of done: Simulated attack pattern triggers logged alert."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -981,7 +981,7 @@
         ],
         "output": "Comprehensive test suite in apps/users/tests/test_signup_security.py. Definition of done: All tests pass, coverage includes all security controls."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -1001,7 +1001,7 @@
         ],
         "output": "All tests pass. Definition of done: python manage.py test exits with 0 errors, 0 failures."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -1020,7 +1020,7 @@
         ],
         "output": "docs/wlj_claude_features.md includes Secure Signup section. Definition of done: Documentation accurately describes implemented features."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -1039,7 +1039,7 @@
         ],
         "output": "docs/wlj_security_operations.md exists with operational procedures. Definition of done: New operator can handle common security scenarios using guide."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     },
     {
@@ -1058,7 +1058,7 @@
         ],
         "output": "docs/wlj_claude_changelog.md updated with Secure Signup changes. Definition of done: Changelog accurately reflects all changes."
       },
-      "status": "New",
+      "status": "Backlog",
       "priority": "Medium"
     }
   ]

@@ -12,9 +12,49 @@ Migration to add missing status field to Budget table.
 The initial migration (0001) defined the status field but it was not
 actually created in some database instances due to a migration state issue.
 This migration adds the field if missing.
+
+NOTE: This migration is conditional - it only adds the field if it doesn't exist.
 """
 
-from django.db import migrations, models
+from django.db import connection, migrations, models
+
+
+def add_status_if_missing(apps, schema_editor):
+    """Add status field to Budget table if it doesn't exist."""
+    # Check if the column already exists
+    with connection.cursor() as cursor:
+        # Get column info based on database backend
+        if connection.vendor == 'postgresql':
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'finance_budget' AND column_name = 'status'
+            """)
+            if cursor.fetchone() is None:
+                # Add the column for PostgreSQL
+                cursor.execute("""
+                    ALTER TABLE finance_budget
+                    ADD COLUMN status varchar(10) NOT NULL DEFAULT 'active'
+                """)
+                cursor.execute("""
+                    CREATE INDEX finance_budget_status_idx ON finance_budget (status)
+                """)
+        else:  # SQLite
+            cursor.execute("PRAGMA table_info(finance_budget)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'status' not in columns:
+                # Add the column for SQLite
+                cursor.execute("""
+                    ALTER TABLE finance_budget
+                    ADD COLUMN status varchar(10) NOT NULL DEFAULT 'active'
+                """)
+                cursor.execute("""
+                    CREATE INDEX finance_budget_status_idx ON finance_budget (status)
+                """)
+
+
+def reverse_noop(apps, schema_editor):
+    """No-op for reverse migration."""
+    pass
 
 
 class Migration(migrations.Migration):
@@ -24,18 +64,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="budget",
-            name="status",
-            field=models.CharField(
-                choices=[
-                    ("active", "Active"),
-                    ("archived", "Archived"),
-                    ("deleted", "Deleted"),
-                ],
-                db_index=True,
-                default="active",
-                max_length=10,
-            ),
-        ),
+        migrations.RunPython(add_status_if_missing, reverse_noop),
     ]

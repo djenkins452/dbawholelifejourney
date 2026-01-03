@@ -4,7 +4,7 @@
 # Description: Admin console views for site management and project task intake
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-03 (Added DataLoadConfig management views)
+# Last Updated: 2026-01-03 (Added HelpContextMixin to Project views, DataLoadConfig management views)
 # ==============================================================================
 """
 Admin Views - Custom admin interface for site management.
@@ -506,10 +506,11 @@ class RunTestsView(AdminRequiredMixin, View):
 # Project Phase Views
 # ============================================================
 
-class ProjectPhaseListView(AdminRequiredMixin, ListView):
+class ProjectPhaseListView(HelpContextMixin, AdminRequiredMixin, ListView):
     """List all project phases."""
     template_name = "admin_console/project_phase_list.html"
     context_object_name = "phases"
+    help_context_id = "ADMIN_CONSOLE_PROJECT_PHASES"
 
     def get_queryset(self):
         from apps.admin_console.models import AdminProjectPhase
@@ -582,7 +583,7 @@ class ProjectPhaseDeleteView(AdminRequiredMixin, DeleteView):
 # Admin Task Views
 # ============================================================
 
-class AdminTaskListView(AdminRequiredMixin, ListView):
+class AdminTaskListView(HelpContextMixin, AdminRequiredMixin, ListView):
     """
     List all admin tasks with filtering.
 
@@ -595,6 +596,7 @@ class AdminTaskListView(AdminRequiredMixin, ListView):
     """
     template_name = "admin_console/admin_task_list.html"
     context_object_name = "tasks"
+    help_context_id = "ADMIN_CONSOLE_TASKS"
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
@@ -841,7 +843,7 @@ class AdminTaskDeleteView(AdminRequiredMixin, DeleteView):
 READY_TASKS_WARNING_THRESHOLD = 5
 
 
-class TaskIntakeView(AdminRequiredMixin, TemplateView):
+class TaskIntakeView(HelpContextMixin, AdminRequiredMixin, TemplateView):
     """
     Task Intake page for admin to create new tasks.
 
@@ -856,6 +858,7 @@ class TaskIntakeView(AdminRequiredMixin, TemplateView):
     - Phase 17: Uses config tables for dropdowns, only shows active configs
     """
     template_name = "admin_console/task_intake.html"
+    help_context_id = "ADMIN_CONSOLE_TASK_INTAKE"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2135,7 +2138,7 @@ class InlinePriorityUpdateAPIView(View):
 # Phase 15: Projects Operator Runbook
 # ============================================================
 
-class ProjectsRunbookView(AdminRequiredMixin, TemplateView):
+class ProjectsRunbookView(HelpContextMixin, AdminRequiredMixin, TemplateView):
     """
     Read-only Operator Runbook page for Projects.
 
@@ -2155,13 +2158,14 @@ class ProjectsRunbookView(AdminRequiredMixin, TemplateView):
     - Does not auto-open
     """
     template_name = "admin_console/projects_runbook.html"
+    help_context_id = "ADMIN_CONSOLE_PROJECTS_RUNBOOK"
 
 
 # ============================================================
 # Phase 16: Admin Project Views
 # ============================================================
 
-class AdminProjectListView(AdminRequiredMixin, ListView):
+class AdminProjectListView(HelpContextMixin, AdminRequiredMixin, ListView):
     """
     List all admin projects with task counts.
 
@@ -2175,6 +2179,7 @@ class AdminProjectListView(AdminRequiredMixin, ListView):
     """
     template_name = "admin_console/admin_project_list.html"
     context_object_name = "projects"
+    help_context_id = "ADMIN_CONSOLE_PROJECTS"
 
     def get_queryset(self):
         from apps.admin_console.models import AdminProject
@@ -2186,7 +2191,7 @@ class AdminProjectListView(AdminRequiredMixin, ListView):
         ).order_by('name')
 
 
-class AdminProjectDetailView(AdminRequiredMixin, TemplateView):
+class AdminProjectDetailView(HelpContextMixin, AdminRequiredMixin, TemplateView):
     """
     Project detail page showing tasks grouped by phase.
 
@@ -2197,6 +2202,7 @@ class AdminProjectDetailView(AdminRequiredMixin, TemplateView):
     - Tasks grouped by phase number
     """
     template_name = "admin_console/admin_project_detail.html"
+    help_context_id = "ADMIN_CONSOLE_PROJECT_DETAIL"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

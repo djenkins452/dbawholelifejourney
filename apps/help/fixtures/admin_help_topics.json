@@ -110,5 +110,165 @@
       "created_at": "2024-12-27T00:00:00Z",
       "updated_at": "2024-12-27T00:00:00Z"
     }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 8,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_HOME",
+      "help_id": "admin-console-home",
+      "title": "Admin Console Overview",
+      "description": "Navigate the Admin Console interface.",
+      "content": "## Admin Console\n\nThe Admin Console provides a user-friendly interface for managing site settings and projects.\n\n### Available Sections\n\n- **Site Configuration** - Branding, feature toggles, and legal settings\n- **Themes** - Manage visual themes for users\n- **Projects** - Manage development projects and tasks\n- **Task Intake** - Create new tasks for Claude or human completion\n- **User Management** - View and manage user accounts\n\n### Navigation\n\nUse the cards on the dashboard to access different sections. Each card shows the current count of records.\n\n### Django Admin Access\n\nClick **\"Django Admin\"** in the header for direct database access and advanced configuration options.",
+      "category": "Admin Console",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 9,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_PROJECTS",
+      "help_id": "admin-console-projects",
+      "title": "Managing Projects",
+      "description": "Create and manage development projects.",
+      "content": "## Projects\n\nProjects organize related tasks for development work. Each project contains tasks that can be assigned to phases.\n\n### Project Status\n\n- **Open** - Active project with ongoing tasks\n- **Complete** - All tasks finished, project closed\n\n### Creating a Project\n\n1. Click **\"New Project\"** button.\n2. Enter a descriptive **Name**.\n3. Add a **Description** explaining the project's purpose.\n4. Set the initial **Status** (usually 'open').\n5. Click **Save**.\n\n### Project Details\n\nClick on a project name to see:\n- Project information and status\n- All tasks grouped by phase\n- Progress overview (completed vs total tasks)\n\n### Managing Tasks\n\nFrom the project detail page, you can:\n- View task status and priority\n- Click on tasks to edit them\n- Track progress across phases",
+      "category": "Admin Console",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 10,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_PROJECT_DETAIL",
+      "help_id": "admin-console-project-detail",
+      "title": "Project Detail View",
+      "description": "View project tasks and progress.",
+      "content": "## Project Detail\n\nThis page shows all tasks for a specific project, organized by phase.\n\n### Task Organization\n\nTasks are grouped by their assigned phase:\n- **Phase 1** tasks appear first\n- Within each phase, tasks are sorted by priority then creation date\n\n### Task Status Colors\n\n- **Backlog** - Gray, not yet ready for work\n- **Ready** - Blue, available for Claude to execute\n- **In Progress** - Yellow, currently being worked on\n- **Done** - Green, completed successfully\n- **Blocked** - Red, waiting on something\n\n### Quick Actions\n\n- Click a task title to view/edit details\n- Use the task list filters to narrow the view\n\n### Progress Tracking\n\nThe header shows completion progress:\n- Total tasks in the project\n- Completed tasks count\n- Percentage complete",
+      "category": "Admin Console",
+      "order": 3,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 11,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_TASKS",
+      "help_id": "admin-console-tasks",
+      "title": "Task List",
+      "description": "View and filter all tasks.",
+      "content": "## Task List\n\nThis page shows all tasks across all projects with filtering options.\n\n### Filtering Tasks\n\nUse the filter controls to narrow the list:\n- **Phase** - Filter by phase number\n- **Status** - Filter by task status (backlog, ready, in_progress, done, blocked)\n- **Project** - Filter by project\n\n### Task Status Workflow\n\n1. **Backlog** → Task created, not ready for work\n2. **Ready** → Task marked ready, available for Claude\n3. **In Progress** → Claude is actively working on it\n4. **Done** → Task completed successfully\n5. **Blocked** → Task waiting on dependency or issue\n\n### Mark Ready\n\nFor backlog tasks, use the **\"Mark Ready\"** button to make them available for Claude to execute.\n\n### Inline Editing\n\nSome fields can be edited inline:\n- Status can be changed via dropdown\n- Priority can be adjusted\n\n### Sorting\n\nTasks are sorted by priority (ascending) then creation date.",
+      "category": "Admin Console",
+      "order": 4,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 12,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_TASK_INTAKE",
+      "help_id": "admin-console-task-intake",
+      "title": "Task Intake Form",
+      "description": "Create new tasks for the project system.",
+      "content": "## Task Intake\n\nThe Task Intake form is used to create new tasks that can be executed by Claude or completed manually.\n\n### Required Fields\n\n- **Title** - Clear, descriptive task name\n- **Phase** - Which phase this task belongs to\n- **Project** - Which project this task is part of\n\n### Task Description (Executable Task Standard)\n\nFor AI-executable tasks, the description must follow this structure:\n\n- **Objective** - What the task should accomplish\n- **Inputs** - Required context or resources (can be empty)\n- **Actions** - Step-by-step instructions (at least one required)\n- **Output** - Expected deliverable or completion criteria\n\n### Optional Fields\n\n- **Priority** - 1 (highest) to 5 (lowest)\n- **Category** - Type of work (development, documentation, etc.)\n- **Effort** - Estimated complexity (quick, small, medium, large)\n\n### Status\n\nNew tasks default to **Backlog** status. Mark them **Ready** when they should be available for Claude to execute.\n\n### Tips\n\n- Be specific in the Objective and Actions fields\n- Include file paths and function names when relevant\n- Describe the expected output clearly so completion can be verified",
+      "category": "Admin Console",
+      "order": 5,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 13,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_PROJECT_PHASES",
+      "help_id": "admin-console-project-phases",
+      "title": "Managing Project Phases",
+      "description": "Create and organize project phases.",
+      "content": "## Project Phases\n\nPhases organize tasks into logical groups within a project.\n\n### Phase Properties\n\n- **Phase Number** - Numeric order (1, 2, 3...)\n- **Name** - Descriptive name for the phase\n- **Objective** - What this phase aims to accomplish\n- **Status** - Current state (planned, active, complete)\n\n### Phase Workflow\n\n1. **Planned** - Phase is defined but work hasn't started\n2. **Active** - Phase is currently being worked on\n3. **Complete** - All tasks in the phase are done\n\n### Creating a Phase\n\n1. Click **\"New Phase\"** button.\n2. Enter the **Phase Number** (determines order).\n3. Enter a **Name** (e.g., 'Foundation', 'Core Features').\n4. Describe the **Objective**.\n5. Set initial **Status** (usually 'planned').\n6. Click **Save**.\n\n### Editing Phases\n\nClick on a phase to edit its properties. Be careful changing phase numbers as this affects task organization.\n\n### Deleting Phases\n\nPhases with tasks cannot be deleted. First reassign or delete the tasks.",
+      "category": "Admin Console",
+      "order": 6,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 14,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_PROJECTS_RUNBOOK",
+      "help_id": "admin-console-projects-runbook",
+      "title": "Projects Operator Runbook",
+      "description": "Reference guide for operating the project system.",
+      "content": "## Projects Operator Runbook\n\nThis runbook explains how to operate the WLJ Projects System.\n\n### What the Projects System Is\n\nA task management system where Claude AI executes development tasks based on structured descriptions.\n\n### Daily Operating Workflow\n\n1. **Review Ready Tasks** - Check what's queued for Claude\n2. **Monitor In Progress** - Watch for tasks Claude is working on\n3. **Verify Completions** - Review done tasks for accuracy\n4. **Handle Blocked Tasks** - Resolve dependencies or issues\n5. **Add New Tasks** - Use Task Intake for new work\n\n### Task Status Meanings\n\n| Status | Meaning |\n|--------|--------|\n| backlog | Not ready for work |\n| ready | Available for Claude |\n| in_progress | Currently being executed |\n| done | Completed successfully |\n| blocked | Waiting on something |\n\n### When Execution Stops\n\nClaude stops when:\n- No ready tasks are available\n- A task requires clarification\n- A blocking issue is encountered\n- Tests fail unexpectedly\n\n### Golden Rules\n\n1. Tasks must follow the Executable Task Standard\n2. Only mark tasks Ready when they're truly ready\n3. Review completed work promptly\n4. Keep blocked tasks updated with reasons",
+      "category": "Admin Console",
+      "order": 7,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 15,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_SITE_CONFIG",
+      "help_id": "admin-console-site-config",
+      "title": "Site Configuration",
+      "description": "Configure site-wide settings from the Admin Console.",
+      "content": "## Site Configuration\n\nConfigure branding, feature toggles, and system settings.\n\n### Branding\n\n- **Site Name** - Displayed in browser title bar\n- **Tagline** - Shown on landing page\n- **Logo** - Custom logo image (200x64 recommended)\n- **Favicon** - Browser tab icon (32x32 PNG)\n\n### Feature Toggles\n\n- **Allow Registration** - Enable/disable new signups\n- **Require Email Verification** - Force email confirmation\n- **Faith Enabled by Default** - Default setting for new users\n\n### Theme Settings\n\n- **Default Theme** - Assigned to new users\n\n### Footer & Legal\n\n- **Footer Text** - Copyright message\n- **Privacy Policy URL** - Link to privacy policy\n- **Terms URL** - Link to terms of service\n\n### Saving Changes\n\nClick **Save** to apply changes. Some settings may be cached for up to 1 hour.",
+      "category": "Admin Console",
+      "order": 8,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 16,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_THEMES",
+      "help_id": "admin-console-themes",
+      "title": "Theme Management",
+      "description": "Create and manage visual themes.",
+      "content": "## Theme Management\n\nThemes control the app's visual appearance with customizable colors.\n\n### Theme Properties\n\n- **Slug** - Unique identifier (e.g., 'ocean-blue')\n- **Name** - Display name shown to users\n- **Description** - Brief description of the theme's feel\n\n### Color Settings\n\nEach theme has light and dark mode colors:\n\n**Light Mode:**\n- Primary, Secondary, Accent\n- Text, Text Muted\n- Background, Surface, Border\n\n**Dark Mode:**\n- Same properties with 'dark_' prefix\n\n### Creating a Theme\n\n1. Click **\"Add Theme\"**\n2. Enter slug, name, and description\n3. Set all color values (hex format, e.g., #6366f1)\n4. Check **Is Active** to make available\n5. Click **Save**\n\n### Making a Theme Default\n\nCheck **Is Default** on the theme that should be assigned to new users. Only one theme can be default.\n\n### Color Tips\n\n- Use consistent color families\n- Ensure text has good contrast with backgrounds\n- Test in both light and dark modes",
+      "category": "Admin Console",
+      "order": 9,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.adminhelptopic",
+    "pk": 17,
+    "fields": {
+      "context_id": "ADMIN_CONSOLE_USERS",
+      "help_id": "admin-console-users",
+      "title": "User Management",
+      "description": "View and manage user accounts.",
+      "content": "## User Management\n\nView and manage registered user accounts.\n\n### User List\n\nThe user list shows:\n- Email address\n- Join date\n- Last login\n- Staff status\n- Active status\n\n### User Properties\n\n- **Email** - User's login email\n- **Is Staff** - Can access admin areas\n- **Is Active** - Account is enabled\n- **Is Superuser** - Full admin privileges\n\n### Common Actions\n\n- **View Profile** - See user details and activity\n- **Edit** - Modify user settings\n- **Deactivate** - Disable account without deleting\n- **Make Staff** - Grant admin access\n\n### Security Notes\n\n- Only superusers can create other superusers\n- Deactivating an account prevents login but preserves data\n- Users can be reactivated at any time",
+      "category": "Admin Console",
+      "order": 10,
+      "is_active": true,
+      "created_at": "2026-01-03T00:00:00Z",
+      "updated_at": "2026-01-03T00:00:00Z"
+    }
   }
 ]

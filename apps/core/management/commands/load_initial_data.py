@@ -4,14 +4,22 @@
 # Description: Management command to load initial system data (one-time loads)
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-01-01
-# Last Updated: 2026-01-03 (Added DataLoadConfig for one-time loading)
+# Last Updated: 2026-01-03 (Consolidated all data loaders from Procfile)
 # ==============================================================================
 """
 Management command to load all initial/system data.
 
 This command loads fixtures and populates reference data tables.
-Now uses DataLoadConfig to track which loaders have run, so data is only
+Uses DataLoadConfig to track which loaders have run, so data is only
 loaded once (not on every deploy).
+
+CONSOLIDATES these Procfile commands into one:
+- load_initial_data (original fixtures/commands)
+- reload_help_content (now one-time only)
+- load_danny_workout_templates (user-specific workout templates)
+- load_reading_plans (Bible reading plans)
+- load_phase1_data (project phases 1-20)
+- load_project_from_json (project blueprints)
 
 Use --force to reload all data regardless of DataLoadConfig status.
 Use --reset=<loader_name> to reset a specific loader.
@@ -100,6 +108,21 @@ COMMAND_LOADERS = [
         'name': 'populate_exercises',
         'display': 'Exercise Library',
         'description': 'Pre-defined exercises for health module',
+    },
+    {
+        'name': 'load_reading_plans',
+        'display': 'Bible Reading Plans',
+        'description': 'Bible reading plan templates',
+    },
+    {
+        'name': 'load_phase1_data',
+        'display': 'Project Phases (1-20)',
+        'description': 'AdminProjectPhase records for task management',
+    },
+    {
+        'name': 'load_danny_workout_templates',
+        'display': 'Danny Workout Templates',
+        'description': 'Workout templates for dannyjenkins71@gmail.com',
     },
 ]
 
@@ -295,11 +318,11 @@ class Command(BaseCommand):
 
             # Check if already loaded (unless force mode)
             if not force and self._is_loader_complete(DataLoadConfig, loader_name):
-                self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('Already loaded, skipping'))
+                self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('skip'))
                 continue
 
             try:
-                self.stdout.write(f'  Loading {loader_name}...')
+                self.stdout.write(f'  Loading {loader_name}...', ending='')
                 call_command('loaddata', loader_name, verbosity=0)
                 self.stdout.write(self.style.SUCCESS(' OK'))
 
@@ -317,11 +340,11 @@ class Command(BaseCommand):
 
             # Check if already loaded (unless force mode)
             if not force and self._is_loader_complete(DataLoadConfig, loader_name):
-                self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('Already loaded, skipping'))
+                self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('skip'))
                 continue
 
             try:
-                self.stdout.write(f'  Running {loader_name}...')
+                self.stdout.write(f'  Running {loader_name}...', ending='')
                 call_command(loader_name, verbosity=0)
                 self.stdout.write(self.style.SUCCESS(' OK'))
 
@@ -339,15 +362,15 @@ class Command(BaseCommand):
 
             # Check if already loaded (unless force mode)
             if not force and self._is_loader_complete(DataLoadConfig, loader_name):
-                self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('Already loaded, skipping'))
+                self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('skip'))
                 continue
 
             try:
-                self.stdout.write(f'  Loading {loader["path"]}...')
+                self.stdout.write(f'  Loading blueprint {loader_name}...', ending='')
                 call_command(
                     'load_project_from_json',
                     loader['path'],
-                    verbosity=1
+                    verbosity=0
                 )
                 self.stdout.write(self.style.SUCCESS(' OK'))
 

@@ -16,20 +16,44 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-03 Changes
 
-### One-Time Data Loaders Feature
+### One-Time Data Loaders Feature (Consolidated Procfile)
 
 **Session:** Convert Startup Data Loading to One-Time Configuration
 
 **Problem:**
-On every Railway deployment, `load_initial_data` ran all fixtures and populate commands,
-producing verbose output and redundant database operations even when the data already existed:
-- Loading categories, encouragements, scripture, prompts
-- Running populate_choices, populate_themes, populate_exercises
-- Loading project blueprints
+On every Railway deployment, multiple commands ran verbose data loading:
+- `load_initial_data` - fixtures and populate commands
+- `reload_help_content` - DELETED and reloaded all help content every deploy
+- `load_danny_workout_templates` - workout templates
+- `load_reading_plans` - Bible reading plans
+- `load_phase1_data` - project phases
+- `load_project_from_json` - project blueprints (duplicate)
+
+This caused excessive deploy log output and redundant database operations.
 
 **Solution:**
-Created a `DataLoadConfig` model to track which data loaders have been run. Loaders now
-check this table and skip if already complete. Admins can manage loaders from the Admin Console.
+1. Created `DataLoadConfig` model to track which loaders have run
+2. Consolidated ALL data loading into `load_initial_data`
+3. Simplified Procfile from 8 commands to 4
+
+**New Procfile:**
+```
+python manage.py migrate --noinput &&
+python manage.py load_initial_data &&
+python manage.py recalculate_task_priorities &&
+python manage.py collectstatic --noinput &&
+gunicorn ...
+```
+
+**Removed from Procfile:**
+- `reload_help_content` (now in load_initial_data, one-time only)
+- `load_danny_workout_templates` (now in load_initial_data)
+- `load_reading_plans` (now in load_initial_data)
+- `load_phase1_data` (now in load_initial_data)
+- `load_project_from_json` (duplicate, already in load_initial_data)
+
+**Kept in Procfile:**
+- `recalculate_task_priorities` - Must run every deploy (recalculates based on due dates)
 
 **New Model:**
 - `DataLoadConfig` in `apps/admin_console/models.py`
@@ -39,11 +63,12 @@ check this table and skip if already complete. Admins can manage loaders from th
 **Modified Files:**
 - `apps/admin_console/models.py` - Added DataLoadConfig model
 - `apps/admin_console/migrations/0013_add_dataloadconfig.py` - Migration
-- `apps/core/management/commands/load_initial_data.py` - Check DataLoadConfig before loading
+- `apps/core/management/commands/load_initial_data.py` - Consolidated all loaders
 - `apps/admin_console/views.py` - Added DataLoadConfig management views
 - `apps/admin_console/urls.py` - Added dataload routes
 - `templates/admin_console/dashboard.html` - Added Data Loaders card
-- `templates/admin_console/dataload/list.html` - New admin UI for managing loaders
+- `templates/admin_console/dataload/list.html` - New admin UI
+- `Procfile` - Simplified to 4 commands
 
 **New CLI Options:**
 ```bash
@@ -51,6 +76,19 @@ python manage.py load_initial_data              # Normal (skip completed)
 python manage.py load_initial_data --force      # Force reload all
 python manage.py load_initial_data --list       # Show loader status
 python manage.py load_initial_data --reset <name>  # Reset specific loader
+```
+
+**Expected Deploy Output (after first deploy):**
+```
+Loading initial system data (skipping already loaded)...
+  categories: skip
+  encouragements: skip
+  ...
+  load_reading_plans: skip
+  load_phase1_data: skip
+  load_danny_workout_templates: skip
+  ...
+Initial data loading complete!
 ```
 
 **Admin Console Access:**

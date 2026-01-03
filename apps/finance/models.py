@@ -1501,6 +1501,90 @@ class BankIntegrationLog(UserOwnedModel):
 
 
 # =============================================================================
+# Finance Audit Log (comprehensive audit trail)
+# =============================================================================
+
+class FinanceAuditLog(models.Model):
+    """
+    Comprehensive audit log for ALL finance module operations.
+
+    Unlike BankIntegrationLog which is specific to bank connections,
+    this logs all finance operations including:
+    - Account CRUD operations
+    - Transaction CRUD operations
+    - Budget/Goal changes
+    - Imports/Exports
+    - AI queries
+    - Transfers
+
+    Security: This table is append-only in application logic.
+    """
+
+    # Action types
+    ACTION_CREATE = 'create'
+    ACTION_UPDATE = 'update'
+    ACTION_DELETE = 'delete'
+    ACTION_VIEW = 'view'
+    ACTION_TRANSFER = 'transfer'
+    ACTION_IMPORT = 'import'
+    ACTION_EXPORT = 'export'
+    ACTION_AI_QUERY = 'ai_query'
+
+    ACTION_CHOICES = [
+        (ACTION_CREATE, 'Created'),
+        (ACTION_UPDATE, 'Updated'),
+        (ACTION_DELETE, 'Deleted'),
+        (ACTION_VIEW, 'Viewed'),
+        (ACTION_TRANSFER, 'Transferred'),
+        (ACTION_IMPORT, 'Imported'),
+        (ACTION_EXPORT, 'Exported'),
+        (ACTION_AI_QUERY, 'AI Query'),
+    ]
+
+    # Entity types
+    ENTITY_CHOICES = [
+        ('account', 'Account'),
+        ('transaction', 'Transaction'),
+        ('budget', 'Budget'),
+        ('goal', 'Goal'),
+        ('import', 'Import'),
+        ('bank_connection', 'Bank Connection'),
+        ('ai_insight', 'AI Insight'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='finance_audit_logs'
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    entity_type = models.CharField(max_length=30, choices=ENTITY_CHOICES)
+    entity_id = models.IntegerField(null=True, blank=True)
+    success = models.BooleanField(default=True)
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Redacted operation details"
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Finance Audit Log"
+        verbose_name_plural = "Finance Audit Logs"
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['action', 'entity_type']),
+            models.Index(fields=['entity_type', 'entity_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_action_display()} {self.entity_type} - {self.created_at}"
+
+
+# =============================================================================
 # Payee (for autocomplete and categorization)
 # =============================================================================
 

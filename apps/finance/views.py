@@ -64,6 +64,52 @@ class FinanceUserMixin(LoginRequiredMixin):
         return super().get_queryset().filter(user=self.request.user, status='active')
 
 
+class FinanceAuditMixin:
+    """
+    Mixin to add audit logging to finance views.
+
+    Automatically logs create, update, and delete operations.
+    """
+
+    audit_entity_type = None  # Override in subclass
+
+    def get_audit_logger(self):
+        from apps.finance.security import FinanceAuditLogger
+        return FinanceAuditLogger(
+            user=self.request.user,
+            request=self.request
+        )
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        audit_logger = self.get_audit_logger()
+
+        if self.audit_entity_type:
+            # Determine action based on view type
+            if hasattr(self, 'object') and self.object:
+                if isinstance(self, DeleteView):
+                    audit_logger.log(
+                        action='delete',
+                        entity_type=self.audit_entity_type,
+                        entity_id=self.object.id,
+                    )
+                elif self.object.pk and form.changed_data:
+                    audit_logger.log(
+                        action='update',
+                        entity_type=self.audit_entity_type,
+                        entity_id=self.object.id,
+                        details={'changed_fields': form.changed_data}
+                    )
+                else:
+                    audit_logger.log(
+                        action='create',
+                        entity_type=self.audit_entity_type,
+                        entity_id=self.object.id,
+                    )
+
+        return response
+
+
 # =============================================================================
 # Dashboard / Home
 # =============================================================================
@@ -206,13 +252,14 @@ class AccountDetailView(FinanceUserMixin, DetailView):
         return context
 
 
-class AccountCreateView(LoginRequiredMixin, CreateView):
+class AccountCreateView(FinanceAuditMixin, LoginRequiredMixin, CreateView):
     """Create a new financial account."""
 
     model = FinancialAccount
     form_class = FinancialAccountForm
     template_name = 'finance/account_form.html'
     success_url = reverse_lazy('finance:account_list')
+    audit_entity_type = 'account'
 
     def form_valid(self, form):
         form.instance.user = self.request.user
@@ -221,27 +268,32 @@ class AccountCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class AccountUpdateView(FinanceUserMixin, UpdateView):
+class AccountUpdateView(FinanceAuditMixin, FinanceUserMixin, UpdateView):
     """Edit a financial account."""
 
     model = FinancialAccount
     form_class = FinancialAccountForm
     template_name = 'finance/account_form.html'
     success_url = reverse_lazy('finance:account_list')
+    audit_entity_type = 'account'
 
     def form_valid(self, form):
         messages.success(self.request, f'Account "{form.instance.name}" updated.')
         return super().form_valid(form)
 
 
-class AccountDeleteView(FinanceUserMixin, DeleteView):
+class AccountDeleteView(FinanceAuditMixin, FinanceUserMixin, DeleteView):
     """Delete (soft delete) a financial account."""
 
     model = FinancialAccount
     template_name = 'finance/account_confirm_delete.html'
     success_url = reverse_lazy('finance:account_list')
+    audit_entity_type = 'account'
 
     def form_valid(self, form):
+        # Log before soft delete
+        audit_logger = self.get_audit_logger()
+        audit_logger.log_account_deleted(self.object)
         self.object.soft_delete()
         messages.success(self.request, f'Account "{self.object.name}" deleted.')
         return redirect(self.success_url)
@@ -304,12 +356,13 @@ class TransactionDetailView(FinanceUserMixin, DetailView):
     context_object_name = 'transaction'
 
 
-class TransactionCreateView(LoginRequiredMixin, CreateView):
+class TransactionCreateView(FinanceAuditMixin, LoginRequiredMixin, CreateView):
     """Create a new transaction."""
 
     model = Transaction
     template_name = 'finance/transaction_form.html'
     success_url = reverse_lazy('finance:transaction_list')
+    audit_entity_type = 'transaction'
 
     def get_form(self, form_class=None):
         return TransactionForm(self.request.user, **self.get_form_kwargs())
@@ -319,12 +372,13 @@ class TransactionCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class TransactionUpdateView(FinanceUserMixin, UpdateView):
+class TransactionUpdateView(FinanceAuditMixin, FinanceUserMixin, UpdateView):
     """Edit a transaction."""
 
     model = Transaction
     template_name = 'finance/transaction_form.html'
     success_url = reverse_lazy('finance:transaction_list')
+    audit_entity_type = 'transaction'
 
     def get_form(self, form_class=None):
         return TransactionForm(self.request.user, **self.get_form_kwargs())
@@ -334,14 +388,17 @@ class TransactionUpdateView(FinanceUserMixin, UpdateView):
         return super().form_valid(form)
 
 
-class TransactionDeleteView(FinanceUserMixin, DeleteView):
+class TransactionDeleteView(FinanceAuditMixin, FinanceUserMixin, DeleteView):
     """Delete a transaction."""
 
     model = Transaction
     template_name = 'finance/transaction_confirm_delete.html'
     success_url = reverse_lazy('finance:transaction_list')
+    audit_entity_type = 'transaction'
 
     def form_valid(self, form):
+        audit_logger = self.get_audit_logger()
+        audit_logger.log_transaction_deleted(self.object)
         self.object.soft_delete()
         messages.success(self.request, 'Transaction deleted.')
         return redirect(self.success_url)
@@ -424,12 +481,13 @@ class BudgetListView(FinanceUserMixin, ListView):
         return context
 
 
-class BudgetCreateView(LoginRequiredMixin, CreateView):
+class BudgetCreateView(FinanceAuditMixin, LoginRequiredMixin, CreateView):
     """Create a new budget."""
 
     model = Budget
     template_name = 'finance/budget_form.html'
     success_url = reverse_lazy('finance:budget_list')
+    audit_entity_type = 'budget'
 
     def get_form(self, form_class=None):
         return BudgetForm(self.request.user, **self.get_form_kwargs())
@@ -439,12 +497,13 @@ class BudgetCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class BudgetUpdateView(FinanceUserMixin, UpdateView):
+class BudgetUpdateView(FinanceAuditMixin, FinanceUserMixin, UpdateView):
     """Edit a budget."""
 
     model = Budget
     template_name = 'finance/budget_form.html'
     success_url = reverse_lazy('finance:budget_list')
+    audit_entity_type = 'budget'
 
     def get_form(self, form_class=None):
         return BudgetForm(self.request.user, **self.get_form_kwargs())
@@ -454,14 +513,21 @@ class BudgetUpdateView(FinanceUserMixin, UpdateView):
         return super().form_valid(form)
 
 
-class BudgetDeleteView(FinanceUserMixin, DeleteView):
+class BudgetDeleteView(FinanceAuditMixin, FinanceUserMixin, DeleteView):
     """Delete a budget."""
 
     model = Budget
     template_name = 'finance/budget_confirm_delete.html'
     success_url = reverse_lazy('finance:budget_list')
+    audit_entity_type = 'budget'
 
     def form_valid(self, form):
+        audit_logger = self.get_audit_logger()
+        audit_logger.log(
+            action='delete',
+            entity_type='budget',
+            entity_id=self.object.id,
+        )
         self.object.soft_delete()
         messages.success(self.request, 'Budget deleted.')
         return redirect(self.success_url)
@@ -500,12 +566,13 @@ class GoalDetailView(FinanceUserMixin, DetailView):
     context_object_name = 'goal'
 
 
-class GoalCreateView(LoginRequiredMixin, CreateView):
+class GoalCreateView(FinanceAuditMixin, LoginRequiredMixin, CreateView):
     """Create a new financial goal."""
 
     model = FinancialGoal
     template_name = 'finance/goal_form.html'
     success_url = reverse_lazy('finance:goal_list')
+    audit_entity_type = 'goal'
 
     def get_form(self, form_class=None):
         return FinancialGoalForm(self.request.user, **self.get_form_kwargs())
@@ -515,12 +582,13 @@ class GoalCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class GoalUpdateView(FinanceUserMixin, UpdateView):
+class GoalUpdateView(FinanceAuditMixin, FinanceUserMixin, UpdateView):
     """Edit a financial goal."""
 
     model = FinancialGoal
     template_name = 'finance/goal_form.html'
     success_url = reverse_lazy('finance:goal_list')
+    audit_entity_type = 'goal'
 
     def get_form(self, form_class=None):
         return FinancialGoalForm(self.request.user, **self.get_form_kwargs())
@@ -530,14 +598,22 @@ class GoalUpdateView(FinanceUserMixin, UpdateView):
         return super().form_valid(form)
 
 
-class GoalDeleteView(FinanceUserMixin, DeleteView):
+class GoalDeleteView(FinanceAuditMixin, FinanceUserMixin, DeleteView):
     """Delete a financial goal."""
 
     model = FinancialGoal
     template_name = 'finance/goal_confirm_delete.html'
     success_url = reverse_lazy('finance:goal_list')
+    audit_entity_type = 'goal'
 
     def form_valid(self, form):
+        audit_logger = self.get_audit_logger()
+        audit_logger.log(
+            action='delete',
+            entity_type='goal',
+            entity_id=self.object.id,
+            details={'name': self.object.name}
+        )
         self.object.soft_delete()
         messages.success(self.request, f'Goal "{self.object.name}" deleted.')
         return redirect(self.success_url)
@@ -1174,8 +1250,24 @@ def api_spending_insight(request):
     Get AI-generated spending insight.
 
     Returns JSON with insight text and supporting data.
+    Rate limited to 10 requests per hour.
     """
     from apps.finance.services.ai_insights import get_finance_ai_service
+    from apps.finance.security import FinanceRateLimiter, get_audit_logger
+
+    # Rate limiting
+    limiter = FinanceRateLimiter(request.user)
+    allowed, retry_after = limiter.check_limit('ai_query')
+    if not allowed:
+        return JsonResponse({
+            'error': 'Rate limit exceeded',
+            'retry_after': retry_after,
+        }, status=429)
+    limiter.record_request('ai_query')
+
+    # Audit log
+    audit_logger = get_audit_logger(request)
+    audit_logger.log_ai_query('spending_insight')
 
     try:
         service = get_finance_ai_service(request.user)

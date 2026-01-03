@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-03 (AI Spending Insights and Coaching)
+# Last Updated: 2026-01-03 (Finance Security Controls)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,64 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-03 Changes
+
+### Finance Security Controls
+
+**Session:** Implement Finance Security Controls
+
+**Task:** WLJ Finance Module - Implement Finance Security Controls
+
+**Objective:**
+Protect financial data against unauthorized access and misuse.
+
+**Implementation:**
+
+1. **Security Module Created:**
+   - `apps/finance/security.py` - Comprehensive security controls
+   - FinanceAuditLogger - Centralized audit logging with redaction
+   - FinanceRateLimiter - Rate limiting for sensitive operations
+   - FinanceMFAController - MFA hooks for future implementation
+
+2. **Audit Logging:**
+   - New `FinanceAuditLog` model for comprehensive audit trail
+   - Logs all CRUD operations on accounts, transactions, budgets, goals
+   - Logs imports, transfers, AI queries
+   - IP address tracking
+   - Sensitive data redaction (tokens, account numbers)
+   - FinanceAuditMixin for easy view integration
+
+3. **Rate Limiting:**
+   - AI queries: 10 per hour
+   - Imports: 5 per hour
+   - Bank syncs: 10 per hour
+   - Transfers: 20 per hour
+   - Exports: 10 per hour
+
+4. **Access Controls:**
+   - `requires_recent_auth` decorator for sensitive operations
+   - `verify_ownership` decorator for resource access
+   - `requires_mfa_for_sensitive_ops` decorator (MFA ready)
+   - All views require login (LoginRequiredMixin/login_required)
+
+5. **MFA Framework:**
+   - FinanceMFAController for future MFA integration
+   - Identifies sensitive operations requiring MFA
+   - Placeholder verification that logs warnings
+   - Ready for TOTP/SMS integration
+
+6. **Encryption (already in place):**
+   - Bank tokens encrypted at rest with Fernet (AES-256)
+   - Sensitive fields identified in models
+
+**Files Created/Modified:**
+- `apps/finance/security.py` (new)
+- `apps/finance/models.py` - Added FinanceAuditLog model
+- `apps/finance/views.py` - Added FinanceAuditMixin, rate limiting to AI endpoints
+
+**Migration Created:**
+- `0004_add_finance_audit_log.py`
+
+---
 
 ### AI Spending Insights and Coaching
 

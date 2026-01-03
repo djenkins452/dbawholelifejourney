@@ -25,19 +25,30 @@ def add_status_if_missing(apps, schema_editor):
     with connection.cursor() as cursor:
         # Get column info based on database backend
         if connection.vendor == 'postgresql':
+            # Check if column exists (with schema)
             cursor.execute("""
                 SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'finance_budget' AND column_name = 'status'
+                WHERE table_schema = 'public'
+                  AND table_name = 'finance_budget'
+                  AND column_name = 'status'
             """)
             if cursor.fetchone() is None:
-                # Add the column for PostgreSQL
+                # Check if table exists first
                 cursor.execute("""
-                    ALTER TABLE finance_budget
-                    ADD COLUMN status varchar(10) NOT NULL DEFAULT 'active'
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                      AND table_name = 'finance_budget'
                 """)
-                cursor.execute("""
-                    CREATE INDEX finance_budget_status_idx ON finance_budget (status)
-                """)
+                if cursor.fetchone() is not None:
+                    # Table exists but column doesn't - add it
+                    cursor.execute("""
+                        ALTER TABLE finance_budget
+                        ADD COLUMN status varchar(10) NOT NULL DEFAULT 'active'
+                    """)
+                    cursor.execute("""
+                        CREATE INDEX IF NOT EXISTS finance_budget_status_idx
+                        ON finance_budget (status)
+                    """)
         else:  # SQLite
             cursor.execute("PRAGMA table_info(finance_budget)")
             columns = [col[1] for col in cursor.fetchall()]
@@ -47,9 +58,12 @@ def add_status_if_missing(apps, schema_editor):
                     ALTER TABLE finance_budget
                     ADD COLUMN status varchar(10) NOT NULL DEFAULT 'active'
                 """)
-                cursor.execute("""
-                    CREATE INDEX finance_budget_status_idx ON finance_budget (status)
-                """)
+                try:
+                    cursor.execute("""
+                        CREATE INDEX finance_budget_status_idx ON finance_budget (status)
+                    """)
+                except Exception:
+                    pass  # Index might already exist
 
 
 def reverse_noop(apps, schema_editor):

@@ -1,10 +1,11 @@
 # ==============================================================================
 # File: apps/finance/views.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Finance module views for accounts, transactions, budgets, goals
+# Description: Finance module views for accounts, transactions, budgets, goals,
+#              and file imports
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-02
-# Last Updated: 2026-01-02
+# Last Updated: 2026-01-03
 # ==============================================================================
 from decimal import Decimal
 
@@ -30,6 +31,7 @@ from .models import (
     FinancialGoal,
     FinancialMetricSnapshot,
     Payee,
+    TransactionImport,
 )
 from .forms import (
     FinancialAccountForm,
@@ -39,6 +41,7 @@ from .forms import (
     FinancialGoalForm,
     TransactionFilterForm,
     TransferForm,
+    TransactionImportForm,
 )
 
 
@@ -668,4 +671,121 @@ def api_account_balance(request, pk):
         'balance': float(account.current_balance),
         'formatted': f'${account.current_balance:,.2f}',
         'updated_at': account.balance_updated_at.isoformat() if account.balance_updated_at else None
+    })
+
+
+# =============================================================================
+# Transaction Import
+# =============================================================================
+
+class ImportListView(FinanceUserMixin, ListView):
+    """List all transaction imports for the user."""
+
+    model = TransactionImport
+    template_name = 'finance/import_list.html'
+    context_object_name = 'imports'
+    paginate_by = 20
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('account').order_by('-created_at')
+
+
+class ImportDetailView(FinanceUserMixin, DetailView):
+    """View import details and results."""
+
+    model = TransactionImport
+    template_name = 'finance/import_detail.html'
+    context_object_name = 'import_record'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get transactions created by this import
+        context['transactions'] = Transaction.objects.filter(
+            user=self.request.user,
+            import_record=self.object,
+            status='active'
+        ).select_related('category').order_by('-date')[:50]
+        return context
+
+
+@login_required
+def import_upload_view(request):
+    """Handle transaction file upload and processing."""
+    if request.method == 'POST':
+        form = TransactionImportForm(request.user, request.POST, request.FILES)
+        if form.is_valid():
+            # Create the import record
+            import_record = form.save()
+
+            # Process the file
+            try:
+                from .import_service import TransactionImportService
+
+                # Read file content
+                file_content = import_record.file.read()
+                import_record.file.seek(0)  # Reset file pointer
+
+                # Initialize service
+                service = TransactionImportService(
+                    user=request.user,
+                    account=import_record.account
+                )
+
+                # Mark as processing
+                import_record.mark_processing()
+
+                # Parse file
+                parsed = service.parse_file(file_content, import_record.file_type)
+                import_record.rows_total = len(parsed)
+                import_record.save(update_fields=['rows_total'])
+
+                # Create transactions
+                results = service.create_transactions(parsed, import_record)
+
+                # Update import record with results
+                import_record.mark_completed(
+                    rows_imported=results['imported'],
+                    rows_skipped=results['skipped'],
+                    rows_failed=results['failed']
+                )
+
+                if results['errors']:
+                    import_record.error_details = results['errors']
+                    import_record.save(update_fields=['error_details'])
+
+                # Show success message
+                if results['imported'] > 0:
+                    messages.success(
+                        request,
+                        f"Successfully imported {results['imported']} transactions."
+                    )
+                if results['skipped'] > 0:
+                    messages.info(
+                        request,
+                        f"Skipped {results['skipped']} duplicate transactions."
+                    )
+                if results['failed'] > 0:
+                    messages.warning(
+                        request,
+                        f"Failed to import {results['failed']} transactions. "
+                        "See import details for more information."
+                    )
+
+                return redirect('finance:import_detail', pk=import_record.pk)
+
+            except Exception as e:
+                import_record.mark_failed(str(e))
+                messages.error(request, f"Import failed: {e}")
+                return redirect('finance:import_detail', pk=import_record.pk)
+    else:
+        form = TransactionImportForm(request.user)
+
+    # Get recent imports
+    recent_imports = TransactionImport.objects.filter(
+        user=request.user, status='active'
+    ).select_related('account')[:5]
+
+    return render(request, 'finance/import_form.html', {
+        'form': form,
+        'recent_imports': recent_imports
     })

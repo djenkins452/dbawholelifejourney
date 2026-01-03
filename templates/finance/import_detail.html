@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+
+{% block title %}Import Details - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div class="breadcrumb">
+            <a href="{% url 'finance:import_list' %}">Import History</a>
+            <span class="separator">/</span>
+            <span>{{ import_record.original_filename }}</span>
+        </div>
+        <h1 class="page-title">Import Details</h1>
+    </div>
+
+    <!-- Import Summary Card -->
+    <div class="import-summary-card">
+        <div class="summary-header">
+            <div class="file-info">
+                <h2>{{ import_record.original_filename }}</h2>
+                <span class="file-meta">
+                    {{ import_record.file_type|upper }} &bull;
+                    {{ import_record.file_size|filesizeformat }} &bull;
+                    Imported {{ import_record.created_at|date:"M j, Y g:i A" }}
+                </span>
+            </div>
+            <span class="status-badge status-{{ import_record.import_status }}">
+                {{ import_record.get_import_status_display }}
+            </span>
+        </div>
+
+        <div class="summary-details">
+            <div class="detail-row">
+                <span class="detail-label">Account</span>
+                <span class="detail-value">
+                    <a href="{% url 'finance:account_detail' import_record.account.pk %}">
+                        {{ import_record.account.name }}
+                    </a>
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Uploaded By</span>
+                <span class="detail-value">{{ import_record.user.email }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Total Rows</span>
+                <span class="detail-value">{{ import_record.rows_total }}</span>
+            </div>
+            {% if import_record.started_at and import_record.completed_at %}
+            <div class="detail-row">
+                <span class="detail-label">Processing Time</span>
+                <span class="detail-value">
+                    {% if import_record.duration_seconds %}
+                        {{ import_record.duration_seconds|floatformat:2 }} seconds
+                    {% else %}
+                        --
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if import_record.import_status == 'completed' or import_record.import_status == 'partial' %}
+        <div class="results-grid">
+            <div class="result-card result-success">
+                <span class="result-number">{{ import_record.rows_imported }}</span>
+                <span class="result-label">Imported</span>
+            </div>
+            <div class="result-card result-skipped">
+                <span class="result-number">{{ import_record.rows_skipped }}</span>
+                <span class="result-label">Skipped (Duplicates)</span>
+            </div>
+            <div class="result-card result-failed">
+                <span class="result-number">{{ import_record.rows_failed }}</span>
+                <span class="result-label">Failed</span>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if import_record.notes %}
+        <div class="import-notes">
+            <h3>Notes</h3>
+            <p>{{ import_record.notes }}</p>
+        </div>
+        {% endif %}
+
+        {% if import_record.error_message %}
+        <div class="error-message">
+            <h3>Error</h3>
+            <p>{{ import_record.error_message }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if import_record.error_details %}
+    <div class="error-details-card">
+        <h2>Error Details</h2>
+        <p class="error-help">The following rows could not be imported:</p>
+        <div class="error-list">
+            {% for error in import_record.error_details %}
+            <div class="error-item">
+                <div class="error-header">
+                    {% if error.row %}Row {{ error.row }}{% else %}Item {{ forloop.counter }}{% endif %}
+                </div>
+                <div class="error-body">
+                    <div class="error-text">{{ error.error }}</div>
+                    {% if error.data %}
+                    <div class="error-data">
+                        <code>{{ error.data }}</code>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if transactions %}
+    <div class="transactions-card">
+        <div class="section-header">
+            <h2>Imported Transactions</h2>
+            <span class="count">{{ transactions|length }}{% if transactions|length >= 50 %}+{% endif %} transactions</span>
+        </div>
+
+        <div class="transaction-list">
+            {% for transaction in transactions %}
+            <a href="{% url 'finance:transaction_detail' transaction.pk %}" class="transaction-item">
+                <div class="transaction-date">
+                    <span class="date-day">{{ transaction.date|date:"j" }}</span>
+                    <span class="date-month">{{ transaction.date|date:"M" }}</span>
+                </div>
+                <div class="transaction-info">
+                    <span class="transaction-description">{{ transaction.description }}</span>
+                    {% if transaction.category %}
+                    <span class="transaction-category">{{ transaction.category.name }}</span>
+                    {% endif %}
+                </div>
+                <div class="transaction-amount {% if transaction.amount < 0 %}expense{% else %}income{% endif %}">
+                    {% if transaction.amount < 0 %}-{% endif %}${{ transaction.absolute_amount|floatformat:2 }}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        {% if transactions|length >= 50 %}
+        <div class="view-more">
+            <a href="{% url 'finance:transaction_list' %}?search=imported" class="btn btn-secondary">
+                View All Transactions
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="page-actions">
+        <a href="{% url 'finance:import_upload' %}" class="btn btn-primary">Import More</a>
+        <a href="{% url 'finance:import_list' %}" class="btn btn-secondary">Back to History</a>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.breadcrumb .separator {
+    color: var(--color-border);
+}
+
+.import-summary-card,
+.error-details-card,
+.transactions-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.file-info h2 {
+    margin-bottom: var(--space-1);
+}
+
+.file-meta {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.status-badge {
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    white-space: nowrap;
+}
+
+.status-completed {
+    background: color-mix(in srgb, var(--color-success) 20%, transparent);
+    color: var(--color-success);
+}
+
+.status-failed {
+    background: color-mix(in srgb, var(--color-error) 20%, transparent);
+    color: var(--color-error);
+}
+
+.status-partial {
+    background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+    color: var(--color-warning);
+}
+
+.status-processing, .status-pending {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+}
+
+.summary-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.detail-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.detail-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+}
+
+.detail-value {
+    font-weight: 500;
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.result-card {
+    text-align: center;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+.result-number {
+    display: block;
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: var(--space-1);
+}
+
+.result-label {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.result-success .result-number { color: var(--color-success); }
+.result-skipped .result-number { color: var(--color-text-secondary); }
+.result-failed .result-number { color: var(--color-error); }
+
+.import-notes {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+}
+
+.import-notes h3 {
+    font-size: 0.875rem;
+    margin-bottom: var(--space-2);
+}
+
+.import-notes p {
+    color: var(--color-text-secondary);
+}
+
+.error-message {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--color-error);
+}
+
+.error-message h3 {
+    font-size: 0.875rem;
+    color: var(--color-error);
+    margin-bottom: var(--space-2);
+}
+
+.error-message p {
+    color: var(--color-text);
+}
+
+.error-details-card h2 {
+    margin-bottom: var(--space-2);
+}
+
+.error-help {
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-4);
+}
+
+.error-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.error-item {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.error-header {
+    padding: var(--space-2) var(--space-3);
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-error);
+}
+
+.error-body {
+    padding: var(--space-3);
+}
+
+.error-text {
+    margin-bottom: var(--space-2);
+}
+
+.error-data code {
+    display: block;
+    padding: var(--space-2);
+    background: var(--color-background);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    overflow-x: auto;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header .count {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.transaction-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.transaction-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.2s ease;
+}
+
+.transaction-item:last-child {
+    border-bottom: none;
+}
+
+.transaction-item:hover {
+    background: var(--color-surface);
+}
+
+.transaction-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 40px;
+}
+
+.date-day {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.date-month {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.transaction-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.transaction-description {
+    font-weight: 500;
+}
+
+.transaction-category {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+
+.transaction-amount {
+    font-weight: 600;
+    font-family: var(--font-mono, monospace);
+}
+
+.transaction-amount.expense {
+    color: var(--color-error);
+}
+
+.transaction-amount.income {
+    color: var(--color-success);
+}
+
+.view-more {
+    text-align: center;
+    padding-top: var(--space-4);
+    margin-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.page-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+    .summary-header {
+        flex-direction: column;
+    }
+
+    .results-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

@@ -1,10 +1,11 @@
 # ==============================================================================
 # File: apps/finance/models.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Finance module data models - accounts, transactions, budgets, goals
+# Description: Finance module data models - accounts, transactions, budgets, goals,
+#              imports with audit tracking
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-02
-# Last Updated: 2026-01-02
+# Last Updated: 2026-01-03
 # ==============================================================================
 """
 Finance Module Models
@@ -451,6 +452,16 @@ class Transaction(UserOwnedModel):
         default=list,
         blank=True,
         help_text="User-defined tags"
+    )
+
+    # Import tracking
+    import_record = models.ForeignKey(
+        'TransactionImport',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transactions',
+        help_text="Import record if this transaction was imported from a file"
     )
 
     class Meta:
@@ -1020,6 +1031,187 @@ class FinancialMetricSnapshot(UserOwnedModel):
         )
 
         return snapshot
+
+
+# =============================================================================
+# Transaction Import (for file uploads and audit trail)
+# =============================================================================
+
+class TransactionImport(UserOwnedModel):
+    """
+    Record of a transaction file import for audit purposes.
+
+    Tracks who uploaded what file, when, and how many transactions
+    were created from it.
+    """
+
+    IMPORT_STATUS_PENDING = 'pending'
+    IMPORT_STATUS_PROCESSING = 'processing'
+    IMPORT_STATUS_COMPLETED = 'completed'
+    IMPORT_STATUS_FAILED = 'failed'
+    IMPORT_STATUS_PARTIAL = 'partial'
+
+    IMPORT_STATUS_CHOICES = [
+        (IMPORT_STATUS_PENDING, 'Pending'),
+        (IMPORT_STATUS_PROCESSING, 'Processing'),
+        (IMPORT_STATUS_COMPLETED, 'Completed'),
+        (IMPORT_STATUS_FAILED, 'Failed'),
+        (IMPORT_STATUS_PARTIAL, 'Partial Success'),
+    ]
+
+    FILE_TYPE_CSV = 'csv'
+    FILE_TYPE_OFX = 'ofx'
+    FILE_TYPE_QFX = 'qfx'
+    FILE_TYPE_QIF = 'qif'
+
+    FILE_TYPE_CHOICES = [
+        (FILE_TYPE_CSV, 'CSV'),
+        (FILE_TYPE_OFX, 'OFX'),
+        (FILE_TYPE_QFX, 'QFX'),
+        (FILE_TYPE_QIF, 'QIF'),
+    ]
+
+    # File information
+    file = models.FileField(
+        upload_to='finance/imports/%Y/%m/',
+        help_text="Uploaded transaction file"
+    )
+    original_filename = models.CharField(
+        max_length=255,
+        help_text="Original name of uploaded file"
+    )
+    file_type = models.CharField(
+        max_length=10,
+        choices=FILE_TYPE_CHOICES,
+        help_text="Type of file uploaded"
+    )
+    file_size = models.PositiveIntegerField(
+        help_text="File size in bytes"
+    )
+
+    # Target account
+    account = models.ForeignKey(
+        FinancialAccount,
+        on_delete=models.CASCADE,
+        related_name='imports',
+        help_text="Account to import transactions into"
+    )
+
+    # Import status and results
+    import_status = models.CharField(
+        max_length=20,
+        choices=IMPORT_STATUS_CHOICES,
+        default=IMPORT_STATUS_PENDING
+    )
+    rows_total = models.PositiveIntegerField(
+        default=0,
+        help_text="Total rows in file"
+    )
+    rows_imported = models.PositiveIntegerField(
+        default=0,
+        help_text="Rows successfully imported"
+    )
+    rows_skipped = models.PositiveIntegerField(
+        default=0,
+        help_text="Rows skipped (duplicates, errors)"
+    )
+    rows_failed = models.PositiveIntegerField(
+        default=0,
+        help_text="Rows that failed to import"
+    )
+
+    # Timing
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When import processing started"
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When import processing completed"
+    )
+
+    # Error tracking
+    error_message = models.TextField(
+        blank=True,
+        help_text="Error message if import failed"
+    )
+    error_details = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Detailed error information for each failed row"
+    )
+
+    # Notes
+    notes = models.TextField(
+        blank=True,
+        help_text="User notes about this import"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Transaction Import"
+        verbose_name_plural = "Transaction Imports"
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['account', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.original_filename} ({self.created_at.strftime('%Y-%m-%d %H:%M')})"
+
+    def get_absolute_url(self):
+        return reverse('finance:import_detail', kwargs={'pk': self.pk})
+
+    @property
+    def duration_seconds(self):
+        """Return processing duration in seconds."""
+        if self.started_at and self.completed_at:
+            delta = self.completed_at - self.started_at
+            return delta.total_seconds()
+        return None
+
+    @property
+    def success_rate(self):
+        """Return percentage of rows successfully imported."""
+        if self.rows_total == 0:
+            return 0
+        return (self.rows_imported / self.rows_total) * 100
+
+    def mark_processing(self):
+        """Mark import as processing."""
+        self.import_status = self.IMPORT_STATUS_PROCESSING
+        self.started_at = timezone.now()
+        self.save(update_fields=['import_status', 'started_at', 'updated_at'])
+
+    def mark_completed(self, rows_imported, rows_skipped=0, rows_failed=0):
+        """Mark import as completed with results."""
+        self.import_status = self.IMPORT_STATUS_COMPLETED
+        self.rows_imported = rows_imported
+        self.rows_skipped = rows_skipped
+        self.rows_failed = rows_failed
+        self.completed_at = timezone.now()
+
+        if rows_failed > 0 and rows_imported > 0:
+            self.import_status = self.IMPORT_STATUS_PARTIAL
+
+        self.save(update_fields=[
+            'import_status', 'rows_imported', 'rows_skipped',
+            'rows_failed', 'completed_at', 'updated_at'
+        ])
+
+    def mark_failed(self, error_message, error_details=None):
+        """Mark import as failed with error information."""
+        self.import_status = self.IMPORT_STATUS_FAILED
+        self.error_message = error_message
+        if error_details:
+            self.error_details = error_details
+        self.completed_at = timezone.now()
+        self.save(update_fields=[
+            'import_status', 'error_message', 'error_details',
+            'completed_at', 'updated_at'
+        ])
 
 
 # =============================================================================

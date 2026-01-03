@@ -4,13 +4,87 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-02 (Timezone IANA Format Fix)
+# Last Updated: 2026-01-03 (Transaction File Import Feature)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2026-01-03 Changes
+
+### Transaction File Import Feature
+
+**Session:** Upload Transaction File
+
+**Task:** WLJ Finance Module - Upload Transaction File
+
+**Objective:**
+Allow users to manually upload transaction files exported from their financial institutions.
+
+**Implementation:**
+
+1. **New Model: `TransactionImport`**
+   - Tracks uploaded files with full audit trail
+   - Records: who uploaded, when, file details, processing status
+   - Tracks: rows total, imported, skipped (duplicates), failed
+   - Status workflow: pending -> processing -> completed/failed/partial
+   - Linked to transactions via `import_record` foreign key
+
+2. **Import Service: `apps/finance/import_service.py`**
+   - `TransactionImportService` class for parsing files
+   - Supports multiple formats:
+     - **CSV**: Auto-detects column mappings (date, amount, debit/credit, description, payee, etc.)
+     - **OFX/QFX**: Parses Open Financial Exchange format
+     - **QIF**: Parses Quicken Interchange Format
+   - Handles multiple date formats (MM/DD/YYYY, YYYY-MM-DD, etc.)
+   - Parses various amount formats (negative, parentheses, CR/DR suffixes)
+   - Duplicate detection based on date/amount/description
+
+3. **Form: `TransactionImportForm`**
+   - File upload with validation (supports .csv, .ofx, .qfx, .qif)
+   - Account selection for target account
+   - Optional notes field
+   - Max file size: 10MB
+
+4. **Views:**
+   - `import_upload_view`: File upload and processing
+   - `ImportListView`: Import history with pagination
+   - `ImportDetailView`: Details and imported transactions
+
+5. **Templates:**
+   - `import_form.html`: Drag-and-drop upload interface
+   - `import_list.html`: Import history table
+   - `import_detail.html`: Audit details and transaction list
+
+6. **URL Routes:**
+   - `/finance/import/` - Upload form
+   - `/finance/import/history/` - Import history
+   - `/finance/import/<pk>/` - Import details
+
+**Files Changed:**
+- `apps/finance/models.py` - Added TransactionImport model, import_record FK on Transaction
+- `apps/finance/import_service.py` - New file for parsing logic
+- `apps/finance/forms.py` - Added TransactionImportForm
+- `apps/finance/views.py` - Added import views
+- `apps/finance/urls.py` - Added import routes
+- `templates/finance/import_form.html` - New
+- `templates/finance/import_list.html` - New
+- `templates/finance/import_detail.html` - New
+- `apps/finance/migrations/0002_add_transaction_import.py` - New migration
+
+**Migration:** `0002_add_transaction_import` - Creates TransactionImport model and adds import_record field
+
+**Supported File Formats:**
+| Format | Extension | Column Detection |
+|--------|-----------|------------------|
+| CSV    | .csv      | Auto-detects common column names |
+| OFX    | .ofx      | Standard OFX/SGML parsing |
+| QFX    | .qfx      | Same as OFX (Quicken variant) |
+| QIF    | .qif      | Quicken Interchange Format |
 
 ---
 

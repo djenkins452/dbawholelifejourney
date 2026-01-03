@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}Import History - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">Import History</h1>
+            <p class="page-subtitle">View all transaction file imports and their results</p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'finance:import_upload' %}" class="btn btn-primary">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17,8 12,3 7,8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                New Import
+            </a>
+        </div>
+    </div>
+
+    {% if imports %}
+    <div class="import-table-wrapper">
+        <table class="import-table">
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Account</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Results</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for import in imports %}
+                <tr>
+                    <td>
+                        <div class="file-info">
+                            <span class="filename">{{ import.original_filename }}</span>
+                            <span class="file-meta">{{ import.file_type|upper }} &bull; {{ import.file_size|filesizeformat }}</span>
+                        </div>
+                    </td>
+                    <td>{{ import.account.name }}</td>
+                    <td>
+                        <span title="{{ import.created_at }}">{{ import.created_at|date:"M j, Y" }}</span>
+                        <span class="time-meta">{{ import.created_at|time:"g:i A" }}</span>
+                    </td>
+                    <td>
+                        <span class="status-badge status-{{ import.import_status }}">
+                            {{ import.get_import_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if import.import_status == 'completed' or import.import_status == 'partial' %}
+                        <div class="results-summary">
+                            <span class="result-success">{{ import.rows_imported }} imported</span>
+                            {% if import.rows_skipped > 0 %}
+                            <span class="result-skipped">{{ import.rows_skipped }} skipped</span>
+                            {% endif %}
+                            {% if import.rows_failed > 0 %}
+                            <span class="result-failed">{{ import.rows_failed }} failed</span>
+                            {% endif %}
+                        </div>
+                        {% elif import.import_status == 'failed' %}
+                        <span class="result-failed">Import failed</span>
+                        {% else %}
+                        <span class="result-pending">--</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'finance:import_detail' import.pk %}" class="btn btn-sm btn-secondary">
+                            View Details
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-sm btn-secondary">&laquo; Previous</a>
+        {% endif %}
+        <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-sm btn-secondary">Next &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17,8 12,3 7,8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+        </div>
+        <h2>No imports yet</h2>
+        <p>Upload a transaction file from your bank to get started.</p>
+        <a href="{% url 'finance:import_upload' %}" class="btn btn-primary">Import Transactions</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.page-subtitle {
+    color: var(--color-text-secondary);
+    margin-top: var(--space-2);
+}
+
+.btn .icon {
+    width: 18px;
+    height: 18px;
+    margin-right: var(--space-2);
+}
+
+.import-table-wrapper {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.import-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.import-table th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.import-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+}
+
+.import-table tr:last-child td {
+    border-bottom: none;
+}
+
+.import-table tr:hover td {
+    background: var(--color-surface);
+}
+
+.file-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.filename {
+    font-weight: 500;
+}
+
+.file-meta, .time-meta {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+
+.status-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.status-completed {
+    background: color-mix(in srgb, var(--color-success) 20%, transparent);
+    color: var(--color-success);
+}
+
+.status-failed {
+    background: color-mix(in srgb, var(--color-error) 20%, transparent);
+    color: var(--color-error);
+}
+
+.status-partial {
+    background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+    color: var(--color-warning);
+}
+
+.status-processing, .status-pending {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+}
+
+.results-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font-size: 0.875rem;
+}
+
+.result-success { color: var(--color-success); }
+.result-skipped { color: var(--color-text-secondary); }
+.result-failed { color: var(--color-error); }
+.result-pending { color: var(--color-text-secondary); }
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+}
+
+.page-info {
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12);
+}
+
+.empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto var(--space-4);
+    color: var(--color-text-secondary);
+}
+
+.empty-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-6);
+}
+
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+    }
+
+    .import-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .import-table {
+        min-width: 600px;
+    }
+}
+</style>
+{% endblock %}

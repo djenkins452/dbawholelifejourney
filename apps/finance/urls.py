@@ -1,10 +1,10 @@
 # ==============================================================================
 # File: apps/finance/urls.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Finance module URL configuration
+# Description: Finance module URL configuration (includes import routes)
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-02
-# Last Updated: 2026-01-02
+# Last Updated: 2026-01-03
 # ==============================================================================
 from django.urls import path
 
@@ -54,6 +54,11 @@ urlpatterns = [
 
     # Categories
     path('categories/', views.CategoryListView.as_view(), name='category_list'),
+
+    # Import
+    path('import/', views.import_upload_view, name='import_upload'),
+    path('import/history/', views.ImportListView.as_view(), name='import_list'),
+    path('import/<int:pk>/', views.ImportDetailView.as_view(), name='import_detail'),
 
     # API Endpoints
     path('api/payees/', views.api_payee_suggestions, name='api_payees'),

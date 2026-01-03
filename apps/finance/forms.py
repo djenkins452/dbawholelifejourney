@@ -1,10 +1,11 @@
 # ==============================================================================
 # File: apps/finance/forms.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Finance module forms for accounts, transactions, budgets, goals
+# Description: Finance module forms for accounts, transactions, budgets, goals,
+#              and file imports
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-02
-# Last Updated: 2026-01-02
+# Last Updated: 2026-01-03
 # ==============================================================================
 from decimal import Decimal
 
@@ -17,6 +18,7 @@ from .models import (
     Transaction,
     Budget,
     FinancialGoal,
+    TransactionImport,
 )
 
 
@@ -524,3 +526,91 @@ class TransferForm(forms.Form):
         incoming.save(update_fields=['transfer_pair'])
 
         return outgoing, incoming
+
+
+class TransactionImportForm(forms.Form):
+    """Form for uploading transaction files."""
+
+    SUPPORTED_EXTENSIONS = ['.csv', '.ofx', '.qfx', '.qif']
+
+    account = forms.ModelChoiceField(
+        queryset=FinancialAccount.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        help_text="Select the account to import transactions into"
+    )
+    file = forms.FileField(
+        widget=forms.FileInput(attrs={
+            'class': 'form-input',
+            'accept': '.csv,.ofx,.qfx,.qif'
+        }),
+        help_text="Upload a CSV, OFX, QFX, or QIF file from your bank"
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-textarea',
+            'rows': 2,
+            'placeholder': 'Optional notes about this import...'
+        })
+    )
+
+    def __init__(self, user, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.fields['account'].queryset = FinancialAccount.objects.filter(
+            user=user, status='active'
+        )
+
+    def clean_file(self):
+        """Validate the uploaded file."""
+        file = self.cleaned_data.get('file')
+        if not file:
+            raise forms.ValidationError("Please select a file to upload.")
+
+        # Check file extension
+        filename = file.name.lower()
+        valid_extension = any(filename.endswith(ext) for ext in self.SUPPORTED_EXTENSIONS)
+        if not valid_extension:
+            raise forms.ValidationError(
+                f"Unsupported file type. Please upload one of: "
+                f"{', '.join(self.SUPPORTED_EXTENSIONS)}"
+            )
+
+        # Check file size (max 10MB)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file.size > max_size:
+            raise forms.ValidationError(
+                "File is too large. Maximum size is 10MB."
+            )
+
+        return file
+
+    def save(self):
+        """Create the TransactionImport record."""
+        file = self.cleaned_data['file']
+        account = self.cleaned_data['account']
+
+        # Detect file type
+        filename = file.name.lower()
+        if filename.endswith('.csv'):
+            file_type = 'csv'
+        elif filename.endswith('.ofx'):
+            file_type = 'ofx'
+        elif filename.endswith('.qfx'):
+            file_type = 'qfx'
+        elif filename.endswith('.qif'):
+            file_type = 'qif'
+        else:
+            file_type = 'csv'
+
+        import_record = TransactionImport.objects.create(
+            user=self.user,
+            account=account,
+            file=file,
+            original_filename=file.name,
+            file_type=file_type,
+            file_size=file.size,
+            notes=self.cleaned_data.get('notes', '')
+        )
+
+        return import_record

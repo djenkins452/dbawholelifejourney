@@ -163,29 +163,29 @@
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
+
+                <div class="toggle-option">
+                    <div class="toggle-info">
+                        <div class="module-header">
+                            <span class="module-icon">💰</span>
+                            <h4>Finance</h4>
+                            <span class="module-status status-active">Active</span>
+                        </div>
+                        <p class="text-muted text-sm">
+                            Track accounts, transactions, budgets, savings goals, and get AI-powered financial insights.
+                        </p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="finances_enabled" {% if form.finances_enabled.value %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
             </div>
-            
+
             <!-- Coming Soon Modules -->
             <div class="module-section mt-6">
                 <h3 class="module-section-title">Coming Soon</h3>
                 <p class="text-muted text-sm mb-4">These modules are in development. You'll be notified when they launch.</p>
-
-                <div class="toggle-option disabled">
-                    <div class="toggle-info">
-                        <div class="module-header">
-                            <span class="module-icon">💰</span>
-                            <h4>Finances</h4>
-                            <span class="module-status status-coming">Coming Soon</span>
-                        </div>
-                        <p class="text-muted text-sm">
-                            Budget tracking, expense categories, savings goals, and financial insights.
-                        </p>
-                    </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" name="finances_enabled" disabled>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
 
                 <div class="toggle-option disabled">
                     <div class="toggle-info">

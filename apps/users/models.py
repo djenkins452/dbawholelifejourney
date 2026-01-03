@@ -902,3 +902,58 @@ class IPBlocklist(models.Model):
         ).exists()
 
         return blocked
+
+
+class DisposableEmailDomain(models.Model):
+    """
+    Store known disposable/temporary email domains.
+
+    Used to prevent signups from throwaway email services
+    that are commonly used for spam or fraud.
+    """
+
+    domain = models.CharField(
+        max_length=255,
+        unique=True,
+        db_index=True,
+        help_text="Domain name (e.g., 'tempmail.com')",
+    )
+    added_at = models.DateTimeField(default=timezone.now)
+    source = models.CharField(
+        max_length=50,
+        default="manual",
+        help_text="How this domain was added (manual, import, api)",
+    )
+    confirmed = models.BooleanField(
+        default=True,
+        help_text="Whether this domain is confirmed as disposable",
+    )
+
+    class Meta:
+        db_table = "users_disposable_email_domain"
+        verbose_name = "Disposable email domain"
+        verbose_name_plural = "Disposable email domains"
+        ordering = ["domain"]
+
+    def __str__(self):
+        return self.domain
+
+    @classmethod
+    def is_disposable(cls, email: str) -> bool:
+        """
+        Check if an email address uses a disposable domain.
+
+        Args:
+            email: The email address to check
+
+        Returns:
+            True if the domain is in the disposable list, False otherwise
+        """
+        if not email or "@" not in email:
+            return False
+
+        # Extract domain from email
+        domain = email.lower().split("@")[-1]
+
+        # Check if domain is in confirmed disposable list
+        return cls.objects.filter(domain=domain, confirmed=True).exists()

@@ -346,9 +346,11 @@ Organizing actions for this task...
 
 **Then execute.** Never leave the user waiting without feedback.
 
-### Step 0: Load Project Context (MANDATORY FIRST STEP)
+### Step 0: Load Project Context (CONTEXT-AWARE)
 
-**Before doing anything else**, read CLAUDE.md completely to load full project context.
+**If CLAUDE.md is already in system context** (visible in `<system-reminder>` tags at conversation start), skip the Read step and proceed directly to fetching tasks.
+
+**Otherwise**, read CLAUDE.md completely to load full project context.
 
 ### Step 1: Fetch Ready Tasks from API
 
@@ -675,19 +677,19 @@ Claude MUST execute tasks deterministically. This means:
 
 If information is missing or unclear, Claude MUST fail the task with a specific error rather than proceeding with assumptions.
 
-### Step 1: Load CLAUDE.md First (MANDATORY)
+### Step 1: Load CLAUDE.md First (CONTEXT-AWARE)
 
-**Before any task execution**, Claude MUST read CLAUDE.md completely to:
+**Before any task execution**, Claude MUST have CLAUDE.md context loaded to:
 - Understand project architecture and conventions
 - Load tech stack and deployment context
 - Know file locations and patterns
 - Understand testing requirements
 
-**This step is non-negotiable.** A task cannot be executed without first loading project context.
+**Context Check:** If CLAUDE.md is already in system context (visible in `<system-reminder>` tags), skip the Read step. Otherwise, read CLAUDE.md completely.
 
 ```
-ALWAYS: Read CLAUDE.md → Then execute task
-NEVER: Skip CLAUDE.md → Execute task directly
+IF in system context: Proceed directly to task execution
+IF NOT in context: Read CLAUDE.md → Then execute task
 ```
 
 ### Step 2: Validate Task Structure

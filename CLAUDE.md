@@ -132,6 +132,71 @@ This bypasses the cache because the code inside `load_initial_data` is not cache
 **Future Prevention:**
 When adding new startup commands, add them inside `load_initial_data.py` using `call_command()` rather than modifying Procfile/nixpacks.toml.
 
+### CRITICAL: Database Migration State Issues on Railway
+
+**Problem:** Django migrations can be recorded as "applied" in the `django_migrations` table even when the actual database schema change failed. This happens because:
+1. Migration runs, gets recorded as applied
+2. Actual ALTER TABLE/CREATE fails (silently or with an error)
+3. Next deploy skips the migration because Django thinks it's already applied
+4. The column/table is missing but Django won't try to create it again
+
+**Symptoms:**
+- `FieldError: Cannot resolve keyword 'fieldname' into field`
+- Database errors about missing columns
+- Model queries fail even though migration shows as applied
+
+**Root Cause:** Railway doesn't allow direct database access, so you can't manually fix the schema or re-run migrations.
+
+**Solution - The `load_initial_data.py` Workaround Pattern:**
+
+Since `load_initial_data.py` runs on EVERY deploy (not cached like migrations), add a schema fix function there:
+
+```python
+# In apps/core/management/commands/load_initial_data.py
+
+def _fix_missing_column(self):
+    """Fix missing column that migration failed to create."""
+    with connection.cursor() as cursor:
+        if connection.vendor == 'postgresql':
+            # IMPORTANT: Always include table_schema = 'public' for PostgreSQL!
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'your_table_name'
+                  AND column_name = 'missing_column'
+            """)
+            if cursor.fetchone() is None:
+                self.stdout.write('  Adding missing column...')
+                cursor.execute("""
+                    ALTER TABLE your_table_name
+                    ADD COLUMN missing_column varchar(10) NOT NULL DEFAULT 'value'
+                """)
+                self.stdout.write(self.style.SUCCESS(' FIXED!'))
+```
+
+**Key Points:**
+1. **Always use `table_schema = 'public'`** in PostgreSQL queries - without it, the query may check the wrong schema and incorrectly report the column exists
+2. **Add the fix to `load_initial_data.py`** - this runs on every deploy
+3. **Also create a new migration** as a backup - the migration will run once, `load_initial_data` catches any edge cases
+4. **Make fixes idempotent** - check if column exists before adding it
+
+**Example - Budget Status Column Fix:**
+```python
+# In load_initial_data.py handle() method:
+try:
+    self.stdout.write('  Checking finance_budget.status...')
+    self._fix_finance_budget_status()
+except Exception as e:
+    self.stdout.write(self.style.WARNING(f' Error: {e}'))
+```
+
+**Prevention Checklist for New Migrations:**
+1. ✅ Create the migration normally
+2. ✅ Add a fix function to `load_initial_data.py` as backup
+3. ✅ Use `table_schema = 'public'` in all PostgreSQL schema checks
+4. ✅ Test locally with PostgreSQL before deploying
+5. ✅ Check Railway logs after deploy for migration errors
+
 ## Important Files
 - `Procfile` - Railway deployment startup command
 - `run_tests.py` - Enhanced test runner with database history

@@ -16,6 +16,46 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-03 Changes
 
+### CSRF and Budget Status Column Fixes
+
+**Session:** Troubleshooting CSRF and Finance Dashboard Errors
+
+**Issues Found:**
+
+1. **CSRF Verification Failure on Weight Log Form**
+   - Error: "Origin checking failed - https://wholelifejourney.com does not match any trusted origins"
+   - Root cause: `CSRF_TRUSTED_ORIGINS` was inside `if not DEBUG:` block
+   - When DEBUG=True for troubleshooting, CSRF trusted origins weren't applied
+
+2. **Budget Status Column Missing (FieldError on /finance/)**
+   - Error: "Cannot resolve keyword 'status' into field"
+   - Root cause: Migrations 0005, 0006 were recorded as applied but column wasn't created
+   - PostgreSQL schema check was missing `table_schema = 'public'`
+
+**Fixes Applied:**
+
+1. **CSRF Fix:**
+   - Moved `CSRF_TRUSTED_ORIGINS` outside the `if not DEBUG:` block
+   - Now applies in both DEBUG=True and DEBUG=False modes
+
+2. **Budget Status Column Fix:**
+   - Added `table_schema = 'public'` to all PostgreSQL information_schema queries
+   - Created migration 0007 (fresh migration that will definitely run)
+   - Updated `load_initial_data.py` schema check with proper schema qualifier
+
+**Files Modified:**
+- `config/settings.py` - Moved CSRF_TRUSTED_ORIGINS outside DEBUG conditional
+- `apps/core/management/commands/load_initial_data.py` - Fixed PostgreSQL schema check
+- `apps/finance/migrations/0006_force_budget_status_column.py` - Added table_schema
+- `apps/finance/migrations/0007_ensure_budget_status_column.py` - New migration
+
+**Documentation Added:**
+- `CLAUDE.md` - Added "Database Migration State Issues on Railway" section
+- Documents the `load_initial_data.py` workaround pattern for failed migrations
+- Includes prevention checklist for future migrations
+
+---
+
 ### Finance Module under Preferences
 
 **Session:** Enable Finance Module in Preferences

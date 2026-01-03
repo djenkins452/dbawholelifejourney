@@ -77,6 +77,8 @@ class FinancialAccountForm(forms.ModelForm):
             choices=FinancialAccount.ACCOUNT_TYPE_CHOICES
         )
         self.fields['currency'].widget.attrs['class'] = 'form-select'
+        # Make sort_order optional (uses model default of 0)
+        self.fields['sort_order'].required = False
 
 
 class TransactionForm(forms.ModelForm):

@@ -13,7 +13,13 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Sum, Q
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseBadRequest
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+import json
+import logging
+
+logger = logging.getLogger(__name__)
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -32,6 +38,8 @@ from .models import (
     FinancialMetricSnapshot,
     Payee,
     TransactionImport,
+    BankConnection,
+    BankIntegrationLog,
 )
 from .forms import (
     FinancialAccountForm,
@@ -789,3 +797,368 @@ def import_upload_view(request):
         'form': form,
         'recent_imports': recent_imports
     })
+
+
+# =============================================================================
+# Bank Connections (Plaid Integration)
+# =============================================================================
+
+class BankConnectionListView(LoginRequiredMixin, ListView):
+    """List user's connected bank accounts."""
+
+    model = BankConnection
+    template_name = 'finance/bank_connection_list.html'
+    context_object_name = 'connections'
+
+    def get_queryset(self):
+        return BankConnection.objects.filter(
+            user=self.request.user
+        ).exclude(
+            connection_status=BankConnection.STATUS_DISCONNECTED
+        ).order_by('-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Check if Plaid is configured
+        from apps.finance.services.plaid_service import PlaidService
+        plaid = PlaidService()
+        context['plaid_configured'] = plaid.is_configured
+
+        # Count accounts needing attention
+        context['needs_attention_count'] = self.get_queryset().filter(
+            connection_status__in=[
+                BankConnection.STATUS_ERROR,
+                BankConnection.STATUS_REAUTH_REQUIRED
+            ]
+        ).count()
+
+        return context
+
+
+@login_required
+def bank_connection_start(request):
+    """
+    Start bank connection flow - generate Plaid Link token.
+
+    Returns JSON with link_token for Plaid Link UI.
+    """
+    from apps.finance.services.plaid_service import get_plaid_service, PlaidNotConfiguredError
+
+    try:
+        plaid = get_plaid_service()
+        result = plaid.create_link_token(request.user, request)
+
+        return JsonResponse({
+            'success': True,
+            'link_token': result['link_token'],
+        })
+
+    except PlaidNotConfiguredError as e:
+        logger.warning(f"Plaid not configured: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Bank connection is not configured. Please contact support.'
+        }, status=503)
+
+    except Exception as e:
+        logger.error(f"Error creating link token: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to start bank connection. Please try again.'
+        }, status=500)
+
+
+@login_required
+@require_POST
+def bank_connection_complete(request):
+    """
+    Complete bank connection - exchange public token for access token.
+
+    Expects JSON body with:
+        - public_token: From Plaid Link
+        - metadata: Institution info from Plaid Link
+    """
+    from apps.finance.services.plaid_service import get_plaid_service
+    from apps.finance.services.sync_service import TransactionSyncService
+
+    try:
+        data = json.loads(request.body)
+        public_token = data.get('public_token')
+        metadata = data.get('metadata', {})
+
+        if not public_token:
+            return JsonResponse({
+                'success': False,
+                'error': 'Missing public_token'
+            }, status=400)
+
+        plaid = get_plaid_service()
+
+        # Exchange token
+        exchange_result = plaid.exchange_public_token(public_token)
+        access_token = exchange_result['access_token']
+        item_id = exchange_result['item_id']
+
+        # Get institution info
+        institution_id = metadata.get('institution', {}).get('institution_id', '')
+        institution_name = metadata.get('institution', {}).get('name', 'Unknown Bank')
+
+        # Check if connection already exists
+        existing = BankConnection.objects.filter(
+            user=request.user,
+            item_id=item_id
+        ).first()
+
+        if existing:
+            # Update existing connection
+            existing.set_access_token(access_token)
+            existing.mark_active()
+            connection = existing
+            logger.info(f"Updated existing bank connection: {connection}")
+        else:
+            # Create new connection
+            connection = BankConnection.objects.create(
+                user=request.user,
+                item_id=item_id,
+                institution_id=institution_id,
+                institution_name=institution_name,
+                connection_status=BankConnection.STATUS_PENDING,
+                consent_ip_address=get_client_ip(request),
+            )
+            connection.set_access_token(access_token)
+            connection.save()
+            logger.info(f"Created new bank connection: {connection}")
+
+        # Log the connection
+        BankIntegrationLog.objects.create(
+            user=request.user,
+            bank_connection=connection,
+            action=BankIntegrationLog.ACTION_CONNECT,
+            success=True,
+            details={'institution': institution_name},
+            ip_address=get_client_ip(request),
+        )
+
+        # Start initial sync in background (or inline for now)
+        try:
+            sync_service = TransactionSyncService(connection)
+            sync_result = sync_service.sync()
+            logger.info(f"Initial sync completed: {sync_result}")
+        except Exception as e:
+            logger.error(f"Initial sync failed: {e}")
+            # Don't fail the connection for sync errors
+
+        return JsonResponse({
+            'success': True,
+            'connection_id': connection.id,
+            'institution_name': connection.institution_name,
+            'message': f'Successfully connected to {connection.institution_name}'
+        })
+
+    except Exception as e:
+        logger.error(f"Error completing bank connection: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def bank_connection_reauth(request, pk):
+    """
+    Start re-authentication flow for a bank connection.
+
+    Returns JSON with link_token for Plaid Link update mode.
+    """
+    from apps.finance.services.plaid_service import get_plaid_service
+
+    connection = get_object_or_404(
+        BankConnection, pk=pk, user=request.user
+    )
+
+    try:
+        plaid = get_plaid_service()
+        access_token = connection.get_access_token()
+
+        if not access_token:
+            return JsonResponse({
+                'success': False,
+                'error': 'Connection token not found'
+            }, status=400)
+
+        result = plaid.create_link_token_for_update(request.user, access_token)
+
+        return JsonResponse({
+            'success': True,
+            'link_token': result['link_token'],
+        })
+
+    except Exception as e:
+        logger.error(f"Error creating reauth link token: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to start re-authentication. Please try again.'
+        }, status=500)
+
+
+@login_required
+@require_POST
+def bank_connection_disconnect(request, pk):
+    """
+    Disconnect a bank connection.
+
+    Revokes Plaid access and marks connection as disconnected.
+    """
+    from apps.finance.services.plaid_service import get_plaid_service
+
+    connection = get_object_or_404(
+        BankConnection, pk=pk, user=request.user
+    )
+
+    try:
+        # Revoke the token with Plaid
+        access_token = connection.get_access_token()
+        if access_token:
+            try:
+                plaid = get_plaid_service()
+                plaid.remove_item(access_token)
+            except Exception as e:
+                logger.warning(f"Failed to revoke Plaid token: {e}")
+
+        # Mark as disconnected
+        connection.mark_disconnected()
+
+        # Log the disconnection
+        BankIntegrationLog.objects.create(
+            user=request.user,
+            bank_connection=connection,
+            action=BankIntegrationLog.ACTION_DISCONNECT,
+            success=True,
+            ip_address=get_client_ip(request),
+        )
+
+        messages.success(request, f'{connection.institution_name} has been disconnected.')
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{connection.institution_name} disconnected'
+        })
+
+    except Exception as e:
+        logger.error(f"Error disconnecting bank: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def bank_connection_sync(request, pk):
+    """
+    Manually trigger a sync for a bank connection.
+    """
+    from apps.finance.services.sync_service import TransactionSyncService
+
+    connection = get_object_or_404(
+        BankConnection, pk=pk, user=request.user
+    )
+
+    if connection.connection_status != BankConnection.STATUS_ACTIVE:
+        return JsonResponse({
+            'success': False,
+            'error': 'Connection is not active'
+        }, status=400)
+
+    try:
+        sync_service = TransactionSyncService(connection)
+        result = sync_service.sync()
+
+        return JsonResponse({
+            'success': True,
+            'added': result.get('added', 0),
+            'modified': result.get('modified', 0),
+            'removed': result.get('removed', 0),
+            'message': f"Synced {result.get('added', 0)} new transactions"
+        })
+
+    except Exception as e:
+        logger.error(f"Sync failed: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_POST
+def plaid_webhook(request):
+    """
+    Handle Plaid webhooks for real-time updates.
+
+    Plaid sends webhooks for:
+    - TRANSACTIONS: New/updated transactions available
+    - ITEM: Connection status changes
+    """
+    # TODO: Add webhook signature verification
+
+    try:
+        data = json.loads(request.body)
+        webhook_type = data.get('webhook_type')
+        webhook_code = data.get('webhook_code')
+        item_id = data.get('item_id')
+
+        logger.info(f"Plaid webhook: {webhook_type}/{webhook_code} for {item_id}")
+
+        # Find the connection
+        connection = BankConnection.objects.filter(item_id=item_id).first()
+        if not connection:
+            logger.warning(f"No connection found for item_id: {item_id}")
+            return JsonResponse({'status': 'ignored'})
+
+        # Log the webhook
+        BankIntegrationLog.objects.create(
+            user=connection.user,
+            bank_connection=connection,
+            action=BankIntegrationLog.ACTION_WEBHOOK,
+            success=True,
+            details={
+                'webhook_type': webhook_type,
+                'webhook_code': webhook_code,
+            },
+        )
+
+        # Handle different webhook types
+        if webhook_type == 'TRANSACTIONS':
+            if webhook_code in ['SYNC_UPDATES_AVAILABLE', 'INITIAL_UPDATE', 'HISTORICAL_UPDATE']:
+                # Trigger sync
+                from apps.finance.services.sync_service import TransactionSyncService
+                sync_service = TransactionSyncService(connection)
+                sync_service.sync()
+
+        elif webhook_type == 'ITEM':
+            if webhook_code == 'ERROR':
+                error = data.get('error', {})
+                connection.mark_error(
+                    error.get('error_code', 'UNKNOWN'),
+                    error.get('error_message', 'Unknown error')
+                )
+            elif webhook_code == 'LOGIN_REQUIRED':
+                connection.mark_reauth_required()
+            elif webhook_code == 'PENDING_EXPIRATION':
+                connection.mark_reauth_required()
+
+        return JsonResponse({'status': 'processed'})
+
+    except Exception as e:
+        logger.error(f"Webhook processing error: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+def get_client_ip(request) -> str:
+    """Get client IP address from request."""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '')

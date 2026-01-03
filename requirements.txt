@@ -54,6 +54,10 @@ openai>=1.0.0
 # SMS Notifications (Twilio)
 twilio>=9.0.0
 
+# Bank Integration (Plaid)
+plaid-python>=23.0.0
+cryptography>=42.0.0
+
 # Background Job Scheduler
 django-apscheduler>=0.6.2
 

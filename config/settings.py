@@ -565,6 +565,38 @@ else:
 
 
 # ==============================================================================
+# Plaid Bank Integration Configuration
+# ==============================================================================
+# Get your credentials at: https://dashboard.plaid.com/overview
+# Environments: sandbox (testing), development (limited real banks), production
+
+PLAID_CLIENT_ID = env('PLAID_CLIENT_ID', default='')
+PLAID_SECRET = env('PLAID_SECRET', default='')
+PLAID_ENV = env('PLAID_ENV', default='sandbox')  # sandbox, development, production
+
+# Token encryption key - generate with: Fernet.generate_key()
+BANK_TOKEN_ENCRYPTION_KEY = env('BANK_TOKEN_ENCRYPTION_KEY', default='')
+
+# Webhook URL for real-time transaction updates
+if DEBUG:
+    PLAID_WEBHOOK_URL = ''  # Webhooks don't work with localhost
+else:
+    PLAID_WEBHOOK_URL = env(
+        'PLAID_WEBHOOK_URL',
+        default='https://wholelifejourney.com/finance/webhooks/plaid/'
+    )
+
+# OAuth redirect URI (for OAuth-enabled banks)
+if DEBUG:
+    PLAID_REDIRECT_URI = ''  # Not needed for sandbox
+else:
+    PLAID_REDIRECT_URI = env(
+        'PLAID_REDIRECT_URI',
+        default='https://wholelifejourney.com/finance/plaid/oauth/'
+    )
+
+
+# ==============================================================================
 # Twilio SMS Configuration
 # ==============================================================================
 # Get your credentials at: https://www.twilio.com/console

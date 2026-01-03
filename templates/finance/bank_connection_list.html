@@ -1,0 +1,488 @@
+{% extends "base.html" %}
+
+{% block title %}Connected Accounts - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div class="breadcrumb">
+            <a href="{% url 'finance:dashboard' %}">Finance</a>
+            <span class="separator">/</span>
+            <span>Connected Accounts</span>
+        </div>
+        <h1 class="page-title">Connected Accounts</h1>
+        <p class="page-subtitle">Securely connect your bank accounts for automatic transaction sync</p>
+    </div>
+
+    {% if needs_attention_count > 0 %}
+    <div class="alert alert-warning">
+        <strong>{{ needs_attention_count }} connection{{ needs_attention_count|pluralize }} need{{ needs_attention_count|pluralize:",s" }} attention.</strong>
+        Please reconnect the highlighted accounts below.
+    </div>
+    {% endif %}
+
+    {% if not plaid_configured %}
+    <div class="alert alert-info">
+        <strong>Bank connections are not yet configured.</strong>
+        This feature will be available soon. In the meantime, you can
+        <a href="{% url 'finance:import_upload' %}">import transactions from files</a>.
+    </div>
+    {% endif %}
+
+    <!-- Connected Banks List -->
+    <div class="connections-card">
+        {% if connections %}
+        <div class="connection-list">
+            {% for connection in connections %}
+            <div class="connection-item {% if connection.needs_attention %}needs-attention{% endif %}">
+                <div class="connection-info">
+                    <div class="institution-icon">
+                        {% if connection.institution_logo %}
+                        <img src="{{ connection.institution_logo }}" alt="{{ connection.institution_name }}">
+                        {% else %}
+                        <span class="icon-placeholder">🏦</span>
+                        {% endif %}
+                    </div>
+                    <div class="institution-details">
+                        <h3>{{ connection.institution_name }}</h3>
+                        <div class="connection-meta">
+                            <span class="status-badge status-{{ connection.connection_status }}">
+                                {{ connection.get_connection_status_display }}
+                            </span>
+                            {% if connection.last_sync_at %}
+                            <span class="last-sync">
+                                Last synced: {{ connection.last_sync_at|timesince }} ago
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if connection.error_message %}
+                        <p class="error-text">{{ connection.error_message }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="connection-actions">
+                    {% if connection.connection_status == 'reauth_required' %}
+                    <button class="btn btn-warning btn-sm"
+                            onclick="reconnectBank({{ connection.pk }})">
+                        Reconnect
+                    </button>
+                    {% elif connection.connection_status == 'active' %}
+                    <button class="btn btn-secondary btn-sm"
+                            onclick="syncConnection({{ connection.pk }})"
+                            id="sync-btn-{{ connection.pk }}">
+                        Sync Now
+                    </button>
+                    {% endif %}
+                    <button class="btn btn-outline btn-sm btn-danger"
+                            onclick="disconnectBank({{ connection.pk }}, '{{ connection.institution_name }}')">
+                        Disconnect
+                    </button>
+                </div>
+            </div>
+
+            <!-- Linked Accounts -->
+            {% if connection.accounts.all %}
+            <div class="linked-accounts">
+                {% for account in connection.accounts.all %}
+                <div class="linked-account">
+                    <span class="account-name">{{ account.name }}</span>
+                    <span class="account-balance">
+                        {% if account.is_liability %}-{% endif %}${{ account.current_balance|floatformat:2 }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🏦</div>
+            <h3>No Connected Accounts</h3>
+            <p>Connect your bank accounts to automatically import transactions and track your balances.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if plaid_configured %}
+    <!-- Add Bank Button -->
+    <div class="add-bank-section">
+        <button id="connect-bank-btn" class="btn btn-primary btn-lg" onclick="connectBank()">
+            + Connect a Bank
+        </button>
+        <p class="security-note">
+            🔒 Your credentials are encrypted and never stored on our servers.
+            We use <a href="https://plaid.com" target="_blank" rel="noopener">Plaid</a> for secure connections.
+        </p>
+    </div>
+    {% endif %}
+
+    <div class="page-actions">
+        <a href="{% url 'finance:import_upload' %}" class="btn btn-secondary">Import from File</a>
+        <a href="{% url 'finance:dashboard' %}" class="btn btn-outline">Back to Finance</a>
+    </div>
+</div>
+
+<!-- Plaid Link Script -->
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+
+<script>
+let plaidHandler = null;
+
+async function connectBank() {
+    const btn = document.getElementById('connect-bank-btn');
+    btn.disabled = true;
+    btn.textContent = 'Connecting...';
+
+    try {
+        // Get link token from server
+        const response = await fetch('{% url "finance:connection_start" %}');
+        const data = await response.json();
+
+        if (!data.success) {
+            alert(data.error || 'Failed to start bank connection');
+            return;
+        }
+
+        // Initialize Plaid Link
+        plaidHandler = Plaid.create({
+            token: data.link_token,
+            onSuccess: async (public_token, metadata) => {
+                // Send to server
+                const result = await fetch('{% url "finance:connection_complete" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        public_token: public_token,
+                        metadata: metadata
+                    })
+                });
+
+                const resultData = await result.json();
+
+                if (resultData.success) {
+                    // Reload page to show new connection
+                    window.location.reload();
+                } else {
+                    alert(resultData.error || 'Failed to complete connection');
+                }
+            },
+            onExit: (err, metadata) => {
+                btn.disabled = false;
+                btn.textContent = '+ Connect a Bank';
+                if (err) {
+                    console.error('Plaid Link error:', err);
+                }
+            },
+        });
+
+        plaidHandler.open();
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to connect bank. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '+ Connect a Bank';
+    }
+}
+
+async function reconnectBank(connectionId) {
+    try {
+        const response = await fetch(`/finance/connections/${connectionId}/reauth/`);
+        const data = await response.json();
+
+        if (!data.success) {
+            alert(data.error || 'Failed to start reconnection');
+            return;
+        }
+
+        // Initialize Plaid Link in update mode
+        const handler = Plaid.create({
+            token: data.link_token,
+            onSuccess: async (public_token, metadata) => {
+                // Reload page on success
+                window.location.reload();
+            },
+            onExit: (err, metadata) => {
+                if (err) {
+                    console.error('Plaid Link error:', err);
+                }
+            },
+        });
+
+        handler.open();
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to reconnect. Please try again.');
+    }
+}
+
+async function syncConnection(connectionId) {
+    const btn = document.getElementById(`sync-btn-${connectionId}`);
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+
+    try {
+        const response = await fetch(`/finance/connections/${connectionId}/sync/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            btn.textContent = `Synced ${data.added} new`;
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            alert(data.error || 'Sync failed');
+            btn.textContent = 'Sync Now';
+            btn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Sync failed. Please try again.');
+        btn.textContent = 'Sync Now';
+        btn.disabled = false;
+    }
+}
+
+async function disconnectBank(connectionId, institutionName) {
+    if (!confirm(`Are you sure you want to disconnect ${institutionName}? Your existing transactions will be kept.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/finance/connections/${connectionId}/disconnect/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to disconnect');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to disconnect. Please try again.');
+    }
+}
+</script>
+
+<style>
+.connections-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.connection-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.connection-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.connection-item:last-child {
+    border-bottom: none;
+}
+
+.connection-item.needs-attention {
+    background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+}
+
+.connection-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.institution-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    overflow: hidden;
+}
+
+.institution-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.icon-placeholder {
+    font-size: 1.5rem;
+}
+
+.institution-details h3 {
+    margin: 0 0 var(--space-1) 0;
+    font-size: 1rem;
+}
+
+.connection-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: 0.875rem;
+}
+
+.status-badge {
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    font-size: 0.75rem;
+}
+
+.status-active {
+    background: color-mix(in srgb, var(--color-success) 20%, transparent);
+    color: var(--color-success);
+}
+
+.status-pending {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+}
+
+.status-error, .status-reauth_required {
+    background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+    color: var(--color-warning);
+}
+
+.status-disconnected {
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+}
+
+.last-sync {
+    color: var(--color-text-secondary);
+}
+
+.error-text {
+    color: var(--color-error);
+    font-size: 0.875rem;
+    margin: var(--space-1) 0 0 0;
+}
+
+.connection-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.linked-accounts {
+    padding: var(--space-3) var(--space-4);
+    padding-left: calc(48px + var(--space-8));
+    background: var(--color-surface);
+}
+
+.linked-account {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-1) 0;
+    font-size: 0.875rem;
+}
+
+.account-name {
+    color: var(--color-text-secondary);
+}
+
+.account-balance {
+    font-family: var(--font-mono, monospace);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: var(--space-4);
+}
+
+.empty-state h3 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-secondary);
+}
+
+.add-bank-section {
+    text-align: center;
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.security-note {
+    margin-top: var(--space-3);
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.page-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--color-border);
+}
+
+.alert {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+}
+
+.alert-warning {
+    background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    border: 1px solid var(--color-warning);
+}
+
+.alert-info {
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border: 1px solid var(--color-accent);
+}
+
+@media (max-width: 640px) {
+    .connection-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+
+    .connection-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .linked-accounts {
+        padding-left: var(--space-4);
+    }
+}
+</style>
+{% endblock %}

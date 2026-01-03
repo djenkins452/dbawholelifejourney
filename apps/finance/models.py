@@ -171,6 +171,30 @@ class FinancialAccount(UserOwnedModel):
         help_text="Hide from main views (but keep in calculations)"
     )
 
+    # Plaid integration fields
+    bank_connection = models.ForeignKey(
+        'BankConnection',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='accounts',
+        help_text="Linked bank connection if synced"
+    )
+    plaid_account_id = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Plaid account ID for synced accounts"
+    )
+    is_synced = models.BooleanField(
+        default=False,
+        help_text="Whether this account syncs with a bank"
+    )
+    last_balance_sync = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last time balance was synced from bank"
+    )
+
     class Meta:
         ordering = ['sort_order', 'name']
         verbose_name = "Financial Account"
@@ -464,6 +488,18 @@ class Transaction(UserOwnedModel):
         help_text="Import record if this transaction was imported from a file"
     )
 
+    # Plaid integration
+    plaid_transaction_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="Plaid transaction ID for synced transactions"
+    )
+    plaid_pending = models.BooleanField(
+        default=False,
+        help_text="Whether this is a pending Plaid transaction"
+    )
+
     class Meta:
         ordering = ['-date', '-created_at']
         verbose_name = "Transaction"
@@ -472,6 +508,7 @@ class Transaction(UserOwnedModel):
             models.Index(fields=['user', 'date']),
             models.Index(fields=['account', 'date']),
             models.Index(fields=['category', 'date']),
+            models.Index(fields=['plaid_transaction_id']),
         ]
 
     def __str__(self):
@@ -1212,6 +1249,255 @@ class TransactionImport(UserOwnedModel):
             'import_status', 'error_message', 'error_details',
             'completed_at', 'updated_at'
         ])
+
+
+# =============================================================================
+# Bank Connection (Plaid integration)
+# =============================================================================
+
+class BankConnection(UserOwnedModel):
+    """
+    Stores Plaid access tokens and connection metadata for bank integrations.
+
+    Security:
+        - Access tokens are encrypted at rest using Fernet
+        - WLJ never stores bank credentials (Plaid handles authentication)
+        - Tokens are revoked when connection is disconnected
+
+    See docs/wlj_bank_integration_architecture.md for full architecture.
+    """
+
+    # Connection status choices
+    STATUS_ACTIVE = 'active'
+    STATUS_PENDING = 'pending'
+    STATUS_ERROR = 'error'
+    STATUS_DISCONNECTED = 'disconnected'
+    STATUS_REAUTH_REQUIRED = 'reauth_required'
+
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_PENDING, 'Pending Initial Sync'),
+        (STATUS_ERROR, 'Error'),
+        (STATUS_DISCONNECTED, 'Disconnected'),
+        (STATUS_REAUTH_REQUIRED, 'Requires Re-authentication'),
+    ]
+
+    # Plaid identifiers
+    item_id = models.CharField(
+        max_length=100,
+        db_index=True,
+        help_text="Plaid Item ID (unique per institution connection)"
+    )
+    access_token_encrypted = models.TextField(
+        help_text="Encrypted Plaid access token"
+    )
+
+    # Institution info
+    institution_id = models.CharField(
+        max_length=50,
+        help_text="Plaid institution ID"
+    )
+    institution_name = models.CharField(
+        max_length=200,
+        help_text="Display name of the institution"
+    )
+    institution_logo = models.URLField(
+        blank=True,
+        help_text="URL to institution logo (from Plaid)"
+    )
+    institution_color = models.CharField(
+        max_length=7,
+        blank=True,
+        help_text="Institution primary color (hex)"
+    )
+
+    # Connection status
+    connection_status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING
+    )
+
+    # Error tracking
+    error_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Plaid error code if connection has issues"
+    )
+    error_message = models.TextField(
+        blank=True,
+        help_text="Human-readable error message"
+    )
+
+    # Sync tracking
+    last_sync_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last successful transaction sync"
+    )
+    last_sync_cursor = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Plaid sync cursor for incremental updates"
+    )
+    transactions_synced = models.PositiveIntegerField(
+        default=0,
+        help_text="Total transactions synced from this connection"
+    )
+
+    # Consent and audit
+    consent_given_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When user authorized this connection"
+    )
+    consent_ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="IP address when consent was given"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Bank Connection"
+        verbose_name_plural = "Bank Connections"
+        unique_together = ['user', 'item_id']
+        indexes = [
+            models.Index(fields=['user', 'connection_status']),
+        ]
+
+    def __str__(self):
+        return f"{self.institution_name} ({self.get_connection_status_display()})"
+
+    @property
+    def is_active(self):
+        """Check if connection is active and syncing."""
+        return self.connection_status == self.STATUS_ACTIVE
+
+    @property
+    def needs_attention(self):
+        """Check if connection requires user action."""
+        return self.connection_status in [
+            self.STATUS_ERROR,
+            self.STATUS_REAUTH_REQUIRED
+        ]
+
+    def get_access_token(self):
+        """Decrypt and return the access token."""
+        from apps.finance.services.encryption import decrypt_token
+        if not self.access_token_encrypted:
+            return None
+        return decrypt_token(self.access_token_encrypted)
+
+    def set_access_token(self, token):
+        """Encrypt and store the access token."""
+        from apps.finance.services.encryption import encrypt_token
+        self.access_token_encrypted = encrypt_token(token)
+
+    def mark_error(self, error_code, error_message):
+        """Mark connection as having an error."""
+        self.connection_status = self.STATUS_ERROR
+        self.error_code = error_code
+        self.error_message = error_message
+        self.save(update_fields=[
+            'connection_status', 'error_code', 'error_message', 'updated_at'
+        ])
+
+    def mark_reauth_required(self):
+        """Mark connection as requiring re-authentication."""
+        self.connection_status = self.STATUS_REAUTH_REQUIRED
+        self.error_code = 'ITEM_LOGIN_REQUIRED'
+        self.error_message = 'Please reconnect your bank account.'
+        self.save(update_fields=[
+            'connection_status', 'error_code', 'error_message', 'updated_at'
+        ])
+
+    def mark_active(self):
+        """Mark connection as active and clear errors."""
+        self.connection_status = self.STATUS_ACTIVE
+        self.error_code = ''
+        self.error_message = ''
+        self.save(update_fields=[
+            'connection_status', 'error_code', 'error_message', 'updated_at'
+        ])
+
+    def mark_disconnected(self):
+        """Mark connection as disconnected and clear token."""
+        self.connection_status = self.STATUS_DISCONNECTED
+        self.access_token_encrypted = ''
+        self.save(update_fields=[
+            'connection_status', 'access_token_encrypted', 'updated_at'
+        ])
+
+    def update_sync_cursor(self, cursor, transactions_added=0):
+        """Update the sync cursor after a successful sync."""
+        self.last_sync_cursor = cursor
+        self.last_sync_at = timezone.now()
+        self.transactions_synced += transactions_added
+        self.save(update_fields=[
+            'last_sync_cursor', 'last_sync_at', 'transactions_synced', 'updated_at'
+        ])
+
+
+# =============================================================================
+# Bank Integration Log (audit trail)
+# =============================================================================
+
+class BankIntegrationLog(UserOwnedModel):
+    """
+    Audit log for all bank integration events.
+
+    Tracks connections, disconnections, syncs, and errors for
+    compliance and debugging purposes.
+    """
+
+    ACTION_CONNECT = 'connect'
+    ACTION_DISCONNECT = 'disconnect'
+    ACTION_SYNC = 'sync'
+    ACTION_ERROR = 'error'
+    ACTION_REAUTH = 'reauth'
+    ACTION_WEBHOOK = 'webhook'
+
+    ACTION_CHOICES = [
+        (ACTION_CONNECT, 'Connected'),
+        (ACTION_DISCONNECT, 'Disconnected'),
+        (ACTION_SYNC, 'Synced'),
+        (ACTION_ERROR, 'Error'),
+        (ACTION_REAUTH, 'Re-authenticated'),
+        (ACTION_WEBHOOK, 'Webhook Received'),
+    ]
+
+    bank_connection = models.ForeignKey(
+        BankConnection,
+        on_delete=models.CASCADE,
+        related_name='logs',
+        help_text="Related bank connection"
+    )
+    action = models.CharField(
+        max_length=20,
+        choices=ACTION_CHOICES
+    )
+    success = models.BooleanField(default=True)
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional event details (redacted for security)"
+    )
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Bank Integration Log"
+        verbose_name_plural = "Bank Integration Logs"
+        indexes = [
+            models.Index(fields=['bank_connection', 'action']),
+            models.Index(fields=['user', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_action_display()} - {self.bank_connection.institution_name}"
 
 
 # =============================================================================

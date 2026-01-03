@@ -63,4 +63,15 @@ urlpatterns = [
     # API Endpoints
     path('api/payees/', views.api_payee_suggestions, name='api_payees'),
     path('api/accounts/<int:pk>/balance/', views.api_account_balance, name='api_account_balance'),
+
+    # Bank Connections (Plaid Integration)
+    path('connections/', views.BankConnectionListView.as_view(), name='connection_list'),
+    path('connections/start/', views.bank_connection_start, name='connection_start'),
+    path('connections/complete/', views.bank_connection_complete, name='connection_complete'),
+    path('connections/<int:pk>/reauth/', views.bank_connection_reauth, name='connection_reauth'),
+    path('connections/<int:pk>/disconnect/', views.bank_connection_disconnect, name='connection_disconnect'),
+    path('connections/<int:pk>/sync/', views.bank_connection_sync, name='connection_sync'),
+
+    # Plaid Webhooks
+    path('webhooks/plaid/', views.plaid_webhook, name='plaid_webhook'),
 ]

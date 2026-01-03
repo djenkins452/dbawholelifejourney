@@ -267,6 +267,10 @@ class AccountCreateView(FinanceAuditMixin, LoginRequiredMixin, CreateView):
         messages.success(self.request, f'Account "{form.instance.name}" created.')
         return super().form_valid(form)
 
+    def form_invalid(self, form):
+        logger.error(f"Account form errors: {form.errors}")
+        return super().form_invalid(form)
+
 
 class AccountUpdateView(FinanceAuditMixin, FinanceUserMixin, UpdateView):
     """Edit a financial account."""

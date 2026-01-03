@@ -11,6 +11,20 @@
     <form method="post" class="form-card">
         {% csrf_token %}
 
+        {% if form.non_field_errors %}
+        <div class="form-errors">
+            {% for error in form.non_field_errors %}
+            <p class="form-error">{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if form.errors %}
+        <div class="form-errors">
+            <p class="form-error">Please correct the errors below.</p>
+        </div>
+        {% endif %}
+
         <div class="form-group">
             <label for="id_name">Account Name</label>
             {{ form.name }}
@@ -23,6 +37,9 @@
             <div class="form-group">
                 <label for="id_account_type">Account Type</label>
                 {{ form.account_type }}
+                {% if form.account_type.errors %}
+                <p class="form-error">{{ form.account_type.errors.0 }}</p>
+                {% endif %}
             </div>
             <div class="form-group">
                 <label for="id_institution">Institution</label>
@@ -34,10 +51,16 @@
             <div class="form-group">
                 <label for="id_current_balance">Current Balance</label>
                 {{ form.current_balance }}
+                {% if form.current_balance.errors %}
+                <p class="form-error">{{ form.current_balance.errors.0 }}</p>
+                {% endif %}
             </div>
             <div class="form-group">
                 <label for="id_currency">Currency</label>
                 {{ form.currency }}
+                {% if form.currency.errors %}
+                <p class="form-error">{{ form.currency.errors.0 }}</p>
+                {% endif %}
             </div>
         </div>
 

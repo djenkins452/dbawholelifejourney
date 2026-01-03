@@ -1162,3 +1162,155 @@ def get_client_ip(request) -> str:
     if x_forwarded_for:
         return x_forwarded_for.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR', '')
+
+
+# =============================================================================
+# AI Insights API
+# =============================================================================
+
+@login_required
+def api_spending_insight(request):
+    """
+    Get AI-generated spending insight.
+
+    Returns JSON with insight text and supporting data.
+    """
+    from apps.finance.services.ai_insights import get_finance_ai_service
+
+    try:
+        service = get_finance_ai_service(request.user)
+        force_refresh = request.GET.get('refresh') == 'true'
+
+        insight = service.generate_spending_insight(force_refresh=force_refresh)
+
+        if insight:
+            return JsonResponse({
+                'success': True,
+                'insight': insight['insight'],
+                'data': insight['data'],
+                'generated_at': insight['generated_at'],
+                'disclaimer': insight['disclaimer'],
+                'data_source': insight['data_source'],
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': 'AI insights not available',
+                'reason': 'Check that AI is enabled in your preferences'
+            })
+
+    except Exception as e:
+        logger.error(f"Error generating spending insight: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate insight'
+        }, status=500)
+
+
+@login_required
+def api_subscription_review(request):
+    """
+    Get AI-generated subscription/recurring expense review.
+    """
+    from apps.finance.services.ai_insights import get_finance_ai_service
+
+    try:
+        service = get_finance_ai_service(request.user)
+        review = service.generate_subscription_review()
+
+        if review:
+            return JsonResponse({
+                'success': True,
+                'insight': review['insight'],
+                'subscriptions': review['subscriptions'],
+                'estimated_monthly_total': review['estimated_monthly_total'],
+                'disclaimer': review['disclaimer'],
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': 'Subscription review not available',
+            })
+
+    except Exception as e:
+        logger.error(f"Error generating subscription review: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate review'
+        }, status=500)
+
+
+@login_required
+def api_budget_alert(request, pk):
+    """
+    Get AI-generated budget alert for a specific budget.
+    """
+    from apps.finance.services.ai_insights import get_finance_ai_service
+
+    budget = get_object_or_404(Budget, pk=pk, user=request.user, status='active')
+
+    try:
+        service = get_finance_ai_service(request.user)
+        alert = service.generate_budget_alert(budget)
+
+        if alert:
+            return JsonResponse({
+                'success': True,
+                'alert': alert,
+                'budget': {
+                    'category': budget.category.name if budget.category else 'Unknown',
+                    'budgeted': float(budget.budgeted_amount),
+                    'spent': float(budget.spent_amount),
+                    'percentage': budget.percentage_used,
+                }
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': 'Budget alert not available',
+            })
+
+    except Exception as e:
+        logger.error(f"Error generating budget alert: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate alert'
+        }, status=500)
+
+
+@login_required
+def api_goal_encouragement(request, pk):
+    """
+    Get AI-generated encouragement for a financial goal.
+    """
+    from apps.finance.services.ai_insights import get_finance_ai_service
+
+    goal = get_object_or_404(FinancialGoal, pk=pk, user=request.user, status='active')
+
+    try:
+        service = get_finance_ai_service(request.user)
+        encouragement = service.generate_goal_encouragement(goal)
+
+        if encouragement:
+            return JsonResponse({
+                'success': True,
+                'encouragement': encouragement,
+                'goal': {
+                    'name': goal.name,
+                    'progress': goal.progress_percentage,
+                    'current': float(goal.current_amount),
+                    'target': float(goal.target_amount),
+                }
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': 'Goal encouragement not available',
+            })
+
+    except Exception as e:
+        logger.error(f"Error generating goal encouragement: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Failed to generate encouragement'
+        }, status=500)

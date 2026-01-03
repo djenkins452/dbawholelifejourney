@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-03 (Implement Bank Connectivity)
+# Last Updated: 2026-01-03 (AI Spending Insights and Coaching)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,52 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-03 Changes
+
+### AI Spending Insights and Coaching
+
+**Session:** Implement AI Spending Insights and Coaching
+
+**Task:** WLJ Finance Module - Implement AI Spending Insights and Coaching
+
+**Objective:**
+Turn financial data into actionable guidance for users with AI-generated insights following the AI Finance Rules.
+
+**Implementation:**
+
+1. **New Service Created:**
+   - `apps/finance/services/ai_insights.py` - FinanceAIService class
+   - Follows AI Finance Rules (docs/wlj_ai_finance_rules.md)
+   - Privacy-first data aggregation (sends summaries, not raw transactions)
+
+2. **Key Features:**
+   - `_get_spending_summary()` - Aggregates transaction data for AI
+   - `_get_spending_trends()` - Compares current vs previous period
+   - `_detect_unusual_spending()` - Pattern deviation detection (>50% from average)
+   - `_identify_recurring_transactions()` - Subscription/recurring expense detection
+   - `generate_spending_insight()` - Main insight generator with 4-hour caching
+   - `generate_budget_alert()` - Budget-specific supportive observations
+   - `generate_goal_encouragement()` - Goal progress encouragement
+   - `generate_subscription_review()` - Recurring expense review
+
+3. **API Endpoints Added:**
+   - `GET /finance/api/insights/spending/` - Spending insights
+   - `GET /finance/api/insights/subscriptions/` - Subscription analysis
+   - `GET /finance/api/insights/budget/<pk>/` - Budget-specific alerts
+   - `GET /finance/api/insights/goal/<pk>/` - Goal encouragement
+
+4. **AI Safety Features:**
+   - User consent verification before AI processing
+   - Observational language ("It looks like...") vs advice
+   - Data aggregation (never sends raw transaction details)
+   - All prompts follow AI Finance Rules
+   - Disclaimers included in all responses
+
+**Files Created/Modified:**
+- `apps/finance/services/ai_insights.py` (new)
+- `apps/finance/views.py` - Added AI insight API views
+- `apps/finance/urls.py` - Added AI insight routes
+
+---
 
 ### Implement Bank Connectivity (Plaid Integration)
 

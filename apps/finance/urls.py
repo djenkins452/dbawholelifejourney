@@ -64,6 +64,12 @@ urlpatterns = [
     path('api/payees/', views.api_payee_suggestions, name='api_payees'),
     path('api/accounts/<int:pk>/balance/', views.api_account_balance, name='api_account_balance'),
 
+    # AI Insights API
+    path('api/insights/spending/', views.api_spending_insight, name='api_spending_insight'),
+    path('api/insights/subscriptions/', views.api_subscription_review, name='api_subscription_review'),
+    path('api/insights/budget/<int:pk>/', views.api_budget_alert, name='api_budget_alert'),
+    path('api/insights/goal/<int:pk>/', views.api_goal_encouragement, name='api_goal_encouragement'),
+
     # Bank Connections (Plaid Integration)
     path('connections/', views.BankConnectionListView.as_view(), name='connection_list'),
     path('connections/start/', views.bank_connection_start, name='connection_start'),

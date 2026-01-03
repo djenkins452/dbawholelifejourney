@@ -241,10 +241,10 @@ class BudgetModelTests(FinanceTestMixin, TestCase):
         )
         self.assertEqual(self.budget.remaining_amount, Decimal('400.00'))
 
-    def test_budget_status(self):
-        """Test budget status property."""
+    def test_budget_health_status(self):
+        """Test budget health_status property."""
         # Under budget - on_track
-        self.assertEqual(self.budget.status, 'on_track')
+        self.assertEqual(self.budget.health_status, 'on_track')
 
         # Over 80% - warning
         Transaction.objects.create(
@@ -255,7 +255,7 @@ class BudgetModelTests(FinanceTestMixin, TestCase):
             description='Big grocery run',
             date=date.today(),
         )
-        self.assertEqual(self.budget.status, 'warning')
+        self.assertEqual(self.budget.health_status, 'warning')
 
 
 class FinancialGoalModelTests(FinanceTestMixin, TestCase):

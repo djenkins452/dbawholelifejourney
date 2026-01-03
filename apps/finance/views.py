@@ -181,7 +181,7 @@ class FinanceDashboardView(LoginRequiredMixin, TemplateView):
             user=user, status='active', month=month_start
         ).select_related('category')
         context['budgets'] = budgets
-        context['budgets_over'] = [b for b in budgets if b.status == 'over']
+        context['budgets_over'] = [b for b in budgets if b.health_status == 'over']
 
         # Active goals
         context['active_goals'] = FinancialGoal.objects.filter(
@@ -473,10 +473,10 @@ class BudgetListView(FinanceUserMixin, ListView):
         context['total_spent'] = sum(b.spent_amount for b in budgets)
         context['total_remaining'] = sum(b.remaining_amount for b in budgets)
 
-        # Count by status
-        context['on_track_count'] = sum(1 for b in budgets if b.status == 'on_track')
-        context['warning_count'] = sum(1 for b in budgets if b.status == 'warning')
-        context['over_count'] = sum(1 for b in budgets if b.status == 'over')
+        # Count by health status
+        context['on_track_count'] = sum(1 for b in budgets if b.health_status == 'on_track')
+        context['warning_count'] = sum(1 for b in budgets if b.health_status == 'warning')
+        context['over_count'] = sum(1 for b in budgets if b.health_status == 'over')
 
         return context
 

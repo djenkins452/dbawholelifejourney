@@ -641,14 +641,17 @@ class Budget(UserOwnedModel):
         return min(100, (self.spent_amount / self.total_budget) * 100)
 
     @property
-    def status(self):
+    def health_status(self):
         """
-        Budget status indicator.
+        Budget health status indicator.
 
         Returns:
             'on_track': Under 80% spent
             'warning': 80-100% spent
             'over': Over 100% spent
+
+        Note: Named 'health_status' to avoid shadowing the inherited 'status'
+        field from SoftDeleteModel which tracks active/archived/deleted state.
         """
         pct = self.spent_percentage
         if pct >= 100:
@@ -658,14 +661,14 @@ class Budget(UserOwnedModel):
         return 'on_track'
 
     @property
-    def status_color(self):
-        """CSS color class for status."""
+    def health_status_color(self):
+        """CSS color class for health status."""
         colors = {
             'on_track': 'green',
             'warning': 'yellow',
             'over': 'red'
         }
-        return colors.get(self.status, 'gray')
+        return colors.get(self.health_status, 'gray')
 
 
 # =============================================================================

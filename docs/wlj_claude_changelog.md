@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-03 (Finance Module Audit)
+# Last Updated: 2026-01-03 (Budget Status Property Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,40 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-03 Changes
+
+### Budget Status Property Shadowing Fix (ROOT CAUSE)
+
+**Session:** Final Fix for Budget Status FieldError
+
+**Root Cause Identified:**
+The `Budget` model had a Python `@property` named `status` that calculated budget health
+(on_track/warning/over). This property **shadowed** the inherited `status` database field
+from `SoftDeleteModel` (which stores active/archived/deleted state).
+
+When Django's ORM tried to filter by `status='active'`, Python's attribute lookup found
+the property first (which returns 'on_track'/'warning'/'over'), not the database field.
+This is why migrations adding the column didn't fix the issue - the column existed, but
+Python couldn't access it!
+
+**Fix Applied:**
+1. Renamed `Budget.status` property to `Budget.health_status`
+2. Renamed `Budget.status_color` property to `Budget.health_status_color`
+3. Updated all references in views, templates, and tests
+
+**Files Modified:**
+- `apps/finance/models.py` - Renamed property from `status` to `health_status`
+- `apps/finance/views.py` - Updated references (lines 184, 477-479)
+- `templates/finance/budget_list.html` - Updated template references
+- `apps/finance/tests/test_finance_comprehensive.py` - Updated test method
+- `apps/finance/migrations/0009_fix_budget_status_field.py` - Safety migration
+
+**Important Lesson:**
+Never name a property the same as an inherited database field. The property will shadow
+the field and make it inaccessible to Django's ORM. Use distinct names like:
+- Database field: `status` (for soft-delete state)
+- Computed property: `health_status` (for budget health)
+
+---
 
 ### CSRF and Budget Status Column Fixes
 
@@ -29,8 +63,8 @@ For active development context, see `CLAUDE.md` (project root).
 
 2. **Budget Status Column Missing (FieldError on /finance/)**
    - Error: "Cannot resolve keyword 'status' into field"
-   - Root cause: Migrations 0005, 0006 were recorded as applied but column wasn't created
-   - PostgreSQL schema check was missing `table_schema = 'public'`
+   - Initial diagnosis: Migrations 0005, 0006 were recorded as applied but column wasn't created
+   - ACTUAL root cause: Property shadowing database field (see fix above)
 
 **Fixes Applied:**
 
@@ -38,16 +72,20 @@ For active development context, see `CLAUDE.md` (project root).
    - Moved `CSRF_TRUSTED_ORIGINS` outside the `if not DEBUG:` block
    - Now applies in both DEBUG=True and DEBUG=False modes
 
-2. **Budget Status Column Fix:**
-   - Added `table_schema = 'public'` to all PostgreSQL information_schema queries
-   - Created migration 0007 (fresh migration that will definitely run)
-   - Updated `load_initial_data.py` schema check with proper schema qualifier
+2. **Budget Status Column Fix (Multiple Attempts):**
+   - Migration 0006 - Added table_schema='public' to PostgreSQL checks
+   - Migration 0007 - Fresh migration with explicit schema checks
+   - Migration 0008 - Used PostgreSQL DO blocks with PL/pgSQL
+   - Migration 0009 - Safety net after property rename fix
+   - **Final fix:** Renamed property to avoid shadowing
 
 **Files Modified:**
 - `config/settings.py` - Moved CSRF_TRUSTED_ORIGINS outside DEBUG conditional
 - `apps/core/management/commands/load_initial_data.py` - Fixed PostgreSQL schema check
 - `apps/finance/migrations/0006_force_budget_status_column.py` - Added table_schema
 - `apps/finance/migrations/0007_ensure_budget_status_column.py` - New migration
+- `apps/finance/migrations/0008_add_status_via_orm.py` - DO block migration
+- `apps/finance/migrations/0009_fix_budget_status_field.py` - Post property-rename safety
 
 **Documentation Added:**
 - `CLAUDE.md` - Added "Database Migration State Issues on Railway" section

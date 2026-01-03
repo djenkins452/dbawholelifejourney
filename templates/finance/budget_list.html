@@ -36,10 +36,10 @@
     {% if budgets %}
     <div class="budget-grid">
         {% for budget in budgets %}
-        <div class="budget-card status-{{ budget.status }}">
+        <div class="budget-card status-{{ budget.health_status }}">
             <div class="budget-header">
                 <span class="budget-category">{{ budget.category.name }}</span>
-                <span class="budget-status-badge">{{ budget.status|title }}</span>
+                <span class="budget-status-badge">{{ budget.health_status|title }}</span>
             </div>
 
             <div class="budget-progress">

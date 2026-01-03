@@ -131,6 +131,45 @@ class FastingWindow(UserOwnedModel):
         progress = (self.duration_hours / self.target_hours) * 100
         return min(100, progress)
 
+    @property
+    def target_end_time(self):
+        """Calculate when the fast will reach its target."""
+        if not self.target_hours:
+            return None
+        from datetime import timedelta
+        return self.started_at + timedelta(hours=self.target_hours)
+
+    @property
+    def remaining_hours(self):
+        """Calculate hours remaining until target is reached."""
+        if not self.target_hours:
+            return None
+        remaining = self.target_hours - self.duration_hours
+        return max(0, remaining)
+
+    @property
+    def remaining_display(self):
+        """Human-readable remaining time."""
+        if not self.target_hours:
+            return None
+        remaining = self.remaining_hours
+        if remaining <= 0:
+            return "Goal reached!"
+        if remaining < 1:
+            return f"{int(remaining * 60)} min remaining"
+        hours = int(remaining)
+        minutes = int((remaining - hours) * 60)
+        if minutes > 0:
+            return f"{hours}h {minutes}m remaining"
+        return f"{hours}h remaining"
+
+    @property
+    def is_goal_reached(self):
+        """Check if the fast has reached its target duration."""
+        if not self.target_hours:
+            return False
+        return self.duration_hours >= self.target_hours
+
     def end_fast(self):
         """End the current fasting window."""
         if self.is_active:

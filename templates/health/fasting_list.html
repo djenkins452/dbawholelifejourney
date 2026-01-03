@@ -32,6 +32,13 @@
         <div class="fast-timer">
             <span class="timer-value">{{ active_fast.duration_display }}</span>
             {% if active_fast.target_hours %}
+                <div class="timer-countdown">
+                    {% if active_fast.is_goal_reached %}
+                        <span class="countdown-complete">Goal reached!</span>
+                    {% else %}
+                        <span class="countdown-value" data-end-time="{{ active_fast.target_end_time|date:'c' }}">{{ active_fast.remaining_display }}</span>
+                    {% endif %}
+                </div>
                 <div class="timer-progress">
                     <div class="progress-track">
                         <div class="progress-fill" style="width: {{ active_fast.progress_percent }}%"></div>
@@ -147,6 +154,30 @@
     margin-bottom: var(--space-2);
 }
 
+.timer-countdown {
+    margin-bottom: var(--space-3);
+}
+
+.countdown-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-accent);
+    display: inline-block;
+    padding: var(--space-2) var(--space-4);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border-radius: var(--radius-md);
+}
+
+.countdown-complete {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-success);
+    display: inline-block;
+    padding: var(--space-2) var(--space-4);
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    border-radius: var(--radius-md);
+}
+
 .timer-progress {
     max-width: 300px;
 }
@@ -233,5 +264,44 @@
     color: var(--color-error);
 }
 </style>
+
+<script>
+(function() {
+    const countdownEl = document.querySelector('.countdown-value');
+    if (!countdownEl) return;
+
+    const endTimeStr = countdownEl.dataset.endTime;
+    if (!endTimeStr) return;
+
+    const endTime = new Date(endTimeStr);
+
+    function updateCountdown() {
+        const now = new Date();
+        const remaining = endTime - now;
+
+        if (remaining <= 0) {
+            countdownEl.textContent = 'Goal reached!';
+            countdownEl.classList.remove('countdown-value');
+            countdownEl.classList.add('countdown-complete');
+            return;
+        }
+
+        const hours = Math.floor(remaining / (1000 * 60 * 60));
+        const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+
+        if (hours > 0) {
+            countdownEl.textContent = `${hours}h ${minutes}m ${seconds}s remaining`;
+        } else if (minutes > 0) {
+            countdownEl.textContent = `${minutes}m ${seconds}s remaining`;
+        } else {
+            countdownEl.textContent = `${seconds}s remaining`;
+        }
+    }
+
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+})();
+</script>
 {% endtimezone %}
 {% endblock %}

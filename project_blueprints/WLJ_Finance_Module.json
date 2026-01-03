@@ -1,0 +1,246 @@
+{
+  "project": {
+    "name": "WLJ Finance Module",
+    "description": "Design and implement a secure, AI-driven personal finance module within Whole Life Journey (WLJ) that supports accounts, budgeting, goals, metrics, bank connectivity, and AI interpretation while meeting high security and audit standards."
+  },
+  "tasks": [
+    {
+      "phase": "Phase 1",
+      "name": "Define Finance Module Scope and Core Concepts",
+      "description": {
+        "objective": "Establish a clear and shared definition of what the WLJ Finance Module includes and how it fits into the broader WLJ ecosystem.",
+        "inputs": [
+          "WLJ product vision",
+          "Existing WLJ modules (goals, tasks, journaling)"
+        ],
+        "actions": [
+          "Define supported financial account types (checking, savings, credit cards, loans, investments).",
+          "Define core finance concepts: accounts, transactions, categories, budgets, goals, metrics.",
+          "Document how finance data links to WLJ goals, tasks, and reflections.",
+          "Define what is in-scope and explicitly out-of-scope for the initial release."
+        ],
+        "output": "A written Finance Module Scope document defining concepts, boundaries, and integration points with WLJ."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Design Finance Data Model",
+      "description": {
+        "objective": "Create a normalized, secure data structure that supports finance tracking, AI analysis, and future bank integrations.",
+        "inputs": [
+          "Finance Module Scope document"
+        ],
+        "actions": [
+          "Define database tables for accounts, transactions, categories, budgets, goals, and metrics.",
+          "Define relationships between users, households, and financial entities.",
+          "Identify which fields are sensitive and require encryption at rest.",
+          "Document retention rules for financial data."
+        ],
+        "output": "Approved database schema for the WLJ Finance Module with security annotations."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 3",
+      "name": "Implement Manual Account and Transaction Management",
+      "description": {
+        "objective": "Allow users to gain value from the Finance Module before bank connections are enabled.",
+        "inputs": [
+          "Finance database schema",
+          "WLJ UI patterns"
+        ],
+        "actions": [
+          "Build UI to manually create and edit financial accounts.",
+          "Enable manual entry of transactions.",
+          "Support basic categorization of transactions.",
+          "Ensure all actions are logged for audit purposes."
+        ],
+        "output": "Users can manually manage accounts and transactions inside WLJ."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Implement Budgeting and Financial Goals",
+      "description": {
+        "objective": "Help users plan and control spending while tracking progress toward financial goals.",
+        "inputs": [
+          "Accounts and transactions data"
+        ],
+        "actions": [
+          "Implement monthly budgets by category.",
+          "Create financial goal types (savings, debt payoff, giving, major purchases).",
+          "Calculate progress toward each goal in real time.",
+          "Display simple visual indicators (on-track, warning, off-track)."
+        ],
+        "output": "Budgeting and financial goals are fully functional and visible on the WLJ dashboard."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Build Financial Metrics and Dashboards",
+      "description": {
+        "objective": "Provide clear, understandable financial insights at a glance.",
+        "inputs": [
+          "Accounts, transactions, budgets, and goals"
+        ],
+        "actions": [
+          "Calculate cash flow, net worth, savings rate, and debt balances.",
+          "Design a finance dashboard showing trends over time.",
+          "Allow filtering by date range and account group.",
+          "Ensure calculations are deterministic and reproducible."
+        ],
+        "output": "A finance dashboard that summarizes financial health using clear metrics."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Define AI Finance Interpretation Rules",
+      "description": {
+        "objective": "Establish safe, explainable AI behavior for interpreting financial data.",
+        "inputs": [
+          "Finance data model",
+          "WLJ AI behavior standards"
+        ],
+        "actions": [
+          "Define what financial data AI is allowed to access.",
+          "Specify allowed AI outputs (summaries, trends, suggestions).",
+          "Prohibit AI from exposing raw credentials or tokens.",
+          "Document explainability requirements for AI insights."
+        ],
+        "output": "AI Finance Interpretation Rules documented and approved."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 7",
+      "name": "Implement AI Spending Insights and Coaching",
+      "description": {
+        "objective": "Turn financial data into actionable guidance for users.",
+        "inputs": [
+          "AI Finance Interpretation Rules",
+          "Transaction and budget data"
+        ],
+        "actions": [
+          "Generate spending summaries and trend analysis.",
+          "Detect unusual or out-of-pattern spending.",
+          "Identify recurring subscriptions and potential waste.",
+          "Provide next-step recommendations tied to WLJ goals."
+        ],
+        "output": "AI-generated financial insights visible to users with clear reasoning."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 8",
+      "name": "Design Bank Integration Architecture",
+      "description": {
+        "objective": "Prepare WLJ for secure connections to external financial institutions.",
+        "inputs": [
+          "Finance data model",
+          "Security standards"
+        ],
+        "actions": [
+          "Select a financial data aggregator strategy.",
+          "Define token storage and refresh mechanisms.",
+          "Design sync schedules and failure handling.",
+          "Document how users connect and disconnect institutions."
+        ],
+        "output": "A complete bank integration architecture document."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 9",
+      "name": "Implement Bank Connectivity",
+      "description": {
+        "objective": "Enable users to securely link bank and credit accounts to WLJ.",
+        "inputs": [
+          "Bank integration architecture",
+          "Aggregator credentials"
+        ],
+        "actions": [
+          "Implement secure connection flow using the aggregator UI.",
+          "Store access tokens securely and encrypted.",
+          "Sync balances and transactions on a scheduled basis.",
+          "Provide clear user feedback on connection status."
+        ],
+        "output": "Users can connect financial institutions and see synced data in WLJ."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 10",
+      "name": "Implement Finance Security Controls",
+      "description": {
+        "objective": "Protect financial data against unauthorized access and misuse.",
+        "inputs": [
+          "WLJ security standards",
+          "Finance module architecture"
+        ],
+        "actions": [
+          "Encrypt sensitive data at rest and in transit.",
+          "Enforce role-based access controls.",
+          "Implement audit logging for all finance-related actions.",
+          "Add multi-factor authentication requirements for finance access."
+        ],
+        "output": "Finance Module meets defined security and audit requirements."
+      },
+      "priority": "Critical",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 11",
+      "name": "Testing, Validation, and Audit Review",
+      "description": {
+        "objective": "Ensure correctness, security, and reliability of the Finance Module.",
+        "inputs": [
+          "Completed Finance Module features"
+        ],
+        "actions": [
+          "Test financial calculations for accuracy.",
+          "Validate AI outputs against defined rules.",
+          "Perform security and permission testing.",
+          "Document findings and remediation steps."
+        ],
+        "output": "Test report confirming the Finance Module is production-ready."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    }
+  ]
+}

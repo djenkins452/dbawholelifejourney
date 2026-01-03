@@ -60,6 +60,7 @@ class Command(BaseCommand):
             'project_blueprints/wlj_executable_work_orchestration.json',
             'project_blueprints/Goals_Habit_Matrix_Upgrade.json',
             'project_blueprints/WLJ_Secure_Signup_Anti_Fraud_System.json',
+            'project_blueprints/WLJ_Finance_Module.json',
         ]
         for blueprint in project_blueprints:
             try:

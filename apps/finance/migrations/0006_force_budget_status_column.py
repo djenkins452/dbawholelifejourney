@@ -20,25 +20,29 @@ def force_add_status_column(apps, schema_editor):
     """Unconditionally add status column to Budget table."""
     with connection.cursor() as cursor:
         if connection.vendor == 'postgresql':
-            # PostgreSQL: Use ALTER TABLE ... ADD COLUMN IF NOT EXISTS
-            # This syntax was added in PostgreSQL 9.6
-            try:
+            # First check if column exists
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'finance_budget' AND column_name = 'status'
+            """)
+            column_exists = cursor.fetchone() is not None
+
+            if not column_exists:
+                print("Adding status column to finance_budget table...")
                 cursor.execute("""
                     ALTER TABLE finance_budget
-                    ADD COLUMN IF NOT EXISTS status varchar(10) NOT NULL DEFAULT 'active'
+                    ADD COLUMN status varchar(10) NOT NULL DEFAULT 'active'
                 """)
-            except Exception as e:
-                # Log but don't fail - column might already exist in older PG versions
-                print(f"Note: {e}")
+                print("Status column added successfully!")
 
-            # Create index if it doesn't exist
-            try:
+                # Create index
                 cursor.execute("""
                     CREATE INDEX IF NOT EXISTS finance_budget_status_idx
                     ON finance_budget (status)
                 """)
-            except Exception as e:
-                print(f"Note: {e}")
+                print("Index created successfully!")
+            else:
+                print("Status column already exists in finance_budget table.")
         else:
             # SQLite: Check if column exists before adding
             cursor.execute("PRAGMA table_info(finance_budget)")

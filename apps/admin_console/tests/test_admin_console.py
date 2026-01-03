@@ -3734,3 +3734,212 @@ class AdminProjectCreateViewTest(AdminTestMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         # Cancel link should point to task intake
         self.assertIn(b'/admin-console/projects/intake/', response.content)
+
+
+# =============================================================================
+# DATA LOAD CONFIG TESTS
+# =============================================================================
+
+class DataLoadConfigModelTests(TestCase, AdminTestMixin):
+    """Tests for DataLoadConfig model."""
+
+    def test_create_data_load_config(self):
+        """Test creating a DataLoadConfig entry."""
+        from apps.admin_console.models import DataLoadConfig
+
+        config = DataLoadConfig.objects.create(
+            loader_name='test_loader',
+            display_name='Test Loader',
+            loader_type='fixture',
+            description='A test data loader'
+        )
+
+        self.assertEqual(config.loader_name, 'test_loader')
+        self.assertEqual(config.display_name, 'Test Loader')
+        self.assertFalse(config.is_loaded)
+        self.assertIsNone(config.loaded_at)
+
+    def test_mark_loaded(self):
+        """Test marking a loader as complete."""
+        from apps.admin_console.models import DataLoadConfig
+
+        config = DataLoadConfig.objects.create(
+            loader_name='test_loader',
+            display_name='Test Loader',
+        )
+
+        config.mark_loaded(loaded_by='test', records_created=5, records_updated=3)
+
+        self.assertTrue(config.is_loaded)
+        self.assertIsNotNone(config.loaded_at)
+        self.assertEqual(config.loaded_by, 'test')
+        self.assertEqual(config.records_created, 5)
+        self.assertEqual(config.records_updated, 3)
+
+    def test_reset(self):
+        """Test resetting a loader."""
+        from apps.admin_console.models import DataLoadConfig
+
+        config = DataLoadConfig.objects.create(
+            loader_name='test_loader',
+            display_name='Test Loader',
+        )
+        config.mark_loaded(loaded_by='test')
+
+        config.reset()
+
+        self.assertFalse(config.is_loaded)
+        self.assertIsNone(config.loaded_at)
+        self.assertEqual(config.loaded_by, '')
+        self.assertEqual(config.records_created, 0)
+
+    def test_is_loader_complete(self):
+        """Test checking if a loader is complete."""
+        from apps.admin_console.models import DataLoadConfig
+
+        # Not complete when doesn't exist
+        self.assertFalse(DataLoadConfig.is_loader_complete('nonexistent'))
+
+        # Not complete when exists but not loaded
+        config = DataLoadConfig.objects.create(
+            loader_name='test_loader',
+            display_name='Test Loader',
+        )
+        self.assertFalse(DataLoadConfig.is_loader_complete('test_loader'))
+
+        # Complete after mark_loaded
+        config.mark_loaded()
+        self.assertTrue(DataLoadConfig.is_loader_complete('test_loader'))
+
+    def test_register_loader(self):
+        """Test registering a new loader."""
+        from apps.admin_console.models import DataLoadConfig
+
+        # Create new
+        config = DataLoadConfig.register_loader(
+            loader_name='new_loader',
+            display_name='New Loader',
+            loader_type='command',
+            description='New loader description'
+        )
+
+        self.assertEqual(config.loader_name, 'new_loader')
+        self.assertEqual(config.loader_type, 'command')
+
+        # Idempotent - returns existing
+        config2 = DataLoadConfig.register_loader(
+            loader_name='new_loader',
+            display_name='Different Name',  # Should be ignored
+        )
+
+        self.assertEqual(config.pk, config2.pk)
+        self.assertEqual(config2.display_name, 'New Loader')  # Original name kept
+
+    def test_unique_loader_name(self):
+        """Test that loader_name is unique."""
+        from django.db import IntegrityError
+        from apps.admin_console.models import DataLoadConfig
+
+        DataLoadConfig.objects.create(
+            loader_name='unique_test',
+            display_name='Test 1',
+        )
+
+        with self.assertRaises(IntegrityError):
+            DataLoadConfig.objects.create(
+                loader_name='unique_test',
+                display_name='Test 2',
+            )
+
+    def test_str_representation(self):
+        """Test string representation."""
+        from apps.admin_console.models import DataLoadConfig
+
+        config = DataLoadConfig.objects.create(
+            loader_name='test',
+            display_name='Test Display',
+        )
+
+        self.assertIn('Test Display', str(config))
+        self.assertIn('○', str(config))  # Not loaded indicator
+
+        config.mark_loaded()
+        self.assertIn('✓', str(config))  # Loaded indicator
+
+
+class DataLoadConfigViewTests(TestCase, AdminTestMixin):
+    """Tests for DataLoadConfig admin views."""
+
+    def setUp(self):
+        self.admin = self.create_admin()
+        self.client.login(email='admin@example.com', password='adminpass123')
+
+    def test_dataload_list_requires_staff(self):
+        """Data loader list requires staff access."""
+        self.client.logout()
+        user = self.create_user()
+        self.client.login(email='user@example.com', password='testpass123')
+
+        response = self.client.get('/admin-console/dataload/')
+        self.assertEqual(response.status_code, 302)
+
+    def test_dataload_list_accessible_to_staff(self):
+        """Data loader list is accessible to staff."""
+        response = self.client.get('/admin-console/dataload/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_dataload_list_shows_loaders(self):
+        """Data loader list shows configured loaders."""
+        from apps.admin_console.models import DataLoadConfig
+
+        DataLoadConfig.objects.create(
+            loader_name='test_loader',
+            display_name='Test Loader Display',
+            loader_type='fixture',
+        )
+
+        response = self.client.get('/admin-console/dataload/')
+        self.assertContains(response, 'Test Loader Display')
+
+    def test_dataload_reset_single(self):
+        """Test resetting a single loader."""
+        from apps.admin_console.models import DataLoadConfig
+
+        config = DataLoadConfig.objects.create(
+            loader_name='reset_test',
+            display_name='Reset Test',
+        )
+        config.mark_loaded()
+        self.assertTrue(config.is_loaded)
+
+        response = self.client.post(f'/admin-console/dataload/{config.pk}/reset/')
+        self.assertEqual(response.status_code, 302)
+
+        config.refresh_from_db()
+        self.assertFalse(config.is_loaded)
+
+    def test_dataload_reset_all(self):
+        """Test resetting all loaders."""
+        from apps.admin_console.models import DataLoadConfig
+
+        for i in range(3):
+            config = DataLoadConfig.objects.create(
+                loader_name=f'reset_all_{i}',
+                display_name=f'Reset All Test {i}',
+            )
+            config.mark_loaded()
+
+        # All should be loaded
+        self.assertEqual(
+            DataLoadConfig.objects.filter(is_loaded=True).count(),
+            3
+        )
+
+        response = self.client.post('/admin-console/dataload/reset-all/')
+        self.assertEqual(response.status_code, 302)
+
+        # All should be reset
+        self.assertEqual(
+            DataLoadConfig.objects.filter(is_loaded=True).count(),
+            0
+        )

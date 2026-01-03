@@ -4,7 +4,7 @@
 # Description: Admin console models for project task management
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-02 (Removed phase status validation for task execution)
+# Last Updated: 2026-01-03 (Added DataLoadConfig for one-time data loading)
 # ==============================================================================
 
 from django.core.exceptions import ValidationError
@@ -711,3 +711,124 @@ class AdminActivityLog(models.Model):
 
     def __str__(self):
         return f"{self.task.title}: {self.action[:50]}"
+
+
+class DataLoadConfig(models.Model):
+    """
+    Tracks which data loaders have been run to prevent redundant loading.
+
+    Each data loader (fixtures, populate commands) registers here when it completes
+    successfully. On subsequent deploys, load_initial_data checks this table and
+    skips loaders that have already run.
+
+    Admins can:
+    - View which loaders have run
+    - Reset a loader to force it to run again
+    - Manually mark a loader as complete
+    """
+
+    LOADER_TYPE_CHOICES = [
+        ('fixture', 'Django Fixture'),
+        ('command', 'Management Command'),
+        ('blueprint', 'Project Blueprint'),
+    ]
+
+    # Unique identifier for the loader (e.g., 'categories', 'populate_choices')
+    loader_name = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Unique identifier for this data loader"
+    )
+    display_name = models.CharField(
+        max_length=200,
+        help_text="Human-readable name"
+    )
+    loader_type = models.CharField(
+        max_length=20,
+        choices=LOADER_TYPE_CHOICES,
+        default='fixture'
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of what this loader does"
+    )
+
+    # Status tracking
+    is_loaded = models.BooleanField(
+        default=False,
+        help_text="Whether this loader has been run successfully"
+    )
+    loaded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the loader was last run"
+    )
+    loaded_by = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="What triggered the load (startup, manual, migration)"
+    )
+
+    # Optional: track what was loaded
+    records_created = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of records created by this loader"
+    )
+    records_updated = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of records updated by this loader"
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['loader_type', 'loader_name']
+        verbose_name = 'Data Load Config'
+        verbose_name_plural = 'Data Load Configs'
+
+    def __str__(self):
+        status = "✓" if self.is_loaded else "○"
+        return f"{status} {self.display_name}"
+
+    def mark_loaded(self, loaded_by='startup', records_created=0, records_updated=0):
+        """Mark this loader as having been run successfully."""
+        from django.utils import timezone
+        self.is_loaded = True
+        self.loaded_at = timezone.now()
+        self.loaded_by = loaded_by
+        self.records_created = records_created
+        self.records_updated = records_updated
+        self.save()
+
+    def reset(self):
+        """Reset this loader so it will run again on next startup."""
+        self.is_loaded = False
+        self.loaded_at = None
+        self.loaded_by = ''
+        self.records_created = 0
+        self.records_updated = 0
+        self.save()
+
+    @classmethod
+    def is_loader_complete(cls, loader_name):
+        """Check if a specific loader has already been run."""
+        try:
+            config = cls.objects.get(loader_name=loader_name)
+            return config.is_loaded
+        except cls.DoesNotExist:
+            return False
+
+    @classmethod
+    def register_loader(cls, loader_name, display_name, loader_type='fixture', description=''):
+        """Register a new loader config entry (idempotent)."""
+        config, created = cls.objects.get_or_create(
+            loader_name=loader_name,
+            defaults={
+                'display_name': display_name,
+                'loader_type': loader_type,
+                'description': description,
+            }
+        )
+        return config

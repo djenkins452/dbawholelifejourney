@@ -1,0 +1,189 @@
+{
+  "project": {
+    "name": "WLJ Secure Signup & Anti-Fraud System",
+    "description": "Design and implement a layered, low-friction security system to prevent bot-driven and fraudulent account signups while preserving a smooth user experience for legitimate users."
+  },
+  "tasks": [
+    {
+      "phase": "Phase 1",
+      "name": "Create Signup Threat Model",
+      "description": {
+        "objective": "Identify and document all realistic signup abuse scenarios so defenses are intentional and measurable.",
+        "inputs": [
+          "Current WLJ signup flow",
+          "Industry-standard signup abuse patterns"
+        ],
+        "actions": [
+          "List common signup threats (bot floods, disposable emails, proxy/VPN abuse, referral abuse).",
+          "For each threat, document impact to WLJ (cost, data quality, system stability).",
+          "Estimate likelihood (Low/Medium/High).",
+          "Map at least one primary mitigation per threat.",
+          "Store the threat model as a versioned markdown document."
+        ],
+        "output": "A documented and versioned Signup Threat Model covering impact, likelihood, and mitigations."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Define Target Signup Flow with Progressive Friction",
+      "description": {
+        "objective": "Design a clear, step-by-step signup flow that increases friction only when risk signals appear.",
+        "inputs": [
+          "Signup Threat Model",
+          "Existing WLJ authentication design"
+        ],
+        "actions": [
+          "Define a pending account state prior to email verification.",
+          "Design a default low-friction path for low-risk users.",
+          "Insert invisible CAPTCHA triggered by suspicious behavior.",
+          "Define rate-limiting checkpoints in the flow.",
+          "Define optional phone verification for high-risk cases only.",
+          "Create a simple ASCII flow diagram documenting all paths."
+        ],
+        "output": "A documented target signup flow with progressive friction and an ASCII flow diagram."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 3",
+      "name": "Define Risk Scoring Model",
+      "description": {
+        "objective": "Create a deterministic risk scoring system to classify signup attempts as low, medium, or high risk.",
+        "inputs": [
+          "Signup Threat Model",
+          "Target Signup Flow"
+        ],
+        "actions": [
+          "List risk signals (IP reputation, signup speed, device reuse, disposable email domains).",
+          "Assign relative weights to each signal.",
+          "Define score thresholds for low, medium, and high risk.",
+          "Map enforcement actions to each risk tier.",
+          "Document the risk scoring logic clearly for engineers."
+        ],
+        "output": "A documented and deterministic risk scoring model with clear thresholds and actions."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Define Security Controls by Layer",
+      "description": {
+        "objective": "Specify concrete, configurable security controls across application, infrastructure, identity, and monitoring layers.",
+        "inputs": [
+          "Target Signup Flow",
+          "Risk Scoring Model"
+        ],
+        "actions": [
+          "Define application-layer controls (form validation, honeypots, API validation).",
+          "Define infrastructure-layer controls (WAF rules, IP reputation, CDN bot protection).",
+          "Define identity-layer controls (password policy, email verification, MFA rules).",
+          "Define monitoring and response controls (logging, alerts, thresholds).",
+          "Document default recommended settings and explain why each control matters."
+        ],
+        "output": "A complete checklist of layered security controls with defaults and rationale."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Produce Engineering Specification",
+      "description": {
+        "objective": "Translate security design into implementation-ready specifications for engineers.",
+        "inputs": [
+          "Security Controls Checklist",
+          "Risk Scoring Model"
+        ],
+        "actions": [
+          "Define required backend endpoints and fields (signup_attempt, risk_score, verification_status).",
+          "Specify which data must be stored and which must never be stored (privacy rules).",
+          "Define safe default rate limits with notes on tuning.",
+          "Specify email verification token rules (expiry, one-time use, rotation).",
+          "List approved third-party services for CAPTCHA, IP reputation, and WAF with use cases."
+        ],
+        "output": "A clear, implementation-ready engineering specification for secure signup."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Define Acceptance Criteria",
+      "description": {
+        "objective": "Establish clear pass/fail rules to validate the effectiveness of signup security.",
+        "inputs": [
+          "Engineering Specification"
+        ],
+        "actions": [
+          "Define acceptance criteria for bot flood protection.",
+          "Define acceptance criteria for email verification enforcement.",
+          "Define acceptance criteria for rate limiting behavior.",
+          "Define acceptance criteria for risk scoring outcomes.",
+          "Define acceptance criteria for logging and alert generation."
+        ],
+        "output": "A complete set of measurable acceptance criteria for secure signup."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 7",
+      "name": "Create Signup Security Test Plan",
+      "description": {
+        "objective": "Ensure signup defenses work correctly under normal and abusive conditions.",
+        "inputs": [
+          "Acceptance Criteria",
+          "Engineering Specification"
+        ],
+        "actions": [
+          "Define manual test cases for real user signup scenarios.",
+          "Define automated unit and integration tests for signup logic.",
+          "Design abuse simulations (bot floods, rapid retries, proxy rotation).",
+          "Document expected outcomes for each test case."
+        ],
+        "output": "A comprehensive signup security test plan with example test cases and expected results."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 8",
+      "name": "Publish Recommended Default Configuration",
+      "description": {
+        "objective": "Provide a clear, opinionated default configuration that can be deployed immediately.",
+        "inputs": [
+          "All prior phase outputs"
+        ],
+        "actions": [
+          "Summarize the recommended default signup security configuration.",
+          "Ensure defaults balance security and user experience.",
+          "Document configuration values in a single reference section.",
+          "Mark configuration as versioned and adjustable over time."
+        ],
+        "output": "A final Recommended Default Configuration section ready for deployment."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    }
+  ]
+}

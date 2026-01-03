@@ -1,189 +1,961 @@
 {
   "project": {
     "name": "WLJ Secure Signup & Anti-Fraud System",
-    "description": "Design and implement a layered, low-friction security system to prevent bot-driven and fraudulent account signups while preserving a smooth user experience for legitimate users."
+    "description": "Tiered security system for signup protection, preparing for financial aggregator integration. TIER 1: Immediate deployment (email verification, honeypot, disposable email blocking, reCAPTCHA, rate limiting, audit logging). TIER 2: Before finance launch (IP reputation, risk scoring, account states, feature gating). TIER 3: Only if abuse detected (behavioral analysis, device fingerprinting, phone verification)."
   },
   "tasks": [
     {
-      "phase": "Phase 1",
-      "name": "Create Signup Threat Model",
+      "phase": "Phase 1: Enable Email Verification [TIER 1]",
+      "name": "Enable mandatory email verification",
       "description": {
-        "objective": "Identify and document all realistic signup abuse scenarios so defenses are intentional and measurable.",
+        "objective": "Change django-allauth from no email verification to mandatory email verification",
         "inputs": [
-          "Current WLJ signup flow",
-          "Industry-standard signup abuse patterns"
+          "Read config/settings.py to find current ACCOUNT_EMAIL_VERIFICATION setting",
+          "Read django-allauth documentation for verification settings"
         ],
         "actions": [
-          "List common signup threats (bot floods, disposable emails, proxy/VPN abuse, referral abuse).",
-          "For each threat, document impact to WLJ (cost, data quality, system stability).",
-          "Estimate likelihood (Low/Medium/High).",
-          "Map at least one primary mitigation per threat.",
-          "Store the threat model as a versioned markdown document."
+          "Edit config/settings.py: Change ACCOUNT_EMAIL_VERIFICATION = 'none' to ACCOUNT_EMAIL_VERIFICATION = 'mandatory'",
+          "Add ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3 setting",
+          "Add ACCOUNT_EMAIL_CONFIRMATION_COOLDOWN = 180 setting (3 minutes between resends)",
+          "Verify email templates exist at templates/account/email/ (confirmation_message.txt, confirmation_subject.txt)"
         ],
-        "output": "A documented and versioned Signup Threat Model covering impact, likelihood, and mitigations."
-      },
-      "priority": "High",
-      "status": "New",
-      "effort": "Medium",
-      "allow_out_of_phase": false
+        "output": "Email verification is mandatory. New users cannot access the app until they click the verification link. Verify by creating a test account and confirming redirect to 'check your email' page. Definition of done: New signup redirects to verification pending page, clicking email link activates account."
+      }
     },
     {
-      "phase": "Phase 2",
-      "name": "Define Target Signup Flow with Progressive Friction",
+      "phase": "Phase 1: Enable Email Verification [TIER 1]",
+      "name": "Create email verification templates",
       "description": {
-        "objective": "Design a clear, step-by-step signup flow that increases friction only when risk signals appear.",
+        "objective": "Ensure branded email templates exist for verification emails",
         "inputs": [
-          "Signup Threat Model",
-          "Existing WLJ authentication design"
+          "Check if templates/account/email/ directory exists",
+          "Review existing WLJ email styling patterns"
         ],
         "actions": [
-          "Define a pending account state prior to email verification.",
-          "Design a default low-friction path for low-risk users.",
-          "Insert invisible CAPTCHA triggered by suspicious behavior.",
-          "Define rate-limiting checkpoints in the flow.",
-          "Define optional phone verification for high-risk cases only.",
-          "Create a simple ASCII flow diagram documenting all paths."
+          "Create templates/account/email/email_confirmation_subject.txt with content: 'Verify your Whole Life Journey account'",
+          "Create templates/account/email/email_confirmation_message.txt with branded verification message including {{ activate_url }}",
+          "Create templates/account/email_confirmation_sent.html for the 'check your email' page",
+          "Create templates/account/email_confirm.html for the verification landing page"
         ],
-        "output": "A documented target signup flow with progressive friction and an ASCII flow diagram."
-      },
-      "priority": "High",
-      "status": "New",
-      "effort": "Medium",
-      "allow_out_of_phase": false
+        "output": "All email verification templates exist and are branded. Definition of done: Test signup shows branded 'check your email' page, verification email has WLJ branding, clicking link shows success page."
+      }
     },
     {
-      "phase": "Phase 3",
-      "name": "Define Risk Scoring Model",
+      "phase": "Phase 1: Enable Email Verification [TIER 1]",
+      "name": "Test email verification flow end-to-end",
       "description": {
-        "objective": "Create a deterministic risk scoring system to classify signup attempts as low, medium, or high risk.",
+        "objective": "Verify the complete email verification flow works correctly",
         "inputs": [
-          "Signup Threat Model",
-          "Target Signup Flow"
+          "Email verification settings are enabled",
+          "Email templates are in place"
         ],
         "actions": [
-          "List risk signals (IP reputation, signup speed, device reuse, disposable email domains).",
-          "Assign relative weights to each signal.",
-          "Define score thresholds for low, medium, and high risk.",
-          "Map enforcement actions to each risk tier.",
-          "Document the risk scoring logic clearly for engineers."
+          "Create test case in apps/users/tests/test_signup_security.py: test_signup_requires_email_verification",
+          "Test that new signup creates inactive user",
+          "Test that unverified user is redirected to verification pending page",
+          "Test that verification link activates user",
+          "Test that verified user can proceed to terms acceptance",
+          "Run: python manage.py test apps.users.tests.test_signup_security"
         ],
-        "output": "A documented and deterministic risk scoring model with clear thresholds and actions."
-      },
-      "priority": "High",
-      "status": "New",
-      "effort": "Medium",
-      "allow_out_of_phase": false
+        "output": "Email verification flow works end-to-end. Tests pass. Definition of done: test_signup_requires_email_verification passes, manual test confirms flow works."
+      }
     },
     {
-      "phase": "Phase 4",
-      "name": "Define Security Controls by Layer",
+      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "name": "Create security hash functions",
       "description": {
-        "objective": "Specify concrete, configurable security controls across application, infrastructure, identity, and monitoring layers.",
+        "objective": "Create utility functions for hashing PII (email, IP) for privacy-preserving storage",
         "inputs": [
-          "Target Signup Flow",
-          "Risk Scoring Model"
+          "Read apps/users/models.py to understand existing patterns",
+          "Django SECRET_KEY will be used as salt"
         ],
         "actions": [
-          "Define application-layer controls (form validation, honeypots, API validation).",
-          "Define infrastructure-layer controls (WAF rules, IP reputation, CDN bot protection).",
-          "Define identity-layer controls (password policy, email verification, MFA rules).",
-          "Define monitoring and response controls (logging, alerts, thresholds).",
-          "Document default recommended settings and explain why each control matters."
+          "Create new file: apps/users/security.py",
+          "Add file header comment following CLAUDE.md standards",
+          "Implement hash_email(email: str) -> str using salted SHA-256",
+          "Implement hash_ip(ip_address: str) -> str using salted SHA-256",
+          "Implement hash_fingerprint(fingerprint_data: dict) -> str using salted SHA-256 on sorted JSON",
+          "Add docstrings explaining privacy rationale",
+          "Create unit tests in apps/users/tests/test_signup_security.py for hash functions"
         ],
-        "output": "A complete checklist of layered security controls with defaults and rationale."
-      },
-      "priority": "High",
-      "status": "New",
-      "effort": "Medium",
-      "allow_out_of_phase": false
+        "output": "apps/users/security.py exists with hash_email(), hash_ip(), hash_fingerprint() functions. Tests verify consistent hashing and that different inputs produce different hashes. Definition of done: Functions work, tests pass."
+      }
     },
     {
-      "phase": "Phase 5",
-      "name": "Produce Engineering Specification",
+      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "name": "Create SignupAttempt model",
       "description": {
-        "objective": "Translate security design into implementation-ready specifications for engineers.",
+        "objective": "Create database model to log all signup attempts for audit and fraud detection",
         "inputs": [
-          "Security Controls Checklist",
-          "Risk Scoring Model"
+          "Read apps/users/models.py for existing model patterns",
+          "apps/users/security.py hash functions are available"
         ],
         "actions": [
-          "Define required backend endpoints and fields (signup_attempt, risk_score, verification_status).",
-          "Specify which data must be stored and which must never be stored (privacy rules).",
-          "Define safe default rate limits with notes on tuning.",
-          "Specify email verification token rules (expiry, one-time use, rotation).",
-          "List approved third-party services for CAPTCHA, IP reputation, and WAF with use cases."
+          "Edit apps/users/models.py to add SignupAttempt model with fields: id (UUIDField primary key), email_hash (CharField 64), ip_hash (CharField 64), fingerprint_hash (CharField 64 blank), user_agent (CharField 500 blank), country_code (CharField 2 blank), risk_score (FloatField default 0.0), risk_level (CharField 20 default 'unknown'), captcha_score (FloatField null), ip_reputation_score (FloatField null), email_risk_score (FloatField null), behavioral_score (FloatField null), device_score (FloatField null), status (CharField 20 with choices: pending/allowed/challenged/blocked/completed/abandoned), block_reason (CharField 30 blank with choices: rate_limited/high_risk/disposable_email/honeypot/blocklist/captcha_failed), captcha_verified (BooleanField default False), phone_verified (BooleanField default False), email_verified (BooleanField default False), created_at (DateTimeField with db_index), completed_at (DateTimeField null), user (ForeignKey to User null blank SET_NULL)",
+          "Add Meta class with db_table='users_signup_attempt', ordering=['-created_at'], and indexes on (created_at, status), (ip_hash, created_at), (email_hash, created_at)",
+          "Add __str__ method returning 'SignupAttempt {id} - {status}'"
         ],
-        "output": "A clear, implementation-ready engineering specification for secure signup."
-      },
-      "priority": "High",
-      "status": "New",
-      "effort": "High",
-      "allow_out_of_phase": false
+        "output": "SignupAttempt model added to apps/users/models.py with all specified fields and indexes. Definition of done: Model code is complete and follows existing patterns."
+      }
     },
     {
-      "phase": "Phase 6",
-      "name": "Define Acceptance Criteria",
+      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "name": "Create IPBlocklist model",
       "description": {
-        "objective": "Establish clear pass/fail rules to validate the effectiveness of signup security.",
+        "objective": "Create database model to store blocked IP addresses",
         "inputs": [
-          "Engineering Specification"
+          "Read apps/users/models.py for existing model patterns"
         ],
         "actions": [
-          "Define acceptance criteria for bot flood protection.",
-          "Define acceptance criteria for email verification enforcement.",
-          "Define acceptance criteria for rate limiting behavior.",
-          "Define acceptance criteria for risk scoring outcomes.",
-          "Define acceptance criteria for logging and alert generation."
+          "Edit apps/users/models.py to add IPBlocklist model with fields: id (auto), ip_address (CharField 45 db_index), cidr_range (CharField 50 blank), block_type (CharField 20 with choices: manual/automated/temporary), reason (TextField blank), created_at (DateTimeField default timezone.now), expires_at (DateTimeField null blank), created_by (ForeignKey to User null blank SET_NULL)",
+          "Add Meta class with db_table='users_ip_blocklist'",
+          "Add classmethod is_blocked(cls, ip_address: str) -> bool that checks if IP is blocked (considering expiry)",
+          "Add __str__ method"
         ],
-        "output": "A complete set of measurable acceptance criteria for secure signup."
-      },
-      "priority": "High",
-      "status": "New",
-      "effort": "Low",
-      "allow_out_of_phase": false
+        "output": "IPBlocklist model added to apps/users/models.py. Definition of done: Model code is complete with is_blocked classmethod."
+      }
     },
     {
-      "phase": "Phase 7",
-      "name": "Create Signup Security Test Plan",
+      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "name": "Create DisposableEmailDomain model",
       "description": {
-        "objective": "Ensure signup defenses work correctly under normal and abusive conditions.",
+        "objective": "Create database model to store known disposable email domains",
         "inputs": [
-          "Acceptance Criteria",
-          "Engineering Specification"
+          "Read apps/users/models.py for existing model patterns"
         ],
         "actions": [
-          "Define manual test cases for real user signup scenarios.",
-          "Define automated unit and integration tests for signup logic.",
-          "Design abuse simulations (bot floods, rapid retries, proxy rotation).",
-          "Document expected outcomes for each test case."
+          "Edit apps/users/models.py to add DisposableEmailDomain model with fields: id (auto), domain (CharField 255 unique db_index), added_at (DateTimeField default timezone.now), source (CharField 50 default 'manual'), confirmed (BooleanField default True)",
+          "Add Meta class with db_table='users_disposable_email_domain'",
+          "Add classmethod is_disposable(cls, email: str) -> bool that extracts domain and checks against confirmed domains",
+          "Add __str__ method returning domain"
         ],
-        "output": "A comprehensive signup security test plan with example test cases and expected results."
-      },
-      "priority": "Medium",
-      "status": "New",
-      "effort": "Medium",
-      "allow_out_of_phase": false
+        "output": "DisposableEmailDomain model added to apps/users/models.py. Definition of done: Model code is complete with is_disposable classmethod."
+      }
     },
     {
-      "phase": "Phase 8",
-      "name": "Publish Recommended Default Configuration",
+      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "name": "Create database migration for security models",
       "description": {
-        "objective": "Provide a clear, opinionated default configuration that can be deployed immediately.",
+        "objective": "Generate and apply migration for SignupAttempt, IPBlocklist, and DisposableEmailDomain models",
         "inputs": [
-          "All prior phase outputs"
+          "All three models are defined in apps/users/models.py"
         ],
         "actions": [
-          "Summarize the recommended default signup security configuration.",
-          "Ensure defaults balance security and user experience.",
-          "Document configuration values in a single reference section.",
-          "Mark configuration as versioned and adjustable over time."
+          "Run: python manage.py makemigrations users --name signup_security",
+          "Review generated migration file for correctness",
+          "Run: python manage.py migrate",
+          "Verify tables created: python manage.py dbshell then .tables or \\dt"
         ],
-        "output": "A final Recommended Default Configuration section ready for deployment."
-      },
-      "priority": "Medium",
-      "status": "New",
-      "effort": "Low",
-      "allow_out_of_phase": false
+        "output": "Migration apps/users/migrations/0025_signup_security.py created and applied. Tables users_signup_attempt, users_ip_blocklist, users_disposable_email_domain exist in database. Definition of done: migrate runs without errors, tables exist."
+      }
+    },
+    {
+      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "name": "Create admin interface for security models",
+      "description": {
+        "objective": "Add Django admin classes for monitoring signup attempts and managing blocklists",
+        "inputs": [
+          "Read apps/users/admin.py for existing admin patterns",
+          "Security models are created and migrated"
+        ],
+        "actions": [
+          "Edit apps/users/admin.py to add SignupAttemptAdmin with: list_display (id short, status, risk_level, risk_score, block_reason, created_at), list_filter (status, risk_level, block_reason, created_at), search_fields (email_hash, ip_hash), readonly_fields (all fields - no editing allowed), date_hierarchy on created_at",
+          "Add IPBlocklistAdmin with: list_display (ip_address, block_type, reason truncated, expires_at, created_at), list_filter (block_type, created_at), search_fields (ip_address, reason), actions for bulk delete",
+          "Add DisposableEmailDomainAdmin with: list_display (domain, source, confirmed, added_at), list_filter (source, confirmed), search_fields (domain), actions for bulk confirm/unconfirm"
+        ],
+        "output": "Admin classes registered for all three security models. Definition of done: Django admin shows SignupAttempt (read-only), IPBlocklist (editable), DisposableEmailDomain (editable) with proper filtering and display."
+      }
+    },
+    {
+      "phase": "Phase 2: Signup Audit Logging [TIER 1]",
+      "name": "Create management command to purge old signup attempts",
+      "description": {
+        "objective": "Create command to enforce 90-day retention policy on SignupAttempt records",
+        "inputs": [
+          "Read apps/users/management/commands/ for existing command patterns",
+          "SignupAttempt model exists"
+        ],
+        "actions": [
+          "Create apps/users/management/commands/purge_old_signups.py",
+          "Add file header comment following CLAUDE.md standards",
+          "Implement Command class that deletes SignupAttempt records older than 90 days",
+          "Add --dry-run flag to preview deletions without executing",
+          "Add stdout output showing number of records deleted",
+          "Test locally: python manage.py purge_old_signups --dry-run"
+        ],
+        "output": "Management command apps/users/management/commands/purge_old_signups.py exists and works. Definition of done: Command runs without error, --dry-run shows count, actual run deletes old records."
+      }
+    },
+    {
+      "phase": "Phase 3: Honeypot Protection [TIER 1]",
+      "name": "Add honeypot field to signup form",
+      "description": {
+        "objective": "Add hidden honeypot field that bots will fill but humans won't see",
+        "inputs": [
+          "Read templates/account/signup.html for current form structure",
+          "Read apps/users/forms.py for form patterns"
+        ],
+        "actions": [
+          "Edit templates/account/signup.html to add hidden honeypot field: <div style='position: absolute; left: -9999px; top: -9999px;'><label for='website'>Website</label><input type='text' name='website' id='website' autocomplete='off' tabindex='-1'></div>",
+          "Place the honeypot div inside the form element but styled to be invisible",
+          "The field name 'website' is chosen because bots often auto-fill website fields"
+        ],
+        "output": "Honeypot field added to signup form. Field is invisible to humans but will be filled by bots. Definition of done: View page source shows honeypot field, field is not visible in browser."
+      }
+    },
+    {
+      "phase": "Phase 3: Honeypot Protection [TIER 1]",
+      "name": "Create honeypot validation in signup view",
+      "description": {
+        "objective": "Reject signup attempts where honeypot field is filled",
+        "inputs": [
+          "Honeypot field exists in signup template",
+          "SignupAttempt model exists for logging"
+        ],
+        "actions": [
+          "Create apps/users/adapters.py with custom AccountAdapter class extending allauth.account.adapter.DefaultAccountAdapter",
+          "Override clean_email or add pre_signup hook to check for honeypot field in request.POST",
+          "If honeypot field 'website' has any value: log SignupAttempt with status='blocked' and block_reason='honeypot', raise ValidationError with generic message 'Unable to create account'",
+          "Register adapter in settings.py: ACCOUNT_ADAPTER = 'apps.users.adapters.WLJAccountAdapter'",
+          "Add test case: test_honeypot_blocks_bot"
+        ],
+        "output": "Honeypot validation rejects submissions where hidden field is filled. Blocked attempts are logged to SignupAttempt. Definition of done: Manually submitting form with honeypot filled shows error, SignupAttempt record exists with block_reason='honeypot'."
+      }
+    },
+    {
+      "phase": "Phase 4: Disposable Email Blocking [TIER 1]",
+      "name": "Create disposable email domain fixture",
+      "description": {
+        "objective": "Create fixture file with 2000+ known disposable email domains",
+        "inputs": [
+          "DisposableEmailDomain model exists"
+        ],
+        "actions": [
+          "Create apps/users/fixtures/disposable_domains.json",
+          "Include common disposable domains: 10minutemail.com, guerrillamail.com, tempmail.com, mailinator.com, throwaway.email, temp-mail.org, fakeinbox.com, getnada.com, mohmal.com, maildrop.cc, and 2000+ more",
+          "Use publicly available disposable domain lists as reference (e.g., github.com/disposable-email-domains/disposable-email-domains)",
+          "Format as Django fixture: [{\"model\": \"users.disposableemaildomain\", \"fields\": {\"domain\": \"...\", \"source\": \"fixture\", \"confirmed\": true}}]"
+        ],
+        "output": "Fixture file apps/users/fixtures/disposable_domains.json exists with 2000+ domains. Definition of done: File is valid JSON and loadable."
+      }
+    },
+    {
+      "phase": "Phase 4: Disposable Email Blocking [TIER 1]",
+      "name": "Create management command to load disposable domains",
+      "description": {
+        "objective": "Create idempotent command to load disposable email domains from fixture",
+        "inputs": [
+          "DisposableEmailDomain model exists",
+          "Fixture file exists"
+        ],
+        "actions": [
+          "Create apps/users/management/commands/load_disposable_domains.py",
+          "Add file header comment following CLAUDE.md standards",
+          "Implement Command that loads fixture using get_or_create to be idempotent",
+          "Add stdout output showing count of domains loaded/skipped",
+          "Test: python manage.py load_disposable_domains",
+          "Add call_command to apps/core/management/commands/load_initial_data.py for Railway deployment"
+        ],
+        "output": "Management command exists and loads domains idempotently. Definition of done: Running twice produces same database state, no duplicates."
+      }
+    },
+    {
+      "phase": "Phase 4: Disposable Email Blocking [TIER 1]",
+      "name": "Add disposable email validation to signup",
+      "description": {
+        "objective": "Block signups from disposable email domains with user-friendly message",
+        "inputs": [
+          "DisposableEmailDomain model exists with is_disposable() method",
+          "WLJAccountAdapter exists in apps/users/adapters.py"
+        ],
+        "actions": [
+          "Edit apps/users/adapters.py WLJAccountAdapter",
+          "Override clean_email method to check DisposableEmailDomain.is_disposable(email)",
+          "If disposable: log SignupAttempt with status='blocked' and block_reason='disposable_email', raise ValidationError('Please use a permanent email address. Temporary email services are not supported.')",
+          "Add test case: test_disposable_email_blocked"
+        ],
+        "output": "Disposable email addresses are rejected at signup with friendly message. Definition of done: Signup with tempmail.com email shows error message, SignupAttempt logged with block_reason='disposable_email'."
+      }
+    },
+    {
+      "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
+      "name": "Add reCAPTCHA configuration settings",
+      "description": {
+        "objective": "Add reCAPTCHA v3 configuration to Django settings",
+        "inputs": [
+          "Read config/settings.py for existing env var patterns"
+        ],
+        "actions": [
+          "Edit config/settings.py to add: RECAPTCHA_V3_SITE_KEY = os.getenv('RECAPTCHA_V3_SITE_KEY', ''), RECAPTCHA_V3_SECRET_KEY = os.getenv('RECAPTCHA_V3_SECRET_KEY', ''), RECAPTCHA_SCORE_THRESHOLD = float(os.getenv('RECAPTCHA_SCORE_THRESHOLD', '0.5'))",
+          "Add to .env.example: RECAPTCHA_V3_SITE_KEY=your-site-key-here, RECAPTCHA_V3_SECRET_KEY=your-secret-key-here",
+          "Add startup log message indicating reCAPTCHA status (configured vs not configured)"
+        ],
+        "output": "reCAPTCHA settings added to config/settings.py with env var support. Definition of done: Settings load without error, log shows configuration status."
+      }
+    },
+    {
+      "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
+      "name": "Create RecaptchaService class",
+      "description": {
+        "objective": "Create service class for reCAPTCHA v3 token verification",
+        "inputs": [
+          "reCAPTCHA settings exist in config/settings.py"
+        ],
+        "actions": [
+          "Create directory: apps/users/services/",
+          "Create apps/users/services/__init__.py",
+          "Create apps/users/services/captcha.py with RecaptchaService class",
+          "Add file header comment following CLAUDE.md standards",
+          "Implement __init__(self) that loads settings",
+          "Implement verify(self, token: str, remote_ip: str = None) -> dict that POSTs to https://www.google.com/recaptcha/api/siteverify and returns {success, score, action, error_codes}",
+          "Implement is_human(self, token: str, remote_ip: str = None) -> tuple[bool, float] that returns (score >= threshold, score)",
+          "Handle API errors gracefully - fail open with score 0.5 and log warning",
+          "Add 5 second timeout on API call"
+        ],
+        "output": "apps/users/services/captcha.py exists with RecaptchaService class. Definition of done: Class instantiates without error, mock test for verify() method passes."
+      }
+    },
+    {
+      "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
+      "name": "Add reCAPTCHA v3 to signup template",
+      "description": {
+        "objective": "Add invisible reCAPTCHA v3 script and token capture to signup form",
+        "inputs": [
+          "Read templates/account/signup.html",
+          "RECAPTCHA_V3_SITE_KEY setting exists"
+        ],
+        "actions": [
+          "Edit templates/account/signup.html to add reCAPTCHA v3 script in head: <script src='https://www.google.com/recaptcha/api.js?render={{ recaptcha_site_key }}'></script>",
+          "Add hidden input field: <input type='hidden' name='recaptcha_token' id='recaptcha_token'>",
+          "Add JavaScript to execute reCAPTCHA on form submit and populate token field before submission",
+          "Edit templates/account/base.html or create context processor to inject recaptcha_site_key from settings"
+        ],
+        "output": "Signup form includes reCAPTCHA v3 script and captures token on submit. Definition of done: Network tab shows reCAPTCHA API call on form submit, hidden field contains token."
+      }
+    },
+    {
+      "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
+      "name": "Verify reCAPTCHA token on signup",
+      "description": {
+        "objective": "Verify reCAPTCHA token server-side and log score to SignupAttempt",
+        "inputs": [
+          "RecaptchaService class exists",
+          "Signup form sends recaptcha_token"
+        ],
+        "actions": [
+          "Edit apps/users/adapters.py WLJAccountAdapter",
+          "In pre_signup or similar hook, extract recaptcha_token from request.POST",
+          "Call RecaptchaService().verify(token, request IP)",
+          "Store captcha_score in SignupAttempt record",
+          "For TIER 1: Log score only, do not block based on score (threshold enforcement comes in TIER 2)",
+          "If reCAPTCHA API fails or token missing, log warning and continue (fail open for now)"
+        ],
+        "output": "reCAPTCHA tokens are verified and scores logged to SignupAttempt. Definition of done: New signup creates SignupAttempt with captcha_score populated."
+      }
+    },
+    {
+      "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
+      "name": "Create RateLimiter class",
+      "description": {
+        "objective": "Create rate limiter using Django cache for tracking signup attempts per IP",
+        "inputs": [
+          "Django cache is configured (settings.py CACHES)"
+        ],
+        "actions": [
+          "Create apps/users/rate_limits.py",
+          "Add file header comment following CLAUDE.md standards",
+          "Implement RateLimiter class with __init__(self, cache_prefix='ratelimit')",
+          "Implement check(self, key: str, limit: int, window: int) -> tuple[bool, int, int] that returns (allowed, remaining, reset_in_seconds)",
+          "Use Django cache.get/set/incr for atomic counting",
+          "Implement reset(self, key: str) to clear a rate limit",
+          "Add SIGNUP_RATE_LIMITS dict with 'per_ip_hourly': {'limit': 5, 'window': 3600}, 'per_ip_daily': {'limit': 20, 'window': 86400}",
+          "Implement check_signup_limit(ip_address: str) -> tuple[bool, str] convenience function"
+        ],
+        "output": "apps/users/rate_limits.py exists with RateLimiter class and check_signup_limit function. Definition of done: Unit tests verify rate limiting logic works correctly."
+      }
+    },
+    {
+      "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
+      "name": "Apply rate limiting to signup endpoint",
+      "description": {
+        "objective": "Enforce rate limits on signup and block excessive attempts",
+        "inputs": [
+          "RateLimiter class exists",
+          "WLJAccountAdapter exists"
+        ],
+        "actions": [
+          "Edit apps/users/adapters.py WLJAccountAdapter",
+          "In pre_signup hook, call check_signup_limit(request IP)",
+          "If not allowed: log SignupAttempt with status='blocked' and block_reason='rate_limited', raise ValidationError('Too many signup attempts. Please try again in X minutes.')",
+          "Calculate and include retry time in error message",
+          "Add test case: test_rate_limiting_blocks_excessive_signups (using mock cache)"
+        ],
+        "output": "Rate limiting enforced on signup endpoint. Definition of done: Making 6 signups from same IP within 1 hour blocks the 6th attempt with appropriate message."
+      }
+    },
+    {
+      "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
+      "name": "Add rate limit settings to configuration",
+      "description": {
+        "objective": "Add configurable rate limit thresholds to settings",
+        "inputs": [
+          "Read config/settings.py for existing env var patterns"
+        ],
+        "actions": [
+          "Edit config/settings.py to add: SIGNUP_RATE_LIMIT_HOURLY = int(os.getenv('SIGNUP_RATE_LIMIT_HOURLY', '5')), SIGNUP_RATE_LIMIT_DAILY = int(os.getenv('SIGNUP_RATE_LIMIT_DAILY', '20'))",
+          "Update apps/users/rate_limits.py to read from settings instead of hardcoded values",
+          "Add to .env.example with comments explaining the limits"
+        ],
+        "output": "Rate limits are configurable via environment variables. Definition of done: Changing env var changes rate limit behavior."
+      }
+    },
+    {
+      "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
+      "name": "Create SignupAttempt logging integration",
+      "description": {
+        "objective": "Ensure all signup attempts (success and failure) are logged to SignupAttempt",
+        "inputs": [
+          "SignupAttempt model exists",
+          "WLJAccountAdapter exists with honeypot, disposable email, rate limit, and CAPTCHA checks"
+        ],
+        "actions": [
+          "Edit apps/users/adapters.py to create SignupAttempt record at start of signup process with status='pending'",
+          "Update status to 'blocked' with appropriate block_reason if any check fails",
+          "Update status to 'allowed' if all checks pass and user creation proceeds",
+          "Update status to 'completed' and link user FK after successful email verification",
+          "Use signal or override save_user method to update on completion",
+          "Store email_hash, ip_hash, user_agent in all cases"
+        ],
+        "output": "Every signup attempt creates a SignupAttempt record with appropriate status and metadata. Definition of done: Admin shows SignupAttempt records for all signup attempts with correct status values."
+      }
+    },
+    {
+      "phase": "Phase 7: IP Reputation Integration [TIER 2]",
+      "name": "Add IPQualityScore configuration",
+      "description": {
+        "objective": "Add IPQualityScore API configuration to Django settings",
+        "inputs": [
+          "Read config/settings.py for existing env var patterns"
+        ],
+        "actions": [
+          "Edit config/settings.py to add: IPQS_API_KEY = os.getenv('IPQS_API_KEY', ''), IPQS_STRICTNESS = int(os.getenv('IPQS_STRICTNESS', '1')), IPQS_CACHE_TTL = int(os.getenv('IPQS_CACHE_TTL', '3600'))",
+          "Add startup log message indicating IPQS status (configured vs not configured)",
+          "Add to .env.example with comments"
+        ],
+        "output": "IPQualityScore settings added to config/settings.py. Definition of done: Settings load without error."
+      }
+    },
+    {
+      "phase": "Phase 7: IP Reputation Integration [TIER 2]",
+      "name": "Create IPQualityService class",
+      "description": {
+        "objective": "Create service class for IPQualityScore API integration with caching",
+        "inputs": [
+          "IPQS settings exist in config/settings.py"
+        ],
+        "actions": [
+          "Create apps/users/services/ip_reputation.py",
+          "Add file header comment following CLAUDE.md standards",
+          "Implement IPQualityService class with __init__(self) loading settings",
+          "Implement get_reputation(self, ip_address: str) -> dict that calls IPQS API and caches result for IPQS_CACHE_TTL seconds",
+          "Implement calculate_risk(self, ip_address: str) -> float that returns 0.0-1.0 risk score based on fraud_score, vpn, tor, proxy, recent_abuse flags",
+          "Handle API errors gracefully - return neutral score 0.5 and log warning",
+          "Add 5 second timeout on API call"
+        ],
+        "output": "apps/users/services/ip_reputation.py exists with IPQualityService class. Definition of done: Class instantiates without error, mock test passes."
+      }
+    },
+    {
+      "phase": "Phase 7: IP Reputation Integration [TIER 2]",
+      "name": "Integrate IP reputation into signup flow",
+      "description": {
+        "objective": "Check IP reputation during signup and store score",
+        "inputs": [
+          "IPQualityService class exists",
+          "WLJAccountAdapter exists"
+        ],
+        "actions": [
+          "Edit apps/users/adapters.py WLJAccountAdapter",
+          "In signup flow, if IPQS_API_KEY is configured, call IPQualityService().calculate_risk(ip)",
+          "Store ip_reputation_score in SignupAttempt record",
+          "If IP is on IPBlocklist, block immediately with block_reason='blocklist'",
+          "For TIER 2: Score is logged but not used for blocking (risk scoring phase will use it)"
+        ],
+        "output": "IP reputation scores are captured and logged to SignupAttempt. Definition of done: New signup creates SignupAttempt with ip_reputation_score populated (when IPQS configured)."
+      }
+    },
+    {
+      "phase": "Phase 8: Simplified Risk Scoring [TIER 2]",
+      "name": "Create RiskScoringService class",
+      "description": {
+        "objective": "Create service that combines CAPTCHA, IP, and email signals into overall risk score",
+        "inputs": [
+          "RecaptchaService exists",
+          "IPQualityService exists",
+          "DisposableEmailDomain model exists"
+        ],
+        "actions": [
+          "Create apps/users/services/risk_scoring.py",
+          "Add file header comment following CLAUDE.md standards",
+          "Create RiskScoreResult dataclass with: total_score, risk_level, breakdown dict, recommended_action",
+          "Implement calculate_risk_score(captcha_score, ip_risk, email) -> RiskScoreResult",
+          "Weights: CAPTCHA 40%, IP reputation 35%, email domain 25%",
+          "Implement email_domain_risk(email) -> float checking disposable (1.0), high-abuse free (0.3), normal free (0.1), corporate/edu (0.0)",
+          "Risk levels: LOW (0-0.3), MEDIUM (0.3-0.6), HIGH (0.6-0.8), CRITICAL (0.8-1.0)",
+          "Recommended actions: LOW='allow', MEDIUM='captcha_challenge', HIGH='allow_restricted', CRITICAL='block'"
+        ],
+        "output": "apps/users/services/risk_scoring.py exists with RiskScoringService. Definition of done: Unit tests verify scoring logic produces expected results for sample inputs."
+      }
+    },
+    {
+      "phase": "Phase 8: Simplified Risk Scoring [TIER 2]",
+      "name": "Add risk threshold settings",
+      "description": {
+        "objective": "Add configurable risk thresholds to settings",
+        "inputs": [
+          "Read config/settings.py for existing patterns"
+        ],
+        "actions": [
+          "Edit config/settings.py to add: RISK_THRESHOLD_LOW = float(os.getenv('RISK_THRESHOLD_LOW', '0.30')), RISK_THRESHOLD_MEDIUM = float(os.getenv('RISK_THRESHOLD_MEDIUM', '0.60')), RISK_THRESHOLD_HIGH = float(os.getenv('RISK_THRESHOLD_HIGH', '0.80'))",
+          "Update RiskScoringService to use settings for thresholds",
+          "Add to .env.example with comments explaining threshold tuning"
+        ],
+        "output": "Risk thresholds are configurable via environment variables. Definition of done: Changing threshold env vars changes risk level classification."
+      }
+    },
+    {
+      "phase": "Phase 8: Simplified Risk Scoring [TIER 2]",
+      "name": "Integrate risk scoring into signup flow",
+      "description": {
+        "objective": "Calculate and store risk score for each signup, enforce actions based on risk level",
+        "inputs": [
+          "RiskScoringService exists",
+          "WLJAccountAdapter exists"
+        ],
+        "actions": [
+          "Edit apps/users/adapters.py WLJAccountAdapter",
+          "After collecting captcha_score and ip_reputation_score, call RiskScoringService().calculate_risk_score()",
+          "Store risk_score, risk_level, email_risk_score in SignupAttempt",
+          "Enforce actions: CRITICAL -> block with block_reason='high_risk', MEDIUM -> redirect to CAPTCHA challenge (Phase 10), LOW/HIGH -> allow",
+          "HIGH risk allows signup but user will have feature restrictions (Phase 9)"
+        ],
+        "output": "Risk scores calculated and enforced for all signups. Definition of done: SignupAttempt records show risk_score and risk_level, CRITICAL risk blocks signup."
+      }
+    },
+    {
+      "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
+      "name": "Add account state field to User model",
+      "description": {
+        "objective": "Add account_state field to track user trust level",
+        "inputs": [
+          "Read apps/users/models.py User model"
+        ],
+        "actions": [
+          "Edit apps/users/models.py User model to add: account_state = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('verified', 'Verified'), ('trusted', 'Trusted'), ('restricted', 'Restricted'), ('suspended', 'Suspended')], default='pending')",
+          "Add email_verified = models.BooleanField(default=False) if not already present",
+          "Create migration: python manage.py makemigrations users --name add_account_state",
+          "Run migration: python manage.py migrate"
+        ],
+        "output": "User model has account_state field. Migration created and applied. Definition of done: User.objects.first().account_state returns 'pending'."
+      }
+    },
+    {
+      "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
+      "name": "Create account state transition logic",
+      "description": {
+        "objective": "Implement automatic account state transitions",
+        "inputs": [
+          "User model has account_state field"
+        ],
+        "actions": [
+          "Edit apps/users/models.py or create apps/users/account_states.py",
+          "On email verification: transition pending -> verified, set email_verified=True",
+          "Create management command: promote_to_trusted that finds verified users with date_joined > 30 days ago and promotes to trusted",
+          "Add to load_initial_data.py or create scheduled task for daily promotion check",
+          "Add helper methods: user.is_trusted, user.can_link_financial_accounts"
+        ],
+        "output": "Account state transitions work automatically. Definition of done: Verifying email changes state to 'verified', 30-day-old verified accounts can be promoted to 'trusted'."
+      }
+    },
+    {
+      "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
+      "name": "Create feature gating middleware",
+      "description": {
+        "objective": "Create middleware to enforce feature restrictions based on account state",
+        "inputs": [
+          "User model has account_state field"
+        ],
+        "actions": [
+          "Create apps/users/middleware.py AccountStateMiddleware class",
+          "Define restricted URLs/views per account state",
+          "pending: redirect to email verification page for most actions",
+          "verified: full access except finance module",
+          "trusted: full access including finance module",
+          "restricted: redirect to contact support page",
+          "suspended: redirect to suspended account page",
+          "Add middleware to MIDDLEWARE list in settings.py",
+          "Create templates for restriction messages"
+        ],
+        "output": "Feature gating enforced based on account state. Definition of done: Pending user redirected when trying to access journal, verified user cannot access finance, trusted user has full access."
+      }
+    },
+    {
+      "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
+      "name": "Add days-until-trusted configuration",
+      "description": {
+        "objective": "Make trust promotion timing configurable",
+        "inputs": [
+          "Account state promotion logic exists"
+        ],
+        "actions": [
+          "Edit config/settings.py to add: DAYS_UNTIL_TRUSTED = int(os.getenv('DAYS_UNTIL_TRUSTED', '30'))",
+          "Update promote_to_trusted command to use this setting",
+          "Add to .env.example with comment"
+        ],
+        "output": "Trust promotion timing is configurable. Definition of done: Changing DAYS_UNTIL_TRUSTED changes promotion behavior."
+      }
+    },
+    {
+      "phase": "Phase 10: Visible CAPTCHA Challenge [TIER 2]",
+      "name": "Add reCAPTCHA v2 configuration",
+      "description": {
+        "objective": "Add reCAPTCHA v2 (checkbox) as fallback challenge for medium-risk signups",
+        "inputs": [
+          "reCAPTCHA v3 already configured"
+        ],
+        "actions": [
+          "Edit config/settings.py to add: RECAPTCHA_V2_SITE_KEY = os.getenv('RECAPTCHA_V2_SITE_KEY', ''), RECAPTCHA_V2_SECRET_KEY = os.getenv('RECAPTCHA_V2_SECRET_KEY', '')",
+          "Update RecaptchaService to support v2 verification",
+          "Add to .env.example"
+        ],
+        "output": "reCAPTCHA v2 settings added. Definition of done: Settings load without error."
+      }
+    },
+    {
+      "phase": "Phase 10: Visible CAPTCHA Challenge [TIER 2]",
+      "name": "Create CAPTCHA challenge template and view",
+      "description": {
+        "objective": "Create page for visible CAPTCHA challenge after medium-risk detection",
+        "inputs": [
+          "reCAPTCHA v2 configured",
+          "Risk scoring integrated"
+        ],
+        "actions": [
+          "Create templates/account/captcha_challenge.html with reCAPTCHA v2 widget and form to continue signup",
+          "Create view in apps/users/views.py: CaptchaChallengeView",
+          "Store pending signup data in session (email, hashed password, signup_attempt_id)",
+          "On CAPTCHA success: complete signup, update SignupAttempt captcha_verified=True",
+          "On CAPTCHA failure: increment retry counter (max 3), then block",
+          "Add URL pattern: path('signup/challenge/', CaptchaChallengeView.as_view(), name='signup_challenge')"
+        ],
+        "output": "CAPTCHA challenge flow works for medium-risk signups. Definition of done: Medium-risk signup redirects to challenge page, completing CAPTCHA allows signup."
+      }
+    },
+    {
+      "phase": "Phase 11: Behavioral Signal Collection [TIER 3]",
+      "name": "Create behavioral signal JavaScript",
+      "description": {
+        "objective": "Create JavaScript to collect behavioral signals during signup form completion",
+        "inputs": [
+          "Read templates/account/signup.html"
+        ],
+        "actions": [
+          "Create static/js/signup-security.js",
+          "Track: form load timestamp, field focus events, mouse movement detected, keystroke timing variance",
+          "On form submit: calculate completion_time_seconds, field_focus_count, has_mouse_movement, keystroke_variance",
+          "Populate hidden form fields with behavioral data",
+          "Add hidden fields to signup.html: completion_time, focus_count, mouse_moved, keystroke_variance"
+        ],
+        "output": "static/js/signup-security.js collects behavioral signals. Definition of done: Form submission includes behavioral data in hidden fields."
+      }
+    },
+    {
+      "phase": "Phase 11: Behavioral Signal Collection [TIER 3]",
+      "name": "Create behavioral risk scoring function",
+      "description": {
+        "objective": "Score behavioral signals to detect bot-like patterns",
+        "inputs": [
+          "Behavioral signals collected from form"
+        ],
+        "actions": [
+          "Edit apps/users/services/risk_scoring.py",
+          "Add behavioral_risk(signals: dict) -> float function",
+          "Risk signals: completion_time < 3s (+0.4), < 5s (+0.2); focus_count = 0 (+0.3), < 3 (+0.1); no mouse (+0.2); zero keystroke variance (+0.3)",
+          "Return capped score 0.0-1.0",
+          "Add unit tests for behavioral_risk function"
+        ],
+        "output": "behavioral_risk function exists and scores signals. Definition of done: Unit tests pass for sample behavioral patterns."
+      }
+    },
+    {
+      "phase": "Phase 11: Behavioral Signal Collection [TIER 3]",
+      "name": "Integrate behavioral scoring into signup",
+      "description": {
+        "objective": "Extract behavioral signals from form and include in risk calculation",
+        "inputs": [
+          "behavioral_risk function exists",
+          "Behavioral hidden fields exist in form"
+        ],
+        "actions": [
+          "Edit apps/users/adapters.py WLJAccountAdapter",
+          "Extract behavioral signals from request.POST",
+          "Call behavioral_risk(signals) and store in SignupAttempt.behavioral_score",
+          "Update RiskScoringService to optionally include behavioral score in calculation (when TIER 3 enabled)"
+        ],
+        "output": "Behavioral scores captured in SignupAttempt. Definition of done: SignupAttempt records include behavioral_score."
+      }
+    },
+    {
+      "phase": "Phase 12: Device Fingerprinting [TIER 3]",
+      "name": "Add device fingerprinting JavaScript",
+      "description": {
+        "objective": "Create lightweight browser fingerprinting for multi-account detection",
+        "inputs": [
+          "static/js/signup-security.js exists"
+        ],
+        "actions": [
+          "Edit static/js/signup-security.js to add fingerprinting",
+          "Collect: canvas hash, WebGL hash, timezone, screen resolution, language, platform",
+          "Create deterministic hash of fingerprint components",
+          "Add hidden field 'fingerprint_hash' to form",
+          "Privacy note: Only hash is transmitted and stored, never raw components"
+        ],
+        "output": "Fingerprint hash captured on form submission. Definition of done: Hidden field contains consistent hash for same browser."
+      }
+    },
+    {
+      "phase": "Phase 12: Device Fingerprinting [TIER 3]",
+      "name": "Create device fingerprint risk scoring",
+      "description": {
+        "objective": "Score device fingerprint for signs of automation or multi-account abuse",
+        "inputs": [
+          "Fingerprint hash collected from form"
+        ],
+        "actions": [
+          "Edit apps/users/services/risk_scoring.py",
+          "Add device_fingerprint_risk(fingerprint_hash: str) -> float function",
+          "Query SignupAttempt for previous uses of same fingerprint_hash",
+          "Risk: 0+ previous accounts with same fingerprint: +0.2 per account (max 0.6)",
+          "Store fingerprint_hash in SignupAttempt for future lookups",
+          "Add to admin: ability to view accounts sharing fingerprint"
+        ],
+        "output": "device_fingerprint_risk function exists. Definition of done: Function returns higher score for fingerprints with prior account history."
+      }
+    },
+    {
+      "phase": "Phase 13: Phone Verification Option [TIER 3]",
+      "name": "Create phone verification flow",
+      "description": {
+        "objective": "Offer phone verification to high-risk signups as optional trust boost",
+        "inputs": [
+          "Twilio already configured in settings (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)",
+          "UserPreferences has phone_number and phone_verified fields"
+        ],
+        "actions": [
+          "Create apps/users/services/phone_verification.py with PhoneVerificationService",
+          "Implement send_verification_code(phone_number) using Twilio Verify API",
+          "Implement verify_code(phone_number, code) -> bool",
+          "6-digit code, 10-minute expiry, max 3 attempts",
+          "Create templates/account/phone_verify.html with phone input and code verification form",
+          "Create PhoneVerifyView in apps/users/views.py",
+          "On success: update SignupAttempt.phone_verified=True, reduce effective risk score"
+        ],
+        "output": "Phone verification flow works. Definition of done: High-risk signup can optionally verify phone, verification recorded in SignupAttempt."
+      }
+    },
+    {
+      "phase": "Phase 13: Phone Verification Option [TIER 3]",
+      "name": "Integrate phone verification into signup flow",
+      "description": {
+        "objective": "Offer phone verification to HIGH risk signups before completing signup",
+        "inputs": [
+          "PhoneVerificationService exists"
+        ],
+        "actions": [
+          "Edit signup flow for HIGH risk signups",
+          "After CAPTCHA challenge, show optional phone verification page",
+          "User can skip but will have extended time to trusted status",
+          "User who verifies phone gets faster path to trusted (15 days instead of 30)",
+          "Add DAYS_UNTIL_TRUSTED_WITH_PHONE = int(os.getenv('DAYS_UNTIL_TRUSTED_WITH_PHONE', '15')) setting"
+        ],
+        "output": "Phone verification offered to HIGH risk signups. Definition of done: HIGH risk signup sees phone verification option, can skip or complete."
+      }
+    },
+    {
+      "phase": "Phase 14: Full 5-Factor Risk Scoring [TIER 3]",
+      "name": "Upgrade to full 5-factor risk scoring",
+      "description": {
+        "objective": "Combine all 5 risk signals with proper weights",
+        "inputs": [
+          "All 5 risk signal functions exist: captcha_risk, ip_reputation_risk, email_domain_risk, behavioral_risk, device_fingerprint_risk"
+        ],
+        "actions": [
+          "Edit apps/users/services/risk_scoring.py RiskScoringService",
+          "Update calculate_risk_score to use all 5 signals with weights: CAPTCHA 30%, IP 25%, Email 20%, Behavioral 15%, Device 10%",
+          "Update RiskScoreResult dataclass to include detailed breakdown of all 5 signals",
+          "Add logging of full breakdown for audit purposes",
+          "Update unit tests for 5-factor scoring"
+        ],
+        "output": "Full 5-factor risk scoring implemented. Definition of done: SignupAttempt shows all 5 scores, total calculated with correct weights."
+      }
+    },
+    {
+      "phase": "Phase 15: Configuration and Environment [ALL TIERS]",
+      "name": "Create comprehensive .env.example",
+      "description": {
+        "objective": "Document all security-related environment variables",
+        "inputs": [
+          "All security settings added throughout phases"
+        ],
+        "actions": [
+          "Edit .env.example to add section '# Signup Security Settings'",
+          "Include all RECAPTCHA_*, IPQS_*, SIGNUP_RATE_LIMIT_*, RISK_THRESHOLD_*, DAYS_UNTIL_TRUSTED* variables",
+          "Add comments explaining each setting's purpose and valid values",
+          "Group by tier: TIER 1 required, TIER 2 optional, TIER 3 optional"
+        ],
+        "output": ".env.example documents all security environment variables. Definition of done: New developer can configure security features from .env.example."
+      }
+    },
+    {
+      "phase": "Phase 15: Configuration and Environment [ALL TIERS]",
+      "name": "Add settings validation for production",
+      "description": {
+        "objective": "Warn if required security settings are missing in production",
+        "inputs": [
+          "All security settings defined in config/settings.py"
+        ],
+        "actions": [
+          "Edit config/settings.py to add validation block at end",
+          "In production (DEBUG=False), warn if RECAPTCHA_V3_SITE_KEY not set",
+          "Log warnings for missing but optional settings (IPQS_API_KEY, RECAPTCHA_V2_*)",
+          "Use logging.warning() for missing settings, not exceptions (don't break startup)"
+        ],
+        "output": "Production deployments log warnings for missing security settings. Definition of done: Starting app with DEBUG=False and missing keys shows warnings."
+      }
+    },
+    {
+      "phase": "Phase 16: Admin Dashboard and Monitoring [ALL TIERS]",
+      "name": "Create signup security admin dashboard",
+      "description": {
+        "objective": "Create admin view showing signup security metrics",
+        "inputs": [
+          "SignupAttempt model with admin exists"
+        ],
+        "actions": [
+          "Create apps/users/admin_views.py with SignupSecurityDashboardView",
+          "Show metrics: signups today (success/blocked/challenged), block reasons breakdown, average risk score, top blocked IPs",
+          "Create template templates/admin/users/signup_dashboard.html",
+          "Add URL to admin: admin/users/signup-dashboard/",
+          "Link from admin index page"
+        ],
+        "output": "Admin dashboard shows signup security metrics. Definition of done: Admin can view signup statistics and trends."
+      }
+    },
+    {
+      "phase": "Phase 16: Admin Dashboard and Monitoring [ALL TIERS]",
+      "name": "Add anomaly alerting",
+      "description": {
+        "objective": "Alert when signup anomalies detected (high block rate)",
+        "inputs": [
+          "SignupAttempt model exists"
+        ],
+        "actions": [
+          "Create apps/users/services/alerts.py with check_signup_anomalies function",
+          "Detect: >50 blocks in last hour, >20% block rate, >10 same-IP attempts",
+          "Log critical alert when threshold exceeded",
+          "Optionally send email to admin (if email configured)",
+          "Create management command check_signup_anomalies for scheduled runs"
+        ],
+        "output": "Anomaly alerting implemented. Definition of done: Simulated attack pattern triggers logged alert."
+      }
+    },
+    {
+      "phase": "Phase 17: Testing Suite [ALL TIERS]",
+      "name": "Create comprehensive signup security tests",
+      "description": {
+        "objective": "Create test file covering all security controls",
+        "inputs": [
+          "All security features implemented"
+        ],
+        "actions": [
+          "Create apps/users/tests/test_signup_security.py",
+          "Add file header comment following CLAUDE.md standards",
+          "Create SignupSecurityTestMixin following existing test patterns",
+          "Test cases: test_email_verification_required, test_honeypot_blocks_bot, test_disposable_email_blocked, test_rate_limiting_enforced, test_recaptcha_token_verified, test_risk_score_calculated, test_critical_risk_blocked, test_medium_risk_captcha_challenge, test_account_states_enforced, test_feature_gating_works",
+          "Mock external APIs (reCAPTCHA, IPQS) in all tests",
+          "Use Django test client for integration tests"
+        ],
+        "output": "Comprehensive test suite in apps/users/tests/test_signup_security.py. Definition of done: All tests pass, coverage includes all security controls."
+      }
+    },
+    {
+      "phase": "Phase 17: Testing Suite [ALL TIERS]",
+      "name": "Run full test suite and verify",
+      "description": {
+        "objective": "Run all tests including new security tests and ensure no regressions",
+        "inputs": [
+          "All security features implemented",
+          "Security tests written"
+        ],
+        "actions": [
+          "Run: python manage.py test apps.users.tests.test_signup_security -v 2",
+          "Run: python manage.py test (full suite)",
+          "Fix any failing tests",
+          "Update CLAUDE.md with new test count if significantly changed"
+        ],
+        "output": "All tests pass. Definition of done: python manage.py test exits with 0 errors, 0 failures."
+      }
+    },
+    {
+      "phase": "Phase 18: Documentation [ALL TIERS]",
+      "name": "Update feature documentation",
+      "description": {
+        "objective": "Document secure signup system in project documentation",
+        "inputs": [
+          "All security features implemented"
+        ],
+        "actions": [
+          "Edit docs/wlj_claude_features.md to add 'Secure Signup System' section",
+          "Document: email verification, honeypot, disposable email blocking, reCAPTCHA, rate limiting, risk scoring, account states",
+          "Include configuration options and tuning guidance",
+          "Reference tier deployment strategy"
+        ],
+        "output": "docs/wlj_claude_features.md includes Secure Signup section. Definition of done: Documentation accurately describes implemented features."
+      }
+    },
+    {
+      "phase": "Phase 18: Documentation [ALL TIERS]",
+      "name": "Create security operations guide",
+      "description": {
+        "objective": "Create runbook for security operations",
+        "inputs": [
+          "All security features implemented"
+        ],
+        "actions": [
+          "Create docs/wlj_security_operations.md",
+          "Add file header comment following CLAUDE.md standards",
+          "Document: how to respond to attack, how to whitelist false positives, how to tune thresholds, how to review metrics, how to add IP to blocklist, how to investigate suspicious signup",
+          "Include sample admin queries and commands"
+        ],
+        "output": "docs/wlj_security_operations.md exists with operational procedures. Definition of done: New operator can handle common security scenarios using guide."
+      }
+    },
+    {
+      "phase": "Phase 18: Documentation [ALL TIERS]",
+      "name": "Update changelog",
+      "description": {
+        "objective": "Document all changes in changelog",
+        "inputs": [
+          "All security features implemented and deployed"
+        ],
+        "actions": [
+          "Edit docs/wlj_claude_changelog.md",
+          "Add section for Secure Signup implementation",
+          "List all new models, services, settings, and endpoints",
+          "Note migration numbers created"
+        ],
+        "output": "docs/wlj_claude_changelog.md updated with Secure Signup changes. Definition of done: Changelog accurately reflects all changes."
+      }
     }
   ]
 }

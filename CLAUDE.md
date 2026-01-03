@@ -25,6 +25,7 @@ All project documentation is organized in the `docs/` directory with consistent 
 ### Third-Party & Architecture
 - `docs/wlj_third_party_services.md` - Third-party services inventory
 - `docs/wlj_camera_scan_architecture.md` - Camera scan feature architecture
+- `docs/wlj_project_blueprint_loading.md` - How to load project blueprint JSON files
 
 ### Documentation Naming Convention
 All documentation files follow this pattern: `wlj_<category>_<descriptor>.md`
@@ -152,6 +153,21 @@ When adding new startup commands, add them inside `load_initial_data.py` using `
 - User is deploying to Railway with PostgreSQL
 - User's timezone: America/New_York (EST)
 - Prefers descriptive merge commit messages, not auto-generated ones
+
+## "Load <filename>.json" Protocol
+
+When the user says **"Load <filename>.json"**, follow these steps exactly:
+
+1. **Verify file exists** in `C:\dbawholelifejourney\project_blueprints/`
+2. **Read and validate** the JSON structure (must have project.name, project.description, tasks with executable format)
+3. **Add to git**: `git add project_blueprints/<filename>.json`
+4. **Update load_initial_data.py**: Add the file path to the `project_blueprints` list
+5. **Commit and push** with descriptive message
+6. **Report success** with list of tasks that will be created
+
+See `docs/wlj_project_blueprint_loading.md` for full details.
+
+---
 
 ## "What's Next?" Protocol
 

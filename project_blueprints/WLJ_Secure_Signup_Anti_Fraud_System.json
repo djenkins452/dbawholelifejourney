@@ -20,7 +20,9 @@
           "Verify email templates exist at templates/account/email/ (confirmation_message.txt, confirmation_subject.txt)"
         ],
         "output": "Email verification is mandatory. New users cannot access the app until they click the verification link. Verify by creating a test account and confirming redirect to 'check your email' page. Definition of done: New signup redirects to verification pending page, clicking email link activates account."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 1: Enable Email Verification [TIER 1]",
@@ -38,7 +40,9 @@
           "Create templates/account/email_confirm.html for the verification landing page"
         ],
         "output": "All email verification templates exist and are branded. Definition of done: Test signup shows branded 'check your email' page, verification email has WLJ branding, clicking link shows success page."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 1: Enable Email Verification [TIER 1]",
@@ -58,7 +62,9 @@
           "Run: python manage.py test apps.users.tests.test_signup_security"
         ],
         "output": "Email verification flow works end-to-end. Tests pass. Definition of done: test_signup_requires_email_verification passes, manual test confirms flow works."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 2: Signup Audit Logging [TIER 1]",
@@ -79,7 +85,9 @@
           "Create unit tests in apps/users/tests/test_signup_security.py for hash functions"
         ],
         "output": "apps/users/security.py exists with hash_email(), hash_ip(), hash_fingerprint() functions. Tests verify consistent hashing and that different inputs produce different hashes. Definition of done: Functions work, tests pass."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 2: Signup Audit Logging [TIER 1]",
@@ -96,7 +104,9 @@
           "Add __str__ method returning 'SignupAttempt {id} - {status}'"
         ],
         "output": "SignupAttempt model added to apps/users/models.py with all specified fields and indexes. Definition of done: Model code is complete and follows existing patterns."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 2: Signup Audit Logging [TIER 1]",
@@ -113,7 +123,9 @@
           "Add __str__ method"
         ],
         "output": "IPBlocklist model added to apps/users/models.py. Definition of done: Model code is complete with is_blocked classmethod."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 2: Signup Audit Logging [TIER 1]",
@@ -130,7 +142,9 @@
           "Add __str__ method returning domain"
         ],
         "output": "DisposableEmailDomain model added to apps/users/models.py. Definition of done: Model code is complete with is_disposable classmethod."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 2: Signup Audit Logging [TIER 1]",
@@ -147,7 +161,9 @@
           "Verify tables created: python manage.py dbshell then .tables or \\dt"
         ],
         "output": "Migration apps/users/migrations/0025_signup_security.py created and applied. Tables users_signup_attempt, users_ip_blocklist, users_disposable_email_domain exist in database. Definition of done: migrate runs without errors, tables exist."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 2: Signup Audit Logging [TIER 1]",
@@ -164,7 +180,9 @@
           "Add DisposableEmailDomainAdmin with: list_display (domain, source, confirmed, added_at), list_filter (source, confirmed), search_fields (domain), actions for bulk confirm/unconfirm"
         ],
         "output": "Admin classes registered for all three security models. Definition of done: Django admin shows SignupAttempt (read-only), IPBlocklist (editable), DisposableEmailDomain (editable) with proper filtering and display."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 2: Signup Audit Logging [TIER 1]",
@@ -184,7 +202,9 @@
           "Test locally: python manage.py purge_old_signups --dry-run"
         ],
         "output": "Management command apps/users/management/commands/purge_old_signups.py exists and works. Definition of done: Command runs without error, --dry-run shows count, actual run deletes old records."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 3: Honeypot Protection [TIER 1]",
@@ -201,7 +221,9 @@
           "The field name 'website' is chosen because bots often auto-fill website fields"
         ],
         "output": "Honeypot field added to signup form. Field is invisible to humans but will be filled by bots. Definition of done: View page source shows honeypot field, field is not visible in browser."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 3: Honeypot Protection [TIER 1]",
@@ -220,7 +242,9 @@
           "Add test case: test_honeypot_blocks_bot"
         ],
         "output": "Honeypot validation rejects submissions where hidden field is filled. Blocked attempts are logged to SignupAttempt. Definition of done: Manually submitting form with honeypot filled shows error, SignupAttempt record exists with block_reason='honeypot'."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 4: Disposable Email Blocking [TIER 1]",
@@ -237,7 +261,9 @@
           "Format as Django fixture: [{\"model\": \"users.disposableemaildomain\", \"fields\": {\"domain\": \"...\", \"source\": \"fixture\", \"confirmed\": true}}]"
         ],
         "output": "Fixture file apps/users/fixtures/disposable_domains.json exists with 2000+ domains. Definition of done: File is valid JSON and loadable."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 4: Disposable Email Blocking [TIER 1]",
@@ -257,7 +283,9 @@
           "Add call_command to apps/core/management/commands/load_initial_data.py for Railway deployment"
         ],
         "output": "Management command exists and loads domains idempotently. Definition of done: Running twice produces same database state, no duplicates."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 4: Disposable Email Blocking [TIER 1]",
@@ -275,7 +303,9 @@
           "Add test case: test_disposable_email_blocked"
         ],
         "output": "Disposable email addresses are rejected at signup with friendly message. Definition of done: Signup with tempmail.com email shows error message, SignupAttempt logged with block_reason='disposable_email'."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
@@ -291,7 +321,9 @@
           "Add startup log message indicating reCAPTCHA status (configured vs not configured)"
         ],
         "output": "reCAPTCHA settings added to config/settings.py with env var support. Definition of done: Settings load without error, log shows configuration status."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
@@ -313,7 +345,9 @@
           "Add 5 second timeout on API call"
         ],
         "output": "apps/users/services/captcha.py exists with RecaptchaService class. Definition of done: Class instantiates without error, mock test for verify() method passes."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
@@ -331,7 +365,9 @@
           "Edit templates/account/base.html or create context processor to inject recaptcha_site_key from settings"
         ],
         "output": "Signup form includes reCAPTCHA v3 script and captures token on submit. Definition of done: Network tab shows reCAPTCHA API call on form submit, hidden field contains token."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 5: reCAPTCHA v3 Integration [TIER 1]",
@@ -351,7 +387,9 @@
           "If reCAPTCHA API fails or token missing, log warning and continue (fail open for now)"
         ],
         "output": "reCAPTCHA tokens are verified and scores logged to SignupAttempt. Definition of done: New signup creates SignupAttempt with captcha_score populated."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
@@ -372,7 +410,9 @@
           "Implement check_signup_limit(ip_address: str) -> tuple[bool, str] convenience function"
         ],
         "output": "apps/users/rate_limits.py exists with RateLimiter class and check_signup_limit function. Definition of done: Unit tests verify rate limiting logic works correctly."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
@@ -391,7 +431,9 @@
           "Add test case: test_rate_limiting_blocks_excessive_signups (using mock cache)"
         ],
         "output": "Rate limiting enforced on signup endpoint. Definition of done: Making 6 signups from same IP within 1 hour blocks the 6th attempt with appropriate message."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
@@ -407,7 +449,9 @@
           "Add to .env.example with comments explaining the limits"
         ],
         "output": "Rate limits are configurable via environment variables. Definition of done: Changing env var changes rate limit behavior."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 6: Signup Rate Limiting [TIER 1]",
@@ -427,7 +471,9 @@
           "Store email_hash, ip_hash, user_agent in all cases"
         ],
         "output": "Every signup attempt creates a SignupAttempt record with appropriate status and metadata. Definition of done: Admin shows SignupAttempt records for all signup attempts with correct status values."
-      }
+      },
+      "status": "Ready",
+      "priority": "High"
     },
     {
       "phase": "Phase 7: IP Reputation Integration [TIER 2]",
@@ -443,7 +489,9 @@
           "Add to .env.example with comments"
         ],
         "output": "IPQualityScore settings added to config/settings.py. Definition of done: Settings load without error."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 7: IP Reputation Integration [TIER 2]",
@@ -463,7 +511,9 @@
           "Add 5 second timeout on API call"
         ],
         "output": "apps/users/services/ip_reputation.py exists with IPQualityService class. Definition of done: Class instantiates without error, mock test passes."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 7: IP Reputation Integration [TIER 2]",
@@ -482,7 +532,9 @@
           "For TIER 2: Score is logged but not used for blocking (risk scoring phase will use it)"
         ],
         "output": "IP reputation scores are captured and logged to SignupAttempt. Definition of done: New signup creates SignupAttempt with ip_reputation_score populated (when IPQS configured)."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 8: Simplified Risk Scoring [TIER 2]",
@@ -505,7 +557,9 @@
           "Recommended actions: LOW='allow', MEDIUM='captcha_challenge', HIGH='allow_restricted', CRITICAL='block'"
         ],
         "output": "apps/users/services/risk_scoring.py exists with RiskScoringService. Definition of done: Unit tests verify scoring logic produces expected results for sample inputs."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 8: Simplified Risk Scoring [TIER 2]",
@@ -521,7 +575,9 @@
           "Add to .env.example with comments explaining threshold tuning"
         ],
         "output": "Risk thresholds are configurable via environment variables. Definition of done: Changing threshold env vars changes risk level classification."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 8: Simplified Risk Scoring [TIER 2]",
@@ -540,7 +596,9 @@
           "HIGH risk allows signup but user will have feature restrictions (Phase 9)"
         ],
         "output": "Risk scores calculated and enforced for all signups. Definition of done: SignupAttempt records show risk_score and risk_level, CRITICAL risk blocks signup."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
@@ -557,7 +615,9 @@
           "Run migration: python manage.py migrate"
         ],
         "output": "User model has account_state field. Migration created and applied. Definition of done: User.objects.first().account_state returns 'pending'."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
@@ -575,7 +635,9 @@
           "Add helper methods: user.is_trusted, user.can_link_financial_accounts"
         ],
         "output": "Account state transitions work automatically. Definition of done: Verifying email changes state to 'verified', 30-day-old verified accounts can be promoted to 'trusted'."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
@@ -597,7 +659,9 @@
           "Create templates for restriction messages"
         ],
         "output": "Feature gating enforced based on account state. Definition of done: Pending user redirected when trying to access journal, verified user cannot access finance, trusted user has full access."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 9: Account States and Feature Gating [TIER 2]",
@@ -613,7 +677,9 @@
           "Add to .env.example with comment"
         ],
         "output": "Trust promotion timing is configurable. Definition of done: Changing DAYS_UNTIL_TRUSTED changes promotion behavior."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 10: Visible CAPTCHA Challenge [TIER 2]",
@@ -629,7 +695,9 @@
           "Add to .env.example"
         ],
         "output": "reCAPTCHA v2 settings added. Definition of done: Settings load without error."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 10: Visible CAPTCHA Challenge [TIER 2]",
@@ -649,7 +717,9 @@
           "Add URL pattern: path('signup/challenge/', CaptchaChallengeView.as_view(), name='signup_challenge')"
         ],
         "output": "CAPTCHA challenge flow works for medium-risk signups. Definition of done: Medium-risk signup redirects to challenge page, completing CAPTCHA allows signup."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 11: Behavioral Signal Collection [TIER 3]",
@@ -667,7 +737,9 @@
           "Add hidden fields to signup.html: completion_time, focus_count, mouse_moved, keystroke_variance"
         ],
         "output": "static/js/signup-security.js collects behavioral signals. Definition of done: Form submission includes behavioral data in hidden fields."
-      }
+      },
+      "status": "New",
+      "priority": "Low"
     },
     {
       "phase": "Phase 11: Behavioral Signal Collection [TIER 3]",
@@ -685,7 +757,9 @@
           "Add unit tests for behavioral_risk function"
         ],
         "output": "behavioral_risk function exists and scores signals. Definition of done: Unit tests pass for sample behavioral patterns."
-      }
+      },
+      "status": "New",
+      "priority": "Low"
     },
     {
       "phase": "Phase 11: Behavioral Signal Collection [TIER 3]",
@@ -703,7 +777,9 @@
           "Update RiskScoringService to optionally include behavioral score in calculation (when TIER 3 enabled)"
         ],
         "output": "Behavioral scores captured in SignupAttempt. Definition of done: SignupAttempt records include behavioral_score."
-      }
+      },
+      "status": "New",
+      "priority": "Low"
     },
     {
       "phase": "Phase 12: Device Fingerprinting [TIER 3]",
@@ -721,7 +797,9 @@
           "Privacy note: Only hash is transmitted and stored, never raw components"
         ],
         "output": "Fingerprint hash captured on form submission. Definition of done: Hidden field contains consistent hash for same browser."
-      }
+      },
+      "status": "New",
+      "priority": "Low"
     },
     {
       "phase": "Phase 12: Device Fingerprinting [TIER 3]",
@@ -740,7 +818,9 @@
           "Add to admin: ability to view accounts sharing fingerprint"
         ],
         "output": "device_fingerprint_risk function exists. Definition of done: Function returns higher score for fingerprints with prior account history."
-      }
+      },
+      "status": "New",
+      "priority": "Low"
     },
     {
       "phase": "Phase 13: Phone Verification Option [TIER 3]",
@@ -761,7 +841,9 @@
           "On success: update SignupAttempt.phone_verified=True, reduce effective risk score"
         ],
         "output": "Phone verification flow works. Definition of done: High-risk signup can optionally verify phone, verification recorded in SignupAttempt."
-      }
+      },
+      "status": "New",
+      "priority": "Low"
     },
     {
       "phase": "Phase 13: Phone Verification Option [TIER 3]",
@@ -779,7 +861,9 @@
           "Add DAYS_UNTIL_TRUSTED_WITH_PHONE = int(os.getenv('DAYS_UNTIL_TRUSTED_WITH_PHONE', '15')) setting"
         ],
         "output": "Phone verification offered to HIGH risk signups. Definition of done: HIGH risk signup sees phone verification option, can skip or complete."
-      }
+      },
+      "status": "New",
+      "priority": "Low"
     },
     {
       "phase": "Phase 14: Full 5-Factor Risk Scoring [TIER 3]",
@@ -797,7 +881,9 @@
           "Update unit tests for 5-factor scoring"
         ],
         "output": "Full 5-factor risk scoring implemented. Definition of done: SignupAttempt shows all 5 scores, total calculated with correct weights."
-      }
+      },
+      "status": "New",
+      "priority": "Low"
     },
     {
       "phase": "Phase 15: Configuration and Environment [ALL TIERS]",
@@ -814,7 +900,9 @@
           "Group by tier: TIER 1 required, TIER 2 optional, TIER 3 optional"
         ],
         "output": ".env.example documents all security environment variables. Definition of done: New developer can configure security features from .env.example."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 15: Configuration and Environment [ALL TIERS]",
@@ -831,7 +919,9 @@
           "Use logging.warning() for missing settings, not exceptions (don't break startup)"
         ],
         "output": "Production deployments log warnings for missing security settings. Definition of done: Starting app with DEBUG=False and missing keys shows warnings."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 16: Admin Dashboard and Monitoring [ALL TIERS]",
@@ -849,7 +939,9 @@
           "Link from admin index page"
         ],
         "output": "Admin dashboard shows signup security metrics. Definition of done: Admin can view signup statistics and trends."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 16: Admin Dashboard and Monitoring [ALL TIERS]",
@@ -867,7 +959,9 @@
           "Create management command check_signup_anomalies for scheduled runs"
         ],
         "output": "Anomaly alerting implemented. Definition of done: Simulated attack pattern triggers logged alert."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 17: Testing Suite [ALL TIERS]",
@@ -886,7 +980,9 @@
           "Use Django test client for integration tests"
         ],
         "output": "Comprehensive test suite in apps/users/tests/test_signup_security.py. Definition of done: All tests pass, coverage includes all security controls."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 17: Testing Suite [ALL TIERS]",
@@ -904,7 +1000,9 @@
           "Update CLAUDE.md with new test count if significantly changed"
         ],
         "output": "All tests pass. Definition of done: python manage.py test exits with 0 errors, 0 failures."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 18: Documentation [ALL TIERS]",
@@ -921,7 +1019,9 @@
           "Reference tier deployment strategy"
         ],
         "output": "docs/wlj_claude_features.md includes Secure Signup section. Definition of done: Documentation accurately describes implemented features."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 18: Documentation [ALL TIERS]",
@@ -938,7 +1038,9 @@
           "Include sample admin queries and commands"
         ],
         "output": "docs/wlj_security_operations.md exists with operational procedures. Definition of done: New operator can handle common security scenarios using guide."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     },
     {
       "phase": "Phase 18: Documentation [ALL TIERS]",
@@ -955,7 +1057,9 @@
           "Note migration numbers created"
         ],
         "output": "docs/wlj_claude_changelog.md updated with Secure Signup changes. Definition of done: Changelog accurately reflects all changes."
-      }
+      },
+      "status": "New",
+      "priority": "Medium"
     }
   ]
 }

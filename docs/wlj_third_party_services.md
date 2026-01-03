@@ -4,7 +4,7 @@
 # Description: Comprehensive inventory of all third-party services and APIs
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2025-12-30
+# Last Updated: 2026-01-03
 # ==============================================================================
 # IMPORTANT: This file must be updated whenever a new third-party service is
 # added, removed, or modified. See CLAUDE.md for maintenance instructions.
@@ -188,9 +188,54 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
+## Financial Data Aggregation
+
+### 6. Plaid
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | Plaid Inc. |
+| **Type** | REST API with Link UI |
+| **Pricing** | Paid (per-connection fee) |
+| **Status** | Planned (Architecture Complete) |
+
+**Purpose:**
+- Connect users' bank accounts for automatic transaction sync
+- Real-time and scheduled transaction updates via webhooks
+- Account balance synchronization
+- Multi-account support (checking, savings, credit cards, investments)
+
+**Configuration (Environment Variables):**
+- `PLAID_CLIENT_ID` - API client identifier
+- `PLAID_SECRET` - API secret key (sandbox/development/production)
+- `PLAID_ENV` - Environment: sandbox, development, or production
+- `BANK_TOKEN_ENCRYPTION_KEY` - Fernet key for token encryption
+- `PLAID_WEBHOOK_URL` - Webhook endpoint URL
+- `PLAID_REDIRECT_URI` - OAuth redirect for bank authentication
+
+**Security Features:**
+- WLJ never stores bank credentials (Plaid Link handles authentication)
+- Access tokens encrypted at rest using Fernet (AES-256)
+- SOC 2 Type II compliant
+- OAuth-first for supported banks
+
+**Plaid Products Used:**
+- `transactions` - Transaction sync and history
+
+**Key Files (Planned):**
+- `apps/finance/models.py` - BankConnection model
+- `apps/finance/services/plaid_service.py` - Plaid API client
+- `apps/finance/views.py` - Connection and webhook endpoints
+- `docs/wlj_bank_integration_architecture.md` - Full architecture documentation
+
+**Related Documentation:**
+- `docs/wlj_bank_integration_architecture.md` - Complete integration design
+- `docs/wlj_ai_finance_rules.md` - AI data access rules for financial data
+
+---
+
 ## Authentication & Security
 
-### 6. WebAuthn (Web Authentication API)
+### 7. WebAuthn (Web Authentication API)
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | W3C Standard (native browser API) |
@@ -219,7 +264,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ## JavaScript Libraries (CDN)
 
-### 7. HTMX
+### 8. HTMX
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | HTMX (Open Source) |
@@ -241,7 +286,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
-### 8. Chart.js
+### 9. Chart.js
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Chart.js (Open Source) |
@@ -263,7 +308,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ## Django Packages (Open Source)
 
-### 9. Django-allauth
+### 10. Django-allauth
 | Attribute | Value |
 |-----------|-------|
 | **Type** | Python Package |
@@ -284,7 +329,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
-### 10. Django-Axes
+### 11. Django-Axes
 | Attribute | Value |
 |-----------|-------|
 | **Type** | Python Package |
@@ -307,7 +352,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
-### 11. WhiteNoise
+### 12. WhiteNoise
 | Attribute | Value |
 |-----------|-------|
 | **Type** | Python Package |
@@ -325,7 +370,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
-### 12. Crispy Forms & Crispy Tailwind
+### 13. Crispy Forms & Crispy Tailwind
 | Attribute | Value |
 |-----------|-------|
 | **Type** | Python Packages |
@@ -343,7 +388,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
-### 13. Pillow
+### 14. Pillow
 | Attribute | Value |
 |-----------|-------|
 | **Type** | Python Package |
@@ -363,7 +408,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
-### 14. Markdown
+### 15. Markdown
 | Attribute | Value |
 |-----------|-------|
 | **Type** | Python Package |
@@ -382,7 +427,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ## Database & Infrastructure
 
-### 15. PostgreSQL
+### 16. PostgreSQL
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | PostgreSQL (via Railway) |
@@ -405,7 +450,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
-### 16. Gunicorn
+### 17. Gunicorn
 | Attribute | Value |
 |-----------|-------|
 | **Type** | Python Package |
@@ -426,7 +471,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ## Hosting & Deployment
 
-### 17. Railway
+### 18. Railway
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Railway |
@@ -446,7 +491,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ---
 
-### 18. GitHub
+### 19. GitHub
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | GitHub |
@@ -465,7 +510,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ## Location Services
 
-### 19. Zippopotam.us API
+### 20. Zippopotam.us API
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Zippopotam.us |
@@ -485,7 +530,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ## SMS Notifications
 
-### 20. Twilio
+### 21. Twilio
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Twilio |
@@ -535,7 +580,7 @@ This document catalogs all external services, APIs, and third-party integrations
 
 ## Background Job Scheduling
 
-### 21. Django-APScheduler
+### 22. Django-APScheduler
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | APScheduler + Django integration |
@@ -570,7 +615,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ## Product & Barcode Lookup APIs
 
-### 22. Open Food Facts API
+### 23. Open Food Facts API
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Open Food Facts Foundation |
@@ -592,7 +637,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ---
 
-### 23. UPC Item DB API
+### 24. UPC Item DB API
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | UPC Item DB |
@@ -614,7 +659,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ---
 
-### 24. RxNav API (NIH)
+### 25. RxNav API (NIH)
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | National Library of Medicine (NIH) |
@@ -636,7 +681,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ---
 
-### 25. FDA OpenData API
+### 26. FDA OpenData API
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | U.S. Food and Drug Administration |
@@ -660,7 +705,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ## CGM (Continuous Glucose Monitor) Integration
 
-### 26. Dexcom API
+### 27. Dexcom API
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Dexcom |

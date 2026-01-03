@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-03 (AI Finance Interpretation Rules)
+# Last Updated: 2026-01-03 (Bank Integration Architecture)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,70 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-03 Changes
+
+### Bank Integration Architecture
+
+**Session:** Design Bank Integration Architecture
+
+**Task:** WLJ Finance Module - Design Bank Integration Architecture
+
+**Objective:**
+Prepare WLJ for secure connections to external financial institutions.
+
+**Documentation Created:** `docs/wlj_bank_integration_architecture.md`
+
+**Key Architecture Decisions:**
+
+1. **Financial Data Aggregator (Section 2)**
+   - Selected **Plaid** as primary aggregator
+   - Rationale: 12,000+ institutions, OAuth-first, no credential handling
+   - Token-based access (WLJ never stores bank passwords)
+
+2. **Token Storage & Encryption (Section 3)**
+   - `BankConnection` model with encrypted access tokens
+   - Fernet (AES-256) encryption for tokens at rest
+   - Token lifecycle handling (permanent tokens, reauth triggers)
+   - Secure revocation on disconnect
+
+3. **Sync Schedules & Failure Handling (Section 4)**
+   - Initial sync after connection
+   - Webhook-driven real-time updates
+   - Scheduled sync every 4 hours as fallback
+   - Cursor-based incremental sync for efficiency
+   - Failure handling: retries, reauth detection, error logging
+
+4. **User Connection/Disconnection Flows (Section 5)**
+   - Plaid Link UI handles all bank authentication
+   - Token exchange flow documented
+   - Re-authentication flow for password/MFA changes
+   - Clean disconnection with token revocation
+
+5. **Account Mapping (Section 6)**
+   - Plaid accounts map to WLJ FinancialAccount
+   - Account type mapping (checking, savings, credit card, etc.)
+
+6. **Security Considerations (Section 7)**
+   - Encrypted tokens, never stored credentials
+   - Owner-only access control
+   - Audit logging via BankIntegrationLog
+   - Compliance notes (PCI-DSS, Open Banking, GDPR/CCPA)
+
+7. **Implementation Phases (Section 9)**
+   - Phase 1: Foundation (architecture, models, encryption)
+   - Phase 2: Core Integration (Plaid client, sync)
+   - Phase 3: Reliability (webhooks, error handling)
+   - Phase 4: User Experience (UI, status indicators)
+   - Phase 5: Operations (monitoring, admin tools)
+
+**Files Created:**
+- `docs/wlj_bank_integration_architecture.md` - Complete bank integration architecture
+
+**Environment Variables Required:**
+- `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`
+- `BANK_TOKEN_ENCRYPTION_KEY` (Fernet key)
+- `PLAID_WEBHOOK_URL`, `PLAID_REDIRECT_URI`
+
+---
 
 ### AI Finance Interpretation Rules
 

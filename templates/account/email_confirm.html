@@ -6,7 +6,7 @@
 <h1>Confirm your email</h1>
 <p>Please confirm that <strong>{{ email }}</strong> is your email address.</p>
 
-<form method="post" action="{% url 'account_confirm_email' key %}">
+<form method="post" action="{% url 'account_confirm_email' key|default:confirmation.key %}">
     {% csrf_token %}
     <button type="submit" class="btn btn-primary" style="width: 100%;">
         Confirm Email

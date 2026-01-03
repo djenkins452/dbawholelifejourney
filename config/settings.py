@@ -402,7 +402,9 @@ ACCOUNT_SESSION_REMEMBER = True
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
-ACCOUNT_EMAIL_CONFIRMATION_COOLDOWN = 180  # 3 minutes between resends
+ACCOUNT_RATE_LIMITS = {
+    "confirm_email": "3/m",  # 3 confirmation emails per minute (replaces deprecated COOLDOWN setting)
+}
 ACCOUNT_LOGIN_ON_PASSWORD_RESET = True
 
 # New django-allauth settings (replacing deprecated ones)

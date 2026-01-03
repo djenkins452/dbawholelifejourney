@@ -142,6 +142,16 @@
     background: color-mix(in srgb, var(--color-accent) 5%, transparent);
 }
 
+.file-upload-zone.has-file {
+    border-color: var(--color-success);
+    border-style: solid;
+    background: color-mix(in srgb, var(--color-success) 5%, transparent);
+}
+
+.file-upload-zone.has-file .file-upload-info .icon {
+    color: var(--color-success);
+}
+
 .file-upload-zone input[type="file"] {
     position: absolute;
     inset: 0;
@@ -283,28 +293,60 @@
 <script>
 // Drag and drop functionality
 const dropzone = document.getElementById('dropzone');
+const fileInput = dropzone.querySelector('input[type="file"]');
 
+// Prevent default drag behaviors on document to avoid browser opening the file
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {
+    document.addEventListener(event, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+});
+
+// Highlight dropzone on dragenter/dragover
 ['dragenter', 'dragover'].forEach(event => {
     dropzone.addEventListener(event, (e) => {
         e.preventDefault();
+        e.stopPropagation();
         dropzone.classList.add('dragover');
     });
 });
 
-['dragleave', 'drop'].forEach(event => {
-    dropzone.addEventListener(event, (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-    });
+// Remove highlight on dragleave
+dropzone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropzone.classList.remove('dragover');
 });
 
-// Update display when file is selected
-const fileInput = dropzone.querySelector('input[type="file"]');
-fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-        const info = dropzone.querySelector('.file-upload-info span');
-        info.textContent = e.target.files[0].name;
+// Handle the actual drop - assign files to input
+dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropzone.classList.remove('dragover');
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        // Assign dropped files to the file input
+        fileInput.files = files;
+        // Update the display text
+        updateFileDisplay(files[0].name);
     }
 });
+
+// Update display when file is selected via click
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        updateFileDisplay(e.target.files[0].name);
+    }
+});
+
+// Helper function to update the file name display
+function updateFileDisplay(filename) {
+    const info = dropzone.querySelector('.file-upload-info span');
+    info.textContent = filename;
+    // Add a visual indicator that a file is selected
+    dropzone.classList.add('has-file');
+}
 </script>
 {% endblock %}

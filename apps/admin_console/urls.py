@@ -4,7 +4,7 @@
 # Description: Admin console URL configuration
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 17 - Configurable Task Fields)
+# Last Updated: 2026-01-03 (Added DataLoadConfig management routes)
 # ==============================================================================
 """
 Admin Console URLs
@@ -132,4 +132,10 @@ urlpatterns = [
     # Claude Code API - Ready Tasks (for "What's Next?" protocol)
     path("api/claude/ready-tasks/", views.ReadyTasksAPIView.as_view(), name="api_claude_ready_tasks"),
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),
+
+    # Data Load Configuration Management
+    path("dataload/", views.DataLoadConfigListView.as_view(), name="dataload_list"),
+    path("dataload/<int:pk>/reset/", views.DataLoadConfigResetView.as_view(), name="dataload_reset"),
+    path("dataload/reset-all/", views.DataLoadConfigResetAllView.as_view(), name="dataload_reset_all"),
+    path("dataload/run/", views.DataLoadConfigForceRunView.as_view(), name="dataload_run"),
 ]

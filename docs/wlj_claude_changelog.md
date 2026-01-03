@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-03 (Budget Status Property Fix)
+# Last Updated: 2026-01-03 (One-Time Data Loaders Feature)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,55 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-03 Changes
+
+### One-Time Data Loaders Feature
+
+**Session:** Convert Startup Data Loading to One-Time Configuration
+
+**Problem:**
+On every Railway deployment, `load_initial_data` ran all fixtures and populate commands,
+producing verbose output and redundant database operations even when the data already existed:
+- Loading categories, encouragements, scripture, prompts
+- Running populate_choices, populate_themes, populate_exercises
+- Loading project blueprints
+
+**Solution:**
+Created a `DataLoadConfig` model to track which data loaders have been run. Loaders now
+check this table and skip if already complete. Admins can manage loaders from the Admin Console.
+
+**New Model:**
+- `DataLoadConfig` in `apps/admin_console/models.py`
+- Fields: `loader_name`, `display_name`, `loader_type`, `is_loaded`, `loaded_at`, `loaded_by`
+- Methods: `mark_loaded()`, `reset()`, `is_loader_complete()`, `register_loader()`
+
+**Modified Files:**
+- `apps/admin_console/models.py` - Added DataLoadConfig model
+- `apps/admin_console/migrations/0013_add_dataloadconfig.py` - Migration
+- `apps/core/management/commands/load_initial_data.py` - Check DataLoadConfig before loading
+- `apps/admin_console/views.py` - Added DataLoadConfig management views
+- `apps/admin_console/urls.py` - Added dataload routes
+- `templates/admin_console/dashboard.html` - Added Data Loaders card
+- `templates/admin_console/dataload/list.html` - New admin UI for managing loaders
+
+**New CLI Options:**
+```bash
+python manage.py load_initial_data              # Normal (skip completed)
+python manage.py load_initial_data --force      # Force reload all
+python manage.py load_initial_data --list       # Show loader status
+python manage.py load_initial_data --reset <name>  # Reset specific loader
+```
+
+**Admin Console Access:**
+- Navigate to Admin Console > Data Loaders
+- View loader status (loaded/pending)
+- Reset individual loaders or all
+- Run data load from web UI
+
+**Tests Added:**
+- `DataLoadConfigModelTests` - Model functionality tests
+- `DataLoadConfigViewTests` - Admin view tests
+
+---
 
 ### Budget Status Property Shadowing Fix (ROOT CAUSE)
 

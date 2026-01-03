@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}Data Loaders - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <span>Data Loaders</span>
+            </nav>
+            <h1 class="page-title">Data Loaders</h1>
+            <p class="page-subtitle">Manage one-time data loading for fixtures, commands, and blueprints</p>
+        </div>
+        <div class="header-actions">
+            <form method="post" action="{% url 'admin_console:dataload_run' %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Run (Skip Loaded)
+                </button>
+            </form>
+            <form method="post" action="{% url 'admin_console:dataload_run' %}" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="force" value="true">
+                <button type="submit" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6"></path>
+                        <path d="M1 20v-6h6"></path>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                    Force Reload All
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Status Summary -->
+    <div class="status-summary">
+        <div class="status-card">
+            <span class="status-number">{{ loaded_count }}</span>
+            <span class="status-label">Loaded</span>
+        </div>
+        <div class="status-card">
+            <span class="status-number">{{ total_count|default:0|add:"-"|add:loaded_count|default:0 }}</span>
+            <span class="status-label">Pending</span>
+        </div>
+        <div class="status-card">
+            <span class="status-number">{{ total_count|default:0 }}</span>
+            <span class="status-label">Total</span>
+        </div>
+    </div>
+
+    {% if dataload_output %}
+    <div class="output-panel">
+        <div class="output-header">
+            <h3>Last Run Output</h3>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.output-panel').remove()">Close</button>
+        </div>
+        <pre class="output-content">{{ dataload_output }}</pre>
+    </div>
+    {% endif %}
+
+    {% if loaders %}
+    <!-- Fixtures Section -->
+    {% regroup loaders by loader_type as loader_groups %}
+
+    {% for group in loader_groups %}
+    <div class="loader-section">
+        <h2 class="section-title">
+            {% if group.grouper == 'fixture' %}
+                Django Fixtures
+            {% elif group.grouper == 'command' %}
+                Management Commands
+            {% elif group.grouper == 'blueprint' %}
+                Project Blueprints
+            {% else %}
+                {{ group.grouper|title }}
+            {% endif %}
+        </h2>
+
+        <div class="loader-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Loaded At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loader in group.list %}
+                    <tr>
+                        <td>
+                            {% if loader.is_loaded %}
+                                <span class="status-badge status-loaded" title="Loaded">&#10003;</span>
+                            {% else %}
+                                <span class="status-badge status-pending" title="Not Loaded">&#9675;</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong>{{ loader.display_name }}</strong>
+                            <br>
+                            <span class="loader-key">{{ loader.loader_name }}</span>
+                        </td>
+                        <td>{{ loader.description|default:"-" }}</td>
+                        <td>
+                            {% if loader.loaded_at %}
+                                {{ loader.loaded_at|date:"M d, Y H:i" }}
+                                <br>
+                                <span class="text-muted">via {{ loader.loaded_by }}</span>
+                            {% else %}
+                                <span class="text-muted">Never</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if loader.is_loaded %}
+                            <form method="post" action="{% url 'admin_console:dataload_reset' loader.pk %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-ghost btn-sm" title="Reset to reload on next deploy">
+                                    Reset
+                                </button>
+                            </form>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Reset All Button -->
+    {% if loaded_count > 0 %}
+    <div class="section-footer">
+        <form method="post" action="{% url 'admin_console:dataload_reset_all' %}"
+              onsubmit="return confirm('Are you sure you want to reset ALL loaders? They will all reload on next deploy.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost text-error">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18"></path>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                </svg>
+                Reset All Loaders
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <h2>No data loaders configured</h2>
+        <p>Data loaders will appear here after the first successful run of <code>load_initial_data</code>.</p>
+        <form method="post" action="{% url 'admin_console:dataload_run' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">Run Data Loaders</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Info Panel -->
+    <div class="info-panel">
+        <h3>How Data Loaders Work</h3>
+        <ul>
+            <li><strong>One-time loading:</strong> Each loader runs once and is marked as complete. Subsequent deploys skip completed loaders.</li>
+            <li><strong>Reset:</strong> Click "Reset" on a loader to make it run again on next deploy.</li>
+            <li><strong>Force Reload All:</strong> Runs all loaders regardless of their completion status.</li>
+            <li><strong>Run (Skip Loaded):</strong> Runs only loaders that haven't been completed yet.</li>
+        </ul>
+        <p class="text-muted">
+            CLI: <code>python manage.py load_initial_data --list</code> |
+            <code>--force</code> |
+            <code>--reset &lt;name&gt;</code>
+        </p>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.status-summary {
+    display: flex;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.status-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    text-align: center;
+    min-width: 100px;
+}
+
+.status-number {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.status-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.output-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+    overflow: hidden;
+}
+
+.output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.output-header h3 {
+    margin: 0;
+    font-size: var(--font-size-sm);
+}
+
+.output-content {
+    padding: var(--space-4);
+    margin: 0;
+    font-size: var(--font-size-sm);
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--color-background);
+}
+
+.loader-section {
+    margin-bottom: var(--space-6);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.loader-table {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.loader-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.loader-table th,
+.loader-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.loader-table th {
+    background: var(--color-surface);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.loader-table tr:last-child td {
+    border-bottom: none;
+}
+
+.loader-key {
+    font-family: monospace;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 14px;
+}
+
+.status-loaded {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.status-pending {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.text-error {
+    color: var(--color-error);
+}
+
+.section-footer {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.info-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-top: var(--space-6);
+}
+
+.info-panel h3 {
+    margin: 0 0 var(--space-3) 0;
+    font-size: var(--font-size-md);
+}
+
+.info-panel ul {
+    margin: 0 0 var(--space-3) 0;
+    padding-left: var(--space-5);
+}
+
+.info-panel li {
+    margin-bottom: var(--space-2);
+}
+
+.info-panel code {
+    background: var(--color-background);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.empty-state h2 {
+    margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+</style>
+{% endblock %}

@@ -4,7 +4,7 @@
 # Description: Admin console views for site management and project task intake
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-01 (Phase 17 - Configurable Task Fields)
+# Last Updated: 2026-01-03 (Added DataLoadConfig management views)
 # ==============================================================================
 """
 Admin Views - Custom admin interface for site management.
@@ -2926,3 +2926,84 @@ class UpdateTaskStatusAPIView(View):
                 {'error': str(e)},
                 status=400
             )
+
+
+# ==============================================================================
+# Data Load Configuration Management
+# ==============================================================================
+
+class DataLoadConfigListView(AdminRequiredMixin, ListView):
+    """List all data loaders and their status."""
+    template_name = "admin_console/dataload/list.html"
+    context_object_name = "loaders"
+
+    def get_queryset(self):
+        from .models import DataLoadConfig
+        return DataLoadConfig.objects.all()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .models import DataLoadConfig
+        context['loaded_count'] = DataLoadConfig.objects.filter(is_loaded=True).count()
+        context['total_count'] = DataLoadConfig.objects.count()
+        context['dataload_output'] = self.request.session.pop('dataload_output', None)
+        return context
+
+
+class DataLoadConfigResetView(AdminRequiredMixin, View):
+    """Reset a specific data loader so it runs again on next deploy."""
+
+    def post(self, request, pk):
+        from .models import DataLoadConfig
+
+        try:
+            config = DataLoadConfig.objects.get(pk=pk)
+            loader_name = config.display_name
+            config.reset()
+            messages.success(request, f"Reset '{loader_name}'. It will reload on next deploy.")
+        except DataLoadConfig.DoesNotExist:
+            messages.error(request, "Data loader not found.")
+
+        return redirect('admin_console:dataload_list')
+
+
+class DataLoadConfigResetAllView(AdminRequiredMixin, View):
+    """Reset all data loaders."""
+
+    def post(self, request):
+        from .models import DataLoadConfig
+
+        count = DataLoadConfig.objects.filter(is_loaded=True).update(
+            is_loaded=False,
+            loaded_at=None,
+            loaded_by='',
+            records_created=0,
+            records_updated=0,
+        )
+        messages.success(request, f"Reset {count} data loaders. They will reload on next deploy.")
+        return redirect('admin_console:dataload_list')
+
+
+class DataLoadConfigForceRunView(AdminRequiredMixin, View):
+    """Force run load_initial_data command from admin console."""
+
+    def post(self, request):
+        from django.core.management import call_command
+        from io import StringIO
+
+        output = StringIO()
+        try:
+            force = request.POST.get('force') == 'true'
+            if force:
+                call_command('load_initial_data', '--force', stdout=output)
+            else:
+                call_command('load_initial_data', stdout=output)
+
+            messages.success(request, "Data load completed successfully.")
+            # Store output in session for display
+            request.session['dataload_output'] = output.getvalue()
+        except Exception as e:
+            messages.error(request, f"Data load failed: {e}")
+            request.session['dataload_output'] = f"Error: {e}\n{output.getvalue()}"
+
+        return redirect('admin_console:dataload_list')

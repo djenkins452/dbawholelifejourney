@@ -389,6 +389,69 @@
                 </li>
                 {% endif %}
 
+                <!-- Finance - With Submenu -->
+                {% if finance_enabled %}
+                <li class="nav-dropdown" data-nav-dropdown>
+                    <button
+                        type="button"
+                        class="nav-link nav-dropdown-toggle {% if request.resolver_match.app_name == 'finance' %}active{% endif %}"
+                        aria-expanded="false"
+                        aria-haspopup="true"
+                    >
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                        </svg>
+                        <span>Finance</span>
+                        <svg class="nav-dropdown-chevron" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu" hidden>
+                        <a href="{% url 'finance:dashboard' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                            </svg>
+                            Finance Home
+                        </a>
+                        <hr class="nav-dropdown-divider">
+                        <a href="{% url 'finance:account_list' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                <path d="M7 15h.01M2 10h20"/>
+                            </svg>
+                            Accounts
+                        </a>
+                        <a href="{% url 'finance:transaction_list' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/>
+                            </svg>
+                            Transactions
+                        </a>
+                        <a href="{% url 'finance:budget_list' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                <path d="M9 12h6M12 9v6"/>
+                            </svg>
+                            Budgets
+                        </a>
+                        <a href="{% url 'finance:goal_list' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                            </svg>
+                            Goals
+                        </a>
+                        <hr class="nav-dropdown-divider">
+                        <a href="{% url 'finance:metrics' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3v18h18"/>
+                                <path d="M18 9l-5 5-4-4-6 6"/>
+                            </svg>
+                            Metrics
+                        </a>
+                    </div>
+                </li>
+                {% endif %}
+
                 <!-- Personal Assistant - Conditional on AI + Personal Assistant enabled and consent -->
                 {% if ai_enabled and ai_data_consent and personal_assistant_enabled and personal_assistant_consent %}
                 <li>

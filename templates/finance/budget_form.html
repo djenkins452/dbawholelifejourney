@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} Budget - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container container-sm">
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Budget</h1>
+    </div>
+
+    <form method="post" class="form-card">
+        {% csrf_token %}
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_month">Month</label>
+                {{ form.month }}
+            </div>
+            <div class="form-group">
+                <label for="id_category">Category</label>
+                {{ form.category }}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_budgeted_amount">Budgeted Amount</label>
+            {{ form.budgeted_amount }}
+        </div>
+
+        <div class="form-group">
+            <label class="checkbox-label">
+                {{ form.rollover_enabled }}
+                <span>Roll unused budget to next month</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes">Notes</label>
+            {{ form.notes }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{% if object %}Save Changes{% else %}Create Budget{% endif %}</button>
+            <a href="{% url 'finance:budget_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.container-sm { max-width: 500px; }
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group > label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

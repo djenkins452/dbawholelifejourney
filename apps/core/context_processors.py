@@ -17,7 +17,7 @@ Key Responsibilities:
 Template Variables Provided:
     - site_name, site_tagline, site_logo_url, site_favicon_url
     - current_theme, accent_color
-    - journal_enabled, faith_enabled, health_enabled, life_enabled, purpose_enabled
+    - journal_enabled, faith_enabled, health_enabled, life_enabled, purpose_enabled, finance_enabled
     - user_today (date in user's timezone for date comparisons)
 
 Dependencies:
@@ -64,6 +64,7 @@ def theme_context(request):
         'health_enabled': True,
         'life_enabled': True,
         'purpose_enabled': True,
+        'finance_enabled': False,
         # AI flags - defaults
         'ai_enabled': False,
         'ai_data_consent': False,
@@ -83,6 +84,7 @@ def theme_context(request):
             context['health_enabled'] = prefs.health_enabled
             context['life_enabled'] = prefs.life_enabled
             context['purpose_enabled'] = prefs.purpose_enabled
+            context['finance_enabled'] = prefs.finances_enabled
             # AI toggles
             context['ai_enabled'] = prefs.ai_enabled
             context['ai_data_consent'] = prefs.ai_data_consent

@@ -1,0 +1,576 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Finance</h1>
+        <p class="page-subtitle">Track your finances with calm intentionality</p>
+    </div>
+
+    <!-- Quick Add Form -->
+    <div class="quick-add-section mb-6">
+        <form method="post" action="{% url 'finance:quick_transaction' %}" class="quick-add-form">
+            {% csrf_token %}
+            <div class="quick-add-row">
+                <select name="account" class="form-select" required>
+                    <option value="">Account</option>
+                    {% for account in accounts %}
+                    <option value="{{ account.pk }}">{{ account.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="number" name="amount" step="0.01" placeholder="Amount" class="form-input" required>
+                <input type="text" name="description" placeholder="Description" class="form-input" required>
+                <label class="checkbox-label">
+                    <input type="checkbox" name="is_expense" checked> Expense
+                </label>
+                <button type="submit" class="btn btn-primary">Add</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Overview Cards -->
+    <div class="finance-overview mb-6">
+        <div class="overview-card">
+            <span class="overview-label">Net Worth</span>
+            <span class="overview-value {% if net_worth >= 0 %}positive{% else %}negative{% endif %}">
+                ${{ net_worth|floatformat:2 }}
+            </span>
+        </div>
+        <div class="overview-card">
+            <span class="overview-label">Total Assets</span>
+            <span class="overview-value positive">${{ total_assets|floatformat:2 }}</span>
+        </div>
+        <div class="overview-card">
+            <span class="overview-label">Total Liabilities</span>
+            <span class="overview-value negative">${{ total_liabilities|floatformat:2 }}</span>
+        </div>
+        <div class="overview-card">
+            <span class="overview-label">Monthly Cash Flow</span>
+            <span class="overview-value {% if monthly_cash_flow >= 0 %}positive{% else %}negative{% endif %}">
+                {% if monthly_cash_flow >= 0 %}+{% endif %}${{ monthly_cash_flow|floatformat:2 }}
+            </span>
+        </div>
+    </div>
+
+    <div class="finance-grid">
+        <!-- Accounts Section -->
+        <div class="finance-section">
+            <div class="section-header">
+                <h2>Accounts</h2>
+                <a href="{% url 'finance:account_create' %}" class="btn btn-primary btn-sm">Add Account</a>
+            </div>
+
+            {% if accounts %}
+            <div class="account-list">
+                {% for account in accounts %}
+                <a href="{% url 'finance:account_detail' account.pk %}" class="account-item">
+                    <div class="account-info">
+                        <span class="account-name">{{ account.name }}</span>
+                        <span class="account-type">{{ account.get_account_type_display }}</span>
+                    </div>
+                    <span class="account-balance {% if account.is_asset %}positive{% else %}negative{% endif %}">
+                        ${{ account.current_balance|floatformat:2 }}
+                    </span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No accounts yet. <a href="{% url 'finance:account_create' %}">Add your first account</a>.</p>
+            {% endif %}
+
+            <a href="{% url 'finance:account_list' %}" class="section-link">View all accounts</a>
+        </div>
+
+        <!-- Monthly Summary Section -->
+        <div class="finance-section">
+            <div class="section-header">
+                <h2>This Month</h2>
+            </div>
+
+            <div class="monthly-summary">
+                <div class="summary-row">
+                    <span class="summary-label">Income</span>
+                    <span class="summary-value positive">+${{ monthly_income|floatformat:2 }}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Expenses</span>
+                    <span class="summary-value negative">-${{ monthly_expenses|floatformat:2 }}</span>
+                </div>
+                <div class="summary-row total">
+                    <span class="summary-label">Net</span>
+                    <span class="summary-value {% if monthly_cash_flow >= 0 %}positive{% else %}negative{% endif %}">
+                        {% if monthly_cash_flow >= 0 %}+{% endif %}${{ monthly_cash_flow|floatformat:2 }}
+                    </span>
+                </div>
+            </div>
+
+            {% if budgets_over %}
+            <div class="budget-alerts">
+                <p class="alert-title">Budget Alerts</p>
+                {% for budget in budgets_over %}
+                <div class="budget-alert">
+                    <span class="alert-category">{{ budget.category.name }}</span>
+                    <span class="alert-amount">Over by ${{ budget.remaining_amount|floatformat:2|slice:"1:" }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <a href="{% url 'finance:budget_list' %}" class="section-link">View budgets</a>
+        </div>
+
+        <!-- Recent Transactions Section -->
+        <div class="finance-section transactions-section">
+            <div class="section-header">
+                <h2>Recent Transactions</h2>
+                <a href="{% url 'finance:transaction_create' %}" class="btn btn-primary btn-sm">Add</a>
+            </div>
+
+            {% if recent_transactions %}
+            <div class="transaction-list">
+                {% for txn in recent_transactions %}
+                <a href="{% url 'finance:transaction_detail' txn.pk %}" class="transaction-item">
+                    <div class="transaction-info">
+                        <span class="transaction-desc">{{ txn.description }}</span>
+                        <span class="transaction-meta">{{ txn.date|date:"M j" }} &middot; {{ txn.account.name }}</span>
+                    </div>
+                    <span class="transaction-amount {% if txn.amount >= 0 %}positive{% else %}negative{% endif %}">
+                        {% if txn.amount >= 0 %}+{% endif %}${{ txn.amount|floatformat:2 }}
+                    </span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No transactions yet.</p>
+            {% endif %}
+
+            <a href="{% url 'finance:transaction_list' %}" class="section-link">View all transactions</a>
+        </div>
+
+        <!-- Goals Section -->
+        <div class="finance-section">
+            <div class="section-header">
+                <h2>Financial Goals</h2>
+                <a href="{% url 'finance:goal_create' %}" class="btn btn-primary btn-sm">Add Goal</a>
+            </div>
+
+            {% if active_goals %}
+            <div class="goal-list">
+                {% for goal in active_goals %}
+                <a href="{% url 'finance:goal_detail' goal.pk %}" class="goal-item">
+                    <div class="goal-info">
+                        <span class="goal-icon">{{ goal.icon }}</span>
+                        <div class="goal-details">
+                            <span class="goal-name">{{ goal.name }}</span>
+                            <div class="goal-progress-bar">
+                                <div class="progress-fill" style="width: {{ goal.progress_percentage }}%; background-color: {{ goal.color }};"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="goal-stats">
+                        <span class="goal-current">${{ goal.current_amount|floatformat:0 }}</span>
+                        <span class="goal-target">of ${{ goal.target_amount|floatformat:0 }}</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No active goals. <a href="{% url 'finance:goal_create' %}">Create your first goal</a>.</p>
+            {% endif %}
+
+            <a href="{% url 'finance:goal_list' %}" class="section-link">View all goals</a>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions mt-6">
+        <a href="{% url 'finance:transfer' %}" class="quick-action">
+            <span class="action-icon">↔</span>
+            <span class="action-label">Transfer</span>
+        </a>
+        <a href="{% url 'finance:metrics' %}" class="quick-action">
+            <span class="action-icon">📊</span>
+            <span class="action-label">Metrics</span>
+        </a>
+        <a href="{% url 'finance:category_list' %}" class="quick-action">
+            <span class="action-icon">🏷</span>
+            <span class="action-label">Categories</span>
+        </a>
+    </div>
+</div>
+
+<style>
+.quick-add-section {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+}
+
+.quick-add-row {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.quick-add-row .form-select,
+.quick-add-row .form-input {
+    flex: 1;
+    min-width: 120px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+}
+
+.finance-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+}
+
+.overview-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.overview-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.overview-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.overview-value.positive {
+    color: var(--color-success, #10b981);
+}
+
+.overview-value.negative {
+    color: var(--color-error, #ef4444);
+}
+
+.finance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-6);
+}
+
+.finance-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header h2 {
+    font-size: var(--font-size-lg);
+    margin: 0;
+}
+
+.account-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.account-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+    transition: background-color 0.2s;
+}
+
+.account-item:hover {
+    background: var(--color-border);
+}
+
+.account-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.account-name {
+    font-weight: 500;
+}
+
+.account-type {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.account-balance {
+    font-weight: 600;
+}
+
+.account-balance.positive {
+    color: var(--color-success, #10b981);
+}
+
+.account-balance.negative {
+    color: var(--color-error, #ef4444);
+}
+
+.monthly-summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+}
+
+.summary-row.total {
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--space-2);
+    padding-top: var(--space-3);
+    font-weight: 600;
+}
+
+.summary-value.positive {
+    color: var(--color-success, #10b981);
+}
+
+.summary-value.negative {
+    color: var(--color-error, #ef4444);
+}
+
+.budget-alerts {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 10%, transparent);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.alert-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-error, #ef4444);
+    margin-bottom: var(--space-2);
+}
+
+.budget-alert {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) 0;
+}
+
+.alert-amount {
+    color: var(--color-error, #ef4444);
+}
+
+.transaction-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.transaction-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+    transition: background-color 0.2s;
+}
+
+.transaction-item:hover {
+    background: var(--color-border);
+}
+
+.transaction-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.transaction-desc {
+    font-weight: 500;
+}
+
+.transaction-meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.transaction-amount {
+    font-weight: 600;
+}
+
+.transaction-amount.positive {
+    color: var(--color-success, #10b981);
+}
+
+.transaction-amount.negative {
+    color: var(--color-error, #ef4444);
+}
+
+.goal-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.goal-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+    transition: background-color 0.2s;
+}
+
+.goal-item:hover {
+    background: var(--color-border);
+}
+
+.goal-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex: 1;
+}
+
+.goal-icon {
+    font-size: var(--font-size-xl);
+}
+
+.goal-details {
+    flex: 1;
+}
+
+.goal-name {
+    font-weight: 500;
+    display: block;
+    margin-bottom: var(--space-2);
+}
+
+.goal-progress-bar {
+    height: 6px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+}
+
+.goal-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-1);
+}
+
+.goal-current {
+    font-weight: 600;
+}
+
+.goal-target {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.section-link {
+    display: block;
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.quick-actions {
+    display: flex;
+    gap: var(--space-4);
+    justify-content: center;
+}
+
+.quick-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-6);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: inherit;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.quick-action:hover {
+    background: var(--color-background);
+    border-color: var(--color-accent);
+}
+
+.action-icon {
+    font-size: var(--font-size-2xl);
+}
+
+.action-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+    .quick-add-row {
+        flex-direction: column;
+    }
+
+    .quick-add-row .form-select,
+    .quick-add-row .form-input {
+        width: 100%;
+    }
+
+    .finance-overview {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .finance-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

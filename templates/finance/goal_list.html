@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Financial Goals - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Financial Goals</h1>
+            <p class="page-subtitle">Track your progress toward financial milestones</p>
+        </div>
+        <a href="{% url 'finance:goal_create' %}" class="btn btn-primary">Add Goal</a>
+    </div>
+
+    <!-- Active Goals -->
+    {% if active_goals %}
+    <div class="goals-section mb-6">
+        <h2 class="section-title">Active Goals</h2>
+        <div class="goal-grid">
+            {% for goal in active_goals %}
+            <a href="{% url 'finance:goal_detail' goal.pk %}" class="goal-card">
+                <div class="goal-header">
+                    <span class="goal-icon">{{ goal.icon }}</span>
+                    <div class="goal-info">
+                        <span class="goal-name">{{ goal.name }}</span>
+                        <span class="goal-type">{{ goal.get_goal_type_display }}</span>
+                    </div>
+                </div>
+
+                <div class="goal-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ goal.progress_percentage }}%; background-color: {{ goal.color }};"></div>
+                    </div>
+                    <div class="progress-labels">
+                        <span>{{ goal.progress_percentage|floatformat:0 }}%</span>
+                        <span>${{ goal.current_amount|floatformat:0 }} / ${{ goal.target_amount|floatformat:0 }}</span>
+                    </div>
+                </div>
+
+                <div class="goal-meta">
+                    {% if goal.target_date %}
+                    <span class="goal-date">
+                        {% if goal.days_remaining %}{{ goal.days_remaining }} days left{% else %}Target: {{ goal.target_date|date:"M j, Y" }}{% endif %}
+                    </span>
+                    {% endif %}
+                    {% if goal.monthly_contribution_needed %}
+                    <span class="goal-monthly">${{ goal.monthly_contribution_needed|floatformat:0 }}/mo needed</span>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Completed Goals -->
+    {% if completed_goals %}
+    <div class="goals-section mb-6">
+        <h2 class="section-title">Completed</h2>
+        <div class="goal-grid">
+            {% for goal in completed_goals %}
+            <a href="{% url 'finance:goal_detail' goal.pk %}" class="goal-card completed">
+                <div class="goal-header">
+                    <span class="goal-icon">{{ goal.icon }}</span>
+                    <div class="goal-info">
+                        <span class="goal-name">{{ goal.name }}</span>
+                        <span class="goal-type">{{ goal.get_goal_type_display }}</span>
+                    </div>
+                    <span class="completed-badge">Completed</span>
+                </div>
+                <div class="goal-amount">${{ goal.target_amount|floatformat:0 }}</div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not active_goals and not completed_goals %}
+    <div class="empty-state">
+        <p>No financial goals yet.</p>
+        <a href="{% url 'finance:goal_create' %}" class="btn btn-primary">Create your first goal</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.section-title {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.goal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-4);
+}
+
+.goal-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.goal-card:hover {
+    border-color: var(--color-accent);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.goal-card.completed {
+    opacity: 0.8;
+}
+
+.goal-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.goal-icon {
+    font-size: var(--font-size-2xl);
+}
+
+.goal-info {
+    flex: 1;
+}
+
+.goal-name {
+    display: block;
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.goal-type {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.completed-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+    border-radius: var(--radius-sm);
+}
+
+.goal-progress {
+    margin-bottom: var(--space-4);
+}
+
+.progress-bar {
+    height: 8px;
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--space-2);
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+}
+
+.progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.goal-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.goal-amount {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-success, #10b981);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+</style>
+{% endblock %}

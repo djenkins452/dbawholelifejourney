@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Categories - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Transaction Categories</h1>
+        <p class="page-subtitle">Organize your income and expenses</p>
+    </div>
+
+    <div class="categories-grid">
+        <!-- Income Categories -->
+        <div class="category-section">
+            <h2 class="section-title">Income</h2>
+            <div class="category-list">
+                {% for category in income_categories %}
+                <div class="category-item">
+                    <span class="category-color" style="background-color: {{ category.color }};"></span>
+                    <span class="category-name">{{ category.name }}</span>
+                    {% if category.is_system %}
+                    <span class="category-badge">System</span>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p class="text-muted">No income categories.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Expense Categories -->
+        <div class="category-section">
+            <h2 class="section-title">Expenses</h2>
+            <div class="category-list">
+                {% for category in expense_categories %}
+                <div class="category-item">
+                    <span class="category-color" style="background-color: {{ category.color }};"></span>
+                    <span class="category-name">{{ category.full_path }}</span>
+                    {% if category.is_system %}
+                    <span class="category-badge">System</span>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p class="text-muted">No expense categories.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-6);
+}
+
+.category-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+}
+
+.category-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.category-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.category-color {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}
+
+.category-name {
+    flex: 1;
+}
+
+.category-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

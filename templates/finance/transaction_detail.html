@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Transaction - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container container-sm">
+    <div class="page-header">
+        <a href="{% url 'finance:transaction_list' %}" class="back-link">&larr; All Transactions</a>
+        <h1 class="page-title">Transaction Details</h1>
+    </div>
+
+    <div class="detail-card">
+        <div class="transaction-header">
+            <span class="transaction-amount {% if transaction.amount >= 0 %}positive{% else %}negative{% endif %}">
+                {% if transaction.amount >= 0 %}+{% endif %}${{ transaction.amount|floatformat:2 }}
+            </span>
+            <span class="transaction-date">{{ transaction.date|date:"F j, Y" }}</span>
+        </div>
+
+        <dl class="detail-list">
+            <dt>Description</dt>
+            <dd>{{ transaction.description }}</dd>
+
+            <dt>Account</dt>
+            <dd><a href="{% url 'finance:account_detail' transaction.account.pk %}">{{ transaction.account.name }}</a></dd>
+
+            <dt>Category</dt>
+            <dd>{{ transaction.category.name|default:"Uncategorized" }}</dd>
+
+            {% if transaction.payee %}
+            <dt>Payee</dt>
+            <dd>{{ transaction.payee }}</dd>
+            {% endif %}
+
+            {% if transaction.reference %}
+            <dt>Reference</dt>
+            <dd>{{ transaction.reference }}</dd>
+            {% endif %}
+
+            <dt>Status</dt>
+            <dd>
+                {% if transaction.is_cleared %}
+                <span class="badge badge-success">Cleared</span>
+                {% else %}
+                <span class="badge badge-pending">Pending</span>
+                {% endif %}
+                {% if transaction.is_recurring %}
+                <span class="badge badge-info">Recurring</span>
+                {% endif %}
+            </dd>
+
+            {% if transaction.notes %}
+            <dt>Notes</dt>
+            <dd>{{ transaction.notes }}</dd>
+            {% endif %}
+
+            <dt>Created</dt>
+            <dd>{{ transaction.created_at|date:"M j, Y g:i A" }}</dd>
+        </dl>
+
+        <div class="detail-actions">
+            <a href="{% url 'finance:transaction_update' transaction.pk %}" class="btn btn-primary">Edit</a>
+            <a href="{% url 'finance:transaction_delete' transaction.pk %}" class="btn btn-danger">Delete</a>
+        </div>
+    </div>
+</div>
+
+<style>
+.container-sm { max-width: 600px; }
+
+.back-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+    display: inline-block;
+}
+
+.detail-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.transaction-header {
+    text-align: center;
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.transaction-amount {
+    display: block;
+    font-size: var(--font-size-3xl);
+    font-weight: 600;
+}
+
+.transaction-amount.positive { color: var(--color-success, #10b981); }
+.transaction-amount.negative { color: var(--color-error, #ef4444); }
+
+.transaction-date {
+    display: block;
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+}
+
+.detail-list {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: var(--space-3);
+}
+
+.detail-list dt {
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.detail-list dd {
+    margin: 0;
+}
+
+.badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    border-radius: var(--radius-sm);
+    margin-right: var(--space-2);
+}
+
+.badge-success {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.badge-pending {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.badge-info {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+}
+
+.detail-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}{{ account.name }} - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <a href="{% url 'finance:account_list' %}" class="back-link">&larr; All Accounts</a>
+            <h1 class="page-title">{{ account.name }}</h1>
+            <p class="page-subtitle">{{ account.get_account_type_display }}{% if account.institution %} &middot; {{ account.institution }}{% endif %}</p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'finance:account_update' account.pk %}" class="btn btn-secondary">Edit</a>
+            <a href="{% url 'finance:account_delete' account.pk %}" class="btn btn-danger">Delete</a>
+        </div>
+    </div>
+
+    <div class="account-balance-card mb-6">
+        <span class="balance-label">Current Balance</span>
+        <span class="balance-value {% if account.current_balance >= 0 %}positive{% else %}negative{% endif %}">
+            ${{ account.current_balance|floatformat:2 }}
+        </span>
+        {% if account.balance_updated_at %}
+        <span class="balance-updated">Updated {{ account.balance_updated_at|date:"M j, Y g:i A" }}</span>
+        {% endif %}
+    </div>
+
+    <div class="transactions-section">
+        <div class="section-header">
+            <h2>Recent Transactions</h2>
+            <a href="{% url 'finance:transaction_create' %}" class="btn btn-primary btn-sm">Add Transaction</a>
+        </div>
+
+        {% if transactions %}
+        <div class="transaction-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th class="text-right">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for txn in transactions %}
+                    <tr>
+                        <td>{{ txn.date|date:"M j" }}</td>
+                        <td>
+                            <a href="{% url 'finance:transaction_detail' txn.pk %}">{{ txn.description }}</a>
+                        </td>
+                        <td>{{ txn.category.name|default:"-" }}</td>
+                        <td class="text-right {% if txn.amount >= 0 %}positive{% else %}negative{% endif %}">
+                            {% if txn.amount >= 0 %}+{% endif %}${{ txn.amount|floatformat:2 }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No transactions for this account.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.back-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+    display: inline-block;
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.account-balance-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+}
+
+.balance-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.balance-value {
+    display: block;
+    font-size: var(--font-size-4xl);
+    font-weight: 600;
+}
+
+.balance-value.positive { color: var(--color-success, #10b981); }
+.balance-value.negative { color: var(--color-error, #ef4444); }
+
+.balance-updated {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+}
+
+.transactions-section {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.section-header h2 {
+    font-size: var(--font-size-lg);
+    margin: 0;
+}
+
+.transaction-table {
+    overflow-x: auto;
+}
+
+.transaction-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.transaction-table th,
+.transaction-table td {
+    padding: var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.transaction-table th {
+    font-weight: 500;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.text-right {
+    text-align: right;
+}
+
+.positive { color: var(--color-success, #10b981); }
+.negative { color: var(--color-error, #ef4444); }
+</style>
+{% endblock %}

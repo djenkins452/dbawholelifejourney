@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Accounts - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Accounts</h1>
+            <p class="page-subtitle">Manage your financial accounts</p>
+        </div>
+        <a href="{% url 'finance:account_create' %}" class="btn btn-primary">Add Account</a>
+    </div>
+
+    <!-- Summary -->
+    <div class="account-summary mb-6">
+        <div class="summary-card">
+            <span class="summary-label">Total Assets</span>
+            <span class="summary-value positive">${{ total_assets|floatformat:2 }}</span>
+        </div>
+        <div class="summary-card">
+            <span class="summary-label">Total Liabilities</span>
+            <span class="summary-value negative">${{ total_liabilities|floatformat:2 }}</span>
+        </div>
+        <div class="summary-card highlight">
+            <span class="summary-label">Net Worth</span>
+            <span class="summary-value {% if net_worth >= 0 %}positive{% else %}negative{% endif %}">
+                ${{ net_worth|floatformat:2 }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Asset Accounts -->
+    {% if asset_accounts %}
+    <div class="account-section mb-6">
+        <h2 class="section-title">Assets</h2>
+        <div class="account-grid">
+            {% for account in asset_accounts %}
+            <div class="account-card">
+                <div class="account-header">
+                    <span class="account-name">{{ account.name }}</span>
+                    <span class="account-balance positive">${{ account.current_balance|floatformat:2 }}</span>
+                </div>
+                <div class="account-meta">
+                    <span class="account-type">{{ account.get_account_type_display }}</span>
+                    {% if account.institution %}
+                    <span class="account-institution">{{ account.institution }}</span>
+                    {% endif %}
+                </div>
+                <div class="account-actions">
+                    <a href="{% url 'finance:account_detail' account.pk %}" class="btn btn-secondary btn-sm">View</a>
+                    <a href="{% url 'finance:account_update' account.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Liability Accounts -->
+    {% if liability_accounts %}
+    <div class="account-section">
+        <h2 class="section-title">Liabilities</h2>
+        <div class="account-grid">
+            {% for account in liability_accounts %}
+            <div class="account-card">
+                <div class="account-header">
+                    <span class="account-name">{{ account.name }}</span>
+                    <span class="account-balance negative">${{ account.current_balance|floatformat:2 }}</span>
+                </div>
+                <div class="account-meta">
+                    <span class="account-type">{{ account.get_account_type_display }}</span>
+                    {% if account.institution %}
+                    <span class="account-institution">{{ account.institution }}</span>
+                    {% endif %}
+                </div>
+                <div class="account-actions">
+                    <a href="{% url 'finance:account_detail' account.pk %}" class="btn btn-secondary btn-sm">View</a>
+                    <a href="{% url 'finance:account_update' account.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not accounts %}
+    <div class="empty-state">
+        <p>No accounts yet.</p>
+        <a href="{% url 'finance:account_create' %}" class="btn btn-primary">Add your first account</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.account-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+}
+
+.summary-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.summary-card.highlight {
+    background: var(--color-surface);
+    border-color: var(--color-accent);
+}
+
+.summary-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.summary-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.summary-value.positive { color: var(--color-success, #10b981); }
+.summary-value.negative { color: var(--color-error, #ef4444); }
+
+.section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+    color: var(--color-text-muted);
+}
+
+.account-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-4);
+}
+
+.account-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.account-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-3);
+}
+
+.account-name {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.account-balance {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.account-balance.positive { color: var(--color-success, #10b981); }
+.account-balance.negative { color: var(--color-error, #ef4444); }
+
+.account-meta {
+    display: flex;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.account-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.empty-state p {
+    margin-bottom: var(--space-4);
+    color: var(--color-text-muted);
+}
+</style>
+{% endblock %}

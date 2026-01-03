@@ -28,6 +28,7 @@ URL Namespaces:
     - purpose: Goals, vision, direction
     - help: Context-aware help system
     - scan: AI Camera scanning feature
+    - finance: Financial accounts, budgets, goals, metrics
 
 Security Notes:
     - Admin URL uses configurable path (ADMIN_URL_PATH) to reduce attack surface
@@ -90,6 +91,8 @@ urlpatterns = [
     path('assistant/', include('apps.ai.urls', namespace='ai')),
     # SMS Notifications
     path('sms/', include('apps.sms.urls', namespace='sms')),
+    # Finance
+    path('finance/', include('apps.finance.urls', namespace='finance')),
 ]
 
 # Serve media files

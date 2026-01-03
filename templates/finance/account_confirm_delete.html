@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Account - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container container-sm">
+    <div class="delete-card">
+        <h1>Delete Account</h1>
+        <p>Are you sure you want to delete <strong>{{ object.name }}</strong>?</p>
+        <p class="text-muted">This account has a balance of ${{ object.current_balance|floatformat:2 }}. All associated transactions will also be deleted.</p>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-actions">
+                <button type="submit" class="btn btn-danger">Delete Account</button>
+                <a href="{% url 'finance:account_list' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.container-sm { max-width: 500px; }
+
+.delete-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    text-align: center;
+}
+
+.delete-card h1 {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-4);
+}
+
+.delete-card p {
+    margin-bottom: var(--space-4);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+    margin-top: var(--space-6);
+}
+</style>
+{% endblock %}

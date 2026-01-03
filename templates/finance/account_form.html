@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} Account - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container container-sm">
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Account</h1>
+    </div>
+
+    <form method="post" class="form-card">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="id_name">Account Name</label>
+            {{ form.name }}
+            {% if form.name.errors %}
+            <p class="form-error">{{ form.name.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_account_type">Account Type</label>
+                {{ form.account_type }}
+            </div>
+            <div class="form-group">
+                <label for="id_institution">Institution</label>
+                {{ form.institution }}
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_current_balance">Current Balance</label>
+                {{ form.current_balance }}
+            </div>
+            <div class="form-group">
+                <label for="id_currency">Currency</label>
+                {{ form.currency }}
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_account_number_last4">Last 4 Digits</label>
+                {{ form.account_number_last4 }}
+                <p class="form-hint">For identification only</p>
+            </div>
+            <div class="form-group">
+                <label for="id_color">Color</label>
+                {{ form.color }}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="checkbox-label">
+                {{ form.include_in_net_worth }}
+                <span>Include in net worth calculations</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label class="checkbox-label">
+                {{ form.is_hidden }}
+                <span>Hide from main views</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes">Notes</label>
+            {{ form.notes }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{% if object %}Save Changes{% else %}Add Account{% endif %}</button>
+            <a href="{% url 'finance:account_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.container-sm {
+    max-width: 600px;
+}
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.form-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.form-error {
+    color: var(--color-error, #ef4444);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-1);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

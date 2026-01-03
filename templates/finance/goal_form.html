@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} Goal - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container container-sm">
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Create{% endif %} Financial Goal</h1>
+    </div>
+
+    <form method="post" class="form-card">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="id_name">Goal Name</label>
+            {{ form.name }}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_goal_type">Goal Type</label>
+                {{ form.goal_type }}
+            </div>
+            <div class="form-group">
+                <label for="id_icon">Icon</label>
+                {{ form.icon }}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_description">Description</label>
+            {{ form.description }}
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_target_amount">Target Amount</label>
+                {{ form.target_amount }}
+            </div>
+            <div class="form-group">
+                <label for="id_current_amount">Current Amount</label>
+                {{ form.current_amount }}
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_target_date">Target Date (optional)</label>
+                {{ form.target_date }}
+            </div>
+            <div class="form-group">
+                <label for="id_color">Color</label>
+                {{ form.color }}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_linked_account">Linked Account (optional)</label>
+            {{ form.linked_account }}
+            <p class="form-hint">Track progress from an account balance</p>
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes">Notes</label>
+            {{ form.notes }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{% if object %}Save Changes{% else %}Create Goal{% endif %}</button>
+            <a href="{% url 'finance:goal_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.container-sm { max-width: 600px; }
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group > label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.form-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

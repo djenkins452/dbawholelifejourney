@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Transactions</h1>
+            <p class="page-subtitle">All your financial transactions</p>
+        </div>
+        <a href="{% url 'finance:transaction_create' %}" class="btn btn-primary">Add Transaction</a>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="filter-form mb-6">
+        <div class="filter-row">
+            {{ filter_form.date_from }}
+            <span class="filter-to">to</span>
+            {{ filter_form.date_to }}
+            {{ filter_form.account }}
+            {{ filter_form.category }}
+            {{ filter_form.transaction_type }}
+            {{ filter_form.search }}
+            <button type="submit" class="btn btn-secondary">Filter</button>
+            <a href="{% url 'finance:transaction_list' %}" class="btn btn-secondary">Clear</a>
+        </div>
+    </form>
+
+    {% if transactions %}
+    <div class="transaction-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Account</th>
+                    <th>Category</th>
+                    <th class="text-right">Amount</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for txn in transactions %}
+                <tr>
+                    <td>{{ txn.date|date:"M j, Y" }}</td>
+                    <td>
+                        <a href="{% url 'finance:transaction_detail' txn.pk %}">{{ txn.description }}</a>
+                        {% if txn.payee %}<br><small class="text-muted">{{ txn.payee }}</small>{% endif %}
+                    </td>
+                    <td>{{ txn.account.name }}</td>
+                    <td>{{ txn.category.name|default:"-" }}</td>
+                    <td class="text-right {% if txn.amount >= 0 %}positive{% else %}negative{% endif %}">
+                        {% if txn.amount >= 0 %}+{% endif %}${{ txn.amount|floatformat:2 }}
+                    </td>
+                    <td class="actions">
+                        <a href="{% url 'finance:transaction_update' txn.pk %}" class="btn btn-sm">Edit</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary">&larr; Previous</a>
+        {% endif %}
+        <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary">Next &rarr;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <p>No transactions found.</p>
+        <a href="{% url 'finance:transaction_create' %}" class="btn btn-primary">Add your first transaction</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.filter-form {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+}
+
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.filter-row .form-input,
+.filter-row .form-select {
+    flex: 1;
+    min-width: 120px;
+}
+
+.filter-to {
+    color: var(--color-text-muted);
+}
+
+.transaction-table {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.transaction-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.transaction-table th,
+.transaction-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.transaction-table th {
+    background: var(--color-surface);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.transaction-table tbody tr:hover {
+    background: var(--color-surface);
+}
+
+.text-right { text-align: right; }
+.positive { color: var(--color-success, #10b981); }
+.negative { color: var(--color-error, #ef4444); }
+
+.actions {
+    white-space: nowrap;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+}
+
+.page-info {
+    color: var(--color-text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+@media (max-width: 768px) {
+    .transaction-table {
+        overflow-x: auto;
+    }
+}
+</style>
+{% endblock %}

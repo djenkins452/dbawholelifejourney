@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} Transaction - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container container-sm">
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Transaction</h1>
+    </div>
+
+    <form method="post" class="form-card">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label>Transaction Type</label>
+            <div class="radio-group">
+                {% for radio in form.transaction_type %}
+                <label class="radio-label">
+                    {{ radio.tag }}
+                    <span>{{ radio.choice_label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_account">Account</label>
+                {{ form.account }}
+            </div>
+            <div class="form-group">
+                <label for="id_date">Date</label>
+                {{ form.date }}
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_amount_value">Amount</label>
+                {{ form.amount_value }}
+            </div>
+            <div class="form-group">
+                <label for="id_category">Category</label>
+                {{ form.category }}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_description">Description</label>
+            {{ form.description }}
+        </div>
+
+        <div class="form-group">
+            <label for="id_payee">Payee</label>
+            {{ form.payee }}
+        </div>
+
+        <div class="form-group">
+            <label for="id_reference">Reference</label>
+            {{ form.reference }}
+        </div>
+
+        <div class="form-group">
+            <label class="checkbox-label">
+                {{ form.is_cleared }}
+                <span>Cleared / Reconciled</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label class="checkbox-label">
+                {{ form.is_recurring }}
+                <span>Recurring transaction</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes">Notes</label>
+            {{ form.notes }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{% if object %}Save Changes{% else %}Add Transaction{% endif %}</button>
+            <a href="{% url 'finance:transaction_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.container-sm { max-width: 600px; }
+
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group > label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.radio-group {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.radio-label:has(input:checked) {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border: 1px solid var(--color-accent);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

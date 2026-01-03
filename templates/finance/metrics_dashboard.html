@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Financial Metrics - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Financial Metrics</h1>
+            <p class="page-subtitle">Your financial health at a glance</p>
+        </div>
+        <a href="{% url 'finance:metrics_refresh' %}" class="btn btn-secondary">Refresh</a>
+    </div>
+
+    {% if current_snapshot %}
+    <!-- Key Metrics -->
+    <div class="metrics-grid mb-6">
+        <div class="metric-card highlight">
+            <span class="metric-label">Net Worth</span>
+            <span class="metric-value {% if current_snapshot.net_worth >= 0 %}positive{% else %}negative{% endif %}">
+                ${{ current_snapshot.net_worth|floatformat:2 }}
+            </span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Total Assets</span>
+            <span class="metric-value positive">${{ current_snapshot.total_assets|floatformat:2 }}</span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Total Liabilities</span>
+            <span class="metric-value negative">${{ current_snapshot.total_liabilities|floatformat:2 }}</span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Liquid Assets</span>
+            <span class="metric-value">${{ current_snapshot.liquid_assets|floatformat:2 }}</span>
+        </div>
+    </div>
+
+    <!-- Monthly Metrics -->
+    <div class="section-title">This Month</div>
+    <div class="metrics-grid mb-6">
+        <div class="metric-card">
+            <span class="metric-label">Income</span>
+            <span class="metric-value positive">+${{ current_snapshot.monthly_income|floatformat:2 }}</span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Expenses</span>
+            <span class="metric-value negative">-${{ current_snapshot.monthly_expenses|floatformat:2 }}</span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Cash Flow</span>
+            <span class="metric-value {% if current_snapshot.monthly_cash_flow >= 0 %}positive{% else %}negative{% endif %}">
+                {% if current_snapshot.monthly_cash_flow >= 0 %}+{% endif %}${{ current_snapshot.monthly_cash_flow|floatformat:2 }}
+            </span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Savings Rate</span>
+            <span class="metric-value {% if current_snapshot.savings_rate >= 20 %}positive{% elif current_snapshot.savings_rate >= 10 %}neutral{% else %}negative{% endif %}">
+                {{ current_snapshot.savings_rate|floatformat:1 }}%
+            </span>
+        </div>
+    </div>
+
+    <!-- Safety Metrics -->
+    <div class="section-title">Financial Safety</div>
+    <div class="safety-metrics mb-6">
+        <div class="safety-card">
+            <div class="safety-header">
+                <span class="safety-label">Emergency Fund</span>
+                {% if current_snapshot.emergency_fund_months %}
+                <span class="safety-value {% if current_snapshot.emergency_fund_months >= 6 %}good{% elif current_snapshot.emergency_fund_months >= 3 %}warning{% else %}danger{% endif %}">
+                    {{ current_snapshot.emergency_fund_months|floatformat:1 }} months
+                </span>
+                {% else %}
+                <span class="safety-value neutral">N/A</span>
+                {% endif %}
+            </div>
+            <div class="safety-bar">
+                {% if current_snapshot.emergency_fund_months %}
+                <div class="safety-fill" style="width: {{ current_snapshot.emergency_fund_months|floatformat:0|default:0 }}0%;"></div>
+                {% endif %}
+            </div>
+            <p class="safety-hint">Recommended: 3-6 months of expenses</p>
+        </div>
+    </div>
+
+    <!-- Historical Data -->
+    {% if snapshots %}
+    <div class="section-title">History</div>
+    <div class="history-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th class="text-right">Net Worth</th>
+                    <th class="text-right">Cash Flow</th>
+                    <th class="text-right">Savings Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for snap in snapshots %}
+                <tr>
+                    <td>{{ snap.snapshot_date|date:"M j, Y" }}</td>
+                    <td class="text-right {% if snap.net_worth >= 0 %}positive{% else %}negative{% endif %}">
+                        ${{ snap.net_worth|floatformat:0 }}
+                    </td>
+                    <td class="text-right {% if snap.monthly_cash_flow >= 0 %}positive{% else %}negative{% endif %}">
+                        {% if snap.monthly_cash_flow >= 0 %}+{% endif %}${{ snap.monthly_cash_flow|floatformat:0 }}
+                    </td>
+                    <td class="text-right">{{ snap.savings_rate|floatformat:1 }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <p>No financial data yet. Add some accounts and transactions to see your metrics.</p>
+        <a href="{% url 'finance:account_create' %}" class="btn btn-primary">Add Account</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.section-title {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+}
+
+.metric-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.metric-card.highlight {
+    background: var(--color-surface);
+    border-color: var(--color-accent);
+}
+
+.metric-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.metric-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.metric-value.positive { color: var(--color-success, #10b981); }
+.metric-value.negative { color: var(--color-error, #ef4444); }
+.metric-value.neutral { color: var(--color-text-muted); }
+
+.safety-metrics {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+}
+
+.safety-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.safety-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+}
+
+.safety-label {
+    font-weight: 500;
+}
+
+.safety-value {
+    font-weight: 600;
+}
+
+.safety-value.good { color: var(--color-success, #10b981); }
+.safety-value.warning { color: #f59e0b; }
+.safety-value.danger { color: var(--color-error, #ef4444); }
+
+.safety-bar {
+    height: 8px;
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--space-2);
+}
+
+.safety-fill {
+    height: 100%;
+    background: var(--color-success, #10b981);
+    border-radius: var(--radius-full);
+    max-width: 100%;
+}
+
+.safety-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.history-table {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.history-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.history-table th,
+.history-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.history-table th {
+    background: var(--color-surface);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.text-right { text-align: right; }
+.positive { color: var(--color-success, #10b981); }
+.negative { color: var(--color-error, #ef4444); }
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+</style>
+{% endblock %}

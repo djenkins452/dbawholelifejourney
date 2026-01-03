@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}{{ goal.name }} - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container container-sm">
+    <div class="page-header">
+        <a href="{% url 'finance:goal_list' %}" class="back-link">&larr; All Goals</a>
+        <h1 class="page-title">{{ goal.icon }} {{ goal.name }}</h1>
+        <p class="page-subtitle">{{ goal.get_goal_type_display }}</p>
+    </div>
+
+    <div class="goal-card">
+        <!-- Progress Section -->
+        <div class="goal-progress-section">
+            <div class="progress-circle" style="--progress: {{ goal.progress_percentage }}%; --color: {{ goal.color }};">
+                <span class="progress-value">{{ goal.progress_percentage|floatformat:0 }}%</span>
+            </div>
+            <div class="progress-details">
+                <div class="progress-stat">
+                    <span class="stat-label">Current</span>
+                    <span class="stat-value">${{ goal.current_amount|floatformat:2 }}</span>
+                </div>
+                <div class="progress-stat">
+                    <span class="stat-label">Target</span>
+                    <span class="stat-value">${{ goal.target_amount|floatformat:2 }}</span>
+                </div>
+                <div class="progress-stat">
+                    <span class="stat-label">Remaining</span>
+                    <span class="stat-value">${{ goal.remaining_amount|floatformat:2 }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Update Progress Form -->
+        {% if goal.goal_status == 'active' %}
+        <form method="post" action="{% url 'finance:goal_progress' goal.pk %}" class="update-progress-form">
+            {% csrf_token %}
+            <label>Update Progress</label>
+            <div class="form-row">
+                <input type="number" name="current_amount" value="{{ goal.current_amount }}" step="0.01" class="form-input">
+                <button type="submit" class="btn btn-primary">Update</button>
+            </div>
+        </form>
+        {% endif %}
+
+        <!-- Goal Details -->
+        <dl class="detail-list">
+            {% if goal.description %}
+            <dt>Description</dt>
+            <dd>{{ goal.description }}</dd>
+            {% endif %}
+
+            {% if goal.target_date %}
+            <dt>Target Date</dt>
+            <dd>
+                {{ goal.target_date|date:"F j, Y" }}
+                {% if goal.days_remaining is not None %}
+                <span class="days-remaining">({{ goal.days_remaining }} days left)</span>
+                {% endif %}
+            </dd>
+            {% endif %}
+
+            {% if goal.monthly_contribution_needed %}
+            <dt>Monthly Contribution Needed</dt>
+            <dd>${{ goal.monthly_contribution_needed|floatformat:2 }}</dd>
+            {% endif %}
+
+            {% if goal.linked_account %}
+            <dt>Linked Account</dt>
+            <dd><a href="{% url 'finance:account_detail' goal.linked_account.pk %}">{{ goal.linked_account.name }}</a></dd>
+            {% endif %}
+
+            <dt>Status</dt>
+            <dd>
+                <span class="status-badge status-{{ goal.goal_status }}">{{ goal.get_goal_status_display }}</span>
+            </dd>
+
+            <dt>Started</dt>
+            <dd>{{ goal.started_at|date:"F j, Y" }}</dd>
+
+            {% if goal.completed_at %}
+            <dt>Completed</dt>
+            <dd>{{ goal.completed_at|date:"F j, Y" }}</dd>
+            {% endif %}
+
+            {% if goal.notes %}
+            <dt>Notes</dt>
+            <dd>{{ goal.notes }}</dd>
+            {% endif %}
+        </dl>
+
+        <div class="goal-actions">
+            <a href="{% url 'finance:goal_update' goal.pk %}" class="btn btn-secondary">Edit</a>
+            <a href="{% url 'finance:goal_delete' goal.pk %}" class="btn btn-danger">Delete</a>
+        </div>
+    </div>
+</div>
+
+<style>
+.container-sm { max-width: 600px; }
+
+.back-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+    display: inline-block;
+}
+
+.goal-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.goal-progress-section {
+    display: flex;
+    gap: var(--space-6);
+    align-items: center;
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.progress-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: conic-gradient(var(--color) var(--progress), var(--color-surface) 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.progress-circle::before {
+    content: '';
+    width: 90px;
+    height: 90px;
+    background: var(--color-background);
+    border-radius: 50%;
+    position: absolute;
+}
+
+.progress-value {
+    position: relative;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.progress-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.progress-stat {
+    display: flex;
+    justify-content: space-between;
+}
+
+.stat-label {
+    color: var(--color-text-muted);
+}
+
+.stat-value {
+    font-weight: 600;
+}
+
+.update-progress-form {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.update-progress-form label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 500;
+}
+
+.update-progress-form .form-row {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.update-progress-form .form-input {
+    flex: 1;
+}
+
+.detail-list {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+}
+
+.detail-list dt {
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.detail-list dd {
+    margin: 0;
+}
+
+.days-remaining {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.status-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    border-radius: var(--radius-sm);
+}
+
+.status-active {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+}
+
+.status-completed {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.status-paused {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.goal-actions {
+    display: flex;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    .goal-progress-section {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}

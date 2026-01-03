@@ -822,3 +822,83 @@ class TermsAcceptance(models.Model):
 
     def __str__(self):
         return f"{self.user.email} accepted v{self.terms_version} on {self.accepted_at}"
+
+
+class IPBlocklist(models.Model):
+    """
+    Store blocked IP addresses for security purposes.
+
+    Supports individual IPs, CIDR ranges, and temporary blocks.
+    Used to prevent abuse from known bad actors.
+    """
+
+    BLOCK_TYPE_CHOICES = [
+        ("manual", "Manual Block"),
+        ("automated", "Automated Block"),
+        ("temporary", "Temporary Block"),
+    ]
+
+    ip_address = models.CharField(
+        max_length=45,
+        db_index=True,
+        help_text="IPv4 or IPv6 address to block",
+    )
+    cidr_range = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Optional CIDR notation for range blocks (e.g., /24)",
+    )
+    block_type = models.CharField(
+        max_length=20,
+        choices=BLOCK_TYPE_CHOICES,
+        default="manual",
+    )
+    reason = models.TextField(
+        blank=True,
+        help_text="Reason for blocking this IP",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this block expires (null = permanent)",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ip_blocks_created",
+        help_text="Admin who created this block",
+    )
+
+    class Meta:
+        db_table = "users_ip_blocklist"
+        verbose_name = "IP blocklist entry"
+        verbose_name_plural = "IP blocklist entries"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.ip_address} ({self.block_type})"
+
+    @classmethod
+    def is_blocked(cls, ip_address: str) -> bool:
+        """
+        Check if an IP address is currently blocked.
+
+        Args:
+            ip_address: The IP address to check
+
+        Returns:
+            True if the IP is blocked, False otherwise
+        """
+        now = timezone.now()
+
+        # Check for exact IP match that hasn't expired
+        blocked = cls.objects.filter(
+            ip_address=ip_address
+        ).filter(
+            models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=now)
+        ).exists()
+
+        return blocked

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-03 (Transaction File Import Feature)
+# Last Updated: 2026-01-03 (AI Finance Interpretation Rules)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,51 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-03 Changes
+
+### AI Finance Interpretation Rules
+
+**Session:** Define AI Finance Interpretation Rules
+
+**Task:** WLJ Finance Module - Define AI Finance Interpretation Rules
+
+**Objective:**
+Establish safe, explainable AI behavior for interpreting financial data.
+
+**Documentation Created:** `docs/wlj_ai_finance_rules.md`
+
+**Key Rules Established:**
+
+1. **Data Access Rules (Section 1)**
+   - Allowed: Account names/types, balances, transaction amounts/dates/categories, budgets, goals
+   - Prohibited: Account numbers, bank credentials, OAuth tokens, raw import files
+   - Preference for aggregated data over raw transaction lists
+
+2. **Allowed AI Outputs (Section 2)**
+   - Permitted: Summaries, trends, progress updates, gentle nudges, celebrations, observations
+   - Prohibited: Investment advice, tax guidance, debt strategies, credit predictions
+   - Language guidelines: "You may want to consider..." not "You should..."
+
+3. **Credential Protection (Section 3)**
+   - Absolute prohibition on exposing tokens, credentials, account numbers
+   - Data sanitization requirements before AI processing
+   - Logging requirements (event only, no sensitive data)
+
+4. **Explainability Requirements (Section 4)**
+   - All insights must include data source attribution
+   - Timeframe specification required
+   - Uncertainty must be acknowledged
+
+5. **User Consent (Section 5)**
+   - Consent verification required before AI processing
+   - Finance AI can be disabled independently of other AI features
+
+6. **Implementation Checklist (Section 6)**
+   - Pre-send validation, response processing, display requirements
+
+**Files Created:**
+- `docs/wlj_ai_finance_rules.md` - Complete AI Finance interpretation rules
+
+---
 
 ### Transaction File Import Feature
 

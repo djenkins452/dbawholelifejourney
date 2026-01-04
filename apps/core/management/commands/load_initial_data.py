@@ -382,4 +382,75 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(self.style.WARNING(f' Skipped ({e})'))
 
+        # Send one-time test email to verify SMTP configuration
+        self._send_smtp_test_email(DataLoadConfig, force)
+
         self.stdout.write(self.style.SUCCESS('\nInitial data loading complete!'))
+
+    def _send_smtp_test_email(self, DataLoadConfig, force=False):
+        """
+        Send a one-time test email to verify SMTP configuration.
+
+        Only runs once (tracked via DataLoadConfig) unless force=True.
+        Sends to ADMIN_EMAIL to verify email delivery works.
+        """
+        loader_name = 'smtp_test_email'
+
+        # Check if already sent (unless force mode)
+        if not force and self._is_loader_complete(DataLoadConfig, loader_name):
+            self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('skip (already sent)'))
+            return
+
+        from django.conf import settings
+        from django.core.mail import send_mail
+        from django.utils import timezone
+
+        # Only send if SMTP is configured (not console backend)
+        if settings.DEBUG or 'console' in getattr(settings, 'EMAIL_BACKEND', '').lower():
+            self.stdout.write(f'  {loader_name}: ' + self.style.WARNING('skip (console backend)'))
+            return
+
+        # Check if credentials are configured
+        if not getattr(settings, 'EMAIL_HOST_USER', '') or not getattr(settings, 'EMAIL_HOST_PASSWORD', ''):
+            self.stdout.write(f'  {loader_name}: ' + self.style.WARNING('skip (no SMTP credentials)'))
+            return
+
+        try:
+            self.stdout.write(f'  Sending SMTP test email...', ending='')
+
+            recipient = getattr(settings, 'ADMINS', [('Admin', 'dannyjenkins71@gmail.com')])[0][1]
+            from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'admin@wholelifejourney.com')
+            timestamp = timezone.now().strftime("%Y-%m-%d %H:%M:%S %Z")
+
+            result = send_mail(
+                subject='WLJ SMTP Test - Configuration Verified',
+                message=f"""
+This is an automated test email from Whole Life Journey.
+
+Sent at: {timestamp}
+From: {from_email}
+Backend: {settings.EMAIL_BACKEND}
+SMTP Host: {getattr(settings, 'EMAIL_HOST', 'N/A')}:{getattr(settings, 'EMAIL_PORT', 'N/A')}
+
+If you received this email, your SMTP configuration is working correctly!
+
+This test email is sent once on first deploy after SMTP is configured.
+""",
+                from_email=from_email,
+                recipient_list=[recipient],
+                fail_silently=False,
+            )
+
+            if result == 1:
+                self.stdout.write(self.style.SUCCESS(f' OK (sent to {recipient})'))
+                # Mark as complete so it doesn't send again
+                self._mark_loader_complete(
+                    DataLoadConfig, loader_name, 'SMTP Test Email',
+                    'command', 'One-time SMTP configuration verification email'
+                )
+            else:
+                self.stdout.write(self.style.WARNING(f' Warning: send_mail returned {result}'))
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f' FAILED: {e}'))
+            self.stdout.write(self.style.WARNING('  Check EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in Railway'))

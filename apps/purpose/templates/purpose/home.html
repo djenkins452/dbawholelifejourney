@@ -94,15 +94,15 @@
         </div>
     </div>
     
-    <!-- Two Column Layout -->
-    <div class="purpose-grid">
-        <!-- Goals by Domain -->
+    <!-- Three Column Layout -->
+    <div class="purpose-grid purpose-grid-3">
+        <!-- Life Goals -->
         <div class="purpose-section">
             <div class="section-header">
                 <h3>Life Goals</h3>
                 <a href="{% url 'purpose:goal_list' %}" class="btn btn-ghost btn-sm">View All →</a>
             </div>
-            
+
             {% if goals_by_domain %}
             <div class="goals-by-domain">
                 {% for domain_name, goals in goals_by_domain.items %}
@@ -127,14 +127,39 @@
             </div>
             {% endif %}
         </div>
-        
+
+        <!-- Habit Goals -->
+        <div class="purpose-section">
+            <div class="section-header">
+                <h3>Habit Goals</h3>
+                <a href="{% url 'purpose:habit_goal_list' %}" class="btn btn-ghost btn-sm">View All →</a>
+            </div>
+
+            {% if active_habit_goals %}
+            <ul class="goal-list">
+                {% for habit in active_habit_goals %}
+                <li>
+                    <a href="{% url 'purpose:habit_goal_detail' habit.pk %}">{{ habit.name }}</a>
+                    <span class="goal-timeframe">{{ habit.completion_rate|floatformat:0 }}%</span>
+                </li>
+                {% endfor %}
+            </ul>
+            <a href="{% url 'purpose:habit_goal_create' %}" class="btn btn-secondary btn-sm mt-4">+ Add Habit Goal</a>
+            {% else %}
+            <div class="empty-section">
+                <p>No active habit goals yet.</p>
+                <a href="{% url 'purpose:habit_goal_create' %}" class="btn btn-secondary btn-sm">Add Your First Habit Goal</a>
+            </div>
+            {% endif %}
+        </div>
+
         <!-- Change Intentions -->
         <div class="purpose-section">
             <div class="section-header">
                 <h3>Change Intentions</h3>
                 <a href="{% url 'purpose:intention_list' %}" class="btn btn-ghost btn-sm">View All →</a>
             </div>
-            
+
             {% if active_intentions %}
             <ul class="intention-list">
                 {% for intention in active_intentions %}
@@ -153,18 +178,6 @@
                 <a href="{% url 'purpose:intention_create' %}" class="btn btn-secondary btn-sm">Add an Intention</a>
             </div>
             {% endif %}
-        </div>
-    </div>
-    
-    <!-- Habit Goals Quick Access -->
-    <div class="habit-goals-section mt-8">
-        <div class="section-header">
-            <h3>Habit Goals</h3>
-            <a href="{% url 'purpose:habit_goal_list' %}" class="btn btn-ghost btn-sm">View All →</a>
-        </div>
-        <div class="habit-goals-intro">
-            <p>Track daily habits with visual progress matrices. Perfect for 30-day challenges, building new routines, or any time-bounded commitment.</p>
-            <a href="{% url 'purpose:habit_goal_create' %}" class="btn btn-primary">+ New Habit Goal</a>
         </div>
     </div>
 
@@ -387,15 +400,26 @@
     gap: var(--space-6);
 }
 
+.purpose-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 1024px) {
+    .purpose-grid-3 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 @media (max-width: 768px) {
-    .purpose-grid {
+    .purpose-grid,
+    .purpose-grid-3 {
         grid-template-columns: 1fr;
     }
-    
+
     .stats-grid {
         grid-template-columns: repeat(3, 1fr);
     }
-    
+
     .word-value {
         font-size: 2.5rem;
     }
@@ -547,31 +571,5 @@
     margin-top: var(--space-1);
 }
 
-.habit-goals-section {
-    background: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-6);
-}
-
-.habit-goals-intro {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-4);
-}
-
-.habit-goals-intro p {
-    margin: 0;
-    color: var(--color-text-muted);
-    flex: 1;
-}
-
-@media (max-width: 768px) {
-    .habit-goals-intro {
-        flex-direction: column;
-        text-align: center;
-    }
-}
 </style>
 {% endblock %}

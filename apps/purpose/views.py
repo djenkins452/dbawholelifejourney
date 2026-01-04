@@ -95,7 +95,13 @@ class PurposeHomeView(HelpContextMixin, PurposeAccessMixin, TemplateView):
             user=user,
             status='active'
         ).order_by('sort_order')[:5]
-        
+
+        # Active habit goals
+        context['active_habit_goals'] = HabitGoal.objects.filter(
+            user=user,
+            status='active'
+        ).select_related('domain').order_by('start_date')[:5]
+
         # Stats
         context['stats'] = {
             'total_goals': LifeGoal.objects.filter(user=user).count(),

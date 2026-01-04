@@ -2197,7 +2197,7 @@ class AdminProjectListView(HelpContextMixin, AdminRequiredMixin, ListView):
         return AdminProject.objects.annotate(
             total_tasks=Count('tasks'),
             completed_tasks=Count('tasks', filter=Q(tasks__status='done'))
-        ).order_by('name')
+        ).order_by('priority', 'name')
 
 
 class AdminProjectDetailView(HelpContextMixin, AdminRequiredMixin, TemplateView):
@@ -2271,7 +2271,7 @@ class AdminProjectCreateView(AdminRequiredMixin, CreateView):
         class AdminProjectForm(forms.ModelForm):
             class Meta:
                 model = AdminProject
-                fields = ['name', 'description']
+                fields = ['name', 'description', 'priority']
                 widgets = {
                     'name': forms.TextInput(attrs={
                         'class': 'form-input',
@@ -2281,6 +2281,9 @@ class AdminProjectCreateView(AdminRequiredMixin, CreateView):
                         'class': 'form-textarea',
                         'rows': 3,
                         'placeholder': 'Optional description of this project...'
+                    }),
+                    'priority': forms.Select(attrs={
+                        'class': 'form-input'
                     }),
                 }
 
@@ -2349,7 +2352,7 @@ class AdminProjectUpdateView(AdminRequiredMixin, UpdateView):
         class AdminProjectForm(forms.ModelForm):
             class Meta:
                 model = AdminProject
-                fields = ['name', 'description', 'status']
+                fields = ['name', 'description', 'status', 'priority']
                 widgets = {
                     'name': forms.TextInput(attrs={
                         'class': 'form-input',
@@ -2361,6 +2364,9 @@ class AdminProjectUpdateView(AdminRequiredMixin, UpdateView):
                         'placeholder': 'Optional description of this project...'
                     }),
                     'status': forms.Select(attrs={
+                        'class': 'form-input'
+                    }),
+                    'priority': forms.Select(attrs={
                         'class': 'form-input'
                     }),
                 }
@@ -2817,12 +2823,24 @@ class ReadyTasksAPIView(View):
         # Check for auto_start parameter
         auto_start = request.GET.get('auto_start', '').lower() == 'true'
 
-        # Fetch ready tasks ordered by priority (lowest number = highest priority)
+        # Fetch ready tasks using project priority rules:
+        # 1. Project Priority (1 = highest, 10 = lowest)
+        # 2. Phase (ascending by phase_number)
+        # 3. Task Priority (highest first = lowest number)
+        # 4. Create Date (oldest first)
+        # 5. Task ID (tie-breaker)
         tasks = list(AdminTask.objects.filter(
-            status='ready'
+            status='ready',
+            project__status='open'  # Only from active/open projects
         ).select_related(
             'phase', 'project'
-        ).order_by('priority', 'created_at')[:limit])
+        ).order_by(
+            'project__priority',  # Project priority first
+            'phase__phase_number',  # Then phase
+            'priority',  # Then task priority
+            'created_at',  # Then oldest first
+            'id'  # Tie-breaker
+        )[:limit])
 
         # If auto_start is true and we have tasks, mark the first one as in_progress
         started_task_id = None

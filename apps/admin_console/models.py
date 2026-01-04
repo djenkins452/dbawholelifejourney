@@ -279,14 +279,21 @@ class AdminProject(models.Model):
         ('complete', 'Complete'),
     ]
 
+    PRIORITY_CHOICES = [(i, str(i)) for i in range(1, 11)]
+
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True, default='')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    priority = models.PositiveIntegerField(
+        choices=PRIORITY_CHOICES,
+        default=5,
+        help_text='Project priority (1=highest, 10=lowest)'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['name']
+        ordering = ['priority', 'name']
         verbose_name = 'Admin Project'
         verbose_name_plural = 'Admin Projects'
 

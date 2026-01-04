@@ -18,6 +18,7 @@
             <h1>{{ goal.name }}</h1>
             <div class="header-actions">
                 <a href="{% url 'purpose:habit_goal_update' goal.pk %}" class="btn btn-secondary">Edit</a>
+                <a href="{% url 'purpose:habit_goal_delete' goal.pk %}" class="btn btn-danger">Delete</a>
             </div>
         </div>
         <p class="goal-purpose">{{ goal.purpose }}</p>

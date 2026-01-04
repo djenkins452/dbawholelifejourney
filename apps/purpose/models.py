@@ -773,19 +773,11 @@ class HabitGoal(UserOwnedModel):
 
     @property
     def completion_rate(self):
-        """Percentage of completed days (up to today)."""
-        today = get_user_today(self.user)
-
-        # Only count days up to today (not future days)
-        end = min(self.end_date, today)
-        if end < self.start_date:
+        """Percentage of completed days based on total days in goal period."""
+        if self.total_days <= 0:
             return 0.0
 
-        trackable_days = (end - self.start_date).days + 1
-        if trackable_days <= 0:
-            return 0.0
-
-        return (self.completed_days / trackable_days) * 100
+        return (self.completed_days / self.total_days) * 100
 
     @property
     def current_streak(self):

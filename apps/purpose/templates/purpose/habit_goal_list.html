@@ -63,6 +63,7 @@
             <div class="goal-actions">
                 <a href="{% url 'purpose:habit_goal_detail' goal.pk %}" class="btn btn-primary btn-sm">View</a>
                 <a href="{% url 'purpose:habit_goal_update' goal.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                <a href="{% url 'purpose:habit_goal_delete' goal.pk %}" class="btn btn-danger btn-sm">Delete</a>
             </div>
         </div>
         {% endfor %}

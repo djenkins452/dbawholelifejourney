@@ -629,10 +629,98 @@ Focus on consistency and self-care. Match your coaching style."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
     
+    def generate_glucose_insight(self, glucose_data: dict,
+                                  faith_enabled: bool = False,
+                                  coaching_style: str = 'supportive') -> Optional[str]:
+        """
+        Generate personalized insight for blood glucose dashboard.
+
+        Args:
+            glucose_data: Dictionary with glucose statistics:
+                - avg_glucose: 7-day average glucose (mg/dL)
+                - min_glucose: minimum reading
+                - max_glucose: maximum reading
+                - time_in_range: percentage of time in target range (70-180)
+                - low_count: number of low events
+                - high_count: number of high events
+                - reading_count: total readings in period
+                - latest_value: most recent reading
+                - latest_status: status of latest reading (normal, high, low)
+            faith_enabled: Whether faith context should be included
+            coaching_style: The user's preferred coaching style
+        """
+        system, max_tokens = self._get_prompt_with_config(
+            'glucose_insight',
+            'Generate blood glucose insight',
+            faith_enabled,
+            coaching_style
+        )
+
+        context = []
+
+        # Reading count context
+        reading_count = glucose_data.get('reading_count', 0)
+        if reading_count == 0:
+            # No data yet
+            prompt = """The user has no glucose readings yet.
+Provide a brief, encouraging message about starting to track blood glucose.
+Keep it to 2-3 sentences. Match your coaching style."""
+            return self._call_api(system, prompt, max_tokens=max_tokens)
+
+        context.append(f"{reading_count} glucose readings in the past 7 days")
+
+        # Average and range
+        if glucose_data.get('avg_glucose'):
+            avg = glucose_data['avg_glucose']
+            context.append(f"Average glucose: {avg} mg/dL")
+            if avg < 100:
+                context.append("Average is in excellent range")
+            elif avg < 126:
+                context.append("Average is in normal range")
+            elif avg < 180:
+                context.append("Average is slightly elevated")
+            else:
+                context.append("Average is elevated")
+
+        # Time in range
+        if glucose_data.get('time_in_range') is not None:
+            tir = glucose_data['time_in_range']
+            context.append(f"Time in range (70-180): {tir}%")
+            if tir >= 70:
+                context.append("Time in range is good")
+            elif tir >= 50:
+                context.append("Time in range has room for improvement")
+
+        # Low/high events
+        if glucose_data.get('low_count', 0) > 0:
+            context.append(f"{glucose_data['low_count']} low glucose events (<70)")
+        if glucose_data.get('high_count', 0) > 0:
+            context.append(f"{glucose_data['high_count']} high glucose events (>180)")
+
+        # Min/max range
+        if glucose_data.get('min_glucose') and glucose_data.get('max_glucose'):
+            context.append(f"Range: {glucose_data['min_glucose']} - {glucose_data['max_glucose']} mg/dL")
+
+        # Latest reading
+        if glucose_data.get('latest_value'):
+            status = glucose_data.get('latest_status', 'normal')
+            context.append(f"Most recent reading: {glucose_data['latest_value']} mg/dL ({status})")
+
+        prompt = f"""User's blood glucose data (past 7 days):
+{chr(10).join('- ' + c for c in context)}
+
+Generate a personalized, supportive insight about their glucose management.
+Focus on patterns, achievements, or gentle encouragement.
+IMPORTANT: You are NOT a medical professional. Do not give medical advice.
+Instead, offer observational insights and encouragement.
+Keep it to 2-4 sentences. Match your coaching style."""
+
+        return self._call_api(system, prompt, max_tokens=max_tokens)
+
     # =========================================================================
     # FAITH INSIGHTS
     # =========================================================================
-    
+
     def generate_prayer_encouragement(self, prayer_data: dict,
                                        coaching_style: str = 'supportive') -> Optional[str]:
         """Generate encouragement around prayer life."""

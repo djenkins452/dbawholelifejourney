@@ -155,6 +155,7 @@ class AIInsight(models.Model):
         ('reflection_prompt', 'Reflection Prompt'),
         ('goal_encouragement', 'Goal Encouragement'),
         ('health_insight', 'Health Insight'),
+        ('glucose_insight', 'Blood Glucose Insight'),
         ('prayer_encouragement', 'Prayer Encouragement'),
         ('entry_reflection', 'Journal Entry Reflection'),
     ]
@@ -227,6 +228,7 @@ class AIPromptConfig(models.Model):
         ('journal_reflection', 'Journal Entry Reflection'),
         ('goal_progress', 'Goal Progress Feedback'),
         ('health_encouragement', 'Health Encouragement'),
+        ('glucose_insight', 'Blood Glucose Insight'),
         ('prayer_encouragement', 'Prayer Encouragement'),
         ('accountability_nudge', 'Accountability Nudge'),
         ('celebration', 'Celebration Message'),

@@ -3716,6 +3716,42 @@ class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             })
         context['chart_data'] = chart_data
 
+        # Generate AI insight if user has AI enabled and consented
+        context['ai_insight'] = None
+        context['ai_enabled'] = False
+        try:
+            prefs = user.preferences
+            if prefs.ai_enabled and prefs.ai_data_consent:
+                context['ai_enabled'] = True
+                from apps.ai.services import ai_service
+
+                # Build glucose data for AI
+                glucose_data = {
+                    'reading_count': glucose_entries.count(),
+                    'avg_glucose': context.get('avg_glucose'),
+                    'min_glucose': context.get('min_glucose'),
+                    'max_glucose': context.get('max_glucose'),
+                    'time_in_range': context.get('time_in_range'),
+                    'low_count': context.get('low_count', 0),
+                    'high_count': context.get('high_count', 0),
+                }
+
+                # Add latest reading info
+                if context.get('latest_reading'):
+                    latest = context['latest_reading']
+                    glucose_data['latest_value'] = float(latest.value)
+                    glucose_data['latest_status'] = latest.glucose_status
+
+                # Generate insight with user's coaching style
+                context['ai_insight'] = ai_service.generate_glucose_insight(
+                    glucose_data,
+                    faith_enabled=prefs.faith_enabled,
+                    coaching_style=prefs.ai_coaching_style
+                )
+        except Exception:
+            # Don't fail the page if AI fails
+            pass
+
         return context
 
 

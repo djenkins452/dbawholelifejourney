@@ -108,7 +108,6 @@
                      data-day-number="{{ box.day_number }}"
                      data-date="{{ box.date|date:'Y-m-d' }}"
                      title="{% if box.date %}Day {{ box.day_number }}: {{ box.date|date:'M j, Y' }}{% else %}Disabled{% endif %}">
-                    {% if box.day_number %}{{ box.day_number }}{% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -468,14 +467,17 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .matrix-box {
-    width: 40px;
-    height: 40px;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    max-width: 24px;
+    max-height: 24px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    font-weight: 500;
     cursor: default;
     transition: transform 0.15s ease;
 }
@@ -542,12 +544,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 /* Responsive */
 @media (max-width: 768px) {
-    .matrix-box {
-        width: 32px;
-        height: 32px;
-        font-size: 10px;
-    }
-
     .control-buttons {
         flex-direction: column;
     }

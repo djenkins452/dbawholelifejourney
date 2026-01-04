@@ -22,10 +22,35 @@ curl -s -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4
 
 # Mark task done
 curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" -H "Content-Type: application/json" -d '{"status": "done"}' "https://wholelifejourney.com/admin-console/api/claude/tasks/<ID>/status/"
-
-# Run tests
-python manage.py test
 ```
+
+## Testing Strategy
+
+**Targeted testing only** - Run tests for the specific module being changed, not the full suite.
+
+```bash
+# Test specific app module (from main repo C:\dbawholelifejourney)
+python manage.py test apps.health.tests.test_health -v 1 --failfast
+
+# Test specific test class
+python manage.py test apps.health.tests.test_health.GlucoseViewTests -v 1
+
+# Test specific method
+python manage.py test apps.health.tests.test_health.GlucoseViewTests.test_dashboard -v 1
+```
+
+**Test mapping by app:**
+| App Changed | Test Module |
+|-------------|-------------|
+| health | `apps.health.tests.test_health` |
+| ai | `apps.ai.tests` |
+| journal | `apps.journal.tests` |
+| faith | `apps.faith.tests` |
+| purpose | `apps.purpose.tests` |
+| dashboard | `apps.dashboard.tests` |
+| admin_console | `apps.admin_console.tests` |
+
+**Full regression testing:** Only run `python manage.py test` when user explicitly requests it.
 
 ---
 
@@ -119,12 +144,12 @@ Use `/next` slash command or say "What's Next?"
 2. Run curl with `auto_start=true`
 3. Output: `**Session: <Task Title>**`
 4. Execute all actions without asking
-5. Run tests if code changed
+5. Run **targeted tests only** (see Testing Strategy above)
 6. Commit, merge to main, push
 7. Mark task `done`
 8. Offer next task
 
-**DO NOT:** Read CLAUDE.md again, ask permission, ask clarifying questions.
+**DO NOT:** Read CLAUDE.md again, ask permission, ask clarifying questions, run full test suite.
 
 ---
 

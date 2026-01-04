@@ -127,12 +127,10 @@ Use `/next` slash command or say "What's Next?"
 1. Output: `Fetching next task...`
 2. Run curl with `auto_start=true`
 3. Output: `**Session: <Task Title>**`
-4. Execute all actions without asking
-5. Commit, merge to main, push
-6. Mark task `done`
-7. Offer next task
+4. Show the task objective and actions
+5. Output: `Run /run-task to execute.`
 
-**DO NOT:** Read CLAUDE.md again, ask permission, ask clarifying questions, run `manage.py` commands (they hang).
+**DO NOT:** Read CLAUDE.md again, execute the task automatically, run `manage.py` commands (they hang).
 
 ---
 

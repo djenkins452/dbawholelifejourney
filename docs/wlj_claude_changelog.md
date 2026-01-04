@@ -4,13 +4,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-03 (One-Time Data Loaders Feature)
+# Last Updated: 2026-01-04 (Project Dropdown Multi-Select)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2026-01-04 Changes
+
+### Project Dropdown Multi-Select Checkbox (Task #118)
+
+**Session:** Project Dropdown Box to match Status functionality
+
+**Changes:**
+1. Converted Project dropdown from single-select to multi-select checkbox dropdown
+2. Moved Project dropdown under Search box to prevent line wrapping
+3. Updated view to support multiple project filters via `getlist()`
+4. Refactored JavaScript to use generic `initCheckboxDropdown()` function for both Status and Project dropdowns
+
+**Files Modified:**
+- `apps/admin_console/views.py` - Changed `get('project')` to `getlist('project')` for multi-select support
+- `templates/admin_console/admin_task_list.html` - New checkbox dropdown HTML/CSS/JS for Project filter
+- `apps/admin_console/tests/test_admin_console.py` - Added missing `import json` (pre-existing bug fix)
+
+**Why:** User requested Project filter to have same UX as Status filter with multi-select checkboxes.
 
 ---
 

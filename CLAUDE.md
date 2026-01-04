@@ -26,11 +26,15 @@ curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
 
 ## Testing & Migrations
 
-**SKIP `manage.py` commands** - They hang on Windows due to DATABASE_URL pointing to production PostgreSQL.
+**KNOWN ISSUE (2026-01-04):** `manage.py` commands currently hang during `django.setup()`. Root cause under investigation - may be Python 3.14 compatibility, scheduler initialization, or signal handler issue.
 
-**Migrations:** Create manually (see `docs/wlj_claude_troubleshoot.md` section 7)
+**Workaround:** Create migrations manually if needed. Tests should be run when environment is working.
 
-**Testing:** Skip local tests. Railway deployment will catch issues. Only run tests if user explicitly requests AND provides a working environment.
+**Normal Testing (when working):**
+```bash
+# Test specific app module
+python manage.py test apps.admin_console.tests -v 1 --failfast
+```
 
 ---
 

@@ -172,6 +172,14 @@
             </svg>
         </a>
 
+    </div>
+
+    <!-- Data Imports Section -->
+    <div class="section-divider mt-8 mb-4">
+        <h2 class="section-title">Data Imports</h2>
+    </div>
+
+    <div class="admin-grid">
         <!-- Data Loaders -->
         <a href="{% url 'admin_console:dataload_list' %}" class="admin-card">
             <div class="admin-card-icon">
@@ -184,6 +192,22 @@
             <div class="admin-card-content">
                 <h3>Data Loaders</h3>
                 <p>Manage startup data loads</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+
+        <!-- Clarity Import -->
+        <a href="{% url 'admin_console:clarity_import' %}" class="admin-card">
+            <div class="admin-card-icon" style="background: color-mix(in srgb, #10b981 15%, transparent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Clarity Import</h3>
+                <p>Upload Dexcom glucose data</p>
             </div>
             <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 18l6-6-6-6"/>

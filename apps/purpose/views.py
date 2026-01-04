@@ -23,6 +23,7 @@ from django.views.generic import (
     View,
 )
 
+from apps.core.utils import get_user_today
 from apps.help.mixins import HelpContextMixin
 
 from .models import (
@@ -633,7 +634,7 @@ class HabitGoalDetailView(HelpContextMixin, PurposeAccessMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        today = timezone.now().date()
+        today = get_user_today(self.request.user)
 
         # Get matrix data organized as rows
         context['matrix_rows'] = self.object.get_matrix_as_rows()
@@ -733,7 +734,7 @@ class HabitLogTodayView(PurposeAccessMixin, View):
 
     def post(self, request, pk):
         goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
-        today = timezone.now().date()
+        today = get_user_today(request.user)
 
         # Validate goal has habit tracking
         if not goal.habit_required:
@@ -787,7 +788,7 @@ class HabitLogDateView(PurposeAccessMixin, View):
     def post(self, request, pk):
         import json
         goal = get_object_or_404(HabitGoal, pk=pk, user=request.user)
-        today = timezone.now().date()
+        today = get_user_today(request.user)
 
         # Parse date from request body
         try:

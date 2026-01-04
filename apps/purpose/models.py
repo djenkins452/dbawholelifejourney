@@ -4,7 +4,7 @@
 # Description: Purpose module models including life goals, habit goals, and reflections
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2024-01-01
-# Last Updated: 2026-01-02
+# Last Updated: 2026-01-03
 # ==============================================================================
 """
 Purpose Module Models
@@ -26,6 +26,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.models import UserOwnedModel
+from apps.core.utils import get_user_today
 
 
 # =============================================================================
@@ -694,7 +695,7 @@ class HabitGoal(UserOwnedModel):
         if not self.habit_required or self.total_days <= 0:
             return []
 
-        today = timezone.now().date()
+        today = get_user_today(self.user)
 
         # Get all habit entries for this goal
         entries_by_date = {
@@ -773,7 +774,7 @@ class HabitGoal(UserOwnedModel):
     @property
     def completion_rate(self):
         """Percentage of completed days (up to today)."""
-        today = timezone.now().date()
+        today = get_user_today(self.user)
 
         # Only count days up to today (not future days)
         end = min(self.end_date, today)
@@ -789,7 +790,7 @@ class HabitGoal(UserOwnedModel):
     @property
     def current_streak(self):
         """Calculate current consecutive completion streak."""
-        today = timezone.now().date()
+        today = get_user_today(self.user)
 
         # Get completed entries ordered by date descending
         completed_dates = set(
@@ -877,7 +878,7 @@ class HabitEntry(models.Model):
             })
 
         # Validate not future date
-        today = timezone.now().date()
+        today = get_user_today(self.goal.user)
         if self.date > today:
             raise ValidationError({
                 'date': "Cannot create habit entries for future dates."

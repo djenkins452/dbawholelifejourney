@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Project Priority and Task Ordering)
+# Last Updated: 2026-01-04 (Habit Goal Matrix Box Sizing)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,21 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Habit Goal Matrix Box Sizing (Task #129)
+
+**Session:** Matrix Not same size
+
+**Changes:**
+1. Removed day numbers from matrix boxes - values no longer visible inside boxes
+2. Set fixed 24x24px box size with min/max/flex-shrink constraints
+3. Removed mobile responsive sizing override that changed box size on phones
+4. Matrix boxes now display at consistent size on all devices
+
+**Files Modified:**
+- `apps/purpose/templates/purpose/habit_goal_detail.html` - Updated matrix box template and CSS
+
+---
 
 ### Project Priority and Task Ordering (Task #137)
 

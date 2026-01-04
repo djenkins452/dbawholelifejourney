@@ -668,4 +668,24 @@ APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
 
 # Run scheduler only in production (managed by run_scheduler command)
 APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Seconds
+
+
+# ==============================================================================
+# Google reCAPTCHA v3 Configuration
+# ==============================================================================
+# Get your keys at: https://www.google.com/recaptcha/admin
+# reCAPTCHA v3 returns a score (0.0-1.0) - no user interaction required
+
+RECAPTCHA_V3_SITE_KEY = env('RECAPTCHA_V3_SITE_KEY', default='')
+RECAPTCHA_V3_SECRET_KEY = env('RECAPTCHA_V3_SECRET_KEY', default='')
+
+# Score threshold (0.0-1.0) - higher is more likely human
+# 0.5 is recommended default, adjust based on observed traffic
+RECAPTCHA_SCORE_THRESHOLD = float(env('RECAPTCHA_SCORE_THRESHOLD', default='0.5'))
+
+# Log reCAPTCHA configuration status
+if RECAPTCHA_V3_SITE_KEY and RECAPTCHA_V3_SECRET_KEY:
+    print(f"reCAPTCHA v3 configured - Threshold: {RECAPTCHA_SCORE_THRESHOLD}")
+else:
+    print("reCAPTCHA v3 NOT configured - RECAPTCHA_V3_SITE_KEY/SECRET_KEY not set")
     

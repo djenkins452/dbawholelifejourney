@@ -48,6 +48,8 @@ def site_context(request):
         'site_tagline': config.tagline or 'A calm space for reflection, growth, and faithful living.',
         'site_logo_url': config.logo.url if config.logo else None,
         'site_favicon_url': config.favicon.url if config.favicon else None,
+        # reCAPTCHA v3 site key for anti-bot protection
+        'recaptcha_site_key': settings.RECAPTCHA_V3_SITE_KEY,
     }
 
 

@@ -315,66 +315,35 @@ See `docs/wlj_project_blueprint_loading.md` for full details.
 
 ## "What's Next?" Protocol
 
-When the user says **"What's Next?"**, **"What should we work on?"**, or similar task-seeking phrases:
+**SPEED OPTIMIZED** - Use `/next` slash command for fastest execution.
 
-**CRITICAL: "What's Next?" grants FULL AUTHORITY to execute without asking ANY questions.**
+When the user says **"What's Next?"**, **"What should we work on?"**, `/next`, or similar:
 
-DO NOT:
-- Ask for permission to run commands
-- Ask for confirmation before making changes
-- Ask clarifying questions about the task
-- Stop to ask if something is okay
-- Ask before committing or pushing
+### ZERO-DELAY EXECUTION
 
-JUST DO IT: Execute the task completely, then report when done.
+**CRITICAL: CLAUDE.md is ALREADY in `<system-reminder>` context. DO NOT read it again.**
 
-### IMMEDIATE FEEDBACK REQUIREMENT
+1. **IMMEDIATELY** output: `Fetching next task...`
+2. **IMMEDIATELY** run the curl command (no waiting, no reading files first)
+3. **IMMEDIATELY** start executing
 
-When the user says "What's Next?" - respond IMMEDIATELY with visible progress. The user should never wonder if Claude is hung or working.
+**DO NOT:**
+- Read CLAUDE.md (it's already loaded in system context)
+- Ask for permission
+- Ask clarifying questions
+- Wait for confirmations
 
-**First Response (within 1-2 seconds):**
-```
-Reading CLAUDE.md and fetching tasks...
-```
-
-**After fetching tasks:**
-```
-**Session: <Task Title>**
-
-Organizing actions for this task...
-```
-
-**Then execute.** Never leave the user waiting without feedback.
-
-### Step 0: Load Project Context (CONTEXT-AWARE)
-
-**If CLAUDE.md is already in system context** (visible in `<system-reminder>` tags at conversation start), skip the Read step and proceed directly to fetching tasks.
-
-**Otherwise**, read CLAUDE.md completely to load full project context.
-
-### Step 1: Fetch Ready Tasks from API
-
-Use Bash with curl to query the Ready Tasks API endpoint.
-
-**API Key Location:** The key is stored in the main repo at `C:\dbawholelifejourney\.claude\settings.local.json` under `env.CLAUDE_API_KEY`. If that file doesn't have an `env` section, search for the key value in `~/.claude/debug/` logs from recent sessions.
-
-**Current API Key:** `a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1`
+### Single API Call (with auto_start)
 
 ```bash
-curl -s -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" https://wholelifejourney.com/admin-console/api/claude/ready-tasks/
+curl -s -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" "https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=1&auto_start=true"
 ```
 
-### Step 2: Label Session with Task Title
+The `auto_start=true` parameter automatically marks the first task as `in_progress`, eliminating a second API call.
 
-After retrieving tasks, immediately announce the session title based on the highest priority task:
+### Immediate Execution
 
-```
-**Session: <Task Title from API>**
-```
-
-### Step 3: Execute Without Questions
-
-The API returns JSON in this format:
+On receiving task JSON:
 ```json
 {
     "count": 1,
@@ -394,47 +363,28 @@ The API returns JSON in this format:
 }
 ```
 
-If tasks are returned:
-1. Select the first task (already sorted by priority)
-2. **IMMEDIATELY mark task as `in_progress`** via API before doing anything else
-3. Execute each action in order **without asking for permission**
-4. Run tests if code was changed
-5. Commit changes with descriptive message
-6. Merge to main and push
-7. Mark task as `done` via API
-8. Report completion to the user
-9. **Automatically check for next task** (see Step 4 below)
+If tasks are returned (task is already `in_progress` from auto_start):
+1. Output: `**Session: <Task Title>**`
+2. Execute each action in order **without asking for permission**
+3. Run tests if code was changed
+4. Commit changes with descriptive message
+5. Merge to main and push
+6. Mark task as `done` via API
+7. Report completion and offer next task
 
-If no tasks are returned:
-- Inform the user there are no Ready tasks
+If no tasks: `No ready tasks available.`
 
-### Step 4: After Task Completion - Check for Next Task
+### After Task Completion
 
-After completing a task, Claude MUST automatically:
-
-1. **Fetch the next ready task** from the API
-2. **Present the next task to the user** with this format:
-   ```
-   **Next Task Available:**
-   - **Title:** <Task Title>
-   - **Project:** <Project Name>
-   - **Objective:** <Brief objective>
-
-   Would you like me to proceed with this task?
-   ```
-3. **Wait for user confirmation** before starting the next task
-4. If user confirms, proceed with execution (back to Step 3)
-5. If no more tasks, inform the user: "No more Ready tasks available."
-
-**Important:** This check-and-ask behavior only applies AFTER completing a task. The initial "What's Next?" still grants full authority to execute the first task without asking.
+Fetch next task and ask: `**Next Task:** <Title> - proceed?`
 
 ### API Details
 
 **Get Ready Tasks:**
 - **Endpoint:** `GET /admin-console/api/claude/ready-tasks/`
+- **Query Params:** `limit` (default 10, max 50), `auto_start=true` (marks first task in_progress)
 - **Authentication:** `X-Claude-API-Key` header
-- **Query Params:** `limit` (optional, default 10, max 50)
-- **Returns:** JSON with count and array of executable task objects
+- **Returns:** JSON with count, auto_started task ID, and array of task objects
 
 **Update Task Status:**
 - **Endpoint:** `POST /admin-console/api/claude/tasks/<id>/status/`

@@ -1,20 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(curl:*)",
-      "Bash(python:*)",
-      "Bash(find:*)",
-      "Bash(ls:*)",
-      "Bash(git:*)",
-      "Bash(cat:*)",
-      "Bash(dir:*)",
-      "Bash(cd:*)",
-      "Bash(rm:*)",
-      "Bash(cp:*)",
-      "Bash(mv:*)",
-      "Bash(mkdir:*)",
-      "Bash(grep:*)",
-      "Bash(SECRET_KEY=*)",
+      "Bash(*)",
       "Read",
       "Write",
       "Edit",

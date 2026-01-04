@@ -2748,6 +2748,7 @@ class ReadyTasksAPIView(View):
     GET /admin-console/api/claude/ready-tasks/
     Query params:
         - limit (optional, default 10): Maximum tasks to return
+        - auto_start (optional): If 'true', automatically marks first task as 'in_progress'
 
     Returns:
         JSON object with:
@@ -2804,16 +2805,28 @@ class ReadyTasksAPIView(View):
         except (ValueError, TypeError):
             limit = 10
 
+        # Check for auto_start parameter
+        auto_start = request.GET.get('auto_start', '').lower() == 'true'
+
         # Fetch ready tasks ordered by priority (lowest number = highest priority)
-        tasks = AdminTask.objects.filter(
+        tasks = list(AdminTask.objects.filter(
             status='ready'
         ).select_related(
             'phase', 'project'
-        ).order_by('priority', 'created_at')[:limit]
+        ).order_by('priority', 'created_at')[:limit])
+
+        # If auto_start is true and we have tasks, mark the first one as in_progress
+        started_task_id = None
+        if auto_start and tasks:
+            first_task = tasks[0]
+            first_task.status = 'in_progress'
+            first_task.save(update_fields=['status'])
+            started_task_id = first_task.id
 
         # Build response with full executable task structure
         result = {
-            'count': tasks.count(),
+            'count': len(tasks),
+            'auto_started': started_task_id,
             'tasks': [
                 {
                     'id': task.id,
@@ -2823,6 +2836,7 @@ class ReadyTasksAPIView(View):
                     'project': task.project.name,
                     'description': task.description,
                     'created_at': task.created_at.isoformat(),
+                    'status': task.status,
                 }
                 for task in tasks
             ]

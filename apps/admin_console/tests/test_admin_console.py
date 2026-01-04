@@ -3642,6 +3642,66 @@ class ReadyTasksAPITests(AdminTestMixin, TestCase):
         )
         self.assertEqual(response.status_code, 500)
 
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_auto_start_marks_first_task_in_progress(self):
+        """auto_start=true marks the first task as in_progress."""
+        from apps.admin_console.models import AdminTask
+
+        # Delete existing ready task to isolate test
+        AdminTask.objects.filter(status='ready').delete()
+
+        # Create a ready task
+        AdminTask._skip_executable_validation = True
+        task = AdminTask.objects.create(
+            title='Auto Start Test Task',
+            description={
+                'objective': 'Test objective',
+                'inputs': [],
+                'actions': ['Test action'],
+                'output': 'Test output'
+            },
+            category='feature',
+            status='ready',
+            priority=1,
+            effort='S',
+            phase=self.phase,
+            project=self.project,
+            created_by='human'
+        )
+        AdminTask._skip_executable_validation = False
+
+        # Call with auto_start=true
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/?auto_start=true',
+            HTTP_X_CLAUDE_API_KEY='test-api-key-12345'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.content)
+        self.assertEqual(data['auto_started'], task.id)
+        self.assertEqual(data['tasks'][0]['status'], 'in_progress')
+
+        # Verify the task was updated in the database
+        task.refresh_from_db()
+        self.assertEqual(task.status, 'in_progress')
+
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_auto_start_without_tasks_returns_null(self):
+        """auto_start=true with no tasks returns null for auto_started."""
+        from apps.admin_console.models import AdminTask
+        # Delete all ready tasks
+        AdminTask.objects.filter(status='ready').delete()
+
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/?auto_start=true',
+            HTTP_X_CLAUDE_API_KEY='test-api-key-12345'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.content)
+        self.assertIsNone(data['auto_started'])
+        self.assertEqual(data['count'], 0)
+
 
 class AdminProjectCreateViewTest(AdminTestMixin, TestCase):
     """Tests for AdminProjectCreateView including popup mode."""

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Habit Goals Completion Rate and CRUD)
+# Last Updated: 2026-01-04 (Mobile Menu Scrolling Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,22 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Mobile Menu Scrolling Fix (Task #131)
+
+**Session:** Menu items no showing
+
+**Changes:**
+1. Added `overflow: visible` to `.site-header` to prevent dropdown clipping
+2. Changed mobile `.nav-menu` from `position: absolute` to `position: fixed`
+3. Used `top: 60px` and `bottom: 0` instead of `max-height` for full viewport scroll
+4. Added `overflow-x: hidden` and `overscroll-behavior: contain` for better UX
+5. Added extra bottom padding for scroll comfort
+
+**Files Modified:**
+- `static/css/main.css` - Updated site-header and mobile nav-menu styles
+
+---
 
 ### Habit Goals Completion Rate and CRUD (Task #130)
 

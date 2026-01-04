@@ -16,6 +16,75 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-04 Changes
 
+### Heart Rate Log Default Date/Time (Task #122)
+
+**Session:** Default date/time on heart rate log page
+
+**Changes:**
+1. Fixed template to correctly use `form.initial.recorded_at` for new entries
+2. Form already had logic to set current user-local time, but template wasn't using it
+
+**Files Modified:**
+- `templates/health/heartrate_form.html` - Fixed datetime-local input value template logic
+
+---
+
+### AI Insight on Blood Glucose Dashboard (Task #121)
+
+**Session:** AI Insight added to Blood Glucose Dashboard Page
+
+**Changes:**
+1. Added `glucose_insight` prompt type to AIPromptConfig and AIInsight models
+2. Created `generate_glucose_insight()` method in AIService
+3. Updated GlucoseDashboardView to generate AI insight for users with AI enabled
+4. Added AI Insight card to glucose dashboard template with styled UI
+5. Created migration 0010 with default glucose_insight prompt configuration
+
+**Files Modified:**
+- `apps/ai/models.py` - Added glucose_insight to INSIGHT_TYPES and PROMPT_TYPES
+- `apps/ai/services.py` - Added generate_glucose_insight() method
+- `apps/health/views.py` - Added AI insight generation to GlucoseDashboardView
+- `templates/health/glucose/dashboard.html` - Added AI Insight card with CSS
+
+**Files Created:**
+- `apps/ai/migrations/0010_add_glucose_insight_prompt_type.py` - Default prompt config
+
+**Admin Control:**
+- Edit AI Insight instructions via Admin Console > AI Prompt Configurations
+- Respects user's AI Coaching Style from Preferences
+
+---
+
+### Blood Glucose Page Delete Fix (Task #120)
+
+**Session:** Blood Glucose Page Update
+
+**Changes:**
+1. Fixed GlucoseDeleteView redirect to stay on list page when deleting from `/health/glucose/list/`
+2. Removed duplicate glucose view definitions (older unused copies at lines 615-702)
+3. Consolidated glucose views with Dexcom integration views at end of file
+
+**Files Modified:**
+- `apps/health/views.py` - Fixed delete redirect, removed duplicate views
+
+**Note:** Delete functionality already existed in UI. This fix ensures proper redirect behavior.
+
+---
+
+### Admin Console Dashboard - Data Imports Section
+
+**Session:** Add Data Imports tile to Admin Console dashboard
+
+**Changes:**
+1. Created "Data Imports" section header on Admin Console dashboard
+2. Moved Data Loaders tile under the new section
+3. Added Clarity Import tile with glucose graph icon (green accent)
+
+**Files Modified:**
+- `templates/admin_console/dashboard.html` - Added Data Imports section and Clarity Import tile
+
+---
+
 ### Dexcom Clarity CSV Import (Task #119)
 
 **Session:** Load Clarity File to Whole Life Journey

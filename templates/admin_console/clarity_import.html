@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+
+{% block title %}Import Clarity Data - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <nav class="breadcrumb">
+                <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+                <span>/</span>
+                <span>Import Clarity Data</span>
+            </nav>
+            <h1 class="page-title">Import Dexcom Clarity Data</h1>
+            <p class="page-subtitle">Upload Clarity CSV export to import blood glucose readings</p>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="import-form-container">
+        <form method="post" enctype="multipart/form-data" class="import-form">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="user_id">User</label>
+                <select name="user_id" id="user_id" class="form-input" required>
+                    <option value="">Select a user...</option>
+                    {% for user in users %}
+                    <option value="{{ user.pk }}" {% if selected_user and selected_user.pk == user.pk %}selected{% endif %}>
+                        {{ user.email }}{% if user.first_name %} ({{ user.first_name }} {{ user.last_name }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <span class="help-text">Select the user to import glucose data for</span>
+            </div>
+
+            <div class="form-group">
+                <label for="csv_file">Clarity Export CSV</label>
+                <input type="file" name="csv_file" id="csv_file" class="form-input" accept=".csv" required>
+                <span class="help-text">Export from Dexcom Clarity: Reports > Export Data > CSV format</span>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="dry_run" id="dry_run">
+                    <span>Dry Run (validate without saving)</span>
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Import Data
+                </button>
+                <a href="{% url 'admin_console:dashboard' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    {% if summary %}
+    <div class="import-summary">
+        <h2>Import Summary</h2>
+
+        <div class="summary-grid">
+            <div class="summary-card">
+                <span class="summary-number">{{ summary.total_rows }}</span>
+                <span class="summary-label">Total Rows</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-number">{{ summary.egv_rows }}</span>
+                <span class="summary-label">Glucose Readings</span>
+            </div>
+            <div class="summary-card {% if summary.to_import > 0 %}success{% endif %}">
+                <span class="summary-number">{{ summary.to_import }}</span>
+                <span class="summary-label">{% if summary.dry_run %}Would Import{% else %}Imported{% endif %}</span>
+            </div>
+            <div class="summary-card {% if summary.duplicates > 0 %}warning{% endif %}">
+                <span class="summary-number">{{ summary.duplicates }}</span>
+                <span class="summary-label">Duplicates (Skipped)</span>
+            </div>
+            <div class="summary-card {% if summary.invalid > 0 %}error{% endif %}">
+                <span class="summary-number">{{ summary.invalid }}</span>
+                <span class="summary-label">Invalid (Skipped)</span>
+            </div>
+        </div>
+
+        {% if summary.date_range %}
+        <div class="summary-details">
+            <h3>Data Statistics</h3>
+            <table class="stats-table">
+                <tr>
+                    <th>Date Range</th>
+                    <td>{{ summary.date_range }}</td>
+                </tr>
+                <tr>
+                    <th>Average Glucose</th>
+                    <td>{{ summary.avg_glucose }} mg/dL</td>
+                </tr>
+                <tr>
+                    <th>Min Glucose</th>
+                    <td>{{ summary.min_glucose }} mg/dL</td>
+                </tr>
+                <tr>
+                    <th>Max Glucose</th>
+                    <td>{{ summary.max_glucose }} mg/dL</td>
+                </tr>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if summary.dry_run and summary.to_import > 0 %}
+        <div class="dry-run-notice">
+            <p><strong>Dry Run Complete.</strong> To actually import, uncheck "Dry Run" and submit again.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="info-panel">
+        <h3>How to Export from Dexcom Clarity</h3>
+        <ol>
+            <li>Go to <a href="https://clarity.dexcom.com" target="_blank" rel="noopener">clarity.dexcom.com</a> and log in</li>
+            <li>Navigate to <strong>Reports</strong></li>
+            <li>Click <strong>Export Data</strong></li>
+            <li>Select the date range you want to export</li>
+            <li>Choose <strong>CSV</strong> format</li>
+            <li>Download and upload the file here</li>
+        </ol>
+        <p class="text-muted">
+            <strong>Note:</strong> This imports EGV (Estimated Glucose Value) readings only.
+            Duplicate entries (same timestamp) are automatically skipped.
+            Future Dexcom API integration will enable automatic syncing.
+        </p>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.breadcrumb a {
+    color: var(--color-accent);
+}
+
+.page-header {
+    margin-bottom: var(--space-6);
+}
+
+.messages {
+    margin-bottom: var(--space-4);
+}
+
+.alert {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+}
+
+.alert-success {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    border: 1px solid var(--color-success);
+}
+
+.alert-error {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+}
+
+.alert-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+}
+
+.alert-info {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent);
+}
+
+.import-form-container {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.import-form {
+    max-width: 500px;
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+}
+
+.form-input {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    background: var(--color-background);
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+input[type="file"].form-input {
+    padding: var(--space-2);
+}
+
+.help-text {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.checkbox-group {
+    margin-top: var(--space-4);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-weight: normal;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.import-summary {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.import-summary h2 {
+    margin: 0 0 var(--space-4) 0;
+    font-size: var(--font-size-lg);
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.summary-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    text-align: center;
+}
+
+.summary-card.success {
+    background: color-mix(in srgb, var(--color-success) 10%, transparent);
+    border-color: var(--color-success);
+}
+
+.summary-card.warning {
+    background: #fef3c7;
+    border-color: #fcd34d;
+}
+
+.summary-card.error {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
+    border-color: var(--color-error);
+}
+
+.summary-number {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.summary-card.success .summary-number {
+    color: var(--color-success);
+}
+
+.summary-card.warning .summary-number {
+    color: #92400e;
+}
+
+.summary-card.error .summary-number {
+    color: var(--color-error);
+}
+
+.summary-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.summary-details {
+    margin-top: var(--space-4);
+}
+
+.summary-details h3 {
+    font-size: var(--font-size-md);
+    margin: 0 0 var(--space-3) 0;
+}
+
+.stats-table {
+    width: 100%;
+    max-width: 400px;
+    border-collapse: collapse;
+}
+
+.stats-table th,
+.stats-table td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.stats-table th {
+    font-weight: 500;
+    color: var(--color-text-muted);
+    width: 40%;
+}
+
+.dry-run-notice {
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-top: var(--space-4);
+}
+
+.dry-run-notice p {
+    margin: 0;
+}
+
+.info-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+}
+
+.info-panel h3 {
+    margin: 0 0 var(--space-3) 0;
+    font-size: var(--font-size-md);
+}
+
+.info-panel ol {
+    margin: 0 0 var(--space-4) 0;
+    padding-left: var(--space-5);
+}
+
+.info-panel li {
+    margin-bottom: var(--space-2);
+}
+
+.info-panel a {
+    color: var(--color-accent);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+</style>
+{% endblock %}

@@ -138,4 +138,7 @@ urlpatterns = [
     path("dataload/<int:pk>/reset/", views.DataLoadConfigResetView.as_view(), name="dataload_reset"),
     path("dataload/reset-all/", views.DataLoadConfigResetAllView.as_view(), name="dataload_reset_all"),
     path("dataload/run/", views.DataLoadConfigForceRunView.as_view(), name="dataload_run"),
+
+    # Clarity CSV Import (manual glucose data upload)
+    path("clarity-import/", views.ClarityImportView.as_view(), name="clarity_import"),
 ]

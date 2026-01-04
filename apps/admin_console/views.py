@@ -3036,3 +3036,160 @@ class DataLoadConfigForceRunView(AdminRequiredMixin, View):
             request.session['dataload_output'] = f"Error: {e}\n{output.getvalue()}"
 
         return redirect('admin_console:dataload_list')
+
+
+class ClarityImportView(AdminRequiredMixin, View):
+    """
+    Import Dexcom Clarity CSV export into GlucoseEntry records.
+
+    Provides a web UI for uploading Clarity CSV files and importing
+    glucose readings for a specified user.
+    """
+    template_name = "admin_console/clarity_import.html"
+
+    def get(self, request):
+        from apps.users.models import User
+        users = User.objects.filter(is_active=True).order_by('email')
+        return render(request, self.template_name, {'users': users})
+
+    def post(self, request):
+        import csv
+        from datetime import datetime
+        from decimal import Decimal, InvalidOperation
+        from io import StringIO
+        from django.utils import timezone
+        from apps.users.models import User
+        from apps.health.models import GlucoseEntry
+
+        # Get form data
+        user_id = request.POST.get('user_id')
+        csv_file = request.FILES.get('csv_file')
+        dry_run = request.POST.get('dry_run') == 'on'
+
+        users = User.objects.filter(is_active=True).order_by('email')
+        context = {'users': users}
+
+        # Validate inputs
+        if not user_id:
+            messages.error(request, "Please select a user.")
+            return render(request, self.template_name, context)
+
+        if not csv_file:
+            messages.error(request, "Please upload a CSV file.")
+            return render(request, self.template_name, context)
+
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            messages.error(request, "Selected user not found.")
+            return render(request, self.template_name, context)
+
+        # Read and parse CSV
+        try:
+            # Handle BOM and decode file
+            content = csv_file.read().decode('utf-8-sig')
+            reader = csv.DictReader(StringIO(content))
+            rows = list(reader)
+        except Exception as e:
+            messages.error(request, f"Error reading CSV file: {e}")
+            return render(request, self.template_name, context)
+
+        # Filter to EGV (Estimated Glucose Value) rows only
+        egv_rows = [
+            row for row in rows
+            if row.get('Event Type') == 'EGV' and row.get('Glucose Value (mg/dL)')
+        ]
+
+        if not egv_rows:
+            messages.warning(request, f"No glucose (EGV) readings found in the CSV file. Total rows: {len(rows)}")
+            return render(request, self.template_name, context)
+
+        # Get existing timestamps to avoid duplicates
+        existing_timestamps = set(
+            GlucoseEntry.objects.filter(
+                user=user,
+                source='imported'
+            ).values_list('recorded_at', flat=True)
+        )
+
+        # Parse and prepare entries
+        entries_to_create = []
+        skipped_duplicates = 0
+        skipped_invalid = 0
+
+        for row in egv_rows:
+            try:
+                # Parse timestamp (format: YYYY-MM-DDThh:mm:ss)
+                timestamp_str = row.get('Timestamp (YYYY-MM-DDThh:mm:ss)', '')
+                if not timestamp_str:
+                    skipped_invalid += 1
+                    continue
+
+                # Parse the timestamp and make it timezone-aware
+                dt = datetime.strptime(timestamp_str, '%Y-%m-%dT%H:%M:%S')
+                recorded_at = timezone.make_aware(dt, timezone.get_current_timezone())
+
+                # Check for duplicate
+                if recorded_at in existing_timestamps:
+                    skipped_duplicates += 1
+                    continue
+
+                # Parse glucose value
+                glucose_str = row.get('Glucose Value (mg/dL)', '')
+                if not glucose_str:
+                    skipped_invalid += 1
+                    continue
+
+                glucose_value = Decimal(glucose_str)
+
+                # Create entry object (don't save yet)
+                entry = GlucoseEntry(
+                    user=user,
+                    value=glucose_value,
+                    unit='mg/dL',
+                    context='cgm',
+                    recorded_at=recorded_at,
+                    source='imported',
+                    notes='Imported from Dexcom Clarity CSV'
+                )
+                entries_to_create.append(entry)
+                existing_timestamps.add(recorded_at)  # Track to avoid duplicates within file
+
+            except (ValueError, KeyError, InvalidOperation):
+                skipped_invalid += 1
+                continue
+
+        # Build summary
+        summary = {
+            'total_rows': len(rows),
+            'egv_rows': len(egv_rows),
+            'to_import': len(entries_to_create),
+            'duplicates': skipped_duplicates,
+            'invalid': skipped_invalid,
+            'dry_run': dry_run,
+        }
+
+        if entries_to_create:
+            min_date = min(e.recorded_at for e in entries_to_create)
+            max_date = max(e.recorded_at for e in entries_to_create)
+            values = [float(e.value) for e in entries_to_create]
+            summary['date_range'] = f"{min_date.date()} to {max_date.date()}"
+            summary['avg_glucose'] = f"{sum(values) / len(values):.1f}"
+            summary['min_glucose'] = f"{min(values):.0f}"
+            summary['max_glucose'] = f"{max(values):.0f}"
+
+        context['summary'] = summary
+        context['selected_user'] = user
+
+        if dry_run:
+            messages.info(request, f"DRY RUN: Would import {len(entries_to_create)} glucose entries for {user.email}")
+        elif entries_to_create:
+            # Bulk create entries
+            from django.db import transaction
+            with transaction.atomic():
+                GlucoseEntry.objects.bulk_create(entries_to_create, batch_size=1000)
+            messages.success(request, f"Successfully imported {len(entries_to_create)} glucose entries for {user.email}")
+        else:
+            messages.warning(request, "No new entries to import (all were duplicates or invalid)")
+
+        return render(request, self.template_name, context)

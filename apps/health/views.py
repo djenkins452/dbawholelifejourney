@@ -3659,12 +3659,40 @@ class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     template_name = "health/glucose/dashboard.html"
     help_context_id = "GLUCOSE_DASHBOARD"
 
+    # Valid time periods in days (0 = today only)
+    VALID_PERIODS = [0, 7, 30, 60, 90]
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         now = timezone.now()
         today = get_user_today(user)
-        week_ago = now - timedelta(days=7)
+
+        # Get time period from query param (default to 7 days)
+        try:
+            period = int(self.request.GET.get('period', 7))
+            if period not in self.VALID_PERIODS:
+                period = 7
+        except (ValueError, TypeError):
+            period = 7
+
+        context['period'] = period
+        context['valid_periods'] = self.VALID_PERIODS
+
+        # Calculate date range based on period
+        today_start = timezone.make_aware(
+            timezone.datetime.combine(today, timezone.datetime.min.time())
+        )
+
+        if period == 0:
+            # Today only
+            period_start = today_start
+            period_label = "Today"
+        else:
+            period_start = now - timedelta(days=period)
+            period_label = f"Last {period} Days"
+
+        context['period_label'] = period_label
 
         # Check Dexcom connection status
         from .models import DexcomCredential
@@ -3685,28 +3713,29 @@ class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             context['dexcom_configured'] = False
 
-        # Recent glucose entries (last 7 days)
+        # Glucose entries for selected period
         glucose_entries = GlucoseEntry.objects.filter(
             user=user,
-            recorded_at__gte=week_ago
+            recorded_at__gte=period_start
         ).order_by('-recorded_at')
 
         context['glucose_entries'] = glucose_entries[:50]  # Last 50 readings
-        context['glucose_count_week'] = glucose_entries.count()
+        context['glucose_count'] = glucose_entries.count()
 
-        # Today's readings
-        today_start = timezone.make_aware(
-            timezone.datetime.combine(today, timezone.datetime.min.time())
-        )
-        today_entries = glucose_entries.filter(recorded_at__gte=today_start)
+        # Today's readings (always show for quick reference)
+        today_entries = GlucoseEntry.objects.filter(
+            user=user,
+            recorded_at__gte=today_start
+        ).order_by('-recorded_at')
         context['today_entries'] = today_entries
         context['today_count'] = today_entries.count()
 
-        # Latest reading
-        if glucose_entries.exists():
-            context['latest_reading'] = glucose_entries.first()
+        # Latest reading (always from today or most recent)
+        latest_reading = GlucoseEntry.objects.filter(user=user).order_by('-recorded_at').first()
+        if latest_reading:
+            context['latest_reading'] = latest_reading
 
-        # Stats for the week
+        # Stats for the selected period
         if glucose_entries.exists():
             stats = glucose_entries.aggregate(
                 avg=Avg('value'),
@@ -3726,11 +3755,20 @@ class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context['low_count'] = glucose_entries.filter(value__lt=70).count()
             context['high_count'] = glucose_entries.filter(value__gt=180).count()
 
-        # Prepare chart data (last 24 hours for detailed view)
-        day_ago = now - timedelta(hours=24)
+        # Prepare chart data based on period
+        # For today: show all readings
+        # For 7 days: show last 24 hours
+        # For longer periods: show last 48 hours
+        if period == 0:
+            chart_start = today_start
+        elif period <= 7:
+            chart_start = now - timedelta(hours=24)
+        else:
+            chart_start = now - timedelta(hours=48)
+
         chart_entries = GlucoseEntry.objects.filter(
             user=user,
-            recorded_at__gte=day_ago
+            recorded_at__gte=chart_start
         ).order_by('recorded_at')
 
         chart_data = []

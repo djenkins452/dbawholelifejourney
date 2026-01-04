@@ -27,6 +27,15 @@
         </div>
     </div>
 
+    <!-- Time Period Selector -->
+    <div class="period-selector mb-6">
+        <a href="?period=0" class="btn {% if period == 0 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Today</a>
+        <a href="?period=7" class="btn {% if period == 7 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Last 7 Days</a>
+        <a href="?period=30" class="btn {% if period == 30 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Last 30 Days</a>
+        <a href="?period=60" class="btn {% if period == 60 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Last 60 Days</a>
+        <a href="?period=90" class="btn {% if period == 90 %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Last 90 Days</a>
+    </div>
+
     <!-- Dexcom Connection Card -->
     <div class="dexcom-card mb-6">
         <div class="flex items-center justify-between">
@@ -126,7 +135,7 @@
     <!-- Stats Grid -->
     <div class="stats-grid mb-6">
         <div class="stat-card">
-            <span class="stat-label">Average (7d)</span>
+            <span class="stat-label">Average ({{ period_label }})</span>
             <span class="stat-value">{{ avg_glucose|default:"--" }} <small>mg/dL</small></span>
         </div>
         <div class="stat-card">
@@ -142,20 +151,20 @@
             <span class="stat-value text-error">{{ high_count|default:"0" }}</span>
         </div>
         <div class="stat-card">
-            <span class="stat-label">Min (7d)</span>
+            <span class="stat-label">Min ({{ period_label }})</span>
             <span class="stat-value">{{ min_glucose|default:"--" }}</span>
         </div>
         <div class="stat-card">
-            <span class="stat-label">Max (7d)</span>
+            <span class="stat-label">Max ({{ period_label }})</span>
             <span class="stat-value">{{ max_glucose|default:"--" }}</span>
         </div>
     </div>
     {% endif %}
 
-    <!-- 24-Hour Chart -->
+    <!-- Chart -->
     {% if chart_data %}
     <div class="chart-card mb-6">
-        <h3 class="card-title">Last 24 Hours</h3>
+        <h3 class="card-title">{% if period == 0 %}Today{% elif period <= 7 %}Last 24 Hours{% else %}Last 48 Hours{% endif %}</h3>
         <div class="chart-container">
             <canvas id="glucoseChart"></canvas>
         </div>
@@ -221,6 +230,12 @@
 </div>
 
 <style>
+.period-selector {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
 .ai-insight-card {
     background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent), color-mix(in srgb, var(--color-primary) 5%, transparent));
     border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);

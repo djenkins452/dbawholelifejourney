@@ -2,7 +2,7 @@
 # File: adapters.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Custom allauth adapter for signup security features including
-#              honeypot validation and signup attempt logging
+#              honeypot validation, reCAPTCHA verification, and signup attempt logging
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
@@ -13,6 +13,7 @@ Custom Account Adapter for Whole Life Journey
 
 Extends django-allauth's DefaultAccountAdapter to add:
 - Honeypot field validation to block bots
+- reCAPTCHA v3 token verification and score logging
 - SignupAttempt logging for fraud detection
 - Integration with security hash functions
 
@@ -26,6 +27,7 @@ from django.core.exceptions import ValidationError
 
 from apps.users.models import SignupAttempt
 from apps.users.security import hash_email, hash_ip
+from apps.users.services import RecaptchaService
 
 logger = logging.getLogger(__name__)
 
@@ -110,10 +112,88 @@ class WLJAccountAdapter(DefaultAccountAdapter):
 
     def save_user(self, request, user, form, commit=True):
         """
-        Save user and store request for later use.
+        Save user, verify reCAPTCHA, and log signup attempt.
+
+        Verifies the reCAPTCHA token and logs the score to SignupAttempt.
+        For TIER 1: Logs score only, does not block based on score.
         """
         self.request = request
-        return super().save_user(request, user, form, commit)
+
+        # Verify reCAPTCHA token and get score
+        captcha_score = self._verify_recaptcha(request)
+
+        # Save user via parent
+        user = super().save_user(request, user, form, commit)
+
+        # Log successful signup attempt with captcha score
+        self._log_signup_attempt(request, user.email, captcha_score)
+
+        return user
+
+    def _verify_recaptcha(self, request):
+        """
+        Verify reCAPTCHA v3 token from the signup form.
+
+        Returns the captcha score (0.0-1.0) or None if verification failed.
+        For TIER 1: Fails open - verification failures don't block signup.
+        """
+        token = request.POST.get("recaptcha_token", "")
+        if not token:
+            logger.warning("No reCAPTCHA token in signup request")
+            return None
+
+        try:
+            ip = get_client_ip(request)
+            service = RecaptchaService()
+            result = service.verify(token, ip)
+
+            if result.success:
+                logger.info(
+                    "reCAPTCHA verified - score: %.2f, action: %s",
+                    result.score or 0.0,
+                    result.action,
+                )
+                return result.score
+            else:
+                logger.warning(
+                    "reCAPTCHA verification failed: %s",
+                    result.error_codes,
+                )
+                return None
+
+        except Exception as e:
+            # Fail open - don't block signup if reCAPTCHA fails
+            logger.error("reCAPTCHA verification error: %s", e)
+            return None
+
+    def _log_signup_attempt(self, request, email, captcha_score):
+        """
+        Log a successful signup attempt to SignupAttempt model.
+
+        Args:
+            request: The HTTP request
+            email: User's email address
+            captcha_score: reCAPTCHA score (0.0-1.0) or None
+        """
+        try:
+            ip = get_client_ip(request)
+            user_agent = request.META.get("HTTP_USER_AGENT", "")[:500]
+
+            SignupAttempt.objects.create(
+                email_hash=hash_email(email),
+                ip_hash=hash_ip(ip),
+                user_agent=user_agent,
+                status="completed",
+                risk_level="unknown",
+                captcha_score=captcha_score,
+            )
+            logger.info(
+                "Signup attempt logged - captcha_score: %s",
+                captcha_score,
+            )
+        except Exception as e:
+            # Don't let logging failures break signup
+            logger.error("Failed to log signup attempt: %s", e)
 
     def _log_honeypot_block(self, request, email=None):
         """

@@ -411,6 +411,9 @@ ACCOUNT_LOGIN_ON_PASSWORD_RESET = True
 ACCOUNT_LOGIN_METHODS = {"email"}  # Replaces ACCOUNT_AUTHENTICATION_METHOD
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]  # Replaces ACCOUNT_EMAIL_REQUIRED, ACCOUNT_USERNAME_REQUIRED, ACCOUNT_SIGNUP_PASSWORD_ENTER_TWICE
 
+# Custom account adapter for security features (honeypot, signup logging)
+ACCOUNT_ADAPTER = "apps.users.adapters.WLJAccountAdapter"
+
 LOGIN_REDIRECT_URL = "dashboard:home"
 LOGOUT_REDIRECT_URL = "core:landing"
 LOGIN_URL = "account_login"

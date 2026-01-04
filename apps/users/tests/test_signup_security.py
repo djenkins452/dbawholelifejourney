@@ -346,3 +346,78 @@ class HashFingerprintTest(TestCase):
 
         self.assertEqual(hash_fingerprint({}), "")
         self.assertEqual(hash_fingerprint(None), "")
+
+
+class HoneypotValidationTest(TestCase):
+    """Tests for honeypot field validation in signup."""
+
+    def setUp(self):
+        self.client = Client()
+        self.signup_url = reverse('account_signup')
+
+    def test_honeypot_blocks_bot(self):
+        """Signup with honeypot field filled should be blocked."""
+        from apps.users.models import SignupAttempt
+
+        initial_count = SignupAttempt.objects.count()
+
+        # Submit signup with honeypot field filled (simulating a bot)
+        response = self.client.post(self.signup_url, {
+            'email': 'bot@example.com',
+            'password1': 'SecurePass123!',
+            'password2': 'SecurePass123!',
+            'website': 'http://spamsite.com',  # Honeypot field filled
+        })
+
+        # User should NOT be created
+        self.assertFalse(User.objects.filter(email='bot@example.com').exists())
+
+        # SignupAttempt should be logged with block_reason='honeypot'
+        new_attempts = SignupAttempt.objects.filter(block_reason='honeypot')
+        self.assertTrue(new_attempts.exists())
+
+        # Check the blocked attempt has correct status
+        blocked_attempt = new_attempts.latest('created_at')
+        self.assertEqual(blocked_attempt.status, 'blocked')
+        self.assertEqual(blocked_attempt.risk_level, 'high')
+
+    def test_empty_honeypot_allows_signup(self):
+        """Signup without honeypot field filled should proceed normally."""
+        # Submit signup with honeypot field empty (normal human behavior)
+        response = self.client.post(self.signup_url, {
+            'email': 'human@example.com',
+            'password1': 'SecurePass123!',
+            'password2': 'SecurePass123!',
+            'website': '',  # Honeypot field empty
+        })
+
+        # User should be created (or at least not blocked by honeypot)
+        # Note: User may still need email verification, but form should be accepted
+        user_exists = User.objects.filter(email='human@example.com').exists()
+        # If user wasn't created, check it wasn't due to honeypot block
+        if not user_exists:
+            from apps.users.models import SignupAttempt
+            honeypot_blocks = SignupAttempt.objects.filter(
+                block_reason='honeypot',
+                email_hash__isnull=False
+            ).count()
+            # This assertion ensures if user wasn't created, it's not due to honeypot
+            # (could be due to email verification being required)
+            self.assertEqual(honeypot_blocks, 0)
+
+    def test_honeypot_not_in_request_allows_signup(self):
+        """Signup without honeypot field in request should proceed normally."""
+        # Submit signup without honeypot field at all
+        response = self.client.post(self.signup_url, {
+            'email': 'nofield@example.com',
+            'password1': 'SecurePass123!',
+            'password2': 'SecurePass123!',
+            # No 'website' field
+        })
+
+        # Should not be blocked by honeypot
+        from apps.users.models import SignupAttempt
+        honeypot_blocks = SignupAttempt.objects.filter(
+            block_reason='honeypot'
+        ).count()
+        self.assertEqual(honeypot_blocks, 0)

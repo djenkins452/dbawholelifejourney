@@ -108,7 +108,7 @@
                 <div class="form-group">
                     <label for="id_output" class="form-label">Output <span class="required">*</span></label>
                     <textarea name="output" id="id_output" class="form-textarea" rows="2"
-                              required placeholder="Expected deliverable or result"></textarea>
+                              required placeholder="Expected deliverable or result">Summary</textarea>
                     <p class="form-hint">What should be produced when the task is complete</p>
                 </div>
             </div>
@@ -121,7 +121,7 @@
                         <option value="">-- No phases available --</option>
                         {% else %}
                         {% for phase in phases %}
-                        <option value="{{ phase.pk }}" {% if active_phase and phase.pk == active_phase.pk %}selected{% endif %}>
+                        <option value="{{ phase.pk }}" {% if phase.phase_number == 1 %}selected{% endif %}>
                             Phase {{ phase.phase_number }}{% if phase.status == 'in_progress' %} (Active){% endif %}
                         </option>
                         {% endfor %}

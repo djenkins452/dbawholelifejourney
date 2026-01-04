@@ -244,6 +244,7 @@ a:hover {
     position: sticky;
     top: 0;
     z-index: 50;
+    overflow: visible; /* Ensure dropdowns are not clipped */
 }
 
 .nav-container {
@@ -348,19 +349,22 @@ a:hover {
 
     .nav-menu {
         display: none;
-        position: absolute;
-        top: 100%;
+        position: fixed;
+        top: 60px; /* Below header */
         left: 0;
         right: 0;
+        bottom: 0; /* Extend to bottom of viewport */
         background: var(--color-background);
         border-bottom: 1px solid var(--color-border);
         padding: var(--space-4);
+        padding-bottom: var(--space-8); /* Extra padding at bottom for scroll */
         flex-direction: column;
         align-items: stretch;
         /* Mobile scrolling fix */
-        max-height: calc(100vh - 60px);
         overflow-y: auto;
+        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
 
     .nav-menu.open {

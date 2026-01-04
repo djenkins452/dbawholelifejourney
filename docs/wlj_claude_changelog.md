@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Habit Goal Matrix Box Sizing)
+# Last Updated: 2026-01-04 (Habit Goals Completion Rate and CRUD)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,22 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Habit Goals Completion Rate and CRUD (Task #130)
+
+**Session:** Habit Goals
+
+**Changes:**
+1. Changed `completion_rate` property to calculate based on total days (start to end date) instead of only trackable days (up to today)
+2. Added Delete button to habit goal list view (alongside View and Edit)
+3. Added Delete button to habit goal detail view header
+
+**Files Modified:**
+- `apps/purpose/models.py` - Simplified completion_rate calculation
+- `apps/purpose/templates/purpose/habit_goal_list.html` - Added Delete button
+- `apps/purpose/templates/purpose/habit_goal_detail.html` - Added Delete button
+
+---
 
 ### Habit Goal Matrix Box Sizing (Task #129)
 

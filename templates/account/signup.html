@@ -9,7 +9,13 @@
 
 <form method="post" action="{% url 'account_signup' %}">
     {% csrf_token %}
-    
+
+    {# Honeypot field - invisible to humans, bots will auto-fill it #}
+    <div style="position: absolute; left: -9999px; top: -9999px;" aria-hidden="true">
+        <label for="website">Website</label>
+        <input type="text" name="website" id="website" autocomplete="off" tabindex="-1">
+    </div>
+
     <div class="form-group">
         <label for="id_email" class="form-label">Email</label>
         <input 

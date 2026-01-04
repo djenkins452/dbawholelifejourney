@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Mobile Menu Scrolling Fix)
+# Last Updated: 2026-01-04 (Purpose Home Goals Reorder)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,24 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Purpose Home Goals Reorder (Task #132)
+
+**Session:** Goals Order
+
+**Changes:**
+1. Reordered tiles: Life Goals, Habit Goals, Change Intentions (was Life Goals, Intentions, then Habit Goals at bottom)
+2. Restyled Habit Goals tile to match Life Goals and Change Intentions (same purpose-section class)
+3. Added habit goal listing in tile with completion percentage (like Life Goals list)
+4. Added 3-column grid layout with responsive breakpoints (3 cols > 1024px, 2 cols > 768px, 1 col mobile)
+5. Added `active_habit_goals` to PurposeHomeView context (top 5 active habit goals)
+6. Removed old habit-goals-section intro styles
+
+**Files Modified:**
+- `apps/purpose/views.py` - Added active_habit_goals to context
+- `apps/purpose/templates/purpose/home.html` - Reorganized layout and styling
+
+---
 
 ### Mobile Menu Scrolling Fix (Task #131)
 

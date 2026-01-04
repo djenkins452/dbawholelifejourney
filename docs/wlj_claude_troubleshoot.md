@@ -143,6 +143,37 @@ cursor.execute("""
 
 ---
 
+## 7. Django Management Commands Hanging on Windows
+
+**Problem:** `python manage.py` commands (test, check, makemigrations) hang indefinitely
+
+**Cause:** DATABASE_URL is set in environment, causing Django to try connecting to production PostgreSQL, which times out on Windows.
+
+**Solution:** Create migrations manually instead of using `makemigrations`:
+
+```python
+# Create migration file manually in apps/<app>/migrations/
+# Example: 0015_add_project_priority.py
+
+from django.db import migrations, models
+
+class Migration(migrations.Migration):
+    dependencies = [
+        ('app_name', '0014_previous_migration'),
+    ]
+    operations = [
+        migrations.AddField(
+            model_name='modelname',
+            name='fieldname',
+            field=models.CharField(max_length=100, default=''),
+        ),
+    ]
+```
+
+**For Claude Code:** Skip running `manage.py` commands. Create migrations manually and let Railway apply them on deploy.
+
+---
+
 ## Quick Diagnostic Commands
 
 ```bash

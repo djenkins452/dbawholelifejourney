@@ -610,96 +610,7 @@ class HeartRateDeleteView(LoginRequiredMixin, View):
         return redirect("health:heartrate_list")
 
 
-# Glucose Views
-
-class GlucoseListView(LoginRequiredMixin, ListView):
-    """
-    List glucose entries.
-    """
-
-    model = GlucoseEntry
-    template_name = "health/glucose_list.html"
-    context_object_name = "entries"
-    paginate_by = 30
-
-    def get_queryset(self):
-        return GlucoseEntry.objects.filter(user=self.request.user)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        entries = self.get_queryset()
-        
-        if entries.exists():
-            context["latest"] = entries.first()
-            
-            # Fasting glucose stats
-            fasting = entries.filter(context="fasting")
-            if fasting.exists():
-                stats = fasting.aggregate(
-                    avg=Avg("value"),
-                    min=Min("value"),
-                    max=Max("value"),
-                )
-                context["fasting_avg"] = round(stats["avg"], 1)
-                context["fasting_min"] = stats["min"]
-                context["fasting_max"] = stats["max"]
-        
-        return context
-
-
-class GlucoseCreateView(LoginRequiredMixin, CreateView):
-    """
-    Log a new glucose entry.
-    """
-
-    model = GlucoseEntry
-    form_class = GlucoseEntryForm
-    template_name = "health/glucose_form.html"
-    success_url = reverse_lazy("health:glucose_list")
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
-        return kwargs
-
-    def form_valid(self, form):
-        form.instance.user = self.request.user
-        messages.success(self.request, "Glucose logged.")
-        return super().form_valid(form)
-
-
-class GlucoseUpdateView(LoginRequiredMixin, UpdateView):
-    """
-    Edit a glucose entry.
-    """
-
-    model = GlucoseEntry
-    form_class = GlucoseEntryForm
-    template_name = "health/glucose_form.html"
-    success_url = reverse_lazy("health:glucose_list")
-
-    def get_queryset(self):
-        return GlucoseEntry.objects.filter(user=self.request.user)
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
-        return kwargs
-
-
-class GlucoseDeleteView(LoginRequiredMixin, View):
-    """
-    Delete a glucose entry.
-    """
-
-    def post(self, request, pk):
-        entry = get_object_or_404(
-            GlucoseEntry.objects.filter(user=request.user),
-            pk=pk
-        )
-        entry.soft_delete()
-        messages.success(request, "Glucose entry deleted.")
-        return redirect("health:glucose_list")
+# NOTE: Glucose views moved to end of file with Dexcom integration views
 
 
 class QuickLogView(LoginRequiredMixin, TemplateView):
@@ -3894,4 +3805,8 @@ class GlucoseDeleteView(LoginRequiredMixin, View):
         )
         entry.soft_delete()
         messages.success(request, "Glucose reading deleted.")
+        # Stay on the same page if coming from list, otherwise go to dashboard
+        referer = request.META.get("HTTP_REFERER", "")
+        if "glucose/list" in referer:
+            return redirect("health:glucose_list")
         return redirect("health:glucose_dashboard")

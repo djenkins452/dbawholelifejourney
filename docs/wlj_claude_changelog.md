@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Project Dropdown Multi-Select)
+# Last Updated: 2026-01-04 (Clarity CSV Import)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,33 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Dexcom Clarity CSV Import (Task #119)
+
+**Session:** Load Clarity File to Whole Life Journey
+
+**Changes:**
+1. Created management command `import_clarity_csv` for CLI imports
+2. Created admin web UI at `/admin-console/clarity-import/`
+3. Supports file upload, user selection, dry-run validation
+4. Parses EGV (blood glucose) readings from Clarity CSV exports
+5. Deduplicates by timestamp, shows import statistics
+
+**Files Created:**
+- `apps/health/management/commands/import_clarity_csv.py` - CLI command
+- `templates/admin_console/clarity_import.html` - Web UI template
+
+**Files Modified:**
+- `apps/admin_console/views.py` - Added ClarityImportView
+- `apps/admin_console/urls.py` - Added clarity-import route
+
+**Usage:**
+- Web: Go to Admin Console > Import Clarity Data
+- CLI: `python manage.py import_clarity_csv <csv_file> <user_email>`
+
+**Note:** This is a manual import tool. Future Dexcom API integration will enable automatic syncing.
+
+---
 
 ### Project Dropdown Multi-Select Checkbox (Task #118)
 

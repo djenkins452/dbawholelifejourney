@@ -424,15 +424,49 @@ CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
 CRISPY_TEMPLATE_PACK = "tailwind"
 
 
-# Email Configuration
+# ==============================================================================
+# Email Configuration (Namecheap Private Email SMTP)
+# ==============================================================================
+# Uses SMTP with TLS encryption for all transactional emails:
+# - Account verification, password reset, admin alerts, notifications
+#
+# IMPORTANT: The FROM address must match the authenticated SMTP user
+# to maintain SPF/DKIM alignment. Do not change DEFAULT_FROM_EMAIL
+# without also updating EMAIL_HOST_USER.
+
 if DEBUG:
+    # Development: Print emails to console
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 else:
-    # Use Resend in production
-    EMAIL_BACKEND = "apps.core.email_backends.ResendEmailBackend"
-    RESEND_API_KEY = env("RESEND_API_KEY", default="")
+    # Production: Use SMTP via Namecheap Private Email
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = env("EMAIL_HOST", default="mail.privateemail.com")
+    EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+    EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+    EMAIL_USE_SSL = False  # Use TLS, not SSL (they're mutually exclusive)
+    EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+    EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+    EMAIL_TIMEOUT = 30  # Seconds - prevent hanging on SMTP connection issues
 
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@wholelifejourney.com")
+# Sender address for all outgoing emails
+# MUST match EMAIL_HOST_USER for SPF/DKIM alignment
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="admin@wholelifejourney.com")
+
+# Server email for error notifications to ADMINS
+SERVER_EMAIL = env("SERVER_EMAIL", default="admin@wholelifejourney.com")
+
+# Admin recipients for error emails (optional)
+# Format: [("Name", "email@example.com"), ...]
+ADMINS = [
+    ("WLJ Admin", env("ADMIN_EMAIL", default="dannyjenkins71@gmail.com")),
+]
+
+# Log email configuration status
+if not DEBUG:
+    if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+        print(f"Email configured: SMTP via {EMAIL_HOST}:{EMAIL_PORT} as {EMAIL_HOST_USER}")
+    else:
+        print("WARNING: Email NOT configured - EMAIL_HOST_USER/PASSWORD not set")
 
 
 # CSRF Trusted Origins - must be set for both production and development

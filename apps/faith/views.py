@@ -126,7 +126,30 @@ class FaithHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, Te
         
         # Milestones
         context["milestones"] = FaithMilestone.objects.filter(user=user)[:5]
-        
+
+        # Generate AI insight if user has AI enabled and consented
+        context['ai_insight'] = None
+        context['ai_enabled'] = False
+        try:
+            prefs = user.preferences
+            if prefs.ai_enabled and prefs.ai_data_consent:
+                context['ai_enabled'] = True
+                from apps.ai.services import ai_service
+                todays_verse = context.get('todays_verse')
+                faith_data = {
+                    'active_prayers': context['active_prayers'].count() if hasattr(context.get('active_prayers'), 'count') else len(context.get('active_prayers', [])),
+                    'answered_prayers': context.get('answered_prayers_count', 0),
+                    'recent_reflections': len(context.get('recent_reflections', [])),
+                    'milestones': context['milestones'].count() if hasattr(context.get('milestones'), 'count') else len(context.get('milestones', [])),
+                    'todays_verse': todays_verse['verse'].reference if todays_verse and todays_verse.get('verse') else None,
+                }
+                context['ai_insight'] = ai_service.generate_faith_home_insight(
+                    faith_data,
+                    coaching_style=prefs.ai_coaching_style
+                )
+        except Exception:
+            pass
+
         return context
 
     def get_todays_verse(self):

@@ -718,6 +718,289 @@ Keep it to 2-4 sentences. Match your coaching style."""
         return self._call_api(system, prompt, max_tokens=max_tokens)
 
     # =========================================================================
+    # HOME PAGE INSIGHTS
+    # =========================================================================
+
+    def generate_journal_home_insight(self, journal_data: dict,
+                                       faith_enabled: bool = False,
+                                       coaching_style: str = 'supportive') -> Optional[str]:
+        """
+        Generate personalized insight for Journal home page.
+
+        Args:
+            journal_data: Dictionary with journaling statistics
+            faith_enabled: Whether faith context should be included
+            coaching_style: The user's preferred coaching style
+        """
+        system, max_tokens = self._get_prompt_with_config(
+            'journal_home',
+            'Generate journal home insight',
+            faith_enabled,
+            coaching_style
+        )
+
+        context = []
+
+        total = journal_data.get('total', 0)
+        if total == 0:
+            prompt = """The user has no journal entries yet.
+Provide a brief, encouraging message about starting a journaling practice.
+Keep it to 2-3 sentences. Match your coaching style."""
+            return self._call_api(system, prompt, max_tokens=max_tokens)
+
+        context.append(f"Total journal entries: {total}")
+
+        if journal_data.get('this_week', 0) > 0:
+            context.append(f"Entries this week: {journal_data['this_week']}")
+        if journal_data.get('this_month', 0) > 0:
+            context.append(f"Entries this month: {journal_data['this_month']}")
+        if journal_data.get('streak', 0) > 0:
+            context.append(f"Current streak: {journal_data['streak']} days")
+
+        # Mood stats
+        mood_stats = journal_data.get('mood_stats', [])
+        if mood_stats:
+            moods = [f"{m['emoji']} {m['mood']} ({m['percentage']}%)" for m in mood_stats[:3]]
+            context.append(f"Recent moods: {', '.join(moods)}")
+
+        prompt = f"""User's journaling activity:
+{chr(10).join('- ' + c for c in context)}
+
+Generate a personalized, encouraging insight about their journaling practice.
+Acknowledge their consistency, note patterns, or offer gentle encouragement.
+Keep it to 2-3 sentences. Match your coaching style."""
+
+        return self._call_api(system, prompt, max_tokens=max_tokens)
+
+    def generate_faith_home_insight(self, faith_data: dict,
+                                     coaching_style: str = 'supportive') -> Optional[str]:
+        """
+        Generate personalized insight for Faith home page.
+
+        Args:
+            faith_data: Dictionary with faith/spiritual activity data
+            coaching_style: The user's preferred coaching style
+        """
+        system, max_tokens = self._get_prompt_with_config(
+            'faith_home',
+            'Generate faith home insight',
+            True,  # Faith is always enabled for faith page
+            coaching_style
+        )
+
+        context = []
+
+        active_prayers = faith_data.get('active_prayers', 0)
+        answered_prayers = faith_data.get('answered_prayers', 0)
+
+        if active_prayers == 0 and answered_prayers == 0:
+            prompt = """The user is starting their faith journey tracking.
+Provide a brief, welcoming message about their spiritual practice.
+Keep it to 2-3 sentences. Match your coaching style."""
+            return self._call_api(system, prompt, max_tokens=max_tokens)
+
+        if active_prayers > 0:
+            context.append(f"Active prayer requests: {active_prayers}")
+        if answered_prayers > 0:
+            context.append(f"Answered prayers: {answered_prayers}")
+        if faith_data.get('recent_reflections', 0) > 0:
+            context.append(f"Recent faith reflections: {faith_data['recent_reflections']}")
+        if faith_data.get('milestones', 0) > 0:
+            context.append(f"Faith milestones: {faith_data['milestones']}")
+        if faith_data.get('todays_verse'):
+            context.append(f"Today's verse: {faith_data['todays_verse']}")
+
+        prompt = f"""User's faith journey activity:
+{chr(10).join('- ' + c for c in context)}
+
+Generate a personalized, encouraging insight about their spiritual practice.
+Acknowledge their faithfulness, celebrate answered prayers, or offer gentle encouragement.
+This is a faith-focused context, so biblical references or spiritual language is appropriate.
+Keep it to 2-3 sentences. Match your coaching style."""
+
+        return self._call_api(system, prompt, max_tokens=max_tokens)
+
+    def generate_health_home_insight(self, health_data: dict,
+                                      faith_enabled: bool = False,
+                                      coaching_style: str = 'supportive') -> Optional[str]:
+        """
+        Generate personalized insight for Health home page.
+
+        Args:
+            health_data: Dictionary with health metrics overview
+            faith_enabled: Whether faith context should be included
+            coaching_style: The user's preferred coaching style
+        """
+        system, max_tokens = self._get_prompt_with_config(
+            'health_home',
+            'Generate health home insight',
+            faith_enabled,
+            coaching_style
+        )
+
+        context = []
+
+        # Check if any health data exists
+        has_data = any([
+            health_data.get('weight_count', 0) > 0,
+            health_data.get('fasts_this_month', 0) > 0,
+            health_data.get('has_heart_rate'),
+            health_data.get('has_glucose'),
+            health_data.get('has_blood_pressure'),
+        ])
+
+        if not has_data:
+            prompt = """The user is just starting to track their health.
+Provide a brief, encouraging message about starting a health tracking journey.
+Keep it to 2-3 sentences. Match your coaching style."""
+            return self._call_api(system, prompt, max_tokens=max_tokens)
+
+        if health_data.get('weight_count', 0) > 0:
+            context.append(f"Weight entries: {health_data['weight_count']}")
+            if health_data.get('weight_change_30d') is not None:
+                change = health_data['weight_change_30d']
+                if change > 0:
+                    context.append(f"Weight change (30 days): +{change} lbs")
+                elif change < 0:
+                    context.append(f"Weight change (30 days): {change} lbs")
+
+        if health_data.get('fasts_this_month', 0) > 0:
+            context.append(f"Fasts this month: {health_data['fasts_this_month']}")
+            if health_data.get('avg_fast_duration'):
+                context.append(f"Average fast duration: {health_data['avg_fast_duration']} hours")
+
+        if health_data.get('avg_resting_hr'):
+            context.append(f"Average resting heart rate: {health_data['avg_resting_hr']} bpm")
+
+        if health_data.get('avg_fasting_glucose'):
+            context.append(f"Average fasting glucose: {health_data['avg_fasting_glucose']} mg/dL")
+
+        if health_data.get('avg_blood_pressure'):
+            context.append(f"Average blood pressure: {health_data['avg_blood_pressure']}")
+
+        prompt = f"""User's health overview:
+{chr(10).join('- ' + c for c in context)}
+
+Generate a personalized, supportive insight about their health tracking.
+Note patterns, celebrate consistency, or offer gentle encouragement.
+IMPORTANT: You are NOT a medical professional. Do not give medical advice.
+Keep it to 2-3 sentences. Match your coaching style."""
+
+        return self._call_api(system, prompt, max_tokens=max_tokens)
+
+    def generate_life_home_insight(self, life_data: dict,
+                                    faith_enabled: bool = False,
+                                    coaching_style: str = 'supportive') -> Optional[str]:
+        """
+        Generate personalized insight for Life home page.
+
+        Args:
+            life_data: Dictionary with life management data
+            faith_enabled: Whether faith context should be included
+            coaching_style: The user's preferred coaching style
+        """
+        system, max_tokens = self._get_prompt_with_config(
+            'life_home',
+            'Generate life home insight',
+            faith_enabled,
+            coaching_style
+        )
+
+        context = []
+
+        has_data = any([
+            life_data.get('active_projects', 0) > 0,
+            life_data.get('pending_tasks', 0) > 0,
+            life_data.get('completed_tasks', 0) > 0,
+            life_data.get('todays_events', 0) > 0,
+        ])
+
+        if not has_data:
+            prompt = """The user is starting to organize their life.
+Provide a brief, encouraging message about life organization.
+Keep it to 2-3 sentences. Match your coaching style."""
+            return self._call_api(system, prompt, max_tokens=max_tokens)
+
+        if life_data.get('active_projects', 0) > 0:
+            context.append(f"Active projects: {life_data['active_projects']}")
+        if life_data.get('pending_tasks', 0) > 0:
+            context.append(f"Pending tasks: {life_data['pending_tasks']}")
+        if life_data.get('completed_tasks', 0) > 0:
+            context.append(f"Completed tasks: {life_data['completed_tasks']}")
+        if life_data.get('overdue_tasks', 0) > 0:
+            context.append(f"Overdue tasks: {life_data['overdue_tasks']}")
+        if life_data.get('todays_events', 0) > 0:
+            context.append(f"Events today: {life_data['todays_events']}")
+        if life_data.get('upcoming_events', 0) > 0:
+            context.append(f"Upcoming events (7 days): {life_data['upcoming_events']}")
+        if life_data.get('now_tasks', 0) > 0:
+            context.append(f"Priority 'Now' tasks: {life_data['now_tasks']}")
+
+        prompt = f"""User's life management overview:
+{chr(10).join('- ' + c for c in context)}
+
+Generate a personalized, encouraging insight about their day and tasks.
+Acknowledge their organization, note priorities, or offer gentle encouragement.
+Keep it to 2-3 sentences. Match your coaching style."""
+
+        return self._call_api(system, prompt, max_tokens=max_tokens)
+
+    def generate_purpose_home_insight(self, purpose_data: dict,
+                                       faith_enabled: bool = False,
+                                       coaching_style: str = 'supportive') -> Optional[str]:
+        """
+        Generate personalized insight for Purpose home page.
+
+        Args:
+            purpose_data: Dictionary with purpose/goals data
+            faith_enabled: Whether faith context should be included
+            coaching_style: The user's preferred coaching style
+        """
+        system, max_tokens = self._get_prompt_with_config(
+            'purpose_home',
+            'Generate purpose home insight',
+            faith_enabled,
+            coaching_style
+        )
+
+        context = []
+
+        has_data = any([
+            purpose_data.get('word_of_year'),
+            purpose_data.get('annual_theme'),
+            purpose_data.get('active_goals', 0) > 0,
+            purpose_data.get('active_intentions', 0) > 0,
+        ])
+
+        if not has_data:
+            prompt = """The user is starting to define their purpose and direction.
+Provide a brief, inspiring message about discovering purpose.
+Keep it to 2-3 sentences. Match your coaching style."""
+            return self._call_api(system, prompt, max_tokens=max_tokens)
+
+        if purpose_data.get('word_of_year'):
+            context.append(f"Word of the Year: '{purpose_data['word_of_year']}'")
+        if purpose_data.get('annual_theme'):
+            context.append(f"Annual Theme: {purpose_data['annual_theme']}")
+        if purpose_data.get('active_goals', 0) > 0:
+            context.append(f"Active goals: {purpose_data['active_goals']}")
+        if purpose_data.get('completed_goals', 0) > 0:
+            context.append(f"Completed goals: {purpose_data['completed_goals']}")
+        if purpose_data.get('active_intentions', 0) > 0:
+            context.append(f"Active intentions: {purpose_data['active_intentions']}")
+        if purpose_data.get('domains'):
+            context.append(f"Life domains with goals: {purpose_data['domains']}")
+
+        prompt = f"""User's purpose and direction:
+{chr(10).join('- ' + c for c in context)}
+
+Generate a personalized, inspiring insight about their goals and direction.
+Connect to their word/theme if present, celebrate progress, or encourage focus.
+Keep it to 2-3 sentences. Match your coaching style."""
+
+        return self._call_api(system, prompt, max_tokens=max_tokens)
+
+    # =========================================================================
     # FAITH INSIGHTS
     # =========================================================================
 

@@ -563,7 +563,30 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["popular_tags"] = Tag.objects.filter(
             user=user
         ).annotate(entry_count=Count('journal_entries')).order_by('-entry_count')[:10]
-        
+
+        # Generate AI insight if user has AI enabled and consented
+        context['ai_insight'] = None
+        context['ai_enabled'] = False
+        try:
+            prefs = user.preferences
+            if prefs.ai_enabled and prefs.ai_data_consent:
+                context['ai_enabled'] = True
+                from apps.ai.services import ai_service
+                journal_data = {
+                    'total': context['stats']['total'],
+                    'this_week': context['stats']['this_week'],
+                    'this_month': context['stats']['this_month'],
+                    'streak': context['stats']['streak'],
+                    'mood_stats': context['mood_stats'],
+                }
+                context['ai_insight'] = ai_service.generate_journal_home_insight(
+                    journal_data,
+                    faith_enabled=prefs.faith_enabled,
+                    coaching_style=prefs.ai_coaching_style
+                )
+        except Exception:
+            pass
+
         return context
     
     def _calculate_streak(self, entries, today):

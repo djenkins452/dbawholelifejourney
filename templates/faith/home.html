@@ -11,7 +11,26 @@
             <p class="page-subtitle">Your spiritual journey and growth</p>
         </div>
     </div>
-    
+
+    {% if ai_insight %}
+    <!-- AI Insight Card -->
+    <div class="ai-insight-card mb-6">
+        <div class="ai-insight-inner">
+            <div class="ai-insight-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            </div>
+            <div class="ai-insight-content">
+                <h3 class="ai-insight-title">AI Insight</h3>
+                <p class="ai-insight-text">{{ ai_insight }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Today's Scripture -->
     {% if todays_verse %}
     <section class="scripture-card mb-6">
@@ -160,6 +179,51 @@
 </div>
 
 <style>
+/* AI Insight Card */
+.ai-insight-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent), color-mix(in srgb, var(--color-primary) 5%, transparent));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.ai-insight-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
+.ai-insight-icon {
+    width: 40px;
+    height: 40px;
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ai-insight-content {
+    flex: 1;
+}
+
+.ai-insight-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-accent);
+    margin-bottom: var(--space-1);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ai-insight-text {
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+    margin: 0;
+}
+
 .scripture-card {
     background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-background) 100%);
     padding: var(--space-6);

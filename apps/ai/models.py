@@ -158,6 +158,11 @@ class AIInsight(models.Model):
         ('glucose_insight', 'Blood Glucose Insight'),
         ('prayer_encouragement', 'Prayer Encouragement'),
         ('entry_reflection', 'Journal Entry Reflection'),
+        ('journal_home', 'Journal Home Insight'),
+        ('faith_home', 'Faith Home Insight'),
+        ('health_home', 'Health Home Insight'),
+        ('life_home', 'Life Home Insight'),
+        ('purpose_home', 'Purpose Home Insight'),
     ]
     
     user = models.ForeignKey(
@@ -233,6 +238,11 @@ class AIPromptConfig(models.Model):
         ('accountability_nudge', 'Accountability Nudge'),
         ('celebration', 'Celebration Message'),
         ('faith_context', 'Faith Context Addition'),
+        ('journal_home', 'Journal Home Insight'),
+        ('faith_home', 'Faith Home Insight'),
+        ('health_home', 'Health Home Insight'),
+        ('life_home', 'Life Home Insight'),
+        ('purpose_home', 'Purpose Home Insight'),
     ]
 
     prompt_type = models.CharField(

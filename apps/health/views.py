@@ -258,6 +258,34 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             month_workouts = workouts.filter(date__gte=month_start)
             context["workouts_this_month"] = month_workouts.count()
 
+        # Generate AI insight if user has AI enabled and consented
+        context['ai_insight'] = None
+        context['ai_enabled'] = False
+        try:
+            prefs = user.preferences
+            if prefs.ai_enabled and prefs.ai_data_consent:
+                context['ai_enabled'] = True
+                from apps.ai.services import ai_service
+                health_data = {
+                    'weight_count': context.get('weight_count', 0),
+                    'weight_change_30d': context.get('weight_change_30d'),
+                    'fasts_this_month': context.get('fasts_this_month', 0),
+                    'avg_fast_duration': context.get('avg_fast_duration'),
+                    'avg_resting_hr': context.get('avg_resting_hr'),
+                    'avg_fasting_glucose': context.get('avg_fasting_glucose'),
+                    'avg_blood_pressure': f"{context.get('avg_systolic')}/{context.get('avg_diastolic')}" if context.get('avg_systolic') else None,
+                    'has_heart_rate': 'latest_heart_rate' in context,
+                    'has_glucose': 'latest_glucose' in context,
+                    'has_blood_pressure': 'latest_blood_pressure' in context,
+                }
+                context['ai_insight'] = ai_service.generate_health_home_insight(
+                    health_data,
+                    faith_enabled=prefs.faith_enabled,
+                    coaching_style=prefs.ai_coaching_style
+                )
+        except Exception:
+            pass
+
         return context
 
 

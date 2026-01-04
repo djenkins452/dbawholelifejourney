@@ -4,7 +4,7 @@
 # Description: Management command to send pending SMS notifications
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-30
-# Last Updated: 2025-12-30
+# Last Updated: 2026-01-03
 # ==============================================================================
 """
 Send Pending SMS Management Command
@@ -19,6 +19,7 @@ Usage:
 
 from django.core.management.base import BaseCommand
 
+from apps.core.management.decorators import notify_on_error
 from apps.sms.services import SMSNotificationService
 
 
@@ -32,6 +33,7 @@ class Command(BaseCommand):
             help='Show what would be sent without actually sending',
         )
 
+    @notify_on_error
     def handle(self, *args, **options):
         dry_run = options['dry_run']
 

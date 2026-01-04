@@ -335,6 +335,14 @@ LOGGING = {
             'backupCount': 3,
             'formatter': 'detailed',
         },
+        'file_security': {
+            'level': 'WARNING',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'security.log',
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 10,  # Keep more security logs for audit
+            'formatter': 'detailed',
+        },
         'mail_admins': {
             'level': 'ERROR',
             'filters': ['require_debug_false'],
@@ -358,8 +366,8 @@ LOGGING = {
             'propagate': False,
         },
         'django.security': {
-            'handlers': ['console', 'file_error', 'mail_admins'],
-            'level': 'ERROR',
+            'handlers': ['console', 'file_error', 'file_security', 'mail_admins'],
+            'level': 'WARNING',
             'propagate': False,
         },
         'cloudinary': {
@@ -368,8 +376,26 @@ LOGGING = {
             'propagate': False,
         },
         'apps': {
-            'handlers': ['console', 'file_app', 'file_error'],
+            'handlers': ['console', 'file_app', 'file_error', 'mail_admins'],
             'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Security-related loggers - send all warnings/errors to email
+        'wlj.security': {
+            'handlers': ['console', 'file_security', 'mail_admins'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # Axes (brute force protection) logs
+        'axes': {
+            'handlers': ['console', 'file_security'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # Management command errors (nightly jobs, scheduled tasks)
+        'django.management': {
+            'handlers': ['console', 'file_error', 'mail_admins'],
+            'level': 'ERROR',
             'propagate': False,
         },
     },

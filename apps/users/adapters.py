@@ -25,6 +25,7 @@ import logging
 from allauth.account.adapter import DefaultAccountAdapter
 from django.core.exceptions import ValidationError
 
+from apps.core.security_logging import log_security_event
 from apps.users.models import SignupAttempt
 from apps.users.security import hash_email, hash_ip
 from apps.users.services import RecaptchaService
@@ -215,6 +216,15 @@ class WLJAccountAdapter(DefaultAccountAdapter):
                 block_reason="honeypot",
                 risk_level="high",
                 risk_score=1.0,
+            )
+
+            # Send security notification for bot detection
+            log_security_event(
+                event_type='bot_activity',
+                severity='warning',
+                message='Bot signup blocked via honeypot',
+                request=request,
+                details={'email_provided': bool(email)},
             )
         except Exception as e:
             # Don't let logging failures break signup

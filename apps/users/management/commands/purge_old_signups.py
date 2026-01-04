@@ -29,6 +29,7 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from apps.core.management.decorators import notify_on_error
 from apps.users.models import SignupAttempt
 
 
@@ -48,6 +49,7 @@ class Command(BaseCommand):
             help="Retention period in days (default: 90)",
         )
 
+    @notify_on_error
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
         retention_days = options["days"]

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Clarity CSV Import)
+# Last Updated: 2026-01-04 (Blood Glucose Dashboard Time Filter)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,23 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Blood Glucose Dashboard Time Period Filter (Task #127)
+
+**Session:** Blood Glucose Dashboard readings with filter
+
+**Changes:**
+1. Added time period selector with Today, Last 7/30/60/90 Days options
+2. Updated GlucoseDashboardView to filter glucose entries by selected period
+3. Updated stats labels to show selected period (Average, Min, Max)
+4. Chart title adapts based on period (Today, Last 24 Hours, Last 48 Hours)
+5. Period passed via query parameter `?period=X`
+
+**Files Modified:**
+- `apps/health/views.py` - Added period handling in GlucoseDashboardView
+- `templates/health/glucose/dashboard.html` - Added period selector UI and dynamic labels
+
+---
 
 ### Heart Rate Log Default Date/Time (Task #122)
 

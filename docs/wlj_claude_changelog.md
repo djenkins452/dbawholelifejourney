@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Blood Glucose Dashboard Time Filter)
+# Last Updated: 2026-01-04 (Project Priority and Task Ordering)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,27 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Project Priority and Task Ordering (Task #137)
+
+**Session:** Order to work tasks
+
+**Changes:**
+1. Added `priority` field (1-10) to AdminProject model with default of 5
+2. Updated task fetching API to order by: project priority → phase → task priority → created_at → id
+3. Updated project create/update forms to include priority dropdown
+4. Updated project list view to display priority column with visual badges
+5. Only tasks from projects with status='open' are returned by the ready-tasks API
+
+**Files Modified:**
+- `apps/admin_console/models.py` - Added priority field to AdminProject
+- `apps/admin_console/views.py` - Updated ReadyTasksAPIView ordering, project forms
+- `templates/admin_console/admin_project_list.html` - Added priority column with styling
+
+**Files Created:**
+- `apps/admin_console/migrations/0015_add_project_priority.py` - Migration for priority field
+
+---
 
 ### Blood Glucose Dashboard Time Period Filter (Task #127)
 

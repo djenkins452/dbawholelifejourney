@@ -639,13 +639,22 @@ class AdminTaskListView(HelpContextMixin, AdminRequiredMixin, ListView):
             # Status parameter was in URL but empty = show nothing
             queryset = queryset.none()
 
-        # Filter by project if provided
-        project_filter = self.request.GET.get('project')
-        if project_filter:
-            try:
-                queryset = queryset.filter(project_id=int(project_filter))
-            except (ValueError, TypeError):
-                pass
+        # Filter by project if provided (supports multiple values)
+        # When checkboxes are used, no selection means show nothing
+        project_filters = self.request.GET.getlist('project')
+        if project_filters:
+            # Convert to integers, ignore invalid values
+            project_ids = []
+            for p in project_filters:
+                try:
+                    project_ids.append(int(p))
+                except (ValueError, TypeError):
+                    pass
+            if project_ids:
+                queryset = queryset.filter(project_id__in=project_ids)
+        elif 'project' in self.request.GET:
+            # Project parameter was in URL but empty = show nothing
+            queryset = queryset.none()
 
         # Handle sorting - default to priority ASC, created_at ASC
         sort_field = self.request.GET.get('sort', 'priority')
@@ -684,7 +693,7 @@ class AdminTaskListView(HelpContextMixin, AdminRequiredMixin, ListView):
         context['current_search_query'] = self.request.GET.get('q', '')
         context['current_phase_filter'] = self.request.GET.get('phase', '')
         context['current_status_filters'] = self.request.GET.getlist('status')
-        context['current_project_filter'] = self.request.GET.get('project', '')
+        context['current_project_filters'] = self.request.GET.getlist('project')
 
         # Sort state for sortable headers
         context['current_sort'] = self.request.GET.get('sort', 'priority')

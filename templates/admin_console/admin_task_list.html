@@ -99,6 +99,27 @@
             </div>
 
             <div class="filter-group">
+                <label>Project:</label>
+                <div class="checkbox-dropdown" id="project-dropdown">
+                    <button type="button" class="checkbox-dropdown-toggle form-input form-input-sm">
+                        <span class="dropdown-label">All Projects</span>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </button>
+                    <div class="checkbox-dropdown-menu">
+                        {% for project in projects %}
+                        <label class="checkbox-dropdown-item">
+                            <input type="checkbox" name="project" value="{{ project.pk }}"
+                                   {% if not current_project_filters or project.pk|stringformat:"s" in current_project_filters %}checked{% endif %}>
+                            <span class="checkbox-label">{{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-group">
                 <label for="filter-phase">Phase:</label>
                 <select name="phase" id="filter-phase" class="form-input form-input-sm">
                     <option value="">All Phases</option>
@@ -131,20 +152,8 @@
                 </div>
             </div>
 
-            <div class="filter-group">
-                <label for="filter-project">Project:</label>
-                <select name="project" id="filter-project" class="form-input form-input-sm">
-                    <option value="">All Projects</option>
-                    {% for project in projects %}
-                    <option value="{{ project.pk }}" {% if current_project_filter == project.pk|stringformat:"s" %}selected{% endif %}>
-                        {{ project.name }}{% if project.status == 'complete' %} (Complete){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-
             <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
-            {% if current_phase_filter or current_status_filters or current_project_filter or current_search_query %}
+            {% if current_phase_filter or current_status_filters or current_project_filters or current_search_query %}
             <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-ghost btn-sm">Clear</a>
             {% endif %}
         </form>
@@ -315,7 +324,7 @@
     {% else %}
     <div class="empty-state">
         <h2>No tasks found</h2>
-        {% if current_phase_filter or current_status_filter or current_project_filter %}
+        {% if current_phase_filter or current_status_filters or current_project_filters %}
         <p>No tasks match your current filters.</p>
         <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-secondary">Clear Filters</a>
         {% else %}
@@ -344,7 +353,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const filterState = {
             search: document.getElementById('filter-search')?.value || '',
             phase: document.getElementById('filter-phase')?.value || '',
-            project: document.getElementById('filter-project')?.value || '',
+            projects: Array.from(document.querySelectorAll('#project-dropdown input[type="checkbox"]:checked'))
+                         .map(cb => cb.value),
             statuses: Array.from(document.querySelectorAll('#status-dropdown input[type="checkbox"]:checked'))
                          .map(cb => cb.value),
             sort: currentSort,
@@ -377,7 +387,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const url = new URL(window.location.href);
 
             // Check if there's anything to restore
-            const hasFilters = state.search || state.phase || state.project ||
+            const hasFilters = state.search || state.phase ||
+                               (state.projects && state.projects.length > 0 &&
+                                state.projects.length < {{ projects|length }}) ||
                                (state.statuses && state.statuses.length > 0 &&
                                 state.statuses.length < {{ status_choices|length }}) ||
                                state.sort;
@@ -387,7 +399,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Build URL with saved filters
             if (state.search) url.searchParams.set('q', state.search);
             if (state.phase) url.searchParams.set('phase', state.phase);
-            if (state.project) url.searchParams.set('project', state.project);
+            if (state.projects && state.projects.length > 0) {
+                // Clear existing project params
+                url.searchParams.delete('project');
+                state.projects.forEach(p => url.searchParams.append('project', p));
+            }
             if (state.statuses && state.statuses.length > 0) {
                 // Clear existing status params
                 url.searchParams.delete('status');
@@ -558,22 +574,24 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Status Checkbox Dropdown functionality
-    const statusDropdown = document.getElementById('status-dropdown');
-    if (statusDropdown) {
-        const toggle = statusDropdown.querySelector('.checkbox-dropdown-toggle');
+    // Generic Checkbox Dropdown functionality
+    function initCheckboxDropdown(dropdownId, allLabel) {
+        const dropdown = document.getElementById(dropdownId);
+        if (!dropdown) return;
+
+        const toggle = dropdown.querySelector('.checkbox-dropdown-toggle');
         const dropdownLabel = toggle.querySelector('.dropdown-label');
-        const checkboxes = statusDropdown.querySelectorAll('input[type="checkbox"]');
+        const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
 
         // Update the label based on selected checkboxes
-        function updateDropdownLabel() {
+        function updateLabel() {
             const checked = Array.from(checkboxes).filter(cb => cb.checked);
             if (checked.length === 0) {
                 dropdownLabel.textContent = 'None';
             } else if (checked.length === checkboxes.length) {
-                dropdownLabel.textContent = 'All Statuses';
+                dropdownLabel.textContent = allLabel;
             } else if (checked.length <= 2) {
-                dropdownLabel.textContent = checked.map(cb => cb.nextElementSibling.textContent).join(', ');
+                dropdownLabel.textContent = checked.map(cb => cb.nextElementSibling.textContent.trim()).join(', ');
             } else {
                 dropdownLabel.textContent = checked.length + ' selected';
             }
@@ -582,24 +600,36 @@ document.addEventListener('DOMContentLoaded', function() {
         // Toggle dropdown open/close
         toggle.addEventListener('click', function(e) {
             e.preventDefault();
-            statusDropdown.classList.toggle('open');
+            // Close other dropdowns first
+            document.querySelectorAll('.checkbox-dropdown.open').forEach(function(d) {
+                if (d !== dropdown) d.classList.remove('open');
+            });
+            dropdown.classList.toggle('open');
         });
 
         // Update label when checkboxes change
         checkboxes.forEach(function(checkbox) {
-            checkbox.addEventListener('change', updateDropdownLabel);
-        });
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!statusDropdown.contains(e.target)) {
-                statusDropdown.classList.remove('open');
-            }
+            checkbox.addEventListener('change', updateLabel);
         });
 
         // Initialize label on page load
-        updateDropdownLabel();
+        updateLabel();
+
+        return dropdown;
     }
+
+    // Initialize both dropdowns
+    const projectDropdown = initCheckboxDropdown('project-dropdown', 'All Projects');
+    const statusDropdown = initCheckboxDropdown('status-dropdown', 'All Statuses');
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+        document.querySelectorAll('.checkbox-dropdown').forEach(function(dropdown) {
+            if (!dropdown.contains(e.target)) {
+                dropdown.classList.remove('open');
+            }
+        });
+    });
 
     // "What's Next?" Modal functionality
     const modal = document.getElementById('whats-next-modal');

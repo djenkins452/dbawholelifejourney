@@ -771,6 +771,16 @@ document.addEventListener('DOMContentLoaded', function() {
     border-radius: var(--radius-sm);
 }
 
+/* Project dropdown needs to be wider to fit longest project names */
+#project-dropdown .checkbox-dropdown-toggle {
+    min-width: 220px;
+}
+
+#project-dropdown .checkbox-dropdown-menu {
+    min-width: 240px;
+    white-space: nowrap;
+}
+
 .checkbox-dropdown-toggle:hover {
     border-color: var(--color-accent);
 }

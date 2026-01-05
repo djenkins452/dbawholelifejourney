@@ -70,16 +70,19 @@ For active development context, see `CLAUDE.md` (project root).
 1. Added new Favorites dropdown menu between Dashboard and Journal in navigation
 2. Created FavoritePage model to store user's favorited pages (max 10)
 3. Created PageView model to track recently viewed pages
-4. Added star toggle button component for page headings
+4. Added floating star toggle button that appears on ALL pages (except home, admin, accounts, api)
 5. Favorites menu shows starred pages at top, then fills remaining slots with Most Recent pages
 6. Divider and "Most Recent" subheading separates favorites from recent pages
 7. Added PageViewTrackingMiddleware to automatically track page views
 8. Added favorites_context processor for template data
+9. Used explicit hex colors (#f59e0b gold, #9ca3af gray) for star visibility
 
 **Files Added:**
 - `apps/core/middleware.py` - PageViewTrackingMiddleware
+- `apps/core/migrations/0036_favoritepage_pageview.py` - Migration for new models
 - `static/js/favorites.js` - Star toggle JavaScript functionality
-- `templates/components/favorite_toggle.html` - Reusable star button component
+- `templates/components/favorite_toggle.html` - Reusable inline star button component
+- `templates/components/favorite_floating.html` - Floating star button for all pages
 
 **Files Modified:**
 - `apps/core/models.py` - Added FavoritePage and PageView models
@@ -88,8 +91,7 @@ For active development context, see `CLAUDE.md` (project root).
 - `apps/core/context_processors.py` - Added favorites_context processor
 - `config/settings.py` - Added middleware and context processor
 - `templates/components/navigation.html` - Added Favorites dropdown menu
-- `templates/base.html` - Include favorites.js
-- Various page templates - Added star toggle to page headings (journal, faith, health, life, purpose, tasks, recipes)
+- `templates/base.html` - Include favorites.js and favorite_floating.html
 
 ---
 

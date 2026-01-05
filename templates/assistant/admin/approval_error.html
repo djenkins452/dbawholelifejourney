@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - WLJ Assistant</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            color: #dc2626;
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            color: #dc2626;
+        }
+        .error-message {
+            color: #6b7280;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+        .error-details {
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: left;
+            margin-top: 20px;
+        }
+        .error-details code {
+            background-color: #fee2e2;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .task-info {
+            background-color: #f9fafb;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: left;
+            margin-top: 20px;
+        }
+        .task-info dt {
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-top: 10px;
+        }
+        .task-info dt:first-child {
+            margin-top: 0;
+        }
+        .task-info dd {
+            margin: 5px 0 0 0;
+            color: #111827;
+        }
+        .help-text {
+            color: #6b7280;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">⚠</div>
+        <h1>Action Failed</h1>
+
+        <p class="error-message">{{ error }}</p>
+
+        <div class="error-details">
+            {% if error_type == 'token_invalid' %}
+            <p>The approval link may have:</p>
+            <ul>
+                <li>Expired (links are valid for 24 hours)</li>
+                <li>Already been used (one-time use only)</li>
+                <li>Been modified or corrupted</li>
+            </ul>
+            {% elif error_type == 'wrong_status' %}
+            <p>This task has already been processed or is in an invalid state.</p>
+            {% else %}
+            <p>An unexpected error occurred. Please try again or contact support.</p>
+            {% endif %}
+        </div>
+
+        {% if task %}
+        <dl class="task-info">
+            <dt>Task ID</dt>
+            <dd>{{ task.id }}</dd>
+
+            <dt>Title</dt>
+            <dd>{{ task.title }}</dd>
+
+            <dt>Current Status</dt>
+            <dd>{{ task.get_status_display }}</dd>
+        </dl>
+        {% endif %}
+
+        <p class="help-text">
+            If you need to take action on this task, please use the admin console
+            or request a new approval link.
+        </p>
+
+        <p class="footer">
+            WLJ Personal Assistant | Whole Life Journey
+        </p>
+    </div>
+</body>
+</html>

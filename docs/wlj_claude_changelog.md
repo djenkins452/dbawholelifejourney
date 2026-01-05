@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Admin Notification Service)
+# Last Updated: 2026-01-05 (Admin Approval Endpoint)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,56 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Create Admin Approval Endpoint (Task #166)
+
+**Session:** Create Admin Approval Endpoint
+
+**Objective:**
+Build secure API endpoint for admin to approve or reject improvement tasks.
+Part of Personal Assistant Growth project (Phase 4).
+
+**Changes:**
+1. Updated `assistant/models.py`:
+   - Added `STATUS_REJECTED` to status choices and transitions
+   - Added `approval_token` field for secure one-time tokens
+   - Added `approval_token_created_at` for 24-hour expiry tracking
+   - Added `rejected_at` and `rejection_reason` fields
+   - Added `generate_approval_token()` - creates URL-safe tokens
+   - Added `is_token_valid(token)` - validates token and expiry
+   - Added `clear_approval_token()` - clears token after use
+   - Added `approve(user)` and `reject(reason)` helper methods
+
+2. Created `assistant/admin_views.py`:
+   - `approve_task(request, task_id, token)` - approves task via link
+   - `reject_task(request, task_id, token)` - rejects task with reason
+   - Token validation, expiry checking, status validation
+   - Returns HTML confirmation/error pages
+
+3. Created `assistant/urls.py`:
+   - `/assistant/admin/approve/<uuid:task_id>/<token>/`
+   - `/assistant/admin/reject/<uuid:task_id>/<token>/`
+
+4. Created admin response templates:
+   - `templates/assistant/admin/approval_success.html`
+   - `templates/assistant/admin/approval_error.html`
+
+5. Added comprehensive unit tests in `test_admin_views.py`:
+   - Tests for approval/rejection flows
+   - Tests for token validation and expiry
+   - Tests for error handling
+
+**Files Created:**
+- `assistant/admin_views.py` - Admin approval views
+- `assistant/urls.py` - URL configuration
+- `assistant/tests/test_admin_views.py` - Unit tests
+- `templates/assistant/admin/approval_success.html`
+- `templates/assistant/admin/approval_error.html`
+
+**Files Modified:**
+- `assistant/models.py` - Added approval token fields and methods
+
+---
 
 ### Create Admin Notification Service (Task #164)
 

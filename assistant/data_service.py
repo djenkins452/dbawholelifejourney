@@ -9,8 +9,56 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
+from django.core.cache import cache
 from django.db.models import Avg, Count, QuerySet, Sum
 from django.utils import timezone
+
+
+# Cache TTL for personal data queries (5 minutes)
+PERSONAL_DATA_CACHE_TTL = 300
+
+
+def _generate_cache_key(user_id: int, data_type: str, since_date: Optional[datetime] = None) -> str:
+    """
+    Generate a cache key for personal data queries.
+
+    Args:
+        user_id: The user's ID.
+        data_type: The type of data (weight, journal, medication, food, mood).
+        since_date: Optional date filter. If None, uses 'all'.
+
+    Returns:
+        A unique cache key string.
+    """
+    date_part = 'all'
+    if since_date:
+        if isinstance(since_date, datetime):
+            date_part = since_date.strftime('%Y-%m-%d')
+        elif isinstance(since_date, date):
+            date_part = since_date.strftime('%Y-%m-%d')
+        else:
+            date_part = str(since_date)
+    return f"personal_data:{user_id}:{data_type}:{date_part}"
+
+
+def invalidate_user_data_cache(user_id: int, data_type: str) -> None:
+    """
+    Invalidate all cached data for a user and data type.
+
+    Since we can't enumerate all possible since_date values, we use
+    Django's cache.delete_pattern if available, or delete common keys.
+    For most use cases, the 'all' key is the most commonly used.
+
+    Args:
+        user_id: The user's ID.
+        data_type: The type of data to invalidate.
+    """
+    # Delete the most common cache key (no date filter)
+    cache.delete(f"personal_data:{user_id}:{data_type}:all")
+
+    # Delete today's date key (common case)
+    today = timezone.now().strftime('%Y-%m-%d')
+    cache.delete(f"personal_data:{user_id}:{data_type}:{today}")
 
 
 class PersonalDataService:
@@ -69,6 +117,12 @@ class PersonalDataService:
                 'entries': [...]
             }
         """
+        # Check cache first
+        cache_key = _generate_cache_key(self.user.id, 'weight', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
         # Import here to avoid circular imports and allow testing without Django
         from apps.health.models import WeightEntry
 
@@ -109,7 +163,7 @@ class PersonalDataService:
                 'notes': entry['notes'],
             })
 
-        return {
+        result = {
             'type': 'weight',
             'count': count,
             'average': round(average, 1),
@@ -118,6 +172,11 @@ class PersonalDataService:
             'unit': latest_unit,
             'entries': entries,
         }
+
+        # Cache the result
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+
+        return result
 
     def get_journal_data(
         self,
@@ -147,6 +206,12 @@ class PersonalDataService:
                 'latest_date': date(2024, 12, 18)
             }
         """
+        # Check cache first
+        cache_key = _generate_cache_key(self.user.id, 'journal', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
         # Import here to avoid circular imports and allow testing without Django
         from apps.journal.models import JournalEntry
 
@@ -168,11 +233,16 @@ class PersonalDataService:
         latest_entry = queryset.first()
         latest_date = latest_entry.entry_date
 
-        return {
+        result = {
             'type': 'journal',
             'count': count,
             'latest_date': latest_date,
         }
+
+        # Cache the result
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+
+        return result
 
     def get_medication_data(
         self,
@@ -206,6 +276,12 @@ class PersonalDataService:
                 'consistency_percent': 83.3
             }
         """
+        # Check cache first
+        cache_key = _generate_cache_key(self.user.id, 'medication', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
         # Import here to avoid circular imports and allow testing without Django
         from apps.health.models import MedicineLog
 
@@ -246,13 +322,18 @@ class PersonalDataService:
         else:
             consistency_percent = 0.0
 
-        return {
+        result = {
             'type': 'medication',
             'total_logs': total_logs,
             'days_logged': days_logged,
             'total_days': total_days,
             'consistency_percent': consistency_percent,
         }
+
+        # Cache the result
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+
+        return result
 
     def get_food_data(
         self,
@@ -286,6 +367,12 @@ class PersonalDataService:
                 'latest_date': date(2024, 12, 18)
             }
         """
+        # Check cache first
+        cache_key = _generate_cache_key(self.user.id, 'food', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
         # Import here to avoid circular imports and allow testing without Django
         from apps.health.models import FoodEntry
 
@@ -321,13 +408,18 @@ class PersonalDataService:
         latest_entry = queryset.first()
         latest_date = latest_entry.logged_date
 
-        return {
+        result = {
             'type': 'food',
             'total_entries': total_entries,
             'total_calories': round(total_calories, 1),
             'average_daily_calories': average_daily_calories,
             'latest_date': latest_date,
         }
+
+        # Cache the result
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+
+        return result
 
     def get_mood_data(
         self,
@@ -363,6 +455,12 @@ class PersonalDataService:
                 'latest_date': date(2024, 12, 18)
             }
         """
+        # Check cache first
+        cache_key = _generate_cache_key(self.user.id, 'mood', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
         # Import here to avoid circular imports and allow testing without Django
         from apps.journal.models import JournalEntry
 
@@ -400,7 +498,7 @@ class PersonalDataService:
         latest_mood = latest_entry.mood
         latest_date = latest_entry.entry_date
 
-        return {
+        result = {
             'type': 'mood',
             'count': count,
             'mood_distribution': mood_distribution,
@@ -408,6 +506,11 @@ class PersonalDataService:
             'latest_mood': latest_mood,
             'latest_date': latest_date,
         }
+
+        # Cache the result
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+
+        return result
 
     def query_by_intent(
         self,

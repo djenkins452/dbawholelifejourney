@@ -60,6 +60,22 @@ def invalidate_user_insights(user, insight_types=None):
             )
 
 
+def invalidate_personal_data_cache(user, data_type):
+    """
+    Invalidate cached personal data for a user and data type.
+
+    This is called when user creates/updates/deletes log entries to ensure
+    the assistant service returns fresh data.
+
+    Args:
+        user: The user whose data cache should be invalidated
+        data_type: The type of data to invalidate (weight, journal, medication, food, mood)
+    """
+    from assistant.data_service import invalidate_user_data_cache
+    invalidate_user_data_cache(user.id, data_type)
+    logger.debug(f"Invalidated personal data cache for user {user.id}: {data_type}")
+
+
 # =============================================================================
 # JOURNAL SIGNALS
 # =============================================================================
@@ -69,6 +85,10 @@ def invalidate_insights_on_journal_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when a journal entry is saved."""
     insight_types = ['daily_insight', 'weekly_summary', 'journal_home', 'journal_reflection']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache for journal and mood
+    invalidate_personal_data_cache(instance.user, 'journal')
+    if instance.mood:
+        invalidate_personal_data_cache(instance.user, 'mood')
 
 
 @receiver(post_delete, sender='journal.JournalEntry')
@@ -76,6 +96,10 @@ def invalidate_insights_on_journal_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when a journal entry is deleted."""
     insight_types = ['daily_insight', 'weekly_summary', 'journal_home']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache for journal and mood
+    invalidate_personal_data_cache(instance.user, 'journal')
+    if instance.mood:
+        invalidate_personal_data_cache(instance.user, 'mood')
 
 
 # =============================================================================
@@ -119,6 +143,8 @@ def invalidate_insights_on_weight_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when weight is saved."""
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache
+    invalidate_personal_data_cache(instance.user, 'weight')
 
 
 @receiver(post_delete, sender='health.WeightEntry')
@@ -126,6 +152,8 @@ def invalidate_insights_on_weight_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when weight is deleted."""
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache
+    invalidate_personal_data_cache(instance.user, 'weight')
 
 
 # =============================================================================
@@ -162,3 +190,35 @@ def invalidate_insights_on_prayer_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when a prayer request is deleted."""
     insight_types = ['daily_insight', 'faith_home', 'prayer_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+
+
+# =============================================================================
+# MEDICATION SIGNALS
+# =============================================================================
+
+@receiver(post_save, sender='health.MedicineLog')
+def invalidate_cache_on_medicine_log_save(sender, instance, created, **kwargs):
+    """Invalidate personal data cache when a medicine log is saved."""
+    invalidate_personal_data_cache(instance.user, 'medication')
+
+
+@receiver(post_delete, sender='health.MedicineLog')
+def invalidate_cache_on_medicine_log_delete(sender, instance, **kwargs):
+    """Invalidate personal data cache when a medicine log is deleted."""
+    invalidate_personal_data_cache(instance.user, 'medication')
+
+
+# =============================================================================
+# FOOD SIGNALS
+# =============================================================================
+
+@receiver(post_save, sender='health.FoodEntry')
+def invalidate_cache_on_food_entry_save(sender, instance, created, **kwargs):
+    """Invalidate personal data cache when a food entry is saved."""
+    invalidate_personal_data_cache(instance.user, 'food')
+
+
+@receiver(post_delete, sender='health.FoodEntry')
+def invalidate_cache_on_food_entry_delete(sender, instance, **kwargs):
+    """Invalidate personal data cache when a food entry is deleted."""
+    invalidate_personal_data_cache(instance.user, 'food')

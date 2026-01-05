@@ -17,8 +17,30 @@ mock_journal_models = MagicMock()
 sys.modules['apps.health.models'] = mock_health_models
 sys.modules['apps.journal.models'] = mock_journal_models
 
+# Create mock cache that returns None by default (cache miss)
+# We need to mock this before the module imports
+mock_cache = MagicMock()
+mock_cache.get.return_value = None  # Always miss cache in tests by default
+mock_cache_module = MagicMock()
+mock_cache_module.cache = mock_cache
+sys.modules['django.core.cache'] = mock_cache_module
 
-class TestPersonalDataServiceInit(unittest.TestCase):
+# Now import data_service to get it to use our mocked cache
+# (Need to remove it from sys.modules if already imported)
+if 'assistant.data_service' in sys.modules:
+    del sys.modules['assistant.data_service']
+
+
+class CacheMockMixin:
+    """Mixin to reset cache mock before each test."""
+
+    def setUp(self):
+        """Reset cache mock before each test."""
+        mock_cache.reset_mock()
+        mock_cache.get.return_value = None  # Cache miss by default
+
+
+class TestPersonalDataServiceInit(CacheMockMixin, unittest.TestCase):
     """Tests for PersonalDataService initialization."""
 
     def test_init_stores_user(self):
@@ -30,7 +52,7 @@ class TestPersonalDataServiceInit(unittest.TestCase):
         self.assertEqual(service.user, mock_user)
 
 
-class TestGetWeightDataNoEntries(unittest.TestCase):
+class TestGetWeightDataNoEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_weight_data when no entries exist."""
 
     def test_returns_none_when_no_entries(self):
@@ -69,7 +91,7 @@ class TestGetWeightDataNoEntries(unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetWeightDataWithEntries(unittest.TestCase):
+class TestGetWeightDataWithEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_weight_data when entries exist."""
 
     def _setup_mock(self, count=5, avg_value=Decimal('175.5'),
@@ -175,7 +197,7 @@ class TestGetWeightDataWithEntries(unittest.TestCase):
         self.assertEqual(result['unit'], 'kg')
 
 
-class TestGetWeightDataFiltering(unittest.TestCase):
+class TestGetWeightDataFiltering(CacheMockMixin, unittest.TestCase):
     """Tests for get_weight_data date filtering."""
 
     def test_filters_by_since_date(self):
@@ -210,7 +232,7 @@ class TestGetWeightDataFiltering(unittest.TestCase):
         self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
 
 
-class TestGetWeightDataEntries(unittest.TestCase):
+class TestGetWeightDataEntries(CacheMockMixin, unittest.TestCase):
     """Tests for entries list in get_weight_data result."""
 
     def test_entries_contain_expected_fields(self):
@@ -288,7 +310,7 @@ class TestGetWeightDataEntries(unittest.TestCase):
         self.assertIsInstance(result['entries'][0]['value'], float)
 
 
-class TestGetWeightDataDefaultLimit(unittest.TestCase):
+class TestGetWeightDataDefaultLimit(CacheMockMixin, unittest.TestCase):
     """Tests for default limit behavior."""
 
     def test_default_limit_is_10(self):
@@ -359,7 +381,7 @@ class TestGetWeightDataDefaultLimit(unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetJournalDataNoEntries(unittest.TestCase):
+class TestGetJournalDataNoEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_journal_data when no entries exist."""
 
     def test_returns_none_when_no_entries(self):
@@ -398,7 +420,7 @@ class TestGetJournalDataNoEntries(unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetJournalDataWithEntries(unittest.TestCase):
+class TestGetJournalDataWithEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_journal_data when entries exist."""
 
     def _setup_mock(self, count=5, latest_date=None):
@@ -473,7 +495,7 @@ class TestGetJournalDataWithEntries(unittest.TestCase):
         self.assertEqual(result['latest_date'], expected_date)
 
 
-class TestGetJournalDataFiltering(unittest.TestCase):
+class TestGetJournalDataFiltering(CacheMockMixin, unittest.TestCase):
     """Tests for get_journal_data filtering."""
 
     def test_filters_by_user_and_not_deleted(self):
@@ -533,7 +555,7 @@ class TestGetJournalDataFiltering(unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetMedicationDataNoEntries(unittest.TestCase):
+class TestGetMedicationDataNoEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_medication_data when no entries exist."""
 
     def test_returns_none_when_no_entries(self):
@@ -572,7 +594,7 @@ class TestGetMedicationDataNoEntries(unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetMedicationDataWithEntries(unittest.TestCase):
+class TestGetMedicationDataWithEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_medication_data when entries exist."""
 
     def _setup_mock(self, total_logs=10, unique_dates=None, earliest_date=None):
@@ -675,7 +697,7 @@ class TestGetMedicationDataWithEntries(unittest.TestCase):
         self.assertEqual(result['days_logged'], 5)
 
 
-class TestGetMedicationDataConsistency(unittest.TestCase):
+class TestGetMedicationDataConsistency(CacheMockMixin, unittest.TestCase):
     """Tests for consistency calculation."""
 
     @patch('assistant.data_service.timezone')
@@ -747,7 +769,7 @@ class TestGetMedicationDataConsistency(unittest.TestCase):
         self.assertIsInstance(result['consistency_percent'], float)
 
 
-class TestGetMedicationDataFiltering(unittest.TestCase):
+class TestGetMedicationDataFiltering(CacheMockMixin, unittest.TestCase):
     """Tests for get_medication_data filtering."""
 
     @patch('assistant.data_service.timezone')
@@ -827,7 +849,7 @@ class TestGetMedicationDataFiltering(unittest.TestCase):
 # ==============================================================================
 
 
-class TestQueryByIntentNoData(unittest.TestCase):
+class TestQueryByIntentNoData(CacheMockMixin, unittest.TestCase):
     """Tests for query_by_intent when no data exists."""
 
     def test_returns_none_when_no_data_types(self):
@@ -881,7 +903,7 @@ class TestQueryByIntentNoData(unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestQueryByIntentWithData(unittest.TestCase):
+class TestQueryByIntentWithData(CacheMockMixin, unittest.TestCase):
     """Tests for query_by_intent when data exists."""
 
     def _setup_weight_mock(self, count=5):
@@ -993,7 +1015,7 @@ class TestQueryByIntentWithData(unittest.TestCase):
         self.assertTrue(mock_weight_qs.filter.called)
 
 
-class TestQueryByIntentAllDataTypes(unittest.TestCase):
+class TestQueryByIntentAllDataTypes(CacheMockMixin, unittest.TestCase):
     """Tests for query_by_intent with all data types."""
 
     @patch('assistant.data_service.timezone')
@@ -1067,7 +1089,7 @@ class TestQueryByIntentAllDataTypes(unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetFoodDataNoEntries(unittest.TestCase):
+class TestGetFoodDataNoEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_food_data when no entries exist."""
 
     def test_returns_none_when_no_entries(self):
@@ -1106,7 +1128,7 @@ class TestGetFoodDataNoEntries(unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetFoodDataWithEntries(unittest.TestCase):
+class TestGetFoodDataWithEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_food_data when entries exist."""
 
     def _setup_mock(self, total_entries=10, total_cal=15000.0, unique_dates=None,
@@ -1191,7 +1213,7 @@ class TestGetFoodDataWithEntries(unittest.TestCase):
         self.assertEqual(result['total_calories'], 25000.5)
 
 
-class TestGetFoodDataAverageCalories(unittest.TestCase):
+class TestGetFoodDataAverageCalories(CacheMockMixin, unittest.TestCase):
     """Tests for average daily calories calculation."""
 
     def test_average_calculated_correctly(self):
@@ -1257,7 +1279,7 @@ class TestGetFoodDataAverageCalories(unittest.TestCase):
         self.assertEqual(result['average_daily_calories'], 1666.7)
 
 
-class TestGetFoodDataFiltering(unittest.TestCase):
+class TestGetFoodDataFiltering(CacheMockMixin, unittest.TestCase):
     """Tests for get_food_data filtering."""
 
     def test_filters_by_user(self):
@@ -1320,7 +1342,7 @@ class TestGetFoodDataFiltering(unittest.TestCase):
         self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
 
 
-class TestQueryByIntentWithFood(unittest.TestCase):
+class TestQueryByIntentWithFood(CacheMockMixin, unittest.TestCase):
     """Tests for query_by_intent including food data type."""
 
     def _setup_food_mock(self, total_entries=5, total_cal=7500.0):
@@ -1392,7 +1414,7 @@ class TestQueryByIntentWithFood(unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetMoodDataNoEntries(unittest.TestCase):
+class TestGetMoodDataNoEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_mood_data when no entries exist."""
 
     def test_returns_none_when_no_entries_with_mood(self):
@@ -1433,7 +1455,7 @@ class TestGetMoodDataNoEntries(unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetMoodDataWithEntries(unittest.TestCase):
+class TestGetMoodDataWithEntries(CacheMockMixin, unittest.TestCase):
     """Tests for get_mood_data when entries exist."""
 
     def _setup_mock(self, count=10, mood_distribution=None, latest_mood='good',
@@ -1524,7 +1546,7 @@ class TestGetMoodDataWithEntries(unittest.TestCase):
         self.assertEqual(result['mood_distribution']['good'], 5)
 
 
-class TestGetMoodDataMostCommon(unittest.TestCase):
+class TestGetMoodDataMostCommon(CacheMockMixin, unittest.TestCase):
     """Tests for most_common mood calculation."""
 
     def test_most_common_is_first_in_distribution(self):
@@ -1560,7 +1582,7 @@ class TestGetMoodDataMostCommon(unittest.TestCase):
         self.assertEqual(result['most_common'], 'great')
 
 
-class TestGetMoodDataFiltering(unittest.TestCase):
+class TestGetMoodDataFiltering(CacheMockMixin, unittest.TestCase):
     """Tests for get_mood_data filtering."""
 
     def test_filters_by_user_and_not_deleted(self):
@@ -1657,7 +1679,7 @@ class TestGetMoodDataFiltering(unittest.TestCase):
         self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
 
 
-class TestQueryByIntentWithMood(unittest.TestCase):
+class TestQueryByIntentWithMood(CacheMockMixin, unittest.TestCase):
     """Tests for query_by_intent including mood data type."""
 
     def _setup_mood_mock(self, count=10):
@@ -1731,6 +1753,258 @@ class TestQueryByIntentWithMood(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIn('mood', result)
         self.assertIn('weight', result)
+
+
+# ==============================================================================
+# Caching Tests
+# ==============================================================================
+
+
+class TestGenerateCacheKey(CacheMockMixin, unittest.TestCase):
+    """Tests for _generate_cache_key function."""
+
+    def test_generates_key_without_date(self):
+        """Should generate key with 'all' when no date provided."""
+        from assistant.data_service import _generate_cache_key
+
+        key = _generate_cache_key(user_id=123, data_type='weight')
+        self.assertEqual(key, 'personal_data:123:weight:all')
+
+    def test_generates_key_with_datetime(self):
+        """Should generate key with date string from datetime."""
+        from assistant.data_service import _generate_cache_key
+
+        since = datetime(2024, 12, 15, 10, 30)
+        key = _generate_cache_key(user_id=456, data_type='journal', since_date=since)
+        self.assertEqual(key, 'personal_data:456:journal:2024-12-15')
+
+    def test_generates_key_with_date(self):
+        """Should generate key with date string from date object."""
+        from assistant.data_service import _generate_cache_key
+        from datetime import date
+
+        since = date(2024, 12, 20)
+        key = _generate_cache_key(user_id=789, data_type='food', since_date=since)
+        self.assertEqual(key, 'personal_data:789:food:2024-12-20')
+
+    def test_different_users_have_different_keys(self):
+        """Different users should have different cache keys."""
+        from assistant.data_service import _generate_cache_key
+
+        key1 = _generate_cache_key(user_id=1, data_type='weight')
+        key2 = _generate_cache_key(user_id=2, data_type='weight')
+        self.assertNotEqual(key1, key2)
+
+    def test_different_data_types_have_different_keys(self):
+        """Different data types should have different cache keys."""
+        from assistant.data_service import _generate_cache_key
+
+        key1 = _generate_cache_key(user_id=1, data_type='weight')
+        key2 = _generate_cache_key(user_id=1, data_type='journal')
+        self.assertNotEqual(key1, key2)
+
+
+class TestInvalidateUserDataCache(CacheMockMixin, unittest.TestCase):
+    """Tests for invalidate_user_data_cache function."""
+
+    @patch('assistant.data_service.timezone')
+    def test_deletes_all_key(self, mock_timezone):
+        """Should delete the 'all' cache key."""
+        from assistant.data_service import invalidate_user_data_cache
+
+        mock_timezone.now.return_value.strftime.return_value = '2024-12-18'
+
+        invalidate_user_data_cache(user_id=123, data_type='weight')
+
+        # Check that cache.delete was called with the 'all' key
+        calls = mock_cache.delete.call_args_list
+        self.assertTrue(any('personal_data:123:weight:all' in str(c) for c in calls))
+
+    @patch('assistant.data_service.timezone')
+    def test_deletes_today_key(self, mock_timezone):
+        """Should delete today's cache key."""
+        from assistant.data_service import invalidate_user_data_cache
+
+        mock_timezone.now.return_value.strftime.return_value = '2024-12-18'
+
+        invalidate_user_data_cache(user_id=123, data_type='journal')
+
+        # Check that cache.delete was called with today's key
+        calls = mock_cache.delete.call_args_list
+        self.assertTrue(any('personal_data:123:journal:2024-12-18' in str(c) for c in calls))
+
+
+class TestCacheHitBehavior(CacheMockMixin, unittest.TestCase):
+    """Tests for cache hit behavior in data methods."""
+
+    def test_weight_returns_cached_data_on_hit(self):
+        """Should return cached data when cache hit occurs for weight."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        mock_user.id = 123
+
+        cached_result = {
+            'type': 'weight',
+            'count': 10,
+            'average': 175.0,
+            'latest': 174.5,
+        }
+        mock_cache.get.return_value = cached_result
+
+        # Reset WeightEntry mock to track calls
+        mock_health_models.reset_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_weight_data()
+
+        self.assertEqual(result, cached_result)
+        # Model should not be queried
+        mock_health_models.WeightEntry.objects.filter.assert_not_called()
+
+    def test_journal_returns_cached_data_on_hit(self):
+        """Should return cached data when cache hit occurs for journal."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        mock_user.id = 123
+
+        cached_result = {
+            'type': 'journal',
+            'count': 5,
+        }
+        mock_cache.get.return_value = cached_result
+
+        service = PersonalDataService(mock_user)
+        result = service.get_journal_data()
+
+        self.assertEqual(result, cached_result)
+
+    def test_food_returns_cached_data_on_hit(self):
+        """Should return cached data when cache hit occurs for food."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        mock_user.id = 123
+
+        cached_result = {
+            'type': 'food',
+            'total_entries': 15,
+        }
+        mock_cache.get.return_value = cached_result
+
+        service = PersonalDataService(mock_user)
+        result = service.get_food_data()
+
+        self.assertEqual(result, cached_result)
+
+    def test_mood_returns_cached_data_on_hit(self):
+        """Should return cached data when cache hit occurs for mood."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        mock_user.id = 123
+
+        cached_result = {
+            'type': 'mood',
+            'count': 20,
+        }
+        mock_cache.get.return_value = cached_result
+
+        service = PersonalDataService(mock_user)
+        result = service.get_mood_data()
+
+        self.assertEqual(result, cached_result)
+
+
+class TestCacheMissBehavior(CacheMockMixin, unittest.TestCase):
+    """Tests for cache miss behavior - data should be fetched and cached."""
+
+    def test_weight_caches_result_on_miss(self):
+        """Should cache result when data is fetched for weight."""
+        from assistant.data_service import PersonalDataService, PERSONAL_DATA_CACHE_TTL
+        from decimal import Decimal
+
+        mock_user = MagicMock()
+        mock_user.id = 123
+
+        # Setup weight queryset
+        now = datetime.now()
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+        mock_queryset.aggregate.return_value = {'avg_value': Decimal('175.0')}
+
+        mock_latest = MagicMock()
+        mock_latest.value = Decimal('175.0')
+        mock_latest.recorded_at = now
+        mock_latest.unit = 'lb'
+        mock_queryset.first.return_value = mock_latest
+
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = []
+        mock_queryset.__getitem__ = MagicMock(return_value=mock_sliced)
+
+        mock_health_models.WeightEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_weight_data()
+
+        # Verify cache.set was called with the result
+        self.assertTrue(mock_cache.set.called)
+        call_args = mock_cache.set.call_args
+        self.assertEqual(call_args[0][0], 'personal_data:123:weight:all')
+        self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
+
+    @patch('assistant.data_service.timezone')
+    def test_medication_caches_result_on_miss(self, mock_timezone):
+        """Should cache result when data is fetched for medication."""
+        from assistant.data_service import PersonalDataService, PERSONAL_DATA_CACHE_TTL
+        from datetime import date
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+
+        mock_user = MagicMock()
+        mock_user.id = 456
+
+        # Setup medication queryset
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 10
+
+        unique_dates = [date(2024, 12, 15), date(2024, 12, 16)]
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_ordered = MagicMock()
+        mock_earliest = MagicMock()
+        mock_earliest.scheduled_date = date(2024, 12, 15)
+        mock_ordered.first.return_value = mock_earliest
+        mock_queryset.order_by.return_value = mock_ordered
+
+        mock_health_models.MedicineLog.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_medication_data()
+
+        # Verify cache.set was called
+        self.assertTrue(mock_cache.set.called)
+        call_args = mock_cache.set.call_args
+        self.assertEqual(call_args[0][0], 'personal_data:456:medication:all')
+        self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
+
+
+class TestCacheTTL(CacheMockMixin, unittest.TestCase):
+    """Tests for cache TTL constant."""
+
+    def test_cache_ttl_is_300_seconds(self):
+        """Cache TTL should be 300 seconds (5 minutes)."""
+        from assistant.data_service import PERSONAL_DATA_CACHE_TTL
+
+        self.assertEqual(PERSONAL_DATA_CACHE_TTL, 300)
 
 
 if __name__ == '__main__':

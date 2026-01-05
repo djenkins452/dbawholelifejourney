@@ -236,26 +236,35 @@ class RecurrenceService:
     def process_completed_recurring_task(task):
         """
         When a recurring task is completed, create the next occurrence.
-        
+
+        The next due date is calculated from the completed task's due date.
+        If the task has an end_date and the next occurrence would be after it,
+        no new task is created.
+
         Args:
             task: The completed Task instance
-        
+
         Returns:
             The newly created Task for next occurrence, or None
         """
         if not task.is_recurring or not task.recurrence_pattern:
             return None
-        
+
         pattern = RecurrencePattern(task.recurrence_pattern)
+        # Use the completed task's due_date as the base for calculating next occurrence
         base_date = task.due_date or timezone.now().date()
         next_date = pattern.get_next_occurrence(base_date)
-        
+
         if not next_date:
             return None
-        
+
+        # Check if next occurrence is past the end_date
+        if task.end_date and next_date > task.end_date:
+            return None
+
         # Import here to avoid circular imports
         from apps.life.models import Task
-        
+
         # Create new task for next occurrence
         with transaction.atomic():
             new_task = Task.objects.create(
@@ -268,8 +277,10 @@ class RecurrenceService:
                 due_date=next_date,
                 is_recurring=True,
                 recurrence_pattern=task.recurrence_pattern,
+                start_date=task.start_date,
+                end_date=task.end_date,
             )
-        
+
         return new_task
     
     @staticmethod

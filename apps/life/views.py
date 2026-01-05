@@ -353,7 +353,7 @@ class TaskCreateView(LifeAccessMixin, CreateView):
     """Create a new task."""
     model = Task
     template_name = "life/task_form.html"
-    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern']
+    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
@@ -401,7 +401,7 @@ class TaskUpdateView(LifeAccessMixin, UpdateView):
     """Edit a task."""
     model = Task
     template_name = "life/task_form.html"
-    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern']
+    fields = ['title', 'notes', 'project', 'effort', 'due_date', 'is_recurring', 'recurrence_pattern', 'start_date', 'end_date']
     
     def get_queryset(self):
         return Task.objects.filter(user=self.request.user)

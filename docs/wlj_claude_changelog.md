@@ -16,6 +16,52 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-05 Changes
 
+### Add Admin Email Test Functionality (Task #157)
+
+**Session:** Test Admin Email Notification
+
+**Changes:**
+1. Created `apps/ai/tests/test_email.py` with unit tests for email configuration:
+   - `EmailConfigurationTests`: Tests for email settings existence and validity
+   - `EmailDeliveryTests`: Tests for `test_admin_email_delivery()` function using locmem backend
+   - `SMTPConfigurationTests`: Tests for SMTP configuration validation
+2. Created `apps/ai/management/commands/test_admin_email.py` management command:
+   - Sends test email to admin@wholelifejourney.com by default
+   - Subject: "WLJ Personal Assistant - Email Test"
+   - Body includes timestamp, server name, and environment info
+   - Supports `--dry-run` to show config without sending
+   - Supports `--recipient` to override target email
+   - Displays full SMTP configuration status
+3. Verified email configuration in settings.py:
+   - Production: SMTP via mail.privateemail.com:587 with TLS
+   - Development: Console backend
+   - DEFAULT_FROM_EMAIL: admin@wholelifejourney.com
+
+**Files Created:**
+- `apps/ai/tests/test_email.py` - Email delivery unit tests
+- `apps/ai/management/__init__.py` - Package init
+- `apps/ai/management/commands/__init__.py` - Commands package init
+- `apps/ai/management/commands/test_admin_email.py` - Management command for email testing
+
+**Usage:**
+```bash
+# Test in production via Railway console:
+python manage.py test_admin_email
+
+# Show configuration only (no email sent):
+python manage.py test_admin_email --dry-run
+
+# Send to different recipient:
+python manage.py test_admin_email --recipient custom@example.com
+```
+
+**Notes:**
+- In development (DEBUG=True), emails print to console
+- For actual delivery, run on production with SMTP credentials configured
+- Existing test command also available: `apps/core/management/commands/test_email.py`
+
+---
+
 ### Add Intent Detection Tests and Refinement (Task #154)
 
 **Session:** Add Intent Detection Tests and Refinement

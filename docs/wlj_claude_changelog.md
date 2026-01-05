@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Date Parser Utility)
+# Last Updated: 2026-01-05 (Personal Data Service - Weight Module)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,26 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Personal Data Service - Weight Module (Task #145)
+
+**Session:** Create Personal Data Service - Weight Module
+
+**Changes:**
+1. Created `assistant/data_service.py` with `PersonalDataService` class
+2. Implemented `get_weight_data()` method that queries `WeightEntry` model
+3. Filters by `since_date` when provided
+4. Returns None if no entries exist
+5. Returns dict with type, count, average, latest, latest_date, unit, and entries
+6. Decimal values converted to float for JSON serialization
+7. Configurable limit parameter (default 10 entries)
+
+**Files Created/Modified:**
+- `assistant/data_service.py` - PersonalDataService class with get_weight_data()
+- `assistant/tests/test_data_service.py` - 13 unit tests with mocked models
+- `assistant/__init__.py` - Added export for PersonalDataService
+
+---
 
 ### Date Parser Utility for Personal Data Query System (Task #144)
 

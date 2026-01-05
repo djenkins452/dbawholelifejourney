@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-05 Changes
 
+### Most Used Favorites Menu (Task #139)
+
+**Session:** Favorites Menu / Most Recent → Most Used
+
+**Changes:**
+1. Changed Favorites menu "Most Recent" section to "Most Used"
+2. Pages are now ranked by visit count instead of recency
+3. Added `visit_count` field to PageView model to track page visits
+4. Updated `record_view()` to increment visit count on each page view
+5. Added `get_most_used_for_user()` method for retrieving pages by frequency
+6. Updated context processor and API to return `most_used` instead of `recent`
+7. Changed menu icon from clock to bar chart for most used items
+
+**Files Modified:**
+- `apps/core/models.py` - Added visit_count field and get_most_used_for_user()
+- `apps/core/context_processors.py` - Updated favorites_context() for most_used
+- `apps/core/views.py` - Updated FavoritesMenuDataView API response
+- `templates/components/navigation.html` - Changed label and icon
+- `apps/core/migrations/0037_pageview_visit_count.py` - New migration
+
+---
+
 ### Multi-Command Support for AI Assistant
 
 **Session:** AI Assistant Multi-Command

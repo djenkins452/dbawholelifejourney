@@ -421,6 +421,49 @@
     let isOpen = false;
     let hasMessages = false;
 
+    // Format assistant message with proper markdown-like parsing
+    function formatAssistantMessage(content) {
+        // Split into paragraphs (double newlines)
+        let paragraphs = content.split(/\n\n+/);
+
+        let formatted = paragraphs.map(para => {
+            // Check if this paragraph is a list
+            let lines = para.split('\n');
+            let isNumberedList = lines.every(line => /^\d+\.\s/.test(line.trim()) || line.trim() === '');
+            let isBulletList = lines.every(line => /^[-*]\s/.test(line.trim()) || line.trim() === '');
+
+            if (isNumberedList && lines.some(line => /^\d+\.\s/.test(line.trim()))) {
+                // Format as ordered list
+                let items = lines
+                    .filter(line => /^\d+\.\s/.test(line.trim()))
+                    .map(line => '<li>' + formatInlineMarkdown(line.replace(/^\d+\.\s*/, '')) + '</li>')
+                    .join('');
+                return '<ol style="margin: 8px 0; padding-left: 20px;">' + items + '</ol>';
+            } else if (isBulletList && lines.some(line => /^[-*]\s/.test(line.trim()))) {
+                // Format as unordered list
+                let items = lines
+                    .filter(line => /^[-*]\s/.test(line.trim()))
+                    .map(line => '<li>' + formatInlineMarkdown(line.replace(/^[-*]\s*/, '')) + '</li>')
+                    .join('');
+                return '<ul style="margin: 8px 0; padding-left: 20px;">' + items + '</ul>';
+            } else {
+                // Regular paragraph - convert single newlines to <br>
+                return '<p style="margin: 8px 0;">' +
+                    lines.map(line => formatInlineMarkdown(line)).join('<br>') +
+                    '</p>';
+            }
+        }).join('');
+
+        return formatted;
+    }
+
+    // Format inline markdown (bold, links)
+    function formatInlineMarkdown(text) {
+        return text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+    }
+
     // Get CSRF token
     function getCsrfToken() {
         return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
@@ -517,10 +560,7 @@
 
         // Parse markdown-like formatting for assistant messages
         if (!isUser) {
-            content = content
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>')
-                .replace(/\n/g, '<br>');
+            content = formatAssistantMessage(content);
             msg.innerHTML = content;
         } else {
             msg.textContent = content;

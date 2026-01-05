@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-05 Changes
 
+### Menu Order and Rename Assistant (Task #140)
+
+**Session:** Menu Order
+
+**Changes:**
+1. Renamed "My Assistant" to "Assistant" in navigation menu
+2. Moved Assistant menu item from end of menu to between Dashboard and Favorites
+
+**Files Modified:**
+- `templates/components/navigation.html` - Renamed and repositioned Assistant menu item
+
+---
+
 ### Most Used Favorites Menu (Task #139)
 
 **Session:** Favorites Menu / Most Recent → Most Used

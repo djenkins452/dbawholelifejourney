@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-05 Changes
 
+### Add Missing Exports to Assistant Module (Task #181)
+
+**Session:** Add Missing Exports to Assistant Module __init__.py
+
+**Changes:**
+1. Updated `assistant/__init__.py`:
+   - Added import for `process_assistant_message` from `.views`
+   - Added import for `build_personal_context` from `.context_builder`
+   - Added import for `invalidate_user_data_cache` from `.data_service`
+   - Added all three to `__all__` list
+
+**Files Modified:**
+- `assistant/__init__.py` - Added imports and exports
+
+**Purpose:** Make `process_assistant_message`, `build_personal_context`, and `invalidate_user_data_cache` part of the assistant module's public API, enabling easier imports for Phase 2 integration tasks.
+
+---
+
 ### Fix is_deleted Filter Bug in Medication Data Query (Task #179)
 
 **Session:** Fix is_deleted Filter Bug in Medication Data Query

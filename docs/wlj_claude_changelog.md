@@ -35,6 +35,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Dashboard Respects Module Enabled Flags (Task #38)
+
+**Session:** Dashboard Items
+
+**Changes:**
+1. Dashboard AI features now respect module enabled flags
+2. Quick stats in header only show for enabled modules (journal_enabled, life_enabled, etc.)
+3. Celebrations only appear for enabled modules:
+   - Journal streak requires journal_enabled
+   - Task completions require life_enabled
+   - Weight trend requires health_enabled
+   - Answered prayers require faith_enabled
+   - Medicine/workout celebrations require health_enabled
+   - Scan celebrations require ai_enabled
+4. Nudges only appear for enabled modules:
+   - Journal gap nudge requires journal_enabled
+   - Overdue tasks require life_enabled
+   - Health nudges (medicine, refill, workout) require health_enabled
+
+**Files Modified:**
+- `apps/dashboard/views.py` - Added prefs parameter to _check_for_celebrations(), added module checks
+- `templates/dashboard/home.html` - Added journal_enabled/life_enabled checks to quick_stats
+
+---
+
 ### Menu Order and Rename Assistant (Task #140)
 
 **Session:** Menu Order

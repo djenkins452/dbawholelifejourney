@@ -8,7 +8,9 @@ of personal data queries.
 import unittest
 
 from assistant.intent_detector import (
+    COMPOUND_CONNECTORS,
     DATE_KEYWORDS,
+    META_QUESTION_KEYWORDS,
     PERSONAL_DATA_KEYWORDS,
     detect_personal_data_intent,
 )
@@ -80,6 +82,8 @@ class TestDetectPersonalDataIntentBasic(unittest.TestCase):
         self.assertIn('is_personal_query', result)
         self.assertIn('data_types', result)
         self.assertIn('has_date_context', result)
+        self.assertIn('is_meta_question', result)
+        self.assertIn('is_compound_query', result)
 
     def test_empty_string_returns_false(self):
         """Empty string should not be detected as personal query."""
@@ -87,12 +91,16 @@ class TestDetectPersonalDataIntentBasic(unittest.TestCase):
         self.assertFalse(result['is_personal_query'])
         self.assertEqual(result['data_types'], [])
         self.assertFalse(result['has_date_context'])
+        self.assertFalse(result['is_meta_question'])
+        self.assertFalse(result['is_compound_query'])
 
     def test_none_input_returns_false(self):
         """None input should not crash and return false."""
         result = detect_personal_data_intent(None)
         self.assertFalse(result['is_personal_query'])
         self.assertEqual(result['data_types'], [])
+        self.assertFalse(result['is_meta_question'])
+        self.assertFalse(result['is_compound_query'])
 
     def test_non_string_input_returns_false(self):
         """Non-string input should return false."""
@@ -235,6 +243,7 @@ class TestMultipleDataTypes(unittest.TestCase):
         self.assertIn('weight', result['data_types'])
         self.assertIn('mood', result['data_types'])
         self.assertTrue(result['has_date_context'])
+        self.assertTrue(result['is_compound_query'])
 
     def test_food_and_exercise(self):
         """Should detect food and exercise."""
@@ -244,6 +253,7 @@ class TestMultipleDataTypes(unittest.TestCase):
         self.assertTrue(result['is_personal_query'])
         self.assertIn('food', result['data_types'])
         self.assertIn('exercise', result['data_types'])
+        self.assertTrue(result['is_compound_query'])
 
 
 class TestDateContextDetection(unittest.TestCase):
@@ -387,6 +397,215 @@ class TestAdditionalDataTypes(unittest.TestCase):
         result = detect_personal_data_intent("What is my habit streak?")
         self.assertTrue(result['is_personal_query'])
         self.assertIn('goals', result['data_types'])
+
+
+class TestMetaQuestionKeywords(unittest.TestCase):
+    """Tests for META_QUESTION_KEYWORDS list."""
+
+    def test_meta_keywords_is_list(self):
+        """META_QUESTION_KEYWORDS should be a list."""
+        self.assertIsInstance(META_QUESTION_KEYWORDS, list)
+
+    def test_meta_keywords_not_empty(self):
+        """META_QUESTION_KEYWORDS should have entries."""
+        self.assertGreater(len(META_QUESTION_KEYWORDS), 0)
+
+    def test_includes_common_meta_phrases(self):
+        """Should include common meta-question phrases."""
+        expected = ['have i logged', 'did i log', 'have i tracked']
+        for phrase in expected:
+            self.assertIn(phrase, META_QUESTION_KEYWORDS)
+
+
+class TestCompoundConnectors(unittest.TestCase):
+    """Tests for COMPOUND_CONNECTORS list."""
+
+    def test_compound_connectors_is_list(self):
+        """COMPOUND_CONNECTORS should be a list."""
+        self.assertIsInstance(COMPOUND_CONNECTORS, list)
+
+    def test_compound_connectors_not_empty(self):
+        """COMPOUND_CONNECTORS should have entries."""
+        self.assertGreater(len(COMPOUND_CONNECTORS), 0)
+
+    def test_includes_common_connectors(self):
+        """Should include common compound connectors."""
+        expected = [' and ', ' or ', ', ']
+        for connector in expected:
+            self.assertIn(connector, COMPOUND_CONNECTORS)
+
+
+class TestMetaQuestionDetection(unittest.TestCase):
+    """Tests for meta-question detection (asking about data existence)."""
+
+    def test_have_i_logged_weight(self):
+        """Should detect 'have I logged' as meta-question."""
+        result = detect_personal_data_intent("Have I logged my weight today?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertTrue(result['is_meta_question'])
+        self.assertIn('weight', result['data_types'])
+        self.assertTrue(result['has_date_context'])
+
+    def test_did_i_log_food(self):
+        """Should detect 'did I log' as meta-question."""
+        result = detect_personal_data_intent("Did I log my food yesterday?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertTrue(result['is_meta_question'])
+        self.assertIn('food', result['data_types'])
+
+    def test_have_i_tracked_mood(self):
+        """Should detect 'have I tracked' as meta-question."""
+        result = detect_personal_data_intent("Have I tracked my mood this week?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertTrue(result['is_meta_question'])
+        self.assertIn('mood', result['data_types'])
+
+    def test_did_i_record_journal(self):
+        """Should detect 'did I record' as meta-question."""
+        result = detect_personal_data_intent("Did I record a journal entry?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertTrue(result['is_meta_question'])
+        self.assertIn('journal', result['data_types'])
+
+    def test_any_entries_medication(self):
+        """Should detect 'any entries' as meta-question."""
+        result = detect_personal_data_intent("Do I have any entries for medication?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertTrue(result['is_meta_question'])
+        self.assertIn('medication', result['data_types'])
+
+    def test_normal_query_not_meta(self):
+        """Regular queries should not be meta-questions."""
+        result = detect_personal_data_intent("What is my weight?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertFalse(result['is_meta_question'])
+
+
+class TestCompoundQueryDetection(unittest.TestCase):
+    """Tests for compound query detection (multiple data types)."""
+
+    def test_weight_and_mood_compound(self):
+        """Should detect weight and mood as compound query."""
+        result = detect_personal_data_intent(
+            "Show me my weight and mood this week"
+        )
+        self.assertTrue(result['is_personal_query'])
+        self.assertTrue(result['is_compound_query'])
+        self.assertIn('weight', result['data_types'])
+        self.assertIn('mood', result['data_types'])
+
+    def test_food_or_exercise_compound(self):
+        """Should detect food or exercise as compound query."""
+        result = detect_personal_data_intent(
+            "Did I track food or exercise today?"
+        )
+        self.assertTrue(result['is_personal_query'])
+        self.assertTrue(result['is_compound_query'])
+        self.assertIn('food', result['data_types'])
+        self.assertIn('exercise', result['data_types'])
+
+    def test_three_data_types_compound(self):
+        """Should detect three data types as compound query."""
+        result = detect_personal_data_intent(
+            "How are my weight, mood, and sleep this month?"
+        )
+        self.assertTrue(result['is_personal_query'])
+        self.assertTrue(result['is_compound_query'])
+        self.assertEqual(len(result['data_types']), 3)
+
+    def test_single_type_not_compound(self):
+        """Single data type should not be compound query."""
+        result = detect_personal_data_intent("What is my weight?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertFalse(result['is_compound_query'])
+
+
+class TestNewKeywordCoverage(unittest.TestCase):
+    """Tests for newly added keywords."""
+
+    def test_bmi_keyword(self):
+        """Should detect BMI as weight type."""
+        result = detect_personal_data_intent("What is my BMI?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('weight', result['data_types'])
+
+    def test_weight_trend_keyword(self):
+        """Should detect weight trend as weight type."""
+        result = detect_personal_data_intent("Show me my weight trend")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('weight', result['data_types'])
+
+    def test_macros_keyword(self):
+        """Should detect macros as food type."""
+        result = detect_personal_data_intent("How are my macros today?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('food', result['data_types'])
+
+    def test_wellbeing_keyword(self):
+        """Should detect wellbeing as mood type."""
+        result = detect_personal_data_intent("How is my wellbeing?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('mood', result['data_types'])
+
+    def test_mental_health_keyword(self):
+        """Should detect mental health as mood type."""
+        result = detect_personal_data_intent("How is my mental health this week?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('mood', result['data_types'])
+
+    def test_sleep_quality_keyword(self):
+        """Should detect sleep quality as sleep type."""
+        result = detect_personal_data_intent("How was my sleep quality?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('sleep', result['data_types'])
+
+    def test_fitness_keyword(self):
+        """Should detect fitness as exercise type."""
+        result = detect_personal_data_intent("What is my fitness level?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('exercise', result['data_types'])
+
+    def test_yoga_keyword(self):
+        """Should detect yoga as exercise type."""
+        result = detect_personal_data_intent("Did I do yoga this week?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('exercise', result['data_types'])
+
+    def test_insulin_keyword(self):
+        """Should detect insulin as glucose type."""
+        result = detect_personal_data_intent("When did I take my insulin?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('glucose', result['data_types'])
+
+    def test_heart_rate_keyword(self):
+        """Should detect heart rate as blood pressure type."""
+        result = detect_personal_data_intent("What is my heart rate?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('blood_pressure', result['data_types'])
+
+    def test_quiet_time_keyword(self):
+        """Should detect quiet time as faith type."""
+        result = detect_personal_data_intent("Did I have quiet time today?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('faith', result['data_types'])
+
+    def test_milestone_keyword(self):
+        """Should detect milestone as goals type."""
+        result = detect_personal_data_intent("What milestones have I reached?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('goals', result['data_types'])
+
+    def test_rx_keyword(self):
+        """Should detect rx as medication type."""
+        result = detect_personal_data_intent("What is my rx schedule?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('medication', result['data_types'])
+
+    def test_morning_pages_keyword(self):
+        """Should detect morning pages as journal type."""
+        result = detect_personal_data_intent("Did I write my morning pages?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('journal', result['data_types'])
 
 
 if __name__ == '__main__':

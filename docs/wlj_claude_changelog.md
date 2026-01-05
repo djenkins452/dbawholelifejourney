@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Update Context Builder for New Data Types)
+# Last Updated: 2026-01-05 (Add Intent Detection Tests and Refinement)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,42 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Intent Detection Tests and Refinement (Task #154)
+
+**Session:** Add Intent Detection Tests and Refinement
+
+**Changes:**
+1. Expanded `PERSONAL_DATA_KEYWORDS` with additional keywords for all 11 data types:
+   - Weight: bmi, body mass, weight trend, weight history, weight progress, etc.
+   - Journal: log, logged, morning pages, evening reflection, journalling, etc.
+   - Medication: rx, refill, pharmacy, tablet, capsule, treatment, regimen, etc.
+   - Food: macros, micronutrients, kcal, brunch, supper, food intake, etc.
+   - Mood: mental state, wellbeing, mental health, mindset, overwhelmed, joyful, etc.
+   - Sleep: sleep quality, sleep schedule, sleep pattern, dream, nightmare, etc.
+   - Exercise: fitness, swim, bike, yoga, stretching, lifting, marathon, etc.
+   - Glucose: insulin, hyperglycemia, hypoglycemia, glucose monitor, etc.
+   - Blood Pressure: pulse, heart rate, bpm, resting heart rate, etc.
+   - Faith: quiet time, devotion, verse, church, sermon, blessing, etc.
+   - Goals: milestone, resolution, challenge, commitment, routine, etc.
+2. Added `META_QUESTION_KEYWORDS` list for detecting meta-questions about data existence
+3. Added `COMPOUND_CONNECTORS` list for detecting multi-data-type queries
+4. Updated `detect_personal_data_intent()` to return two new fields:
+   - `is_meta_question`: True when asking about data existence (e.g., "have I logged...")
+   - `is_compound_query`: True when asking about multiple data types together
+5. Added 38 new unit tests covering:
+   - Meta-question keyword validation (3 tests)
+   - Compound connector validation (3 tests)
+   - Meta-question detection (6 tests)
+   - Compound query detection (4 tests)
+   - New keyword coverage (14 tests)
+   - Updated existing tests for new return fields
+
+**Files Modified:**
+- `assistant/intent_detector.py` - Expanded keywords, added meta-question and compound detection
+- `assistant/tests/test_intent_detector.py` - Added 38 new tests (82 total)
+
+---
 
 ### Update Context Builder for New Data Types (Task #153)
 

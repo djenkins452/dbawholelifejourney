@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Food Log Data Service Method)
+# Last Updated: 2026-01-05 (Add Mood Tracking Data Service Method)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,30 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Mood Tracking Data Service Method (Task #152)
+
+**Session:** Add Mood Tracking Data Service Method
+
+**Changes:**
+1. Added `get_mood_data()` method to `PersonalDataService` class
+2. Queries `JournalEntry` model filtered by user, is_deleted=False, and mood is not empty
+3. Filters by `entry_date__gte` when `since_date` is provided
+4. Returns None if no entries with mood exist
+5. Calculates `mood_distribution` using Count aggregate per mood level
+6. Determines `most_common` mood from ordered distribution
+7. Returns `latest_mood` and `latest_date` from most recent entry
+8. Added `Count` import from django.db.models
+9. Updated `query_map` in `query_by_intent()` to include 'mood'
+10. Updated `supported_types` in `views.py` to include 'mood'
+11. Added 12 new unit tests for mood data querying (63 total in data_service)
+
+**Files Modified:**
+- `assistant/data_service.py` - Added get_mood_data() method, Count import, and updated query_map
+- `assistant/views.py` - Added 'mood' to supported_types list
+- `assistant/tests/test_data_service.py` - Added mood data tests (12 new tests)
+
+---
 
 ### Add Food Log Data Service Method (Task #151)
 

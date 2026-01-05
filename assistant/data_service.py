@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from django.db.models import Avg, QuerySet, Sum
+from django.db.models import Avg, Count, QuerySet, Sum
 from django.utils import timezone
 
 
@@ -329,6 +329,86 @@ class PersonalDataService:
             'latest_date': latest_date,
         }
 
+    def get_mood_data(
+        self,
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's mood data from journal entries.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+                       If None, returns all entries.
+
+        Returns:
+            None if no journal entries with mood exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'mood'
+                - count (int): Total number of entries with mood data
+                - mood_distribution (dict): Counts per mood level
+                - most_common (str): The most frequently recorded mood
+                - latest_mood (str): The most recent mood recorded
+                - latest_date (date): Date of most recent entry with mood
+
+        Example:
+            >>> service = PersonalDataService(user)
+            >>> data = service.get_mood_data(since_date=datetime(2024, 12, 1))
+            >>> print(data)
+            {
+                'type': 'mood',
+                'count': 15,
+                'mood_distribution': {'great': 3, 'good': 7, 'okay': 4, 'low': 1},
+                'most_common': 'good',
+                'latest_mood': 'good',
+                'latest_date': date(2024, 12, 18)
+            }
+        """
+        # Import here to avoid circular imports and allow testing without Django
+        from apps.journal.models import JournalEntry
+
+        # Build base queryset - filter by user, not deleted, and has mood
+        queryset = JournalEntry.objects.filter(
+            user=self.user,
+            is_deleted=False
+        ).exclude(mood='')
+
+        # Apply date filter if provided
+        if since_date:
+            queryset = queryset.filter(entry_date__gte=since_date)
+
+        # Check if any entries exist
+        if not queryset.exists():
+            return None
+
+        # Get count of entries with mood
+        count = queryset.count()
+
+        # Get mood distribution (counts per mood level)
+        mood_counts = queryset.values('mood').annotate(
+            count=Count('mood')
+        ).order_by('-count')
+
+        mood_distribution = {}
+        most_common = None
+        for item in mood_counts:
+            mood_distribution[item['mood']] = item['count']
+            if most_common is None:
+                most_common = item['mood']
+
+        # Get latest entry with mood (queryset is ordered by -entry_date, -created_at)
+        latest_entry = queryset.first()
+        latest_mood = latest_entry.mood
+        latest_date = latest_entry.entry_date
+
+        return {
+            'type': 'mood',
+            'count': count,
+            'mood_distribution': mood_distribution,
+            'most_common': most_common,
+            'latest_mood': latest_mood,
+            'latest_date': latest_date,
+        }
+
     def query_by_intent(
         self,
         data_types: List[str],
@@ -342,7 +422,7 @@ class PersonalDataService:
 
         Args:
             data_types: List of data type strings from the intent detector.
-                       Supported types: 'weight', 'journal', 'medication', 'food'
+                       Supported types: 'weight', 'journal', 'medication', 'food', 'mood'
             since_date: Optional datetime to filter entries from this date.
                        Passed to all underlying query methods.
 
@@ -369,6 +449,7 @@ class PersonalDataService:
             'journal': self.get_journal_data,
             'medication': self.get_medication_data,
             'food': self.get_food_data,
+            'mood': self.get_mood_data,
         }
 
         # Collect results

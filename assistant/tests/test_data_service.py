@@ -1387,5 +1387,351 @@ class TestQueryByIntentWithFood(unittest.TestCase):
         self.assertIn('journal', result)
 
 
+# ==============================================================================
+# Mood Data Tests
+# ==============================================================================
+
+
+class TestGetMoodDataNoEntries(unittest.TestCase):
+    """Tests for get_mood_data when no entries exist."""
+
+    def test_returns_none_when_no_entries_with_mood(self):
+        """Should return None when user has no journal entries with mood."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup mock queryset that returns no entries
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exclude.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_mood_data()
+
+        self.assertIsNone(result)
+
+    def test_returns_none_when_no_entries_in_date_range(self):
+        """Should return None when no entries with mood exist in the date range."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup mock queryset
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exclude.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        since_date = datetime(2024, 12, 1)
+        result = service.get_mood_data(since_date=since_date)
+
+        self.assertIsNone(result)
+
+
+class TestGetMoodDataWithEntries(unittest.TestCase):
+    """Tests for get_mood_data when entries exist."""
+
+    def _setup_mock(self, count=10, mood_distribution=None, latest_mood='good',
+                    latest_date=None):
+        """Helper to setup mock queryset."""
+        from datetime import date
+        if mood_distribution is None:
+            mood_distribution = [
+                {'mood': 'good', 'count': 5},
+                {'mood': 'great', 'count': 3},
+                {'mood': 'okay', 'count': 2},
+            ]
+        if latest_date is None:
+            latest_date = date(2024, 12, 17)
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exclude.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = count
+
+        # Mock values().annotate().order_by() for mood distribution
+        mock_queryset.values.return_value.annotate.return_value.order_by.return_value = mood_distribution
+
+        # Mock first() for latest entry
+        mock_latest = MagicMock()
+        mock_latest.mood = latest_mood
+        mock_latest.entry_date = latest_date
+        mock_queryset.first.return_value = mock_latest
+
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_queryset
+        return mock_queryset
+
+    def test_returns_dict_with_correct_structure(self):
+        """Should return dict with all expected keys."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_mood_data()
+
+        self.assertIsNotNone(result)
+        self.assertIn('type', result)
+        self.assertIn('count', result)
+        self.assertIn('mood_distribution', result)
+        self.assertIn('most_common', result)
+        self.assertIn('latest_mood', result)
+        self.assertIn('latest_date', result)
+
+    def test_type_is_mood(self):
+        """Type should be 'mood'."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_mood_data()
+
+        self.assertEqual(result['type'], 'mood')
+
+    def test_count_matches_queryset_count(self):
+        """Count should match queryset count."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock(count=25)
+
+        service = PersonalDataService(mock_user)
+        result = service.get_mood_data()
+
+        self.assertEqual(result['count'], 25)
+
+    def test_mood_distribution_populated(self):
+        """Mood distribution should be a dict with mood counts."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_mood_data()
+
+        self.assertIsInstance(result['mood_distribution'], dict)
+        self.assertIn('good', result['mood_distribution'])
+        self.assertEqual(result['mood_distribution']['good'], 5)
+
+
+class TestGetMoodDataMostCommon(unittest.TestCase):
+    """Tests for most_common mood calculation."""
+
+    def test_most_common_is_first_in_distribution(self):
+        """Most common should be the mood with highest count."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exclude.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 15
+
+        # 'great' has highest count, should be most_common
+        mock_queryset.values.return_value.annotate.return_value.order_by.return_value = [
+            {'mood': 'great', 'count': 8},
+            {'mood': 'good', 'count': 5},
+            {'mood': 'okay', 'count': 2},
+        ]
+
+        mock_latest = MagicMock()
+        mock_latest.mood = 'good'
+        mock_latest.entry_date = date(2024, 12, 17)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_mood_data()
+
+        self.assertEqual(result['most_common'], 'great')
+
+
+class TestGetMoodDataFiltering(unittest.TestCase):
+    """Tests for get_mood_data filtering."""
+
+    def test_filters_by_user_and_not_deleted(self):
+        """Should filter entries by user and exclude soft-deleted."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exclude.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+
+        mock_queryset.values.return_value.annotate.return_value.order_by.return_value = [
+            {'mood': 'good', 'count': 5},
+        ]
+
+        mock_latest = MagicMock()
+        mock_latest.mood = 'good'
+        mock_latest.entry_date = date(2024, 12, 15)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        service.get_mood_data()
+
+        # Verify initial filter includes user and is_deleted=False
+        mock_journal_models.JournalEntry.objects.filter.assert_called_with(
+            user=mock_user, is_deleted=False
+        )
+
+    def test_excludes_empty_mood(self):
+        """Should exclude entries with empty mood string."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exclude.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+
+        mock_queryset.values.return_value.annotate.return_value.order_by.return_value = [
+            {'mood': 'good', 'count': 5},
+        ]
+
+        mock_latest = MagicMock()
+        mock_latest.mood = 'good'
+        mock_latest.entry_date = date(2024, 12, 15)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        service.get_mood_data()
+
+        # Verify exclude was called for empty mood
+        mock_queryset.exclude.assert_called_with(mood='')
+
+    def test_filters_by_since_date(self):
+        """Should filter entries by since_date when provided."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+        since_date = datetime(2024, 12, 1)
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exclude.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+
+        mock_queryset.values.return_value.annotate.return_value.order_by.return_value = [
+            {'mood': 'good', 'count': 5},
+        ]
+
+        mock_latest = MagicMock()
+        mock_latest.mood = 'good'
+        mock_latest.entry_date = date(2024, 12, 15)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        service.get_mood_data(since_date=since_date)
+
+        # Verify filter was called for date range
+        self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
+
+
+class TestQueryByIntentWithMood(unittest.TestCase):
+    """Tests for query_by_intent including mood data type."""
+
+    def _setup_mood_mock(self, count=10):
+        """Helper to setup mood mock with data."""
+        from datetime import date
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exclude.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = count
+
+        mock_queryset.values.return_value.annotate.return_value.order_by.return_value = [
+            {'mood': 'good', 'count': 5},
+            {'mood': 'great', 'count': 3},
+            {'mood': 'okay', 'count': 2},
+        ]
+
+        mock_latest = MagicMock()
+        mock_latest.mood = 'good'
+        mock_latest.entry_date = date(2024, 12, 17)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_queryset
+        return mock_queryset
+
+    def test_returns_mood_data_type(self):
+        """Should return mood data when queried."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mood_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['mood'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('mood', result)
+        self.assertEqual(result['mood']['type'], 'mood')
+
+    def test_includes_mood_with_other_types(self):
+        """Should include mood alongside other data types."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+        from decimal import Decimal
+
+        mock_user = MagicMock()
+
+        # Setup mood mock
+        self._setup_mood_mock()
+
+        # Setup weight mock
+        mock_weight_qs = MagicMock()
+        mock_weight_qs.filter.return_value = mock_weight_qs
+        mock_weight_qs.exists.return_value = True
+        mock_weight_qs.count.return_value = 5
+        mock_weight_qs.aggregate.return_value = {'avg_value': Decimal('175.0')}
+        mock_weight_latest = MagicMock()
+        mock_weight_latest.value = Decimal('175.0')
+        mock_weight_latest.recorded_at = datetime.now()
+        mock_weight_latest.unit = 'lb'
+        mock_weight_qs.first.return_value = mock_weight_latest
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = []
+        mock_weight_qs.__getitem__ = MagicMock(return_value=mock_sliced)
+        mock_health_models.WeightEntry.objects.filter.return_value = mock_weight_qs
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['mood', 'weight'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('mood', result)
+        self.assertIn('weight', result)
+
+
 if __name__ == '__main__':
     unittest.main()

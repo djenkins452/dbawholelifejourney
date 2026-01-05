@@ -3755,31 +3755,52 @@ class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context['low_count'] = glucose_entries.filter(value__lt=70).count()
             context['high_count'] = glucose_entries.filter(value__gt=180).count()
 
-        # Prepare chart data based on period
-        # For today: show all readings
-        # For 7 days: show last 24 hours
-        # For longer periods: show last 48 hours
-        if period == 0:
-            chart_start = today_start
-        elif period <= 7:
-            chart_start = now - timedelta(hours=24)
-        else:
-            chart_start = now - timedelta(hours=48)
-
+        # Prepare chart data based on selected period
+        # Chart shows data for the same period as stats
         chart_entries = GlucoseEntry.objects.filter(
             user=user,
-            recorded_at__gte=chart_start
+            recorded_at__gte=period_start
         ).order_by('recorded_at')
 
         chart_data = []
-        for entry in chart_entries:
-            chart_data.append({
-                'time': entry.recorded_at.isoformat(),
-                'value': float(entry.value),
-                'trend': entry.trend,
-                'trend_arrow': entry.trend_arrow_display,
-                'source': entry.source,
-            })
+
+        # For periods > 7 days, aggregate to daily averages for readability
+        if period > 7:
+            # Group by date and calculate daily averages
+            from collections import defaultdict
+            daily_data = defaultdict(list)
+
+            for entry in chart_entries:
+                day_key = entry.recorded_at.date()
+                daily_data[day_key].append(float(entry.value))
+
+            # Sort by date and create averaged data points
+            for day in sorted(daily_data.keys()):
+                values = daily_data[day]
+                avg_value = sum(values) / len(values)
+                # Create a datetime at noon for the day
+                day_datetime = timezone.make_aware(
+                    timezone.datetime.combine(day, timezone.datetime.min.time().replace(hour=12))
+                )
+                chart_data.append({
+                    'time': day_datetime.isoformat(),
+                    'value': round(avg_value, 1),
+                    'is_average': True,
+                    'reading_count': len(values),
+                })
+            context['chart_aggregated'] = True
+        else:
+            # For shorter periods, show individual readings
+            for entry in chart_entries:
+                chart_data.append({
+                    'time': entry.recorded_at.isoformat(),
+                    'value': float(entry.value),
+                    'trend': entry.trend,
+                    'trend_arrow': entry.trend_arrow_display,
+                    'source': entry.source,
+                })
+            context['chart_aggregated'] = False
+
         context['chart_data'] = chart_data
 
         # Generate AI insight if user has AI enabled and consented

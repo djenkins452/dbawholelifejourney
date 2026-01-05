@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Personal Data Service - Medication Module)
+# Last Updated: 2026-01-05 (Personal Data Service - Master Query Method)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,26 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Personal Data Service - Master Query Method (Task #148)
+
+**Session:** Create Master Query Method
+
+**Changes:**
+1. Added `query_by_intent()` method to `PersonalDataService` class
+2. Creates `query_map` dictionary mapping data type strings to method references
+3. Loops through `data_types` list and calls corresponding methods
+4. Collects results into dict, skipping None responses
+5. Returns results dict or None if empty
+6. Supports all three data types: 'weight', 'journal', 'medication'
+7. Silently skips unknown data types
+8. Added 8 integration tests covering multiple data types (39 total tests)
+
+**Files Modified:**
+- `assistant/data_service.py` - Added query_by_intent() method with query_map dispatcher
+- `assistant/tests/test_data_service.py` - Added query_by_intent tests (8 new tests)
+
+---
 
 ### Personal Data Service - Medication Module (Task #147)
 

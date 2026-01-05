@@ -1,7 +1,7 @@
 """
 Unit tests for the Personal Data Service.
 
-Tests cover weight, journal, and medication data querying with mock data.
+Tests cover weight, journal, medication data querying and query_by_intent with mock data.
 """
 
 import sys
@@ -820,6 +820,246 @@ class TestGetMedicationDataFiltering(unittest.TestCase):
 
         # Verify filter was called for date range
         self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
+
+
+# ==============================================================================
+# Query By Intent Tests
+# ==============================================================================
+
+
+class TestQueryByIntentNoData(unittest.TestCase):
+    """Tests for query_by_intent when no data exists."""
+
+    def test_returns_none_when_no_data_types(self):
+        """Should return None when empty data_types list provided."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=[])
+
+        self.assertIsNone(result)
+
+    def test_returns_none_when_all_queries_return_none(self):
+        """Should return None when all data type queries return None."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup all mocks to return no data
+        mock_weight_qs = MagicMock()
+        mock_weight_qs.filter.return_value = mock_weight_qs
+        mock_weight_qs.exists.return_value = False
+        mock_health_models.WeightEntry.objects.filter.return_value = mock_weight_qs
+
+        mock_journal_qs = MagicMock()
+        mock_journal_qs.filter.return_value = mock_journal_qs
+        mock_journal_qs.exists.return_value = False
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_journal_qs
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['weight', 'journal'])
+
+        self.assertIsNone(result)
+
+    def test_skips_unknown_data_types(self):
+        """Should skip unknown data types without error."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup weight mock to return no data
+        mock_weight_qs = MagicMock()
+        mock_weight_qs.filter.return_value = mock_weight_qs
+        mock_weight_qs.exists.return_value = False
+        mock_health_models.WeightEntry.objects.filter.return_value = mock_weight_qs
+
+        service = PersonalDataService(mock_user)
+        # 'unknown_type' should be silently skipped
+        result = service.query_by_intent(data_types=['unknown_type', 'weight'])
+
+        self.assertIsNone(result)
+
+
+class TestQueryByIntentWithData(unittest.TestCase):
+    """Tests for query_by_intent when data exists."""
+
+    def _setup_weight_mock(self, count=5):
+        """Helper to setup weight mock with data."""
+        from decimal import Decimal
+        now = datetime.now()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = count
+        mock_queryset.aggregate.return_value = {'avg_value': Decimal('175.0')}
+
+        mock_latest = MagicMock()
+        mock_latest.value = Decimal('175.0')
+        mock_latest.recorded_at = now
+        mock_latest.unit = 'lb'
+        mock_queryset.first.return_value = mock_latest
+
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = []
+        mock_queryset.__getitem__ = MagicMock(return_value=mock_sliced)
+
+        mock_health_models.WeightEntry.objects.filter.return_value = mock_queryset
+        return mock_queryset
+
+    def _setup_journal_mock(self, count=5):
+        """Helper to setup journal mock with data."""
+        from datetime import date
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = count
+
+        mock_latest = MagicMock()
+        mock_latest.entry_date = date.today()
+        mock_queryset.first.return_value = mock_latest
+
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_queryset
+        return mock_queryset
+
+    def test_returns_single_data_type(self):
+        """Should return dict with single data type result."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_weight_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['weight'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('weight', result)
+        self.assertEqual(result['weight']['type'], 'weight')
+
+    def test_returns_multiple_data_types(self):
+        """Should return dict with multiple data type results."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_weight_mock()
+        self._setup_journal_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['weight', 'journal'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('weight', result)
+        self.assertIn('journal', result)
+        self.assertEqual(result['weight']['type'], 'weight')
+        self.assertEqual(result['journal']['type'], 'journal')
+
+    def test_skips_types_with_no_data(self):
+        """Should skip data types that return None."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_weight_mock()
+
+        # Journal returns no data
+        mock_journal_qs = MagicMock()
+        mock_journal_qs.filter.return_value = mock_journal_qs
+        mock_journal_qs.exists.return_value = False
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_journal_qs
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['weight', 'journal'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('weight', result)
+        self.assertNotIn('journal', result)
+
+    def test_passes_since_date_to_methods(self):
+        """Should pass since_date parameter to underlying methods."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        since_date = datetime(2024, 12, 1)
+
+        mock_weight_qs = MagicMock()
+        mock_weight_qs.filter.return_value = mock_weight_qs
+        mock_weight_qs.exists.return_value = False
+        mock_health_models.WeightEntry.objects.filter.return_value = mock_weight_qs
+
+        service = PersonalDataService(mock_user)
+        service.query_by_intent(data_types=['weight'], since_date=since_date)
+
+        # Verify filter was called (for user and for date)
+        self.assertTrue(mock_weight_qs.filter.called)
+
+
+class TestQueryByIntentAllDataTypes(unittest.TestCase):
+    """Tests for query_by_intent with all data types."""
+
+    @patch('assistant.data_service.timezone')
+    def test_returns_all_three_types(self, mock_timezone):
+        """Should return all three data types when all have data."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+        from decimal import Decimal
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+        now = datetime.now()
+
+        mock_user = MagicMock()
+
+        # Setup weight mock
+        mock_weight_qs = MagicMock()
+        mock_weight_qs.filter.return_value = mock_weight_qs
+        mock_weight_qs.exists.return_value = True
+        mock_weight_qs.count.return_value = 5
+        mock_weight_qs.aggregate.return_value = {'avg_value': Decimal('175.0')}
+        mock_weight_latest = MagicMock()
+        mock_weight_latest.value = Decimal('175.0')
+        mock_weight_latest.recorded_at = now
+        mock_weight_latest.unit = 'lb'
+        mock_weight_qs.first.return_value = mock_weight_latest
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = []
+        mock_weight_qs.__getitem__ = MagicMock(return_value=mock_sliced)
+        mock_health_models.WeightEntry.objects.filter.return_value = mock_weight_qs
+
+        # Setup journal mock
+        mock_journal_qs = MagicMock()
+        mock_journal_qs.filter.return_value = mock_journal_qs
+        mock_journal_qs.exists.return_value = True
+        mock_journal_qs.count.return_value = 10
+        mock_journal_latest = MagicMock()
+        mock_journal_latest.entry_date = date.today()
+        mock_journal_qs.first.return_value = mock_journal_latest
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_journal_qs
+
+        # Setup medication mock
+        mock_med_qs = MagicMock()
+        mock_med_qs.filter.return_value = mock_med_qs
+        mock_med_qs.exists.return_value = True
+        mock_med_qs.count.return_value = 15
+        unique_dates = [date(2024, 12, 15), date(2024, 12, 16)]
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_med_qs.values_list.return_value = mock_values_list
+        mock_ordered = MagicMock()
+        mock_earliest = MagicMock()
+        mock_earliest.scheduled_date = date(2024, 12, 15)
+        mock_ordered.first.return_value = mock_earliest
+        mock_med_qs.order_by.return_value = mock_ordered
+        mock_health_models.MedicineLog.objects.filter.return_value = mock_med_qs
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(
+            data_types=['weight', 'journal', 'medication']
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result), 3)
+        self.assertIn('weight', result)
+        self.assertIn('journal', result)
+        self.assertIn('medication', result)
 
 
 if __name__ == '__main__':

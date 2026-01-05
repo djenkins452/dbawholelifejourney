@@ -253,3 +253,67 @@ class PersonalDataService:
             'total_days': total_days,
             'consistency_percent': consistency_percent,
         }
+
+    def query_by_intent(
+        self,
+        data_types: List[str],
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Query multiple data types based on detected intent.
+
+        This is the unified entry point for fetching user data based on
+        the data types identified by the intent detector.
+
+        Args:
+            data_types: List of data type strings from the intent detector.
+                       Supported types: 'weight', 'journal', 'medication'
+            since_date: Optional datetime to filter entries from this date.
+                       Passed to all underlying query methods.
+
+        Returns:
+            None if no data exists for any of the requested types.
+            Otherwise, a dictionary with data type keys mapped to their
+            respective query results.
+
+        Example:
+            >>> service = PersonalDataService(user)
+            >>> data = service.query_by_intent(
+            ...     data_types=['weight', 'journal'],
+            ...     since_date=datetime(2024, 12, 1)
+            ... )
+            >>> print(data)
+            {
+                'weight': {'type': 'weight', 'count': 15, ...},
+                'journal': {'type': 'journal', 'count': 10, ...}
+            }
+        """
+        # Map data type strings to method references
+        query_map: Dict[str, callable] = {
+            'weight': self.get_weight_data,
+            'journal': self.get_journal_data,
+            'medication': self.get_medication_data,
+        }
+
+        # Collect results
+        results: Dict[str, Any] = {}
+
+        for data_type in data_types:
+            # Get the corresponding method
+            method = query_map.get(data_type)
+            if method is None:
+                # Unknown data type, skip
+                continue
+
+            # Call the method with since_date
+            result = method(since_date=since_date)
+
+            # Only add to results if data exists (not None)
+            if result is not None:
+                results[data_type] = result
+
+        # Return None if no data found for any type
+        if not results:
+            return None
+
+        return results

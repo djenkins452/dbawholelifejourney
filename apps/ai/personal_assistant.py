@@ -5,7 +5,7 @@
 #              prioritization, faith integration, and action-focused guidance
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-29
-# Last Updated: 2025-12-30 (Added coaching style integration, time-aware urgency)
+# Last Updated: 2026-01-05 (Integrated personal data query system)
 # ==============================================================================
 """
 Dashboard AI Personal Assistant Service
@@ -33,6 +33,7 @@ from .models import (
     AIInsight, AssistantConversation, AssistantMessage,
     UserStateSnapshot, DailyPriority, TrendAnalysis, ReflectionPromptQueue
 )
+from assistant.views import process_assistant_message
 
 logger = logging.getLogger(__name__)
 
@@ -1555,7 +1556,12 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         }
 
     def _generate_response(self, message: str, conversation: AssistantConversation) -> str:
-        """Generate AI response to user message using coaching style and time awareness."""
+        """Generate AI response to user message using coaching style and time awareness.
+
+        Now integrates with the personal data query system to inject relevant
+        personal data context (weight, journal, medication, food, mood) when
+        users ask about their data.
+        """
         # Get conversation history
         history = conversation.messages.order_by('-created_at')[:10]
 
@@ -1581,6 +1587,21 @@ CURRENT USER STATE (focus on what REMAINS):
 
         if state.get('ai_assessment'):
             system_prompt += f"\nRECENT ASSESSMENT:\n{state['ai_assessment']}"
+
+        # Process message for personal data queries (weight, journal, medication, food, mood)
+        # This will inject relevant data context if the user asks about their personal data
+        personal_data_result = process_assistant_message(
+            user=self.user,
+            message=message,
+            base_system_prompt=system_prompt,
+        )
+
+        # If personal data was found, use the enhanced prompt
+        if personal_data_result['is_personal_query'] and personal_data_result['has_data']:
+            system_prompt = personal_data_result['system_prompt']
+            logger.debug(
+                f"Personal data context injected for data types: {personal_data_result['data_types']}"
+            )
 
         # Build conversation context
         messages_context = ""

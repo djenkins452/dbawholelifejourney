@@ -15,6 +15,12 @@ from .gap_detector import (
     extract_potential_keywords,
     categorize_gap_severity,
 )
+from .task_generator import (
+    ImprovementTask,
+    generate_improvement_task,
+    generate_code_template,
+    generate_test_template,
+)
 
 __all__ = [
     'detect_personal_data_intent',
@@ -25,4 +31,8 @@ __all__ = [
     'detect_knowledge_gap',
     'extract_potential_keywords',
     'categorize_gap_severity',
+    'ImprovementTask',
+    'generate_improvement_task',
+    'generate_code_template',
+    'generate_test_template',
 ]

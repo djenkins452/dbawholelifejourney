@@ -14,8 +14,10 @@ from unittest.mock import MagicMock, patch
 # Create mocks for model modules before importing PersonalDataService
 mock_health_models = MagicMock()
 mock_journal_models = MagicMock()
+mock_faith_models = MagicMock()
 sys.modules['apps.health.models'] = mock_health_models
 sys.modules['apps.journal.models'] = mock_journal_models
+sys.modules['apps.faith.models'] = mock_faith_models
 
 # Create mock cache that returns None by default (cache miss)
 # We need to mock this before the module imports
@@ -2408,6 +2410,343 @@ class TestGlucoseCacheBehavior(CacheMockMixin, unittest.TestCase):
         self.assertTrue(mock_cache.set.called)
         call_args = mock_cache.set.call_args
         self.assertEqual(call_args[0][0], 'personal_data:789:glucose:all')
+        self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
+
+
+# ==============================================================================
+# Faith Data Tests
+# ==============================================================================
+
+
+class TestGetFaithDataNoEntries(CacheMockMixin, unittest.TestCase):
+    """Tests for get_faith_data when no entries exist."""
+
+    def _setup_empty_mocks(self):
+        """Helper to setup mocks with no data."""
+        # Empty prayer requests
+        mock_prayer_qs = MagicMock()
+        mock_prayer_qs.filter.return_value = mock_prayer_qs
+        mock_prayer_qs.exists.return_value = False
+        mock_faith_models.PrayerRequest.objects.filter.return_value = mock_prayer_qs
+
+        # Empty saved verses
+        mock_verse_qs = MagicMock()
+        mock_verse_qs.filter.return_value = mock_verse_qs
+        mock_verse_qs.count.return_value = 0
+        mock_faith_models.SavedVerse.objects.filter.return_value = mock_verse_qs
+
+        # Empty milestones
+        mock_milestone_qs = MagicMock()
+        mock_milestone_qs.filter.return_value = mock_milestone_qs
+        mock_milestone_qs.count.return_value = 0
+        mock_faith_models.FaithMilestone.objects.filter.return_value = mock_milestone_qs
+
+        # Empty reading plans
+        mock_plan_qs = MagicMock()
+        mock_plan_qs.count.return_value = 0
+        mock_faith_models.UserReadingPlan.objects.filter.return_value = mock_plan_qs
+
+    def test_returns_none_when_no_entries(self):
+        """Should return None when user has no faith data."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_empty_mocks()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_faith_data()
+
+        self.assertIsNone(result)
+
+
+class TestGetFaithDataWithPrayerRequests(CacheMockMixin, unittest.TestCase):
+    """Tests for get_faith_data with prayer requests."""
+
+    def _setup_prayer_mock(self, total=10, answered=3, now=None):
+        """Helper to setup prayer request mock."""
+        if now is None:
+            now = datetime.now()
+
+        mock_prayer_qs = MagicMock()
+        mock_prayer_qs.filter.return_value = mock_prayer_qs
+        mock_prayer_qs.exists.return_value = True
+        mock_prayer_qs.count.return_value = total
+
+        mock_latest = MagicMock()
+        mock_latest.created_at = now
+        mock_prayer_qs.first.return_value = mock_latest
+
+        # Setup answered filter
+        mock_answered_qs = MagicMock()
+        mock_answered_qs.count.return_value = answered
+        mock_prayer_qs.filter.return_value = mock_answered_qs
+        # Re-setup the base filter to return prayer_qs first
+        mock_faith_models.PrayerRequest.objects.filter.return_value = mock_prayer_qs
+
+        # Empty other models
+        mock_verse_qs = MagicMock()
+        mock_verse_qs.filter.return_value = mock_verse_qs
+        mock_verse_qs.count.return_value = 0
+        mock_faith_models.SavedVerse.objects.filter.return_value = mock_verse_qs
+
+        mock_milestone_qs = MagicMock()
+        mock_milestone_qs.filter.return_value = mock_milestone_qs
+        mock_milestone_qs.count.return_value = 0
+        mock_faith_models.FaithMilestone.objects.filter.return_value = mock_milestone_qs
+
+        mock_plan_qs = MagicMock()
+        mock_plan_qs.count.return_value = 0
+        mock_faith_models.UserReadingPlan.objects.filter.return_value = mock_plan_qs
+
+        return now
+
+    def test_returns_dict_with_correct_structure(self):
+        """Should return dict with all expected keys."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_prayer_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_faith_data()
+
+        self.assertIsNotNone(result)
+        self.assertIn('type', result)
+        self.assertIn('prayer_requests', result)
+        self.assertIn('saved_verses', result)
+        self.assertIn('milestones', result)
+        self.assertIn('reading_plans', result)
+
+    def test_type_is_faith(self):
+        """Type should be 'faith'."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_prayer_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_faith_data()
+
+        self.assertEqual(result['type'], 'faith')
+
+    def test_prayer_requests_structure(self):
+        """Prayer requests should have total, active, answered keys."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        now = self._setup_prayer_mock(total=15, answered=5)
+
+        service = PersonalDataService(mock_user)
+        result = service.get_faith_data()
+
+        prayer_data = result['prayer_requests']
+        self.assertIsNotNone(prayer_data)
+        self.assertIn('total', prayer_data)
+        self.assertIn('active', prayer_data)
+        self.assertIn('answered', prayer_data)
+        self.assertIn('latest_date', prayer_data)
+
+
+class TestGetFaithDataWithSavedVerses(CacheMockMixin, unittest.TestCase):
+    """Tests for get_faith_data with saved verses."""
+
+    def test_includes_saved_verses_count(self):
+        """Should include saved verses count."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Empty prayer requests
+        mock_prayer_qs = MagicMock()
+        mock_prayer_qs.filter.return_value = mock_prayer_qs
+        mock_prayer_qs.exists.return_value = False
+        mock_faith_models.PrayerRequest.objects.filter.return_value = mock_prayer_qs
+
+        # Saved verses with count
+        mock_verse_qs = MagicMock()
+        mock_verse_qs.filter.return_value = mock_verse_qs
+        mock_verse_qs.count.return_value = 25
+        mock_faith_models.SavedVerse.objects.filter.return_value = mock_verse_qs
+
+        # Empty other models
+        mock_milestone_qs = MagicMock()
+        mock_milestone_qs.filter.return_value = mock_milestone_qs
+        mock_milestone_qs.count.return_value = 0
+        mock_faith_models.FaithMilestone.objects.filter.return_value = mock_milestone_qs
+
+        mock_plan_qs = MagicMock()
+        mock_plan_qs.count.return_value = 0
+        mock_faith_models.UserReadingPlan.objects.filter.return_value = mock_plan_qs
+
+        service = PersonalDataService(mock_user)
+        result = service.get_faith_data()
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result['saved_verses'], 25)
+
+
+class TestGetFaithDataWithReadingPlans(CacheMockMixin, unittest.TestCase):
+    """Tests for get_faith_data with reading plans."""
+
+    def test_includes_reading_plans(self):
+        """Should include reading plan counts."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Empty prayer requests
+        mock_prayer_qs = MagicMock()
+        mock_prayer_qs.filter.return_value = mock_prayer_qs
+        mock_prayer_qs.exists.return_value = False
+        mock_faith_models.PrayerRequest.objects.filter.return_value = mock_prayer_qs
+
+        # Empty saved verses
+        mock_verse_qs = MagicMock()
+        mock_verse_qs.filter.return_value = mock_verse_qs
+        mock_verse_qs.count.return_value = 0
+        mock_faith_models.SavedVerse.objects.filter.return_value = mock_verse_qs
+
+        # Empty milestones
+        mock_milestone_qs = MagicMock()
+        mock_milestone_qs.filter.return_value = mock_milestone_qs
+        mock_milestone_qs.count.return_value = 0
+        mock_faith_models.FaithMilestone.objects.filter.return_value = mock_milestone_qs
+
+        # Reading plans with active and completed
+        def filter_side_effect(**kwargs):
+            mock_qs = MagicMock()
+            if kwargs.get('status') == 'active':
+                mock_qs.count.return_value = 2
+            elif kwargs.get('status') == 'completed':
+                mock_qs.count.return_value = 3
+            return mock_qs
+        mock_faith_models.UserReadingPlan.objects.filter.side_effect = filter_side_effect
+
+        service = PersonalDataService(mock_user)
+        result = service.get_faith_data()
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result['reading_plans']['active'], 2)
+        self.assertEqual(result['reading_plans']['completed'], 3)
+
+
+class TestQueryByIntentWithFaith(CacheMockMixin, unittest.TestCase):
+    """Tests for query_by_intent including faith data type."""
+
+    def _setup_faith_mock(self):
+        """Helper to setup faith mock with data."""
+        now = datetime.now()
+
+        # Prayer requests
+        mock_prayer_qs = MagicMock()
+        mock_prayer_qs.filter.return_value = mock_prayer_qs
+        mock_prayer_qs.exists.return_value = True
+        mock_prayer_qs.count.return_value = 10
+        mock_latest = MagicMock()
+        mock_latest.created_at = now
+        mock_prayer_qs.first.return_value = mock_latest
+        mock_faith_models.PrayerRequest.objects.filter.return_value = mock_prayer_qs
+
+        # Empty other models
+        mock_verse_qs = MagicMock()
+        mock_verse_qs.filter.return_value = mock_verse_qs
+        mock_verse_qs.count.return_value = 0
+        mock_faith_models.SavedVerse.objects.filter.return_value = mock_verse_qs
+
+        mock_milestone_qs = MagicMock()
+        mock_milestone_qs.filter.return_value = mock_milestone_qs
+        mock_milestone_qs.count.return_value = 0
+        mock_faith_models.FaithMilestone.objects.filter.return_value = mock_milestone_qs
+
+        mock_plan_qs = MagicMock()
+        mock_plan_qs.count.return_value = 0
+        mock_faith_models.UserReadingPlan.objects.filter.return_value = mock_plan_qs
+
+    def test_returns_faith_data_type(self):
+        """Should return faith data when queried."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_faith_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['faith'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('faith', result)
+        self.assertEqual(result['faith']['type'], 'faith')
+
+
+class TestFaithCacheBehavior(CacheMockMixin, unittest.TestCase):
+    """Tests for faith data caching."""
+
+    def test_faith_returns_cached_data_on_hit(self):
+        """Should return cached data when cache hit occurs for faith."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        mock_user.id = 123
+
+        cached_result = {
+            'type': 'faith',
+            'prayer_requests': {'total': 10, 'active': 7, 'answered': 3},
+            'saved_verses': 20,
+            'milestones': 5,
+            'reading_plans': {'active': 1, 'completed': 2},
+        }
+        mock_cache.get.return_value = cached_result
+
+        # Reset faith models mock to track calls
+        mock_faith_models.reset_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_faith_data()
+
+        self.assertEqual(result, cached_result)
+        # Models should not be queried
+        mock_faith_models.PrayerRequest.objects.filter.assert_not_called()
+
+    def test_faith_caches_result_on_miss(self):
+        """Should cache result when data is fetched for faith."""
+        from assistant.data_service import PersonalDataService, PERSONAL_DATA_CACHE_TTL
+
+        mock_user = MagicMock()
+        mock_user.id = 456
+
+        now = datetime.now()
+
+        # Prayer requests
+        mock_prayer_qs = MagicMock()
+        mock_prayer_qs.filter.return_value = mock_prayer_qs
+        mock_prayer_qs.exists.return_value = True
+        mock_prayer_qs.count.return_value = 5
+        mock_latest = MagicMock()
+        mock_latest.created_at = now
+        mock_prayer_qs.first.return_value = mock_latest
+        mock_faith_models.PrayerRequest.objects.filter.return_value = mock_prayer_qs
+
+        # Empty other models
+        mock_verse_qs = MagicMock()
+        mock_verse_qs.filter.return_value = mock_verse_qs
+        mock_verse_qs.count.return_value = 0
+        mock_faith_models.SavedVerse.objects.filter.return_value = mock_verse_qs
+
+        mock_milestone_qs = MagicMock()
+        mock_milestone_qs.filter.return_value = mock_milestone_qs
+        mock_milestone_qs.count.return_value = 0
+        mock_faith_models.FaithMilestone.objects.filter.return_value = mock_milestone_qs
+
+        mock_plan_qs = MagicMock()
+        mock_plan_qs.count.return_value = 0
+        mock_faith_models.UserReadingPlan.objects.filter.return_value = mock_plan_qs
+
+        service = PersonalDataService(mock_user)
+        result = service.get_faith_data()
+
+        # Verify cache.set was called
+        self.assertTrue(mock_cache.set.called)
+        call_args = mock_cache.set.call_args
+        self.assertEqual(call_args[0][0], 'personal_data:456:faith:all')
         self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
 
 

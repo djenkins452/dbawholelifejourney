@@ -522,6 +522,137 @@ class PersonalDataService:
 
         return result
 
+    def get_faith_data(
+        self,
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's faith activity data.
+
+        Combines data from prayer requests, saved verses, faith milestones,
+        and reading plan progress.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+                       If None, returns all entries.
+
+        Returns:
+            None if no faith activity exists for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'faith'
+                - prayer_requests (dict): Prayer request summary
+                    - total (int): Total prayer requests
+                    - active (int): Unanswered prayer requests
+                    - answered (int): Answered prayer requests
+                    - latest_date (datetime): Date of most recent request
+                - saved_verses (int): Number of saved Scripture verses
+                - milestones (int): Number of faith milestones
+                - reading_plans (dict): Reading plan summary
+                    - active (int): Number of active reading plans
+                    - completed (int): Number of completed plans
+
+        Example:
+            >>> service = PersonalDataService(user)
+            >>> data = service.get_faith_data(since_date=datetime(2024, 12, 1))
+            >>> print(data)
+            {
+                'type': 'faith',
+                'prayer_requests': {
+                    'total': 15,
+                    'active': 10,
+                    'answered': 5,
+                    'latest_date': datetime(2024, 12, 18)
+                },
+                'saved_verses': 20,
+                'milestones': 3,
+                'reading_plans': {'active': 1, 'completed': 2}
+            }
+        """
+        # Check cache first
+        cache_key = _generate_cache_key(self.user.id, 'faith', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        # Import here to avoid circular imports and allow testing without Django
+        from apps.faith.models import (
+            FaithMilestone, PrayerRequest, SavedVerse, UserReadingPlan
+        )
+
+        # Initialize result structure
+        result = {
+            'type': 'faith',
+            'prayer_requests': None,
+            'saved_verses': 0,
+            'milestones': 0,
+            'reading_plans': {'active': 0, 'completed': 0},
+        }
+
+        has_data = False
+
+        # Query prayer requests
+        prayer_qs = PrayerRequest.objects.filter(user=self.user)
+        if since_date:
+            prayer_qs = prayer_qs.filter(created_at__gte=since_date)
+
+        if prayer_qs.exists():
+            has_data = True
+            total_prayers = prayer_qs.count()
+            answered_prayers = prayer_qs.filter(is_answered=True).count()
+            active_prayers = total_prayers - answered_prayers
+            latest_prayer = prayer_qs.first()
+
+            result['prayer_requests'] = {
+                'total': total_prayers,
+                'active': active_prayers,
+                'answered': answered_prayers,
+                'latest_date': latest_prayer.created_at,
+            }
+
+        # Query saved verses
+        verse_qs = SavedVerse.objects.filter(user=self.user)
+        if since_date:
+            verse_qs = verse_qs.filter(created_at__gte=since_date)
+
+        verse_count = verse_qs.count()
+        if verse_count > 0:
+            has_data = True
+            result['saved_verses'] = verse_count
+
+        # Query faith milestones
+        milestone_qs = FaithMilestone.objects.filter(user=self.user)
+        if since_date:
+            milestone_qs = milestone_qs.filter(created_at__gte=since_date)
+
+        milestone_count = milestone_qs.count()
+        if milestone_count > 0:
+            has_data = True
+            result['milestones'] = milestone_count
+
+        # Query reading plans (status-based, not date-based)
+        active_plans = UserReadingPlan.objects.filter(
+            user=self.user, status='active'
+        ).count()
+        completed_plans = UserReadingPlan.objects.filter(
+            user=self.user, status='completed'
+        ).count()
+
+        if active_plans > 0 or completed_plans > 0:
+            has_data = True
+            result['reading_plans'] = {
+                'active': active_plans,
+                'completed': completed_plans,
+            }
+
+        # Return None if no faith data exists
+        if not has_data:
+            return None
+
+        # Cache the result
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+
+        return result
+
     def get_mood_data(
         self,
         since_date: Optional[datetime] = None,
@@ -654,6 +785,7 @@ class PersonalDataService:
             'food': self.get_food_data,
             'mood': self.get_mood_data,
             'glucose': self.get_glucose_data,
+            'faith': self.get_faith_data,
         }
 
         # Collect results

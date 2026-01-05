@@ -187,6 +187,8 @@ def invalidate_insights_on_prayer_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when a prayer request is saved."""
     insight_types = ['daily_insight', 'faith_home', 'prayer_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache
+    invalidate_personal_data_cache(instance.user, 'faith')
 
 
 @receiver(post_delete, sender='faith.PrayerRequest')
@@ -194,6 +196,44 @@ def invalidate_insights_on_prayer_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when a prayer request is deleted."""
     insight_types = ['daily_insight', 'faith_home', 'prayer_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache
+    invalidate_personal_data_cache(instance.user, 'faith')
+
+
+@receiver(post_save, sender='faith.SavedVerse')
+def invalidate_cache_on_saved_verse_save(sender, instance, created, **kwargs):
+    """Invalidate personal data cache when a saved verse is saved."""
+    invalidate_personal_data_cache(instance.user, 'faith')
+
+
+@receiver(post_delete, sender='faith.SavedVerse')
+def invalidate_cache_on_saved_verse_delete(sender, instance, **kwargs):
+    """Invalidate personal data cache when a saved verse is deleted."""
+    invalidate_personal_data_cache(instance.user, 'faith')
+
+
+@receiver(post_save, sender='faith.FaithMilestone')
+def invalidate_cache_on_faith_milestone_save(sender, instance, created, **kwargs):
+    """Invalidate personal data cache when a faith milestone is saved."""
+    invalidate_personal_data_cache(instance.user, 'faith')
+
+
+@receiver(post_delete, sender='faith.FaithMilestone')
+def invalidate_cache_on_faith_milestone_delete(sender, instance, **kwargs):
+    """Invalidate personal data cache when a faith milestone is deleted."""
+    invalidate_personal_data_cache(instance.user, 'faith')
+
+
+@receiver(post_save, sender='faith.UserReadingPlan')
+def invalidate_cache_on_reading_plan_save(sender, instance, created, **kwargs):
+    """Invalidate personal data cache when a reading plan is saved."""
+    invalidate_personal_data_cache(instance.user, 'faith')
+
+
+@receiver(post_delete, sender='faith.UserReadingPlan')
+def invalidate_cache_on_reading_plan_delete(sender, instance, **kwargs):
+    """Invalidate personal data cache when a reading plan is deleted."""
+    invalidate_personal_data_cache(instance.user, 'faith')
 
 
 # =============================================================================

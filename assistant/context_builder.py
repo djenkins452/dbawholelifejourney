@@ -83,6 +83,12 @@ def build_personal_context(data_results: Optional[Dict[str, Any]]) -> str:
         if glucose_section:
             sections.append(glucose_section)
 
+    # Format faith data if present
+    if 'faith' in data_results:
+        faith_section = _format_faith_data(data_results['faith'])
+        if faith_section:
+            sections.append(faith_section)
+
     # Return empty string if no sections were formatted
     if not sections:
         return ''
@@ -252,6 +258,46 @@ def _format_glucose_data(glucose_data: Dict[str, Any]) -> str:
     if latest is not None and latest_date is not None:
         date_str = _format_date(latest_date)
         lines.append(f'- Most recent: {latest} {unit} on {date_str}')
+
+    return '\n'.join(lines)
+
+
+def _format_faith_data(faith_data: Dict[str, Any]) -> str:
+    """Format faith data into natural language."""
+    if not faith_data:
+        return ''
+
+    lines = ['Faith Data:']
+
+    # Prayer requests
+    prayer_data = faith_data.get('prayer_requests')
+    if prayer_data:
+        total = prayer_data.get('total', 0)
+        active = prayer_data.get('active', 0)
+        answered = prayer_data.get('answered', 0)
+        lines.append(f'- Prayer requests: {total} total ({active} active, {answered} answered)')
+        latest_date = prayer_data.get('latest_date')
+        if latest_date:
+            date_str = _format_date(latest_date)
+            lines.append(f'- Most recent prayer: {date_str}')
+
+    # Saved verses
+    saved_verses = faith_data.get('saved_verses', 0)
+    if saved_verses > 0:
+        lines.append(f'- Saved Scripture verses: {saved_verses}')
+
+    # Faith milestones
+    milestones = faith_data.get('milestones', 0)
+    if milestones > 0:
+        lines.append(f'- Faith milestones: {milestones}')
+
+    # Reading plans
+    reading_plans = faith_data.get('reading_plans')
+    if reading_plans:
+        active = reading_plans.get('active', 0)
+        completed = reading_plans.get('completed', 0)
+        if active > 0 or completed > 0:
+            lines.append(f'- Reading plans: {active} active, {completed} completed')
 
     return '\n'.join(lines)
 

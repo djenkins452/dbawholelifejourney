@@ -712,5 +712,210 @@ class TestBuildPersonalContextWithGlucose(unittest.TestCase):
         self.assertIn('Glucose Data:', result)
 
 
+class TestBuildPersonalContextFaithOnly(unittest.TestCase):
+    """Tests for build_personal_context with faith data only."""
+
+    def test_formats_faith_data(self):
+        """Should format faith data correctly."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'faith': {
+                'type': 'faith',
+                'prayer_requests': {
+                    'total': 15,
+                    'active': 10,
+                    'answered': 5,
+                    'latest_date': datetime(2024, 12, 18, 10, 30),
+                },
+                'saved_verses': 20,
+                'milestones': 3,
+                'reading_plans': {'active': 1, 'completed': 2},
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Faith Data:', result)
+        self.assertIn('Prayer requests: 15 total', result)
+        self.assertIn('10 active', result)
+        self.assertIn('5 answered', result)
+        self.assertIn('Saved Scripture verses: 20', result)
+        self.assertIn('Faith milestones: 3', result)
+        self.assertIn('Reading plans:', result)
+
+    def test_includes_header_and_footer(self):
+        """Should include header and closing instruction."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'faith': {
+                'type': 'faith',
+                'prayer_requests': {
+                    'total': 5,
+                    'active': 3,
+                    'answered': 2,
+                    'latest_date': date(2024, 12, 15),
+                },
+                'saved_verses': 0,
+                'milestones': 0,
+                'reading_plans': {'active': 0, 'completed': 0},
+            }
+        }
+
+        result = build_personal_context(data)
+        self.assertIn("user's personal data", result)
+        self.assertIn('personalized, helpful responses', result)
+
+
+class TestFormatFaithData(unittest.TestCase):
+    """Tests for _format_faith_data helper function."""
+
+    def test_returns_empty_string_for_empty_data(self):
+        """Should return empty string for empty dict."""
+        from assistant.context_builder import _format_faith_data
+
+        result = _format_faith_data({})
+        self.assertEqual(result, '')
+
+    def test_returns_empty_string_for_none(self):
+        """Should return empty string for None."""
+        from assistant.context_builder import _format_faith_data
+
+        result = _format_faith_data(None)
+        self.assertEqual(result, '')
+
+    def test_formats_complete_faith_data(self):
+        """Should format all faith data fields."""
+        from assistant.context_builder import _format_faith_data
+
+        data = {
+            'type': 'faith',
+            'prayer_requests': {
+                'total': 20,
+                'active': 15,
+                'answered': 5,
+                'latest_date': datetime(2024, 12, 16, 9, 0),
+            },
+            'saved_verses': 30,
+            'milestones': 5,
+            'reading_plans': {'active': 2, 'completed': 1},
+        }
+
+        result = _format_faith_data(data)
+
+        self.assertIn('Faith Data:', result)
+        self.assertIn('Prayer requests: 20 total', result)
+        self.assertIn('Most recent prayer: 2024-12-16', result)
+        self.assertIn('Saved Scripture verses: 30', result)
+        self.assertIn('Faith milestones: 5', result)
+        self.assertIn('Reading plans: 2 active, 1 completed', result)
+
+
+class TestBuildPersonalContextWithFaith(unittest.TestCase):
+    """Tests for build_personal_context including faith with other types."""
+
+    def test_formats_faith_and_journal(self):
+        """Should format both faith and journal data."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'faith': {
+                'type': 'faith',
+                'prayer_requests': {
+                    'total': 10,
+                    'active': 7,
+                    'answered': 3,
+                    'latest_date': date(2024, 12, 18),
+                },
+                'saved_verses': 15,
+                'milestones': 2,
+                'reading_plans': {'active': 1, 'completed': 0},
+            },
+            'journal': {
+                'type': 'journal',
+                'count': 8,
+                'latest_date': date(2024, 12, 17),
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Faith Data:', result)
+        self.assertIn('Journal Data:', result)
+
+    def test_formats_all_seven_types(self):
+        """Should format all seven data types including faith."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'weight': {
+                'type': 'weight',
+                'count': 10,
+                'average': 175.0,
+                'latest': 174.5,
+                'latest_date': date(2024, 12, 18),
+                'unit': 'lb',
+            },
+            'journal': {
+                'type': 'journal',
+                'count': 8,
+                'latest_date': date(2024, 12, 17),
+            },
+            'medication': {
+                'type': 'medication',
+                'total_logs': 30,
+                'days_logged': 10,
+                'total_days': 14,
+                'consistency_percent': 71.4,
+            },
+            'food': {
+                'type': 'food',
+                'total_entries': 25,
+                'total_calories': 50000.0,
+                'average_daily_calories': 2000.0,
+                'latest_date': date(2024, 12, 18),
+            },
+            'mood': {
+                'type': 'mood',
+                'count': 12,
+                'mood_distribution': {'good': 6, 'great': 4, 'okay': 2},
+                'most_common': 'good',
+                'latest_mood': 'great',
+                'latest_date': date(2024, 12, 18),
+            },
+            'glucose': {
+                'type': 'glucose',
+                'count': 100,
+                'average': 120.0,
+                'latest': 115.0,
+                'latest_date': date(2024, 12, 18),
+                'unit': 'mg/dL',
+            },
+            'faith': {
+                'type': 'faith',
+                'prayer_requests': {
+                    'total': 10,
+                    'active': 6,
+                    'answered': 4,
+                    'latest_date': date(2024, 12, 18),
+                },
+                'saved_verses': 25,
+                'milestones': 4,
+                'reading_plans': {'active': 1, 'completed': 2},
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Weight Data:', result)
+        self.assertIn('Journal Data:', result)
+        self.assertIn('Medication Data:', result)
+        self.assertIn('Food Data:', result)
+        self.assertIn('Mood Data:', result)
+        self.assertIn('Glucose Data:', result)
+        self.assertIn('Faith Data:', result)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,98 @@
+{% comment %}
+Floating Favorite Toggle Button
+
+A floating star button that appears on all pages (except excluded ones).
+Allows users to quickly favorite any page.
+{% endcomment %}
+
+{% with excluded_paths="/,/admin/,/accounts/,/api/,/static/,/media/" %}
+{% if request.path not in excluded_paths and not request.path|slice:":7" == "/admin/" and not request.path|slice:":10" == "/accounts/" and not request.path|slice:":5" == "/api/" %}
+<button
+    type="button"
+    class="favorite-floating-btn {% if is_current_page_favorite %}is-favorite{% endif %}"
+    id="favorite-floating-toggle"
+    data-url="{{ request.path }}"
+    data-title="{{ request.resolver_match.url_name|default:'Page'|title }}"
+    aria-label="{% if is_current_page_favorite %}Remove from favorites{% else %}Add to favorites{% endif %}"
+    title="{% if is_current_page_favorite %}Remove from favorites{% else %}Add to favorites{% endif %}"
+>
+    <svg class="favorite-star" viewBox="0 0 24 24" width="24" height="24">
+        <polygon
+            points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+            fill="{% if is_current_page_favorite %}#f59e0b{% else %}none{% endif %}"
+            stroke="{% if is_current_page_favorite %}#f59e0b{% else %}#9ca3af{% endif %}"
+            stroke-width="2"
+            stroke-linejoin="round"
+        />
+    </svg>
+</button>
+
+<style>
+.favorite-floating-btn {
+    position: fixed;
+    top: 4.5rem;
+    right: 1rem;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.favorite-floating-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.favorite-floating-btn:focus {
+    outline: 2px solid var(--color-accent, #6366f1);
+    outline-offset: 2px;
+}
+
+.favorite-floating-btn.is-favorite {
+    background: #fef3c7;
+    border-color: #f59e0b;
+}
+
+.favorite-floating-btn .favorite-star {
+    display: block;
+}
+
+/* Animation for toggle */
+@keyframes favorite-pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+.favorite-floating-btn.animating {
+    animation: favorite-pop 0.3s ease;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .favorite-floating-btn {
+        top: auto;
+        bottom: 5rem;
+        right: 1rem;
+        width: 48px;
+        height: 48px;
+    }
+}
+
+/* Hide if inline toggle exists on page */
+.page-header .favorite-toggle-btn ~ .favorite-floating-btn,
+#favorite-toggle + .favorite-floating-btn {
+    display: none;
+}
+</style>
+{% endif %}
+{% endwith %}

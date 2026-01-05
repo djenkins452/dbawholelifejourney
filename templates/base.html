@@ -121,5 +121,10 @@
     {% if user.is_authenticated %}
     {% include "components/chat_widget.html" %}
     {% endif %}
+
+    <!-- Floating Favorite Toggle Button -->
+    {% if user.is_authenticated %}
+    {% include "components/favorite_floating.html" %}
+    {% endif %}
 </body>
 </html>

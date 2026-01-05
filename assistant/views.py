@@ -83,7 +83,7 @@ def process_assistant_message(
 
     # Step 3: Query personal data based on detected intent
     # Filter data_types to only those we have query methods for
-    supported_types = ['weight', 'journal', 'medication', 'food', 'mood', 'glucose', 'faith']
+    supported_types = ['weight', 'journal', 'medication', 'food', 'mood', 'glucose', 'faith', 'goals']
     queryable_types = [dt for dt in intent['data_types'] if dt in supported_types]
 
     if not queryable_types:

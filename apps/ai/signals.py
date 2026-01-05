@@ -111,6 +111,8 @@ def invalidate_insights_on_goal_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when a goal is saved."""
     insight_types = ['daily_insight', 'goal_progress', 'purpose_home']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache
+    invalidate_personal_data_cache(instance.user, 'goals')
 
 
 @receiver(post_delete, sender='purpose.LifeGoal')
@@ -118,6 +120,8 @@ def invalidate_insights_on_goal_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when a goal is deleted."""
     insight_types = ['daily_insight', 'goal_progress', 'purpose_home']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache
+    invalidate_personal_data_cache(instance.user, 'goals')
 
 
 # =============================================================================

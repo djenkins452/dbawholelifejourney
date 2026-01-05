@@ -89,6 +89,12 @@ def build_personal_context(data_results: Optional[Dict[str, Any]]) -> str:
         if faith_section:
             sections.append(faith_section)
 
+    # Format goals data if present
+    if 'goals' in data_results:
+        goals_section = _format_goals_data(data_results['goals'])
+        if goals_section:
+            sections.append(goals_section)
+
     # Return empty string if no sections were formatted
     if not sections:
         return ''
@@ -258,6 +264,63 @@ def _format_glucose_data(glucose_data: Dict[str, Any]) -> str:
     if latest is not None and latest_date is not None:
         date_str = _format_date(latest_date)
         lines.append(f'- Most recent: {latest} {unit} on {date_str}')
+
+    return '\n'.join(lines)
+
+
+def _format_goals_data(goals_data: Dict[str, Any]) -> str:
+    """Format goals data into natural language."""
+    if not goals_data:
+        return ''
+
+    lines = ['Goals Data:']
+
+    # Total goals
+    total = goals_data.get('total', 0)
+    lines.append(f'- Total goals: {total}')
+
+    # Status breakdown
+    by_status = goals_data.get('by_status', {})
+    if by_status:
+        active = by_status.get('active', 0)
+        paused = by_status.get('paused', 0)
+        completed = by_status.get('completed', 0)
+        released = by_status.get('released', 0)
+        lines.append(f'- By status: {active} active, {paused} paused, {completed} completed, {released} released')
+
+    # Completion rate
+    completion_rate = goals_data.get('completion_rate')
+    if completion_rate is not None:
+        lines.append(f'- Completion rate: {completion_rate}%')
+
+    # Timeframe breakdown
+    by_timeframe = goals_data.get('by_timeframe', {})
+    if by_timeframe:
+        timeframe_parts = []
+        if by_timeframe.get('year_1'):
+            timeframe_parts.append(f"{by_timeframe['year_1']} within 1 year")
+        if by_timeframe.get('year_2'):
+            timeframe_parts.append(f"{by_timeframe['year_2']} in 1-2 years")
+        if by_timeframe.get('year_3'):
+            timeframe_parts.append(f"{by_timeframe['year_3']} in 2-3 years")
+        if by_timeframe.get('ongoing'):
+            timeframe_parts.append(f"{by_timeframe['ongoing']} ongoing")
+        if timeframe_parts:
+            lines.append(f'- Timeframes: {", ".join(timeframe_parts)}')
+
+    # Domains
+    domains = goals_data.get('domains', [])
+    if domains:
+        domain_parts = [f"{d['name']}: {d['count']}" for d in domains]
+        lines.append(f'- Life domains: {", ".join(domain_parts)}')
+
+    # Recent completions
+    recent_completed = goals_data.get('recent_completed', [])
+    if recent_completed:
+        lines.append('- Recently completed:')
+        for goal in recent_completed[:3]:  # Limit to 3 for brevity
+            date_str = _format_date(goal['completed_date'])
+            lines.append(f'  - {goal["title"]} ({date_str})')
 
     return '\n'.join(lines)
 

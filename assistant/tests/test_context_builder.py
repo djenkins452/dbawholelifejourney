@@ -903,6 +903,15 @@ class TestBuildPersonalContextWithFaith(unittest.TestCase):
                 'saved_verses': 25,
                 'milestones': 4,
                 'reading_plans': {'active': 1, 'completed': 2},
+            },
+            'goals': {
+                'type': 'goals',
+                'total': 8,
+                'by_status': {'active': 6, 'completed': 2},
+                'by_timeframe': {'year_1': 8},
+                'completion_rate': 25.0,
+                'recent_completed': [],
+                'domains': [],
             }
         }
 
@@ -915,6 +924,171 @@ class TestBuildPersonalContextWithFaith(unittest.TestCase):
         self.assertIn('Mood Data:', result)
         self.assertIn('Glucose Data:', result)
         self.assertIn('Faith Data:', result)
+        self.assertIn('Goals Data:', result)
+
+
+class TestBuildPersonalContextGoalsOnly(unittest.TestCase):
+    """Tests for build_personal_context with goals data only."""
+
+    def test_formats_goals_data(self):
+        """Should format goals data correctly."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'goals': {
+                'type': 'goals',
+                'total': 10,
+                'by_status': {
+                    'active': 5,
+                    'paused': 2,
+                    'completed': 2,
+                    'released': 1,
+                },
+                'by_timeframe': {
+                    'year_1': 4,
+                    'year_2': 3,
+                    'ongoing': 3,
+                },
+                'completion_rate': 20.0,
+                'recent_completed': [],
+                'domains': [],
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Goals Data:', result)
+        self.assertIn('Total goals: 10', result)
+        self.assertIn('5 active', result)
+        self.assertIn('2 paused', result)
+        self.assertIn('2 completed', result)
+        self.assertIn('1 released', result)
+        self.assertIn('Completion rate: 20.0%', result)
+
+    def test_formats_timeframes(self):
+        """Should format timeframe breakdown correctly."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'goals': {
+                'type': 'goals',
+                'total': 10,
+                'by_status': {},
+                'by_timeframe': {
+                    'year_1': 4,
+                    'year_2': 3,
+                    'year_3': 1,
+                    'ongoing': 2,
+                },
+                'completion_rate': 0.0,
+                'recent_completed': [],
+                'domains': [],
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Timeframes:', result)
+        self.assertIn('4 within 1 year', result)
+        self.assertIn('3 in 1-2 years', result)
+        self.assertIn('1 in 2-3 years', result)
+        self.assertIn('2 ongoing', result)
+
+    def test_formats_domains(self):
+        """Should format domain breakdown correctly."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'goals': {
+                'type': 'goals',
+                'total': 5,
+                'by_status': {},
+                'by_timeframe': {},
+                'completion_rate': 0.0,
+                'recent_completed': [],
+                'domains': [
+                    {'name': 'Health', 'count': 3},
+                    {'name': 'Faith', 'count': 2},
+                ],
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Life domains:', result)
+        self.assertIn('Health: 3', result)
+        self.assertIn('Faith: 2', result)
+
+    def test_formats_recent_completed(self):
+        """Should format recently completed goals."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'goals': {
+                'type': 'goals',
+                'total': 5,
+                'by_status': {'completed': 2},
+                'by_timeframe': {},
+                'completion_rate': 40.0,
+                'recent_completed': [
+                    {'title': 'Learn Spanish', 'completed_date': date(2024, 11, 15)},
+                    {'title': 'Run a 5K', 'completed_date': date(2024, 10, 1)},
+                ],
+                'domains': [],
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Recently completed:', result)
+        self.assertIn('Learn Spanish (2024-11-15)', result)
+        self.assertIn('Run a 5K (2024-10-01)', result)
+
+    def test_handles_empty_goals_data(self):
+        """Should return empty string for empty goals data."""
+        from assistant.context_builder import _format_goals_data
+
+        result = _format_goals_data({})
+        self.assertEqual(result, '')
+
+        result = _format_goals_data(None)
+        self.assertEqual(result, '')
+
+
+class TestBuildPersonalContextWithGoals(unittest.TestCase):
+    """Tests for build_personal_context with goals included with other data."""
+
+    def test_includes_goals_with_all_data_types(self):
+        """Should include goals data alongside all other data types."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'weight': {
+                'type': 'weight',
+                'count': 15,
+                'average': 175.5,
+                'latest': 174.0,
+                'latest_date': date(2024, 12, 18),
+                'unit': 'lb',
+            },
+            'goals': {
+                'type': 'goals',
+                'total': 8,
+                'by_status': {'active': 6, 'completed': 2},
+                'by_timeframe': {'year_1': 8},
+                'completion_rate': 25.0,
+                'recent_completed': [],
+                'domains': [{'name': 'Health', 'count': 4}],
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Weight Data:', result)
+        self.assertIn('Goals Data:', result)
+        self.assertIn('Total goals: 8', result)
+        self.assertIn('6 active', result)
+        self.assertIn('Completion rate: 25.0%', result)
 
 
 if __name__ == '__main__':

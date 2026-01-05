@@ -15,9 +15,11 @@ from unittest.mock import MagicMock, patch
 mock_health_models = MagicMock()
 mock_journal_models = MagicMock()
 mock_faith_models = MagicMock()
+mock_purpose_models = MagicMock()
 sys.modules['apps.health.models'] = mock_health_models
 sys.modules['apps.journal.models'] = mock_journal_models
 sys.modules['apps.faith.models'] = mock_faith_models
+sys.modules['apps.purpose.models'] = mock_purpose_models
 
 # Create mock cache that returns None by default (cache miss)
 # We need to mock this before the module imports
@@ -2748,6 +2750,344 @@ class TestFaithCacheBehavior(CacheMockMixin, unittest.TestCase):
         call_args = mock_cache.set.call_args
         self.assertEqual(call_args[0][0], 'personal_data:456:faith:all')
         self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
+
+
+# =============================================================================
+# GET GOALS DATA TESTS
+# =============================================================================
+
+
+class TestGetGoalsDataNoEntries(CacheMockMixin, unittest.TestCase):
+    """Tests for get_goals_data when no goals exist."""
+
+    def test_returns_none_when_no_goals(self):
+        """Should return None when user has no goals."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_purpose_models.LifeGoal.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_goals_data()
+
+        self.assertIsNone(result)
+
+    def test_returns_none_when_no_goals_in_date_range(self):
+        """Should return None when no goals exist in date range."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_purpose_models.LifeGoal.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        since_date = datetime(2024, 12, 1)
+        result = service.get_goals_data(since_date=since_date)
+
+        self.assertIsNone(result)
+
+
+class TestGetGoalsDataWithEntries(CacheMockMixin, unittest.TestCase):
+    """Tests for get_goals_data when goals exist."""
+
+    def _setup_mock(self, total=10, by_status=None, by_timeframe=None,
+                    completed_goals=None, domains=None):
+        """Helper to setup mock queryset."""
+        if by_status is None:
+            by_status = [
+                {'status': 'active', 'count': 5},
+                {'status': 'paused', 'count': 2},
+                {'status': 'completed', 'count': 2},
+                {'status': 'released', 'count': 1},
+            ]
+        if by_timeframe is None:
+            by_timeframe = [
+                {'timeframe': 'year_1', 'count': 4},
+                {'timeframe': 'year_2', 'count': 3},
+                {'timeframe': 'ongoing', 'count': 3},
+            ]
+        if completed_goals is None:
+            completed_goals = []
+        if domains is None:
+            domains = []
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = total
+
+        # Status aggregation
+        mock_status_qs = MagicMock()
+        mock_status_qs.annotate.return_value = by_status
+        mock_queryset.values.return_value = mock_status_qs
+
+        # Completed goals filter
+        mock_completed_qs = MagicMock()
+        mock_completed_qs.order_by.return_value = completed_goals
+        mock_completed_qs.__getitem__ = MagicMock(return_value=completed_goals)
+        mock_queryset.filter.return_value = mock_completed_qs
+
+        # Domain aggregation - need a separate chain
+        mock_domain_qs = MagicMock()
+        mock_domain_values = MagicMock()
+        mock_domain_values.annotate.return_value.order_by.return_value = domains
+        mock_domain_qs.values.return_value = mock_domain_values
+
+        mock_purpose_models.LifeGoal.objects.filter.return_value = mock_queryset
+
+        return mock_queryset
+
+    def test_returns_dict_with_correct_structure(self):
+        """Should return dict with all expected keys."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup base queryset
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 10
+
+        # Status values
+        mock_status_values = MagicMock()
+        mock_status_values.annotate.return_value = [
+            {'status': 'active', 'count': 5}
+        ]
+
+        # Timeframe values
+        mock_timeframe_values = MagicMock()
+        mock_timeframe_values.annotate.return_value = [
+            {'timeframe': 'year_1', 'count': 5}
+        ]
+
+        # Make values() return different mocks based on call order
+        call_count = [0]
+        def values_side_effect(*args):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return mock_status_values
+            elif call_count[0] == 2:
+                return mock_timeframe_values
+            else:
+                # Domain values
+                mock_domain_values = MagicMock()
+                mock_domain_values.annotate.return_value.order_by.return_value = []
+                return mock_domain_values
+
+        mock_queryset.values.side_effect = values_side_effect
+
+        # Completed goals filter
+        mock_completed_qs = MagicMock()
+        mock_completed_qs.order_by.return_value.__getitem__ = MagicMock(return_value=[])
+        mock_queryset.filter.return_value = mock_completed_qs
+
+        mock_purpose_models.LifeGoal.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_goals_data()
+
+        self.assertIsNotNone(result)
+        self.assertIn('type', result)
+        self.assertIn('total', result)
+        self.assertIn('by_status', result)
+        self.assertIn('by_timeframe', result)
+        self.assertIn('completion_rate', result)
+        self.assertIn('recent_completed', result)
+        self.assertIn('domains', result)
+
+    def test_type_is_goals(self):
+        """Type should be 'goals'."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+
+        mock_values = MagicMock()
+        mock_values.annotate.return_value = []
+        mock_queryset.values.return_value = mock_values
+
+        mock_completed_qs = MagicMock()
+        mock_completed_qs.order_by.return_value.__getitem__ = MagicMock(return_value=[])
+        mock_queryset.filter.return_value = mock_completed_qs
+
+        mock_purpose_models.LifeGoal.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_goals_data()
+
+        self.assertEqual(result['type'], 'goals')
+
+    def test_total_matches_count(self):
+        """Total should match the queryset count."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 15
+
+        mock_values = MagicMock()
+        mock_values.annotate.return_value = []
+        mock_queryset.values.return_value = mock_values
+
+        mock_completed_qs = MagicMock()
+        mock_completed_qs.order_by.return_value.__getitem__ = MagicMock(return_value=[])
+        mock_queryset.filter.return_value = mock_completed_qs
+
+        mock_purpose_models.LifeGoal.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_goals_data()
+
+        self.assertEqual(result['total'], 15)
+
+    def test_completion_rate_calculated_correctly(self):
+        """Completion rate should be (completed / total) * 100."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 10
+
+        # Status with 2 completed out of 10 = 20%
+        call_count = [0]
+        def values_side_effect(*args):
+            call_count[0] += 1
+            mock_values = MagicMock()
+            if call_count[0] == 1:
+                mock_values.annotate.return_value = [
+                    {'status': 'completed', 'count': 2},
+                    {'status': 'active', 'count': 8}
+                ]
+            elif call_count[0] == 2:
+                mock_values.annotate.return_value = [
+                    {'timeframe': 'year_1', 'count': 10}
+                ]
+            else:
+                mock_values.annotate.return_value.order_by.return_value = []
+            return mock_values
+
+        mock_queryset.values.side_effect = values_side_effect
+
+        mock_completed_qs = MagicMock()
+        mock_completed_qs.order_by.return_value.__getitem__ = MagicMock(return_value=[])
+        mock_queryset.filter.return_value = mock_completed_qs
+
+        mock_purpose_models.LifeGoal.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_goals_data()
+
+        self.assertEqual(result['completion_rate'], 20.0)
+
+
+class TestGetGoalsDataCaching(CacheMockMixin, unittest.TestCase):
+    """Tests for caching behavior of get_goals_data."""
+
+    def test_returns_cached_data_on_hit(self):
+        """Should return cached data without querying database."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        mock_user.id = 789
+
+        cached_result = {
+            'type': 'goals',
+            'total': 10,
+            'by_status': {'active': 5},
+            'by_timeframe': {'year_1': 5},
+            'completion_rate': 50.0,
+            'recent_completed': [],
+            'domains': [],
+        }
+
+        mock_cache.get.return_value = cached_result
+        mock_purpose_models.reset_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_goals_data()
+
+        self.assertEqual(result, cached_result)
+        mock_purpose_models.LifeGoal.objects.filter.assert_not_called()
+
+    def test_caches_result_on_miss(self):
+        """Should cache result when data is fetched."""
+        from assistant.data_service import PersonalDataService, PERSONAL_DATA_CACHE_TTL
+
+        mock_user = MagicMock()
+        mock_user.id = 999
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+
+        mock_values = MagicMock()
+        mock_values.annotate.return_value = []
+        mock_queryset.values.return_value = mock_values
+
+        mock_completed_qs = MagicMock()
+        mock_completed_qs.order_by.return_value.__getitem__ = MagicMock(return_value=[])
+        mock_queryset.filter.return_value = mock_completed_qs
+
+        mock_purpose_models.LifeGoal.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_goals_data()
+
+        self.assertTrue(mock_cache.set.called)
+        call_args = mock_cache.set.call_args
+        self.assertEqual(call_args[0][0], 'personal_data:999:goals:all')
+        self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
+
+
+class TestQueryByIntentWithGoals(CacheMockMixin, unittest.TestCase):
+    """Tests for query_by_intent with goals data type."""
+
+    def test_includes_goals_in_results(self):
+        """Should include goals data when requested."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+
+        mock_values = MagicMock()
+        mock_values.annotate.return_value = []
+        mock_queryset.values.return_value = mock_values
+
+        mock_completed_qs = MagicMock()
+        mock_completed_qs.order_by.return_value.__getitem__ = MagicMock(return_value=[])
+        mock_queryset.filter.return_value = mock_completed_qs
+
+        mock_purpose_models.LifeGoal.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['goals'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('goals', result)
+        self.assertEqual(result['goals']['type'], 'goals')
 
 
 if __name__ == '__main__':

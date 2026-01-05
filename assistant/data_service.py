@@ -653,6 +653,124 @@ class PersonalDataService:
 
         return result
 
+    def get_goals_data(
+        self,
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's life goals data.
+
+        Queries LifeGoal from the purpose module and returns goal counts
+        by status, completion rates, and recent achievements.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+                       If None, returns all entries.
+
+        Returns:
+            None if no goals exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'goals'
+                - total (int): Total number of goals
+                - by_status (dict): Counts per status (active, paused, completed, released)
+                - by_timeframe (dict): Counts per timeframe
+                - completion_rate (float): Percentage of completed goals
+                - recent_completed (list): Recently completed goals (title, completed_date)
+                - domains (list): Unique domains with goal counts
+
+        Example:
+            >>> service = PersonalDataService(user)
+            >>> data = service.get_goals_data()
+            >>> print(data)
+            {
+                'type': 'goals',
+                'total': 10,
+                'by_status': {'active': 5, 'paused': 2, 'completed': 2, 'released': 1},
+                'by_timeframe': {'year_1': 4, 'year_2': 3, 'ongoing': 3},
+                'completion_rate': 20.0,
+                'recent_completed': [
+                    {'title': 'Learn Spanish', 'completed_date': date(2024, 11, 15)}
+                ],
+                'domains': [{'name': 'Health', 'count': 3}, {'name': 'Faith', 'count': 2}]
+            }
+        """
+        # Check cache first
+        cache_key = _generate_cache_key(self.user.id, 'goals', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        # Import here to avoid circular imports and allow testing without Django
+        from apps.purpose.models import LifeGoal
+
+        # Build base queryset
+        queryset = LifeGoal.objects.filter(user=self.user)
+
+        # Apply date filter if provided (based on created_at)
+        if since_date:
+            queryset = queryset.filter(created_at__gte=since_date)
+
+        # Check if any goals exist
+        if not queryset.exists():
+            return None
+
+        # Get total count
+        total = queryset.count()
+
+        # Get counts by status
+        status_counts = queryset.values('status').annotate(count=Count('status'))
+        by_status = {item['status']: item['count'] for item in status_counts}
+
+        # Get counts by timeframe
+        timeframe_counts = queryset.values('timeframe').annotate(count=Count('timeframe'))
+        by_timeframe = {item['timeframe']: item['count'] for item in timeframe_counts}
+
+        # Calculate completion rate
+        completed_count = by_status.get('completed', 0)
+        if total > 0:
+            completion_rate = round((completed_count / total) * 100, 1)
+        else:
+            completion_rate = 0.0
+
+        # Get recently completed goals (up to 5)
+        completed_goals = queryset.filter(
+            status='completed',
+            completed_date__isnull=False
+        ).order_by('-completed_date')[:5]
+
+        recent_completed = [
+            {
+                'title': goal.title,
+                'completed_date': goal.completed_date,
+            }
+            for goal in completed_goals
+        ]
+
+        # Get domains with goal counts (only for goals that have a domain)
+        domain_counts = queryset.filter(
+            domain__isnull=False
+        ).values('domain__name').annotate(count=Count('domain')).order_by('-count')
+
+        domains = [
+            {'name': item['domain__name'], 'count': item['count']}
+            for item in domain_counts
+        ]
+
+        result = {
+            'type': 'goals',
+            'total': total,
+            'by_status': by_status,
+            'by_timeframe': by_timeframe,
+            'completion_rate': completion_rate,
+            'recent_completed': recent_completed,
+            'domains': domains,
+        }
+
+        # Cache the result
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+
+        return result
+
     def get_mood_data(
         self,
         since_date: Optional[datetime] = None,
@@ -786,6 +904,7 @@ class PersonalDataService:
             'mood': self.get_mood_data,
             'glucose': self.get_glucose_data,
             'faith': self.get_faith_data,
+            'goals': self.get_goals_data,
         }
 
         # Collect results

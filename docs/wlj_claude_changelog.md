@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Fix Circular Import - Hotfix)
+# Last Updated: 2026-01-05 (Background Task Queue - Task #171)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,52 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Create Background Task Queue for Execution (Task #171)
+
+**Session:** Background Task Queue Implementation
+
+**Objective:**
+Implement async task processing so improvements do not block user requests.
+Part of Personal Assistant Growth project (Phase 6).
+
+**Implementation:**
+Uses existing django-apscheduler infrastructure (same pattern as SMS scheduler).
+
+**New Files:**
+1. `assistant/tasks.py` - Background task functions:
+   - `execute_improvement_task()` - Execute single task with timeout/retry
+   - `process_approved_tasks()` - Periodic job for approved tasks
+   - `process_autonomous_tasks()` - Periodic job for low-severity tasks
+   - `monitor_stuck_tasks()` - Monitor tasks stuck > 30 minutes
+   - `get_queue_status()` - Get current queue metrics
+
+2. `assistant/management/commands/run_improvement_scheduler.py` - Management command:
+   - Processes approved tasks every 5 minutes
+   - Processes autonomous tasks every 5 minutes
+   - Monitors stuck tasks every 10 minutes
+   - Configurable intervals via command-line args
+
+3. `assistant/tests/test_tasks.py` - Comprehensive unit tests
+
+**Updated Files:**
+- `assistant/notifications.py` - Added `notify_queue_status()` method
+
+**Configuration:**
+- Task timeout: 10 minutes (TASK_TIMEOUT_SECONDS = 600)
+- Max retries: 2 (MAX_RETRIES = 2)
+- Stuck threshold: 30 minutes (STUCK_TASK_THRESHOLD_MINUTES = 30)
+- Default process interval: 5 minutes
+- Default monitor interval: 10 minutes
+
+**Usage:**
+```bash
+python manage.py run_improvement_scheduler
+# Or with custom intervals:
+python manage.py run_improvement_scheduler --process-interval=10 --monitor-interval=15
+```
+
+---
 
 ### Fix Circular Import Error (Hotfix)
 

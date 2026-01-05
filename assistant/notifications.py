@@ -345,3 +345,49 @@ Or to view what changed:
             template_name='assistant/emails/daily_summary.html',
             context=context
         )
+
+    def notify_queue_status(self, queue_status: Dict) -> bool:
+        """
+        Send notification with current task queue status.
+
+        Args:
+            queue_status: Dictionary with queue metrics:
+                - pending_approval: int
+                - approved: int
+                - autonomous: int
+                - in_progress: int
+                - stuck: int
+                - completed_today: int
+                - errors_today: int
+
+        Returns:
+            True if notification was sent successfully.
+        """
+        # Determine if action is required
+        action_required = (
+            queue_status.get('stuck', 0) > 0 or
+            queue_status.get('pending_approval', 0) > 0
+        )
+
+        subject = "[WLJ Assistant] Queue Status Update"
+        if queue_status.get('stuck', 0) > 0:
+            subject = "[WLJ Assistant] ALERT: Stuck Tasks Detected"
+
+        context = {
+            'message': 'Current improvement task queue status.',
+            'action_required': action_required,
+            'queue_status': queue_status,
+            'pending_approval': queue_status.get('pending_approval', 0),
+            'approved': queue_status.get('approved', 0),
+            'autonomous': queue_status.get('autonomous', 0),
+            'in_progress': queue_status.get('in_progress', 0),
+            'stuck': queue_status.get('stuck', 0),
+            'completed_today': queue_status.get('completed_today', 0),
+            'errors_today': queue_status.get('errors_today', 0),
+        }
+
+        return self._send_email(
+            subject=subject,
+            template_name='assistant/emails/queue_status.html',
+            context=context
+        )

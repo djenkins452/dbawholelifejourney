@@ -151,6 +151,9 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
 class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
     """
     Send a message to the assistant and get a response.
+
+    Now supports intent recognition for structured data extraction.
+    The response includes 'action_taken' when an action was executed.
     """
 
     def post(self, request, *args, **kwargs):
@@ -180,13 +183,27 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
 
             assistant = self.get_assistant()
             conversation = assistant.get_or_create_conversation()
-            response = assistant.send_message(message, conversation)
+            result = assistant.send_message(message, conversation)
 
-            return JsonResponse({
-                'success': True,
-                'response': response,
-                'conversation_id': conversation.id,
-            })
+            # Handle both old string response and new dict response
+            if isinstance(result, dict):
+                response_data = {
+                    'success': True,
+                    'response': result.get('response', ''),
+                    'conversation_id': conversation.id,
+                }
+                # Include action_taken if present
+                if result.get('action_taken'):
+                    response_data['action_taken'] = result['action_taken']
+            else:
+                # Backwards compatibility for string response
+                response_data = {
+                    'success': True,
+                    'response': result,
+                    'conversation_id': conversation.id,
+                }
+
+            return JsonResponse(response_data)
 
         except json.JSONDecodeError:
             return JsonResponse({

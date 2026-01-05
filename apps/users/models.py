@@ -329,6 +329,13 @@ class UserPreferences(models.Model):
         help_text="Date when user consented to Personal Assistant data access",
     )
 
+    # Personal Assistant Confirmation Preference
+    # When enabled, the assistant asks for confirmation before logging data
+    assistant_confirm_actions = models.BooleanField(
+        default=False,
+        help_text="Require confirmation before AI assistant logs health data (default: log immediately)",
+    )
+
     # Location for weather (manual entry)
     location_city = models.CharField(max_length=100, blank=True)
     location_country = models.CharField(max_length=100, blank=True)

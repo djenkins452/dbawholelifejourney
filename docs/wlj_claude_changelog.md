@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Integrate Personal Data Query with AI Personal Assistant)
+# Last Updated: 2026-01-05 (Add Cache Integration Tests)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,26 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Cache Integration Tests (Task #185)
+
+**Session:** Add Cache Integration Tests
+
+**Changes:**
+1. Created `assistant/tests/test_cache_integration.py` with 30 Django TestCase tests:
+   - `CacheKeyGenerationTest` (5 tests): Cache key format, uniqueness per user/type/date
+   - `CacheHitMissTest` (6 tests): First query cache miss, second query cache hit, data structure
+   - `CacheInvalidationTest` (4 tests): Manual invalidation via `invalidate_user_data_cache()`
+   - `SignalCacheInvalidationTest` (10 tests): Signal-based invalidation for all models (WeightEntry, JournalEntry, MedicineLog, FoodEntry)
+   - `CacheTTLTest` (3 tests): TTL constant verification, cache.set TTL parameter
+   - `QueryByIntentCacheTest` (2 tests): Multi-type caching, partial cache hit behavior
+
+**Files Created:**
+- `assistant/tests/test_cache_integration.py` - 30 cache integration tests (676 lines)
+
+**Purpose:** Verify caching behavior of the Personal Data Query System with real Django cache framework (locmem cache) using `override_settings`, ensuring cache hits, misses, and signal-based invalidation work correctly.
+
+---
 
 ### Add Integration Tests for Personal Data Query System (Task #184)
 

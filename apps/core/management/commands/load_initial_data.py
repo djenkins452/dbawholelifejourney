@@ -394,7 +394,7 @@ class Command(BaseCommand):
         Only runs once (tracked via DataLoadConfig) unless force=True.
         Sends to ADMIN_EMAIL to verify email delivery works.
         """
-        loader_name = 'smtp_test_email'
+        loader_name = 'smtp_test_email_admin'
 
         # Check if already sent (unless force mode)
         if not force and self._is_loader_complete(DataLoadConfig, loader_name):
@@ -418,7 +418,7 @@ class Command(BaseCommand):
         try:
             self.stdout.write(f'  Sending SMTP test email...', ending='')
 
-            recipient = getattr(settings, 'ADMINS', [('Admin', 'dannyjenkins71@gmail.com')])[0][1]
+            recipient = 'admin@wholelifejourney.com'
             from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'admin@wholelifejourney.com')
             timestamp = timezone.now().strftime("%Y-%m-%d %H:%M:%S %Z")
 

@@ -13,15 +13,19 @@ Description:
 Key Responsibilities:
     - site_context: Inject site name, tagline, logo, favicon
     - theme_context: Inject user's theme, accent color, module toggles
+    - favorites_context: Inject favorites data for navigation menu
 
 Template Variables Provided:
     - site_name, site_tagline, site_logo_url, site_favicon_url
     - current_theme, accent_color
     - journal_enabled, faith_enabled, health_enabled, life_enabled, purpose_enabled, finance_enabled
     - user_today (date in user's timezone for date comparisons)
+    - favorites_menu_data: favorites and recent pages for nav dropdown
+    - is_current_page_favorite: whether current page is favorited
 
 Dependencies:
     - apps.core.models.SiteConfiguration for site settings
+    - apps.core.models.FavoritePage, PageView for favorites
     - apps.users.models.UserPreferences for user settings
     - apps.core.utils.get_user_today for timezone handling
 
@@ -100,5 +104,69 @@ def theme_context(request):
             context['user_timezone'] = prefs.timezone
         except Exception:
             pass
+
+    return context
+
+
+def favorites_context(request):
+    """
+    Add favorites data to template context for navigation.
+
+    Provides:
+    - favorites_menu_data: dict with favorites list, recent list, count
+    - is_current_page_favorite: boolean for star toggle state
+    """
+    context = {
+        'favorites_menu_data': {
+            'favorites': [],
+            'recent': [],
+            'favorites_count': 0,
+        },
+        'is_current_page_favorite': False,
+    }
+
+    if not request.user.is_authenticated:
+        return context
+
+    # Skip for certain paths (API, static, etc.)
+    path = request.path
+    if any(path.startswith(p) for p in ['/api/', '/static/', '/media/', '/admin/']):
+        return context
+
+    try:
+        from apps.core.models import FavoritePage, PageView
+
+        # Get favorites (up to 10)
+        favorites = FavoritePage.get_favorites_for_user(
+            request.user,
+            limit=FavoritePage.MAX_FAVORITES
+        )
+
+        # Calculate how many recent pages to show
+        favorites_count = favorites.count()
+        recent_slots = FavoritePage.MAX_FAVORITES - favorites_count
+
+        # Get recent pages, excluding favorites
+        recent = []
+        if recent_slots > 0:
+            favorite_urls = list(favorites.values_list('url', flat=True))
+            recent = list(PageView.get_recent_for_user(
+                request.user,
+                limit=recent_slots,
+                exclude_urls=favorite_urls
+            ))
+
+        # Check if current page is a favorite
+        is_favorite = FavoritePage.is_favorite(request.user, path)
+
+        context['favorites_menu_data'] = {
+            'favorites': list(favorites),
+            'recent': recent,
+            'favorites_count': favorites_count,
+        }
+        context['is_current_page_favorite'] = is_favorite
+
+    except Exception:
+        pass
 
     return context

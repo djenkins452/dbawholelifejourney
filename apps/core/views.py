@@ -44,7 +44,7 @@ from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView, TemplateView
 
-from .models import ReleaseNote, UserReleaseNoteView
+from .models import FavoritePage, PageView, ReleaseNote, UserReleaseNoteView
 
 logger = logging.getLogger(__name__)
 
@@ -191,3 +191,109 @@ class WhatsNewListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         return ReleaseNote.get_published()
+
+
+# =============================================================================
+# FAVORITES VIEWS
+# =============================================================================
+
+
+class FavoriteToggleView(LoginRequiredMixin, View):
+    """
+    API endpoint to toggle a page as favorite.
+
+    POST with:
+    - url: The URL to favorite/unfavorite
+    - title: Display title for the favorite
+
+    Returns JSON with:
+    - is_favorite: boolean indicating current state
+    - error: error message if any (e.g., max reached)
+    """
+
+    def post(self, request, *args, **kwargs):
+        import json
+        try:
+            data = json.loads(request.body)
+            url = data.get('url', '').strip()
+            title = data.get('title', '').strip()
+
+            if not url:
+                return JsonResponse({'error': 'URL is required'}, status=400)
+            if not title:
+                return JsonResponse({'error': 'Title is required'}, status=400)
+
+            is_favorite, error = FavoritePage.toggle(request.user, url, title)
+
+            response_data = {'is_favorite': is_favorite}
+            if error:
+                response_data['error'] = error
+
+            return JsonResponse(response_data)
+
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+
+class FavoriteCheckView(LoginRequiredMixin, View):
+    """
+    API endpoint to check if a URL is favorited.
+
+    GET with:
+    - url: The URL to check
+
+    Returns JSON with:
+    - is_favorite: boolean
+    """
+
+    def get(self, request, *args, **kwargs):
+        url = request.GET.get('url', '').strip()
+        if not url:
+            return JsonResponse({'error': 'URL is required'}, status=400)
+
+        is_favorite = FavoritePage.is_favorite(request.user, url)
+        return JsonResponse({'is_favorite': is_favorite})
+
+
+class FavoritesMenuDataView(LoginRequiredMixin, View):
+    """
+    API endpoint to get favorites menu data.
+
+    Returns JSON with:
+    - favorites: list of favorite pages
+    - recent: list of recent pages (to fill remaining slots)
+    - favorites_count: number of favorites
+    """
+
+    def get(self, request, *args, **kwargs):
+        # Get favorites (up to 10)
+        favorites = FavoritePage.get_favorites_for_user(
+            request.user,
+            limit=FavoritePage.MAX_FAVORITES
+        )
+
+        # Calculate how many recent pages to show
+        favorites_count = favorites.count()
+        recent_slots = FavoritePage.MAX_FAVORITES - favorites_count
+
+        # Get recent pages, excluding favorites
+        recent = []
+        if recent_slots > 0:
+            favorite_urls = list(favorites.values_list('url', flat=True))
+            recent = PageView.get_recent_for_user(
+                request.user,
+                limit=recent_slots,
+                exclude_urls=favorite_urls
+            )
+
+        return JsonResponse({
+            'favorites': [
+                {'url': f.url, 'title': f.title}
+                for f in favorites
+            ],
+            'recent': [
+                {'url': r.url, 'title': r.title}
+                for r in recent
+            ],
+            'favorites_count': favorites_count,
+        })

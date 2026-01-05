@@ -1212,3 +1212,150 @@ class UserReleaseNoteView(models.Model):
             defaults={'last_viewed_at': timezone.now()}
         )
         return obj
+
+
+# =============================================================================
+# FAVORITES AND RECENT PAGES
+# =============================================================================
+
+
+class FavoritePage(models.Model):
+    """
+    Track user's favorite pages for quick access.
+
+    Users can mark up to 10 pages as favorites. Favorites appear in the
+    Favorites dropdown menu in the navigation.
+    """
+
+    MAX_FAVORITES = 10
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='favorite_pages',
+    )
+    url = models.CharField(
+        max_length=500,
+        help_text="The URL path of the favorited page (e.g., '/journal/entries/')",
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="Display title for the favorite",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ['user', 'url']
+        verbose_name = "Favorite Page"
+        verbose_name_plural = "Favorite Pages"
+
+    def __str__(self):
+        return f"{self.user.email} - {self.title}"
+
+    @classmethod
+    def is_favorite(cls, user, url):
+        """Check if a URL is favorited by the user."""
+        return cls.objects.filter(user=user, url=url).exists()
+
+    @classmethod
+    def toggle(cls, user, url, title):
+        """
+        Toggle a page as favorite.
+
+        Returns tuple of (is_now_favorite, error_message).
+        Error message is set if max favorites reached when trying to add.
+        """
+        existing = cls.objects.filter(user=user, url=url).first()
+        if existing:
+            existing.delete()
+            return (False, None)
+
+        # Check if at max favorites
+        current_count = cls.objects.filter(user=user).count()
+        if current_count >= cls.MAX_FAVORITES:
+            return (True, f"Maximum of {cls.MAX_FAVORITES} favorites reached. Remove one to add more.")
+
+        cls.objects.create(user=user, url=url, title=title)
+        return (True, None)
+
+    @classmethod
+    def get_favorites_for_user(cls, user, limit=None):
+        """Get user's favorite pages."""
+        qs = cls.objects.filter(user=user).order_by('-created_at')
+        if limit:
+            qs = qs[:limit]
+        return qs
+
+
+class PageView(models.Model):
+    """
+    Track recently viewed pages for the user.
+
+    Used to populate the "Most Recent" section of the Favorites menu
+    when there are fewer than 10 favorites.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='page_views',
+    )
+    url = models.CharField(
+        max_length=500,
+        help_text="The URL path that was viewed",
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="Page title at time of viewing",
+    )
+    viewed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-viewed_at']
+        verbose_name = "Page View"
+        verbose_name_plural = "Page Views"
+
+    def __str__(self):
+        return f"{self.user.email} viewed {self.title}"
+
+    @classmethod
+    def record_view(cls, user, url, title):
+        """
+        Record a page view, updating existing or creating new.
+
+        We use update_or_create to avoid duplicates - each URL only
+        appears once in the recent list, with the most recent timestamp.
+        """
+        obj, created = cls.objects.update_or_create(
+            user=user,
+            url=url,
+            defaults={'title': title}
+        )
+        return obj
+
+    @classmethod
+    def get_recent_for_user(cls, user, limit=10, exclude_urls=None):
+        """
+        Get user's recently viewed pages.
+
+        Args:
+            user: The user
+            limit: Maximum pages to return
+            exclude_urls: List of URLs to exclude (e.g., favorited pages)
+        """
+        qs = cls.objects.filter(user=user)
+        if exclude_urls:
+            qs = qs.exclude(url__in=exclude_urls)
+        return qs.order_by('-viewed_at')[:limit]
+
+    @classmethod
+    def cleanup_old_views(cls, user, keep_count=50):
+        """
+        Remove old page views to prevent table bloat.
+
+        Keeps only the most recent `keep_count` views per user.
+        """
+        views_to_keep = cls.objects.filter(user=user).order_by('-viewed_at')[:keep_count]
+        ids_to_keep = list(views_to_keep.values_list('id', flat=True))
+        cls.objects.filter(user=user).exclude(id__in=ids_to_keep).delete()

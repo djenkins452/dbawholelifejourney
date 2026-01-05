@@ -34,6 +34,60 @@
                     </a>
                 </li>
 
+                <!-- Favorites - With Submenu (favorites + recent pages) -->
+                <li class="nav-dropdown" data-nav-dropdown>
+                    <button
+                        type="button"
+                        class="nav-link nav-dropdown-toggle"
+                        aria-expanded="false"
+                        aria-haspopup="true"
+                    >
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                        </svg>
+                        <span>Favorites</span>
+                        <svg class="nav-dropdown-chevron" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu" hidden>
+                        {% if favorites_menu_data.favorites %}
+                            {% for fav in favorites_menu_data.favorites %}
+                            <a href="{{ fav.url }}" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                </svg>
+                                {{ fav.title }}
+                            </a>
+                            {% endfor %}
+                        {% endif %}
+                        {% if favorites_menu_data.favorites and favorites_menu_data.recent %}
+                            <hr class="nav-dropdown-divider">
+                            <div class="nav-mega-heading" style="padding: 0.5rem 1rem; font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Most Recent</div>
+                        {% endif %}
+                        {% if favorites_menu_data.recent %}
+                            {% for page in favorites_menu_data.recent %}
+                            <a href="{{ page.url }}" class="nav-dropdown-item">
+                                <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                {{ page.title }}
+                            </a>
+                            {% endfor %}
+                        {% endif %}
+                        {% if not favorites_menu_data.favorites and not favorites_menu_data.recent %}
+                            <div class="nav-dropdown-empty" style="padding: 1rem; text-align: center; color: var(--color-text-muted); font-size: 0.875rem;">
+                                <svg style="width: 24px; height: 24px; margin: 0 auto 0.5rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                </svg>
+                                <p>No favorites yet</p>
+                                <p style="font-size: 0.75rem; margin-top: 0.25rem;">Click the star on any page to add it here</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </li>
+
                 <!-- Journal - With Submenu -->
                 {% if journal_enabled %}
                 <li class="nav-dropdown" data-nav-dropdown>

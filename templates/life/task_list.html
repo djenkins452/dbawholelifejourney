@@ -24,7 +24,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Tasks</h1>
+            <h1 class="page-title">Tasks {% include "components/favorite_toggle.html" with page_title="Tasks" %}</h1>
             <p class="page-subtitle">Simple, human-prioritized tasks</p>
         </div>
         <a href="{% url 'life:task_create' %}" class="btn btn-primary">

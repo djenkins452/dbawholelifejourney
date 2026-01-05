@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Goals Data Service Method)
+# Last Updated: 2026-01-05 (Cache Versioning Strategy)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,53 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Improve Cache Invalidation Strategy (Task #189)
+
+**Session:** Cache Versioning Strategy
+
+**Problem:**
+The existing cache invalidation approach used `cache.delete()` to remove a single
+cache key. However, cache keys include date filters, so different date-specific
+queries would have different cache keys. This meant invalidation couldn't reliably
+clear all cached data for a user/data_type.
+
+**Solution:**
+Implemented cache versioning strategy that works with any cache backend:
+
+1. Store a version number per user/data_type combination
+2. Include the version in all data cache keys
+3. On invalidation, increment the version number
+
+This makes all existing cache keys effectively stale, as new requests will use
+the incremented version in their cache key.
+
+**Changes:**
+1. Added cache versioning functions:
+   - `_get_version_key(user_id, data_type)` - generates version cache key
+   - `_get_cache_version(user_id, data_type)` - retrieves current version
+
+2. Updated `_generate_cache_key()`:
+   - Now includes version in key format
+   - Key format: `personal_data:{user_id}:{data_type}:v{version}:{date}`
+
+3. Updated `invalidate_user_data_cache()`:
+   - Now increments version instead of deleting specific keys
+   - All existing cached data becomes stale automatically
+
+4. Added `VERSION_CACHE_TTL = 86400` (24 hours) constant
+
+5. Updated all cache-related tests:
+   - `TestGenerateCacheKey` - updated for versioned key format
+   - `TestInvalidateUserDataCache` - changed to test version increment
+   - Added `TestCacheVersioning` - new test class
+   - Updated cache miss tests to use pattern matching for versioned keys
+
+**Files Modified:**
+- `assistant/data_service.py` - Core cache versioning implementation
+- `assistant/tests/test_data_service.py` - Updated tests for versioning
+
+---
 
 ### Add Goals Data Service Method (Task #188)
 

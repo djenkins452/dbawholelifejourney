@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Faith Data Service Method)
+# Last Updated: 2026-01-05 (Add Goals Data Service Method)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,45 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Goals Data Service Method (Task #188)
+
+**Session:** Add Goals Data Service Method
+
+**Changes:**
+1. Implemented `get_goals_data()` method in `PersonalDataService`:
+   - Queries `LifeGoal` model from `apps.purpose.models`
+   - Returns goal counts by status (active, paused, completed, released)
+   - Returns goal counts by timeframe (year_1, year_2, year_3, ongoing)
+   - Calculates completion rate percentage
+   - Returns recently completed goals with titles and completion dates
+   - Returns domain breakdown with goal counts per life domain
+   - Supports `since_date` filtering and caching
+
+2. Integrated goals with Personal Data Query System:
+   - Added 'goals' to `query_map` in `query_by_intent()`
+   - Added 'goals' to `supported_types` in `views.py`
+   - Added `_format_goals_data()` to `context_builder.py`
+
+3. Added cache invalidation for goals data:
+   - Updated `invalidate_insights_on_goal_save/delete` signal handlers
+
+4. Added comprehensive unit tests:
+   - `TestGetGoalsDataNoEntries` (2 tests)
+   - `TestGetGoalsDataWithEntries` (4 tests)
+   - `TestGetGoalsDataCaching` (2 tests)
+   - `TestQueryByIntentWithGoals` (1 test)
+   - Context builder tests for goals formatting (5 tests)
+
+**Files Modified:**
+- `assistant/data_service.py` - Added `get_goals_data()` method and query_map entry
+- `assistant/views.py` - Added 'goals' to supported_types
+- `assistant/context_builder.py` - Added `_format_goals_data()` function
+- `apps/ai/signals.py` - Added goals cache invalidation to existing handlers
+- `assistant/tests/test_data_service.py` - Added goals data service tests
+- `assistant/tests/test_context_builder.py` - Added goals context builder tests
+
+---
 
 ### Add Faith Data Service Method (Task #187)
 

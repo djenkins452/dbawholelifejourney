@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Cache Versioning Strategy)
+# Last Updated: 2026-01-05 (Soft Delete Documentation)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,37 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Soft Delete Consistency Documentation (Task #190)
+
+**Session:** Soft Delete Documentation
+
+**Purpose:**
+Document the soft delete handling pattern for the Personal Data Query System to ensure
+future data methods follow the same approach and prevent bugs from incorrect filtering.
+
+**Changes:**
+1. Added section 7 to `docs/wlj_claude_troubleshoot.md`:
+   - Explains SoftDeleteManager automatically filters deleted records
+   - Documents that `is_deleted` is a @property, not a database field
+   - Shows correct vs incorrect filtering patterns with code examples
+   - References `apps/core/models.py` for implementation details
+
+2. Added Soft Delete Pattern documentation to `assistant/data_service.py`:
+   - Inline comment block explaining the pattern
+   - Correct/wrong usage examples
+   - References to related documentation
+
+3. Updated `CLAUDE.md`:
+   - Added reference to troubleshoot.md #7 in Key Architecture
+   - Added SoftDeleteManager filtering to common issues list
+
+**Files Modified:**
+- `docs/wlj_claude_troubleshoot.md` - New section 7 on SoftDeleteManager
+- `assistant/data_service.py` - Soft delete pattern in module docstring
+- `CLAUDE.md` - References to soft delete documentation
+
+---
 
 ### Improve Cache Invalidation Strategy (Task #189)
 

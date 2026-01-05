@@ -1,0 +1,340 @@
+{
+  "project": {
+    "name": "WLJ Personal Data Query System",
+    "description": "Build a context-aware AI assistant that queries user's personal WLJ data first, then falls back to general AI knowledge when no relevant data exists."
+  },
+  "tasks": [
+    {
+      "phase": "Phase 1",
+      "name": "Create Intent Detector Module",
+      "description": {
+        "objective": "Build a rule-based system that identifies when a user's question relates to their personal WLJ data.",
+        "inputs": [
+          "User message string"
+        ],
+        "actions": [
+          "Create assistant/intent_detector.py file.",
+          "Define PERSONAL_DATA_KEYWORDS dictionary mapping data types to keyword lists (weight, journal, medication, food, mood).",
+          "Define DATE_KEYWORDS list for time-related phrases (since, last, average, how many).",
+          "Implement detect_personal_data_intent() function that returns dict with is_personal_query boolean, data_types list, and has_date_context boolean.",
+          "Add unit tests for various query patterns."
+        ],
+        "output": "assistant/intent_detector.py with detect_personal_data_intent() function that accurately classifies user queries."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 1",
+      "name": "Create Date Parser Utility",
+      "description": {
+        "objective": "Build a utility that extracts date references from natural language queries like 'since December 1st' or 'this week'.",
+        "inputs": [
+          "User message string"
+        ],
+        "actions": [
+          "Create assistant/date_parser.py file.",
+          "Install dateutil package if not present (add to requirements.txt).",
+          "Implement extract_date_from_message() function with regex patterns for 'since', 'from', 'after' phrases.",
+          "Add relative date handling for 'this week', 'last week', 'this month', 'yesterday', 'today'.",
+          "Handle year defaulting when not specified.",
+          "Return None when no date reference is found.",
+          "Add unit tests for various date formats and edge cases."
+        ],
+        "output": "assistant/date_parser.py with extract_date_from_message() function that parses natural language dates into datetime objects."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create Personal Data Service - Weight Module",
+      "description": {
+        "objective": "Build the first data query method that retrieves and summarizes weight log data.",
+        "inputs": [
+          "User object",
+          "Optional since_date parameter",
+          "WeightLog model (or equivalent)"
+        ],
+        "actions": [
+          "Create assistant/data_service.py file.",
+          "Create PersonalDataService class with user attribute in __init__.",
+          "Implement get_weight_data() method that queries WeightLog model.",
+          "Filter by since_date when provided.",
+          "Return None if no entries exist.",
+          "Return dict with type, count, average, latest, latest_date, and entries (last 10).",
+          "Add unit tests with mock data."
+        ],
+        "output": "assistant/data_service.py with PersonalDataService class and working get_weight_data() method."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create Personal Data Service - Journal Module",
+      "description": {
+        "objective": "Add journal entry querying capability to the Personal Data Service.",
+        "inputs": [
+          "User object",
+          "Optional since_date parameter",
+          "JournalEntry model (or equivalent)"
+        ],
+        "actions": [
+          "Open assistant/data_service.py.",
+          "Add get_journal_data() method to PersonalDataService class.",
+          "Query JournalEntry model filtered by user.",
+          "Filter by since_date when provided.",
+          "Return None if no entries exist.",
+          "Return dict with type, count, and latest_date.",
+          "Add unit tests with mock data."
+        ],
+        "output": "PersonalDataService has working get_journal_data() method."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create Personal Data Service - Medication Module",
+      "description": {
+        "objective": "Add medication adherence querying with consistency calculation to the Personal Data Service.",
+        "inputs": [
+          "User object",
+          "Optional since_date parameter",
+          "MedicationLog model (or equivalent)"
+        ],
+        "actions": [
+          "Open assistant/data_service.py.",
+          "Add get_medication_data() method to PersonalDataService class.",
+          "Query MedicationLog model filtered by user.",
+          "Filter by since_date when provided.",
+          "Calculate days_with_logs using dates() aggregation.",
+          "Calculate total_days from since_date or first log date to now.",
+          "Calculate consistency_percent as (days_with_logs / total_days) * 100.",
+          "Return None if no entries exist.",
+          "Return dict with type, total_logs, days_logged, total_days, and consistency_percent.",
+          "Add unit tests with mock data."
+        ],
+        "output": "PersonalDataService has working get_medication_data() method with consistency calculation."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create Master Query Method",
+      "description": {
+        "objective": "Build the unified query_by_intent() method that dispatches to appropriate data methods based on detected intent.",
+        "inputs": [
+          "data_types list from intent detector",
+          "Optional since_date parameter"
+        ],
+        "actions": [
+          "Open assistant/data_service.py.",
+          "Add query_by_intent() method to PersonalDataService class.",
+          "Create query_map dictionary mapping data type strings to method references.",
+          "Loop through data_types and call corresponding methods.",
+          "Collect results into dict, skipping None responses.",
+          "Return results dict or None if empty.",
+          "Add integration tests covering multiple data types."
+        ],
+        "output": "PersonalDataService has query_by_intent() method that fetches all relevant data in one call."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 3",
+      "name": "Create Context Builder",
+      "description": {
+        "objective": "Build a formatter that converts query results into natural language context for the AI prompt.",
+        "inputs": [
+          "data_results dict from PersonalDataService"
+        ],
+        "actions": [
+          "Create assistant/context_builder.py file.",
+          "Implement build_personal_context() function.",
+          "Return empty string if data_results is None or empty.",
+          "Format weight data with count, average, and most recent values.",
+          "Format journal data with count and latest date.",
+          "Format medication data with consistency percentage and totals.",
+          "Add closing instruction for AI to use the data.",
+          "Return formatted string.",
+          "Add unit tests for various data combinations."
+        ],
+        "output": "assistant/context_builder.py with build_personal_context() function that produces AI-readable data summaries."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Integrate Components into Assistant View",
+      "description": {
+        "objective": "Wire all components together in the main assistant processing function with fallback logic.",
+        "inputs": [
+          "intent_detector module",
+          "date_parser module",
+          "data_service module",
+          "context_builder module",
+          "Existing assistant view or processing function"
+        ],
+        "actions": [
+          "Open assistant/views.py (or equivalent processing file).",
+          "Import all new modules.",
+          "Create or update process_assistant_message() function.",
+          "Call detect_personal_data_intent() on user message.",
+          "If is_personal_query is True, call extract_date_from_message().",
+          "Instantiate PersonalDataService and call query_by_intent().",
+          "If data exists, call build_personal_context().",
+          "Build system_prompt with personal context if available, or generic prompt if not.",
+          "Pass system_prompt and user_message to AI API call.",
+          "Return AI response.",
+          "Add integration tests for full flow."
+        ],
+        "output": "Assistant view processes queries with personal data priority and general knowledge fallback."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Add Food Log Data Service Method",
+      "description": {
+        "objective": "Extend Personal Data Service to query food log entries including calorie summaries.",
+        "inputs": [
+          "User object",
+          "Optional since_date parameter",
+          "FoodLog model (or equivalent)"
+        ],
+        "actions": [
+          "Open assistant/data_service.py.",
+          "Add get_food_data() method to PersonalDataService class.",
+          "Query FoodLog model filtered by user.",
+          "Filter by since_date when provided.",
+          "Calculate total_entries, average_daily_calories, and latest_date.",
+          "Return None if no entries exist.",
+          "Update query_map in query_by_intent() to include food.",
+          "Add unit tests with mock data."
+        ],
+        "output": "PersonalDataService has working get_food_data() method."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": true
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Add Mood Tracking Data Service Method",
+      "description": {
+        "objective": "Extend Personal Data Service to query mood log entries with trend analysis.",
+        "inputs": [
+          "User object",
+          "Optional since_date parameter",
+          "MoodLog model (or equivalent)"
+        ],
+        "actions": [
+          "Open assistant/data_service.py.",
+          "Add get_mood_data() method to PersonalDataService class.",
+          "Query MoodLog model filtered by user.",
+          "Filter by since_date when provided.",
+          "Calculate average_mood, count, and mood_distribution (counts per mood level).",
+          "Return None if no entries exist.",
+          "Update query_map in query_by_intent() to include mood.",
+          "Add unit tests with mock data."
+        ],
+        "output": "PersonalDataService has working get_mood_data() method."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": true
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Update Context Builder for New Data Types",
+      "description": {
+        "objective": "Extend context builder to format food and mood data for AI prompts.",
+        "inputs": [
+          "data_results dict potentially containing food and mood data"
+        ],
+        "actions": [
+          "Open assistant/context_builder.py.",
+          "Add formatting block for food data (entries, average calories, latest date).",
+          "Add formatting block for mood data (average mood, distribution, count).",
+          "Add unit tests for new data type combinations."
+        ],
+        "output": "build_personal_context() function handles all five data types."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": true
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Add Intent Detection Tests and Refinement",
+      "description": {
+        "objective": "Expand keyword coverage and add edge case handling to intent detection.",
+        "inputs": [
+          "assistant/intent_detector.py",
+          "User feedback or logs of missed intents"
+        ],
+        "actions": [
+          "Review any logged queries that were incorrectly classified.",
+          "Add additional keywords to PERSONAL_DATA_KEYWORDS for each data type.",
+          "Add handling for compound queries (e.g., 'weight and mood this week').",
+          "Add handling for negation or meta-questions (e.g., 'have I logged my weight' vs 'what is my weight').",
+          "Update unit tests to cover new patterns."
+        ],
+        "output": "Intent detector handles broader range of natural language queries."
+      },
+      "priority": "Low",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": true
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Add Query Result Caching",
+      "description": {
+        "objective": "Implement caching to reduce database queries for repeated or similar assistant questions.",
+        "inputs": [
+          "PersonalDataService class",
+          "Django cache framework"
+        ],
+        "actions": [
+          "Determine appropriate cache duration (e.g., 5 minutes for personal data).",
+          "Create cache key generator based on user_id, data_type, and since_date.",
+          "Wrap each get_*_data() method with cache check.",
+          "Invalidate relevant cache when user creates new log entries.",
+          "Add cache invalidation signals to log model save methods.",
+          "Test cache hit/miss behavior."
+        ],
+        "output": "Personal data queries are cached appropriately with automatic invalidation on new entries."
+      },
+      "priority": "Low",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": true
+    }
+  ]
+}

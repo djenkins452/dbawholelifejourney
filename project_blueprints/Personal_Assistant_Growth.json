@@ -1,0 +1,605 @@
+{
+  "project": {
+    "name": "Personal Assistant Growth",
+    "description": "Self-improving AI assistant system that identifies knowledge gaps, creates improvement tasks, implements safe query expansions autonomously, requires admin approval for application changes, and maintains full audit trail with Git-based rollback protection."
+  },
+  "tasks": [
+    {
+      "phase": "Phase 1",
+      "name": "Test Admin Email Notification",
+      "description": {
+        "objective": "Verify the Django email backend is correctly configured and can successfully send emails to admin@wholelifejourney.com.",
+        "inputs": [
+          "Django email backend configuration in settings.py",
+          "Admin email address: admin@wholelifejourney.com"
+        ],
+        "actions": [
+          "Create assistant/tests/test_email.py file.",
+          "Implement test_admin_email_delivery() function that sends a test email.",
+          "Email subject: 'WLJ Personal Assistant - Email Test'.",
+          "Email body: Include timestamp, server name, and confirmation message.",
+          "Use Django's send_mail() function.",
+          "Run the test manually via Django shell or management command.",
+          "Create management command assistant/management/commands/test_admin_email.py for easy re-testing.",
+          "Verify email arrives in admin@wholelifejourney.com inbox.",
+          "Check spam folder if not received.",
+          "Document any email configuration issues encountered.",
+          "Confirm SMTP settings, EMAIL_HOST, EMAIL_PORT, EMAIL_USE_TLS are correct.",
+          "If using console backend for development, switch to actual SMTP for this test."
+        ],
+        "output": "Confirmed email delivery to admin@wholelifejourney.com with documented test results."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low"
+    },
+    {
+      "phase": "Phase 1",
+      "name": "Create Gap Detection Module",
+      "description": {
+        "objective": "Build a system that recognizes when the assistant cannot answer a user's personal data question and captures the context for improvement.",
+        "inputs": [
+          "User message string",
+          "Intent detection results",
+          "Data query results (empty or None)"
+        ],
+        "actions": [
+          "Create assistant/gap_detector.py file.",
+          "Define GapType enum with values: UNKNOWN_DATA_TYPE, MISSING_KEYWORDS, NO_DATA_METHOD, UNSUPPORTED_QUERY_PATTERN.",
+          "Implement detect_knowledge_gap() function that analyzes why a query couldn't be answered.",
+          "Return dict with gap_detected boolean, gap_type, original_query, detected_intent, suggested_category, and timestamp.",
+          "Implement extract_potential_keywords() to identify words that might be new data type indicators.",
+          "Implement categorize_gap_severity() returning LOW (keyword addition), MEDIUM (new query method), HIGH (application change).",
+          "Add unit tests for various gap scenarios."
+        ],
+        "output": "assistant/gap_detector.py with functions that identify and categorize knowledge gaps."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 1",
+      "name": "Create Improvement Task Generator",
+      "description": {
+        "objective": "Build a service that creates structured improvement tasks in the project management system when gaps are detected.",
+        "inputs": [
+          "Gap detection results",
+          "Project name constant: 'Personal Assistant Growth'"
+        ],
+        "actions": [
+          "Create assistant/task_generator.py file.",
+          "Define ImprovementTask dataclass with fields: title, description, gap_type, severity, original_query, suggested_fix, code_template, test_requirements, requires_approval, created_at.",
+          "Implement generate_improvement_task() function that creates task based on gap type.",
+          "For MISSING_KEYWORDS gaps: generate task to add keywords to intent_detector.py.",
+          "For NO_DATA_METHOD gaps: generate task to add new method to data_service.py.",
+          "For UNSUPPORTED_QUERY_PATTERN gaps: generate task to update date_parser.py or add new pattern.",
+          "Implement generate_code_template() that produces the actual code fix as a string.",
+          "Implement generate_test_template() that produces mock test code.",
+          "Set requires_approval=False for LOW severity, requires_approval=True for MEDIUM and HIGH.",
+          "Add unit tests for task generation."
+        ],
+        "output": "assistant/task_generator.py that creates detailed improvement tasks with code templates."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High"
+    },
+    {
+      "phase": "Phase 1",
+      "name": "Create Task Storage Model",
+      "description": {
+        "objective": "Create Django model to persist improvement tasks with full lifecycle tracking.",
+        "inputs": [
+          "Django models framework"
+        ],
+        "actions": [
+          "Create or update assistant/models.py file.",
+          "Create ImprovementTask model with fields: id (UUID), title, description (JSON), gap_type, severity, original_query, suggested_fix (TextField), code_template (TextField), test_template (TextField), requires_approval (Boolean), status (CharField with choices), created_at, updated_at, approved_at, approved_by, completed_at, error_message, git_commit_before, git_commit_after.",
+          "Define STATUS_CHOICES: NEW, PENDING_APPROVAL, APPROVED, IN_PROGRESS, TESTING, COMPLETED, ERROR, ROLLED_BACK.",
+          "Add method transition_status() with validation for allowed transitions.",
+          "Add method to_dict() for serialization.",
+          "Create and run migration.",
+          "Add admin registration for manual oversight."
+        ],
+        "output": "ImprovementTask model with full lifecycle tracking and admin interface."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create Git Protection Service",
+      "description": {
+        "objective": "Build a service that creates Git commits before and after changes, enabling rollback if needed.",
+        "inputs": [
+          "Git repository",
+          "File paths being modified"
+        ],
+        "actions": [
+          "Create assistant/git_service.py file.",
+          "Import subprocess for Git commands.",
+          "Implement GitProtectionService class.",
+          "Implement create_snapshot() that stages and commits current state with message format: AUTO-BACKUP Before improvement task {task_id}.",
+          "Implement commit_changes() that commits after successful change with message: AUTO-IMPROVE {task_title} (Task {task_id}).",
+          "Implement rollback_to_commit() that reverts to a specific commit hash.",
+          "Implement get_current_commit_hash() to capture state.",
+          "Implement get_file_diff() to show what changed.",
+          "Add safety check: refuse to operate if working directory has uncommitted changes.",
+          "Add unit tests with mock Git commands."
+        ],
+        "output": "assistant/git_service.py with full Git snapshot and rollback capabilities."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create Safe File Modifier Service",
+      "description": {
+        "objective": "Build a service that safely modifies Python files with validation and syntax checking.",
+        "inputs": [
+          "Target file path",
+          "Code to insert or modify",
+          "Modification type (append, insert_after, replace)"
+        ],
+        "actions": [
+          "Create assistant/file_modifier.py file.",
+          "Define ALLOWED_FILES list containing intent_detector.py, data_service.py, context_builder.py, date_parser.py.",
+          "Define FORBIDDEN_FILES list containing settings.py, models.py, views.py, urls.py, manage.py.",
+          "Implement SafeFileModifier class.",
+          "Implement validate_target_file() that checks file is in ALLOWED_FILES.",
+          "Implement backup_file() that copies original to .backup extension.",
+          "Implement validate_python_syntax() using ast.parse() on the modified content.",
+          "Implement insert_code_after_pattern() that finds a regex pattern and inserts code after it.",
+          "Implement append_to_dict() specifically for adding keywords to dictionaries.",
+          "Implement append_method_to_class() for adding new methods to existing classes.",
+          "Implement apply_modification() as main entry point with full validation.",
+          "Implement restore_from_backup() for immediate rollback.",
+          "Add unit tests with temporary files."
+        ],
+        "output": "assistant/file_modifier.py with safe, validated file modification capabilities."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High"
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create Mock Test Runner",
+      "description": {
+        "objective": "Build a service that generates and executes mock tests to validate improvements before deployment.",
+        "inputs": [
+          "Test template from improvement task",
+          "Modified code"
+        ],
+        "actions": [
+          "Create assistant/test_runner.py file.",
+          "Implement MockTestRunner class.",
+          "Implement generate_test_file() that writes test code to assistant/tests/auto_generated/ directory.",
+          "Implement run_single_test() using subprocess to call pytest on specific test file.",
+          "Implement parse_test_results() to extract pass/fail and error messages.",
+          "Implement validate_intent_detection() that tests new keywords are detected.",
+          "Implement validate_data_query() that tests new query methods with mock data.",
+          "Implement cleanup_test_files() to remove auto-generated tests after run.",
+          "Return TestResult dataclass with passed boolean, output, errors, and duration.",
+          "Add integration tests for test runner itself."
+        ],
+        "output": "assistant/test_runner.py that validates improvements with auto-generated mock tests."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High"
+    },
+    {
+      "phase": "Phase 3",
+      "name": "Create Admin Notification Service",
+      "description": {
+        "objective": "Build email notification service to keep admin informed of all improvement task activities.",
+        "inputs": [
+          "Django email backend (already configured)",
+          "Admin email: admin@wholelifejourney.com",
+          "Improvement task details"
+        ],
+        "actions": [
+          "Create assistant/notifications.py file.",
+          "Define ADMIN_EMAIL constant from settings or hardcode admin@wholelifejourney.com.",
+          "Implement AdminNotificationService class.",
+          "Implement notify_task_created() for new improvement tasks.",
+          "Implement notify_approval_required() for tasks needing admin approval.",
+          "Implement notify_task_completed() with summary of changes made.",
+          "Implement notify_task_error() with error details and rollback status.",
+          "Implement notify_auto_improvement() for low-severity autonomous changes.",
+          "Create email templates in templates/assistant/emails/ directory.",
+          "Include Git diff in completion emails.",
+          "Include rollback instructions in error emails.",
+          "Add approval link in approval_required emails (Phase 4 dependency).",
+          "Add unit tests with mail.outbox inspection."
+        ],
+        "output": "assistant/notifications.py with comprehensive admin email notifications."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 3",
+      "name": "Create Email Templates",
+      "description": {
+        "objective": "Create clear, informative email templates for all notification types.",
+        "inputs": [
+          "Template directory structure"
+        ],
+        "actions": [
+          "Create templates/assistant/emails/ directory.",
+          "Create task_created.html with task details and severity level.",
+          "Create approval_required.html with task details, proposed code changes, approval link, and reject link.",
+          "Create task_completed.html with summary, Git diff, and what user queries now work.",
+          "Create task_error.html with error message, rollback status, and manual intervention steps.",
+          "Create auto_improvement.html for low-risk autonomous changes with what changed and why.",
+          "Create corresponding .txt versions for plain text email.",
+          "Use consistent branding and clear formatting.",
+          "Include timestamp and task ID in all templates."
+        ],
+        "output": "Complete set of email templates for admin notifications."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Create Admin Approval Endpoint",
+      "description": {
+        "objective": "Build secure API endpoint for admin to approve or reject improvement tasks.",
+        "inputs": [
+          "ImprovementTask model",
+          "Admin authentication"
+        ],
+        "actions": [
+          "Create assistant/admin_views.py file.",
+          "Implement approve_task view with token-based authentication.",
+          "Generate secure one-time approval tokens stored with task.",
+          "Implement reject_task view that marks task as rejected with reason.",
+          "Validate token has not expired (24-hour expiry).",
+          "Validate task is in PENDING_APPROVAL status.",
+          "On approval: update status to APPROVED, set approved_by and approved_at.",
+          "On rejection: update status to REJECTED, notify requestor if applicable.",
+          "Add URL routes for /assistant/admin/approve/{task_id}/{token}/ and /assistant/admin/reject/{task_id}/{token}/.",
+          "Add simple HTML response confirming action.",
+          "Add unit tests for approval flow."
+        ],
+        "output": "Secure admin approval endpoints with token validation."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Create Admin Dashboard View",
+      "description": {
+        "objective": "Build a simple dashboard for admin to view all improvement tasks and their status.",
+        "inputs": [
+          "ImprovementTask model",
+          "Admin authentication"
+        ],
+        "actions": [
+          "Add to assistant/admin_views.py.",
+          "Implement improvement_dashboard view requiring staff login.",
+          "Display all tasks sorted by created_at descending.",
+          "Show status badges with color coding (New=blue, Pending=yellow, Error=red, Completed=green).",
+          "Include filter by status and severity.",
+          "Show task details in expandable rows.",
+          "Include approve/reject buttons for pending tasks.",
+          "Include rollback button for completed tasks.",
+          "Add URL route for /assistant/admin/dashboard/.",
+          "Create template templates/assistant/admin/dashboard.html."
+        ],
+        "output": "Admin dashboard for monitoring and managing improvement tasks."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Create Improvement Executor Service",
+      "description": {
+        "objective": "Build the main orchestrator that executes improvement tasks through the full lifecycle.",
+        "inputs": [
+          "ImprovementTask instance",
+          "GitProtectionService",
+          "SafeFileModifier",
+          "MockTestRunner",
+          "AdminNotificationService"
+        ],
+        "actions": [
+          "Create assistant/executor.py file.",
+          "Implement ImprovementExecutor class.",
+          "Implement execute_task() as main entry point.",
+          "Step 1: Validate task is in APPROVED status (or NEW for low-severity).",
+          "Step 2: Update status to IN_PROGRESS.",
+          "Step 3: Call GitProtectionService.create_snapshot(), store commit hash.",
+          "Step 4: Call SafeFileModifier.apply_modification() with task code_template.",
+          "Step 5: Update status to TESTING.",
+          "Step 6: Call MockTestRunner.run_single_test() with task test_template.",
+          "Step 7a: If tests pass, call GitProtectionService.commit_changes().",
+          "Step 7b: If tests pass, update status to COMPLETED, notify admin.",
+          "Step 8a: If tests fail, call GitProtectionService.rollback_to_commit().",
+          "Step 8b: If tests fail, update status to ERROR with error message, notify admin.",
+          "Wrap entire execution in try/except with rollback on any exception.",
+          "Add comprehensive logging throughout.",
+          "Add integration tests with mock services."
+        ],
+        "output": "assistant/executor.py that orchestrates the full improvement lifecycle with safety guarantees."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High"
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Create Autonomous Executor for Low-Severity Tasks",
+      "description": {
+        "objective": "Build a variant executor that runs automatically for low-risk improvements without approval.",
+        "inputs": [
+          "ImprovementTask with severity=LOW",
+          "ImprovementExecutor"
+        ],
+        "actions": [
+          "Add to assistant/executor.py.",
+          "Implement AutonomousExecutor class extending ImprovementExecutor.",
+          "Override execute_task() to skip approval check for LOW severity only.",
+          "Add additional validation: task must only modify ALLOWED_FILES.",
+          "Add additional validation: code_template must only add keywords or simple patterns.",
+          "Implement is_safe_for_autonomous() that inspects code_template for dangerous patterns.",
+          "Reject autonomous execution if code contains: import statements, class definitions, database calls, file I/O beyond target.",
+          "Always notify admin after autonomous execution.",
+          "Add rate limiting: max 5 autonomous improvements per hour.",
+          "Add unit tests for safety validations."
+        ],
+        "output": "AutonomousExecutor that safely handles low-risk improvements without approval."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Integrate Gap Detection into Assistant Flow",
+      "description": {
+        "objective": "Wire gap detection into the main assistant processing to trigger improvement tasks.",
+        "inputs": [
+          "assistant/views.py process_assistant_message function",
+          "Gap detector module",
+          "Task generator module",
+          "ImprovementTask model",
+          "Executor services"
+        ],
+        "actions": [
+          "Open assistant/views.py.",
+          "Import gap_detector, task_generator, and executor modules.",
+          "After data query returns empty, call detect_knowledge_gap().",
+          "If gap_detected is True, call generate_improvement_task().",
+          "Save ImprovementTask to database.",
+          "If severity is LOW and is_safe_for_autonomous(), queue for AutonomousExecutor.",
+          "If severity is MEDIUM or HIGH, send approval notification to admin.",
+          "Continue with original response to user (using fallback general knowledge).",
+          "Add logging for all gap detections.",
+          "Add user-facing message: I do not have that information yet, but I have noted this for improvement.",
+          "Add integration tests for full flow."
+        ],
+        "output": "Assistant automatically creates improvement tasks when it encounters knowledge gaps."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Create Background Task Queue for Execution",
+      "description": {
+        "objective": "Implement async task processing so improvements do not block user requests.",
+        "inputs": [
+          "Django-Q or Celery (choose based on existing setup)",
+          "Executor services"
+        ],
+        "actions": [
+          "Determine if Django-Q or Celery is already in use, or install Django-Q for simplicity.",
+          "Create assistant/tasks.py for async task definitions.",
+          "Implement execute_improvement_task async function.",
+          "Implement process_approved_tasks periodic task that checks for APPROVED tasks.",
+          "Implement process_autonomous_tasks periodic task for LOW severity queue.",
+          "Configure task schedule: check every 5 minutes.",
+          "Add task timeout of 10 minutes.",
+          "Add retry logic with max 2 retries.",
+          "Update admin notification to include queue status.",
+          "Add monitoring for stuck tasks (IN_PROGRESS for more than 30 minutes).",
+          "Add unit tests with mock task queue."
+        ],
+        "output": "Async task processing for improvement execution."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 7",
+      "name": "Create Rollback Management Interface",
+      "description": {
+        "objective": "Build admin interface to manually trigger rollbacks for any completed improvement.",
+        "inputs": [
+          "ImprovementTask model with git_commit_before field",
+          "GitProtectionService"
+        ],
+        "actions": [
+          "Add to assistant/admin_views.py.",
+          "Implement rollback_task view requiring staff login.",
+          "Validate task is in COMPLETED status.",
+          "Validate git_commit_before is not null.",
+          "Call GitProtectionService.rollback_to_commit() with stored commit hash.",
+          "Update task status to ROLLED_BACK.",
+          "Add rollback_reason field to model, require reason in request.",
+          "Notify admin of rollback completion.",
+          "Add rollback button to admin dashboard.",
+          "Add confirmation modal before rollback.",
+          "Add unit tests for rollback flow."
+        ],
+        "output": "Admin can safely rollback any improvement with one click."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 7",
+      "name": "Create Improvement Analytics Dashboard",
+      "description": {
+        "objective": "Build reporting view showing improvement task statistics and system learning progress.",
+        "inputs": [
+          "ImprovementTask model"
+        ],
+        "actions": [
+          "Add to assistant/admin_views.py.",
+          "Implement improvement_analytics view requiring staff login.",
+          "Calculate total tasks by status (pie chart data).",
+          "Calculate tasks over time (line chart data).",
+          "Calculate success rate (completed / total attempted).",
+          "Calculate average time from creation to completion.",
+          "List most common gap types.",
+          "List most frequently improved files.",
+          "Show recent activity feed.",
+          "Create template templates/assistant/admin/analytics.html.",
+          "Include simple Chart.js visualizations.",
+          "Add URL route for /assistant/admin/analytics/."
+        ],
+        "output": "Analytics dashboard showing system learning progress over time."
+      },
+      "priority": "Low",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 8",
+      "name": "Add Learning Rate Limits and Safety Caps",
+      "description": {
+        "objective": "Implement safety limits to prevent runaway self-modification.",
+        "inputs": [
+          "System configuration",
+          "ImprovementTask model"
+        ],
+        "actions": [
+          "Create assistant/safety_limits.py file.",
+          "Define MAX_AUTONOMOUS_PER_HOUR = 5.",
+          "Define MAX_AUTONOMOUS_PER_DAY = 20.",
+          "Define MAX_PENDING_TASKS = 50.",
+          "Define MAX_FILE_MODIFICATIONS_PER_FILE_PER_DAY = 3.",
+          "Implement check_rate_limits() that queries recent tasks.",
+          "Implement check_file_modification_limit() for specific files.",
+          "Implement is_system_healthy() that checks for error rate spikes.",
+          "If error rate exceeds 30 percent in last 10 tasks, pause autonomous execution.",
+          "Notify admin when any limit is reached.",
+          "Integrate checks into AutonomousExecutor.",
+          "Add admin override capability for limits.",
+          "Add unit tests for all limits."
+        ],
+        "output": "Safety limits preventing excessive self-modification."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 8",
+      "name": "Create System Health Monitor",
+      "description": {
+        "objective": "Build monitoring service that tracks system health and pauses improvements if issues detected.",
+        "inputs": [
+          "Application logs",
+          "ImprovementTask model",
+          "Email notification service"
+        ],
+        "actions": [
+          "Create assistant/health_monitor.py file.",
+          "Implement HealthMonitor class.",
+          "Implement check_assistant_response_rate() to detect if assistant is failing.",
+          "Implement check_error_rate() for improvement task failures.",
+          "Implement check_rollback_rate() - high rollbacks indicate problems.",
+          "Implement get_system_status() returning HEALTHY, DEGRADED, or CRITICAL.",
+          "If CRITICAL: pause all autonomous improvements, notify admin.",
+          "If DEGRADED: pause autonomous, allow approved only, notify admin.",
+          "Create periodic task to run health check every 15 minutes.",
+          "Add manual health check endpoint for admin.",
+          "Add unit tests for health detection."
+        ],
+        "output": "Health monitoring that protects system from cascading failures."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium"
+    },
+    {
+      "phase": "Phase 9",
+      "name": "End-to-End Integration Testing",
+      "description": {
+        "objective": "Create comprehensive integration tests for the entire self-improvement flow.",
+        "inputs": [
+          "All assistant modules",
+          "Test database",
+          "Mock email backend"
+        ],
+        "actions": [
+          "Create assistant/tests/test_integration.py file.",
+          "Test Case 1: User query triggers gap detection, creates task.",
+          "Test Case 2: LOW severity task executes autonomously, sends notification.",
+          "Test Case 3: MEDIUM severity task waits for approval, executes after approval.",
+          "Test Case 4: Failed test triggers rollback, sends error notification.",
+          "Test Case 5: Admin manually triggers rollback.",
+          "Test Case 6: Rate limits prevent excessive autonomous execution.",
+          "Test Case 7: Health monitor pauses system on high error rate.",
+          "Test Case 8: Approval token expires after 24 hours.",
+          "Use pytest fixtures for database setup.",
+          "Mock external services (Git, email).",
+          "Add CI/CD integration for automated testing."
+        ],
+        "output": "Comprehensive integration test suite validating entire self-improvement system."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High"
+    },
+    {
+      "phase": "Phase 9",
+      "name": "Create Documentation and Runbook",
+      "description": {
+        "objective": "Document the self-improvement system for maintenance and troubleshooting.",
+        "inputs": [
+          "All assistant modules",
+          "System architecture"
+        ],
+        "actions": [
+          "Create docs/assistant/SELF_IMPROVEMENT.md file.",
+          "Document system architecture with diagram.",
+          "Document each module purpose and key functions.",
+          "Document task lifecycle and status transitions.",
+          "Document safety limits and how to adjust them.",
+          "Document email notifications and templates.",
+          "Document admin dashboard usage.",
+          "Create RUNBOOK.md with troubleshooting steps.",
+          "Include: How to manually rollback a change.",
+          "Include: How to pause all autonomous improvements.",
+          "Include: How to investigate a failed task.",
+          "Include: How to reset the system after errors.",
+          "Add inline code comments referencing documentation."
+        ],
+        "output": "Complete documentation for operating and maintaining the self-improvement system."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium"
+    }
+  ]
+}

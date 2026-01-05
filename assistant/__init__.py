@@ -8,7 +8,7 @@ related to personal wellness data.
 from .intent_detector import detect_personal_data_intent
 from .date_parser import extract_date_from_message
 from .data_service import PersonalDataService, invalidate_user_data_cache
-from .views import process_assistant_message
+from .views import process_assistant_message, handle_data_visibility_confirmation
 from .context_builder import build_personal_context
 from .gap_detector import (
     GapType,
@@ -30,6 +30,7 @@ __all__ = [
     'PersonalDataService',
     'invalidate_user_data_cache',
     'process_assistant_message',
+    'handle_data_visibility_confirmation',
     'build_personal_context',
     'GapType',
     'GapSeverity',

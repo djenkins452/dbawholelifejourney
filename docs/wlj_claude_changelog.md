@@ -78,6 +78,97 @@ Added `<nav class="breadcrumb mb-4">` elements to 22 Finance templates following
 
 ---
 
+### Fix AI Assistant Not Seeing Blood Glucose Entries (Bug Fix)
+
+**Session:** AI Assistant Blood Glucose Visibility Bug
+
+**Problem:**
+User reported that the AI assistant was not seeing blood glucose entries logged via the admin console, despite the entries existing in the database and appearing in the Health section of the app.
+
+**Root Causes Identified:**
+1. **Timezone Issue in Date Parser:** The `extract_date_from_message()` function in `assistant/date_parser.py` used naive `datetime.now()` instead of timezone-aware datetime. This caused queries like "show my glucose today" to potentially filter out today's entries when there was a timezone offset between the user's local time and UTC.
+
+2. **Cache Not Invalidated on Bulk Create:** The admin console glucose import (and Clarity CSV import command) used `bulk_create()` which bypasses Django signals. The existing cache invalidation signals only fired on individual `post_save` operations, leaving bulk-imported data cached as stale.
+
+**Solution:**
+
+1. **Fixed timezone awareness in date_parser.py:**
+   ```python
+   # Before (naive datetime):
+   now = reference_date or datetime.now()
+
+   # After (timezone-aware):
+   now = reference_date or timezone.localtime(timezone.now())
+   ```
+
+2. **Added explicit cache invalidation after bulk_create operations:**
+   - `apps/admin_console/views.py` - Added cache invalidation after glucose import
+   - `apps/health/management/commands/import_clarity_csv.py` - Added cache invalidation after CSV import
+
+**Files Modified:**
+- `assistant/date_parser.py` - Use timezone-aware datetime
+- `apps/admin_console/views.py` - Invalidate cache after bulk glucose import
+- `apps/health/management/commands/import_clarity_csv.py` - Invalidate cache after CSV import
+
+**Technical Note:**
+Django's `bulk_create()` does not trigger `post_save` signals for performance reasons. Any code using `bulk_create()` for health data must explicitly call `invalidate_user_data_cache(user_id, data_type)` after the operation to ensure the AI assistant sees the new data.
+
+---
+
+### Add Clarifying Question Flow for Data Visibility Issues (Enhancement)
+
+**Session:** AI Assistant Self-Diagnosis for Missing Data
+
+**Problem:**
+When the AI assistant couldn't find user data (e.g., blood glucose), it would either treat this as a "knowledge gap" (missing feature) or simply not mention it. There was no way for the assistant to distinguish between:
+1. User hasn't logged any data (expected)
+2. User logged data but the assistant can't see it (bug)
+
+**Solution:**
+Added a clarifying question flow that asks users to verify if data exists in the app before escalating:
+
+**New Flow:**
+1. User asks about their data (e.g., "show my blood glucose")
+2. Assistant queries database and finds nothing
+3. Instead of treating as a gap, assistant asks: *"I'm not seeing any blood glucose data in my records. Can you see your most recent blood glucose entries in the app? If you can see them there but I can't, please let me know and I'll investigate."*
+4. User responds:
+   - **If user says "no":** Assistant responds with guidance on how to log data
+   - **If user says "yes" (data exists but assistant can't see it):**
+     1. Automatically invalidates cache for that data type
+     2. Re-queries to check if cache was the issue
+     3. If cache invalidation fixes it: "I found the issue and fixed it! Please ask again."
+     4. If still broken: Sends email to admin@wholelifejourney.com with diagnostic details
+
+**Files Modified:**
+- `assistant/views.py`:
+  - Added `DATA_NOT_FOUND_CLARIFYING_MESSAGE` and `DATA_VISIBILITY_ISSUE_MESSAGE` constants
+  - Added `needs_clarification`, `clarifying_question`, `awaiting_data_type` to result dict
+  - Modified empty data handling to ask clarifying question instead of treating as gap
+  - Added `handle_data_visibility_confirmation()` function
+  - Added `_send_data_visibility_alert()` function for admin email
+  - Added `_get_friendly_data_type_name()` helper
+
+- `assistant/__init__.py`:
+  - Exported `handle_data_visibility_confirmation`
+
+- `apps/ai/personal_assistant.py`:
+  - Added `_handle_data_visibility_confirmation()` method to detect yes/no responses
+  - Modified `send_message()` to check for pending data visibility confirmations
+  - Stores confirmation state in conversation metadata
+
+**User Experience:**
+- Users now get asked for clarification instead of getting generic "no data" responses
+- If they confirm data should exist, the system tries to self-heal (cache invalidation)
+- If self-healing fails, admin is automatically notified via email
+- Users receive clear feedback about what's happening and what actions are being taken
+
+**Admin Experience:**
+- Receives email alert when user confirms data visibility issue
+- Email includes user details, data type, and diagnostic steps to take
+- Alerts are only sent when cache invalidation doesn't resolve the issue
+
+---
+
 ### Fix Date/Time Defaults on Health Log Forms (Task #191)
 
 **Session:** Date Defaults for Health Metric Forms

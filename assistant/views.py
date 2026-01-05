@@ -34,6 +34,20 @@ GAP_DETECTED_MESSAGE = (
     "I do not have that information yet, but I have noted this for improvement."
 )
 
+# User-facing message when no data is found but user might have logged it
+DATA_NOT_FOUND_CLARIFYING_MESSAGE = (
+    "I'm not seeing any {data_type} data in my records. "
+    "Can you see your most recent {data_type} entries in the app? "
+    "If you can see them there but I can't, please let me know and I'll investigate."
+)
+
+# User-facing message when user confirms data exists but assistant can't see it
+DATA_VISIBILITY_ISSUE_MESSAGE = (
+    "Thank you for confirming. I've notified the admin about this data visibility issue. "
+    "They will investigate why I can't see your {data_type} data. "
+    "In the meantime, you can view your data directly in the Health section of the app."
+)
+
 
 def process_assistant_message(
     user,
@@ -95,6 +109,9 @@ def process_assistant_message(
         'has_data': False,
         'gap_detected': False,
         'gap_message': None,
+        'needs_clarification': False,  # True when asking user to verify data exists
+        'clarifying_question': None,   # The question to ask the user
+        'awaiting_data_type': None,    # Which data type we're asking about
     }
 
     # Step 1: Detect if this is a personal data query
@@ -147,12 +164,41 @@ def process_assistant_message(
             else:
                 result['system_prompt'] = personal_context
     else:
-        # Data query returned empty - check for knowledge gap
-        gap_result = detect_knowledge_gap(message, intent, data_results)
-        if gap_result['gap_detected']:
-            _handle_gap_detection(message, intent, data_results, gap_result, result)
+        # Data query returned empty - this could be:
+        # 1. User hasn't logged any data (normal case)
+        # 2. Data exists but we can't see it (bug/cache issue)
+        #
+        # Instead of treating as a gap, ask user to clarify
+        primary_data_type = queryable_types[0] if queryable_types else 'data'
+        friendly_name = _get_friendly_data_type_name(primary_data_type)
+
+        result['needs_clarification'] = True
+        result['clarifying_question'] = DATA_NOT_FOUND_CLARIFYING_MESSAGE.format(
+            data_type=friendly_name
+        )
+        result['awaiting_data_type'] = primary_data_type
+
+        logger.info(
+            f"No data found for {primary_data_type} query, asking user to verify: "
+            f"'{message[:50]}...'"
+        )
 
     return result
+
+
+def _get_friendly_data_type_name(data_type: str) -> str:
+    """Convert internal data type name to user-friendly display name."""
+    friendly_names = {
+        'glucose': 'blood glucose',
+        'weight': 'weight',
+        'journal': 'journal',
+        'medication': 'medication',
+        'food': 'food',
+        'mood': 'mood',
+        'faith': 'faith',
+        'goals': 'goals',
+    }
+    return friendly_names.get(data_type, data_type)
 
 
 def _handle_gap_detection(
@@ -290,3 +336,145 @@ def _send_approval_notification(
         )
     except Exception as e:
         logger.error(f"Failed to send approval notification: {e}")
+
+
+def handle_data_visibility_confirmation(
+    user,
+    data_type: str,
+    user_confirms_data_exists: bool,
+) -> Dict[str, Any]:
+    """
+    Handle user's response to the clarifying question about data visibility.
+
+    When the assistant can't find data and asks the user to verify if they can
+    see it in the app, this function processes their response.
+
+    Args:
+        user: The Django User object.
+        data_type: The type of data (e.g., 'glucose', 'weight').
+        user_confirms_data_exists: True if user says they CAN see their data in the app.
+
+    Returns:
+        A dictionary containing:
+            - response_message (str): Message to show the user.
+            - action_taken (str): What action was taken ('none', 'notified_admin', 'invalidated_cache').
+            - issue_resolved (bool): Whether the issue was resolved automatically.
+    """
+    friendly_name = _get_friendly_data_type_name(data_type)
+
+    if not user_confirms_data_exists:
+        # User doesn't have data - this is expected, no action needed
+        return {
+            'response_message': (
+                f"No problem! When you're ready to log some {friendly_name} data, "
+                f"you can do so in the Health section of the app, and I'll be able to "
+                f"see it and help you track your progress."
+            ),
+            'action_taken': 'none',
+            'issue_resolved': True,
+        }
+
+    # User confirms data exists but assistant can't see it - this is a bug!
+    logger.warning(
+        f"DATA VISIBILITY ISSUE: User {user.id} confirms {data_type} data exists "
+        f"but assistant cannot see it. Triggering diagnostics and admin notification."
+    )
+
+    # Step 1: Try to invalidate cache (this might fix it immediately)
+    from .data_service import invalidate_user_data_cache
+    invalidate_user_data_cache(user.id, data_type)
+    logger.info(f"Invalidated cache for user {user.id}, data_type={data_type}")
+
+    # Step 2: Check if data is now visible after cache invalidation
+    from .data_service import PersonalDataService
+    service = PersonalDataService(user)
+
+    # Try to fetch the data again
+    data_method = getattr(service, f'get_{data_type}_data', None)
+    data_now_visible = False
+    if data_method:
+        try:
+            data = data_method()
+            if data:
+                data_now_visible = True
+                logger.info(f"Cache invalidation fixed visibility for user {user.id}, {data_type}")
+        except Exception as e:
+            logger.error(f"Error checking data visibility after cache invalidation: {e}")
+
+    if data_now_visible:
+        # Cache invalidation fixed the issue
+        return {
+            'response_message': (
+                f"I found the issue and fixed it! I can now see your {friendly_name} data. "
+                f"Please ask me again about your {friendly_name} and I'll be able to help."
+            ),
+            'action_taken': 'invalidated_cache',
+            'issue_resolved': True,
+        }
+
+    # Step 3: Cache invalidation didn't help - notify admin
+    _send_data_visibility_alert(user, data_type)
+
+    return {
+        'response_message': DATA_VISIBILITY_ISSUE_MESSAGE.format(data_type=friendly_name),
+        'action_taken': 'notified_admin',
+        'issue_resolved': False,
+    }
+
+
+def _send_data_visibility_alert(user, data_type: str) -> None:
+    """
+    Send an alert to the admin about a data visibility issue.
+
+    This is called when the user confirms they can see data in the app
+    but the assistant cannot retrieve it, even after cache invalidation.
+
+    Args:
+        user: The Django User object.
+        data_type: The type of data that cannot be seen.
+    """
+    from django.core.mail import send_mail
+    from django.conf import settings
+
+    admin_email = getattr(settings, 'ADMIN_EMAIL', 'admin@wholelifejourney.com')
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@wholelifejourney.com')
+
+    subject = f"[WLJ Assistant] DATA VISIBILITY ISSUE: {data_type} for user {user.email}"
+
+    message = f"""
+DATA VISIBILITY ISSUE DETECTED
+
+The AI Assistant could not retrieve {data_type} data for a user, but the user
+confirmed they can see the data in the app. Cache invalidation was attempted
+but did not resolve the issue.
+
+User Details:
+- Email: {user.email}
+- User ID: {user.id}
+- Data Type: {data_type}
+
+Diagnostic Steps to Take:
+1. Check if the user has {data_type} entries in the database
+2. Verify the data_service query method is working correctly
+3. Check for any timezone issues in date filtering
+4. Review recent deployments for related changes
+5. Check the assistant logs for errors
+
+This requires manual investigation.
+
+---
+This alert was automatically generated by the WLJ Personal Assistant
+when a user reported a data visibility discrepancy.
+"""
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=from_email,
+            recipient_list=[admin_email],
+            fail_silently=False,
+        )
+        logger.info(f"Data visibility alert sent to {admin_email} for user {user.id}, {data_type}")
+    except Exception as e:
+        logger.error(f"Failed to send data visibility alert: {e}")

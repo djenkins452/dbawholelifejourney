@@ -1,0 +1,699 @@
+{
+
+    "project": {
+
+        "name": "Assistant Updates",
+
+        "description": "Fixes and enhancements for the WLJ Personal Data Query System identified during comprehensive audit. Includes critical bug fixes, missing integrations, and feature completions."
+
+    },
+
+    "tasks": [
+
+        {
+
+            "phase": "Phase 1",
+
+            "name": "Fix is_deleted Filter Bug in Journal Data Query",
+
+            "description": {
+
+                "objective": "Remove the broken is_deleted=False filter from get_journal_data() since is_deleted is a property, not a field, and the SoftDeleteManager already excludes deleted records",
+
+                "inputs": [
+
+                    "assistant/data_service.py line 219"
+
+                ],
+
+                "actions": [
+
+                    "Open assistant/data_service.py",
+
+                    "Locate get_journal_data() method around line 219",
+
+                    "Change 'queryset = JournalEntry.objects.filter(user=self.user, is_deleted=False)' to 'queryset = JournalEntry.objects.filter(user=self.user)'",
+
+                    "Update the docstring comment from 'filter by user and exclude soft-deleted' to 'filter by user (SoftDeleteManager excludes deleted records)'",
+
+                    "Update corresponding test in test_data_service.py to verify filter is called with only user parameter"
+
+                ],
+
+                "output": "get_journal_data() method uses correct filter that relies on SoftDeleteManager, tests updated and passing"
+
+            },
+
+            "priority": "High",
+
+            "status": "Ready",
+
+            "effort": "Small",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 1",
+
+            "name": "Fix is_deleted Filter Bug in Medication Data Query",
+
+            "description": {
+
+                "objective": "Remove the broken is_deleted=False filter from get_medication_data() since is_deleted is a property, not a field, and the SoftDeleteManager already excludes deleted records",
+
+                "inputs": [
+
+                    "assistant/data_service.py line 289"
+
+                ],
+
+                "actions": [
+
+                    "Open assistant/data_service.py",
+
+                    "Locate get_medication_data() method around line 289",
+
+                    "Change 'queryset = MedicineLog.objects.filter(user=self.user, is_deleted=False)' to 'queryset = MedicineLog.objects.filter(user=self.user)'",
+
+                    "Update the docstring comment from 'filter by user and exclude soft-deleted' to 'filter by user (SoftDeleteManager excludes deleted records)'",
+
+                    "Update corresponding test in test_data_service.py to verify filter is called with only user parameter"
+
+                ],
+
+                "output": "get_medication_data() method uses correct filter that relies on SoftDeleteManager, tests updated and passing"
+
+            },
+
+            "priority": "High",
+
+            "status": "Ready",
+
+            "effort": "Small",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 1",
+
+            "name": "Fix is_deleted Filter Bug in Mood Data Query",
+
+            "description": {
+
+                "objective": "Remove the broken is_deleted=False filter from get_mood_data() since is_deleted is a property, not a field, and the SoftDeleteManager already excludes deleted records",
+
+                "inputs": [
+
+                    "assistant/data_service.py lines 468-471"
+
+                ],
+
+                "actions": [
+
+                    "Open assistant/data_service.py",
+
+                    "Locate get_mood_data() method around line 468",
+
+                    "Change the filter from 'JournalEntry.objects.filter(user=self.user, is_deleted=False).exclude(mood='')' to 'JournalEntry.objects.filter(user=self.user).exclude(mood='')'",
+
+                    "Update the docstring comment from 'filter by user, not deleted, and has mood' to 'filter by user and has mood (SoftDeleteManager excludes deleted records)'",
+
+                    "Update corresponding test in test_data_service.py to verify filter is called with only user parameter"
+
+                ],
+
+                "output": "get_mood_data() method uses correct filter that relies on SoftDeleteManager, tests updated and passing"
+
+            },
+
+            "priority": "High",
+
+            "status": "Ready",
+
+            "effort": "Small",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 1",
+
+            "name": "Add Missing Exports to Assistant Module __init__.py",
+
+            "description": {
+
+                "objective": "Add process_assistant_message, build_personal_context, and invalidate_user_data_cache to the assistant module's public API exports",
+
+                "inputs": [
+
+                    "assistant/__init__.py",
+
+                    "assistant/views.py",
+
+                    "assistant/context_builder.py",
+
+                    "assistant/data_service.py"
+
+                ],
+
+                "actions": [
+
+                    "Open assistant/__init__.py",
+
+                    "Add import for process_assistant_message from .views",
+
+                    "Add import for build_personal_context from .context_builder",
+
+                    "Add import for invalidate_user_data_cache from .data_service",
+
+                    "Add all three to the __all__ list",
+
+                    "Verify imports work by checking no circular import issues"
+
+                ],
+
+                "output": "assistant/__init__.py exports process_assistant_message, build_personal_context, and invalidate_user_data_cache in __all__ list"
+
+            },
+
+            "priority": "High",
+
+            "status": "Ready",
+
+            "effort": "Small",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 2",
+
+            "name": "Integrate Personal Data Query with AI Personal Assistant",
+
+            "description": {
+
+                "objective": "Connect the process_assistant_message() function to the AI Personal Assistant so that user queries about personal data automatically inject relevant context into AI prompts",
+
+                "inputs": [
+
+                    "apps/ai/personal_assistant.py",
+
+                    "assistant/views.py process_assistant_message()",
+
+                    "Current build_personal_assistant_prompt() function"
+
+                ],
+
+                "actions": [
+
+                    "Open apps/ai/personal_assistant.py",
+
+                    "Import process_assistant_message from assistant module",
+
+                    "Identify where user messages are processed and system prompts are built",
+
+                    "Call process_assistant_message() with the user object and message",
+
+                    "If is_personal_query is True and has_data is True, append the personal context to the system prompt",
+
+                    "Ensure the integration doesn't break existing coaching style and time context features",
+
+                    "Add unit tests for the integration"
+
+                ],
+
+                "output": "AI Personal Assistant automatically injects personal data context when users ask about their weight, journal, medication, food, or mood data"
+
+            },
+
+            "priority": "High",
+
+            "status": "New",
+
+            "effort": "Medium",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 2",
+
+            "name": "Integrate Personal Data Query with Help Assistant Chat",
+
+            "description": {
+
+                "objective": "Connect the process_assistant_message() function to the WLJ Help Assistant chat system so personal data queries are handled with context",
+
+                "inputs": [
+
+                    "apps/help/models.py HelpConversation and HelpMessage models",
+
+                    "Help assistant chat handler (locate in help app views)",
+
+                    "assistant/views.py process_assistant_message()"
+
+                ],
+
+                "actions": [
+
+                    "Locate the Help Assistant chat message handler in apps/help/",
+
+                    "Import process_assistant_message from assistant module",
+
+                    "When processing user messages, call process_assistant_message()",
+
+                    "If is_personal_query is True, use the enhanced system_prompt for the AI call",
+
+                    "Test with queries like 'What was my weight last week?' in help chat",
+
+                    "Add appropriate unit tests"
+
+                ],
+
+                "output": "Help Assistant chat responds to personal data queries with actual user data context"
+
+            },
+
+            "priority": "Medium",
+
+            "status": "New",
+
+            "effort": "Medium",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 3",
+
+            "name": "Add Integration Tests for Personal Data Query System",
+
+            "description": {
+
+                "objective": "Create integration tests that use real Django models and ORM to verify the Personal Data Query System works correctly with actual database operations",
+
+                "inputs": [
+
+                    "assistant/data_service.py",
+
+                    "assistant/views.py",
+
+                    "apps/health/models.py WeightEntry, FoodEntry, MedicineLog",
+
+                    "apps/journal/models.py JournalEntry"
+
+                ],
+
+                "actions": [
+
+                    "Create new test file assistant/tests/test_integration.py",
+
+                    "Use Django TestCase (not unittest.TestCase) to get database access",
+
+                    "Create test user and real model instances",
+
+                    "Test get_weight_data() with actual WeightEntry records",
+
+                    "Test get_journal_data() with actual JournalEntry records",
+
+                    "Test get_medication_data() with actual MedicineLog records",
+
+                    "Test get_food_data() with actual FoodEntry records",
+
+                    "Test get_mood_data() with actual JournalEntry records with mood",
+
+                    "Test soft delete behavior - verify deleted records are excluded",
+
+                    "Test date filtering with real date ranges",
+
+                    "Test process_assistant_message() end-to-end"
+
+                ],
+
+                "output": "Integration test file with 15+ tests covering real ORM operations, soft delete behavior, and full pipeline"
+
+            },
+
+            "priority": "Medium",
+
+            "status": "New",
+
+            "effort": "Large",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 3",
+
+            "name": "Add Cache Integration Tests",
+
+            "description": {
+
+                "objective": "Create tests that verify caching behavior with Django's cache framework rather than mocks",
+
+                "inputs": [
+
+                    "assistant/data_service.py caching functions",
+
+                    "apps/ai/signals.py cache invalidation signals"
+
+                ],
+
+                "actions": [
+
+                    "Add tests to assistant/tests/test_integration.py or create test_cache_integration.py",
+
+                    "Use Django TestCase with override_settings to use locmem cache",
+
+                    "Test that query results are cached after first call",
+
+                    "Test that cached results are returned on second call",
+
+                    "Test that cache is invalidated when model save signal fires",
+
+                    "Test that cache is invalidated when model delete signal fires",
+
+                    "Test cache TTL behavior"
+
+                ],
+
+                "output": "Integration tests verifying cache hit/miss and signal-based invalidation with real Django cache"
+
+            },
+
+            "priority": "Medium",
+
+            "status": "New",
+
+            "effort": "Medium",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 4",
+
+            "name": "Add Glucose Data Service Method",
+
+            "description": {
+
+                "objective": "Implement get_glucose_data() method in PersonalDataService to query GlucoseEntry model and return blood glucose statistics",
+
+                "inputs": [
+
+                    "assistant/data_service.py",
+
+                    "apps/health/models.py GlucoseEntry model",
+
+                    "Existing pattern from get_weight_data()"
+
+                ],
+
+                "actions": [
+
+                    "Open assistant/data_service.py",
+
+                    "Add get_glucose_data(self, since_date=None) method following existing patterns",
+
+                    "Import GlucoseEntry from apps.health.models",
+
+                    "Query GlucoseEntry.objects.filter(user=self.user)",
+
+                    "Apply since_date filter if provided (check model for date field name)",
+
+                    "Return count, average glucose level, latest reading, and date",
+
+                    "Add caching similar to other methods",
+
+                    "Add 'glucose' to query_map in query_by_intent()",
+
+                    "Add 'glucose' to supported_types in views.py",
+
+                    "Add _format_glucose_data() to context_builder.py",
+
+                    "Add glucose signal handlers to apps/ai/signals.py for cache invalidation",
+
+                    "Write unit tests for the new method"
+
+                ],
+
+                "output": "get_glucose_data() method returns glucose statistics, integrated with query_by_intent(), context builder, and cache invalidation"
+
+            },
+
+            "priority": "Low",
+
+            "status": "New",
+
+            "effort": "Medium",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 4",
+
+            "name": "Add Faith Data Service Method",
+
+            "description": {
+
+                "objective": "Implement get_faith_data() method in PersonalDataService to query faith-related models (PrayerRequest, Devotional) and return spiritual activity statistics",
+
+                "inputs": [
+
+                    "assistant/data_service.py",
+
+                    "apps/faith/models.py PrayerRequest, Devotional models",
+
+                    "Existing pattern from get_journal_data()"
+
+                ],
+
+                "actions": [
+
+                    "Open assistant/data_service.py",
+
+                    "Add get_faith_data(self, since_date=None) method",
+
+                    "Import relevant models from apps.faith.models",
+
+                    "Query prayer requests count and recent entries",
+
+                    "Query devotional entries count and recent entries",
+
+                    "Return combined faith activity summary",
+
+                    "Add caching similar to other methods",
+
+                    "Add 'faith' to query_map in query_by_intent()",
+
+                    "Add 'faith' to supported_types in views.py",
+
+                    "Add _format_faith_data() to context_builder.py",
+
+                    "Add faith signal handlers to apps/ai/signals.py for cache invalidation",
+
+                    "Write unit tests for the new method"
+
+                ],
+
+                "output": "get_faith_data() method returns faith activity statistics, integrated with query_by_intent(), context builder, and cache invalidation"
+
+            },
+
+            "priority": "Low",
+
+            "status": "New",
+
+            "effort": "Medium",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 4",
+
+            "name": "Add Goals Data Service Method",
+
+            "description": {
+
+                "objective": "Implement get_goals_data() method in PersonalDataService to query LifeGoal model and return goal progress statistics",
+
+                "inputs": [
+
+                    "assistant/data_service.py",
+
+                    "apps/purpose/models.py LifeGoal model",
+
+                    "Existing pattern from get_medication_data() for progress tracking"
+
+                ],
+
+                "actions": [
+
+                    "Open assistant/data_service.py",
+
+                    "Add get_goals_data(self, since_date=None) method",
+
+                    "Import LifeGoal from apps.purpose.models",
+
+                    "Query active goals, completed goals, and progress metrics",
+
+                    "Return goal counts by status, completion rates, recent achievements",
+
+                    "Add caching similar to other methods",
+
+                    "Add 'goals' to query_map in query_by_intent()",
+
+                    "Add 'goals' to supported_types in views.py",
+
+                    "Add _format_goals_data() to context_builder.py",
+
+                    "Add goals signal handlers to apps/ai/signals.py for cache invalidation",
+
+                    "Write unit tests for the new method"
+
+                ],
+
+                "output": "get_goals_data() method returns goal statistics, integrated with query_by_intent(), context builder, and cache invalidation"
+
+            },
+
+            "priority": "Low",
+
+            "status": "New",
+
+            "effort": "Medium",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 5",
+
+            "name": "Improve Cache Invalidation Strategy",
+
+            "description": {
+
+                "objective": "Enhance cache invalidation to handle date-specific cache keys more comprehensively, preventing stale data for specific date range queries",
+
+                "inputs": [
+
+                    "assistant/data_service.py invalidate_user_data_cache()",
+
+                    "Current cache key pattern: personal_data:{user_id}:{data_type}:{date}"
+
+                ],
+
+                "actions": [
+
+                    "Research Django cache backends that support pattern-based deletion (Redis with delete_pattern)",
+
+                    "If Redis available, implement pattern-based invalidation: personal_data:{user_id}:{data_type}:*",
+
+                    "If not Redis, implement cache versioning approach - add version key per user/data_type",
+
+                    "Update _generate_cache_key() to include version number",
+
+                    "Update invalidate_user_data_cache() to increment version instead of deleting specific keys",
+
+                    "Add configuration setting for cache strategy (pattern vs versioning)",
+
+                    "Update tests for new invalidation approach",
+
+                    "Document the cache strategy in code comments"
+
+                ],
+
+                "output": "Cache invalidation properly clears all date-variant cache keys when data changes, with configurable strategy for different cache backends"
+
+            },
+
+            "priority": "Low",
+
+            "status": "New",
+
+            "effort": "Medium",
+
+            "allow_out_of_phase": false
+
+        },
+
+        {
+
+            "phase": "Phase 5",
+
+            "name": "Add Soft Delete Consistency Documentation",
+
+            "description": {
+
+                "objective": "Document the soft delete handling pattern for the Personal Data Query System to ensure future data methods follow the same approach",
+
+                "inputs": [
+
+                    "assistant/data_service.py all get_*_data() methods",
+
+                    "apps/core/models.py SoftDeleteModel and SoftDeleteManager",
+
+                    "docs/wlj_claude_troubleshoot.md"
+
+                ],
+
+                "actions": [
+
+                    "Add a section to docs/wlj_claude_troubleshoot.md about SoftDeleteManager",
+
+                    "Document that models inheriting UserOwnedModel automatically filter deleted records",
+
+                    "Document that using is_deleted in filter() will cause FieldError",
+
+                    "Add inline comment block at top of data_service.py explaining soft delete pattern",
+
+                    "Add example code showing correct vs incorrect filtering",
+
+                    "Reference this documentation in CLAUDE.md quick reference"
+
+                ],
+
+                "output": "Documentation in troubleshoot.md and data_service.py explaining soft delete pattern, preventing future bugs"
+
+            },
+
+            "priority": "Low",
+
+            "status": "New",
+
+            "effort": "Small",
+
+            "allow_out_of_phase": false
+
+        }
+
+    ]
+
+}

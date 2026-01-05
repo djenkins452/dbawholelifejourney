@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Query Result Caching)
+# Last Updated: 2026-01-05 (Add Gap Detection Module)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,39 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Gap Detection Module (Task #158)
+
+**Session:** Create Gap Detection Module
+
+**Changes:**
+1. Created `assistant/gap_detector.py` with functions to identify and categorize knowledge gaps:
+   - `GapType` enum with values: `UNKNOWN_DATA_TYPE`, `MISSING_KEYWORDS`, `NO_DATA_METHOD`, `UNSUPPORTED_QUERY_PATTERN`
+   - `GapSeverity` enum with values: `LOW` (keyword addition), `MEDIUM` (new query method), `HIGH` (application change)
+   - `detect_knowledge_gap()` function that analyzes why a query couldn't be answered
+   - `extract_potential_keywords()` to identify words that might be new data type indicators
+   - `categorize_gap_severity()` returning severity level based on gap type
+2. Created comprehensive unit tests in `assistant/tests/test_gap_detector.py`:
+   - Tests for all enum values and constants
+   - Tests for each gap type detection scenario
+   - Tests for keyword extraction logic
+   - Integration tests for realistic scenarios
+3. Updated `assistant/__init__.py` to export new functions and classes
+
+**Files Created:**
+- `assistant/gap_detector.py` - Gap detection module
+- `assistant/tests/test_gap_detector.py` - Unit tests for gap detector
+
+**Files Modified:**
+- `assistant/__init__.py` - Added exports for gap detector functions
+
+**Purpose:** Build a system that recognizes when the assistant cannot answer a user's personal data question and captures the context for improvement. This enables automatic identification of:
+- Missing keywords that should be added to intent detection
+- Data types that need query methods in PersonalDataService
+- Unsupported query patterns (comparisons, correlations, predictions)
+- Unknown data types that may require new models
+
+---
 
 ### Add Admin Email Test Functionality (Task #157)
 

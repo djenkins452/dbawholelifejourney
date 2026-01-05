@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Quick Scan Modal on Dashboard)
+# Last Updated: 2026-01-04 (Glucose Help Content)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,31 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Glucose Dashboard Help Content (Task #128)
+
+**Session:** Fix Help Not Available
+
+**Problem:**
+The glucose tracking page at `/health/glucose/` showed "Help Not Available - No help content is available for this page yet" when users clicked the context-aware help button.
+
+**Changes:**
+Added comprehensive help topic for GLUCOSE_DASHBOARD context with:
+- Explanation of glucose levels and their meanings (very low, low, normal, high, very high)
+- Dexcom CGM integration guide with connection steps
+- Trend arrow explanations (all 7 directions with rates)
+- Dashboard stats interpretation (time in range, average, min/max, low/high counts)
+- AI insight parameters explanation (what data the AI analyzes)
+- Faith-enabled insight variations
+- Manual logging instructions
+- Time period view options (Today, 7/30/60/90 days)
+
+**Files Modified:**
+- `apps/help/fixtures/help_topics.json` - Added new HelpTopic (pk=21) for GLUCOSE_DASHBOARD
+
+**Note:** Fixture needs to be loaded via `python manage.py loaddata help_topics` or added via Django Admin when environment is working.
+
+---
 
 ### Quick Scan Modal on Dashboard (Task #125)
 

@@ -107,7 +107,7 @@
                 name="recorded_at"
                 id="id_recorded_at"
                 class="form-input"
-                value="{{ form.recorded_at.value|date:'Y-m-d\TH:i'|default:'' }}"
+                value="{% if form.recorded_at.value %}{{ form.recorded_at.value|date:'Y-m-d\TH:i' }}{% else %}{{ form.initial.recorded_at|default:'' }}{% endif %}"
             >
         </div>
 

@@ -4,7 +4,7 @@
 # Description: OpenAI Vision API integration for camera scan feature.
 #              Analyzes images to identify food, medicine, supplements, etc.
 #              and routes to appropriate app modules with pre-filled data.
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-15
 # Last Updated: 2025-12-29
 # ==============================================================================

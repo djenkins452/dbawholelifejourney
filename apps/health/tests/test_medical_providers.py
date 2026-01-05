@@ -2,7 +2,7 @@
 # File: test_medical_providers.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Comprehensive tests for MedicalProvider and ProviderStaff features
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-29
 # Last Updated: 2025-12-29
 # ==============================================================================

@@ -3,7 +3,7 @@
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Faith module models including Scripture, prayers, reading plans,
 #              and Bible study tools
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2024-01-01
 # Last Updated: 2026-01-01
 # ==============================================================================

@@ -2,7 +2,7 @@
 # File: intent_service.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Intent recognition and structured data extraction using OpenAI
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-04
 # ==============================================================================
 """

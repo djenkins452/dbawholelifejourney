@@ -2,7 +2,7 @@
 # File: docs/wlj_security_signup_threat_model.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Signup abuse threat model identifying risks and mitigations
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-02
 # Last Updated: 2026-01-02
 # Version: 1.0

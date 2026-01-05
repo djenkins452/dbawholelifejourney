@@ -3,7 +3,7 @@
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Management command to test email configuration by sending a test
 #              email via the configured SMTP backend
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
 # ==============================================================================

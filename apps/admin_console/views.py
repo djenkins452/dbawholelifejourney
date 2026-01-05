@@ -2,7 +2,7 @@
 # File: apps/admin_console/views.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Admin console views for site management and project task intake
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-01
 # Last Updated: 2026-01-03 (Added HelpContextMixin to Project views, DataLoadConfig management views)
 # ==============================================================================

@@ -4,7 +4,7 @@
 # Description: Security event logging utilities for error notifications and
 #              security monitoring. Integrates with Django's logging and email
 #              to notify admins of security events and errors.
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
 # ==============================================================================

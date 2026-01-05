@@ -2,7 +2,7 @@
 # File: apps/life/jobs.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Life module scheduler job functions (must be importable by APScheduler)
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-01
 # Last Updated: 2026-01-02
 # ==============================================================================

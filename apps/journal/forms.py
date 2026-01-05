@@ -2,7 +2,7 @@
 # File: forms.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Forms for journal entry creation and editing
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2024-01-01
 # Last Updated: 2025-12-29
 # ==============================================================================

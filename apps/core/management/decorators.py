@@ -2,7 +2,7 @@
 # File: apps/core/management/decorators.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Decorators for management commands to add error reporting
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
 # ==============================================================================

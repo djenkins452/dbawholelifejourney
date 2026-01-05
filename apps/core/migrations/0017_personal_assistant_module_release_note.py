@@ -2,7 +2,7 @@
 # File: 0017_personal_assistant_module_release_note.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Data migration to add Personal Assistant Module release note
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-29
 # Last Updated: 2025-12-29
 # ==============================================================================

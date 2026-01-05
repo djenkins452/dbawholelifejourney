@@ -2,7 +2,7 @@
 # File: send_pending_sms.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Management command to send pending SMS notifications
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-30
 # Last Updated: 2026-01-03
 # ==============================================================================

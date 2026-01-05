@@ -2,7 +2,7 @@
 # File: apps/health/services/dexcom.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Dexcom CGM OAuth and data sync service
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-31
 # Last Updated: 2026-01-01
 # ==============================================================================

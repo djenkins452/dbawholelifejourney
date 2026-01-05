@@ -2,7 +2,7 @@
 # File: docs/wlj_ai_finance_rules.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: AI Finance Interpretation Rules - Safe, Explainable AI Behavior
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
 # ==============================================================================

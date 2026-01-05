@@ -2,7 +2,7 @@
 # File: docs/wlj_sms_twilio_troubleshooting.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Twilio SMS troubleshooting history and investigation notes
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-31
 # Last Updated: 2025-12-31
 # ==============================================================================

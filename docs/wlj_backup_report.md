@@ -2,7 +2,7 @@
 # File: docs/wlj_backup_report.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Backup operation reports and history
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
 # Last Updated: 2025-12-30
 # ==============================================================================

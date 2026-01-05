@@ -3223,12 +3223,14 @@ class ProjectImportView(AdminRequiredMixin, View):
     template_name = "admin_console/project_import.html"
 
     def get(self, request):
+        from .models import AdminProject
         projects = AdminProject.objects.filter(status='open').order_by('name')
         return render(request, self.template_name, {'existing_projects': projects})
 
     def post(self, request):
         import json
         from django.db import transaction
+        from .models import AdminProject, AdminProjectPhase, AdminTask
 
         # Get form data
         json_file = request.FILES.get('json_file')

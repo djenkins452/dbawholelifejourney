@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Context Builder)
+# Last Updated: 2026-01-05 (Integrate Components into Assistant View)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,28 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Integrate Components into Assistant View (Task #150)
+
+**Session:** Integrate Components into Assistant View
+
+**Changes:**
+1. Created new `assistant/views.py` module as main entry point
+2. Implemented `process_assistant_message()` function integrating all components
+3. Imports and uses `detect_personal_data_intent()` from intent_detector
+4. Calls `extract_date_from_message()` when date context is detected
+5. Filters data_types to supported types ('weight', 'journal', 'medication')
+6. Instantiates `PersonalDataService` with user and calls `query_by_intent()`
+7. Calls `build_personal_context()` to format data for AI prompts
+8. Appends personal context to base system prompt when data exists
+9. Returns dict with system_prompt, is_personal_query, data_types, has_data
+10. Added 13 unit tests covering various scenarios
+
+**Files Created:**
+- `assistant/views.py` - Main entry point with process_assistant_message() function
+- `assistant/tests/test_views.py` - 13 unit tests for integration
+
+---
 
 ### Context Builder (Task #149)
 

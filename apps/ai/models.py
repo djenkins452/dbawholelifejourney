@@ -477,6 +477,13 @@ class AssistantConversation(models.Model):
         help_text="AI-generated summary of conversation for continuity"
     )
 
+    # Metadata for tracking conversation state (e.g., pending confirmations)
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional conversation state data"
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -1,0 +1,32 @@
+{% extends "assistant/emails/base_email.html" %}
+
+{% block title %}New Task Created - WLJ Assistant{% endblock %}
+
+{% block header_title %}New Improvement Task Created{% endblock %}
+
+{% block content %}
+<p>{{ message }}</p>
+
+<span class="badge badge-info">Task #{{ task.task_id }}</span>
+
+<dl class="task-info">
+    <dt>Task Title</dt>
+    <dd>{{ task.title }}</dd>
+
+    {% if task.description %}
+    <dt>Description</dt>
+    <dd>{{ task.description }}</dd>
+    {% endif %}
+
+    <dt>Severity</dt>
+    <dd>{{ task.severity|title }}</dd>
+</dl>
+
+<p>This task has been added to the queue and will be processed according to its priority and severity level.</p>
+
+{% if task.severity == 'high' %}
+<div class="action-required">
+    <strong>Note:</strong> This is a high-severity task that may require manual approval before execution.
+</div>
+{% endif %}
+{% endblock %}

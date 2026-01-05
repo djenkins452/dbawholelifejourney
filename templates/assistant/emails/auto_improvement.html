@@ -1,0 +1,49 @@
+{% extends "assistant/emails/base_email.html" %}
+
+{% block title %}Auto-Improvement Applied - WLJ Assistant{% endblock %}
+
+{% block header_title %}Automatic Improvement Applied{% endblock %}
+
+{% block content %}
+<p>{{ message }}</p>
+
+<span class="badge badge-info">Task #{{ task.task_id }}</span>
+<span class="badge badge-success">Auto-Applied</span>
+
+<dl class="task-info">
+    <dt>Task Title</dt>
+    <dd>{{ task.title }}</dd>
+
+    {% if task.description %}
+    <dt>Description</dt>
+    <dd>{{ task.description }}</dd>
+    {% endif %}
+
+    <dt>Severity</dt>
+    <dd>{{ task.severity|title }} (Eligible for auto-improvement)</dd>
+</dl>
+
+{% if changes_made %}
+<h3>Changes Made</h3>
+<ul>
+    {% for change in changes_made %}
+    <li>{{ change }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% if test_results %}
+<h3>Validation Results</h3>
+<div class="code-block">{{ test_results }}</div>
+{% endif %}
+
+{% if git_diff %}
+<h3>Git Diff</h3>
+<div class="diff-block">{{ git_diff }}</div>
+{% endif %}
+
+<p style="margin-top: 20px; color: #6b7280; font-size: 14px;">
+    This improvement was automatically applied due to its low-severity classification.
+    No manual approval was required.
+</p>
+{% endblock %}

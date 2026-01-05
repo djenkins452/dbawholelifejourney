@@ -1,0 +1,32 @@
+WLJ Personal Assistant - Auto-Improvement Applied
+=================================================
+
+{{ message }}
+
+Task #{{ task.task_id }} [Auto-Applied]
+-----------------------
+Title: {{ task.title }}
+{% if task.description %}Description: {{ task.description }}{% endif %}
+Severity: {{ task.severity|title }} (Eligible for auto-improvement)
+
+{% if changes_made %}
+Changes Made:
+{% for change in changes_made %}- {{ change }}
+{% endfor %}{% endif %}
+
+{% if test_results %}
+Validation Results:
+{{ test_results }}
+{% endif %}
+
+{% if git_diff %}
+Git Diff:
+{{ git_diff }}
+{% endif %}
+
+This improvement was automatically applied due to its low-severity classification.
+No manual approval was required.
+
+--
+Sent to: {{ admin_email }}
+Timestamp: {{ timestamp }}

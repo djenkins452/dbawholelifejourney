@@ -1,0 +1,25 @@
+WLJ Personal Assistant - Approval Required
+==========================================
+
+ACTION REQUIRED: {{ message }}
+
+Task #{{ task.task_id }}
+-----------------------
+Title: {{ task.title }}
+{% if task.description %}Description: {{ task.description }}{% endif %}
+Severity: {{ task.severity|title }}
+
+{% if changes_preview %}
+Proposed Changes:
+{{ changes_preview }}
+{% endif %}
+
+{% if approval_url %}
+Review & Approve: {{ approval_url }}
+{% else %}
+Note: Approval link will be available in Phase 4. Please review tasks in the admin console.
+{% endif %}
+
+--
+Sent to: {{ admin_email }}
+Timestamp: {{ timestamp }}

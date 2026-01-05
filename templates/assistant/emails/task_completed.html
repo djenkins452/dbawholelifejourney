@@ -1,0 +1,44 @@
+{% extends "assistant/emails/base_email.html" %}
+
+{% block title %}Task Completed - WLJ Assistant{% endblock %}
+
+{% block header_title %}Task Completed Successfully{% endblock %}
+
+{% block content %}
+<p>{{ message }}</p>
+
+<span class="badge badge-success">Task #{{ task.task_id }}</span>
+
+<dl class="task-info">
+    <dt>Task Title</dt>
+    <dd>{{ task.title }}</dd>
+
+    {% if summary %}
+    <dt>Summary</dt>
+    <dd>{{ summary }}</dd>
+    {% endif %}
+
+    {% if execution_time %}
+    <dt>Execution Time</dt>
+    <dd>{{ execution_time|floatformat:2 }} seconds</dd>
+    {% endif %}
+</dl>
+
+{% if files_modified %}
+<h3>Files Modified</h3>
+<ul class="file-list">
+    {% for file in files_modified %}
+    <li><code>{{ file }}</code></li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% if git_diff %}
+<h3>Git Diff</h3>
+<div class="diff-block">{{ git_diff }}</div>
+{% endif %}
+
+<p style="margin-top: 20px; color: #065f46;">
+    All changes have been committed and are now live.
+</p>
+{% endblock %}

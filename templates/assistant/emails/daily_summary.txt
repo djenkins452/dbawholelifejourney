@@ -1,0 +1,24 @@
+WLJ Personal Assistant - Daily Summary
+======================================
+
+{{ message }}
+
+{% if action_required %}
+ACTION REQUIRED: You have {{ tasks_pending_approval }} task{{ tasks_pending_approval|pluralize }} waiting for approval.
+{% endif %}
+
+Activity Summary
+----------------
+Tasks Created:      {{ tasks_created }}
+Tasks Completed:    {{ tasks_completed }}
+Tasks Failed:       {{ tasks_failed }}
+Pending Approval:   {{ tasks_pending_approval }}
+Total Activity:     {{ total_activity }}
+
+{% if total_activity == 0 %}No improvement activity today.{% elif tasks_completed > 0 %}Great progress! {{ tasks_completed }} improvement{{ tasks_completed|pluralize }} successfully applied today.{% endif %}
+
+{% if tasks_failed > 0 %}Note: {{ tasks_failed }} task{{ tasks_failed|pluralize }} failed today. Please review the error logs.{% endif %}
+
+--
+Sent to: {{ admin_email }}
+Timestamp: {{ timestamp }}

@@ -1,0 +1,26 @@
+WLJ Personal Assistant - Task Completed
+=======================================
+
+{{ message }}
+
+Task #{{ task.task_id }}
+-----------------------
+Title: {{ task.title }}
+{% if summary %}Summary: {{ summary }}{% endif %}
+{% if execution_time %}Execution Time: {{ execution_time|floatformat:2 }} seconds{% endif %}
+
+{% if files_modified %}
+Files Modified:
+{% for file in files_modified %}- {{ file }}
+{% endfor %}{% endif %}
+
+{% if git_diff %}
+Git Diff:
+{{ git_diff }}
+{% endif %}
+
+All changes have been committed and are now live.
+
+--
+Sent to: {{ admin_email }}
+Timestamp: {{ timestamp }}

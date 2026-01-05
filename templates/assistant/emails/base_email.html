@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}WLJ Assistant Notification{% endblock %}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            border-bottom: 2px solid #6366f1;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #6366f1;
+            font-size: 24px;
+            margin: 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-info {
+            background-color: #e0e7ff;
+            color: #4338ca;
+        }
+        .badge-success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .badge-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .badge-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .task-info {
+            background-color: #f9fafb;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .task-info dt {
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .task-info dd {
+            margin: 0 0 10px 0;
+            color: #111827;
+        }
+        .action-required {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .diff-block {
+            background-color: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .diff-add {
+            color: #065f46;
+            background-color: #d1fae5;
+        }
+        .diff-remove {
+            color: #991b1b;
+            background-color: #fee2e2;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            margin: 5px;
+        }
+        .btn-primary {
+            background-color: #6366f1;
+            color: #ffffff;
+        }
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #374151;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        ul.file-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        ul.file-list li {
+            padding: 5px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        ul.file-list li:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{% block header_title %}WLJ Personal Assistant{% endblock %}</h1>
+        </div>
+
+        {% block content %}{% endblock %}
+
+        <div class="footer">
+            <p>This is an automated notification from the WLJ Personal Assistant.</p>
+            <p>Sent to: {{ admin_email }} | {{ timestamp|date:"F j, Y g:i A" }}</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -9,6 +9,9 @@ file modification, testing, and commit or rollback.
 
 It also provides AutonomousExecutor, a variant that can safely execute
 low-risk improvements without requiring admin approval.
+
+Documentation: See docs/assistant/SELF_IMPROVEMENT.md#execution-engine
+Runbook: See docs/assistant/RUNBOOK.md#how-to-manually-rollback-a-change
 """
 
 import logging

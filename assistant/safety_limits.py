@@ -6,6 +6,9 @@ Owner: admin@wholelifejourney.com
 This module provides rate limiting and safety caps to prevent runaway
 self-modification by the autonomous executor system. All limits can be
 overridden by admins through the SafetyLimitOverride model.
+
+Documentation: See docs/assistant/SELF_IMPROVEMENT.md#safety-limits
+Runbook: See docs/assistant/RUNBOOK.md for operational procedures
 """
 
 import logging

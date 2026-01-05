@@ -9,6 +9,9 @@ from cascading failures by monitoring:
 - Error rates for improvement tasks
 - Rollback rates indicating problems
 - Overall system responsiveness
+
+Documentation: See docs/assistant/SELF_IMPROVEMENT.md#safety-limits
+Runbook: See docs/assistant/RUNBOOK.md#system-auto-paused-due-to-error-rate
 """
 
 import logging

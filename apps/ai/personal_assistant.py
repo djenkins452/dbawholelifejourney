@@ -1431,12 +1431,15 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         When the user says something like "my heart rate is 60", the assistant
         will recognize the intent, extract the data, and log it automatically.
 
+        Supports multi-command messages like "update my oxygen to 95 and weight to 350"
+        which will execute multiple actions and combine responses.
+
         Args:
             message: User's message
             conversation: Optional conversation to add to
 
         Returns:
-            Dict with 'response' (str) and optionally 'action_taken' (dict)
+            Dict with 'response' (str) and optionally 'actions_taken' (list of dicts)
         """
         from .intent_service import intent_service
 
@@ -1452,7 +1455,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         )
 
         response = ""
-        action_taken = None
+        actions_taken = []
 
         # Check if AI is available
         if not ai_service.is_available or not AIService.check_user_consent(self.user):
@@ -1468,36 +1471,61 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         response = action_result.message
                     else:
                         response = action_result.message
-                        action_taken = self._build_action_taken(action_result)
+                        actions_taken.append(self._build_action_taken(action_result))
                 else:
                     # Response wasn't yes/no, ask again
                     response = f"Please confirm: {intent_service._build_confirmation_message(pending['intent_type'], pending['parameters'])} (yes/no)"
             else:
-                # Try to recognize intent
-                intent_result = intent_service.recognize_intent(message, self.user)
+                # Try to recognize intents (supports multiple)
+                intent_results = intent_service.recognize_intents(message, self.user)
 
-                if intent_result.intent_type != 'no_action':
-                    # Intent recognized - check if confirmation needed
-                    if intent_result.requires_confirmation:
-                        # Store pending and ask for confirmation
-                        intent_service.store_pending_confirmation(self.user, intent_result)
-                        response = intent_result.confirmation_message
+                # Filter out no_action results
+                actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']
+
+                if actionable_intents:
+                    # Check if any require confirmation
+                    needs_confirmation = [ir for ir in actionable_intents if ir.requires_confirmation]
+
+                    if needs_confirmation:
+                        # For now, if any need confirmation, handle them one by one
+                        # Store the first one pending and execute the rest
+                        # TODO: Could enhance to batch confirmations
+                        first_confirm = needs_confirmation[0]
+                        intent_service.store_pending_confirmation(self.user, first_confirm)
+
+                        # Execute any that don't need confirmation
+                        no_confirm = [ir for ir in actionable_intents if not ir.requires_confirmation]
+                        response_parts = []
+
+                        for intent_result in no_confirm:
+                            action_result = intent_service.execute_intent(intent_result, self.user)
+                            if action_result.success:
+                                response_parts.append(action_result.message)
+                                actions_taken.append(self._build_action_taken(action_result))
+
+                        # Add confirmation message for the pending one
+                        response_parts.append(first_confirm.confirmation_message)
+                        response = " ".join(response_parts)
                     else:
-                        # Execute the action immediately
-                        action_result = intent_service.execute_intent(intent_result, self.user)
+                        # Execute all actions immediately
+                        response_parts = []
 
-                        if action_result.success:
-                            response = action_result.message
-                            action_taken = self._build_action_taken(action_result)
-                        else:
-                            # Action failed - respond with error message
-                            response = action_result.message
+                        for intent_result in actionable_intents:
+                            action_result = intent_service.execute_intent(intent_result, self.user)
+                            if action_result.success:
+                                response_parts.append(action_result.message)
+                                actions_taken.append(self._build_action_taken(action_result))
+                            else:
+                                # Action failed - include error
+                                response_parts.append(action_result.message)
+
+                        response = " ".join(response_parts)
                 else:
                     # No action intent - generate normal chat response
                     response = self._generate_response(message, conversation)
 
         # Save assistant response
-        msg_type = 'action' if action_taken else 'text'
+        msg_type = 'action' if actions_taken else 'text'
         assistant_msg = AssistantMessage.objects.create(
             conversation=conversation,
             role='assistant',
@@ -1511,8 +1539,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
         # Return structured response
         result = {'response': response}
-        if action_taken:
-            result['action_taken'] = action_taken
+        if actions_taken:
+            # For backwards compatibility, also include single action_taken
+            result['action_taken'] = actions_taken[0] if len(actions_taken) == 1 else None
+            result['actions_taken'] = actions_taken
 
         return result
 

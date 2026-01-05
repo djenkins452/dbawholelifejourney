@@ -102,16 +102,34 @@ class IntentService:
 
         Returns:
             IntentResult with intent_type, parameters, and confirmation needs
+            Note: For single intents. Use recognize_intents() for multiple.
+        """
+        results = self.recognize_intents(user_message, user)
+        return results[0] if results else IntentResult(intent_type='no_action')
+
+    def recognize_intents(self, user_message: str, user) -> List[IntentResult]:
+        """
+        Recognize one or more user intents from natural language message.
+
+        Supports multi-command messages like "update my oxygen to 95 and my weight to 350"
+        which will return multiple IntentResults.
+
+        Args:
+            user_message: The user's natural language input
+            user: The User model instance
+
+        Returns:
+            List of IntentResult objects (may be empty if no intents recognized)
         """
         if not self.is_available:
-            logger.warning("Intent service not available - returning no_action")
-            return IntentResult(intent_type='no_action')
+            logger.warning("Intent service not available - returning empty list")
+            return [IntentResult(intent_type='no_action')]
 
         try:
             # Build the system prompt for intent recognition
             system_prompt = self._build_intent_system_prompt()
 
-            # Call OpenAI with function tools
+            # Call OpenAI with function tools - parallel_tool_calls enabled by default
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -120,47 +138,50 @@ class IntentService:
                 ],
                 tools=ALL_INTENT_TOOLS,
                 tool_choice="auto",
-                max_tokens=200,
+                max_tokens=500,  # Increased for multiple tool calls
                 temperature=0.1,  # Low temperature for consistent parsing
             )
 
             # Parse the response
             message = response.choices[0].message
 
-            # Check if a function was called
+            # Check if any functions were called
             if message.tool_calls:
-                tool_call = message.tool_calls[0]
-                function_name = tool_call.function.name
-                try:
-                    parameters = json.loads(tool_call.function.arguments)
-                except json.JSONDecodeError:
-                    parameters = {}
+                results = []
+                for tool_call in message.tool_calls:
+                    function_name = tool_call.function.name
+                    try:
+                        parameters = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        parameters = {}
 
-                logger.info(f"Intent recognized: {function_name} with params: {parameters}")
+                    logger.info(f"Intent recognized: {function_name} with params: {parameters}")
 
-                # Check if confirmation is needed based on validation
-                requires_confirmation, confirmation_message = self._check_validation(
-                    function_name, parameters, user
-                )
+                    # Check if confirmation is needed based on validation
+                    requires_confirmation, confirmation_message = self._check_validation(
+                        function_name, parameters, user
+                    )
 
-                return IntentResult(
-                    intent_type=function_name,
-                    parameters=parameters,
-                    confidence=1.0,
-                    requires_confirmation=requires_confirmation,
-                    confirmation_message=confirmation_message,
-                    raw_response=message.content
-                )
+                    results.append(IntentResult(
+                        intent_type=function_name,
+                        parameters=parameters,
+                        confidence=1.0,
+                        requires_confirmation=requires_confirmation,
+                        confirmation_message=confirmation_message,
+                        raw_response=message.content
+                    ))
+
+                return results
             else:
                 # No function called - regular chat message
-                return IntentResult(
+                return [IntentResult(
                     intent_type='no_action',
                     raw_response=message.content
-                )
+                )]
 
         except Exception as e:
             logger.error(f"Intent recognition error: {e}", exc_info=True)
-            return IntentResult(intent_type='no_action')
+            return [IntentResult(intent_type='no_action')]
 
     def _build_intent_system_prompt(self) -> str:
         """Build the system prompt for intent recognition."""
@@ -179,6 +200,11 @@ IMPORTANT RULES:
 8. For medicine: Extract medicine name and optional dose label
 9. For fasting: Determine start or end intent, and fasting type if starting
 
+MULTI-COMMAND SUPPORT:
+When the user mentions MULTIPLE actions in one message, call ALL relevant functions.
+For example: "update my oxygen to 95 and weight to 350" should call BOTH log_blood_oxygen AND log_weight.
+Do NOT only process the first action - process ALL actions mentioned in the message.
+
 If the user's message is conversational and doesn't indicate logging intent, do NOT call any function.
 Let the message pass through for normal chat handling.
 
@@ -192,6 +218,11 @@ Examples of messages that SHOULD trigger functions:
 - "took my metformin" → take_medicine(medicine_name="metformin")
 - "starting a fast" → start_fast(fasting_type="16:8")
 - "ending my fast" → end_fast()
+
+MULTI-COMMAND examples:
+- "update my oxygen to 95 and my weight to 350" → log_blood_oxygen(spo2=95) AND log_weight(value=350, unit="lb")
+- "heart rate 72 and blood pressure 120/80" → log_heart_rate(bpm=72) AND log_blood_pressure(systolic=120, diastolic=80)
+- "I weigh 180, glucose is 105, and took my vitamin" → log_weight, log_glucose, AND take_medicine
 
 Examples of messages that should NOT trigger functions:
 - "how are you?"
@@ -305,6 +336,52 @@ Examples of messages that should NOT trigger functions:
         elif intent_type == 'end_fast':
             return "I'll end your current fast. Confirm?"
 
+        # Journal intents
+        elif intent_type == 'create_journal_entry':
+            body = parameters.get('body', '')[:50]
+            return f"I'll create a journal entry: \"{body}...\". Confirm?"
+
+        elif intent_type == 'add_gratitude':
+            gratitude = parameters.get('gratitude', '')
+            return f"I'll log gratitude for: {gratitude}. Confirm?"
+
+        # Faith intents
+        elif intent_type == 'log_prayer':
+            title = parameters.get('title', 'prayer')
+            return f"I'll add prayer request: {title}. Confirm?"
+
+        elif intent_type == 'save_verse':
+            reference = parameters.get('reference', '')
+            return f"I'll save {reference} to your collection. Confirm?"
+
+        # Purpose intents
+        elif intent_type == 'create_goal':
+            title = parameters.get('title', 'goal')
+            return f"I'll create goal: {title}. Confirm?"
+
+        elif intent_type == 'set_intention':
+            intention = parameters.get('intention', '')
+            return f"I'll set intention: {intention}. Confirm?"
+
+        # Life intents
+        elif intent_type == 'create_task':
+            title = parameters.get('title', 'task')
+            return f"I'll create task: {title}. Confirm?"
+
+        elif intent_type == 'create_event':
+            title = parameters.get('title', 'event')
+            return f"I'll schedule: {title}. Confirm?"
+
+        # Fitness intents
+        elif intent_type == 'log_workout':
+            name = parameters.get('name', 'workout')
+            return f"I'll log workout: {name}. Confirm?"
+
+        elif intent_type == 'log_cardio':
+            activity = parameters.get('activity', 'cardio')
+            duration = parameters.get('duration_minutes', 0)
+            return f"I'll log {activity} for {duration} minutes. Confirm?"
+
         return "Confirm this action?"
 
     def execute_intent(self, intent_result: IntentResult, user) -> ActionResult:
@@ -351,6 +428,62 @@ Examples of messages that should NOT trigger functions:
 
             elif intent_type == 'end_fast':
                 return handler.handle_end_fast(**parameters)
+
+            # Journal handlers
+            elif intent_type == 'create_journal_entry':
+                return handler.handle_create_journal_entry(**parameters)
+
+            elif intent_type == 'add_gratitude':
+                return handler.handle_add_gratitude(**parameters)
+
+            # Faith handlers
+            elif intent_type == 'log_prayer':
+                return handler.handle_log_prayer(**parameters)
+
+            elif intent_type == 'mark_prayer_answered':
+                return handler.handle_mark_prayer_answered(**parameters)
+
+            elif intent_type == 'save_verse':
+                return handler.handle_save_verse(**parameters)
+
+            elif intent_type == 'add_faith_milestone':
+                return handler.handle_add_faith_milestone(**parameters)
+
+            # Purpose handlers
+            elif intent_type == 'create_goal':
+                return handler.handle_create_goal(**parameters)
+
+            elif intent_type == 'update_goal_progress':
+                return handler.handle_update_goal_progress(**parameters)
+
+            elif intent_type == 'set_intention':
+                return handler.handle_set_intention(**parameters)
+
+            elif intent_type == 'log_habit':
+                return handler.handle_log_habit(**parameters)
+
+            # Life handlers
+            elif intent_type == 'create_task':
+                return handler.handle_create_task(**parameters)
+
+            elif intent_type == 'complete_task':
+                return handler.handle_complete_task(**parameters)
+
+            elif intent_type == 'create_event':
+                return handler.handle_create_event(**parameters)
+
+            elif intent_type == 'add_reminder':
+                return handler.handle_add_reminder(**parameters)
+
+            # Fitness handlers
+            elif intent_type == 'log_workout':
+                return handler.handle_log_workout(**parameters)
+
+            elif intent_type == 'log_exercise_set':
+                return handler.handle_log_exercise_set(**parameters)
+
+            elif intent_type == 'log_cardio':
+                return handler.handle_log_cardio(**parameters)
 
             else:
                 return ActionResult(

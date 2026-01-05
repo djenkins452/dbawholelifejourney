@@ -48,7 +48,7 @@ python manage.py test apps.admin_console.tests -v 1 --failfast
 
 - **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan
 - **User model:** Custom User (email-based auth) | UserPreferences for settings
-- **Soft deletes:** Models use `soft_delete()` method, not hard deletes
+- **Soft deletes:** Models use `soft_delete()` method, not hard deletes. See troubleshoot.md #7 for SoftDeleteManager pattern
 
 ---
 
@@ -108,7 +108,7 @@ When executing tasks from the API:
 
 **READ FIRST:** `docs/wlj_claude_troubleshoot.md`
 
-Common issues: property shadowing fields, migration state, Nixpacks caching, test user onboarding, CSRF origins, PostgreSQL schema checks.
+Common issues: property shadowing fields, migration state, Nixpacks caching, test user onboarding, CSRF origins, PostgreSQL schema checks, **SoftDeleteManager filtering**.
 
 ---
 
@@ -134,4 +134,4 @@ Use `/next` slash command or say "What's Next?"
 
 ---
 
-*Last updated: 2026-01-04*
+*Last updated: 2026-01-05*

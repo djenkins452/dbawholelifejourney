@@ -4,6 +4,24 @@ Personal Data Service for WLJ Personal Data Query System.
 This module provides methods to query and summarize user's personal
 wellness data from various models (weight, journal, mood, etc.).
 
+Soft Delete Pattern:
+-------------------
+IMPORTANT: Models in this codebase use a soft delete pattern via SoftDeleteManager.
+
+- Models inheriting UserOwnedModel automatically filter out deleted records
+- The default manager (objects) filters by status='active'
+- DO NOT use is_deleted in filter() - it's a @property, not a database field
+- DO NOT manually filter by status='active' - the manager handles this
+
+Correct:
+    queryset = JournalEntry.objects.filter(user=self.user)
+
+Wrong:
+    queryset = JournalEntry.objects.filter(user=self.user, is_deleted=False)  # FieldError!
+
+See apps/core/models.py for SoftDeleteManager and SoftDeleteModel implementation.
+See docs/wlj_claude_troubleshoot.md section 7 for full documentation.
+
 Cache Invalidation Strategy:
 ---------------------------
 This module uses a cache versioning approach to handle date-specific cache keys.

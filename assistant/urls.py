@@ -18,6 +18,13 @@ urlpatterns = [
         name='improvement_dashboard'
     ),
 
+    # Analytics dashboard
+    path(
+        'admin/analytics/',
+        admin_views.improvement_analytics,
+        name='improvement_analytics'
+    ),
+
     # Dashboard action endpoints
     path(
         'admin/dashboard/approve/<uuid:task_id>/',

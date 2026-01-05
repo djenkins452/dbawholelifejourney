@@ -319,7 +319,7 @@ class TestImprovementDashboard(TestCase):
         self.task2 = ImprovementTaskModel.objects.create(
             title="Test Task 2",
             description={"objective": "Test 2"},
-            gap_type=ImprovementTaskModel.GAP_TYPE_WRONG_INTENT,
+            gap_type=ImprovementTaskModel.GAP_TYPE_UNSUPPORTED_QUERY_PATTERN,
             severity=ImprovementTaskModel.SEVERITY_HIGH,
             original_query="test query 2",
             suggested_fix="Fix intent",
@@ -731,3 +731,170 @@ class TestRollbackMethod(TestCase):
         self.assertEqual(fresh_task.status, ImprovementTaskModel.STATUS_ROLLED_BACK)
         self.assertEqual(fresh_task.rollback_reason, 'Bug found')
         self.assertIsNotNone(fresh_task.rolled_back_at)
+
+
+class TestImprovementAnalytics(TestCase):
+    """Tests for the improvement analytics view."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.client = Client()
+        self.staff_user = User.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            is_staff=True,
+        )
+        self.regular_user = User.objects.create_user(
+            email='user@example.com',
+            password='testpass123',
+            is_staff=False,
+        )
+        # Create test tasks with various statuses
+        self.task_pending = ImprovementTaskModel.objects.create(
+            title="Pending Task",
+            description={"objective": "Test pending"},
+            gap_type=ImprovementTaskModel.GAP_TYPE_MISSING_KEYWORDS,
+            severity=ImprovementTaskModel.SEVERITY_LOW,
+            original_query="test pending",
+            suggested_fix="Add keyword",
+            status=ImprovementTaskModel.STATUS_PENDING_APPROVAL,
+        )
+        self.task_completed = ImprovementTaskModel.objects.create(
+            title="Completed Task",
+            description={"objective": "Test completed"},
+            gap_type=ImprovementTaskModel.GAP_TYPE_NO_DATA_METHOD,
+            severity=ImprovementTaskModel.SEVERITY_MEDIUM,
+            original_query="test completed",
+            suggested_fix="Add method",
+            status=ImprovementTaskModel.STATUS_COMPLETED,
+            completed_at=timezone.now(),
+        )
+        self.task_error = ImprovementTaskModel.objects.create(
+            title="Error Task",
+            description={"objective": "Test error"},
+            gap_type=ImprovementTaskModel.GAP_TYPE_UNKNOWN_DATA_TYPE,
+            severity=ImprovementTaskModel.SEVERITY_HIGH,
+            original_query="test error",
+            suggested_fix="Fix error",
+            status=ImprovementTaskModel.STATUS_ERROR,
+        )
+
+    def test_analytics_requires_staff_login(self):
+        """Test that analytics requires staff login."""
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/', response.url)
+
+    def test_analytics_denies_non_staff(self):
+        """Test that non-staff users are denied."""
+        self.client.login(email='user@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+
+    def test_analytics_allows_staff(self):
+        """Test that staff users can access analytics."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Improvement Analytics')
+
+    def test_analytics_displays_total_tasks(self):
+        """Test that analytics displays total task count."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        self.assertContains(response, 'Total Tasks')
+        # We have 3 tasks
+        self.assertEqual(response.context['total_tasks'], 3)
+
+    def test_analytics_calculates_success_rate(self):
+        """Test that success rate is calculated correctly."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        # 1 completed, 2 attempted (completed + error)
+        # Success rate = 1/2 = 50%
+        self.assertEqual(response.context['success_rate'], 50.0)
+        self.assertEqual(response.context['completed_count'], 1)
+        self.assertEqual(response.context['attempted_count'], 2)
+
+    def test_analytics_displays_pie_chart_data(self):
+        """Test that pie chart data is included."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        pie_data = response.context['pie_chart_data']
+        self.assertIn('labels', pie_data)
+        self.assertIn('values', pie_data)
+        self.assertIn('colors', pie_data)
+
+    def test_analytics_displays_gap_types(self):
+        """Test that gap types list is included."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        gap_types = response.context['gap_types_list']
+        self.assertTrue(len(gap_types) > 0)
+        # Check structure
+        for gap in gap_types:
+            self.assertIn('type', gap)
+            self.assertIn('count', gap)
+            self.assertIn('percentage', gap)
+
+    def test_analytics_displays_severity_data(self):
+        """Test that severity breakdown is included."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        severity_data = response.context['severity_data']
+        self.assertEqual(len(severity_data), 3)  # LOW, MEDIUM, HIGH
+        for sev in severity_data:
+            self.assertIn('label', sev)
+            self.assertIn('count', sev)
+            self.assertIn('color', sev)
+
+    def test_analytics_displays_activity_feed(self):
+        """Test that recent activity feed is included."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        activity_feed = response.context['activity_feed']
+        self.assertTrue(len(activity_feed) > 0)
+        for activity in activity_feed:
+            self.assertIn('task', activity)
+            self.assertIn('action', activity)
+            self.assertIn('timestamp', activity)
+            self.assertIn('status_color', activity)
+
+    def test_analytics_line_chart_data(self):
+        """Test that line chart data is included."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        line_data = response.context['line_chart_data']
+        self.assertIn('labels', line_data)
+        self.assertIn('values', line_data)
+
+    def test_analytics_links_back_to_dashboard(self):
+        """Test that analytics page has link back to dashboard."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_analytics')
+        response = self.client.get(url)
+
+        dashboard_url = reverse('assistant:improvement_dashboard')
+        self.assertContains(response, dashboard_url)

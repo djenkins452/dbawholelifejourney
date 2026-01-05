@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Rollback Management Interface - Task #172)
+# Last Updated: 2026-01-05 (Improvement Analytics Dashboard - Task #173)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,54 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Create Improvement Analytics Dashboard (Task #173)
+
+**Session:** Improvement Analytics Dashboard Implementation
+
+**Objective:**
+Build simple analytics page showing system learning progress over time.
+Part of Personal Assistant Growth project (Phase 8).
+
+**New Files:**
+1. `templates/assistant/admin/analytics.html` - Analytics dashboard template:
+   - Key stats cards: Total tasks, Success rate, Avg completion time, Completed count
+   - Pie chart: Tasks by status (using Chart.js doughnut chart)
+   - Line chart: Tasks created over last 30 days
+   - Gap types table: Most common gap types with percentages
+   - Severity breakdown table: Task distribution by severity
+   - Improved files table: Most frequently modified files
+   - Recent activity feed: Last 10 task updates with status colors
+
+**View Implementation (admin_views.py):**
+- Added `improvement_analytics` view requiring staff login
+- Calculates metrics:
+  - Task counts by status for pie chart
+  - Tasks over time for line chart (last 30 days)
+  - Success rate (completed / total attempted)
+  - Average completion time (formatted as minutes/hours/days)
+  - Most common gap types with percentages
+  - Most frequently improved files (parsed from code_template)
+  - Recent activity feed with action descriptions
+  - Severity breakdown
+- Added `_get_task_action_description()` helper function
+
+**URL Route:**
+- Added `/assistant/admin/analytics/` route
+
+**Tests Added:**
+- TestImprovementAnalytics: 11 tests for analytics view
+- Fixed existing test bug (GAP_TYPE_WRONG_INTENT -> GAP_TYPE_UNSUPPORTED_QUERY_PATTERN)
+
+**Files Modified:**
+- `assistant/admin_views.py`
+- `assistant/urls.py`
+- `assistant/tests/test_admin_views.py`
+
+**Files Created:**
+- `templates/assistant/admin/analytics.html`
+
+---
 
 ### Create Rollback Management Interface (Task #172)
 

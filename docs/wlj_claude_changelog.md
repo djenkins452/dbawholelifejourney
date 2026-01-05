@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Admin Approval Endpoint)
+# Last Updated: 2026-01-05 (Admin Dashboard View)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,57 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Create Admin Dashboard View (Task #167)
+
+**Session:** Create Admin Dashboard View
+
+**Objective:**
+Build a web-based dashboard for admins to view and manage improvement tasks.
+Part of Personal Assistant Growth project (Phase 4).
+
+**Changes:**
+1. Updated `assistant/admin_views.py`:
+   - Added `STATUS_COLORS` and `SEVERITY_COLORS` mappings
+   - Added `improvement_dashboard(request)` - staff-only dashboard view
+   - Added `dashboard_approve_task(request, task_id)` - POST endpoint
+   - Added `dashboard_reject_task(request, task_id)` - POST endpoint with reason
+   - Added `dashboard_rollback_task(request, task_id)` - POST endpoint
+   - All dashboard endpoints support both redirect and JSON responses
+
+2. Updated `assistant/urls.py`:
+   - Added `/assistant/admin/dashboard/` route
+   - Added `/assistant/admin/dashboard/approve/<uuid:task_id>/`
+   - Added `/assistant/admin/dashboard/reject/<uuid:task_id>/`
+   - Added `/assistant/admin/dashboard/rollback/<uuid:task_id>/`
+
+3. Created `templates/assistant/admin/dashboard.html`:
+   - Task list table sorted by created_at descending
+   - Status badges with color coding (New=blue, Pending=yellow, etc.)
+   - Severity badges with color coding
+   - Filter dropdowns for status and severity
+   - Expandable task details rows with JavaScript toggle
+   - Approve/reject buttons for pending_approval tasks
+   - Rollback button for completed tasks
+   - AJAX support for all actions with JSON responses
+   - Modal dialog for rejection reason input
+   - Responsive design with CSS-only styling
+
+4. Updated `assistant/tests/test_admin_views.py`:
+   - Added TestImprovementDashboard class with filter tests
+   - Added TestDashboardApproveTask class
+   - Added TestDashboardRejectTask class
+   - Added TestDashboardRollbackTask class
+
+**Files Created:**
+- `templates/assistant/admin/dashboard.html` - Dashboard template
+
+**Files Modified:**
+- `assistant/admin_views.py` - Added dashboard view and action endpoints
+- `assistant/urls.py` - Added dashboard routes
+- `assistant/tests/test_admin_views.py` - Added dashboard tests
+
+---
 
 ### Create Admin Approval Endpoint (Task #166)
 

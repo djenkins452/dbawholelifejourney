@@ -25,6 +25,7 @@ from .file_modifier import SafeFileModifier, ModificationType
 from .git_service import GitProtectionService
 from .models import ImprovementTaskModel
 from .notifications import AdminNotificationService, TaskInfo
+from .safety_limits import SafetyLimitService, check_rate_limits, check_file_modification_limit, is_system_healthy
 from .test_runner import MockTestRunner
 
 
@@ -549,8 +550,13 @@ class AutonomousExecutor(ImprovementExecutor):
     - Only modifies files in ALLOWED_FILES list
     - Only accepts simple code patterns (keywords, simple additions)
     - Rejects code containing dangerous patterns
-    - Rate limits to max 5 executions per hour
+    - Rate limits to max 5 executions per hour (configurable via SafetyLimitService)
+    - Daily limit of 20 executions
+    - Max 50 pending tasks in queue
+    - Max 3 modifications per file per day
+    - Pauses if error rate exceeds 30% in last 10 tasks
     - Always notifies admin after execution
+    - Supports admin overrides for all limits
     """
 
     def __init__(
@@ -560,7 +566,8 @@ class AutonomousExecutor(ImprovementExecutor):
         test_runner: Optional[MockTestRunner] = None,
         notification_service: Optional[AdminNotificationService] = None,
         allowed_files: Optional[List[str]] = None,
-        max_executions_per_hour: int = RATE_LIMIT_MAX_EXECUTIONS
+        max_executions_per_hour: int = RATE_LIMIT_MAX_EXECUTIONS,
+        safety_limit_service: Optional[SafetyLimitService] = None
     ):
         """
         Initialize the autonomous executor.
@@ -572,6 +579,7 @@ class AutonomousExecutor(ImprovementExecutor):
             notification_service: AdminNotificationService instance.
             allowed_files: List of files that can be modified. Defaults to ALLOWED_FILES.
             max_executions_per_hour: Maximum executions per hour. Defaults to 5.
+            safety_limit_service: SafetyLimitService for rate limiting. Created if not provided.
         """
         super().__init__(
             git_service=git_service,
@@ -581,6 +589,9 @@ class AutonomousExecutor(ImprovementExecutor):
         )
         self.allowed_files = allowed_files or ALLOWED_FILES
         self.max_executions_per_hour = max_executions_per_hour
+        self.safety_limit_service = safety_limit_service or SafetyLimitService(
+            notification_service=self.notification_service
+        )
 
     def is_safe_for_autonomous(self, task: ImprovementTaskModel) -> tuple:
         """
@@ -702,10 +713,13 @@ class AutonomousExecutor(ImprovementExecutor):
         Execute an improvement task with autonomous safety checks.
 
         Overrides parent to:
-        1. Validate task is safe for autonomous execution
-        2. Check rate limiting
-        3. Skip approval requirement for LOW severity
-        4. Always notify admin after execution
+        1. Check system health (error rate)
+        2. Validate task is safe for autonomous execution
+        3. Check rate limiting (hourly, daily, pending tasks)
+        4. Check file modification limits
+        5. Skip approval requirement for LOW severity
+        6. Record file modification after success
+        7. Always notify admin after execution
 
         Args:
             task: The ImprovementTaskModel to execute.
@@ -715,7 +729,17 @@ class AutonomousExecutor(ImprovementExecutor):
         """
         logger.info(f"AutonomousExecutor: Starting execution of task {task.id}")
 
-        # Step 1: Validate task is safe for autonomous execution
+        # Step 1: Check system health (error rate)
+        health_result = self.safety_limit_service.is_system_healthy()
+        if not health_result.healthy:
+            logger.warning(f"Task {task.id} blocked due to system health: {health_result.reason}")
+            return ExecutionResult(
+                success=False,
+                message=f"System health check failed: {health_result.reason}",
+                task_id=str(task.id)
+            )
+
+        # Step 2: Validate task is safe for autonomous execution
         is_safe, safety_reason = self.is_safe_for_autonomous(task)
         if not is_safe:
             logger.warning(f"Task {task.id} rejected for autonomous execution: {safety_reason}")
@@ -725,33 +749,60 @@ class AutonomousExecutor(ImprovementExecutor):
                 task_id=str(task.id)
             )
 
-        # Step 2: Check rate limiting
+        # Step 3: Check rate limiting (uses SafetyLimitService for comprehensive checks)
+        rate_result = self.safety_limit_service.check_rate_limits()
+        if not rate_result.allowed:
+            logger.warning(f"Task {task.id} rate limited: {rate_result.reason}")
+            return ExecutionResult(
+                success=False,
+                message=f"Autonomous execution rate limited: {rate_result.reason}",
+                task_id=str(task.id)
+            )
+
+        # Step 4: Check file modification limits
+        target_file = None
+        if task.code_template:
+            target_file = self._extract_target_file(task.code_template)
+            if target_file:
+                file_result = self.safety_limit_service.check_file_modification_limit(target_file)
+                if not file_result.allowed:
+                    logger.warning(f"Task {task.id} blocked by file limit: {file_result.reason}")
+                    return ExecutionResult(
+                        success=False,
+                        message=f"File modification limit exceeded: {file_result.reason}",
+                        task_id=str(task.id)
+                    )
+
+        # Step 5: Legacy rate limit check (for backwards compatibility)
         is_allowed, rate_reason = self._check_rate_limit()
         if not is_allowed:
-            logger.warning(f"Task {task.id} rate limited: {rate_reason}")
+            logger.warning(f"Task {task.id} legacy rate limited: {rate_reason}")
             return ExecutionResult(
                 success=False,
                 message=f"Autonomous execution rate limited: {rate_reason}",
                 task_id=str(task.id)
             )
 
-        # Step 3: Increment rate limit counter before execution
+        # Step 6: Increment legacy rate limit counter before execution
         self._increment_rate_limit()
-        logger.info(f"Task {task.id} passed autonomous safety checks, executing...")
+        logger.info(f"Task {task.id} passed all safety checks, executing...")
 
-        # Step 4: Execute using parent class logic
+        # Step 7: Execute using parent class logic
         # The parent _validate_task_status already allows LOW severity NEW tasks
         result = super().execute_task(task)
 
-        # Step 5: Always notify admin (regardless of success/failure)
+        # Step 8: Record file modification on success
+        if result.success and target_file:
+            self.safety_limit_service.record_file_modification(target_file)
+            logger.info(f"Recorded file modification for {target_file}")
+
+        # Step 9: Always notify admin (regardless of success/failure)
         # Success/error notifications are already sent by parent
         # For autonomous execution, also send auto_improvement notification
         if result.success:
             changes_made = []
-            if task.code_template:
-                target_file = self._extract_target_file(task.code_template)
-                if target_file:
-                    changes_made.append(f"Modified {target_file}")
+            if target_file:
+                changes_made.append(f"Modified {target_file}")
 
             task_info = self._create_task_info(task)
             self.notification_service.notify_auto_improvement(

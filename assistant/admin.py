@@ -11,6 +11,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from .models import ImprovementTaskModel
+from .safety_limits import SafetyLimitOverride
 
 
 @admin.register(ImprovementTaskModel)
@@ -168,3 +169,59 @@ class ImprovementTaskModelAdmin(admin.ModelAdmin):
                 except Exception:
                     pass
         self.message_user(request, f'{reset_count} task(s) reset to New.')
+
+
+@admin.register(SafetyLimitOverride)
+class SafetyLimitOverrideAdmin(admin.ModelAdmin):
+    """Admin interface for SafetyLimitOverride."""
+
+    list_display = [
+        'limit_name',
+        'value',
+        'is_active',
+        'valid_status',
+        'expires_at',
+        'updated_at',
+    ]
+    list_filter = [
+        'limit_name',
+        'is_active',
+    ]
+    search_fields = [
+        'limit_name',
+        'reason',
+    ]
+    readonly_fields = [
+        'created_at',
+        'updated_at',
+    ]
+    ordering = ['limit_name']
+
+    fieldsets = (
+        ('Override Settings', {
+            'fields': ('limit_name', 'value', 'is_active')
+        }),
+        ('Expiration', {
+            'fields': ('expires_at',),
+            'description': 'Leave blank for permanent override'
+        }),
+        ('Documentation', {
+            'fields': ('reason',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def valid_status(self, obj):
+        """Display whether override is currently valid."""
+        if obj.is_valid():
+            return format_html(
+                '<span style="color: #28a745; font-weight: bold;">Valid</span>'
+            )
+        else:
+            return format_html(
+                '<span style="color: #dc3545; font-weight: bold;">Expired/Inactive</span>'
+            )
+    valid_status.short_description = 'Status'

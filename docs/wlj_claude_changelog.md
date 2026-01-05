@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Improvement Analytics Dashboard - Task #173)
+# Last Updated: 2026-01-05 (Learning Rate Limits and Safety Caps - Task #174)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,98 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Learning Rate Limits and Safety Caps (Task #174)
+
+**Session:** Safety Limits Implementation for Autonomous Execution
+
+**Objective:**
+Implement safety limits to prevent runaway self-modification by the autonomous executor system.
+Part of Personal Assistant Growth project (Phase 8).
+
+**New Files:**
+1. `assistant/safety_limits.py` - Core safety limit module:
+   - **Safety Constants:**
+     - `MAX_AUTONOMOUS_PER_HOUR = 5`
+     - `MAX_AUTONOMOUS_PER_DAY = 20`
+     - `MAX_PENDING_TASKS = 50`
+     - `MAX_FILE_MODIFICATIONS_PER_FILE_PER_DAY = 3`
+     - `ERROR_RATE_THRESHOLD = 30` (percent)
+     - `ERROR_RATE_SAMPLE_SIZE = 10`
+   - **SafetyLimitOverride Model:** Admin-configurable overrides for all limits
+   - **SafetyLimitService Class:**
+     - `get_limit_value()` - Get effective limit with override support
+     - `is_system_enabled()` - Check if system is paused
+     - `pause_system()` / `resume_system()` - System pause controls
+     - `check_rate_limits()` - Hourly/daily/pending task limits
+     - `check_file_modification_limit()` - Per-file daily limits
+     - `record_file_modification()` - Track file modifications
+     - `is_system_healthy()` - Error rate monitoring (auto-pauses at 30%)
+     - `check_all_limits()` - Combined safety check
+     - `_notify_limit_reached()` - Admin notification on limit hit
+   - **Convenience Functions:**
+     - `check_rate_limits()`, `check_file_modification_limit()`, `is_system_healthy()`
+
+2. `assistant/migrations/0002_safetylimitoverride.py` - Migration for SafetyLimitOverride model
+
+3. `assistant/tests/test_safety_limits.py` - Comprehensive test suite:
+   - TestSafetyLimitConstants (6 tests)
+   - TestSafetyLimitOverrideModel (5 tests)
+   - TestSafetyLimitServiceOverrides (4 tests)
+   - TestSafetyLimitServiceSystemEnabled (4 tests)
+   - TestSafetyLimitServiceRateLimits (4 tests)
+   - TestSafetyLimitServiceFileModification (5 tests)
+   - TestSafetyLimitServiceSystemHealth (4 tests)
+   - TestSafetyLimitServiceCheckAll (4 tests)
+   - TestConvenienceFunctions (3 tests)
+   - TestRateLimitResultDataclass (2 tests)
+   - TestSystemHealthResultDataclass (2 tests)
+   - TestAutonomousExecutorIntegrationWithSafetyLimits (4 tests)
+
+**Changes to Existing Files:**
+
+1. `assistant/executor.py`:
+   - Import SafetyLimitService and related functions
+   - AutonomousExecutor now accepts `safety_limit_service` parameter
+   - Updated docstring to document all safety limits
+   - `execute_task()` now includes 9 safety steps:
+     1. Check system health (error rate)
+     2. Validate task is safe for autonomous execution
+     3. Check rate limits (hourly, daily, pending)
+     4. Check file modification limits
+     5. Legacy rate limit check (backwards compatibility)
+     6. Increment rate limit counter
+     7. Execute using parent class logic
+     8. Record file modification on success
+     9. Notify admin
+
+2. `assistant/admin.py`:
+   - Import SafetyLimitOverride
+   - Added SafetyLimitOverrideAdmin with:
+     - List display: limit_name, value, is_active, valid_status, expires_at
+     - Fieldsets: Override Settings, Expiration, Documentation, Timestamps
+     - `valid_status()` method showing Valid/Expired/Inactive badge
+
+**Safety Features:**
+- **Rate Limiting:** Max 5/hour, 20/day autonomous executions
+- **Queue Limiting:** Max 50 pending tasks before pausing
+- **File Protection:** Max 3 modifications per file per day
+- **Health Monitoring:** Auto-pauses if error rate exceeds 30% in last 10 tasks
+- **Admin Override:** All limits can be adjusted via Django admin
+- **Admin Notifications:** Alerts when any limit is reached
+- **Pause/Resume:** Manual system pause capability
+
+**Files Modified:**
+- `assistant/executor.py`
+- `assistant/admin.py`
+- `docs/wlj_claude_changelog.md`
+
+**Files Created:**
+- `assistant/safety_limits.py`
+- `assistant/migrations/0002_safetylimitoverride.py`
+- `assistant/tests/test_safety_limits.py`
+
+---
 
 ### Create Improvement Analytics Dashboard (Task #173)
 

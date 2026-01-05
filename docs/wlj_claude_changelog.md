@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Recurring Task Form)
+# Last Updated: 2026-01-04 (Today's Verse Refresh)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,22 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Today's Verse Refreshes Once Per Day (Task #136)
+
+**Session:** Today's Verse Refresh
+
+**Changes:**
+1. Added per-user per-day caching for random verse selection
+2. Cache key includes user ID and date so verse changes daily
+3. Same verse shows all day on every page refresh
+4. First access of new day triggers a new random selection
+5. Applied to both FaithHomeView.get_todays_verse and TodaysVerseView
+
+**Files Modified:**
+- `apps/faith/views.py` - Added cache import and caching logic to get_todays_verse and TodaysVerseView.get_context_data
+
+---
 
 ### Recurring vs One-Time Task Form (Task #134)
 

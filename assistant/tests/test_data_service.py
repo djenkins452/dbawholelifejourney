@@ -1,7 +1,7 @@
 """
 Unit tests for the Personal Data Service.
 
-Tests cover weight and journal data querying with mock data.
+Tests cover weight, journal, and medication data querying with mock data.
 """
 
 import sys
@@ -523,6 +523,300 @@ class TestGetJournalDataFiltering(unittest.TestCase):
 
         service = PersonalDataService(mock_user)
         service.get_journal_data(since_date=since_date)
+
+        # Verify filter was called for date range
+        self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
+
+
+# ==============================================================================
+# Medication Data Tests
+# ==============================================================================
+
+
+class TestGetMedicationDataNoEntries(unittest.TestCase):
+    """Tests for get_medication_data when no entries exist."""
+
+    def test_returns_none_when_no_entries(self):
+        """Should return None when user has no medication logs."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup mock queryset that returns no entries
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_health_models.MedicineLog.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_medication_data()
+
+        self.assertIsNone(result)
+
+    def test_returns_none_when_no_entries_in_date_range(self):
+        """Should return None when no entries exist in the date range."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup mock queryset
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_health_models.MedicineLog.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        since_date = datetime(2024, 12, 1)
+        result = service.get_medication_data(since_date=since_date)
+
+        self.assertIsNone(result)
+
+
+class TestGetMedicationDataWithEntries(unittest.TestCase):
+    """Tests for get_medication_data when entries exist."""
+
+    def _setup_mock(self, total_logs=10, unique_dates=None, earliest_date=None):
+        """Helper to setup mock queryset."""
+        from datetime import date
+        if unique_dates is None:
+            unique_dates = [date(2024, 12, 15), date(2024, 12, 16), date(2024, 12, 17)]
+        if earliest_date is None:
+            earliest_date = min(unique_dates)
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = total_logs
+
+        # Mock values_list for unique dates
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        # Mock order_by for earliest log
+        mock_ordered = MagicMock()
+        mock_earliest = MagicMock()
+        mock_earliest.scheduled_date = earliest_date
+        mock_ordered.first.return_value = mock_earliest
+        mock_queryset.order_by.return_value = mock_ordered
+
+        mock_health_models.MedicineLog.objects.filter.return_value = mock_queryset
+        return mock_queryset
+
+    @patch('assistant.data_service.timezone')
+    def test_returns_dict_with_correct_structure(self, mock_timezone):
+        """Should return dict with all expected keys."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+
+        mock_user = MagicMock()
+        self._setup_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_medication_data()
+
+        self.assertIsNotNone(result)
+        self.assertIn('type', result)
+        self.assertIn('total_logs', result)
+        self.assertIn('days_logged', result)
+        self.assertIn('total_days', result)
+        self.assertIn('consistency_percent', result)
+
+    @patch('assistant.data_service.timezone')
+    def test_type_is_medication(self, mock_timezone):
+        """Type should be 'medication'."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+
+        mock_user = MagicMock()
+        self._setup_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_medication_data()
+
+        self.assertEqual(result['type'], 'medication')
+
+    @patch('assistant.data_service.timezone')
+    def test_total_logs_matches_count(self, mock_timezone):
+        """Total logs should match queryset count."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+
+        mock_user = MagicMock()
+        self._setup_mock(total_logs=45)
+
+        service = PersonalDataService(mock_user)
+        result = service.get_medication_data()
+
+        self.assertEqual(result['total_logs'], 45)
+
+    @patch('assistant.data_service.timezone')
+    def test_days_logged_counts_unique_dates(self, mock_timezone):
+        """Days logged should count unique dates."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+
+        mock_user = MagicMock()
+        unique_dates = [date(2024, 12, 10), date(2024, 12, 11), date(2024, 12, 12),
+                       date(2024, 12, 13), date(2024, 12, 14)]
+        self._setup_mock(unique_dates=unique_dates)
+
+        service = PersonalDataService(mock_user)
+        result = service.get_medication_data()
+
+        self.assertEqual(result['days_logged'], 5)
+
+
+class TestGetMedicationDataConsistency(unittest.TestCase):
+    """Tests for consistency calculation."""
+
+    @patch('assistant.data_service.timezone')
+    def test_consistency_is_percentage(self, mock_timezone):
+        """Consistency should be between 0 and 100."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 10
+
+        unique_dates = [date(2024, 12, 15), date(2024, 12, 16)]
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_ordered = MagicMock()
+        mock_earliest = MagicMock()
+        mock_earliest.scheduled_date = date(2024, 12, 15)
+        mock_ordered.first.return_value = mock_earliest
+        mock_queryset.order_by.return_value = mock_ordered
+
+        mock_health_models.MedicineLog.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_medication_data()
+
+        self.assertGreaterEqual(result['consistency_percent'], 0)
+        self.assertLessEqual(result['consistency_percent'], 100)
+
+    @patch('assistant.data_service.timezone')
+    def test_consistency_is_rounded(self, mock_timezone):
+        """Consistency percent should be rounded to 1 decimal."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 10
+
+        unique_dates = [date(2024, 12, 15)]
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_ordered = MagicMock()
+        mock_earliest = MagicMock()
+        mock_earliest.scheduled_date = date(2024, 12, 15)
+        mock_ordered.first.return_value = mock_earliest
+        mock_queryset.order_by.return_value = mock_ordered
+
+        mock_health_models.MedicineLog.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_medication_data()
+
+        # Should be a float with at most 1 decimal place
+        self.assertIsInstance(result['consistency_percent'], float)
+
+
+class TestGetMedicationDataFiltering(unittest.TestCase):
+    """Tests for get_medication_data filtering."""
+
+    @patch('assistant.data_service.timezone')
+    def test_filters_by_user_and_not_deleted(self, mock_timezone):
+        """Should filter entries by user and exclude soft-deleted."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+
+        unique_dates = [date(2024, 12, 15)]
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_ordered = MagicMock()
+        mock_earliest = MagicMock()
+        mock_earliest.scheduled_date = date(2024, 12, 15)
+        mock_ordered.first.return_value = mock_earliest
+        mock_queryset.order_by.return_value = mock_ordered
+
+        mock_health_models.MedicineLog.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        service.get_medication_data()
+
+        # Verify initial filter includes user and is_deleted=False
+        mock_health_models.MedicineLog.objects.filter.assert_called_with(
+            user=mock_user, is_deleted=False
+        )
+
+    @patch('assistant.data_service.timezone')
+    def test_filters_by_since_date(self, mock_timezone):
+        """Should filter entries by since_date when provided."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_timezone.now.return_value.date.return_value = date(2024, 12, 20)
+
+        mock_user = MagicMock()
+        since_date = datetime(2024, 12, 1)
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+
+        unique_dates = [date(2024, 12, 15)]
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_ordered = MagicMock()
+        mock_earliest = MagicMock()
+        mock_earliest.scheduled_date = date(2024, 12, 15)
+        mock_ordered.first.return_value = mock_earliest
+        mock_queryset.order_by.return_value = mock_ordered
+
+        mock_health_models.MedicineLog.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        service.get_medication_data(since_date=since_date)
 
         # Verify filter was called for date range
         self.assertGreaterEqual(mock_queryset.filter.call_count, 1)

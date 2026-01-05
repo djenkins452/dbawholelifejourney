@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Personal Data Service - Journal Module)
+# Last Updated: 2026-01-05 (Personal Data Service - Medication Module)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,27 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Personal Data Service - Medication Module (Task #147)
+
+**Session:** Create Personal Data Service - Medication Module
+
+**Changes:**
+1. Added `get_medication_data()` method to `PersonalDataService` class
+2. Queries `MedicineLog` model filtered by user and `is_deleted=False`
+3. Filters by `since_date` when provided (using `scheduled_date__gte`)
+4. Returns None if no entries exist
+5. Calculates `days_logged` using unique dates from logs
+6. Calculates `total_days` from since_date or first log to today
+7. Calculates `consistency_percent` as (days_logged / total_days) * 100
+8. Returns dict with type ('medication'), total_logs, days_logged, total_days, consistency_percent
+9. Added 10 new unit tests for medication data querying (31 total)
+
+**Files Modified:**
+- `assistant/data_service.py` - Added get_medication_data() method with consistency calculation
+- `assistant/tests/test_data_service.py` - Added medication data tests (10 new tests)
+
+---
 
 ### Personal Data Service - Journal Module (Task #146)
 

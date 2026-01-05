@@ -5,11 +5,12 @@ This module provides methods to query and summarize user's personal
 wellness data from various models (weight, journal, mood, etc.).
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from django.db.models import Avg, QuerySet
+from django.utils import timezone
 
 
 class PersonalDataService:
@@ -171,4 +172,84 @@ class PersonalDataService:
             'type': 'journal',
             'count': count,
             'latest_date': latest_date,
+        }
+
+    def get_medication_data(
+        self,
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's medication log data with consistency.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+                       If None, returns all entries.
+
+        Returns:
+            None if no medication logs exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'medication'
+                - total_logs (int): Total number of log entries matching criteria
+                - days_logged (int): Number of unique days with logs
+                - total_days (int): Total days in the period
+                - consistency_percent (float): (days_logged / total_days) * 100
+
+        Example:
+            >>> service = PersonalDataService(user)
+            >>> data = service.get_medication_data(since_date=datetime(2024, 12, 1))
+            >>> print(data)
+            {
+                'type': 'medication',
+                'total_logs': 45,
+                'days_logged': 15,
+                'total_days': 18,
+                'consistency_percent': 83.3
+            }
+        """
+        # Import here to avoid circular imports and allow testing without Django
+        from apps.health.models import MedicineLog
+
+        # Build base queryset - filter by user and exclude soft-deleted
+        queryset = MedicineLog.objects.filter(user=self.user, is_deleted=False)
+
+        # Apply date filter if provided
+        if since_date:
+            queryset = queryset.filter(scheduled_date__gte=since_date)
+
+        # Check if any entries exist
+        if not queryset.exists():
+            return None
+
+        # Get total log count
+        total_logs = queryset.count()
+
+        # Get unique days with logs using dates() aggregation
+        unique_dates = queryset.values_list('scheduled_date', flat=True).distinct()
+        days_logged = len(set(unique_dates))
+
+        # Calculate total_days from since_date or first log date to now
+        if since_date:
+            # Use since_date as the start
+            start_date = since_date.date() if isinstance(since_date, datetime) else since_date
+        else:
+            # Use the earliest log date as start
+            earliest_log = queryset.order_by('scheduled_date').first()
+            start_date = earliest_log.scheduled_date
+
+        # Get today's date for the end of the period
+        today = timezone.now().date()
+        total_days = (today - start_date).days + 1  # +1 to include both start and end dates
+
+        # Calculate consistency percentage
+        if total_days > 0:
+            consistency_percent = round((days_logged / total_days) * 100, 1)
+        else:
+            consistency_percent = 0.0
+
+        return {
+            'type': 'medication',
+            'total_logs': total_logs,
+            'days_logged': days_logged,
+            'total_days': total_days,
+            'consistency_percent': consistency_percent,
         }

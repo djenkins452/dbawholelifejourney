@@ -77,6 +77,12 @@ def build_personal_context(data_results: Optional[Dict[str, Any]]) -> str:
         if mood_section:
             sections.append(mood_section)
 
+    # Format glucose data if present
+    if 'glucose' in data_results:
+        glucose_section = _format_glucose_data(data_results['glucose'])
+        if glucose_section:
+            sections.append(glucose_section)
+
     # Return empty string if no sections were formatted
     if not sections:
         return ''
@@ -219,6 +225,33 @@ def _format_mood_data(mood_data: Dict[str, Any]) -> str:
     if latest_mood and latest_date:
         date_str = _format_date(latest_date)
         lines.append(f'- Most recent: {latest_mood} on {date_str}')
+
+    return '\n'.join(lines)
+
+
+def _format_glucose_data(glucose_data: Dict[str, Any]) -> str:
+    """Format glucose data into natural language."""
+    if not glucose_data:
+        return ''
+
+    lines = ['Glucose Data:']
+
+    # Total entries
+    count = glucose_data.get('count', 0)
+    lines.append(f'- Total entries: {count}')
+
+    # Average glucose
+    average = glucose_data.get('average')
+    unit = glucose_data.get('unit', 'mg/dL')
+    if average is not None:
+        lines.append(f'- Average: {average} {unit}')
+
+    # Most recent entry
+    latest = glucose_data.get('latest')
+    latest_date = glucose_data.get('latest_date')
+    if latest is not None and latest_date is not None:
+        date_str = _format_date(latest_date)
+        lines.append(f'- Most recent: {latest} {unit} on {date_str}')
 
     return '\n'.join(lines)
 

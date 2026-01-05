@@ -538,5 +538,179 @@ class TestBuildPersonalContextAllFiveTypes(unittest.TestCase):
         self.assertIn('Mood Data:', result)
 
 
+class TestBuildPersonalContextGlucoseOnly(unittest.TestCase):
+    """Tests for build_personal_context with glucose data only."""
+
+    def test_formats_glucose_data(self):
+        """Should format glucose data correctly."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'glucose': {
+                'type': 'glucose',
+                'count': 100,
+                'average': 118.5,
+                'latest': 115.0,
+                'latest_date': datetime(2024, 12, 18, 8, 30),
+                'unit': 'mg/dL',
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Glucose Data:', result)
+        self.assertIn('Total entries: 100', result)
+        self.assertIn('Average: 118.5 mg/dL', result)
+        self.assertIn('Most recent: 115.0 mg/dL on 2024-12-18', result)
+
+    def test_includes_header_and_footer(self):
+        """Should include header and closing instruction."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'glucose': {
+                'type': 'glucose',
+                'count': 50,
+                'average': 120.0,
+                'latest': 118.0,
+                'latest_date': date(2024, 12, 15),
+                'unit': 'mmol/L',
+            }
+        }
+
+        result = build_personal_context(data)
+        self.assertIn("user's personal data", result)
+        self.assertIn('personalized, helpful responses', result)
+
+
+class TestFormatGlucoseData(unittest.TestCase):
+    """Tests for _format_glucose_data helper function."""
+
+    def test_returns_empty_string_for_empty_data(self):
+        """Should return empty string for empty dict."""
+        from assistant.context_builder import _format_glucose_data
+
+        result = _format_glucose_data({})
+        self.assertEqual(result, '')
+
+    def test_returns_empty_string_for_none(self):
+        """Should return empty string for None."""
+        from assistant.context_builder import _format_glucose_data
+
+        result = _format_glucose_data(None)
+        self.assertEqual(result, '')
+
+    def test_formats_complete_glucose_data(self):
+        """Should format all glucose data fields."""
+        from assistant.context_builder import _format_glucose_data
+
+        data = {
+            'type': 'glucose',
+            'count': 200,
+            'average': 125.5,
+            'latest': 120.0,
+            'latest_date': datetime(2024, 12, 16, 7, 45),
+            'unit': 'mg/dL',
+        }
+
+        result = _format_glucose_data(data)
+
+        self.assertIn('Glucose Data:', result)
+        self.assertIn('Total entries: 200', result)
+        self.assertIn('Average: 125.5 mg/dL', result)
+        self.assertIn('Most recent: 120.0 mg/dL on 2024-12-16', result)
+
+
+class TestBuildPersonalContextWithGlucose(unittest.TestCase):
+    """Tests for build_personal_context including glucose with other types."""
+
+    def test_formats_glucose_and_weight(self):
+        """Should format both glucose and weight data."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'glucose': {
+                'type': 'glucose',
+                'count': 50,
+                'average': 115.0,
+                'latest': 110.0,
+                'latest_date': date(2024, 12, 18),
+                'unit': 'mg/dL',
+            },
+            'weight': {
+                'type': 'weight',
+                'count': 10,
+                'average': 175.0,
+                'latest': 174.5,
+                'latest_date': date(2024, 12, 18),
+                'unit': 'lb',
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Glucose Data:', result)
+        self.assertIn('Weight Data:', result)
+
+    def test_formats_all_six_types(self):
+        """Should format all six data types including glucose."""
+        from assistant.context_builder import build_personal_context
+
+        data = {
+            'weight': {
+                'type': 'weight',
+                'count': 10,
+                'average': 175.0,
+                'latest': 174.5,
+                'latest_date': date(2024, 12, 18),
+                'unit': 'lb',
+            },
+            'journal': {
+                'type': 'journal',
+                'count': 8,
+                'latest_date': date(2024, 12, 17),
+            },
+            'medication': {
+                'type': 'medication',
+                'total_logs': 30,
+                'days_logged': 10,
+                'total_days': 14,
+                'consistency_percent': 71.4,
+            },
+            'food': {
+                'type': 'food',
+                'total_entries': 25,
+                'total_calories': 50000.0,
+                'average_daily_calories': 2000.0,
+                'latest_date': date(2024, 12, 18),
+            },
+            'mood': {
+                'type': 'mood',
+                'count': 12,
+                'mood_distribution': {'good': 6, 'great': 4, 'okay': 2},
+                'most_common': 'good',
+                'latest_mood': 'great',
+                'latest_date': date(2024, 12, 18),
+            },
+            'glucose': {
+                'type': 'glucose',
+                'count': 100,
+                'average': 120.0,
+                'latest': 115.0,
+                'latest_date': date(2024, 12, 18),
+                'unit': 'mg/dL',
+            }
+        }
+
+        result = build_personal_context(data)
+
+        self.assertIn('Weight Data:', result)
+        self.assertIn('Journal Data:', result)
+        self.assertIn('Medication Data:', result)
+        self.assertIn('Food Data:', result)
+        self.assertIn('Mood Data:', result)
+        self.assertIn('Glucose Data:', result)
+
+
 if __name__ == '__main__':
     unittest.main()

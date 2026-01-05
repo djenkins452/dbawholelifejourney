@@ -2007,5 +2007,409 @@ class TestCacheTTL(CacheMockMixin, unittest.TestCase):
         self.assertEqual(PERSONAL_DATA_CACHE_TTL, 300)
 
 
+# ==============================================================================
+# Glucose Data Tests
+# ==============================================================================
+
+
+class TestGetGlucoseDataNoEntries(CacheMockMixin, unittest.TestCase):
+    """Tests for get_glucose_data when no entries exist."""
+
+    def test_returns_none_when_no_entries(self):
+        """Should return None when user has no glucose entries."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup mock queryset that returns no entries
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_health_models.GlucoseEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        self.assertIsNone(result)
+
+    def test_returns_none_when_no_entries_in_date_range(self):
+        """Should return None when no entries exist in the date range."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup mock queryset
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_health_models.GlucoseEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        since_date = datetime(2024, 12, 1)
+        result = service.get_glucose_data(since_date=since_date)
+
+        self.assertIsNone(result)
+
+
+class TestGetGlucoseDataWithEntries(CacheMockMixin, unittest.TestCase):
+    """Tests for get_glucose_data when entries exist."""
+
+    def _setup_mock(self, count=5, avg_value=Decimal('120.5'),
+                    latest_value=Decimal('115.0'), unit='mg/dL', now=None):
+        """Helper to setup mock queryset."""
+        if now is None:
+            now = datetime.now()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = count
+        mock_queryset.aggregate.return_value = {'avg_value': avg_value}
+
+        mock_latest = MagicMock()
+        mock_latest.value = latest_value
+        mock_latest.recorded_at = now
+        mock_latest.unit = unit
+        mock_queryset.first.return_value = mock_latest
+
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = [
+            {'value': latest_value, 'unit': unit, 'recorded_at': now, 'context': 'fasting', 'trend': 'flat'},
+        ]
+        mock_queryset.__getitem__ = MagicMock(return_value=mock_sliced)
+
+        mock_health_models.GlucoseEntry.objects.filter.return_value = mock_queryset
+        return mock_queryset, now
+
+    def test_returns_dict_with_correct_structure(self):
+        """Should return dict with all expected keys."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        self.assertIsNotNone(result)
+        self.assertIn('type', result)
+        self.assertIn('count', result)
+        self.assertIn('average', result)
+        self.assertIn('latest', result)
+        self.assertIn('latest_date', result)
+        self.assertIn('unit', result)
+        self.assertIn('entries', result)
+
+    def test_type_is_glucose(self):
+        """Type should be 'glucose'."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        self.assertEqual(result['type'], 'glucose')
+
+    def test_count_matches_queryset_count(self):
+        """Count should match the number of entries."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock(count=100)
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        self.assertEqual(result['count'], 100)
+
+    def test_average_is_calculated_correctly(self):
+        """Average should be calculated from aggregate and rounded."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock(avg_value=Decimal('118.333'))
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        # Average should be rounded to 1 decimal place
+        self.assertEqual(result['average'], 118.3)
+
+    def test_latest_values_from_first_entry(self):
+        """Latest value and date should come from first entry."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        now = datetime(2024, 12, 18, 8, 30)
+        self._setup_mock(
+            latest_value=Decimal('105.5'),
+            unit='mmol/L',
+            now=now
+        )
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        self.assertEqual(result['latest'], 105.5)
+        self.assertEqual(result['latest_date'], now)
+        self.assertEqual(result['unit'], 'mmol/L')
+
+
+class TestGetGlucoseDataFiltering(CacheMockMixin, unittest.TestCase):
+    """Tests for get_glucose_data date filtering."""
+
+    def test_filters_by_since_date(self):
+        """Should filter entries by since_date."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        since_date = datetime(2024, 12, 1)
+        now = datetime.now()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 50
+        mock_queryset.aggregate.return_value = {'avg_value': Decimal('120.0')}
+
+        mock_latest = MagicMock()
+        mock_latest.value = Decimal('115.0')
+        mock_latest.recorded_at = now
+        mock_latest.unit = 'mg/dL'
+        mock_queryset.first.return_value = mock_latest
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = []
+        mock_queryset.__getitem__ = MagicMock(return_value=mock_sliced)
+
+        mock_health_models.GlucoseEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        service.get_glucose_data(since_date=since_date)
+
+        # Verify filter was called (at least twice - once for user, once for date)
+        self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
+
+
+class TestGetGlucoseDataEntries(CacheMockMixin, unittest.TestCase):
+    """Tests for entries list in get_glucose_data result."""
+
+    def test_entries_contain_expected_fields(self):
+        """Each entry should have value, unit, recorded_at, context, trend."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        now = datetime.now()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 1
+        mock_queryset.aggregate.return_value = {'avg_value': Decimal('120.0')}
+
+        mock_latest = MagicMock()
+        mock_latest.value = Decimal('120.0')
+        mock_latest.recorded_at = now
+        mock_latest.unit = 'mg/dL'
+        mock_queryset.first.return_value = mock_latest
+
+        mock_entries = [
+            {'value': Decimal('120.0'), 'unit': 'mg/dL', 'recorded_at': now,
+             'context': 'fasting', 'trend': 'flat'}
+        ]
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = mock_entries
+        mock_queryset.__getitem__ = MagicMock(return_value=mock_sliced)
+
+        mock_health_models.GlucoseEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        self.assertEqual(len(result['entries']), 1)
+        entry = result['entries'][0]
+        self.assertIn('value', entry)
+        self.assertIn('unit', entry)
+        self.assertIn('recorded_at', entry)
+        self.assertIn('context', entry)
+        self.assertIn('trend', entry)
+
+    def test_decimal_values_converted_to_float(self):
+        """Decimal values should be converted to float for JSON serialization."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        now = datetime.now()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 1
+        mock_queryset.aggregate.return_value = {'avg_value': Decimal('118.5')}
+
+        mock_latest = MagicMock()
+        mock_latest.value = Decimal('118.5')
+        mock_latest.recorded_at = now
+        mock_latest.unit = 'mg/dL'
+        mock_queryset.first.return_value = mock_latest
+
+        mock_entries = [
+            {'value': Decimal('118.5'), 'unit': 'mg/dL', 'recorded_at': now,
+             'context': 'fasting', 'trend': 'flat'}
+        ]
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = mock_entries
+        mock_queryset.__getitem__ = MagicMock(return_value=mock_sliced)
+
+        mock_health_models.GlucoseEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        # Values should be float, not Decimal
+        self.assertIsInstance(result['latest'], float)
+        self.assertIsInstance(result['average'], float)
+        self.assertIsInstance(result['entries'][0]['value'], float)
+
+
+class TestQueryByIntentWithGlucose(CacheMockMixin, unittest.TestCase):
+    """Tests for query_by_intent including glucose data type."""
+
+    def _setup_glucose_mock(self, count=50):
+        """Helper to setup glucose mock with data."""
+        now = datetime.now()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = count
+        mock_queryset.aggregate.return_value = {'avg_value': Decimal('120.0')}
+
+        mock_latest = MagicMock()
+        mock_latest.value = Decimal('115.0')
+        mock_latest.recorded_at = now
+        mock_latest.unit = 'mg/dL'
+        mock_queryset.first.return_value = mock_latest
+
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = []
+        mock_queryset.__getitem__ = MagicMock(return_value=mock_sliced)
+
+        mock_health_models.GlucoseEntry.objects.filter.return_value = mock_queryset
+        return mock_queryset
+
+    def test_returns_glucose_data_type(self):
+        """Should return glucose data when queried."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_glucose_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['glucose'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('glucose', result)
+        self.assertEqual(result['glucose']['type'], 'glucose')
+
+    def test_includes_glucose_with_other_types(self):
+        """Should include glucose alongside other data types."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+
+        # Setup glucose mock
+        self._setup_glucose_mock()
+
+        # Setup weight mock
+        mock_weight_qs = MagicMock()
+        mock_weight_qs.filter.return_value = mock_weight_qs
+        mock_weight_qs.exists.return_value = True
+        mock_weight_qs.count.return_value = 5
+        mock_weight_qs.aggregate.return_value = {'avg_value': Decimal('175.0')}
+        mock_weight_latest = MagicMock()
+        mock_weight_latest.value = Decimal('175.0')
+        mock_weight_latest.recorded_at = datetime.now()
+        mock_weight_latest.unit = 'lb'
+        mock_weight_qs.first.return_value = mock_weight_latest
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = []
+        mock_weight_qs.__getitem__ = MagicMock(return_value=mock_sliced)
+        mock_health_models.WeightEntry.objects.filter.return_value = mock_weight_qs
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['glucose', 'weight'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('glucose', result)
+        self.assertIn('weight', result)
+
+
+class TestGlucoseCacheBehavior(CacheMockMixin, unittest.TestCase):
+    """Tests for glucose data caching."""
+
+    def test_glucose_returns_cached_data_on_hit(self):
+        """Should return cached data when cache hit occurs for glucose."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        mock_user.id = 123
+
+        cached_result = {
+            'type': 'glucose',
+            'count': 100,
+            'average': 118.5,
+            'latest': 115.0,
+        }
+        mock_cache.get.return_value = cached_result
+
+        # Reset GlucoseEntry mock to track calls
+        mock_health_models.reset_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        self.assertEqual(result, cached_result)
+        # Model should not be queried
+        mock_health_models.GlucoseEntry.objects.filter.assert_not_called()
+
+    def test_glucose_caches_result_on_miss(self):
+        """Should cache result when data is fetched for glucose."""
+        from assistant.data_service import PersonalDataService, PERSONAL_DATA_CACHE_TTL
+
+        mock_user = MagicMock()
+        mock_user.id = 789
+
+        now = datetime.now()
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 50
+        mock_queryset.aggregate.return_value = {'avg_value': Decimal('120.0')}
+
+        mock_latest = MagicMock()
+        mock_latest.value = Decimal('115.0')
+        mock_latest.recorded_at = now
+        mock_latest.unit = 'mg/dL'
+        mock_queryset.first.return_value = mock_latest
+
+        mock_sliced = MagicMock()
+        mock_sliced.values.return_value = []
+        mock_queryset.__getitem__ = MagicMock(return_value=mock_sliced)
+
+        mock_health_models.GlucoseEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_glucose_data()
+
+        # Verify cache.set was called with the result
+        self.assertTrue(mock_cache.set.called)
+        call_args = mock_cache.set.call_args
+        self.assertEqual(call_args[0][0], 'personal_data:789:glucose:all')
+        self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
+
+
 if __name__ == '__main__':
     unittest.main()

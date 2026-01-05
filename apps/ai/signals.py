@@ -129,6 +129,8 @@ def invalidate_insights_on_glucose_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when blood glucose is saved."""
     insight_types = ['daily_insight', 'glucose_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache
+    invalidate_personal_data_cache(instance.user, 'glucose')
 
 
 @receiver(post_delete, sender='health.GlucoseEntry')
@@ -136,6 +138,8 @@ def invalidate_insights_on_glucose_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when blood glucose is deleted."""
     insight_types = ['daily_insight', 'glucose_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
+    # Also invalidate personal data cache
+    invalidate_personal_data_cache(instance.user, 'glucose')
 
 
 @receiver(post_save, sender='health.WeightEntry')

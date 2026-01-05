@@ -2,7 +2,7 @@
 # File: apps/core/migrations/0036_favoritepage_pageview.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Add FavoritePage and PageView models for favorites menu feature
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-05
 # Last Updated: 2026-01-05
 # ==============================================================================

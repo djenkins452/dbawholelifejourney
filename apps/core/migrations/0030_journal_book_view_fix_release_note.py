@@ -2,7 +2,7 @@
 # File: apps/core/migrations/0030_journal_book_view_fix_release_note.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Migration to add What's New release note for Journal Book View fix
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-31
 # Last Updated: 2025-12-31
 # ==============================================================================

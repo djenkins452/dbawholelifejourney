@@ -2,7 +2,7 @@
 # File: docs/wlj_claude_deploy.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Deployment rules, Railway configuration, and environment setup
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-04
 # Last Updated: 2026-01-04
 # ==============================================================================

@@ -2,7 +2,7 @@
 # File: docs/wlj_third_party_services.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Comprehensive inventory of all third-party services and APIs
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
 # Last Updated: 2026-01-03
 # ==============================================================================

@@ -2,7 +2,7 @@
 # File: docs/wlj_claude_changelog.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Historical record of fixes, migrations, and changes
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
 # Last Updated: 2026-01-05 (Add Intent Detection Tests and Refinement)
 # ==============================================================================

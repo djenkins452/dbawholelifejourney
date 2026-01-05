@@ -2,7 +2,7 @@
 # File: 0016_merge_medical_providers.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Merge migration to resolve conflicting leaf nodes
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-29
 # Last Updated: 2025-12-29
 # ==============================================================================

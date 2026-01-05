@@ -2,7 +2,7 @@
 # File: apps/purpose/models.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Purpose module models including life goals, habit goals, and reflections
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2024-01-01
 # Last Updated: 2026-01-03
 # ==============================================================================

@@ -2,7 +2,7 @@
 # File: apps/finance/migrations/0006_force_budget_status_column.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Force add status column to Budget table
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
 # ==============================================================================

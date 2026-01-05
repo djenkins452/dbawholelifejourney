@@ -2,7 +2,7 @@
 # File: apps/finance/services/plaid_service.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Plaid API client for bank connectivity
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
 # ==============================================================================

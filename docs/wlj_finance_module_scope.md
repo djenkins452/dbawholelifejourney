@@ -2,7 +2,7 @@
 # File: docs/wlj_finance_module_scope.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Finance Module Scope - Concepts, boundaries, and WLJ integration
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-02
 # Last Updated: 2026-01-02
 # ==============================================================================

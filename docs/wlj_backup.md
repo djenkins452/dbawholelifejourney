@@ -2,7 +2,7 @@
 # File: docs/wlj_backup.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Disaster recovery playbook and backup procedures
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
 # Last Updated: 2026-01-02
 # ==============================================================================
@@ -148,7 +148,7 @@ After any restore:
 
 ## 5. CONTACT & ESCALATION
 
-**Primary Contact:** Danny Jenkins (dannyjenkins71@gmail.com)
+**Primary Contact:** Danny Jenkins (admin@wholelifejourney.com)
 
 **Resources:**
 - Railway Status: https://status.railway.app/

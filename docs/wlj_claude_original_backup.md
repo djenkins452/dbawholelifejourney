@@ -406,7 +406,7 @@ Every file created or updated MUST include a documentation header:
 # File: filename.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Brief description of what this file does
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: YYYY-MM-DD
 # Last Updated: YYYY-MM-DD
 # ==============================================================================
@@ -418,7 +418,7 @@ Every file created or updated MUST include a documentation header:
 // File: filename.js
 // Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 // Description: Brief description
-// Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+// Owner: Danny Jenkins (admin@wholelifejourney.com)
 // Created: YYYY-MM-DD
 // Last Updated: YYYY-MM-DD
 // ==============================================================================
@@ -430,7 +430,7 @@ Every file created or updated MUST include a documentation header:
 # File: docs/wlj_<category>_<descriptor>.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Brief description
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: YYYY-MM-DD
 # Last Updated: YYYY-MM-DD
 # ==============================================================================

@@ -2,7 +2,7 @@
 # File: trend_tracking.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Trend analysis and pattern detection for Dashboard AI
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-29
 # Last Updated: 2025-12-29
 # ==============================================================================

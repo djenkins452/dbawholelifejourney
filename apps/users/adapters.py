@@ -3,7 +3,7 @@
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Custom allauth adapter for signup security features including
 #              honeypot validation, reCAPTCHA verification, and signup attempt logging
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
 # ==============================================================================

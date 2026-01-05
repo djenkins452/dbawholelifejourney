@@ -2,7 +2,7 @@
 # File: 0020_assistant_coaching_time_release_note.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Data migration for AI Assistant coaching style + time-aware urgency
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-30
 # Last Updated: 2025-12-30
 # ==============================================================================

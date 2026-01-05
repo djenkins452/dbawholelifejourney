@@ -2,7 +2,7 @@
 # File: docs/wlj_security_default_config.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Recommended default configuration for signup security
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-02
 # Last Updated: 2026-01-02
 # Version: 1.0

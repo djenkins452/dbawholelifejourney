@@ -2,7 +2,7 @@
 # File: apps/admin_console/management/commands/seed_admin_project_phases.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Idempotent command to seed AdminProjectPhase data (phases 1-11)
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-01
 # Last Updated: 2026-01-01 (Phase 11.1 - Preflight Guard & Phase Seeding)
 # ==============================================================================

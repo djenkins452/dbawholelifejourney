@@ -2,7 +2,7 @@
 # File: apps/finance/migrations/0005_add_missing_budget_status.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Fix missing status field on Budget model
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
 # Last Updated: 2026-01-03
 # ==============================================================================

@@ -2,7 +2,7 @@
 # File: docs/wlj_claude_troubleshoot.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Known issues and solutions for common development problems
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-04
 # Last Updated: 2026-01-04
 # ==============================================================================

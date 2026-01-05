@@ -3,7 +3,7 @@
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: AI Services - Core OpenAI API wrapper with database-driven prompts
 #              and optimized caching for reduced API calls
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-01-01
 # Last Updated: 2025-12-31 (Added system prompt caching for optimization)
 # ==============================================================================

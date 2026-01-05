@@ -4,7 +4,7 @@
 # Description: Dashboard AI Integration - Comprehensive user context gathering
 #              for personalized AI insights including Word of Year, goals,
 #              intentions, faith, health, projects, and nutrition data.
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
 # Last Updated: 2025-12-31 (Enhanced AI context with comprehensive user data)
 # ==============================================================================

@@ -3,7 +3,7 @@
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Barcode lookup service for food products. Queries local database
 #              first, then Open Food Facts API, then uses OpenAI as fallback.
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-31
 # Last Updated: 2025-12-31
 # ==============================================================================

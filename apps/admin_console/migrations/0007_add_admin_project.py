@@ -2,7 +2,7 @@
 # File: apps/admin_console/migrations/0007_add_admin_project.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Add AdminProject model and associate tasks to projects
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-01
 # Last Updated: 2026-01-01
 # ==============================================================================

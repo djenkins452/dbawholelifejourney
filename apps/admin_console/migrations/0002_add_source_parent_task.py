@@ -2,7 +2,7 @@
 # File: apps/admin_console/migrations/0002_add_source_parent_task.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: No-op migration (fields already in 0001, this is for compatibility)
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-01
 # Last Updated: 2026-01-01
 # ==============================================================================

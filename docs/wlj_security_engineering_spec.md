@@ -2,7 +2,7 @@
 # File: docs/wlj_security_engineering_spec.md
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Implementation-ready engineering specification for secure signup
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-02
 # Last Updated: 2026-01-02
 # Version: 1.0

@@ -2,7 +2,7 @@
 # File: apps/core/management/commands/load_initial_data.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: Management command to load initial system data (one-time loads)
-# Owner: Danny Jenkins (dannyjenkins71@gmail.com)
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-01-01
 # Last Updated: 2026-01-03 (Consolidated all data loaders from Procfile)
 # ==============================================================================

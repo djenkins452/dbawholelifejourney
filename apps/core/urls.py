@@ -40,4 +40,9 @@ urlpatterns = [
     path("whats-new/", views.WhatsNewListView.as_view(), name="whats_new_list"),
     path("api/whats-new/check/", views.WhatsNewCheckView.as_view(), name="whats_new_check"),
     path("api/whats-new/dismiss/", views.WhatsNewDismissView.as_view(), name="whats_new_dismiss"),
+
+    # Favorites API
+    path("api/favorites/toggle/", views.FavoriteToggleView.as_view(), name="favorite_toggle"),
+    path("api/favorites/check/", views.FavoriteCheckView.as_view(), name="favorite_check"),
+    path("api/favorites/menu/", views.FavoritesMenuDataView.as_view(), name="favorites_menu"),
 ]

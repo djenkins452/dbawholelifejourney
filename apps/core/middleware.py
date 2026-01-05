@@ -1,0 +1,128 @@
+"""
+Whole Life Journey - Core Middleware
+
+Project: Whole Life Journey
+Path: apps/core/middleware.py
+Purpose: Track page views for the Favorites feature
+
+Description:
+    This middleware tracks page views for authenticated users to populate
+    the "Most Recent" section of the Favorites menu.
+
+Key Responsibilities:
+    - PageViewTrackingMiddleware: Record page views for authenticated users
+
+Design Notes:
+    - Only tracks GET requests (not API calls, form submissions)
+    - Excludes static files, media, and API endpoints
+    - Requires a page_title in the template context (via mixin or context processor)
+    - Uses the response's title tag if no explicit page_title is set
+
+Copyright:
+    (c) Whole Life Journey. All rights reserved.
+    This code is proprietary and may not be copied, modified, or distributed
+    without explicit permission.
+"""
+
+import re
+
+
+class PageViewTrackingMiddleware:
+    """
+    Middleware to track page views for the Favorites/Recent feature.
+
+    Only tracks:
+    - GET requests
+    - Authenticated users
+    - HTML responses (not API calls)
+    - Non-exempt paths (not static, media, api)
+
+    Page titles are extracted from the HTML <title> tag.
+    """
+
+    EXEMPT_PATH_PREFIXES = [
+        '/static/',
+        '/media/',
+        '/api/',
+        '/admin/',
+        '/accounts/',
+        '/__debug__/',
+    ]
+
+    EXEMPT_PATH_EXACT = [
+        '/',
+        '/favicon.ico',
+    ]
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        # Only track GET requests
+        if request.method != 'GET':
+            return response
+
+        # Only track for authenticated users
+        if not request.user.is_authenticated:
+            return response
+
+        # Only track successful HTML responses
+        if response.status_code != 200:
+            return response
+
+        content_type = response.get('Content-Type', '')
+        if 'text/html' not in content_type:
+            return response
+
+        # Skip exempt paths
+        path = request.path
+        if path in self.EXEMPT_PATH_EXACT:
+            return response
+        if any(path.startswith(prefix) for prefix in self.EXEMPT_PATH_PREFIXES):
+            return response
+
+        # Extract title from HTML
+        title = self._extract_title(response)
+        if title:
+            # Import here to avoid circular imports
+            from apps.core.models import PageView
+            PageView.record_view(request.user, path, title)
+
+        return response
+
+    def _extract_title(self, response):
+        """
+        Extract the page title from the HTML response.
+
+        Returns the title text, cleaned up and stripped of the site name suffix.
+        """
+        try:
+            # Get response content - handle streaming responses
+            if hasattr(response, 'content'):
+                content = response.content.decode('utf-8', errors='ignore')
+            else:
+                return None
+
+            # Find the title tag
+            match = re.search(r'<title[^>]*>([^<]+)</title>', content, re.IGNORECASE)
+            if not match:
+                return None
+
+            title = match.group(1).strip()
+
+            # Remove common suffixes like " | Whole Life Journey" or " - Site Name"
+            for separator in [' | ', ' - ', ' – ']:
+                if separator in title:
+                    title = title.split(separator)[0].strip()
+                    break
+
+            # Limit title length
+            if len(title) > 200:
+                title = title[:197] + '...'
+
+            return title if title else None
+
+        except Exception:
+            return None

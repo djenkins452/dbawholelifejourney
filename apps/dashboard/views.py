@@ -610,10 +610,10 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Get weekly summary if it's been generated
             weekly_summary = dashboard_ai.get_weekly_summary()
             
-            # Check for things to celebrate
-            celebrations = self._check_for_celebrations(user_data)
-            
-            # Check for accountability nudges
+            # Check for things to celebrate (respects module enabled flags)
+            celebrations = self._check_for_celebrations(user_data, prefs)
+
+            # Check for accountability nudges (respects module enabled flags)
             nudges = self._check_for_nudges(user_data, prefs)
             
             return {
@@ -627,157 +627,166 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             logging.error(f"AI insights error: {e}")
             return None
     
-    def _check_for_celebrations(self, user_data):
-        """Check for things worth celebrating."""
+    def _check_for_celebrations(self, user_data, prefs):
+        """Check for things worth celebrating. Only includes celebrations for enabled modules."""
         celebrations = []
 
-        # Journal streak
-        streak = user_data.get("journal_streak", 0)
-        if streak >= 7:
-            celebrations.append({
-                "type": "streak",
-                "title": f"🔥 {streak}-Day Journal Streak!",
-                "detail": "You're building a powerful reflection habit."
-            })
-        elif streak >= 3:
-            celebrations.append({
-                "type": "streak",
-                "title": f"📝 {streak} Days in a Row!",
-                "detail": "Keep the momentum going."
-            })
+        # Journal streak (only if journal module is enabled)
+        if prefs.journal_enabled:
+            streak = user_data.get("journal_streak", 0)
+            if streak >= 7:
+                celebrations.append({
+                    "type": "streak",
+                    "title": f"🔥 {streak}-Day Journal Streak!",
+                    "detail": "You're building a powerful reflection habit."
+                })
+            elif streak >= 3:
+                celebrations.append({
+                    "type": "streak",
+                    "title": f"📝 {streak} Days in a Row!",
+                    "detail": "Keep the momentum going."
+                })
 
-        # Tasks completed today
-        completed = user_data.get("completed_tasks_today", 0)
-        if completed >= 5:
-            celebrations.append({
-                "type": "tasks",
-                "title": f"⚡ {completed} Tasks Done Today!",
-                "detail": "You're crushing it."
-            })
-        elif completed >= 3:
-            celebrations.append({
-                "type": "tasks",
-                "title": f"✓ {completed} Tasks Completed",
-                "detail": "Solid progress today."
-            })
+        # Tasks completed today (only if life module is enabled)
+        if prefs.life_enabled:
+            completed = user_data.get("completed_tasks_today", 0)
+            if completed >= 5:
+                celebrations.append({
+                    "type": "tasks",
+                    "title": f"⚡ {completed} Tasks Done Today!",
+                    "detail": "You're crushing it."
+                })
+            elif completed >= 3:
+                celebrations.append({
+                    "type": "tasks",
+                    "title": f"✓ {completed} Tasks Completed",
+                    "detail": "Solid progress today."
+                })
 
-        # Weight trend
-        if user_data.get("weight_trend") == "down" and user_data.get("weight_change"):
-            celebrations.append({
-                "type": "health",
-                "title": f"📉 Down {abs(user_data['weight_change'])} lbs",
-                "detail": "Your consistency is paying off."
-            })
+        # Weight trend (only if health module is enabled)
+        if prefs.health_enabled:
+            if user_data.get("weight_trend") == "down" and user_data.get("weight_change"):
+                celebrations.append({
+                    "type": "health",
+                    "title": f"📉 Down {abs(user_data['weight_change'])} lbs",
+                    "detail": "Your consistency is paying off."
+                })
 
-        # Answered prayers
-        if user_data.get("recent_answered_prayer"):
-            celebrations.append({
-                "type": "faith",
-                "title": "🙏 Prayer Answered",
-                "detail": "God is faithful."
-            })
+        # Answered prayers (only if faith module is enabled)
+        if prefs.faith_enabled:
+            if user_data.get("recent_answered_prayer"):
+                celebrations.append({
+                    "type": "faith",
+                    "title": "🙏 Prayer Answered",
+                    "detail": "God is faithful."
+                })
 
-        # Medicine adherence - perfect adherence
-        adherence = user_data.get("medicine_adherence_rate")
-        if adherence is not None and adherence >= 95:
-            celebrations.append({
-                "type": "medicine",
-                "title": "💊 Perfect Medicine Adherence!",
-                "detail": f"{adherence}% adherence this week. Keep it up!"
-            })
-        elif adherence is not None and adherence >= 80:
-            celebrations.append({
-                "type": "medicine",
-                "title": f"💊 {adherence}% Adherence",
-                "detail": "Great job staying on track with your medicines."
-            })
+        # Health-related celebrations (only if health module is enabled)
+        if prefs.health_enabled:
+            # Medicine adherence - perfect adherence
+            adherence = user_data.get("medicine_adherence_rate")
+            if adherence is not None and adherence >= 95:
+                celebrations.append({
+                    "type": "medicine",
+                    "title": "💊 Perfect Medicine Adherence!",
+                    "detail": f"{adherence}% adherence this week. Keep it up!"
+                })
+            elif adherence is not None and adherence >= 80:
+                celebrations.append({
+                    "type": "medicine",
+                    "title": f"💊 {adherence}% Adherence",
+                    "detail": "Great job staying on track with your medicines."
+                })
 
-        # All medicines taken today
-        doses_today = user_data.get("medicine_doses_today", 0)
-        taken_today = user_data.get("medicine_doses_taken_today", 0)
-        if doses_today > 0 and taken_today == doses_today:
-            celebrations.append({
-                "type": "medicine",
-                "title": "✅ All Doses Taken Today!",
-                "detail": "You've taken all your scheduled medicines."
-            })
+            # All medicines taken today
+            doses_today = user_data.get("medicine_doses_today", 0)
+            taken_today = user_data.get("medicine_doses_taken_today", 0)
+            if doses_today > 0 and taken_today == doses_today:
+                celebrations.append({
+                    "type": "medicine",
+                    "title": "✅ All Doses Taken Today!",
+                    "detail": "You've taken all your scheduled medicines."
+                })
 
-        # Workout streak
-        workout_streak = user_data.get("workout_streak", 0)
-        if workout_streak >= 5:
-            celebrations.append({
-                "type": "workout",
-                "title": f"💪 {workout_streak}-Day Workout Streak!",
-                "detail": "Your dedication is inspiring."
-            })
-        elif workout_streak >= 3:
-            celebrations.append({
-                "type": "workout",
-                "title": f"🏋️ {workout_streak} Days of Workouts!",
-                "detail": "Building strong habits."
-            })
+            # Workout streak
+            workout_streak = user_data.get("workout_streak", 0)
+            if workout_streak >= 5:
+                celebrations.append({
+                    "type": "workout",
+                    "title": f"💪 {workout_streak}-Day Workout Streak!",
+                    "detail": "Your dedication is inspiring."
+                })
+            elif workout_streak >= 3:
+                celebrations.append({
+                    "type": "workout",
+                    "title": f"🏋️ {workout_streak} Days of Workouts!",
+                    "detail": "Building strong habits."
+                })
 
-        # Recent PRs
-        recent_prs = user_data.get("recent_prs", [])
-        if recent_prs:
-            pr = recent_prs[0]  # Most recent PR
-            celebrations.append({
-                "type": "workout",
-                "title": f"🏆 New PR: {pr.exercise.name}!",
-                "detail": f"{pr.weight}lbs x {pr.reps} reps"
-            })
+            # Recent PRs
+            recent_prs = user_data.get("recent_prs", [])
+            if recent_prs:
+                pr = recent_prs[0]  # Most recent PR
+                celebrations.append({
+                    "type": "workout",
+                    "title": f"🏆 New PR: {pr.exercise.name}!",
+                    "detail": f"{pr.weight}lbs x {pr.reps} reps"
+                })
 
-        # Workouts this week
-        workouts_week = user_data.get("workouts_this_week", 0)
-        if workouts_week >= 5:
-            celebrations.append({
-                "type": "workout",
-                "title": f"🔥 {workouts_week} Workouts This Week!",
-                "detail": "Outstanding fitness commitment."
-            })
-        elif workouts_week >= 3:
-            celebrations.append({
-                "type": "workout",
-                "title": f"💪 {workouts_week} Workouts This Week",
-                "detail": "Staying active and strong."
-            })
+            # Workouts this week
+            workouts_week = user_data.get("workouts_this_week", 0)
+            if workouts_week >= 5:
+                celebrations.append({
+                    "type": "workout",
+                    "title": f"🔥 {workouts_week} Workouts This Week!",
+                    "detail": "Outstanding fitness commitment."
+                })
+            elif workouts_week >= 3:
+                celebrations.append({
+                    "type": "workout",
+                    "title": f"💪 {workouts_week} Workouts This Week",
+                    "detail": "Staying active and strong."
+                })
 
-        # AI Camera usage
-        items_from_scan = user_data.get("items_from_scan_week", 0)
-        if items_from_scan >= 5:
-            celebrations.append({
-                "type": "scan",
-                "title": f"📷 {items_from_scan} Items Logged via Camera!",
-                "detail": "Smart use of the AI camera feature."
-            })
+        # AI Camera usage (only if AI is enabled - scan requires AI)
+        if prefs.ai_enabled:
+            items_from_scan = user_data.get("items_from_scan_week", 0)
+            if items_from_scan >= 5:
+                celebrations.append({
+                    "type": "scan",
+                    "title": f"📷 {items_from_scan} Items Logged via Camera!",
+                    "detail": "Smart use of the AI camera feature."
+                })
 
         return celebrations[:3]  # Max 3 celebrations
     
     def _check_for_nudges(self, user_data, prefs):
-        """Check for gentle accountability nudges."""
+        """Check for gentle accountability nudges. Only includes nudges for enabled modules."""
         nudges = []
 
-        # Journal gap
-        days_since = user_data.get("days_since_journal")
-        if days_since and days_since >= 3:
-            nudges.append({
-                "type": "journal",
-                "days": days_since,
-                "action_url": "/journal/new/",
-                "action_text": "Write Now"
-            })
+        # Journal gap (only if journal module is enabled)
+        if prefs.journal_enabled:
+            days_since = user_data.get("days_since_journal")
+            if days_since and days_since >= 3:
+                nudges.append({
+                    "type": "journal",
+                    "days": days_since,
+                    "action_url": "/journal/new/",
+                    "action_text": "Write Now"
+                })
 
-        # Overdue tasks
-        overdue = user_data.get("overdue_tasks", 0)
-        if overdue > 0:
-            nudges.append({
-                "type": "tasks",
-                "count": overdue,
-                "action_url": "/life/tasks/",
-                "action_text": "View Tasks"
-            })
+        # Overdue tasks (only if life module is enabled)
+        if prefs.life_enabled:
+            overdue = user_data.get("overdue_tasks", 0)
+            if overdue > 0:
+                nudges.append({
+                    "type": "tasks",
+                    "count": overdue,
+                    "action_url": "/life/tasks/",
+                    "action_text": "View Tasks"
+                })
 
-        # No active goals (if purpose enabled)
+        # No active goals (only if purpose module is enabled)
         if prefs.purpose_enabled and user_data.get("active_goals", 0) == 0:
             nudges.append({
                 "type": "goals",
@@ -785,57 +794,59 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "action_text": "Set a Goal"
             })
 
-        # Missed medicine doses today (high priority)
-        doses_today = user_data.get("medicine_doses_today", 0)
-        taken_today = user_data.get("medicine_doses_taken_today", 0)
-        pending_doses = doses_today - taken_today
-        if pending_doses > 0:
-            nudges.append({
-                "type": "medicine",
-                "count": pending_doses,
-                "action_url": "/health/medicine/",
-                "action_text": "Open Tracker"
-            })
+        # Health-related nudges (only if health module is enabled)
+        if prefs.health_enabled:
+            # Missed medicine doses today (high priority)
+            doses_today = user_data.get("medicine_doses_today", 0)
+            taken_today = user_data.get("medicine_doses_taken_today", 0)
+            pending_doses = doses_today - taken_today
+            if pending_doses > 0:
+                nudges.append({
+                    "type": "medicine",
+                    "count": pending_doses,
+                    "action_url": "/health/medicine/",
+                    "action_text": "Open Tracker"
+                })
 
-        # Low medicine adherence this week
-        adherence = user_data.get("medicine_adherence_rate")
-        if adherence is not None and adherence < 70:
-            nudges.append({
-                "type": "medicine_adherence",
-                "adherence": adherence,
-                "action_url": "/health/medicine/",
-                "action_text": "View Schedule"
-            })
+            # Low medicine adherence this week
+            adherence = user_data.get("medicine_adherence_rate")
+            if adherence is not None and adherence < 70:
+                nudges.append({
+                    "type": "medicine_adherence",
+                    "adherence": adherence,
+                    "action_url": "/health/medicine/",
+                    "action_text": "View Schedule"
+                })
 
-        # Medicines with refill requested (show first if any)
-        refill_requested_count = user_data.get("medicines_refill_requested_count", 0)
-        if refill_requested_count > 0:
-            nudges.append({
-                "type": "refill_requested",
-                "count": refill_requested_count,
-                "action_url": "/health/medicine/",
-                "action_text": "View Status"
-            })
+            # Medicines with refill requested (show first if any)
+            refill_requested_count = user_data.get("medicines_refill_requested_count", 0)
+            if refill_requested_count > 0:
+                nudges.append({
+                    "type": "refill_requested",
+                    "count": refill_requested_count,
+                    "action_url": "/health/medicine/",
+                    "action_text": "View Status"
+                })
 
-        # Medicines needing refill (not yet requested)
-        refill_count = user_data.get("medicines_need_refill_count", 0)
-        if refill_count > 0:
-            nudges.append({
-                "type": "refill",
-                "count": refill_count,
-                "action_url": "/health/medicine/",
-                "action_text": "Check Refills"
-            })
+            # Medicines needing refill (not yet requested)
+            refill_count = user_data.get("medicines_need_refill_count", 0)
+            if refill_count > 0:
+                nudges.append({
+                    "type": "refill",
+                    "count": refill_count,
+                    "action_url": "/health/medicine/",
+                    "action_text": "Check Refills"
+                })
 
-        # Workout gap
-        days_since_workout = user_data.get("days_since_workout")
-        if days_since_workout and days_since_workout >= 5:
-            nudges.append({
-                "type": "workout",
-                "days": days_since_workout,
-                "action_url": "/health/workouts/",
-                "action_text": "Log Workout"
-            })
+            # Workout gap
+            days_since_workout = user_data.get("days_since_workout")
+            if days_since_workout and days_since_workout >= 5:
+                nudges.append({
+                    "type": "workout",
+                    "days": days_since_workout,
+                    "action_url": "/health/workouts/",
+                    "action_text": "Log Workout"
+                })
 
         return nudges[:2]  # Max 2 nudges
     

@@ -18,13 +18,13 @@
         
         <!-- Quick Stats -->
         <div class="quick-stats">
-            {% if quick_stats.journal_streak > 0 %}
+            {% if journal_enabled and quick_stats.journal_streak > 0 %}
             <a href="{% url 'journal:entry_list' %}" class="quick-stat quick-stat-link" title="Journal Streak - Click to view entries">
                 <span class="stat-icon">🔥</span>
                 <span class="stat-value">{{ quick_stats.journal_streak }}</span>
             </a>
             {% endif %}
-            {% if quick_stats.tasks_today > 0 %}
+            {% if life_enabled and quick_stats.tasks_today > 0 %}
             <a href="{% url 'life:task_list' %}" class="quick-stat quick-stat-link" title="Tasks Today - Click to view all tasks">
                 <span class="stat-icon">✓</span>
                 <span class="stat-value">{{ quick_stats.tasks_today }}</span>

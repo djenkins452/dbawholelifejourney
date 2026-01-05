@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Purpose Home Goals Reorder)
+# Last Updated: 2026-01-04 (Journal Day Streak Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,25 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Journal Day Streak Excludes Today (Task #133)
+
+**Session:** Journal Day Streak
+
+**Changes:**
+1. Modified journal streak calculation to start from yesterday instead of today
+2. The streak now only counts consecutive past days of journaling, not the current day
+3. Updated all three streak calculation functions for consistency
+4. Updated related tests to reflect the new behavior
+
+**Files Modified:**
+- `apps/dashboard/views.py` - Updated `_calculate_journal_streak` to start from yesterday
+- `apps/ai/dashboard_ai.py` - Updated `_calculate_journal_streak` to start from yesterday
+- `apps/ai/personal_assistant.py` - Updated `_calculate_journal_streak` to start from yesterday
+- `apps/dashboard/tests/test_dashboard_comprehensive.py` - Updated streak test cases
+- `apps/ai/tests/test_ai_comprehensive.py` - Updated streak test cases
+
+---
 
 ### Purpose Home Goals Reorder (Task #132)
 

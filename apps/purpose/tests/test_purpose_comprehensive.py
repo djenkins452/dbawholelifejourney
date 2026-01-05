@@ -669,6 +669,30 @@ class HabitGoalModelTest(PurposeTestMixin, TestCase):
         )
         self.assertEqual(goal.total_days, 30)
 
+    def test_elapsed_days_calculation(self):
+        """Test elapsed_days calculation for success rate."""
+        # Goal started 10 days ago, ending 20 days from now
+        goal = self.create_habit_goal(
+            start_date=self.today - timedelta(days=9),  # 10 days ago
+            end_date=self.today + timedelta(days=20),
+        )
+        # Elapsed days should be 10 (from start to today inclusive)
+        self.assertEqual(goal.elapsed_days, 10)
+
+        # Future goal should have 0 elapsed days
+        future_goal = self.create_habit_goal(
+            start_date=self.today + timedelta(days=5),
+            end_date=self.today + timedelta(days=35),
+        )
+        self.assertEqual(future_goal.elapsed_days, 0)
+
+        # Completed goal should have elapsed_days == total_days
+        past_goal = self.create_habit_goal(
+            start_date=self.today - timedelta(days=30),
+            end_date=self.today - timedelta(days=1),
+        )
+        self.assertEqual(past_goal.elapsed_days, past_goal.total_days)
+
     def test_matrix_sizing_30_days(self):
         """Test matrix sizing for 30 days: rows=5, cols=6."""
         goal = self.create_habit_goal(
@@ -853,14 +877,14 @@ class HabitGoalModelTest(PurposeTestMixin, TestCase):
         self.assertEqual(goal.completed_days, 5)
 
     def test_completion_rate(self):
-        """Test completion_rate calculation."""
-        # Goal started 10 days ago
+        """Test completion_rate calculation based on elapsed days."""
+        # Goal started 10 days ago (10 elapsed days including today)
         goal = self.create_habit_goal(
             start_date=self.today - timedelta(days=9),  # 10 days including today
             end_date=self.today + timedelta(days=20),
         )
 
-        # Mark 5 out of 10 trackable days as completed
+        # Mark 5 out of 10 elapsed days as completed
         for i in range(5):
             HabitEntry.objects.create(
                 goal=goal,
@@ -868,7 +892,7 @@ class HabitGoalModelTest(PurposeTestMixin, TestCase):
                 completed=True,
             )
 
-        # 5/10 = 50%
+        # 5/10 elapsed days = 50% success rate
         self.assertEqual(goal.completion_rate, 50.0)
 
 

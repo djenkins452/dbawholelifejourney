@@ -486,7 +486,7 @@ SERVER_EMAIL = env("SERVER_EMAIL", default="admin@wholelifejourney.com")
 # Admin recipients for error emails (optional)
 # Format: [("Name", "email@example.com"), ...]
 ADMINS = [
-    ("WLJ Admin", env("ADMIN_EMAIL", default="dannyjenkins71@gmail.com")),
+    ("WLJ Admin", env("ADMIN_EMAIL", default="admin@wholelifejourney.com")),
 ]
 
 # Log email configuration status

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Favorites Menu)
+# Last Updated: 2026-01-05 (Habit Goals Success Rate)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,25 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Habit Goals Success Rate Fix (Task #141)
+
+**Session:** Habit Goals Success Rate
+
+**Changes:**
+1. Fixed Success Rate calculation to use elapsed days instead of total days
+2. For a year-long habit goal on day 4 with 3 completions, now correctly shows 75%
+3. Added `elapsed_days` property to HabitGoal model
+4. Success Rate now refreshes dynamically when logging habits via AJAX
+5. Added tests for elapsed_days calculation
+
+**Files Modified:**
+- `apps/purpose/models.py` - Added elapsed_days property, updated completion_rate
+- `apps/purpose/views.py` - Return stats in AJAX log responses
+- `apps/purpose/templates/purpose/habit_goal_detail.html` - Added updateStats() JS function
+- `apps/purpose/tests/test_purpose_comprehensive.py` - Added test_elapsed_days_calculation
+
+---
 
 ### Menu Order and Rename Assistant (Task #140)
 

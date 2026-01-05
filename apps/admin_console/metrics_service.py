@@ -4,20 +4,36 @@
 # Description: Service module for gathering project metrics and statistics
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-05
+# Last Updated: 2026-01-05 (Added GitHub API support for production)
 # ==============================================================================
 """
 Project Metrics Service
 
 Provides comprehensive metrics about the codebase, git history, and project statistics.
 Used by the Project Metrics Report view in the admin console.
+
+Supports two modes:
+1. Local git commands (development) - when .git directory is available
+2. GitHub API (production) - when deployed without git history
 """
 
+import logging
 import os
 import subprocess
+from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
+
+import requests
+from django.conf import settings
+from django.core.cache import cache
+
+logger = logging.getLogger(__name__)
+
+# Cache timeout for GitHub API data (1 hour)
+GITHUB_CACHE_TIMEOUT = 3600
 
 
 @dataclass
@@ -87,6 +103,9 @@ class GitMetrics:
     # Peak coding hours
     peak_hours: list = field(default_factory=list)
 
+    # Data source indicator
+    data_source: str = "local"  # "local" or "github"
+
 
 @dataclass
 class ProjectMetrics:
@@ -95,6 +114,194 @@ class ProjectMetrics:
     code_metrics: CodeMetrics = field(default_factory=CodeMetrics)
     git_metrics: GitMetrics = field(default_factory=GitMetrics)
     generated_at: Optional[datetime] = None
+
+
+class GitHubMetricsService:
+    """Service for fetching git metrics from GitHub API."""
+
+    def __init__(self, owner: str, repo: str, token: Optional[str] = None):
+        """
+        Initialize the GitHub metrics service.
+
+        Args:
+            owner: GitHub repository owner (username or org)
+            repo: Repository name
+            token: Optional GitHub personal access token for higher rate limits
+        """
+        self.owner = owner
+        self.repo = repo
+        self.token = token
+        self.base_url = f"https://api.github.com/repos/{owner}/{repo}"
+        self.headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "WLJ-Metrics-Service"
+        }
+        if token:
+            self.headers["Authorization"] = f"token {token}"
+
+    def _make_request(self, endpoint: str, params: dict = None) -> Optional[dict]:
+        """Make a request to the GitHub API."""
+        url = f"{self.base_url}/{endpoint}" if endpoint else self.base_url
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.warning(f"GitHub API request failed: {e}")
+            return None
+
+    def _get_all_commits(self, since: Optional[datetime] = None, per_page: int = 100) -> list:
+        """Fetch all commits, handling pagination."""
+        cache_key = f"github_commits_{self.owner}_{self.repo}"
+        if since:
+            cache_key += f"_{since.isoformat()}"
+
+        cached = cache.get(cache_key)
+        if cached:
+            return cached
+
+        commits = []
+        page = 1
+        params = {"per_page": per_page}
+        if since:
+            params["since"] = since.isoformat()
+
+        while True:
+            params["page"] = page
+            data = self._make_request("commits", params)
+            if not data:
+                break
+            commits.extend(data)
+            if len(data) < per_page:
+                break
+            page += 1
+            # Safety limit to avoid too many API calls
+            if page > 50:
+                break
+
+        cache.set(cache_key, commits, GITHUB_CACHE_TIMEOUT)
+        return commits
+
+    def get_git_metrics(self) -> GitMetrics:
+        """Fetch git metrics from GitHub API."""
+        metrics = GitMetrics(data_source="github")
+
+        # Get repository info
+        repo_info = self._make_request("")
+        if repo_info:
+            metrics.total_size_mb = repo_info.get("size", 0) / 1024  # KB to MB
+
+        # Get all commits
+        commits = self._get_all_commits()
+        metrics.total_commits = len(commits)
+
+        if not commits:
+            return metrics
+
+        # Parse commit dates
+        commit_dates = []
+        commit_messages = []
+        for commit in commits:
+            commit_data = commit.get("commit", {})
+            author_data = commit_data.get("author", {})
+            date_str = author_data.get("date", "")
+            message = commit_data.get("message", "")
+
+            if date_str:
+                try:
+                    dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                    commit_dates.append(dt)
+                except ValueError:
+                    pass
+
+            commit_messages.append(message.lower())
+
+        if commit_dates:
+            # Sort dates
+            commit_dates.sort()
+
+            # First and last commit
+            metrics.first_commit_date = commit_dates[0].strftime("%Y-%m-%d")
+            metrics.last_commit_date = commit_dates[-1].strftime("%Y-%m-%d")
+
+            # Project age
+            age_delta = commit_dates[-1] - commit_dates[0]
+            metrics.project_age_days = age_delta.days + 1
+            if metrics.project_age_days > 0:
+                metrics.avg_commits_per_day = round(
+                    metrics.total_commits / metrics.project_age_days, 1
+                )
+
+            # Unique days with commits
+            unique_days = set(dt.strftime("%Y-%m-%d") for dt in commit_dates)
+            metrics.unique_days_with_commits = len(unique_days)
+
+            # Today's commits
+            today = datetime.now().date()
+            today_commits = [dt for dt in commit_dates if dt.date() == today]
+            metrics.commits_today = len(today_commits)
+
+            if today_commits:
+                metrics.first_commit_today = today_commits[0].strftime("%Y-%m-%d %H:%M:%S")
+                metrics.last_commit_today = today_commits[-1].strftime("%Y-%m-%d %H:%M:%S")
+                # Calculate coding hours
+                if len(today_commits) > 1:
+                    diff = (today_commits[-1] - today_commits[0]).total_seconds() / 3600
+                    metrics.coding_hours_today = round(diff, 1)
+
+            # Most productive days
+            day_counts = Counter(dt.strftime("%Y-%m-%d") for dt in commit_dates)
+            for date, count in day_counts.most_common(5):
+                metrics.most_productive_days.append({
+                    "date": date,
+                    "commits": count
+                })
+
+            # Commits by day of week
+            weekday_counts = Counter(dt.strftime("%A") for dt in commit_dates)
+            # Sort by count descending
+            for day, count in weekday_counts.most_common():
+                metrics.commits_by_day[day] = count
+
+            # Peak coding hours
+            hour_counts = Counter(dt.hour for dt in commit_dates)
+            for hour, count in hour_counts.most_common(5):
+                if hour < 12:
+                    hour_str = f"{hour} AM" if hour > 0 else "12 AM"
+                elif hour == 12:
+                    hour_str = "12 PM"
+                else:
+                    hour_str = f"{hour - 12} PM"
+                metrics.peak_hours.append({
+                    "hour": hour_str,
+                    "commits": count
+                })
+
+        # Analyze commit messages for types
+        for msg in commit_messages:
+            if any(kw in msg for kw in ["add", "feature", "implement", "new"]):
+                metrics.feature_commits += 1
+            if any(kw in msg for kw in ["fix", "bug", "patch", "resolve"]):
+                metrics.bugfix_commits += 1
+            if any(kw in msg for kw in ["refactor", "clean", "improve", "optimize"]):
+                metrics.refactor_commits += 1
+            if any(kw in msg for kw in ["claude", "ai", "generated", "co-authored-by: claude"]):
+                metrics.ai_assisted_commits += 1
+
+        # Get contributor stats for insertions/deletions (requires additional API call)
+        stats = self._make_request("stats/contributors")
+        if stats:
+            total_additions = 0
+            total_deletions = 0
+            for contributor in stats:
+                for week in contributor.get("weeks", []):
+                    total_additions += week.get("a", 0)
+                    total_deletions += week.get("d", 0)
+            metrics.total_insertions = total_additions
+            metrics.total_deletions = total_deletions
+            metrics.net_lines_added = total_additions - total_deletions
+
+        return metrics
 
 
 class MetricsService:
@@ -113,10 +320,17 @@ class MetricsService:
             # Try to find project root by looking for manage.py
             self.project_root = self._find_project_root()
 
+        # Check if we have local git access
+        self.has_local_git = self._check_local_git()
+
     def _find_project_root(self) -> Path:
         """Find the project root by looking for manage.py."""
-        from django.conf import settings
         return Path(settings.BASE_DIR)
+
+    def _check_local_git(self) -> bool:
+        """Check if local git repository is available."""
+        git_dir = self.project_root / ".git"
+        return git_dir.exists()
 
     def _run_command(self, command: str, cwd: Optional[Path] = None) -> str:
         """
@@ -267,9 +481,9 @@ class MetricsService:
 
         return metrics
 
-    def get_git_metrics(self) -> GitMetrics:
-        """Gather git history metrics."""
-        metrics = GitMetrics()
+    def get_git_metrics_local(self) -> GitMetrics:
+        """Gather git history metrics from local git repository."""
+        metrics = GitMetrics(data_source="local")
 
         # Total commits
         result = self._run_command('git log --oneline 2>/dev/null | wc -l')
@@ -434,6 +648,27 @@ class MetricsService:
                         pass
 
         return metrics
+
+    def get_git_metrics(self) -> GitMetrics:
+        """
+        Get git metrics from the best available source.
+
+        Uses local git if available, otherwise falls back to GitHub API.
+        """
+        if self.has_local_git:
+            return self.get_git_metrics_local()
+
+        # Fall back to GitHub API
+        github_owner = getattr(settings, 'GITHUB_REPO_OWNER', 'djenkins452')
+        github_repo = getattr(settings, 'GITHUB_REPO_NAME', 'dbawholelifejourney')
+        github_token = getattr(settings, 'GITHUB_API_TOKEN', None)
+
+        github_service = GitHubMetricsService(
+            owner=github_owner,
+            repo=github_repo,
+            token=github_token
+        )
+        return github_service.get_git_metrics()
 
     def get_all_metrics(self) -> ProjectMetrics:
         """Gather all project metrics."""

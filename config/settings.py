@@ -752,4 +752,15 @@ if RECAPTCHA_V3_SITE_KEY and RECAPTCHA_V3_SECRET_KEY:
     print(f"reCAPTCHA v3 configured - Threshold: {RECAPTCHA_SCORE_THRESHOLD}")
 else:
     print("reCAPTCHA v3 NOT configured - RECAPTCHA_V3_SITE_KEY/SECRET_KEY not set")
+
+
+# ==============================================================================
+# GitHub API Configuration (for Codebase Metrics)
+# ==============================================================================
+# Used by the codebase metrics report to fetch git history when deployed
+# without a local .git directory (e.g., on Railway)
+
+GITHUB_REPO_OWNER = env('GITHUB_REPO_OWNER', default='djenkins452')
+GITHUB_REPO_NAME = env('GITHUB_REPO_NAME', default='dbawholelifejourney')
+GITHUB_API_TOKEN = env('GITHUB_API_TOKEN', default=None)  # Optional, for higher rate limits
     

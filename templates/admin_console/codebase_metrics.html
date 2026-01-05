@@ -12,6 +12,9 @@
         </div>
         <div class="header-actions">
             <span class="generated-time">Generated: {{ generated_at|date:"M j, Y g:i A" }}</span>
+            {% if git_metrics.data_source == "github" %}
+            <span class="data-source-badge">via GitHub API</span>
+            {% endif %}
             <a href="{% url 'admin_console:codebase_metrics' %}" class="btn btn-primary">Refresh</a>
             <a href="{% url 'admin_console:dashboard' %}" class="btn btn-outline">Back to Admin</a>
         </div>
@@ -328,6 +331,15 @@
 .generated-time {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+}
+
+.data-source-badge {
+    font-size: var(--font-size-xs);
+    background: color-mix(in srgb, #3b82f6 15%, transparent);
+    color: #3b82f6;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
 }
 
 .metrics-section {

@@ -82,14 +82,14 @@ def invalidate_insights_on_journal_delete(sender, instance, **kwargs):
 # PURPOSE/GOALS SIGNALS
 # =============================================================================
 
-@receiver(post_save, sender='purpose.Goal')
+@receiver(post_save, sender='purpose.LifeGoal')
 def invalidate_insights_on_goal_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when a goal is saved."""
     insight_types = ['daily_insight', 'goal_progress', 'purpose_home']
     invalidate_user_insights(instance.user, insight_types)
 
 
-@receiver(post_delete, sender='purpose.Goal')
+@receiver(post_delete, sender='purpose.LifeGoal')
 def invalidate_insights_on_goal_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when a goal is deleted."""
     insight_types = ['daily_insight', 'goal_progress', 'purpose_home']
@@ -100,28 +100,28 @@ def invalidate_insights_on_goal_delete(sender, instance, **kwargs):
 # HEALTH SIGNALS
 # =============================================================================
 
-@receiver(post_save, sender='health.BloodGlucose')
+@receiver(post_save, sender='health.GlucoseEntry')
 def invalidate_insights_on_glucose_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when blood glucose is saved."""
     insight_types = ['daily_insight', 'glucose_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
 
 
-@receiver(post_delete, sender='health.BloodGlucose')
+@receiver(post_delete, sender='health.GlucoseEntry')
 def invalidate_insights_on_glucose_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when blood glucose is deleted."""
     insight_types = ['daily_insight', 'glucose_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
 
 
-@receiver(post_save, sender='health.Weight')
+@receiver(post_save, sender='health.WeightEntry')
 def invalidate_insights_on_weight_save(sender, instance, created, **kwargs):
     """Invalidate relevant insights when weight is saved."""
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']
     invalidate_user_insights(instance.user, insight_types)
 
 
-@receiver(post_delete, sender='health.Weight')
+@receiver(post_delete, sender='health.WeightEntry')
 def invalidate_insights_on_weight_delete(sender, instance, **kwargs):
     """Invalidate relevant insights when weight is deleted."""
     insight_types = ['daily_insight', 'health_home', 'health_encouragement']

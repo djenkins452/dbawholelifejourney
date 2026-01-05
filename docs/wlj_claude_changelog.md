@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Fix is_deleted Filter Bug - Mood)
+# Last Updated: 2026-01-05 (Integrate Personal Data Query with AI Personal Assistant)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,51 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Integrate Personal Data Query with AI Personal Assistant (Task #182)
+
+**Session:** Integrate Personal Data Query with AI Personal Assistant
+
+**Changes:**
+1. Modified `apps/ai/personal_assistant.py`:
+   - Added import for `process_assistant_message` from `assistant.views`
+   - Updated `_generate_response()` to integrate personal data query detection
+   - When users ask about their data (weight, journal, medication, food, mood), the system now automatically injects relevant personal data context into the AI prompt
+   - Updated file header timestamp
+
+2. Added unit tests in `apps/ai/tests/test_personal_assistant.py`:
+   - Added `PersonalDataQueryIntegrationTests` class with 5 test methods:
+     - `test_personal_data_context_injected_for_weight_query` - Verifies weight queries get context
+     - `test_no_context_injection_for_non_personal_query` - Verifies non-personal queries work normally
+     - `test_personal_query_without_data_uses_base_prompt` - Handles queries when no data exists
+     - `test_multiple_data_types_in_query` - Tests compound queries (e.g., mood + journal)
+     - `test_existing_features_preserved` - Ensures coaching style features still work
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Added personal data query integration
+- `apps/ai/tests/test_personal_assistant.py` - Added 5 integration tests
+
+**Purpose:** Enable the AI Personal Assistant to automatically detect when users ask about their personal data and inject that data into the AI context, providing more personalized and data-aware responses.
+
+---
+
+### Add Missing Exports to Assistant Module (Task #181)
+
+**Session:** Add Missing Exports to Assistant Module __init__.py
+
+**Changes:**
+1. Updated `assistant/__init__.py`:
+   - Added import for `process_assistant_message` from `.views`
+   - Added import for `build_personal_context` from `.context_builder`
+   - Added import for `invalidate_user_data_cache` from `.data_service`
+   - Added all three to `__all__` list
+
+**Files Modified:**
+- `assistant/__init__.py` - Added imports and exports
+
+**Purpose:** Make `process_assistant_message`, `build_personal_context`, and `invalidate_user_data_cache` part of the assistant module's public API, enabling easier imports for Phase 2 integration tasks.
+
+---
 
 ### Fix is_deleted Filter Bug in Mood Data Query (Task #180)
 

@@ -13,7 +13,7 @@
                 <span>/</span>
                 <span>{{ project.name }}</span>
             </nav>
-            <h1 class="page-title">{{ project.name }}</h1>
+            <h1 class="page-title">{{ project.name }}{% include "components/favorite_toggle.html" with page_title="Project Detail" %}</h1>
             <p class="page-subtitle">
                 <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
                 <span class="task-count">{{ project.completed_tasks }}/{{ project.total_tasks }} tasks completed</span>

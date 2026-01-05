@@ -13,7 +13,7 @@
                 <span>/</span>
                 <span>{{ category.name }}</span>
             </nav>
-            <h1 class="page-title">{{ category.name }}</h1>
+            <h1 class="page-title">{{ category.name }}{% include "components/favorite_toggle.html" with page_title="Choice Options" %}</h1>
             <p class="page-subtitle">Manage options for this dropdown</p>
         </div>
         <a href="{% url 'admin_console:choice_option_create' category.pk %}" class="btn btn-primary">

@@ -11,7 +11,7 @@
                 <span>/</span>
                 <span>Dropdown Choices</span>
             </nav>
-            <h1 class="page-title">Dropdown Choices</h1>
+            <h1 class="page-title">Dropdown Choices{% include "components/favorite_toggle.html" with page_title="Dropdown Choices" %}</h1>
             <p class="page-subtitle">Manage options for dropdowns throughout the app</p>
         </div>
         <a href="{% url 'admin_console:choice_category_create' %}" class="btn btn-primary">

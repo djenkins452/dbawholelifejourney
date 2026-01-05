@@ -11,7 +11,7 @@
                 <span>/</span>
                 <span>Themes</span>
             </nav>
-            <h1 class="page-title">Themes</h1>
+            <h1 class="page-title">Themes{% include "components/favorite_toggle.html" with page_title="Themes" %}</h1>
             <p class="page-subtitle">Create and manage color themes for your users</p>
         </div>
         <a href="{% url 'admin_console:theme_create' %}" class="btn btn-primary">

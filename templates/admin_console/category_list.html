@@ -11,7 +11,7 @@
                 <span>/</span>
                 <span>Categories</span>
             </nav>
-            <h1 class="page-title">Categories</h1>
+            <h1 class="page-title">Categories{% include "components/favorite_toggle.html" with page_title="Categories" %}</h1>
             <p class="page-subtitle">Manage journal entry categories</p>
         </div>
         <a href="{% url 'admin_console:category_create' %}" class="btn btn-primary">

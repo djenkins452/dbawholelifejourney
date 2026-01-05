@@ -13,7 +13,7 @@
                 <span>/</span>
                 <span>{% if object %}Edit{% else %}New{% endif %}</span>
             </nav>
-            <h1 class="page-title">{% if object %}Edit Task{% else %}New Task{% endif %}</h1>
+            <h1 class="page-title">{% if object %}Edit Task{% else %}New Task{% endif %}{% include "components/favorite_toggle.html" with page_title="Task Form" %}</h1>
         </div>
     </div>
 

@@ -11,7 +11,7 @@
                 <span>/</span>
                 <span>Users</span>
             </nav>
-            <h1 class="page-title">Users</h1>
+            <h1 class="page-title">Users{% include "components/favorite_toggle.html" with page_title="Users" %}</h1>
             <p class="page-subtitle">{{ users.count }} registered user{{ users.count|pluralize }}</p>
         </div>
     </div>

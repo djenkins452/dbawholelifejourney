@@ -21,6 +21,7 @@ import requests
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -153,11 +154,17 @@ class FaithHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, Te
         return context
 
     def get_todays_verse(self):
-        """Get today's verse, or a random one if none assigned."""
+        """
+        Get today's verse, or a random one if none assigned.
+
+        The verse is cached per-user per-day so the same verse shows all day.
+        It refreshes on the first access of each new day.
+        """
         from apps.core.utils import get_user_today
         today = get_user_today(self.request.user)
-        
-        # Try to get assigned verse for today
+        user_id = self.request.user.id
+
+        # Try to get assigned verse for today (no caching needed - same for all users)
         try:
             daily = DailyVerse.objects.get(date=today)
             return {
@@ -166,21 +173,37 @@ class FaithHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, Te
             }
         except DailyVerse.DoesNotExist:
             pass
-        
-        # Fall back to random verse
+
+        # Check cache for user's random verse for today
+        cache_key = f"todays_verse_{user_id}_{today.isoformat()}"
+        cached_verse_id = cache.get(cache_key)
+
+        if cached_verse_id:
+            # Return cached verse
+            try:
+                verse = ScriptureVerse.objects.get(id=cached_verse_id, is_active=True)
+                return {"verse": verse, "prompt": ""}
+            except ScriptureVerse.DoesNotExist:
+                # Cached verse no longer exists, will select new one below
+                pass
+
+        # Select a random verse and cache it for the day
         verses = ScriptureVerse.objects.filter(is_active=True)
         if verses.exists():
-            return {
-                "verse": random.choice(list(verses)),
-                "prompt": "",
-            }
-        
+            selected_verse = random.choice(list(verses))
+            # Cache until end of day (24 hours is safe since key includes date)
+            cache.set(cache_key, selected_verse.id, 60 * 60 * 24)
+            return {"verse": selected_verse, "prompt": ""}
+
         return None
 
 
 class TodaysVerseView(LoginRequiredMixin, FaithRequiredMixin, TemplateView):
     """
     Display today's Scripture verse with reflection.
+
+    The verse is cached per-user per-day so the same verse shows all day.
+    It refreshes on the first access of each new day.
     """
 
     template_name = "faith/todays_verse.html"
@@ -189,16 +212,32 @@ class TodaysVerseView(LoginRequiredMixin, FaithRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         from apps.core.utils import get_user_today
         today = get_user_today(self.request.user)
+        user_id = self.request.user.id
 
         try:
             daily = DailyVerse.objects.get(date=today)
             context["daily_verse"] = daily
             context["verse"] = daily.verse
         except DailyVerse.DoesNotExist:
-            # Random verse
-            verses = ScriptureVerse.objects.filter(is_active=True)
-            if verses.exists():
-                context["verse"] = random.choice(list(verses))
+            # Check cache for user's random verse for today
+            cache_key = f"todays_verse_{user_id}_{today.isoformat()}"
+            cached_verse_id = cache.get(cache_key)
+
+            if cached_verse_id:
+                try:
+                    context["verse"] = ScriptureVerse.objects.get(
+                        id=cached_verse_id, is_active=True
+                    )
+                except ScriptureVerse.DoesNotExist:
+                    cached_verse_id = None
+
+            if not cached_verse_id:
+                # Select a random verse and cache it for the day
+                verses = ScriptureVerse.objects.filter(is_active=True)
+                if verses.exists():
+                    selected_verse = random.choice(list(verses))
+                    cache.set(cache_key, selected_verse.id, 60 * 60 * 24)
+                    context["verse"] = selected_verse
 
         return context
 

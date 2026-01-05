@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Improvement Tasks Dashboard - WLJ Assistant</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        header {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #1f2937;
+        }
+        .filters {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .filter-group label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+        }
+        .filter-group select {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            background-color: #fff;
+            cursor: pointer;
+        }
+        .filter-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+        .btn-success {
+            background-color: #059669;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #047857;
+        }
+        .btn-danger {
+            background-color: #dc2626;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #b91c1c;
+        }
+        .btn-warning {
+            background-color: #d97706;
+            color: white;
+        }
+        .btn-warning:hover {
+            background-color: #b45309;
+        }
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+        .btn-sm {
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+        .tasks-table {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background-color: #f9fafb;
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        td {
+            padding: 16px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        tr:hover {
+            background-color: #f9fafb;
+        }
+        .task-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        .task-id {
+            font-size: 12px;
+            color: #9ca3af;
+            font-family: monospace;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-blue {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        .badge-yellow {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .badge-green {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .badge-red {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .badge-gray {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+        .badge-indigo {
+            background-color: #e0e7ff;
+            color: #3730a3;
+        }
+        .badge-orange {
+            background-color: #ffedd5;
+            color: #9a3412;
+        }
+        .task-meta {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .expand-btn {
+            background: none;
+            border: none;
+            color: #3b82f6;
+            cursor: pointer;
+            font-size: 13px;
+            padding: 0;
+            text-decoration: underline;
+        }
+        .expand-btn:hover {
+            color: #1d4ed8;
+        }
+        .task-details {
+            display: none;
+            background-color: #f9fafb;
+            padding: 16px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .task-details.expanded {
+            display: block;
+        }
+        .task-details h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: #6b7280;
+            text-transform: uppercase;
+        }
+        .task-details p {
+            margin: 0 0 16px 0;
+            color: #374151;
+        }
+        .task-details pre {
+            background-color: #1f2937;
+            color: #f3f4f6;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 13px;
+            margin: 0 0 16px 0;
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .detail-item {
+            background-color: #ffffff;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+        }
+        .detail-item dt {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .detail-item dd {
+            margin: 0;
+            color: #1f2937;
+            font-weight: 500;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+        .empty-state h3 {
+            margin: 0 0 8px 0;
+            color: #374151;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14px;
+            color: #9ca3af;
+        }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .alert-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        .alert-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .modal-content h3 {
+            margin: 0 0 16px 0;
+        }
+        .modal-content textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 100px;
+            margin-bottom: 16px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Improvement Tasks Dashboard</h1>
+            <form class="filters" method="get">
+                <div class="filter-group">
+                    <label for="status">Status:</label>
+                    <select name="status" id="status" onchange="this.form.submit()">
+                        <option value="">All Statuses</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="severity">Severity:</label>
+                    <select name="severity" id="severity" onchange="this.form.submit()">
+                        <option value="">All Severities</option>
+                        {% for value, label in severity_choices %}
+                        <option value="{{ value }}" {% if current_severity == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if current_status or current_severity %}
+                <a href="{% url 'assistant:improvement_dashboard' %}" class="btn btn-secondary btn-sm">Clear Filters</a>
+                {% endif %}
+            </form>
+        </header>
+
+        <div id="alert" class="alert"></div>
+
+        <div class="tasks-table">
+            {% if tasks_with_colors %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Task</th>
+                        <th>Status</th>
+                        <th>Severity</th>
+                        <th>Gap Type</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in tasks_with_colors %}
+                    <tr id="task-row-{{ item.task.id }}">
+                        <td>
+                            <div class="task-title">{{ item.task.title }}</div>
+                            <div class="task-id">{{ item.task.id }}</div>
+                            <button class="expand-btn" onclick="toggleDetails('{{ item.task.id }}')">
+                                Show Details
+                            </button>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ item.status_color }}">
+                                {{ item.task.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ item.severity_color }}">
+                                {{ item.task.get_severity_display }}
+                            </span>
+                        </td>
+                        <td class="task-meta">{{ item.task.get_gap_type_display }}</td>
+                        <td class="task-meta">{{ item.task.created_at|date:"M d, Y H:i" }}</td>
+                        <td>
+                            <div class="actions">
+                                {% if item.task.status == 'pending_approval' %}
+                                <button class="btn btn-success btn-sm" onclick="approveTask('{{ item.task.id }}')">
+                                    Approve
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="openRejectModal('{{ item.task.id }}')">
+                                    Reject
+                                </button>
+                                {% elif item.task.status == 'completed' %}
+                                <button class="btn btn-warning btn-sm" onclick="rollbackTask('{{ item.task.id }}')">
+                                    Rollback
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" style="padding: 0;">
+                            <div id="details-{{ item.task.id }}" class="task-details">
+                                <div class="detail-grid">
+                                    <div class="detail-item">
+                                        <dt>Original Query</dt>
+                                        <dd>{{ item.task.original_query|default:"N/A" }}</dd>
+                                    </div>
+                                    <div class="detail-item">
+                                        <dt>Suggested Fix</dt>
+                                        <dd>{{ item.task.suggested_fix|default:"N/A" }}</dd>
+                                    </div>
+                                    {% if item.task.approved_at %}
+                                    <div class="detail-item">
+                                        <dt>Approved At</dt>
+                                        <dd>{{ item.task.approved_at|date:"M d, Y H:i" }}</dd>
+                                    </div>
+                                    {% endif %}
+                                    {% if item.task.rejected_at %}
+                                    <div class="detail-item">
+                                        <dt>Rejected At</dt>
+                                        <dd>{{ item.task.rejected_at|date:"M d, Y H:i" }}</dd>
+                                    </div>
+                                    {% endif %}
+                                    {% if item.task.rejection_reason %}
+                                    <div class="detail-item">
+                                        <dt>Rejection Reason</dt>
+                                        <dd>{{ item.task.rejection_reason }}</dd>
+                                    </div>
+                                    {% endif %}
+                                    {% if item.task.completed_at %}
+                                    <div class="detail-item">
+                                        <dt>Completed At</dt>
+                                        <dd>{{ item.task.completed_at|date:"M d, Y H:i" }}</dd>
+                                    </div>
+                                    {% endif %}
+                                    {% if item.task.commit_hash %}
+                                    <div class="detail-item">
+                                        <dt>Commit Hash</dt>
+                                        <dd><code>{{ item.task.commit_hash }}</code></dd>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <h4>Description</h4>
+                                <pre>{{ item.task.description|pprint }}</pre>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <h3>No tasks found</h3>
+                <p>{% if current_status or current_severity %}Try adjusting your filters.{% else %}No improvement tasks have been created yet.{% endif %}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <p class="footer">
+            WLJ Personal Assistant | Whole Life Journey
+        </p>
+    </div>
+
+    <!-- Reject Modal -->
+    <div id="reject-modal" class="modal">
+        <div class="modal-content">
+            <h3>Reject Task</h3>
+            <p>Please provide a reason for rejecting this task:</p>
+            <textarea id="reject-reason" placeholder="Enter rejection reason..."></textarea>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeRejectModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="submitReject()">Reject Task</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRejectTaskId = null;
+
+        function toggleDetails(taskId) {
+            const details = document.getElementById('details-' + taskId);
+            const btn = details.parentElement.previousElementSibling.querySelector('.expand-btn');
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                btn.textContent = 'Show Details';
+            } else {
+                details.classList.add('expanded');
+                btn.textContent = 'Hide Details';
+            }
+        }
+
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = 'alert alert-' + type;
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        function getCsrfToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                   document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+        }
+
+        function approveTask(taskId) {
+            if (!confirm('Are you sure you want to approve this task?')) return;
+
+            fetch('{% url "assistant:improvement_dashboard" %}' + 'approve/' + taskId + '/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    location.reload();
+                } else {
+                    showAlert(data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showAlert('An error occurred: ' + error, 'error');
+            });
+        }
+
+        function openRejectModal(taskId) {
+            currentRejectTaskId = taskId;
+            document.getElementById('reject-modal').classList.add('active');
+            document.getElementById('reject-reason').value = '';
+            document.getElementById('reject-reason').focus();
+        }
+
+        function closeRejectModal() {
+            currentRejectTaskId = null;
+            document.getElementById('reject-modal').classList.remove('active');
+        }
+
+        function submitReject() {
+            if (!currentRejectTaskId) return;
+
+            const reason = document.getElementById('reject-reason').value || 'Rejected via dashboard';
+
+            const formData = new FormData();
+            formData.append('reason', reason);
+
+            fetch('{% url "assistant:improvement_dashboard" %}' + 'reject/' + currentRejectTaskId + '/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                closeRejectModal();
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    location.reload();
+                } else {
+                    showAlert(data.error, 'error');
+                }
+            })
+            .catch(error => {
+                closeRejectModal();
+                showAlert('An error occurred: ' + error, 'error');
+            });
+        }
+
+        function rollbackTask(taskId) {
+            if (!confirm('Are you sure you want to rollback this task? This will revert the associated code changes.')) return;
+
+            fetch('{% url "assistant:improvement_dashboard" %}' + 'rollback/' + taskId + '/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    location.reload();
+                } else {
+                    showAlert(data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showAlert('An error occurred: ' + error, 'error');
+            });
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeRejectModal();
+            }
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('reject-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeRejectModal();
+            }
+        });
+    </script>
+</body>
+</html>

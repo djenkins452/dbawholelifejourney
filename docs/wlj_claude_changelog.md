@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Gap Detection Module)
+# Last Updated: 2026-01-05 (Add Improvement Task Generator)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,36 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Improvement Task Generator (Task #159)
+
+**Session:** Create Improvement Task Generator
+
+**Changes:**
+1. Created `assistant/task_generator.py` with:
+   - `ImprovementTask` dataclass with fields: title, description, gap_type, severity, original_query, suggested_fix, code_template, test_requirements, requires_approval, created_at
+   - `generate_improvement_task()` function that creates tasks based on gap type
+   - `generate_code_template()` that produces code fix templates
+   - `generate_test_template()` that produces test code templates
+   - Approval logic: `requires_approval=False` for LOW severity, `True` for MEDIUM/HIGH
+2. Gap-specific task generation:
+   - MISSING_KEYWORDS: Tasks to add keywords to intent_detector.py
+   - NO_DATA_METHOD: Tasks to add methods to data_service.py
+   - UNSUPPORTED_QUERY_PATTERN: Tasks for date_parser.py or new patterns
+   - UNKNOWN_DATA_TYPE: Tasks for model and full implementation
+3. Created comprehensive unit tests in `assistant/tests/test_task_generator.py`
+4. Updated `assistant/__init__.py` to export new functions and classes
+
+**Files Created:**
+- `assistant/task_generator.py` - Task generation module
+- `assistant/tests/test_task_generator.py` - Unit tests for task generator
+
+**Files Modified:**
+- `assistant/__init__.py` - Added exports for task generator functions
+
+**Purpose:** Build a service that creates structured improvement tasks in the project management system when gaps are detected. Each task includes code templates and test requirements for implementing fixes.
+
+---
 
 ### Add Gap Detection Module (Task #158)
 

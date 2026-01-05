@@ -245,6 +245,15 @@ class AIPromptConfig(models.Model):
         ('purpose_home', 'Purpose Home Insight'),
     ]
 
+    REFRESH_FREQUENCY_CHOICES = [
+        ('daily', 'Once per day'),
+        ('twice_daily', 'Twice per day'),
+        ('three_times_daily', 'Three times per day'),
+        ('four_times_daily', 'Four times per day'),
+        ('on_data_change', 'On data change'),
+        ('daily_and_on_change', 'Daily + on data change'),
+    ]
+
     prompt_type = models.CharField(
         max_length=30,
         choices=PROMPT_TYPES,
@@ -298,6 +307,14 @@ class AIPromptConfig(models.Model):
         help_text="Whether this configuration is currently in use"
     )
 
+    # Refresh frequency configuration
+    refresh_frequency = models.CharField(
+        max_length=30,
+        choices=REFRESH_FREQUENCY_CHOICES,
+        default='daily_and_on_change',
+        help_text="How often the insight should be refreshed"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -349,6 +366,28 @@ class AIPromptConfig(models.Model):
             parts.append(f"\nIMPORTANT - Avoid: {self.things_to_avoid}")
 
         return "\n".join(parts)
+
+    def get_cache_duration_hours(self) -> int:
+        """
+        Get cache duration in hours based on refresh frequency.
+
+        Returns the number of hours an insight should remain valid.
+        For 'on_data_change', returns 24 hours as a fallback
+        (actual invalidation happens via signals on data change).
+        """
+        duration_map = {
+            'daily': 24,
+            'twice_daily': 12,
+            'three_times_daily': 8,
+            'four_times_daily': 6,
+            'on_data_change': 24,  # Fallback duration
+            'daily_and_on_change': 24,
+        }
+        return duration_map.get(self.refresh_frequency, 24)
+
+    def should_refresh_on_data_change(self) -> bool:
+        """Check if this insight type should refresh when user data changes."""
+        return self.refresh_frequency in ('on_data_change', 'daily_and_on_change')
 
 
 class AIUsageLog(models.Model):

@@ -49,9 +49,9 @@ class AIUsageLogAdmin(admin.ModelAdmin):
 
 @admin.register(AIPromptConfig)
 class AIPromptConfigAdmin(admin.ModelAdmin):
-    list_display = ['name', 'prompt_type', 'min_sentences', 'max_sentences', 'is_active', 'updated_at']
-    list_filter = ['prompt_type', 'is_active']
-    list_editable = ['is_active']
+    list_display = ['name', 'prompt_type', 'refresh_frequency', 'min_sentences', 'max_sentences', 'is_active', 'updated_at']
+    list_filter = ['prompt_type', 'refresh_frequency', 'is_active']
+    list_editable = ['is_active', 'refresh_frequency']
     search_fields = ['name', 'system_instructions']
     readonly_fields = ['created_at', 'updated_at']
 
@@ -62,6 +62,10 @@ class AIPromptConfigAdmin(admin.ModelAdmin):
         ('Prompt Instructions', {
             'fields': ('system_instructions',),
             'description': 'The main instructions sent to the AI. You can use {variables} for dynamic content.'
+        }),
+        ('Refresh Settings', {
+            'fields': ('refresh_frequency',),
+            'description': 'How often the insight should be refreshed. "Daily + on data change" is recommended for most insights.'
         }),
         ('Response Length', {
             'fields': (('min_sentences', 'max_sentences'), 'max_tokens'),

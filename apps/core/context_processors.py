@@ -113,13 +113,13 @@ def favorites_context(request):
     Add favorites data to template context for navigation.
 
     Provides:
-    - favorites_menu_data: dict with favorites list, recent list, count
+    - favorites_menu_data: dict with favorites list, most_used list, count
     - is_current_page_favorite: boolean for star toggle state
     """
     context = {
         'favorites_menu_data': {
             'favorites': [],
-            'recent': [],
+            'most_used': [],
             'favorites_count': 0,
         },
         'is_current_page_favorite': False,
@@ -142,17 +142,17 @@ def favorites_context(request):
             limit=FavoritePage.MAX_FAVORITES
         )
 
-        # Calculate how many recent pages to show
+        # Calculate how many most-used pages to show
         favorites_count = favorites.count()
-        recent_slots = FavoritePage.MAX_FAVORITES - favorites_count
+        most_used_slots = FavoritePage.MAX_FAVORITES - favorites_count
 
-        # Get recent pages, excluding favorites
-        recent = []
-        if recent_slots > 0:
+        # Get most-used pages, excluding favorites
+        most_used = []
+        if most_used_slots > 0:
             favorite_urls = list(favorites.values_list('url', flat=True))
-            recent = list(PageView.get_recent_for_user(
+            most_used = list(PageView.get_most_used_for_user(
                 request.user,
-                limit=recent_slots,
+                limit=most_used_slots,
                 exclude_urls=favorite_urls
             ))
 
@@ -161,7 +161,7 @@ def favorites_context(request):
 
         context['favorites_menu_data'] = {
             'favorites': list(favorites),
-            'recent': recent,
+            'most_used': most_used,
             'favorites_count': favorites_count,
         }
         context['is_current_page_favorite'] = is_favorite

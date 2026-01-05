@@ -1290,10 +1290,11 @@ class FavoritePage(models.Model):
 
 class PageView(models.Model):
     """
-    Track recently viewed pages for the user.
+    Track page views for the user.
 
-    Used to populate the "Most Recent" section of the Favorites menu
-    when there are fewer than 10 favorites.
+    Used to populate the "Most Used" section of the Favorites menu
+    when there are fewer than 10 favorites. Pages are ranked by
+    visit count (most frequently visited first).
     """
 
     user = models.ForeignKey(
@@ -1310,52 +1311,77 @@ class PageView(models.Model):
         help_text="Page title at time of viewing",
     )
     viewed_at = models.DateTimeField(auto_now=True)
+    visit_count = models.PositiveIntegerField(
+        default=1,
+        help_text="Number of times this page has been visited",
+    )
 
     class Meta:
-        ordering = ['-viewed_at']
+        ordering = ['-visit_count', '-viewed_at']
         verbose_name = "Page View"
         verbose_name_plural = "Page Views"
 
     def __str__(self):
-        return f"{self.user.email} viewed {self.title}"
+        return f"{self.user.email} viewed {self.title} ({self.visit_count}x)"
 
     @classmethod
     def record_view(cls, user, url, title):
         """
-        Record a page view, updating existing or creating new.
+        Record a page view, incrementing visit count if exists.
 
-        We use update_or_create to avoid duplicates - each URL only
-        appears once in the recent list, with the most recent timestamp.
+        Each URL only appears once per user. Subsequent visits
+        increment the visit_count and update the timestamp.
         """
-        obj, created = cls.objects.update_or_create(
+        from django.db.models import F
+
+        obj, created = cls.objects.get_or_create(
             user=user,
             url=url,
-            defaults={'title': title}
+            defaults={'title': title, 'visit_count': 1}
         )
+        if not created:
+            # Increment visit count and update title
+            obj.visit_count = F('visit_count') + 1
+            obj.title = title
+            obj.save(update_fields=['visit_count', 'title', 'viewed_at'])
+            obj.refresh_from_db()
         return obj
 
     @classmethod
-    def get_recent_for_user(cls, user, limit=10, exclude_urls=None):
+    def get_most_used_for_user(cls, user, limit=10, exclude_urls=None):
         """
-        Get user's recently viewed pages.
+        Get user's most frequently visited pages.
 
         Args:
             user: The user
             limit: Maximum pages to return
             exclude_urls: List of URLs to exclude (e.g., favorited pages)
+
+        Returns pages ordered by visit_count (descending), then by
+        viewed_at (descending) as a tiebreaker.
         """
         qs = cls.objects.filter(user=user)
         if exclude_urls:
             qs = qs.exclude(url__in=exclude_urls)
-        return qs.order_by('-viewed_at')[:limit]
+        return qs.order_by('-visit_count', '-viewed_at')[:limit]
+
+    @classmethod
+    def get_recent_for_user(cls, user, limit=10, exclude_urls=None):
+        """
+        Get user's most frequently visited pages.
+
+        DEPRECATED: Use get_most_used_for_user instead.
+        This method now returns most used pages for backwards compatibility.
+        """
+        return cls.get_most_used_for_user(user, limit, exclude_urls)
 
     @classmethod
     def cleanup_old_views(cls, user, keep_count=50):
         """
-        Remove old page views to prevent table bloat.
+        Remove least-used page views to prevent table bloat.
 
-        Keeps only the most recent `keep_count` views per user.
+        Keeps only the top `keep_count` most-used views per user.
         """
-        views_to_keep = cls.objects.filter(user=user).order_by('-viewed_at')[:keep_count]
+        views_to_keep = cls.objects.filter(user=user).order_by('-visit_count', '-viewed_at')[:keep_count]
         ids_to_keep = list(views_to_keep.values_list('id', flat=True))
         cls.objects.filter(user=user).exclude(id__in=ids_to_keep).delete()

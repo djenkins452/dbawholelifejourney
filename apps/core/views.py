@@ -261,7 +261,7 @@ class FavoritesMenuDataView(LoginRequiredMixin, View):
 
     Returns JSON with:
     - favorites: list of favorite pages
-    - recent: list of recent pages (to fill remaining slots)
+    - most_used: list of most frequently visited pages (to fill remaining slots)
     - favorites_count: number of favorites
     """
 
@@ -272,17 +272,17 @@ class FavoritesMenuDataView(LoginRequiredMixin, View):
             limit=FavoritePage.MAX_FAVORITES
         )
 
-        # Calculate how many recent pages to show
+        # Calculate how many most-used pages to show
         favorites_count = favorites.count()
-        recent_slots = FavoritePage.MAX_FAVORITES - favorites_count
+        most_used_slots = FavoritePage.MAX_FAVORITES - favorites_count
 
-        # Get recent pages, excluding favorites
-        recent = []
-        if recent_slots > 0:
+        # Get most-used pages, excluding favorites
+        most_used = []
+        if most_used_slots > 0:
             favorite_urls = list(favorites.values_list('url', flat=True))
-            recent = PageView.get_recent_for_user(
+            most_used = PageView.get_most_used_for_user(
                 request.user,
-                limit=recent_slots,
+                limit=most_used_slots,
                 exclude_urls=favorite_urls
             )
 
@@ -291,9 +291,9 @@ class FavoritesMenuDataView(LoginRequiredMixin, View):
                 {'url': f.url, 'title': f.title}
                 for f in favorites
             ],
-            'recent': [
+            'most_used': [
                 {'url': r.url, 'title': r.title}
-                for r in recent
+                for r in most_used
             ],
             'favorites_count': favorites_count,
         })

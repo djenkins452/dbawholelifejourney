@@ -13,7 +13,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Fitness</h1>
+            <h1 class="page-title">Fitness {% include "components/favorite_toggle.html" with page_title="Fitness" %}</h1>
             <p class="page-subtitle">Track your workouts and watch your progress</p>
         </div>
         <a href="{% url 'health:workout_create' %}" class="btn btn-primary">

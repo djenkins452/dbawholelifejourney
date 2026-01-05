@@ -13,7 +13,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Daily Nutrition</h1>
+            <h1 class="page-title">Daily Nutrition {% include "components/favorite_toggle.html" with page_title="Nutrition" %}</h1>
             <p class="page-subtitle">{{ today|date:"l, F j, Y" }}</p>
         </div>
         <div class="page-actions">

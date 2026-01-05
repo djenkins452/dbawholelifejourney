@@ -15,7 +15,7 @@
     </nav>
 
     <div class="page-header">
-        <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Study Note</h1>
+        <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Study Note {% include "components/favorite_toggle.html" with page_title="Study Note Form" %}</h1>
         <p class="page-subtitle">Capture your insights and reflections</p>
     </div>
 

@@ -13,7 +13,7 @@
     </nav>
 
     <div class="page-header">
-        <h1 class="page-title">{% if is_edit %}Edit Entry{% else %}New Journal Entry{% endif %}</h1>
+        <h1 class="page-title">{% if is_edit %}Edit Entry{% else %}New Journal Entry{% endif %} {% include "components/favorite_toggle.html" with page_title="Journal Entry Form" %}</h1>
         {% if selected_prompt and not is_edit %}
             <div class="prompt-suggestion prompt-selected">
                 <p class="prompt-label">Writing about:</p>

@@ -13,7 +13,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Calendar</h1>
+            <h1 class="page-title">Calendar {% include "components/favorite_toggle.html" with page_title="Calendar" %}</h1>
             <p class="page-subtitle">Your life events at a glance</p>
         </div>
         <a href="{% safe_url 'life:event_create' fallback='/life/' %}" class="btn btn-primary">

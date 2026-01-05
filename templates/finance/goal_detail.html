@@ -6,7 +6,7 @@
 <div class="container container-sm">
     <div class="page-header">
         <a href="{% url 'finance:goal_list' %}" class="back-link">&larr; All Goals</a>
-        <h1 class="page-title">{{ goal.icon }} {{ goal.name }}</h1>
+        <h1 class="page-title">{{ goal.icon }} {{ goal.name }} {% include "components/favorite_toggle.html" with page_title="Goal Detail" %}</h1>
         <p class="page-subtitle">{{ goal.get_goal_type_display }}</p>
     </div>
 

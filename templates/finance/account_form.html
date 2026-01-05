@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container container-sm">
     <div class="page-header">
-        <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Account</h1>
+        <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Account {% include "components/favorite_toggle.html" with page_title="Add Account" %}</h1>
     </div>
 
     <form method="post" class="form-card">

@@ -13,7 +13,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">My Medical Providers</h1>
+            <h1 class="page-title">My Medical Providers {% include "components/favorite_toggle.html" with page_title="My Medical Providers" %}</h1>
             <p class="page-subtitle">Manage your healthcare provider contacts</p>
         </div>
         <a href="{% url 'health:provider_create' %}" class="btn btn-primary">Add Provider</a>

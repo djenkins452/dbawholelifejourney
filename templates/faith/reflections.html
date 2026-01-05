@@ -12,7 +12,7 @@
 
     <div class="page-header flex justify-between items-center">
         <div>
-            <h1 class="page-title">Faith Reflections</h1>
+            <h1 class="page-title">Faith Reflections {% include "components/favorite_toggle.html" with page_title="Faith Reflections" %}</h1>
             <p class="page-subtitle">Journal entries about your faith journey</p>
         </div>
         <a href="{% url 'faith:reflection_create' %}" class="btn btn-primary">

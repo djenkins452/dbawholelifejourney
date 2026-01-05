@@ -12,7 +12,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Projects</h1>
+            <h1 class="page-title">Projects {% include "components/favorite_toggle.html" with page_title="Projects" %}</h1>
             <p class="page-subtitle">Long-running meaningful efforts</p>
         </div>
         <a href="{% url 'life:project_create' %}" class="btn btn-primary">

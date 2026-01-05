@@ -23,7 +23,7 @@
                 {% else %}📅{% endif %}
             </div>
             <div class="header-content">
-                <h1 class="page-title">{{ event.title }}</h1>
+                <h1 class="page-title">{{ event.title }} {% include "components/favorite_toggle.html" with page_title="Significant Event Detail" %}</h1>
                 {% if event.person_name %}
                 <p class="person-name">{{ event.person_name }}</p>
                 {% endif %}

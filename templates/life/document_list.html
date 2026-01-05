@@ -12,7 +12,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Documents</h1>
+            <h1 class="page-title">Documents {% include "components/favorite_toggle.html" with page_title="Documents" %}</h1>
             <p class="page-subtitle">Important files, organized and secure</p>
         </div>
         <a href="{% url 'life:document_create' %}" class="btn btn-primary">

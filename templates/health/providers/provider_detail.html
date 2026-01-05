@@ -15,7 +15,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">{{ provider.name }}{% if provider.credentials %}, {{ provider.credentials }}{% endif %}</h1>
+            <h1 class="page-title">{{ provider.name }}{% if provider.credentials %}, {{ provider.credentials }}{% endif %} {% include "components/favorite_toggle.html" with page_title="Provider Detail" %}</h1>
             <p class="page-subtitle">{{ provider.get_specialty_display }}</p>
         </div>
         <div class="page-actions">

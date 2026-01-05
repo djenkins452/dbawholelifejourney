@@ -12,7 +12,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Manage Tags</h1>
+            <h1 class="page-title">Manage Tags {% include "components/favorite_toggle.html" with page_title="Manage Tags" %}</h1>
             <p class="page-subtitle">Create custom tags to organize your journal entries.</p>
         </div>
         <a href="{% url 'journal:tag_create' %}" class="btn btn-primary">

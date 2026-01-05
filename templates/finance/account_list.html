@@ -6,7 +6,7 @@
 <div class="container">
     <div class="page-header">
         <div>
-            <h1 class="page-title">Accounts</h1>
+            <h1 class="page-title">Accounts {% include "components/favorite_toggle.html" with page_title="Accounts" %}</h1>
             <p class="page-subtitle">Manage your financial accounts</p>
         </div>
         <a href="{% url 'finance:account_create' %}" class="btn btn-primary">Add Account</a>

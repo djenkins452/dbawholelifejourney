@@ -15,7 +15,7 @@
     <div class="inventory-detail">
         <div class="detail-header">
             <div>
-                <h1 class="page-title">{{ item.name }}</h1>
+                <h1 class="page-title">{{ item.name }} {% include "components/favorite_toggle.html" with page_title="Inventory Detail" %}</h1>
                 <p class="item-category">{{ item.category }}{% if item.location %} · {{ item.location }}{% endif %}</p>
             </div>
             <div class="detail-actions">

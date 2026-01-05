@@ -6,7 +6,7 @@
 <div class="container container-sm">
     <div class="page-header">
         <a href="{% url 'finance:transaction_list' %}" class="back-link">&larr; All Transactions</a>
-        <h1 class="page-title">Transaction Details</h1>
+        <h1 class="page-title">Transaction Details {% include "components/favorite_toggle.html" with page_title="Transaction Detail" %}</h1>
     </div>
 
     <div class="detail-card">

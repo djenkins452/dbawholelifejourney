@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task {{ action|title }} - WLJ Assistant</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        .icon-approved {
+            color: #059669;
+        }
+        .icon-rejected {
+            color: #dc2626;
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+        }
+        .approved h1 {
+            color: #059669;
+        }
+        .rejected h1 {
+            color: #dc2626;
+        }
+        .task-title {
+            color: #6b7280;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        .task-info {
+            background-color: #f9fafb;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: left;
+            margin-top: 20px;
+        }
+        .task-info dt {
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-top: 10px;
+        }
+        .task-info dt:first-child {
+            margin-top: 0;
+        }
+        .task-info dd {
+            margin: 5px 0 0 0;
+            color: #111827;
+        }
+        .message {
+            color: #6b7280;
+            margin-top: 20px;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container {{ action }}">
+        {% if action == 'approved' %}
+        <div class="icon icon-approved">✓</div>
+        <h1>Task Approved</h1>
+        {% else %}
+        <div class="icon icon-rejected">✕</div>
+        <h1>Task Rejected</h1>
+        {% endif %}
+
+        <p class="task-title">{{ task.title }}</p>
+
+        <dl class="task-info">
+            <dt>Task ID</dt>
+            <dd>{{ task.id }}</dd>
+
+            <dt>Status</dt>
+            <dd>{{ task.get_status_display }}</dd>
+
+            {% if action == 'approved' %}
+            <dt>Approved At</dt>
+            <dd>{{ task.approved_at }}</dd>
+            {% else %}
+            <dt>Rejected At</dt>
+            <dd>{{ task.rejected_at }}</dd>
+            {% if reason %}
+            <dt>Reason</dt>
+            <dd>{{ reason }}</dd>
+            {% endif %}
+            {% endif %}
+        </dl>
+
+        {% if action == 'approved' %}
+        <p class="message">
+            The task has been approved and will be processed shortly.
+        </p>
+        {% else %}
+        <p class="message">
+            The task has been rejected and will not be processed.
+        </p>
+        {% endif %}
+
+        <p class="footer">
+            WLJ Personal Assistant | Whole Life Journey
+        </p>
+    </div>
+</body>
+</html>

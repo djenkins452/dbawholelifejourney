@@ -7,10 +7,16 @@ This module provides database models for persisting improvement tasks
 with full lifecycle tracking for the self-improving assistant system.
 """
 
+import secrets
 import uuid
+from datetime import timedelta
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+
+
+# Token expiry time in hours
+APPROVAL_TOKEN_EXPIRY_HOURS = 24
 
 
 class TaskStatusTransitionError(Exception):
@@ -30,6 +36,7 @@ class ImprovementTaskModel(models.Model):
     STATUS_NEW = 'new'
     STATUS_PENDING_APPROVAL = 'pending_approval'
     STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
     STATUS_IN_PROGRESS = 'in_progress'
     STATUS_TESTING = 'testing'
     STATUS_COMPLETED = 'completed'
@@ -40,6 +47,7 @@ class ImprovementTaskModel(models.Model):
         (STATUS_NEW, 'New'),
         (STATUS_PENDING_APPROVAL, 'Pending Approval'),
         (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
         (STATUS_IN_PROGRESS, 'In Progress'),
         (STATUS_TESTING, 'Testing'),
         (STATUS_COMPLETED, 'Completed'),
@@ -50,8 +58,9 @@ class ImprovementTaskModel(models.Model):
     # Valid status transitions
     ALLOWED_TRANSITIONS = {
         STATUS_NEW: [STATUS_PENDING_APPROVAL, STATUS_APPROVED],
-        STATUS_PENDING_APPROVAL: [STATUS_APPROVED, STATUS_NEW],
+        STATUS_PENDING_APPROVAL: [STATUS_APPROVED, STATUS_REJECTED, STATUS_NEW],
         STATUS_APPROVED: [STATUS_IN_PROGRESS, STATUS_PENDING_APPROVAL],
+        STATUS_REJECTED: [STATUS_NEW],  # Can retry rejected tasks
         STATUS_IN_PROGRESS: [STATUS_TESTING, STATUS_ERROR, STATUS_APPROVED],
         STATUS_TESTING: [STATUS_COMPLETED, STATUS_ERROR, STATUS_IN_PROGRESS],
         STATUS_COMPLETED: [STATUS_ROLLED_BACK],
@@ -183,6 +192,29 @@ class ImprovementTaskModel(models.Model):
         max_length=40,
         blank=True,
         help_text='Git commit SHA after changes were applied'
+    )
+
+    # Approval token for secure email-based approval
+    approval_token = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text='Secure one-time token for email-based approval'
+    )
+    approval_token_created_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the approval token was generated'
+    )
+
+    # Rejection tracking
+    rejected_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the task was rejected'
+    )
+    rejection_reason = models.TextField(
+        blank=True,
+        help_text='Reason for rejecting the task'
     )
 
     class Meta:
@@ -330,3 +362,78 @@ class ImprovementTaskModel(models.Model):
             requires_approval=improvement_task.requires_approval,
             status=initial_status,
         )
+
+    def generate_approval_token(self):
+        """
+        Generate a secure one-time approval token.
+
+        Returns:
+            The generated token string.
+        """
+        self.approval_token = secrets.token_urlsafe(32)
+        self.approval_token_created_at = timezone.now()
+        self.save(update_fields=['approval_token', 'approval_token_created_at'])
+        return self.approval_token
+
+    def is_token_valid(self, token):
+        """
+        Check if the provided token is valid and not expired.
+
+        Args:
+            token: The token string to validate.
+
+        Returns:
+            True if the token is valid and not expired, False otherwise.
+        """
+        if not self.approval_token or not token:
+            return False
+
+        if self.approval_token != token:
+            return False
+
+        if not self.approval_token_created_at:
+            return False
+
+        # Check if token has expired
+        expiry_time = self.approval_token_created_at + timedelta(hours=APPROVAL_TOKEN_EXPIRY_HOURS)
+        if timezone.now() > expiry_time:
+            return False
+
+        return True
+
+    def clear_approval_token(self):
+        """Clear the approval token after use (one-time use)."""
+        self.approval_token = ''
+        self.approval_token_created_at = None
+        self.save(update_fields=['approval_token', 'approval_token_created_at'])
+
+    def approve(self, user=None):
+        """
+        Approve the task and clear the token.
+
+        Args:
+            user: Optional user who approved the task.
+
+        Returns:
+            True if approval was successful.
+        """
+        self.transition_status(self.STATUS_APPROVED, user=user)
+        self.clear_approval_token()
+        return True
+
+    def reject(self, reason=''):
+        """
+        Reject the task with an optional reason.
+
+        Args:
+            reason: Optional reason for rejection.
+
+        Returns:
+            True if rejection was successful.
+        """
+        self.status = self.STATUS_REJECTED
+        self.rejected_at = timezone.now()
+        self.rejection_reason = reason
+        self.clear_approval_token()
+        self.save()
+        return True

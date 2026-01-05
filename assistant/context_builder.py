@@ -65,6 +65,18 @@ def build_personal_context(data_results: Optional[Dict[str, Any]]) -> str:
         if medication_section:
             sections.append(medication_section)
 
+    # Format food data if present
+    if 'food' in data_results:
+        food_section = _format_food_data(data_results['food'])
+        if food_section:
+            sections.append(food_section)
+
+    # Format mood data if present
+    if 'mood' in data_results:
+        mood_section = _format_mood_data(data_results['mood'])
+        if mood_section:
+            sections.append(mood_section)
+
     # Return empty string if no sections were formatted
     if not sections:
         return ''
@@ -145,6 +157,68 @@ def _format_medication_data(medication_data: Dict[str, Any]) -> str:
     consistency = medication_data.get('consistency_percent')
     if consistency is not None:
         lines.append(f'- Consistency: {consistency}%')
+
+    return '\n'.join(lines)
+
+
+def _format_food_data(food_data: Dict[str, Any]) -> str:
+    """Format food data into natural language."""
+    if not food_data:
+        return ''
+
+    lines = ['Food Data:']
+
+    # Total entries
+    total_entries = food_data.get('total_entries', 0)
+    lines.append(f'- Total entries: {total_entries}')
+
+    # Total calories
+    total_calories = food_data.get('total_calories')
+    if total_calories is not None:
+        lines.append(f'- Total calories: {total_calories}')
+
+    # Average daily calories
+    avg_calories = food_data.get('average_daily_calories')
+    if avg_calories is not None:
+        lines.append(f'- Average daily calories: {avg_calories}')
+
+    # Latest entry date
+    latest_date = food_data.get('latest_date')
+    if latest_date is not None:
+        date_str = _format_date(latest_date)
+        lines.append(f'- Most recent entry: {date_str}')
+
+    return '\n'.join(lines)
+
+
+def _format_mood_data(mood_data: Dict[str, Any]) -> str:
+    """Format mood data into natural language."""
+    if not mood_data:
+        return ''
+
+    lines = ['Mood Data:']
+
+    # Count of mood entries
+    count = mood_data.get('count', 0)
+    lines.append(f'- Total mood entries: {count}')
+
+    # Most common mood
+    most_common = mood_data.get('most_common')
+    if most_common:
+        lines.append(f'- Most common mood: {most_common}')
+
+    # Mood distribution
+    distribution = mood_data.get('mood_distribution')
+    if distribution:
+        dist_parts = [f'{mood}: {cnt}' for mood, cnt in distribution.items()]
+        lines.append(f'- Mood breakdown: {", ".join(dist_parts)}')
+
+    # Latest mood
+    latest_mood = mood_data.get('latest_mood')
+    latest_date = mood_data.get('latest_date')
+    if latest_mood and latest_date:
+        date_str = _format_date(latest_date)
+        lines.append(f'- Most recent: {latest_mood} on {date_str}')
 
     return '\n'.join(lines)
 

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Mood Tracking Data Service Method)
+# Last Updated: 2026-01-05 (Update Context Builder for New Data Types)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,24 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Update Context Builder for New Data Types (Task #153)
+
+**Session:** Update Context Builder for New Data Types
+
+**Changes:**
+1. Added `_format_food_data()` helper function to format food entries
+2. Formats total entries, total calories, average daily calories, and latest date
+3. Added `_format_mood_data()` helper function to format mood data
+4. Formats mood count, most common mood, mood distribution breakdown, and latest mood
+5. Updated `build_personal_context()` to call formatters for 'food' and 'mood' data types
+6. Added 13 new unit tests for food and mood formatting (28 total in context_builder)
+
+**Files Modified:**
+- `assistant/context_builder.py` - Added _format_food_data() and _format_mood_data() functions
+- `assistant/tests/test_context_builder.py` - Added food and mood formatting tests (13 new tests)
+
+---
 
 ### Add Mood Tracking Data Service Method (Task #152)
 

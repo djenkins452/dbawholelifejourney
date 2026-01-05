@@ -12,7 +12,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Recipes</h1>
+            <h1 class="page-title">Recipes {% include "components/favorite_toggle.html" with page_title="Recipes" %}</h1>
             <p class="page-subtitle">Family favorites and culinary memories</p>
         </div>
         <a href="{% url 'life:recipe_create' %}" class="btn btn-primary">

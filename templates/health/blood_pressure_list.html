@@ -12,7 +12,7 @@
 
     <div class="page-header flex justify-between items-center">
         <div>
-            <h1 class="page-title">Blood Pressure</h1>
+            <h1 class="page-title">Blood Pressure {% include "components/favorite_toggle.html" with page_title="Blood Pressure" %}</h1>
             <p class="page-subtitle">Track your blood pressure readings</p>
         </div>
         <a href="{% url 'health:blood_pressure_create' %}" class="btn btn-primary">Log BP</a>

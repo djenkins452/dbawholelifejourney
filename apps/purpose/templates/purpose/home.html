@@ -6,7 +6,7 @@
 <div class="container">
     <div class="page-header">
         <div>
-            <h1 class="page-title">Purpose</h1>
+            <h1 class="page-title">Purpose {% include "components/favorite_toggle.html" with page_title="Purpose" %}</h1>
             <p class="page-subtitle">Your strategic compass for life direction</p>
         </div>
         {% if not current_direction %}

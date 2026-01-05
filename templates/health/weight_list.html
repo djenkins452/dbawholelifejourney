@@ -13,7 +13,7 @@
 
     <div class="page-header flex justify-between items-center">
         <div>
-            <h1 class="page-title">Weight</h1>
+            <h1 class="page-title">Weight {% include "components/favorite_toggle.html" with page_title="Weight" %}</h1>
             <p class="page-subtitle">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} logged</p>
         </div>
         <a href="{% url 'health:weight_create' %}" class="btn btn-primary">Log Weight</a>

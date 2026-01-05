@@ -164,7 +164,10 @@
     <!-- Chart -->
     {% if chart_data %}
     <div class="chart-card mb-6">
-        <h3 class="card-title">{% if period == 0 %}Today{% elif period <= 7 %}Last 24 Hours{% else %}Last 48 Hours{% endif %}</h3>
+        <h3 class="card-title">
+            {{ period_label }}
+            {% if chart_aggregated %}<span class="text-muted text-sm font-normal">(Daily Averages)</span>{% endif %}
+        </h3>
         <div class="chart-container">
             <canvas id="glucoseChart"></canvas>
         </div>
@@ -513,10 +516,22 @@
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('glucoseChart').getContext('2d');
     const chartData = {{ chart_data|safe }};
+    const isAggregated = {{ chart_aggregated|yesno:"true,false" }};
+    const period = {{ period }};
 
+    // Format labels based on period and aggregation
     const labels = chartData.map(d => {
         const date = new Date(d.time);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (isAggregated) {
+            // For aggregated data (daily averages), show date
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        } else if (period === 0) {
+            // For today, show time only
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else {
+            // For 7 days, show day and time
+            return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+        }
     });
     const values = chartData.map(d => d.value);
 
@@ -527,12 +542,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return '#10b981';  // success - in range
     });
 
+    // Adjust point size based on data density
+    const pointRadius = chartData.length > 100 ? 2 : (chartData.length > 50 ? 3 : 4);
+
     new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [{
-                label: 'Glucose (mg/dL)',
+                label: isAggregated ? 'Daily Avg (mg/dL)' : 'Glucose (mg/dL)',
                 data: values,
                 borderColor: '#6366f1',
                 backgroundColor: 'rgba(99, 102, 241, 0.1)',
@@ -540,7 +558,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 tension: 0.3,
                 pointBackgroundColor: pointColors,
                 pointBorderColor: pointColors,
-                pointRadius: 4,
+                pointRadius: pointRadius,
             }]
         },
         options: {
@@ -550,6 +568,18 @@ document.addEventListener('DOMContentLoaded', function() {
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const dataPoint = chartData[context.dataIndex];
+                            let label = context.parsed.y + ' mg/dL';
+                            if (dataPoint.is_average) {
+                                label += ' (avg of ' + dataPoint.reading_count + ' readings)';
+                            }
+                            return label;
+                        }
+                    }
                 }
             },
             scales: {
@@ -563,6 +593,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 x: {
                     grid: {
                         display: false
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: period > 7 ? 15 : 24
                     }
                 }
             },

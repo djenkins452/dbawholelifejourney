@@ -512,10 +512,11 @@
 
 {% if chart_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{{ chart_data|json_script:"chart-data" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('glucoseChart').getContext('2d');
-    const chartData = {{ chart_data|safe }};
+    const chartData = JSON.parse(document.getElementById('chart-data').textContent);
     const isAggregated = {{ chart_aggregated|yesno:"true,false" }};
     const period = {{ period }};
 

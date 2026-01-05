@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Habit Goals Success Rate)
+# Last Updated: 2026-01-05 (Glucose Chart Dynamic Period)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,25 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Glucose Chart Dynamic Period Selection
+
+**Session:** Blood Glucose Chart Enhancement
+
+**Changes:**
+1. Chart now shows data for the selected period (Today, 7, 30, 60, 90 days)
+2. Previously chart was static "Last 48 Hours" regardless of period selection
+3. For periods > 7 days, data is aggregated to daily averages for readability
+4. Chart title updates dynamically to match selected period
+5. Tooltips show reading count for averaged data points
+6. X-axis labels adapt based on period (time only vs date)
+7. Point size adjusts based on data density
+
+**Files Modified:**
+- `apps/health/views.py` - Chart data now uses selected period with daily aggregation for longer periods
+- `templates/health/glucose/dashboard.html` - Dynamic chart title and improved JS label formatting
+
+---
 
 ### Habit Goals Success Rate Fix (Task #141)
 

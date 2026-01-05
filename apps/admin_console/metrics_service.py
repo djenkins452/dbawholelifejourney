@@ -26,9 +26,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+import pytz
 import requests
 from django.conf import settings
 from django.core.cache import cache
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +121,7 @@ class ProjectMetrics:
 class GitHubMetricsService:
     """Service for fetching git metrics from GitHub API."""
 
-    def __init__(self, owner: str, repo: str, token: Optional[str] = None):
+    def __init__(self, owner: str, repo: str, token: Optional[str] = None, user_timezone: Optional[str] = None):
         """
         Initialize the GitHub metrics service.
 
@@ -127,6 +129,7 @@ class GitHubMetricsService:
             owner: GitHub repository owner (username or org)
             repo: Repository name
             token: Optional GitHub personal access token for higher rate limits
+            user_timezone: User's timezone string (e.g., 'America/New_York')
         """
         self.owner = owner
         self.repo = repo
@@ -138,6 +141,15 @@ class GitHubMetricsService:
         }
         if token:
             self.headers["Authorization"] = f"token {token}"
+
+        # Set up timezone for date conversions
+        if user_timezone:
+            try:
+                self.tz = pytz.timezone(user_timezone)
+            except pytz.UnknownTimeZoneError:
+                self.tz = pytz.UTC
+        else:
+            self.tz = pytz.UTC
 
     def _make_request(self, endpoint: str, params: dict = None) -> Optional[dict]:
         """Make a request to the GitHub API."""
@@ -198,7 +210,7 @@ class GitHubMetricsService:
         if not commits:
             return metrics
 
-        # Parse commit dates
+        # Parse commit dates and convert to user's timezone
         commit_dates = []
         commit_messages = []
         for commit in commits:
@@ -209,8 +221,11 @@ class GitHubMetricsService:
 
             if date_str:
                 try:
-                    dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                    commit_dates.append(dt)
+                    # Parse UTC time from GitHub API
+                    dt_utc = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                    # Convert to user's timezone
+                    dt_local = dt_utc.astimezone(self.tz)
+                    commit_dates.append(dt_local)
                 except ValueError:
                     pass
 
@@ -236,8 +251,9 @@ class GitHubMetricsService:
             unique_days = set(dt.strftime("%Y-%m-%d") for dt in commit_dates)
             metrics.unique_days_with_commits = len(unique_days)
 
-            # Today's commits
-            today = datetime.now().date()
+            # Today's commits (in user's timezone)
+            now_local = datetime.now(self.tz)
+            today = now_local.date()
             today_commits = [dt for dt in commit_dates if dt.date() == today]
             metrics.commits_today = len(today_commits)
 
@@ -307,12 +323,13 @@ class GitHubMetricsService:
 class MetricsService:
     """Service for gathering project metrics."""
 
-    def __init__(self, project_root: Optional[str] = None):
+    def __init__(self, project_root: Optional[str] = None, user_timezone: Optional[str] = None):
         """
         Initialize the metrics service.
 
         Args:
             project_root: Path to the project root. If None, uses current directory.
+            user_timezone: User's timezone string (e.g., 'America/New_York')
         """
         if project_root:
             self.project_root = Path(project_root)
@@ -322,6 +339,9 @@ class MetricsService:
 
         # Check if we have local git access
         self.has_local_git = self._check_local_git()
+
+        # Store user timezone for git metrics
+        self.user_timezone = user_timezone
 
     def _find_project_root(self) -> Path:
         """Find the project root by looking for manage.py."""
@@ -666,7 +686,8 @@ class MetricsService:
         github_service = GitHubMetricsService(
             owner=github_owner,
             repo=github_repo,
-            token=github_token
+            token=github_token,
+            user_timezone=self.user_timezone
         )
         return github_service.get_git_metrics()
 
@@ -680,12 +701,15 @@ class MetricsService:
         )
 
 
-def get_project_metrics() -> ProjectMetrics:
+def get_project_metrics(user_timezone: Optional[str] = None) -> ProjectMetrics:
     """
     Convenience function to get all project metrics.
+
+    Args:
+        user_timezone: User's timezone string (e.g., 'America/New_York')
 
     Returns:
         ProjectMetrics instance with all gathered data
     """
-    service = MetricsService()
+    service = MetricsService(user_timezone=user_timezone)
     return service.get_all_metrics()

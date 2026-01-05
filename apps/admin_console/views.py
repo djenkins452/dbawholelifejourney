@@ -1553,8 +1553,16 @@ class CodebaseMetricsView(HelpContextMixin, AdminRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        # Get user's timezone for proper date/time display
+        user_timezone = None
+        if self.request.user.is_authenticated:
+            try:
+                user_timezone = self.request.user.preferences.timezone
+            except AttributeError:
+                pass
+
         from .metrics_service import get_project_metrics
-        metrics = get_project_metrics()
+        metrics = get_project_metrics(user_timezone=user_timezone)
 
         context['metrics'] = metrics
         context['file_metrics'] = metrics.file_metrics

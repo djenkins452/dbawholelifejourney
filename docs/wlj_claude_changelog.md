@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Glucose Data Service Method)
+# Last Updated: 2026-01-05 (Add Faith Data Service Method)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,48 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Faith Data Service Method (Task #187)
+
+**Session:** Add Faith Data Service Method
+
+**Changes:**
+1. Implemented `get_faith_data()` method in `PersonalDataService`:
+   - Queries `PrayerRequest` model for prayer request statistics (total, active, answered)
+   - Queries `SavedVerse` model for saved Scripture verse counts
+   - Queries `FaithMilestone` model for faith milestone counts
+   - Queries `UserReadingPlan` model for reading plan progress (active, completed)
+   - Supports `since_date` filtering and caching
+
+2. Integrated faith with Personal Data Query System:
+   - Added 'faith' to `query_map` in `query_by_intent()`
+   - Added 'faith' to `supported_types` in `views.py`
+   - Added `_format_faith_data()` to `context_builder.py`
+
+3. Added cache invalidation for faith data:
+   - Updated `invalidate_insights_on_prayer_save/delete` signal handlers
+   - Added signal handlers for `SavedVerse`, `FaithMilestone`, `UserReadingPlan`
+
+4. Added comprehensive unit tests:
+   - `TestGetFaithDataNoEntries` (1 test)
+   - `TestGetFaithDataWithPrayerRequests` (3 tests)
+   - `TestGetFaithDataWithSavedVerses` (1 test)
+   - `TestGetFaithDataWithReadingPlans` (1 test)
+   - `TestQueryByIntentWithFaith` (1 test)
+   - `TestFaithCacheBehavior` (2 tests)
+   - Context builder tests for faith formatting (7 tests)
+
+**Files Modified:**
+- `assistant/data_service.py` - Added `get_faith_data()` method and query_map entry
+- `assistant/views.py` - Added 'faith' to supported_types
+- `assistant/context_builder.py` - Added `_format_faith_data()` and faith section handling
+- `apps/ai/signals.py` - Added faith cache invalidation for 4 models
+- `assistant/tests/test_data_service.py` - Added faith unit tests (9 tests)
+- `assistant/tests/test_context_builder.py` - Added faith formatting tests (7 tests)
+
+**Purpose:** Enable assistant queries about faith activity ("How many prayers have been answered?") with support for prayer tracking, scripture collection, and reading plan progress.
+
+---
 
 ### Add Glucose Data Service Method (Task #186)
 

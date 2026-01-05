@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Glucose Help Content)
+# Last Updated: 2026-01-05 (Favorites Menu)
 # ==============================================================================
 
 # WLJ Change History
@@ -14,94 +14,40 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-05 Changes
+
+### Favorites Menu (Task #138)
+
+**Session:** Favorites Menu
+
+**Changes:**
+1. Added new Favorites dropdown menu between Dashboard and Journal in navigation
+2. Created FavoritePage model to store user's favorited pages (max 10)
+3. Created PageView model to track recently viewed pages
+4. Added star toggle button component for page headings
+5. Favorites menu shows starred pages at top, then fills remaining slots with Most Recent pages
+6. Divider and "Most Recent" subheading separates favorites from recent pages
+7. Added PageViewTrackingMiddleware to automatically track page views
+8. Added favorites_context processor for template data
+
+**Files Added:**
+- `apps/core/middleware.py` - PageViewTrackingMiddleware
+- `static/js/favorites.js` - Star toggle JavaScript functionality
+- `templates/components/favorite_toggle.html` - Reusable star button component
+
+**Files Modified:**
+- `apps/core/models.py` - Added FavoritePage and PageView models
+- `apps/core/views.py` - Added FavoriteToggleView, FavoriteCheckView, FavoritesMenuDataView
+- `apps/core/urls.py` - Added favorites API endpoints
+- `apps/core/context_processors.py` - Added favorites_context processor
+- `config/settings.py` - Added middleware and context processor
+- `templates/components/navigation.html` - Added Favorites dropdown menu
+- `templates/base.html` - Include favorites.js
+- Various page templates - Added star toggle to page headings (journal, faith, health, life, purpose, tasks, recipes)
+
+---
+
 ## 2026-01-04 Changes
-
-### Glucose Dashboard Help Content (Task #128)
-
-**Session:** Fix Help Not Available
-
-**Problem:**
-The glucose tracking page at `/health/glucose/` showed "Help Not Available - No help content is available for this page yet" when users clicked the context-aware help button.
-
-**Changes:**
-Added comprehensive help topic for GLUCOSE_DASHBOARD context with:
-- Explanation of glucose levels and their meanings (very low, low, normal, high, very high)
-- Dexcom CGM integration guide with connection steps
-- Trend arrow explanations (all 7 directions with rates)
-- Dashboard stats interpretation (time in range, average, min/max, low/high counts)
-- AI insight parameters explanation (what data the AI analyzes)
-- Faith-enabled insight variations
-- Manual logging instructions
-- Time period view options (Today, 7/30/60/90 days)
-
-**Files Modified:**
-- `apps/help/fixtures/help_topics.json` - Added new HelpTopic (pk=21) for GLUCOSE_DASHBOARD
-
-**Note:** Fixture needs to be loaded via `python manage.py loaddata help_topics` or added via Django Admin when environment is working.
-
----
-
-### Quick Scan Modal on Dashboard (Task #125)
-
-**Session:** Scan Button on Dashboard
-
-**Changes:**
-1. Dashboard Scan button now opens a Quick Scan modal instead of navigating away
-2. Users can capture photos or upload images directly from the dashboard
-3. AI analyzes the image and intelligently suggests where to log it:
-   - Food → "Log to Nutrition"
-   - Medicine → "Add to My Medicines"
-   - Tools/Electronics → "Add to Inventory"
-   - Recipes → "Save Recipe"
-   - Pets → "Add Pet"
-   - Documents → "Save to Documents"
-4. Results display category icon, confidence score, and item details
-5. One-click actions take users to pre-filled forms
-6. "Advanced Scan Options" link still available for barcode scanning
-
-**Files Modified:**
-- `templates/dashboard/home.html` - Added Quick Scan modal with camera, preview, loading, results, and error states
-
----
-
-### Hotfix: AI Signals Model Name Corrections (Post-Task #135)
-
-**Session:** Signal Bug Fix
-
-**Problem:**
-Server crashed on deployment due to incorrect model names in `apps/ai/signals.py`. Django couldn't find the referenced models.
-
-**Changes:**
-Fixed model references in signal receivers:
-- `health.BloodGlucose` → `health.GlucoseEntry`
-- `health.Weight` → `health.WeightEntry`
-- `purpose.Goal` → `purpose.LifeGoal`
-
-**Files Modified:**
-- `apps/ai/signals.py` - Corrected 6 model name references
-
----
-
-### Configurable Insight Refresh Frequency (Task #135)
-
-**Session:** Insights Refresh
-
-**Changes:**
-1. Added `refresh_frequency` field to AIPromptConfig model
-2. Options: daily, twice/three/four times daily, on data change, daily + on change
-3. Default is "daily_and_on_change" - refreshes daily AND when data changes
-4. Added admin interface section for configuring refresh frequency per insight type
-5. Created signals.py with cache invalidation when user data changes
-6. Signals listen to: Journal entries, Goals, Blood glucose, Weight, Tasks, Prayer requests
-
-**Files Modified:**
-- `apps/ai/models.py` - Added refresh_frequency field and helper methods
-- `apps/ai/admin.py` - Added refresh settings fieldset
-- `apps/ai/apps.py` - Import signals in ready()
-- `apps/ai/signals.py` - New file with data change signal handlers
-- `apps/ai/migrations/0012_add_refresh_frequency_to_prompt_config.py` - New migration
-
----
 
 ### Today's Verse Refreshes Once Per Day (Task #136)
 
@@ -116,20 +62,6 @@ Fixed model references in signal receivers:
 
 **Files Modified:**
 - `apps/faith/views.py` - Added cache import and caching logic to get_todays_verse and TodaysVerseView.get_context_data
-
----
-
-### What's New Visibility Check
-
-**Session:** What's New improvement
-
-**Changes:**
-1. Added visibility change listener to re-check for new release notes when user returns to tab
-2. Users with long sessions will now see new releases when they switch back to the app
-3. Only checks if modal is not already open to avoid interrupting user
-
-**Files Modified:**
-- `static/js/whats_new.js` - Added visibilitychange event listener in init()
 
 ---
 

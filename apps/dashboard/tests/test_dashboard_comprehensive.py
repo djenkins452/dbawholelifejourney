@@ -416,14 +416,14 @@ class JournalStreakTest(DashboardTestMixin, TestCase):
         self.assertEqual(user_data.get('journal_streak', 0), 0)
     
     def test_streak_with_consecutive_entries(self):
-        """Streak counts consecutive days."""
+        """Streak counts consecutive days (excludes today)."""
         from apps.journal.models import JournalEntry
         from apps.core.utils import get_user_today
 
         # Use the user's timezone-aware today to match dashboard logic
         today = get_user_today(self.user)
-        # Create entries for last 3 days
-        for i in range(3):
+        # Create entries for yesterday and 2 days ago (not today - it doesn't count)
+        for i in range(1, 4):
             JournalEntry.objects.create(
                 user=self.user,
                 title=f"Entry {i}",
@@ -433,6 +433,7 @@ class JournalStreakTest(DashboardTestMixin, TestCase):
 
         response = self.client.get(reverse('dashboard:home'))
         user_data = response.context.get('user_data', {})
+        # Streak should be 3 (yesterday, 2 days ago, 3 days ago)
         self.assertGreaterEqual(user_data.get('journal_streak', 0), 3)
 
 

@@ -655,12 +655,12 @@ class DashboardAITest(AITestMixin, TestCase):
         self.assertEqual(streak, 0)
 
     def test_calculate_journal_streak_with_entries(self):
-        """Journal streak counts consecutive days."""
+        """Journal streak counts consecutive days (excludes today)."""
         from apps.journal.models import JournalEntry
 
         today = timezone.now().date()
-        # Create entries for today, yesterday, and day before
-        for i in range(3):
+        # Create entries for yesterday, 2 days ago, and 3 days ago (not today)
+        for i in range(1, 4):
             JournalEntry.objects.create(
                 user=self.user,
                 title=f'Entry {i}',
@@ -673,28 +673,28 @@ class DashboardAITest(AITestMixin, TestCase):
         self.assertEqual(streak, 3)
 
     def test_calculate_journal_streak_broken(self):
-        """Journal streak stops at gap in entries."""
+        """Journal streak stops at gap in entries (excludes today)."""
         from apps.journal.models import JournalEntry
 
         today = timezone.now().date()
-        # Entry today
+        # Entry yesterday
         JournalEntry.objects.create(
             user=self.user,
-            title='Today',
+            title='Yesterday',
             body='Test',
-            entry_date=today
+            entry_date=today - timedelta(days=1)
         )
-        # Skip yesterday, entry 2 days ago
+        # Skip 2 days ago, entry 3 days ago
         JournalEntry.objects.create(
             user=self.user,
-            title='2 days ago',
+            title='3 days ago',
             body='Test',
-            entry_date=today - timedelta(days=2)
+            entry_date=today - timedelta(days=3)
         )
 
         dashboard_ai = DashboardAI(self.user)
         streak = dashboard_ai._calculate_journal_streak()
-        self.assertEqual(streak, 1)  # Only today counts
+        self.assertEqual(streak, 1)  # Only yesterday counts, then gap breaks streak
 
 
 # =============================================================================

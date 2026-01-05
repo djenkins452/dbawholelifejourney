@@ -552,9 +552,9 @@ class DashboardAI:
         ]
     
     def _calculate_journal_streak(self) -> int:
-        """Calculate current journal streak in days."""
+        """Calculate current journal streak in days (excludes today)."""
         from apps.journal.models import JournalEntry
-        
+
         entries = JournalEntry.objects.filter(
             user=self.user
         ).order_by('-entry_date').values_list('entry_date', flat=True).distinct()[:30]
@@ -565,15 +565,16 @@ class DashboardAI:
         from apps.core.utils import get_user_today
         today = get_user_today(self.user)
         streak = 0
-        expected_date = today
-        
+        # Start from yesterday - today doesn't count toward the streak
+        expected_date = today - timedelta(days=1)
+
         for entry_date in entries:
             if entry_date == expected_date:
                 streak += 1
                 expected_date -= timedelta(days=1)
             elif entry_date < expected_date:
                 break
-        
+
         return streak
     
     def _get_fallback_insight(self) -> str:

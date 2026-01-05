@@ -216,26 +216,27 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         }
     
     def _calculate_journal_streak(self, user, today):
-        """Calculate consecutive days of journaling."""
+        """Calculate consecutive days of journaling (excludes today)."""
         from apps.journal.models import JournalEntry
-        
+
         entries = JournalEntry.objects.filter(
             user=user
         ).order_by('-entry_date').values_list('entry_date', flat=True).distinct()[:60]
-        
+
         if not entries:
             return 0
-        
+
         streak = 0
-        expected_date = today
-        
+        # Start from yesterday - today doesn't count toward the streak
+        expected_date = today - timedelta(days=1)
+
         for entry_date in entries:
             if entry_date == expected_date:
                 streak += 1
                 expected_date -= timedelta(days=1)
             elif entry_date < expected_date:
                 break
-        
+
         return streak
     
     def _get_faith_data(self, user):

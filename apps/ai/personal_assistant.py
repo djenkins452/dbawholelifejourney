@@ -800,7 +800,7 @@ class PersonalAssistant:
         return data
 
     def _calculate_journal_streak(self, today) -> int:
-        """Calculate consecutive days of journaling."""
+        """Calculate consecutive days of journaling (excludes today)."""
         from apps.journal.models import JournalEntry
 
         entries = JournalEntry.objects.filter(
@@ -811,7 +811,8 @@ class PersonalAssistant:
             return 0
 
         streak = 0
-        expected = today
+        # Start from yesterday - today doesn't count toward the streak
+        expected = today - timedelta(days=1)
 
         for entry_date in entries:
             if entry_date == expected:

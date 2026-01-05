@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Intent Detection Tests and Refinement)
+# Last Updated: 2026-01-05 (Add Query Result Caching)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,41 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Query Result Caching (Task #155)
+
+**Session:** Add Query Result Caching
+
+**Changes:**
+1. Added caching to PersonalDataService to reduce database queries:
+   - `PERSONAL_DATA_CACHE_TTL` constant set to 300 seconds (5 minutes)
+   - `_generate_cache_key()` function generates keys like `personal_data:{user_id}:{data_type}:{date}`
+   - `invalidate_user_data_cache()` function clears cache for specific user/data type
+2. Wrapped all 5 `get_*_data()` methods with cache check/set:
+   - `get_weight_data()` - caches weight query results
+   - `get_journal_data()` - caches journal query results
+   - `get_medication_data()` - caches medication query results
+   - `get_food_data()` - caches food query results
+   - `get_mood_data()` - caches mood query results
+3. Added cache invalidation signals to `apps/ai/signals.py`:
+   - WeightEntry save/delete invalidates 'weight' cache
+   - JournalEntry save/delete invalidates 'journal' and 'mood' cache (if entry has mood)
+   - MedicineLog save/delete invalidates 'medication' cache
+   - FoodEntry save/delete invalidates 'food' cache
+4. Added 19 new unit tests for caching behavior:
+   - TestGenerateCacheKey (5 tests) - key generation
+   - TestInvalidateUserDataCache (2 tests) - cache invalidation
+   - TestCacheHitBehavior (4 tests) - returns cached data
+   - TestCacheMissBehavior (2 tests) - caches on miss
+   - TestCacheTTL (1 test) - verifies TTL value
+   - Updated all existing tests with CacheMockMixin
+
+**Files Modified:**
+- `assistant/data_service.py` - Added caching to data methods
+- `apps/ai/signals.py` - Added cache invalidation signals
+- `assistant/tests/test_data_service.py` - Added 19 caching tests (77 total)
+
+---
 
 ### Add Intent Detection Tests and Refinement (Task #154)
 

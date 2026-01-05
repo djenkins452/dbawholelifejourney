@@ -911,3 +911,150 @@ class PersonalAssistantModuleAccessTest(AssistantTestMixin, TestCase):
         except ValueError as e:
             if 'staticfiles manifest' in str(e):
                 self.skipTest("Staticfiles manifest not available in test environment")
+
+
+# =============================================================================
+# PERSONAL DATA QUERY INTEGRATION TESTS
+# =============================================================================
+
+class PersonalDataQueryIntegrationTests(TestCase, AssistantTestMixin):
+    """Tests for personal data query integration with AI Personal Assistant."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.enable_ai(self.user)
+
+    @patch('apps.ai.personal_assistant.ai_service')
+    @patch('apps.ai.personal_assistant.process_assistant_message')
+    def test_personal_data_context_injected_for_weight_query(self, mock_process, mock_ai):
+        """Weight query should inject personal data context into system prompt."""
+        # Setup mock for process_assistant_message
+        mock_process.return_value = {
+            'system_prompt': 'Enhanced prompt with weight data',
+            'is_personal_query': True,
+            'data_types': ['weight'],
+            'has_data': True,
+        }
+
+        # Setup AI service mock
+        mock_ai.is_available = True
+        mock_ai._call_api.return_value = "Your average weight last week was 175 lbs."
+
+        assistant = PersonalAssistant(self.user)
+        conversation = assistant.get_or_create_conversation()
+
+        # Call _generate_response directly
+        response = assistant._generate_response("What was my average weight last week?", conversation)
+
+        # Verify process_assistant_message was called
+        mock_process.assert_called_once()
+        call_args = mock_process.call_args
+        self.assertEqual(call_args[1]['user'], self.user)
+        self.assertIn('weight', call_args[1]['message'].lower())
+
+    @patch('apps.ai.personal_assistant.ai_service')
+    @patch('apps.ai.personal_assistant.process_assistant_message')
+    def test_no_context_injection_for_non_personal_query(self, mock_process, mock_ai):
+        """Non-personal queries should not get personal data context injected."""
+        # Setup mock for process_assistant_message - not a personal query
+        mock_process.return_value = {
+            'system_prompt': 'Base system prompt',
+            'is_personal_query': False,
+            'data_types': [],
+            'has_data': False,
+        }
+
+        mock_ai.is_available = True
+        mock_ai._call_api.return_value = "Here's what's on your plate today."
+
+        assistant = PersonalAssistant(self.user)
+        conversation = assistant.get_or_create_conversation()
+
+        # Call _generate_response with a non-personal query
+        response = assistant._generate_response("What should I focus on today?", conversation)
+
+        # Verify process_assistant_message was called but returned no personal data
+        mock_process.assert_called_once()
+
+    @patch('apps.ai.personal_assistant.ai_service')
+    @patch('apps.ai.personal_assistant.process_assistant_message')
+    def test_personal_query_without_data_uses_base_prompt(self, mock_process, mock_ai):
+        """Personal query with no data available should use base prompt."""
+        # Setup mock - personal query detected but no data found
+        mock_process.return_value = {
+            'system_prompt': 'Base system prompt',
+            'is_personal_query': True,
+            'data_types': ['weight'],
+            'has_data': False,  # No data available
+        }
+
+        mock_ai.is_available = True
+        mock_ai._call_api.return_value = "I don't have any weight data logged yet."
+
+        assistant = PersonalAssistant(self.user)
+        conversation = assistant.get_or_create_conversation()
+
+        response = assistant._generate_response("What was my weight?", conversation)
+
+        # Verify process_assistant_message was called
+        mock_process.assert_called_once()
+
+    @patch('apps.ai.personal_assistant.ai_service')
+    @patch('apps.ai.personal_assistant.process_assistant_message')
+    def test_multiple_data_types_in_query(self, mock_process, mock_ai):
+        """Query mentioning multiple data types should process all of them."""
+        # Setup mock for compound query
+        mock_process.return_value = {
+            'system_prompt': 'Enhanced prompt with mood and journal data',
+            'is_personal_query': True,
+            'data_types': ['mood', 'journal'],
+            'has_data': True,
+        }
+
+        mock_ai.is_available = True
+        mock_ai._call_api.return_value = "Based on your journal entries, your mood has been..."
+
+        assistant = PersonalAssistant(self.user)
+        conversation = assistant.get_or_create_conversation()
+
+        response = assistant._generate_response(
+            "How has my mood been based on my journal entries?",
+            conversation
+        )
+
+        mock_process.assert_called_once()
+        call_args = mock_process.call_args
+        self.assertIn('mood', call_args[1]['message'].lower())
+        self.assertIn('journal', call_args[1]['message'].lower())
+
+    @patch('apps.ai.personal_assistant.ai_service')
+    @patch('apps.ai.personal_assistant.process_assistant_message')
+    def test_existing_features_preserved(self, mock_process, mock_ai):
+        """Integration should not break existing coaching style and time context features."""
+        mock_process.return_value = {
+            'system_prompt': 'Base prompt',
+            'is_personal_query': False,
+            'data_types': [],
+            'has_data': False,
+        }
+
+        mock_ai.is_available = True
+        mock_ai._call_api.return_value = "Focus on your remaining tasks."
+
+        # Set a specific coaching style
+        self.user.preferences.ai_coaching_style = 'direct'
+        self.user.preferences.save()
+
+        assistant = PersonalAssistant(self.user)
+        self.assertEqual(assistant.coaching_style, 'direct')
+
+        conversation = assistant.get_or_create_conversation()
+        response = assistant._generate_response("What should I do?", conversation)
+
+        # Verify AI service was called
+        mock_ai._call_api.assert_called_once()
+        # The system prompt should still contain coaching style info
+        call_args = mock_ai._call_api.call_args
+        # First positional arg is system_prompt
+        system_prompt = call_args[0][0]
+        self.assertIn('direct', system_prompt.lower())

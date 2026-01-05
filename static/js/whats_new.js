@@ -11,6 +11,7 @@
  *
  * Key Features:
  *     - Check for unseen notes via API on page load
+ *     - Re-check when user returns to tab (visibility change)
  *     - Display modal with release note cards
  *     - Mark notes as seen when user dismisses modal
  *     - Respects user's "show_whats_new" preference
@@ -55,6 +56,13 @@
 
         // Check for unseen notes on page load (with small delay to not block rendering)
         setTimeout(checkForUpdates, 500);
+
+        // Re-check when user returns to the tab (catches new releases for long sessions)
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible' && !modal.open) {
+                checkForUpdates();
+            }
+        });
 
         // Close modal when clicking outside
         modal.addEventListener('click', function(e) {

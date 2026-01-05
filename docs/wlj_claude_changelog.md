@@ -16,6 +16,55 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-05 Changes
 
+### Multi-Command Support for AI Assistant
+
+**Session:** AI Assistant Multi-Command
+
+**Changes:**
+1. Added support for multiple intents in a single message
+2. Users can now say things like "update my oxygen to 95 and my weight to 350" and both will be logged
+3. Modified IntentService to recognize multiple tool calls from OpenAI
+4. Updated PersonalAssistant.send_message() to execute all detected intents
+5. Added `actions_taken` array to API response for multiple actions
+6. Updated system prompt to explicitly instruct OpenAI to call multiple functions when appropriate
+
+**Files Modified:**
+- `apps/ai/intent_service.py` - Added recognize_intents() method, updated system prompt
+- `apps/ai/personal_assistant.py` - Updated send_message() for multi-intent processing
+- `apps/ai/views.py` - Updated response format to include actions_taken array
+
+---
+
+### Phase 2 Intent Expansion - All Modules
+
+**Session:** AI Intent Recognition Phase 2
+
+**Changes:**
+1. Expanded intent recognition to all modules with input forms
+2. Added 21 new intents across Journal, Faith, Purpose, Life, and Fitness modules
+3. Created action handlers for all new intents
+
+**New Intents:**
+- Journal: create_journal_entry, add_gratitude
+- Faith: log_prayer, mark_prayer_answered, save_verse, add_faith_milestone
+- Purpose: create_goal, update_goal_progress, set_intention, log_habit
+- Life: create_task, complete_task, create_event, add_reminder
+- Fitness: log_workout, log_exercise_set, log_cardio
+
+**Files Added:**
+- `apps/ai/intents/journal_intents.py` - Journal intent definitions
+- `apps/ai/intents/faith_intents.py` - Faith intent definitions
+- `apps/ai/intents/purpose_intents.py` - Purpose intent definitions
+- `apps/ai/intents/life_intents.py` - Life intent definitions
+- `apps/ai/intents/fitness_intents.py` - Fitness intent definitions
+
+**Files Modified:**
+- `apps/ai/intents/__init__.py` - Combined all intent tools
+- `apps/ai/intent_service.py` - Added routing for all Phase 2 intents
+- `apps/ai/action_handlers.py` - Added handlers for all Phase 2 intents
+
+---
+
 ### Intent Recognition with Structured Data Extraction
 
 **Session:** AI Assistant Intent Recognition

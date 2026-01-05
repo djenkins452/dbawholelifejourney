@@ -192,8 +192,14 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                     'response': result.get('response', ''),
                     'conversation_id': conversation.id,
                 }
-                # Include action_taken if present
-                if result.get('action_taken'):
+                # Include actions_taken if present (supports multiple actions)
+                if result.get('actions_taken'):
+                    response_data['actions_taken'] = result['actions_taken']
+                    # Also include action_taken for backwards compatibility with single action
+                    if result.get('action_taken'):
+                        response_data['action_taken'] = result['action_taken']
+                elif result.get('action_taken'):
+                    # Single action only
                     response_data['action_taken'] = result['action_taken']
             else:
                 # Backwards compatibility for string response

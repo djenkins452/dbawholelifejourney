@@ -293,6 +293,8 @@ class PersonalAssistant:
         self.faith_enabled = self.prefs.faith_enabled
         self.coaching_style = getattr(self.prefs, 'ai_coaching_style', 'supportive')
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
+        # For data visibility confirmation flow
+        self._data_visibility_response = None
 
     def _get_time_context(self) -> dict:
         """

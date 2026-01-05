@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Breadcrumbs in Finance - Task #192)
+# Last Updated: 2026-01-05 (Enter Key Chat Submit - Task #193)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,23 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Enter Key Submit for Chat with Assistant (Task #193)
+
+**Session:** Chat with your assistant Enter Key
+
+**Objective:**
+Allow users to submit chat messages by pressing Enter key instead of clicking the send button.
+
+**Solution:**
+Added explicit `keydown` event listener on the chat input in the assistant dashboard:
+- Pressing Enter (without Shift) now triggers form submission
+- This matches the behavior of the floating chat widget which already had this functionality
+
+**File modified:**
+- `templates/ai/assistant_dashboard.html` (lines 806-814)
+
+---
 
 ### Add Breadcrumbs to Finance Sub-Pages (Task #192)
 

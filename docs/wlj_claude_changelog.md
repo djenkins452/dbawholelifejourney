@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Intent Detector Module)
+# Last Updated: 2026-01-05 (Date Parser Utility)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,27 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Date Parser Utility for Personal Data Query System (Task #144)
+
+**Session:** Create Date Parser Utility
+
+**Changes:**
+1. Created `assistant/date_parser.py` with `extract_date_from_message()` function
+2. Parses natural language dates into datetime objects
+3. Supports relative dates: today, yesterday, this/last week/month/year
+4. Handles "past N days/weeks/months" patterns
+5. Phrase extraction: since, from, after, starting, beginning
+6. Multiple date formats: "December 1st", "12/15", "2024-12-15"
+7. Year defaulting when not specified (assumes past year if >7 days in future)
+8. Uses python-dateutil for fallback parsing
+
+**Files Created/Modified:**
+- `assistant/date_parser.py` - Main date extraction logic
+- `assistant/tests/test_date_parser.py` - 47 unit tests
+- `assistant/__init__.py` - Added export for extract_date_from_message
+
+---
 
 ### Intent Detector Module for Personal Data Query System (Task #143)
 

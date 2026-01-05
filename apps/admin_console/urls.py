@@ -141,4 +141,7 @@ urlpatterns = [
 
     # Clarity CSV Import (manual glucose data upload)
     path("clarity-import/", views.ClarityImportView.as_view(), name="clarity_import"),
+
+    # Project Management JSON Import
+    path("project-import/", views.ProjectImportView.as_view(), name="project_import"),
 ]

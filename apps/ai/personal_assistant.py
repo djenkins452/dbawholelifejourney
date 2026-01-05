@@ -1423,17 +1423,23 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         """Get or create today's conversation."""
         return AssistantConversation.get_or_create_active(self.user)
 
-    def send_message(self, message: str, conversation: AssistantConversation = None) -> str:
+    def send_message(self, message: str, conversation: AssistantConversation = None) -> dict:
         """
         Send a message to the assistant and get a response.
+
+        Now supports intent recognition for structured data extraction.
+        When the user says something like "my heart rate is 60", the assistant
+        will recognize the intent, extract the data, and log it automatically.
 
         Args:
             message: User's message
             conversation: Optional conversation to add to
 
         Returns:
-            Assistant's response
+            Dict with 'response' (str) and optionally 'action_taken' (dict)
         """
+        from .intent_service import intent_service
+
         if not conversation:
             conversation = self.get_or_create_conversation()
 
@@ -1445,25 +1451,78 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             message_type='text'
         )
 
-        # Generate response
+        response = ""
+        action_taken = None
+
+        # Check if AI is available
         if not ai_service.is_available or not AIService.check_user_consent(self.user):
             response = self._get_fallback_response(message)
         else:
-            response = self._generate_response(message, conversation)
+            # First, check for pending confirmation
+            pending = intent_service.get_pending_confirmation(self.user)
+            if pending:
+                # Handle confirmation response
+                action_result = intent_service.handle_confirmation_response(self.user, message)
+                if action_result:
+                    if action_result.action_type == 'cancelled':
+                        response = action_result.message
+                    else:
+                        response = action_result.message
+                        action_taken = self._build_action_taken(action_result)
+                else:
+                    # Response wasn't yes/no, ask again
+                    response = f"Please confirm: {intent_service._build_confirmation_message(pending['intent_type'], pending['parameters'])} (yes/no)"
+            else:
+                # Try to recognize intent
+                intent_result = intent_service.recognize_intent(message, self.user)
+
+                if intent_result.intent_type != 'no_action':
+                    # Intent recognized - check if confirmation needed
+                    if intent_result.requires_confirmation:
+                        # Store pending and ask for confirmation
+                        intent_service.store_pending_confirmation(self.user, intent_result)
+                        response = intent_result.confirmation_message
+                    else:
+                        # Execute the action immediately
+                        action_result = intent_service.execute_intent(intent_result, self.user)
+
+                        if action_result.success:
+                            response = action_result.message
+                            action_taken = self._build_action_taken(action_result)
+                        else:
+                            # Action failed - respond with error message
+                            response = action_result.message
+                else:
+                    # No action intent - generate normal chat response
+                    response = self._generate_response(message, conversation)
 
         # Save assistant response
-        AssistantMessage.objects.create(
+        msg_type = 'action' if action_taken else 'text'
+        assistant_msg = AssistantMessage.objects.create(
             conversation=conversation,
             role='assistant',
             content=response,
-            message_type='text'
+            message_type=msg_type
         )
 
         # Update conversation
         conversation.updated_at = timezone.now()
         conversation.save(update_fields=['updated_at'])
 
-        return response
+        # Return structured response
+        result = {'response': response}
+        if action_taken:
+            result['action_taken'] = action_taken
+
+        return result
+
+    def _build_action_taken(self, action_result) -> dict:
+        """Build the action_taken dict for API response."""
+        return {
+            'type': action_result.action_type,
+            'success': action_result.success,
+            'created': action_result.created_object
+        }
 
     def _generate_response(self, message: str, conversation: AssistantConversation) -> str:
         """Generate AI response to user message using coaching style and time awareness."""

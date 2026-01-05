@@ -16,6 +16,52 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-05 Changes
 
+### Intent Recognition with Structured Data Extraction
+
+**Session:** AI Assistant Intent Recognition
+
+**Changes:**
+1. Added intent recognition using OpenAI function calling (tools API)
+2. Users can now say things like "log my heart rate at 60" and the assistant automatically logs it
+3. Created IntentService for recognizing user intent and extracting structured data
+4. Created ActionHandlers for executing recognized intents by creating model instances
+5. Modified PersonalAssistant.send_message() to check for actionable intents first
+6. Updated API response format to include action_taken when an action was executed
+7. Added assistant_confirm_actions preference for users who want confirmation before logging
+
+**Supported Intents (Phase 1 - Health Data):**
+- log_heart_rate: "my heart rate is 60 bpm"
+- log_blood_pressure: "BP is 120/80"
+- log_weight: "I weigh 175 lbs"
+- log_glucose: "blood sugar is 105"
+- log_blood_oxygen: "oxygen is 98%"
+- log_food: "I ate a banana"
+- take_medicine: "took my metformin"
+- start_fast: "starting a fast"
+- end_fast: "ending my fast"
+
+**Validation:**
+- Unusual values trigger confirmation before logging (e.g., "200 BPM is quite high. Were you exercising?")
+- Optional assistant_confirm_actions preference for always-confirm mode
+
+**Files Added:**
+- `apps/ai/intents/__init__.py` - Intent tool definitions package
+- `apps/ai/intents/health_intents.py` - Health-related intent definitions
+- `apps/ai/intents/medicine_intents.py` - Medicine intent definitions
+- `apps/ai/intents/fasting_intents.py` - Fasting intent definitions
+- `apps/ai/intent_service.py` - Intent recognition service
+- `apps/ai/action_handlers.py` - Action execution handlers
+- `apps/ai/tests/test_intent_service.py` - Comprehensive tests
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Integrated intent recognition into send_message()
+- `apps/ai/views.py` - Updated AssistantChatView for new response format
+- `apps/users/models.py` - Added assistant_confirm_actions preference
+
+**Migration Required:** Yes (for assistant_confirm_actions field)
+
+---
+
 ### Favorites Menu (Task #138)
 
 **Session:** Favorites Menu

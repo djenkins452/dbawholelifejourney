@@ -4,9 +4,16 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:account_list' %}">Accounts</a>
+        <span>/</span>
+        <span>{{ account.name }}</span>
+    </nav>
+
     <div class="page-header">
         <div>
-            <a href="{% url 'finance:account_list' %}" class="back-link">&larr; All Accounts</a>
             <h1 class="page-title">{{ account.name }} {% include "components/favorite_toggle.html" with page_title="Account Detail" %}</h1>
             <p class="page-subtitle">{{ account.get_account_type_display }}{% if account.institution %} &middot; {{ account.institution }}{% endif %}</p>
         </div>

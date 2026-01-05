@@ -4,6 +4,14 @@
 
 {% block content %}
 <div class="container container-sm">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:budget_list' %}">Budgets</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Add{% endif %}</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Budget {% include "components/favorite_toggle.html" with page_title="Add Budget" %}</h1>
     </div>

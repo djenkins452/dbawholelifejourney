@@ -4,12 +4,15 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:import_list' %}">Imports</a>
+        <span>/</span>
+        <span>{{ import_record.original_filename|truncatechars:20 }}</span>
+    </nav>
+
     <div class="page-header">
-        <div class="breadcrumb">
-            <a href="{% url 'finance:import_list' %}">Import History</a>
-            <span class="separator">/</span>
-            <span>{{ import_record.original_filename }}</span>
-        </div>
         <h1 class="page-title">Import Details {% include "components/favorite_toggle.html" with page_title="Import Details" %}</h1>
     </div>
 

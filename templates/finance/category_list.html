@@ -4,6 +4,12 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <span>Categories</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">Transaction Categories {% include "components/favorite_toggle.html" with page_title="Transaction Categories" %}</h1>
         <p class="page-subtitle">Organize your income and expenses</p>

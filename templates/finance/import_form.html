@@ -4,6 +4,14 @@
 
 {% block content %}
 <div class="container container-sm">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:import_list' %}">Imports</a>
+        <span>/</span>
+        <span>Upload</span>
+    </nav>
+
     <div class="page-header">
         <h1 class="page-title">Import Transactions {% include "components/favorite_toggle.html" with page_title="Import Transactions" %}</h1>
         <p class="page-subtitle">Upload a file exported from your bank to import transactions</p>

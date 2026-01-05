@@ -4,6 +4,14 @@
 
 {% block content %}
 <div class="container container-sm">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:goal_list' %}">Goals</a>
+        <span>/</span>
+        <span>Delete</span>
+    </nav>
+
     <div class="delete-card">
         <h1>Delete Goal</h1>
         <p>Are you sure you want to delete this goal?</p>

@@ -4,6 +4,12 @@
 
 {% block content %}
 <div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <span>Budgets</span>
+    </nav>
+
     <div class="page-header">
         <div>
             <h1 class="page-title">Budgets {% include "components/favorite_toggle.html" with page_title="Budgets" %}</h1>

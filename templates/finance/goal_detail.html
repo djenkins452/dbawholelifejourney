@@ -4,8 +4,15 @@
 
 {% block content %}
 <div class="container container-sm">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:goal_list' %}">Goals</a>
+        <span>/</span>
+        <span>{{ goal.name }}</span>
+    </nav>
+
     <div class="page-header">
-        <a href="{% url 'finance:goal_list' %}" class="back-link">&larr; All Goals</a>
         <h1 class="page-title">{{ goal.icon }} {{ goal.name }} {% include "components/favorite_toggle.html" with page_title="Goal Detail" %}</h1>
         <p class="page-subtitle">{{ goal.get_goal_type_display }}</p>
     </div>

@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-04 Changes
 
+### Hotfix: AI Signals Model Name Corrections (Post-Task #135)
+
+**Session:** Signal Bug Fix
+
+**Problem:**
+Server crashed on deployment due to incorrect model names in `apps/ai/signals.py`. Django couldn't find the referenced models.
+
+**Changes:**
+Fixed model references in signal receivers:
+- `health.BloodGlucose` → `health.GlucoseEntry`
+- `health.Weight` → `health.WeightEntry`
+- `purpose.Goal` → `purpose.LifeGoal`
+
+**Files Modified:**
+- `apps/ai/signals.py` - Corrected 6 model name references
+
+---
+
 ### Configurable Insight Refresh Frequency (Task #135)
 
 **Session:** Insights Refresh

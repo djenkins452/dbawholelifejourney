@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Date Defaults - Task #191)
+# Last Updated: 2026-01-05 (Breadcrumbs in Finance - Task #192)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,51 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Breadcrumbs to Finance Sub-Pages (Task #192)
+
+**Session:** Breadcrumbs in Finance
+
+**Objective:**
+Add consistent breadcrumb navigation to all Finance module sub-pages for improved navigation.
+
+**Solution:**
+Added `<nav class="breadcrumb mb-4">` elements to 22 Finance templates following the existing project pattern:
+
+- **Account pages (4):** list, detail, form, delete confirmation
+- **Transaction pages (4):** list, detail, form, delete confirmation
+- **Budget pages (3):** list, form, delete confirmation
+- **Goal pages (4):** list, detail, form, delete confirmation
+- **Import pages (3):** list, detail/upload, form
+- **Other pages (4):** metrics, categories, transfer, bank connections
+
+**Pattern used:** `Finance → Section → Current Page`
+
+**Files modified:**
+- `templates/finance/account_list.html`
+- `templates/finance/account_detail.html`
+- `templates/finance/account_form.html`
+- `templates/finance/account_confirm_delete.html`
+- `templates/finance/transaction_list.html`
+- `templates/finance/transaction_detail.html`
+- `templates/finance/transaction_form.html`
+- `templates/finance/transaction_confirm_delete.html`
+- `templates/finance/budget_list.html`
+- `templates/finance/budget_form.html`
+- `templates/finance/budget_confirm_delete.html`
+- `templates/finance/goal_list.html`
+- `templates/finance/goal_detail.html`
+- `templates/finance/goal_form.html`
+- `templates/finance/goal_confirm_delete.html`
+- `templates/finance/import_list.html`
+- `templates/finance/import_detail.html`
+- `templates/finance/import_form.html`
+- `templates/finance/metrics_dashboard.html`
+- `templates/finance/category_list.html`
+- `templates/finance/transfer_form.html`
+- `templates/finance/bank_connection_list.html`
+
+---
 
 ### Fix Date/Time Defaults on Health Log Forms (Task #191)
 

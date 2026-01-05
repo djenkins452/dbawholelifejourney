@@ -9,7 +9,14 @@ from unittest.mock import MagicMock, patch, PropertyMock
 
 from django.test import TestCase
 
-from assistant.executor import ImprovementExecutor, ExecutionResult
+from assistant.executor import (
+    ImprovementExecutor,
+    AutonomousExecutor,
+    ExecutionResult,
+    ALLOWED_FILES,
+    DANGEROUS_PATTERNS,
+    RATE_LIMIT_CACHE_KEY,
+)
 from assistant.file_modifier import ModificationResult
 from assistant.git_service import GitResult
 from assistant.models import ImprovementTaskModel
@@ -360,3 +367,443 @@ class TestImprovementExecutorIntegration(TestCase):
         self.assertEqual(task_info.severity, ImprovementTaskModel.SEVERITY_LOW)
         self.assertEqual(task_info.error_message, "Test error")
         self.assertEqual(task_info.rollback_hash, "abc123")
+
+
+class TestAutonomousExecutorSafetyValidation(TestCase):
+    """Tests for AutonomousExecutor safety validation."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.executor = AutonomousExecutor(
+            git_service=MagicMock(),
+            file_modifier=MagicMock(),
+            test_runner=MagicMock(),
+            notification_service=MagicMock()
+        )
+
+    def test_is_safe_rejects_high_severity(self):
+        """Test that HIGH severity tasks are rejected."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_HIGH
+        task.code_template = ""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertFalse(is_safe)
+        self.assertIn("HIGH", reason)
+        self.assertIn("only LOW severity", reason)
+
+    def test_is_safe_rejects_medium_severity(self):
+        """Test that MEDIUM severity tasks are rejected."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_MEDIUM
+        task.code_template = ""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertFalse(is_safe)
+        self.assertIn("MEDIUM", reason)
+
+    def test_is_safe_accepts_low_severity_allowed_file(self):
+        """Test that LOW severity tasks for allowed files are accepted."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: insert_after
+PATTERN: DATA_TYPE_KEYWORDS = \\{
+CODE:
+    'workout': 'health',"""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertTrue(is_safe)
+        self.assertIn("safe for autonomous", reason)
+
+    def test_is_safe_rejects_disallowed_file(self):
+        """Test that tasks targeting non-allowed files are rejected."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/views.py
+TYPE: append
+CODE:
+    print('test')"""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertFalse(is_safe)
+        self.assertIn("not in allowed files", reason)
+
+
+class TestAutonomousExecutorDangerousPatterns(TestCase):
+    """Tests for dangerous pattern detection."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.executor = AutonomousExecutor(
+            git_service=MagicMock(),
+            file_modifier=MagicMock(),
+            test_runner=MagicMock(),
+            notification_service=MagicMock()
+        )
+
+    def test_rejects_import_statements(self):
+        """Test that import statements are rejected."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: insert_after
+CODE:
+import os
+    'workout': 'health',"""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertFalse(is_safe)
+        self.assertIn("dangerous pattern", reason)
+
+    def test_rejects_from_imports(self):
+        """Test that from...import statements are rejected."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: insert_after
+CODE:
+from django.db import models
+    'workout': 'health',"""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertFalse(is_safe)
+        self.assertIn("dangerous pattern", reason)
+
+    def test_rejects_class_definitions(self):
+        """Test that class definitions are rejected."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: append
+CODE:
+class MaliciousClass:
+    pass"""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertFalse(is_safe)
+        self.assertIn("dangerous pattern", reason)
+
+    def test_rejects_database_operations(self):
+        """Test that database operations are rejected."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: append
+CODE:
+User.objects.all()"""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertFalse(is_safe)
+        self.assertIn("dangerous pattern", reason)
+
+    def test_rejects_file_io(self):
+        """Test that file I/O operations are rejected."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: append
+CODE:
+open('/etc/passwd', 'r')"""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertFalse(is_safe)
+        self.assertIn("dangerous pattern", reason)
+
+    def test_rejects_eval_exec(self):
+        """Test that eval/exec calls are rejected."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: append
+CODE:
+eval(user_input)"""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertFalse(is_safe)
+        self.assertIn("dangerous pattern", reason)
+
+    def test_accepts_simple_keyword_addition(self):
+        """Test that simple keyword additions are accepted."""
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: insert_after
+PATTERN: DATA_TYPE_KEYWORDS = \\{
+CODE:
+    'workout': 'health',
+    'exercise': 'health',"""
+
+        is_safe, reason = self.executor.is_safe_for_autonomous(task)
+
+        self.assertTrue(is_safe)
+
+
+class TestAutonomousExecutorRateLimiting(TestCase):
+    """Tests for rate limiting functionality."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.executor = AutonomousExecutor(
+            git_service=MagicMock(),
+            file_modifier=MagicMock(),
+            test_runner=MagicMock(),
+            notification_service=MagicMock(),
+            max_executions_per_hour=5
+        )
+
+    @patch('assistant.executor.cache')
+    def test_rate_limit_allows_under_limit(self, mock_cache):
+        """Test that execution is allowed under the rate limit."""
+        mock_cache.get.return_value = 3
+
+        is_allowed, reason = self.executor._check_rate_limit()
+
+        self.assertTrue(is_allowed)
+        self.assertIn("3/5", reason)
+
+    @patch('assistant.executor.cache')
+    def test_rate_limit_blocks_at_limit(self, mock_cache):
+        """Test that execution is blocked at the rate limit."""
+        mock_cache.get.return_value = 5
+
+        is_allowed, reason = self.executor._check_rate_limit()
+
+        self.assertFalse(is_allowed)
+        self.assertIn("Rate limit exceeded", reason)
+
+    @patch('assistant.executor.cache')
+    def test_rate_limit_blocks_over_limit(self, mock_cache):
+        """Test that execution is blocked over the rate limit."""
+        mock_cache.get.return_value = 10
+
+        is_allowed, reason = self.executor._check_rate_limit()
+
+        self.assertFalse(is_allowed)
+        self.assertIn("Rate limit exceeded", reason)
+
+    @patch('assistant.executor.cache')
+    def test_increment_rate_limit(self, mock_cache):
+        """Test that rate limit counter is incremented correctly."""
+        mock_cache.get.return_value = 3
+
+        self.executor._increment_rate_limit()
+
+        mock_cache.set.assert_called_once_with(
+            RATE_LIMIT_CACHE_KEY,
+            4,
+            timeout=3600
+        )
+
+    @patch('assistant.executor.cache')
+    def test_rate_limit_default_zero(self, mock_cache):
+        """Test that rate limit defaults to 0 if not set."""
+        mock_cache.get.return_value = None
+
+        # Simulating default behavior
+        mock_cache.get.return_value = 0
+
+        is_allowed, reason = self.executor._check_rate_limit()
+
+        self.assertTrue(is_allowed)
+
+
+class TestAutonomousExecutorExecution(TestCase):
+    """Tests for AutonomousExecutor task execution."""
+
+    def setUp(self):
+        """Set up test fixtures with mocked services."""
+        self.mock_git_service = MagicMock()
+        self.mock_file_modifier = MagicMock()
+        self.mock_test_runner = MagicMock()
+        self.mock_notification_service = MagicMock()
+
+        self.executor = AutonomousExecutor(
+            git_service=self.mock_git_service,
+            file_modifier=self.mock_file_modifier,
+            test_runner=self.mock_test_runner,
+            notification_service=self.mock_notification_service
+        )
+
+    @patch('assistant.executor.cache')
+    def test_execute_rejects_unsafe_task(self, mock_cache):
+        """Test that unsafe tasks are rejected without execution."""
+        mock_cache.get.return_value = 0
+
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_HIGH
+        task.code_template = ""
+
+        result = self.executor.execute_task(task)
+
+        self.assertFalse(result.success)
+        self.assertIn("not safe", result.message)
+        # Verify git service was never called
+        self.mock_git_service.create_snapshot.assert_not_called()
+
+    @patch('assistant.executor.cache')
+    def test_execute_respects_rate_limit(self, mock_cache):
+        """Test that rate limited tasks are rejected."""
+        mock_cache.get.return_value = 5  # At limit
+
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: insert_after
+CODE:
+    'test': 'test',"""
+
+        result = self.executor.execute_task(task)
+
+        self.assertFalse(result.success)
+        self.assertIn("rate limited", result.message)
+
+    @patch('assistant.executor.cache')
+    def test_execute_success_notifies_admin(self, mock_cache):
+        """Test that successful execution sends admin notification."""
+        mock_cache.get.return_value = 0
+
+        # Configure successful execution
+        self.mock_git_service.create_snapshot.return_value = GitResult(
+            success=True,
+            message="Snapshot created",
+            commit_hash="abc123"
+        )
+        self.mock_git_service.commit_changes.return_value = GitResult(
+            success=True,
+            message="Changes committed",
+            commit_hash="def456"
+        )
+        self.mock_git_service.get_commit_diff.return_value = "diff output"
+
+        self.mock_test_runner.generate_test_file.return_value = "/tmp/test.py"
+        self.mock_test_runner.run_single_test.return_value = TestResult(
+            passed=True,
+            output="All tests passed"
+        )
+
+        task = MagicMock(spec=ImprovementTaskModel)
+        task.id = uuid.uuid4()
+        task.title = "Add keyword"
+        task.severity = ImprovementTaskModel.SEVERITY_LOW
+        task.suggested_fix = "Add workout keyword"
+        task.status = ImprovementTaskModel.STATUS_NEW
+        task.requires_approval = False
+        task.code_template = """FILE: assistant/intent_detector.py
+TYPE: insert_after
+CODE:
+    'workout': 'health',"""
+        task.test_template = ""
+        task.git_commit_before = None
+        task.git_commit_after = None
+
+        result = self.executor.execute_task(task)
+
+        self.assertTrue(result.success)
+        # Verify auto_improvement notification was sent
+        self.mock_notification_service.notify_auto_improvement.assert_called_once()
+
+
+class TestAutonomousExecutorHelperMethods(TestCase):
+    """Tests for AutonomousExecutor helper methods."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.executor = AutonomousExecutor(
+            git_service=MagicMock(),
+            file_modifier=MagicMock(),
+            test_runner=MagicMock(),
+            notification_service=MagicMock()
+        )
+
+    def test_extract_target_file(self):
+        """Test file path extraction from code template."""
+        template = """FILE: assistant/intent_detector.py
+TYPE: append
+CODE:
+    test"""
+
+        result = self.executor._extract_target_file(template)
+
+        self.assertEqual(result, "assistant/intent_detector.py")
+
+    def test_extract_target_file_not_found(self):
+        """Test file path extraction when FILE directive is missing."""
+        template = """TYPE: append
+CODE:
+    test"""
+
+        result = self.executor._extract_target_file(template)
+
+        self.assertIsNone(result)
+
+    def test_extract_code_section(self):
+        """Test code section extraction from template."""
+        template = """FILE: test.py
+TYPE: append
+CODE:
+    'keyword': 'value',
+    'another': 'item',"""
+
+        result = self.executor._extract_code_section(template)
+
+        self.assertIn("'keyword': 'value',", result)
+        self.assertIn("'another': 'item',", result)
+
+    def test_extract_code_section_empty(self):
+        """Test code section extraction when CODE section is missing."""
+        template = """FILE: test.py
+TYPE: append"""
+
+        result = self.executor._extract_code_section(template)
+
+        self.assertIsNone(result)
+
+    def test_contains_dangerous_patterns_safe_code(self):
+        """Test that safe code passes pattern check."""
+        safe_code = """    'workout': 'health',
+    'exercise': 'health',"""
+
+        result = self.executor._contains_dangerous_patterns(safe_code)
+
+        self.assertIsNone(result)
+
+    def test_contains_dangerous_patterns_detects_import(self):
+        """Test that import statements are detected."""
+        dangerous_code = """import os
+    'workout': 'health',"""
+
+        result = self.executor._contains_dangerous_patterns(dangerous_code)
+
+        self.assertIsNotNone(result)
+
+    def test_contains_dangerous_patterns_detects_objects_call(self):
+        """Test that .objects. calls are detected."""
+        dangerous_code = """User.objects.filter(active=True)"""
+
+        result = self.executor._contains_dangerous_patterns(dangerous_code)
+
+        self.assertIsNotNone(result)

@@ -6,12 +6,20 @@ Owner: admin@wholelifejourney.com
 This module provides the main orchestrator that executes improvement tasks
 through the full lifecycle with safety guarantees: validation, git snapshot,
 file modification, testing, and commit or rollback.
+
+It also provides AutonomousExecutor, a variant that can safely execute
+low-risk improvements without requiring admin approval.
 """
 
 import logging
+import re
 import time
 from dataclasses import dataclass
-from typing import Optional
+from datetime import timedelta
+from typing import List, Optional
+
+from django.core.cache import cache
+from django.utils import timezone
 
 from .file_modifier import SafeFileModifier, ModificationType
 from .git_service import GitProtectionService
@@ -496,3 +504,261 @@ class ImprovementExecutor:
             git_commit_before=snapshot_hash,
             test_output=test_output
         )
+
+
+# Constants for AutonomousExecutor safety validation
+ALLOWED_FILES = [
+    'assistant/intent_detector.py',
+    'assistant/data_service.py',
+    'assistant/context_builder.py',
+]
+
+# Dangerous patterns that should not be auto-executed
+DANGEROUS_PATTERNS = [
+    r'^\s*import\s+',           # Import statements
+    r'^\s*from\s+\w+\s+import', # From imports
+    r'^\s*class\s+\w+',         # Class definitions
+    r'\.objects\.',             # Django ORM queries
+    r'\.save\s*\(',             # Database save calls
+    r'\.delete\s*\(',           # Database delete calls
+    r'\.create\s*\(',           # Database create calls
+    r'\.update\s*\(',           # Database update calls
+    r'\.execute\s*\(',          # Raw SQL execution
+    r'open\s*\(',               # File I/O
+    r'\.write\s*\(',            # File write
+    r'\.read\s*\(',             # File read (could be used for path traversal)
+    r'subprocess\.',            # Subprocess calls
+    r'os\.system\s*\(',         # System calls
+    r'eval\s*\(',               # Eval execution
+    r'exec\s*\(',               # Exec execution
+    r'__import__\s*\(',         # Dynamic imports
+]
+
+# Rate limiting settings
+RATE_LIMIT_MAX_EXECUTIONS = 5
+RATE_LIMIT_WINDOW_HOURS = 1
+RATE_LIMIT_CACHE_KEY = 'autonomous_executor_count'
+
+
+class AutonomousExecutor(ImprovementExecutor):
+    """
+    Executor variant that safely handles low-risk improvements without approval.
+
+    Extends ImprovementExecutor with additional safety validations:
+    - Only executes LOW severity tasks
+    - Only modifies files in ALLOWED_FILES list
+    - Only accepts simple code patterns (keywords, simple additions)
+    - Rejects code containing dangerous patterns
+    - Rate limits to max 5 executions per hour
+    - Always notifies admin after execution
+    """
+
+    def __init__(
+        self,
+        git_service: Optional[GitProtectionService] = None,
+        file_modifier: Optional[SafeFileModifier] = None,
+        test_runner: Optional[MockTestRunner] = None,
+        notification_service: Optional[AdminNotificationService] = None,
+        allowed_files: Optional[List[str]] = None,
+        max_executions_per_hour: int = RATE_LIMIT_MAX_EXECUTIONS
+    ):
+        """
+        Initialize the autonomous executor.
+
+        Args:
+            git_service: GitProtectionService instance.
+            file_modifier: SafeFileModifier instance.
+            test_runner: MockTestRunner instance.
+            notification_service: AdminNotificationService instance.
+            allowed_files: List of files that can be modified. Defaults to ALLOWED_FILES.
+            max_executions_per_hour: Maximum executions per hour. Defaults to 5.
+        """
+        super().__init__(
+            git_service=git_service,
+            file_modifier=file_modifier,
+            test_runner=test_runner,
+            notification_service=notification_service
+        )
+        self.allowed_files = allowed_files or ALLOWED_FILES
+        self.max_executions_per_hour = max_executions_per_hour
+
+    def is_safe_for_autonomous(self, task: ImprovementTaskModel) -> tuple:
+        """
+        Check if a task is safe for autonomous execution.
+
+        Validates:
+        1. Task must be LOW severity
+        2. Target file must be in ALLOWED_FILES
+        3. code_template must not contain dangerous patterns
+
+        Args:
+            task: The ImprovementTaskModel to validate.
+
+        Returns:
+            Tuple of (is_safe: bool, reason: str)
+        """
+        # Check severity
+        if task.severity != ImprovementTaskModel.SEVERITY_LOW:
+            return (False, f"Task severity is {task.severity}, only LOW severity tasks allowed")
+
+        # Parse code_template to get target file
+        if task.code_template:
+            target_file = self._extract_target_file(task.code_template)
+            if target_file and target_file not in self.allowed_files:
+                return (False, f"Target file '{target_file}' is not in allowed files list")
+
+            # Check for dangerous patterns
+            code_section = self._extract_code_section(task.code_template)
+            if code_section:
+                dangerous_pattern = self._contains_dangerous_patterns(code_section)
+                if dangerous_pattern:
+                    return (False, f"Code contains dangerous pattern: {dangerous_pattern}")
+
+        return (True, "Task is safe for autonomous execution")
+
+    def _extract_target_file(self, code_template: str) -> Optional[str]:
+        """
+        Extract the target file path from a code_template.
+
+        Args:
+            code_template: The code template string.
+
+        Returns:
+            The file path, or None if not found.
+        """
+        for line in code_template.split('\n'):
+            if line.startswith('FILE:'):
+                return line[5:].strip()
+        return None
+
+    def _extract_code_section(self, code_template: str) -> Optional[str]:
+        """
+        Extract the CODE section from a code_template.
+
+        Args:
+            code_template: The code template string.
+
+        Returns:
+            The code content, or None if not found.
+        """
+        lines = code_template.split('\n')
+        code_lines = []
+        in_code_section = False
+
+        for line in lines:
+            if line.startswith('CODE:'):
+                in_code_section = True
+            elif in_code_section:
+                code_lines.append(line)
+
+        return '\n'.join(code_lines) if code_lines else None
+
+    def _contains_dangerous_patterns(self, code: str) -> Optional[str]:
+        """
+        Check if code contains any dangerous patterns.
+
+        Args:
+            code: The code string to check.
+
+        Returns:
+            The matched pattern, or None if safe.
+        """
+        for pattern in DANGEROUS_PATTERNS:
+            if re.search(pattern, code, re.MULTILINE):
+                return pattern
+        return None
+
+    def _check_rate_limit(self) -> tuple:
+        """
+        Check if the rate limit has been exceeded.
+
+        Returns:
+            Tuple of (is_allowed: bool, reason: str)
+        """
+        current_count = cache.get(RATE_LIMIT_CACHE_KEY, 0)
+
+        if current_count >= self.max_executions_per_hour:
+            return (
+                False,
+                f"Rate limit exceeded: {current_count}/{self.max_executions_per_hour} "
+                f"executions in the past hour"
+            )
+
+        return (True, f"Rate limit OK: {current_count}/{self.max_executions_per_hour}")
+
+    def _increment_rate_limit(self):
+        """Increment the rate limit counter."""
+        current_count = cache.get(RATE_LIMIT_CACHE_KEY, 0)
+
+        # Set with expiry of 1 hour
+        cache.set(
+            RATE_LIMIT_CACHE_KEY,
+            current_count + 1,
+            timeout=RATE_LIMIT_WINDOW_HOURS * 3600
+        )
+
+    def execute_task(self, task: ImprovementTaskModel) -> ExecutionResult:
+        """
+        Execute an improvement task with autonomous safety checks.
+
+        Overrides parent to:
+        1. Validate task is safe for autonomous execution
+        2. Check rate limiting
+        3. Skip approval requirement for LOW severity
+        4. Always notify admin after execution
+
+        Args:
+            task: The ImprovementTaskModel to execute.
+
+        Returns:
+            ExecutionResult with success status and details.
+        """
+        logger.info(f"AutonomousExecutor: Starting execution of task {task.id}")
+
+        # Step 1: Validate task is safe for autonomous execution
+        is_safe, safety_reason = self.is_safe_for_autonomous(task)
+        if not is_safe:
+            logger.warning(f"Task {task.id} rejected for autonomous execution: {safety_reason}")
+            return ExecutionResult(
+                success=False,
+                message=f"Task not safe for autonomous execution: {safety_reason}",
+                task_id=str(task.id)
+            )
+
+        # Step 2: Check rate limiting
+        is_allowed, rate_reason = self._check_rate_limit()
+        if not is_allowed:
+            logger.warning(f"Task {task.id} rate limited: {rate_reason}")
+            return ExecutionResult(
+                success=False,
+                message=f"Autonomous execution rate limited: {rate_reason}",
+                task_id=str(task.id)
+            )
+
+        # Step 3: Increment rate limit counter before execution
+        self._increment_rate_limit()
+        logger.info(f"Task {task.id} passed autonomous safety checks, executing...")
+
+        # Step 4: Execute using parent class logic
+        # The parent _validate_task_status already allows LOW severity NEW tasks
+        result = super().execute_task(task)
+
+        # Step 5: Always notify admin (regardless of success/failure)
+        # Success/error notifications are already sent by parent
+        # For autonomous execution, also send auto_improvement notification
+        if result.success:
+            changes_made = []
+            if task.code_template:
+                target_file = self._extract_target_file(task.code_template)
+                if target_file:
+                    changes_made.append(f"Modified {target_file}")
+
+            task_info = self._create_task_info(task)
+            self.notification_service.notify_auto_improvement(
+                task=task_info,
+                changes_made=changes_made,
+                test_results=result.test_output
+            )
+            logger.info(f"Admin notified of autonomous execution for task {task.id}")
+
+        return result

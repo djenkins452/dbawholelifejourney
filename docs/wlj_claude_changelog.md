@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Fix is_deleted Filter Bug - Medication)
+# Last Updated: 2026-01-05 (Fix is_deleted Filter Bug - Mood)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,26 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Fix is_deleted Filter Bug in Mood Data Query (Task #180)
+
+**Session:** Fix is_deleted Filter Bug in Mood Data Query
+
+**Changes:**
+1. Fixed `get_mood_data()` in `assistant/data_service.py`:
+   - Removed broken `is_deleted=False` filter (is_deleted is a property, not a field)
+   - SoftDeleteManager already excludes deleted records automatically
+   - Updated comment to explain SoftDeleteManager handles exclusion
+2. Updated corresponding test in `assistant/tests/test_data_service.py`:
+   - Changed assertion to verify filter is called with only `user` parameter
+
+**Files Modified:**
+- `assistant/data_service.py` - Fixed filter in get_mood_data()
+- `assistant/tests/test_data_service.py` - Updated test assertion
+
+**Purpose:** Fix bug where filtering by `is_deleted=False` would fail because `is_deleted` is a property, not a database field. The SoftDeleteManager already handles exclusion of deleted records.
+
+---
 
 ### Fix is_deleted Filter Bug in Medication Data Query (Task #179)
 

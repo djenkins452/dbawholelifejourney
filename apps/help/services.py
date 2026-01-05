@@ -3,13 +3,36 @@ Help Chat Service - Handles searching articles and generating responses.
 
 The WLJ Assistant searches internal help documentation to answer user questions,
 adapting its tone based on the user's selected coaching style.
+
+Also handles personal data queries by integrating with the assistant module
+to provide context-aware responses about user's wellness data.
 """
+import logging
 import re
 from django.db.models import Q
 from django.core.cache import cache
 
 from apps.ai.models import CoachingStyle
+from assistant import process_assistant_message
 from .models import HelpArticle, HelpCategory
+
+logger = logging.getLogger(__name__)
+
+
+# Base system prompt for personal data query responses
+PERSONAL_DATA_SYSTEM_PROMPT = """You are the WLJ Assistant, a helpful assistant integrated into Whole Life Journey,
+a personal wellness and journaling application. Your role is to help users understand
+and reflect on their personal wellness data.
+
+When responding to questions about personal data:
+- Be specific to their actual data - never make up numbers or be generic
+- Help users see patterns and insights in their data
+- Be supportive and encouraging while being honest
+- Keep responses concise but helpful (2-4 sentences)
+- Never provide medical advice - only observations about their data
+
+IMPORTANT: You are NOT a medical professional. For health data, provide observations
+and encourage the user to discuss concerns with their healthcare provider."""
 
 
 class HelpChatService:
@@ -18,6 +41,10 @@ class HelpChatService:
 
     Searches help articles and generates responses that match
     the user's preferred coaching style tone.
+
+    Also handles personal data queries by integrating with the
+    assistant module to provide AI-generated responses with
+    personal context.
     """
 
     # Tone templates for different coaching styles
@@ -220,6 +247,12 @@ class HelpChatService:
         """
         Generate a response to the user's query.
 
+        First checks if the query is about personal data (weight, journal,
+        medication, food, mood). If so, generates an AI response with the
+        user's actual data as context.
+
+        Otherwise, searches help articles for relevant content.
+
         Args:
             query: The user's question
             context_module: The module the user is currently viewing
@@ -227,7 +260,12 @@ class HelpChatService:
         Returns:
             dict with 'message' (str) and 'articles' (list of HelpArticle)
         """
-        # Search for relevant articles
+        # Step 1: Check if this is a personal data query
+        personal_data_response = self._try_personal_data_response(query)
+        if personal_data_response:
+            return personal_data_response
+
+        # Step 2: Fall back to help article search
         articles = self.search_articles(query, module=context_module)
 
         if not articles:
@@ -252,6 +290,115 @@ class HelpChatService:
             'message': message,
             'articles': articles
         }
+
+    def _try_personal_data_response(self, query):
+        """
+        Try to generate a response for a personal data query.
+
+        Uses the assistant module to detect personal data queries and
+        generate AI responses with the user's actual data context.
+
+        Args:
+            query: The user's question
+
+        Returns:
+            dict with 'message' and 'articles' if personal data query,
+            None if not a personal data query or if generation fails
+        """
+        try:
+            # Process the message to detect personal data intent
+            result = process_assistant_message(
+                user=self.user,
+                message=query,
+                base_system_prompt=PERSONAL_DATA_SYSTEM_PROMPT,
+            )
+
+            # If not a personal query, return None to fall back to help search
+            if not result['is_personal_query']:
+                return None
+
+            # If it's a personal query but no data found, provide a helpful message
+            if not result['has_data']:
+                data_types = ', '.join(result['data_types']) if result['data_types'] else 'data'
+                message = (
+                    f"I'd love to help you with your {data_types} question, but "
+                    f"I don't have any {data_types} data recorded yet. "
+                    f"Once you start logging, I'll be able to answer questions about your history!"
+                )
+                return {
+                    'message': message,
+                    'articles': []
+                }
+
+            # Generate AI response with personal context
+            ai_response = self._generate_ai_response(query, result['system_prompt'])
+            if ai_response:
+                return {
+                    'message': ai_response,
+                    'articles': []
+                }
+
+            # AI generation failed, fall back to help search
+            logger.warning("AI generation failed for personal data query, falling back to help search")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error processing personal data query: {e}")
+            return None
+
+    def _generate_ai_response(self, query, system_prompt):
+        """
+        Generate an AI response using OpenAI.
+
+        Args:
+            query: The user's question
+            system_prompt: System prompt with personal data context
+
+        Returns:
+            str response or None if generation fails
+        """
+        try:
+            from apps.ai.services import AIService
+
+            # Check if AI service is available
+            ai_service = AIService()
+            if not ai_service.is_available:
+                logger.warning("AI service not available for personal data response")
+                return None
+
+            # Add coaching style context to the system prompt
+            coaching_style_prompt = self._get_coaching_style_instructions()
+            full_system_prompt = system_prompt + "\n\n" + coaching_style_prompt
+
+            # Generate response
+            response = ai_service._call_api(
+                system_prompt=full_system_prompt,
+                user_prompt=query,
+                max_tokens=200
+            )
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Error generating AI response: {e}")
+            return None
+
+    def _get_coaching_style_instructions(self):
+        """Get coaching style instructions for AI prompt."""
+        style_instructions = {
+            'supportive': "Be warm, encouraging, and balanced - like a trusted friend.",
+            'direct_coach': "Be direct and to-the-point. Give clear, concise answers.",
+            'gentle_guide': "Be gentle and patient. Guide the user thoughtfully.",
+            'wise_mentor': "Share wisdom with perspective. Help them see the bigger picture.",
+            'cheerful_friend': "Be upbeat and positive! Use friendly, enthusiastic language.",
+            'calm_companion': "Be calm and steady. Provide a peaceful, reassuring presence.",
+            'accountability_partner': "Be supportive but focused on action and progress.",
+        }
+        instruction = style_instructions.get(
+            self.coaching_style_key,
+            style_instructions['supportive']
+        )
+        return f"COACHING STYLE: {instruction}"
 
     def _format_single_response(self, article):
         """Format a response for a single matching article."""

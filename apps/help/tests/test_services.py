@@ -199,3 +199,201 @@ class HelpChatServiceWithPreferencesTest(TestCase):
         service = HelpChatService(self.user)
 
         self.assertEqual(service.tone, HelpChatService.TONE_TEMPLATES['supportive'])
+
+
+class HelpChatServicePersonalDataQueryTest(TestCase):
+    """Tests for personal data query integration in HelpChatService."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123"
+        )
+
+        # Create a test help article for fallback testing
+        self.category = HelpCategory.objects.create(
+            name="Features",
+            slug="features"
+        )
+        self.weight_article = HelpArticle.objects.create(
+            title="Weight Tracking Guide",
+            slug="weight-tracking-guide",
+            summary="Learn how to track your weight.",
+            content="The weight tracking feature helps you monitor...",
+            category=self.category,
+            module="health",
+            keywords="weight, tracking, log"
+        )
+
+    @patch('apps.help.services.process_assistant_message')
+    def test_personal_query_detected_with_data(self, mock_process):
+        """Test personal data query with data generates AI response."""
+        # Mock process_assistant_message to return a personal query with data
+        mock_process.return_value = {
+            'system_prompt': 'Test system prompt with data context',
+            'is_personal_query': True,
+            'data_types': ['weight'],
+            'has_data': True,
+        }
+
+        service = HelpChatService(self.user)
+
+        # Mock the AI response generation
+        with patch.object(service, '_generate_ai_response') as mock_ai:
+            mock_ai.return_value = "Your weight data shows an average of 175 lbs."
+
+            response = service.generate_response("What was my average weight last week?")
+
+            # Verify process_assistant_message was called
+            mock_process.assert_called_once_with(
+                user=self.user,
+                message="What was my average weight last week?",
+                base_system_prompt=mock_process.call_args[1]['base_system_prompt'],
+            )
+
+            # Verify AI response was generated
+            mock_ai.assert_called_once()
+
+            # Verify response contains AI-generated message
+            self.assertEqual(response['message'], "Your weight data shows an average of 175 lbs.")
+            self.assertEqual(response['articles'], [])
+
+    @patch('apps.help.services.process_assistant_message')
+    def test_personal_query_detected_no_data(self, mock_process):
+        """Test personal data query without data returns helpful message."""
+        # Mock process_assistant_message to return personal query but no data
+        mock_process.return_value = {
+            'system_prompt': '',
+            'is_personal_query': True,
+            'data_types': ['weight'],
+            'has_data': False,
+        }
+
+        service = HelpChatService(self.user)
+        response = service.generate_response("What was my weight last week?")
+
+        # Should return a message about no data
+        self.assertIn("weight", response['message'].lower())
+        self.assertIn("don't have any", response['message'])
+        self.assertEqual(response['articles'], [])
+
+    @patch('apps.help.services.process_assistant_message')
+    def test_non_personal_query_falls_back_to_articles(self, mock_process):
+        """Test non-personal queries fall back to help article search."""
+        # Mock process_assistant_message to return not a personal query
+        mock_process.return_value = {
+            'system_prompt': '',
+            'is_personal_query': False,
+            'data_types': [],
+            'has_data': False,
+        }
+
+        service = HelpChatService(self.user)
+        response = service.generate_response("How do I log my weight?")
+
+        # Should fall back to article search
+        self.assertIn("Weight Tracking Guide", response['message'])
+        self.assertTrue(len(response['articles']) > 0)
+
+    @patch('apps.help.services.process_assistant_message')
+    def test_personal_query_ai_failure_falls_back(self, mock_process):
+        """Test AI generation failure falls back to help articles."""
+        # Mock process_assistant_message to return personal query with data
+        mock_process.return_value = {
+            'system_prompt': 'Test system prompt',
+            'is_personal_query': True,
+            'data_types': ['weight'],
+            'has_data': True,
+        }
+
+        service = HelpChatService(self.user)
+
+        # Mock AI response to fail (return None)
+        with patch.object(service, '_generate_ai_response') as mock_ai:
+            mock_ai.return_value = None
+
+            response = service.generate_response("What was my weight?")
+
+            # Should fall back to article search
+            self.assertTrue(len(response['articles']) > 0 or 'weight' in response['message'].lower())
+
+    @patch('apps.help.services.process_assistant_message')
+    def test_process_assistant_message_exception_falls_back(self, mock_process):
+        """Test exception in process_assistant_message falls back gracefully."""
+        # Mock process_assistant_message to raise exception
+        mock_process.side_effect = Exception("Database error")
+
+        service = HelpChatService(self.user)
+        response = service.generate_response("What was my weight?")
+
+        # Should fall back to article search (not crash)
+        self.assertIn('message', response)
+        self.assertIn('articles', response)
+
+    def test_coaching_style_instructions(self):
+        """Test coaching style instructions are generated correctly."""
+        service = HelpChatService(self.user)
+
+        # Test default style
+        instructions = service._get_coaching_style_instructions()
+        self.assertIn("COACHING STYLE:", instructions)
+
+    @patch('apps.help.services.HelpChatService._get_user_coaching_style')
+    def test_direct_coach_style_instructions(self, mock_style):
+        """Test direct coach style generates appropriate instructions."""
+        mock_style.return_value = 'direct_coach'
+        service = HelpChatService(self.user)
+
+        instructions = service._get_coaching_style_instructions()
+        self.assertIn("direct", instructions.lower())
+
+    @patch('apps.help.services.AIService')
+    @patch('apps.help.services.process_assistant_message')
+    def test_generate_ai_response_calls_ai_service(self, mock_process, mock_ai_class):
+        """Test _generate_ai_response properly calls AIService."""
+        # Setup mock process_assistant_message
+        mock_process.return_value = {
+            'system_prompt': 'System prompt with personal data',
+            'is_personal_query': True,
+            'data_types': ['weight'],
+            'has_data': True,
+        }
+
+        # Setup mock AIService
+        mock_ai_instance = MagicMock()
+        mock_ai_instance.is_available = True
+        mock_ai_instance._call_api.return_value = "AI generated response"
+        mock_ai_class.return_value = mock_ai_instance
+
+        service = HelpChatService(self.user)
+        response = service.generate_response("What was my weight?")
+
+        # Verify AI service was called
+        mock_ai_instance._call_api.assert_called_once()
+
+        # Verify response is from AI
+        self.assertEqual(response['message'], "AI generated response")
+
+    @patch('apps.help.services.AIService')
+    @patch('apps.help.services.process_assistant_message')
+    def test_ai_service_not_available_falls_back(self, mock_process, mock_ai_class):
+        """Test AI service not available falls back to article search."""
+        # Setup mock process_assistant_message
+        mock_process.return_value = {
+            'system_prompt': 'System prompt with personal data',
+            'is_personal_query': True,
+            'data_types': ['weight'],
+            'has_data': True,
+        }
+
+        # Setup mock AIService as not available
+        mock_ai_instance = MagicMock()
+        mock_ai_instance.is_available = False
+        mock_ai_class.return_value = mock_ai_instance
+
+        service = HelpChatService(self.user)
+        response = service.generate_response("What was my weight?")
+
+        # Should fall back to article search
+        self.assertIn('message', response)
+        self.assertIn('articles', response)

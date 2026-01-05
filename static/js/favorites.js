@@ -24,10 +24,16 @@
     // Toggle favorite status
     async function toggleFavorite(button) {
         const url = button.dataset.url;
-        const title = button.dataset.title;
+        // Use data-title if provided, otherwise extract from page title
+        let title = button.dataset.title;
+        if (!title || title === 'Page') {
+            // Extract title from <title> tag, removing site suffix
+            const pageTitle = document.title || '';
+            title = pageTitle.split(' - ')[0].split(' | ')[0].trim() || 'This Page';
+        }
 
-        if (!url || !title) {
-            console.error('Favorite toggle missing url or title data attributes');
+        if (!url) {
+            console.error('Favorite toggle missing url data attribute');
             return;
         }
 
@@ -144,10 +150,21 @@
     function init() {
         addAnimationStyles();
 
-        // Find and bind favorite toggle button
-        const toggleBtn = document.getElementById('favorite-toggle');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', () => toggleFavorite(toggleBtn));
+        // Find and bind inline favorite toggle button (in page header)
+        const inlineBtn = document.getElementById('favorite-toggle');
+        if (inlineBtn) {
+            inlineBtn.addEventListener('click', () => toggleFavorite(inlineBtn));
+        }
+
+        // Find and bind floating favorite toggle button
+        const floatingBtn = document.getElementById('favorite-floating-toggle');
+        if (floatingBtn) {
+            floatingBtn.addEventListener('click', () => toggleFavorite(floatingBtn));
+
+            // Hide floating button if inline button exists
+            if (inlineBtn) {
+                floatingBtn.style.display = 'none';
+            }
         }
     }
 

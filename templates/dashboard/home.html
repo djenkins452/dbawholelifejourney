@@ -332,10 +332,10 @@
             {% endif %}
 
             {% if ai_enabled %}
-            <a href="{% url 'scan:home' %}" class="quick-action-card">
+            <button type="button" class="quick-action-card" id="quick-scan-btn" onclick="openQuickScan()">
                 <span class="action-icon">📷</span>
                 <span class="action-label">Scan</span>
-            </a>
+            </button>
             {% endif %}
         </div>
     </section>
@@ -628,6 +628,624 @@
 {% endblock %}
 
 {% block extra_js %}
+{% if ai_enabled %}
+<!-- Quick Scan Modal -->
+<dialog id="quick-scan-modal" class="quick-scan-modal">
+    <div class="quick-scan-content">
+        <div class="quick-scan-header">
+            <h2 id="quick-scan-title">📷 Quick Scan</h2>
+            <button type="button" class="quick-scan-close" onclick="closeQuickScan()">&times;</button>
+        </div>
+
+        <!-- Camera State -->
+        <div id="scan-state-camera" class="scan-state active">
+            <div class="camera-container">
+                <video id="quick-scan-video" class="camera-preview" autoplay playsinline></video>
+                <div id="camera-overlay" class="camera-overlay">
+                    <span>Starting camera...</span>
+                </div>
+            </div>
+            <div class="scan-controls">
+                <button type="button" class="btn btn-primary" id="capture-btn" onclick="captureImage()" disabled>
+                    📸 Capture
+                </button>
+                <label class="btn btn-secondary upload-btn">
+                    📁 Upload
+                    <input type="file" id="file-input" accept="image/*" onchange="handleFileUpload(event)" hidden>
+                </label>
+            </div>
+            <p class="scan-hint">Point camera at food, medicine, tools, or any item</p>
+        </div>
+
+        <!-- Preview State -->
+        <div id="scan-state-preview" class="scan-state">
+            <div class="preview-container">
+                <img id="preview-image" class="preview-image" alt="Captured image">
+            </div>
+            <div class="scan-controls">
+                <button type="button" class="btn btn-primary" onclick="analyzeImage()">
+                    🔍 Analyze
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="retakePhoto()">
+                    ↩️ Retake
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="scan-state-loading" class="scan-state">
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p>Analyzing image...</p>
+            </div>
+        </div>
+
+        <!-- Results State -->
+        <div id="scan-state-results" class="scan-state">
+            <div class="results-container">
+                <div class="result-header">
+                    <span id="result-icon" class="result-icon">📦</span>
+                    <div class="result-info">
+                        <span id="result-category" class="result-category">Item</span>
+                        <span id="result-confidence" class="result-confidence">0% confidence</span>
+                    </div>
+                </div>
+                <div id="result-items" class="result-items"></div>
+                <div id="result-question" class="result-question"></div>
+                <div id="result-actions" class="result-actions"></div>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="scan-state-error" class="scan-state">
+            <div class="error-container">
+                <span class="error-icon">⚠️</span>
+                <h3 id="error-title">Error</h3>
+                <p id="error-message">Something went wrong.</p>
+                <button type="button" class="btn btn-primary" onclick="retakePhoto()">Try Again</button>
+            </div>
+        </div>
+
+        <div class="quick-scan-footer">
+            <a href="{% url 'scan:home' %}" class="advanced-link">Advanced Scan Options →</a>
+        </div>
+    </div>
+</dialog>
+
+<style>
+/* Quick Scan Modal Styles */
+.quick-scan-modal {
+    border: none;
+    border-radius: 16px;
+    padding: 0;
+    max-width: 500px;
+    width: 95%;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.quick-scan-modal::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.quick-scan-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.quick-scan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.quick-scan-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.quick-scan-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    padding: 0.25rem 0.5rem;
+    line-height: 1;
+}
+
+.quick-scan-close:hover {
+    color: var(--color-text);
+}
+
+.scan-state {
+    display: none;
+    padding: 1rem;
+}
+
+.scan-state.active {
+    display: block;
+}
+
+.camera-container {
+    position: relative;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    aspect-ratio: 4/3;
+    margin-bottom: 1rem;
+}
+
+.camera-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.camera-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+}
+
+.camera-overlay.hidden {
+    display: none;
+}
+
+.scan-controls {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}
+
+.scan-controls .btn {
+    flex: 1;
+    max-width: 150px;
+}
+
+.scan-hint {
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+.preview-container {
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.preview-image {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    background: #000;
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    gap: 1rem;
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.results-container {
+    padding: 0.5rem 0;
+}
+
+.result-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.result-icon {
+    font-size: 2.5rem;
+}
+
+.result-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.result-category {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.result-confidence {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.result-items {
+    margin-bottom: 1rem;
+}
+
+.result-item {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.result-item-label {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.result-item-details {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+}
+
+.result-question {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+    text-align: center;
+}
+
+.result-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.result-actions .btn {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+}
+
+.result-actions .btn-primary {
+    background: var(--color-accent);
+    color: white;
+}
+
+.error-container {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.error-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.error-container h3 {
+    margin: 0 0 0.5rem;
+}
+
+.error-container p {
+    color: var(--color-text-secondary);
+    margin-bottom: 1.5rem;
+}
+
+.quick-scan-footer {
+    padding: 0.75rem 1rem;
+    text-align: center;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.advanced-link {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+}
+
+.advanced-link:hover {
+    color: var(--color-accent);
+}
+
+/* Button styling for quick-action-card as button */
+button.quick-action-card {
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: center;
+}
+</style>
+
+<script>
+(function() {
+    'use strict';
+
+    const categoryIcons = {
+        food: '🍽️',
+        medicine: '💊',
+        supplement: '💊',
+        receipt: '🧾',
+        document: '📄',
+        workout_equipment: '🏋️',
+        inventory_item: '📦',
+        recipe: '📖',
+        pet: '🐾',
+        maintenance: '🔧',
+        barcode: '📊',
+        unknown: '❓'
+    };
+
+    let modal, videoEl, overlayEl, captureBtn, previewImg;
+    let stream = null;
+    let capturedImageData = null;
+    let currentRequestId = null;
+    let currentScanImageKey = null;
+
+    function initElements() {
+        modal = document.getElementById('quick-scan-modal');
+        videoEl = document.getElementById('quick-scan-video');
+        overlayEl = document.getElementById('camera-overlay');
+        captureBtn = document.getElementById('capture-btn');
+        previewImg = document.getElementById('preview-image');
+    }
+
+    window.openQuickScan = async function() {
+        initElements();
+        if (!modal) return;
+
+        modal.showModal();
+        setState('camera');
+        await startCamera();
+    };
+
+    window.closeQuickScan = function() {
+        stopCamera();
+        capturedImageData = null;
+        currentRequestId = null;
+        if (modal) modal.close();
+    };
+
+    async function startCamera() {
+        try {
+            overlayEl.classList.remove('hidden');
+            overlayEl.querySelector('span').textContent = 'Starting camera...';
+
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+            });
+
+            videoEl.srcObject = stream;
+            await videoEl.play();
+
+            overlayEl.classList.add('hidden');
+            captureBtn.disabled = false;
+        } catch (err) {
+            console.error('Camera error:', err);
+            overlayEl.querySelector('span').textContent = 'Camera not available. Use upload instead.';
+            captureBtn.disabled = true;
+        }
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+        if (videoEl) videoEl.srcObject = null;
+    }
+
+    window.captureImage = function() {
+        if (!videoEl || !videoEl.srcObject) return;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = videoEl.videoWidth;
+        canvas.height = videoEl.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoEl, 0, 0);
+
+        capturedImageData = canvas.toDataURL('image/jpeg', 0.85);
+        previewImg.src = capturedImageData;
+
+        stopCamera();
+        setState('preview');
+    };
+
+    window.handleFileUpload = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            capturedImageData = e.target.result;
+            previewImg.src = capturedImageData;
+            stopCamera();
+            setState('preview');
+        };
+        reader.readAsDataURL(file);
+        event.target.value = '';
+    };
+
+    window.retakePhoto = function() {
+        capturedImageData = null;
+        setState('camera');
+        startCamera();
+    };
+
+    window.analyzeImage = async function() {
+        if (!capturedImageData) return;
+
+        setState('loading');
+
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+            const response = await fetch('{% url "scan:analyze" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ image: capturedImageData })
+            });
+
+            const data = await response.json();
+            currentRequestId = data.request_id;
+            currentScanImageKey = data.scan_image_key || null;
+
+            if (!response.ok || data.error) {
+                throw new Error(data.error || 'Analysis failed');
+            }
+
+            showResults(data);
+        } catch (err) {
+            console.error('Analysis error:', err);
+            showError('Analysis Failed', err.message || 'Please try again.');
+        }
+    };
+
+    function showResults(data) {
+        document.getElementById('result-icon').textContent = categoryIcons[data.top_category] || categoryIcons.unknown;
+        document.getElementById('result-category').textContent = formatCategory(data.top_category);
+        document.getElementById('result-confidence').textContent = Math.round(data.confidence * 100) + '% confidence';
+
+        // Show items
+        const itemsEl = document.getElementById('result-items');
+        if (data.items && data.items.length > 0) {
+            itemsEl.innerHTML = data.items.map(item => `
+                <div class="result-item">
+                    <div class="result-item-label">${escapeHtml(item.label)}</div>
+                    ${item.details ? `<div class="result-item-details">${formatDetails(item.details)}</div>` : ''}
+                </div>
+            `).join('');
+            itemsEl.style.display = 'block';
+        } else {
+            itemsEl.style.display = 'none';
+        }
+
+        // Show actions
+        const questionEl = document.getElementById('result-question');
+        const actionsEl = document.getElementById('result-actions');
+
+        if (data.next_best_actions && data.next_best_actions.length > 0) {
+            const firstAction = data.next_best_actions[0];
+            questionEl.textContent = firstAction.question;
+
+            actionsEl.innerHTML = firstAction.actions.map((action, idx) => {
+                if (action.id === 'skip') {
+                    return `<button type="button" class="btn btn-secondary" onclick="closeQuickScan()">${escapeHtml(action.label)}</button>`;
+                }
+                let url = action.url;
+                if (currentScanImageKey && url) {
+                    url += (url.includes('?') ? '&' : '?') + 'scan_image_key=' + encodeURIComponent(currentScanImageKey);
+                }
+                return `<a href="${escapeHtml(url)}" class="btn ${idx === 0 ? 'btn-primary' : 'btn-secondary'}">${escapeHtml(action.label)}</a>`;
+            }).join('');
+        }
+
+        setState('results');
+    }
+
+    function showError(title, message) {
+        document.getElementById('error-title').textContent = title;
+        document.getElementById('error-message').textContent = message;
+        setState('error');
+    }
+
+    function setState(state) {
+        ['camera', 'preview', 'loading', 'results', 'error'].forEach(s => {
+            const el = document.getElementById('scan-state-' + s);
+            if (el) el.classList.toggle('active', s === state);
+        });
+
+        // Update modal title based on state
+        const titleEl = document.getElementById('quick-scan-title');
+        if (titleEl) {
+            const titles = {
+                camera: '📷 Quick Scan',
+                preview: '📷 Preview',
+                loading: '🔍 Analyzing...',
+                results: '✨ Results',
+                error: '⚠️ Error'
+            };
+            titleEl.textContent = titles[state] || '📷 Quick Scan';
+        }
+    }
+
+    function formatCategory(cat) {
+        const names = {
+            food: 'Food',
+            medicine: 'Medicine',
+            supplement: 'Supplement',
+            receipt: 'Receipt',
+            document: 'Document',
+            workout_equipment: 'Workout Equipment',
+            inventory_item: 'Inventory Item',
+            recipe: 'Recipe',
+            pet: 'Pet',
+            maintenance: 'Maintenance Item',
+            barcode: 'Barcode',
+            unknown: 'Unknown'
+        };
+        return names[cat] || cat;
+    }
+
+    function formatDetails(details) {
+        const items = [];
+        if (details.brand) items.push(details.brand);
+        if (details.category) items.push(details.category);
+        if (details.calories) items.push(details.calories + ' cal');
+        if (details.protein_g) items.push(details.protein_g + 'g protein');
+        if (details.dosage) items.push(details.dosage);
+        if (details.purpose) items.push(details.purpose);
+        return items.map(i => escapeHtml(String(i))).join(' • ');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Close on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal && modal.open) {
+            closeQuickScan();
+        }
+    });
+
+    // Close on backdrop click
+    document.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeQuickScan();
+        }
+    });
+})();
+</script>
+{% endif %}
+
 {% if health_enabled and user_data.active_fast %}
 <script>
 // ==============================================================================

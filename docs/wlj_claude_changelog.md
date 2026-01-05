@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (What's New Visibility Check)
+# Last Updated: 2026-01-04 (Quick Scan Modal on Dashboard)
 # ==============================================================================
 
 # WLJ Change History
@@ -16,7 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-04 Changes
 
-<<<<<<< HEAD
+### Quick Scan Modal on Dashboard (Task #125)
+
+**Session:** Scan Button on Dashboard
+
+**Changes:**
+1. Dashboard Scan button now opens a Quick Scan modal instead of navigating away
+2. Users can capture photos or upload images directly from the dashboard
+3. AI analyzes the image and intelligently suggests where to log it:
+   - Food → "Log to Nutrition"
+   - Medicine → "Add to My Medicines"
+   - Tools/Electronics → "Add to Inventory"
+   - Recipes → "Save Recipe"
+   - Pets → "Add Pet"
+   - Documents → "Save to Documents"
+4. Results display category icon, confidence score, and item details
+5. One-click actions take users to pre-filled forms
+6. "Advanced Scan Options" link still available for barcode scanning
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Added Quick Scan modal with camera, preview, loading, results, and error states
+
+---
+
 ### Hotfix: AI Signals Model Name Corrections (Post-Task #135)
 
 **Session:** Signal Bug Fix

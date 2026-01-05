@@ -464,10 +464,9 @@ class PersonalDataService:
         # Import here to avoid circular imports and allow testing without Django
         from apps.journal.models import JournalEntry
 
-        # Build base queryset - filter by user, not deleted, and has mood
+        # Build base queryset - filter by user and has mood (SoftDeleteManager excludes deleted records)
         queryset = JournalEntry.objects.filter(
-            user=self.user,
-            is_deleted=False
+            user=self.user
         ).exclude(mood='')
 
         # Apply date filter if provided

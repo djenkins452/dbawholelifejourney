@@ -1612,9 +1612,9 @@ class TestGetMoodDataFiltering(CacheMockMixin, unittest.TestCase):
         service = PersonalDataService(mock_user)
         service.get_mood_data()
 
-        # Verify initial filter includes user and is_deleted=False
+        # Verify initial filter includes user (SoftDeleteManager excludes deleted records)
         mock_journal_models.JournalEntry.objects.filter.assert_called_with(
-            user=mock_user, is_deleted=False
+            user=mock_user
         )
 
     def test_excludes_empty_mood(self):

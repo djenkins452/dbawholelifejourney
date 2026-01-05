@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Glucose Chart Dynamic Period)
+# Last Updated: 2026-01-05 (Intent Detector Module)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,27 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Intent Detector Module for Personal Data Query System (Task #143)
+
+**Session:** Create Intent Detector Module
+
+**Changes:**
+1. Created new `assistant/` module at project root for Personal Data Query System
+2. Implemented `detect_personal_data_intent()` function that classifies user queries
+3. Returns dict with `is_personal_query`, `data_types`, and `has_date_context`
+4. Supports 11 data types: weight, journal, medication, food, mood, sleep, exercise, glucose, blood_pressure, faith, goals
+5. DATE_KEYWORDS list for time-related phrases (since, last, average, this week, etc.)
+6. Word-boundary matching to prevent partial word matches
+7. Case-insensitive detection with numeric date pattern support
+
+**Files Created:**
+- `assistant/__init__.py` - Module exports
+- `assistant/intent_detector.py` - Main detection logic with PERSONAL_DATA_KEYWORDS and DATE_KEYWORDS
+- `assistant/tests/__init__.py` - Test package
+- `assistant/tests/test_intent_detector.py` - 52 unit tests covering various query patterns
+
+---
 
 ### Glucose Chart Dynamic Period Selection
 

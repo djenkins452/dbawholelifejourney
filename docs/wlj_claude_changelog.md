@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Journal Day Streak Fix)
+# Last Updated: 2026-01-04 (Recurring Task Form)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,28 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Recurring vs One-Time Task Form (Task #134)
+
+**Session:** Task vs. Recurring Task
+
+**Changes:**
+1. Form now asks if task is recurring first (moved toggle to top)
+2. Recurring tasks show start_date and end_date fields instead of due_date
+3. Non-recurring tasks show only due_date (existing behavior)
+4. Added start_date and end_date fields to Task model
+5. Due date is auto-generated from start_date for recurring tasks
+6. RecurrenceService respects end_date when generating next occurrences
+7. Next occurrence due date is calculated from previous task's due date
+
+**Files Modified:**
+- `apps/life/models.py` - Added start_date, end_date fields and save() override
+- `apps/life/views.py` - Added new fields to TaskCreateView and TaskUpdateView
+- `apps/life/services/recurrence.py` - Updated to respect end_date and copy dates
+- `templates/life/task_form.html` - Reorganized with conditional date fields
+- `apps/life/migrations/0007_task_start_date_end_date.py` - New migration
+
+---
 
 ### Journal Day Streak Excludes Today (Task #133)
 

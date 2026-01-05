@@ -14,7 +14,7 @@
     
     <div class="form-page">
         <div class="form-header">
-            <h1 class="page-title">{% if object %}Edit Project{% else %}New Project{% endif %}</h1>
+            <h1 class="page-title">{% if object %}Edit Project{% else %}New Project{% endif %} {% include "components/favorite_toggle.html" with page_title="Project Form" %}</h1>
             <p class="page-subtitle">{% if object %}Update your project details{% else %}Start a new meaningful effort{% endif %}</p>
         </div>
         

@@ -6,7 +6,7 @@
 <div class="container">
     <div class="page-header">
         <div>
-            <h1 class="page-title">Financial Goals</h1>
+            <h1 class="page-title">Financial Goals {% include "components/favorite_toggle.html" with page_title="Financial Goals" %}</h1>
             <p class="page-subtitle">Track your progress toward financial milestones</p>
         </div>
         <a href="{% url 'finance:goal_create' %}" class="btn btn-primary">Add Goal</a>

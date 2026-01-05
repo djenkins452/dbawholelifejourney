@@ -14,7 +14,7 @@
     </nav>
 
     <div class="page-header">
-        <h1 class="page-title">{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Add Medical Provider{% endif %}</h1>
+        <h1 class="page-title">{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Add Medical Provider{% endif %} {% include "components/favorite_toggle.html" with page_title="Add Medical Provider" %}</h1>
     </div>
 
     {% if not form.instance.pk %}

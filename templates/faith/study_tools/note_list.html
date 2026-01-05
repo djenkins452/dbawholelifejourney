@@ -14,7 +14,7 @@
 
     <div class="page-header flex justify-between items-center">
         <div>
-            <h1 class="page-title">Bible Study Notes</h1>
+            <h1 class="page-title">Bible Study Notes {% include "components/favorite_toggle.html" with page_title="Bible Study Notes" %}</h1>
             <p class="page-subtitle">In-depth study and reflections</p>
         </div>
         <a href="{% url 'faith:study_note_create' %}" class="btn btn-primary">Add Note</a>

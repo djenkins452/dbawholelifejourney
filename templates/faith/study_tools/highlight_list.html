@@ -14,7 +14,7 @@
 
     <div class="page-header flex justify-between items-center">
         <div>
-            <h1 class="page-title">Bible Highlights</h1>
+            <h1 class="page-title">Bible Highlights {% include "components/favorite_toggle.html" with page_title="Bible Highlights" %}</h1>
             <p class="page-subtitle">Your highlighted Scripture passages</p>
         </div>
         <a href="{% url 'faith:highlight_create' %}" class="btn btn-primary">Add Highlight</a>

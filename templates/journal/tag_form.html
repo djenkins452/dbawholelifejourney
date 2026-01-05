@@ -13,7 +13,7 @@
     </nav>
 
     <div class="page-header">
-        <h1 class="page-title">{% if object %}Edit Tag{% else %}Create New Tag{% endif %}</h1>
+        <h1 class="page-title">{% if object %}Edit Tag{% else %}Create New Tag{% endif %} {% include "components/favorite_toggle.html" with page_title="Tag Form" %}</h1>
         <p class="page-subtitle">Tags help you organize and find entries quickly.</p>
     </div>
     

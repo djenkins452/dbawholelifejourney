@@ -12,7 +12,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Significant Events</h1>
+            <h1 class="page-title">Significant Events {% include "components/favorite_toggle.html" with page_title="Significant Events" %}</h1>
             <p class="page-subtitle">Birthdays, anniversaries, and moments that matter</p>
         </div>
         <a href="{% url 'life:significant_event_create' %}" class="btn btn-primary">

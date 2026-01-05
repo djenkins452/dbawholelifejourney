@@ -34,7 +34,7 @@
             </div>
             
             <div class="pet-header-info">
-                <h1 class="page-title">{{ pet.name }}</h1>
+                <h1 class="page-title">{{ pet.name }} {% include "components/favorite_toggle.html" with page_title="Pet Detail" %}</h1>
                 <p class="pet-subtitle">
                     {{ pet.get_species_display }}
                     {% if pet.breed %} · {{ pet.breed }}{% endif %}

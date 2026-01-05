@@ -21,7 +21,7 @@
             
             <div class="project-header-content">
                 <div class="project-title-row">
-                    <h1 class="page-title">{{ project.title }}</h1>
+                    <h1 class="page-title">{{ project.title }} {% include "components/favorite_toggle.html" with page_title="Project Detail" %}</h1>
                     <div class="project-badges">
                         <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
                         <span class="priority-badge priority-{{ project.priority }}">{{ project.get_priority_display }}</span>

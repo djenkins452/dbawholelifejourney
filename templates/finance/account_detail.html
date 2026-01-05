@@ -7,7 +7,7 @@
     <div class="page-header">
         <div>
             <a href="{% url 'finance:account_list' %}" class="back-link">&larr; All Accounts</a>
-            <h1 class="page-title">{{ account.name }}</h1>
+            <h1 class="page-title">{{ account.name }} {% include "components/favorite_toggle.html" with page_title="Account Detail" %}</h1>
             <p class="page-subtitle">{{ account.get_account_type_display }}{% if account.institution %} &middot; {{ account.institution }}{% endif %}</p>
         </div>
         <div class="header-actions">

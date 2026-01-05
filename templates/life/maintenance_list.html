@@ -12,7 +12,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Maintenance Logs</h1>
+            <h1 class="page-title">Maintenance Logs {% include "components/favorite_toggle.html" with page_title="Maintenance Logs" %}</h1>
             <p class="page-subtitle">Home repairs, upgrades, and service history</p>
         </div>
         <a href="{% url 'life:maintenance_create' %}" class="btn btn-primary">

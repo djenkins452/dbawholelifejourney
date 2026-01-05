@@ -14,7 +14,7 @@
     
     <div class="form-page">
         <div class="form-header">
-            <h1 class="page-title">{% if object %}Edit Document{% else %}Upload Document{% endif %}</h1>
+            <h1 class="page-title">{% if object %}Edit Document{% else %}Upload Document{% endif %} {% include "components/favorite_toggle.html" with page_title="Document Form" %}</h1>
             <p class="page-subtitle">Store important files securely</p>
         </div>
         

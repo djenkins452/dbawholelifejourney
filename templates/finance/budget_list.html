@@ -6,7 +6,7 @@
 <div class="container">
     <div class="page-header">
         <div>
-            <h1 class="page-title">Budgets</h1>
+            <h1 class="page-title">Budgets {% include "components/favorite_toggle.html" with page_title="Budgets" %}</h1>
             <p class="page-subtitle">{{ current_month|date:"F Y" }}</p>
         </div>
         <a href="{% url 'finance:budget_create' %}" class="btn btn-primary">Add Budget</a>

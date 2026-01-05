@@ -14,7 +14,7 @@
 
     <div class="reading-progress-page">
         <div class="progress-header">
-            <h1 class="page-title">{{ user_plan.template.title }}</h1>
+            <h1 class="page-title">{{ user_plan.template.title }} {% include "components/favorite_toggle.html" with page_title="Reading Plan Progress" %}</h1>
             <div class="progress-stats">
                 <div class="progress-bar-large">
                     <div class="progress-fill" style="width: {{ user_plan.progress_percentage }}%"></div>

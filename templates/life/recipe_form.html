@@ -14,7 +14,7 @@
     
     <div class="form-page">
         <div class="form-header">
-            <h1 class="page-title">{% if object %}Edit Recipe{% else %}Add Recipe{% endif %}</h1>
+            <h1 class="page-title">{% if object %}Edit Recipe{% else %}Add Recipe{% endif %} {% include "components/favorite_toggle.html" with page_title="Recipe Form" %}</h1>
             <p class="page-subtitle">Save your favorite recipes and family traditions</p>
         </div>
         

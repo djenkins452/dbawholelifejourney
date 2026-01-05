@@ -22,7 +22,7 @@
                 <div class="recipe-title-row">
                     <h1 class="page-title">
                         {% if recipe.is_favorite %}⭐{% endif %}
-                        {{ recipe.title }}
+                        {{ recipe.title }} {% include "components/favorite_toggle.html" with page_title="Recipe Detail" %}
                     </h1>
                 </div>
                 

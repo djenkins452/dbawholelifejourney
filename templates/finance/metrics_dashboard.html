@@ -6,7 +6,7 @@
 <div class="container">
     <div class="page-header">
         <div>
-            <h1 class="page-title">Financial Metrics</h1>
+            <h1 class="page-title">Financial Metrics {% include "components/favorite_toggle.html" with page_title="Financial Metrics" %}</h1>
             <p class="page-subtitle">Your financial health at a glance</p>
         </div>
         <a href="{% url 'finance:metrics_refresh' %}" class="btn btn-secondary">Refresh</a>

@@ -16,7 +16,7 @@
         <div class="detail-header">
             <div>
                 <div class="header-row">
-                    <h1 class="page-title">{{ log.title }}</h1>
+                    <h1 class="page-title">{{ log.title }} {% include "components/favorite_toggle.html" with page_title="Maintenance Detail" %}</h1>
                     <span class="log-type log-type-{{ log.log_type }}">{{ log.get_log_type_display }}</span>
                 </div>
                 <p class="log-area-display">{{ log.area }}</p>

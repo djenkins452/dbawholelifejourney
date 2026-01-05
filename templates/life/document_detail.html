@@ -35,7 +35,7 @@
                 {% endif %}
             </div>
             <div class="header-info">
-                <h1 class="page-title">{{ document.title }}</h1>
+                <h1 class="page-title">{{ document.title }} {% include "components/favorite_toggle.html" with page_title="Document Detail" %}</h1>
                 <p class="document-category">{{ document.get_category_display }}</p>
                 
                 {% if document.is_expired %}

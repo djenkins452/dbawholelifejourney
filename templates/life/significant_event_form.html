@@ -14,7 +14,7 @@
 
     <div class="form-page">
         <div class="form-header">
-            <h1 class="page-title">{% if object %}Edit {{ object.title }}{% else %}Add a Significant Event{% endif %}</h1>
+            <h1 class="page-title">{% if object %}Edit {{ object.title }}{% else %}Add a Significant Event{% endif %} {% include "components/favorite_toggle.html" with page_title="Significant Event Form" %}</h1>
             <p class="page-subtitle">Track birthdays, anniversaries, and important dates</p>
         </div>
 

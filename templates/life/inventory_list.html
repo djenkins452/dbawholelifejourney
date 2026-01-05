@@ -12,7 +12,7 @@
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Home Inventory</h1>
+            <h1 class="page-title">Home Inventory {% include "components/favorite_toggle.html" with page_title="Home Inventory" %}</h1>
             <p class="page-subtitle">Document your belongings for peace of mind</p>
         </div>
         <a href="{% url 'life:inventory_create' %}" class="btn btn-primary">

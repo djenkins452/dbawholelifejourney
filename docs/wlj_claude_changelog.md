@@ -4,13 +4,46 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Today's Verse Refresh)
+# Last Updated: 2026-01-05 (Favorites Menu)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2026-01-05 Changes
+
+### Favorites Menu (Task #138)
+
+**Session:** Favorites Menu
+
+**Changes:**
+1. Added new Favorites dropdown menu between Dashboard and Journal in navigation
+2. Created FavoritePage model to store user's favorited pages (max 10)
+3. Created PageView model to track recently viewed pages
+4. Added star toggle button component for page headings
+5. Favorites menu shows starred pages at top, then fills remaining slots with Most Recent pages
+6. Divider and "Most Recent" subheading separates favorites from recent pages
+7. Added PageViewTrackingMiddleware to automatically track page views
+8. Added favorites_context processor for template data
+
+**Files Added:**
+- `apps/core/middleware.py` - PageViewTrackingMiddleware
+- `static/js/favorites.js` - Star toggle JavaScript functionality
+- `templates/components/favorite_toggle.html` - Reusable star button component
+
+**Files Modified:**
+- `apps/core/models.py` - Added FavoritePage and PageView models
+- `apps/core/views.py` - Added FavoriteToggleView, FavoriteCheckView, FavoritesMenuDataView
+- `apps/core/urls.py` - Added favorites API endpoints
+- `apps/core/context_processors.py` - Added favorites_context processor
+- `config/settings.py` - Added middleware and context processor
+- `templates/components/navigation.html` - Added Favorites dropdown menu
+- `templates/base.html` - Include favorites.js
+- Various page templates - Added star toggle to page headings (journal, faith, health, life, purpose, tasks, recipes)
 
 ---
 

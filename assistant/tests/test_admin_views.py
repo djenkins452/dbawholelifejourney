@@ -539,6 +539,7 @@ class TestDashboardRollbackTask(TestCase):
             original_query="test query",
             suggested_fix="Add keyword",
             status=ImprovementTaskModel.STATUS_COMPLETED,
+            git_commit_before='abc1234567890abcdef1234567890abcdef1234',
         )
 
     def test_rollback_requires_completed_status(self):
@@ -550,34 +551,183 @@ class TestDashboardRollbackTask(TestCase):
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
         response = self.client.post(
             url,
+            {'reason': 'Test rollback'},
             HTTP_X_REQUESTED_WITH='XMLHttpRequest',
-            content_type='application/json',
         )
 
         self.assertEqual(response.status_code, 400)
         data = response.json()
         self.assertFalse(data['success'])
+        self.assertIn('completed', data['error'].lower())
 
-    def test_rollback_success(self):
-        """Test successful task rollback."""
-        self.client.login(email='staff@example.com', password='testpass123')
-        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
-        response = self.client.post(url)
-
-        self.assertEqual(response.status_code, 302)
-
-        self.task.refresh_from_db()
-        self.assertEqual(self.task.status, ImprovementTaskModel.STATUS_FAILED)
-
-    @patch('assistant.admin_views.GitProtectionService')
-    def test_rollback_with_commit_hash(self, mock_git_service):
-        """Test rollback triggers git rollback when commit hash exists."""
-        self.task.commit_hash = 'abc123'
+    def test_rollback_requires_git_commit_before(self):
+        """Test that rollback requires git_commit_before to be set."""
+        self.task.git_commit_before = ''
         self.task.save()
 
         self.client.login(email='staff@example.com', password='testpass123')
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
-        response = self.client.post(url)
+        response = self.client.post(
+            url,
+            {'reason': 'Test rollback'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data['success'])
+        self.assertIn('commit', data['error'].lower())
+
+    def test_rollback_requires_reason(self):
+        """Test that rollback requires a reason."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
+        response = self.client.post(
+            url,
+            {},  # No reason
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data['success'])
+        self.assertIn('reason', data['error'].lower())
+
+    @patch('assistant.admin_views.AdminNotificationService')
+    @patch('assistant.admin_views.GitProtectionService')
+    def test_rollback_success(self, mock_git_service, mock_notification_service):
+        """Test successful task rollback."""
+        # Mock git rollback success
+        mock_git_instance = mock_git_service.return_value
+        mock_git_instance.rollback_to_commit.return_value.success = True
+
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
+        response = self.client.post(url, {'reason': 'Found a bug'})
 
         self.assertEqual(response.status_code, 302)
-        mock_git_service.return_value.rollback_to_commit.assert_called_once_with('abc123')
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, ImprovementTaskModel.STATUS_ROLLED_BACK)
+        self.assertEqual(self.task.rollback_reason, 'Found a bug')
+        self.assertIsNotNone(self.task.rolled_back_at)
+
+    @patch('assistant.admin_views.AdminNotificationService')
+    @patch('assistant.admin_views.GitProtectionService')
+    def test_rollback_ajax_success(self, mock_git_service, mock_notification_service):
+        """Test successful AJAX rollback."""
+        # Mock git rollback success
+        mock_git_instance = mock_git_service.return_value
+        mock_git_instance.rollback_to_commit.return_value.success = True
+
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
+        response = self.client.post(
+            url,
+            {'reason': 'Found a bug'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('rollback_commit', data)
+        self.assertEqual(data['rollback_commit'], 'abc12345')
+
+    @patch('assistant.admin_views.AdminNotificationService')
+    @patch('assistant.admin_views.GitProtectionService')
+    def test_rollback_calls_git_service(self, mock_git_service, mock_notification_service):
+        """Test rollback triggers git rollback with correct commit hash."""
+        # Mock git rollback success
+        mock_git_instance = mock_git_service.return_value
+        mock_git_instance.rollback_to_commit.return_value.success = True
+
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
+        self.client.post(url, {'reason': 'Test rollback'})
+
+        mock_git_instance.rollback_to_commit.assert_called_once_with(
+            'abc1234567890abcdef1234567890abcdef1234'
+        )
+
+    @patch('assistant.admin_views.AdminNotificationService')
+    @patch('assistant.admin_views.GitProtectionService')
+    def test_rollback_notifies_admin(self, mock_git_service, mock_notification_service):
+        """Test rollback sends notification to admin."""
+        # Mock git rollback success
+        mock_git_instance = mock_git_service.return_value
+        mock_git_instance.rollback_to_commit.return_value.success = True
+
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
+        self.client.post(url, {'reason': 'Test rollback'})
+
+        mock_notification_service.return_value.notify_task_error.assert_called_once()
+
+    @patch('assistant.admin_views.GitProtectionService')
+    def test_rollback_git_failure(self, mock_git_service):
+        """Test rollback handles git failure gracefully."""
+        # Mock git rollback failure
+        mock_git_instance = mock_git_service.return_value
+        mock_git_instance.rollback_to_commit.return_value.success = False
+        mock_git_instance.rollback_to_commit.return_value.message = 'Git error'
+
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
+        response = self.client.post(
+            url,
+            {'reason': 'Test rollback'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 500)
+        data = response.json()
+        self.assertFalse(data['success'])
+        self.assertIn('Git', data['error'])
+
+        # Task status should not change on failure
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, ImprovementTaskModel.STATUS_COMPLETED)
+
+
+class TestRollbackMethod(TestCase):
+    """Tests for the rollback model method."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.task = ImprovementTaskModel.objects.create(
+            title="Test Task",
+            description={"objective": "Test"},
+            gap_type=ImprovementTaskModel.GAP_TYPE_MISSING_KEYWORDS,
+            severity=ImprovementTaskModel.SEVERITY_LOW,
+            original_query="test query",
+            suggested_fix="Add keyword",
+            status=ImprovementTaskModel.STATUS_COMPLETED,
+        )
+
+    def test_rollback_method_success(self):
+        """Test rollback method updates status and fields."""
+        self.task.rollback(reason='Bug found')
+
+        self.assertEqual(self.task.status, ImprovementTaskModel.STATUS_ROLLED_BACK)
+        self.assertEqual(self.task.rollback_reason, 'Bug found')
+        self.assertIsNotNone(self.task.rolled_back_at)
+
+    def test_rollback_from_wrong_status_raises_error(self):
+        """Test that rollback from non-completed status raises error."""
+        self.task.status = ImprovementTaskModel.STATUS_PENDING_APPROVAL
+        self.task.save()
+
+        from assistant.models import TaskStatusTransitionError
+        with self.assertRaises(TaskStatusTransitionError):
+            self.task.rollback(reason='Test')
+
+    def test_rollback_persists_to_database(self):
+        """Test that rollback changes are saved to database."""
+        self.task.rollback(reason='Bug found')
+
+        # Fetch fresh from database
+        fresh_task = ImprovementTaskModel.objects.get(id=self.task.id)
+        self.assertEqual(fresh_task.status, ImprovementTaskModel.STATUS_ROLLED_BACK)
+        self.assertEqual(fresh_task.rollback_reason, 'Bug found')
+        self.assertIsNotNone(fresh_task.rolled_back_at)

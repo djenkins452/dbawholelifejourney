@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Background Task Queue - Task #171)
+# Last Updated: 2026-01-05 (Rollback Management Interface - Task #172)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,49 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Create Rollback Management Interface (Task #172)
+
+**Session:** Rollback Management Interface Implementation
+
+**Objective:**
+Build admin interface to manually trigger rollbacks for any completed improvement.
+Part of Personal Assistant Growth project (Phase 7).
+
+**Model Changes:**
+- Added `rolled_back_at` DateTimeField to ImprovementTaskModel
+- Added `rollback_reason` TextField to ImprovementTaskModel
+- Added `rollback()` model method for status transitions
+- STATUS_ROLLED_BACK already existed in status choices
+
+**View Changes (admin_views.py):**
+- Updated `dashboard_rollback_task` view with:
+  - Validation for COMPLETED status
+  - Validation for git_commit_before field
+  - Required rollback_reason in POST body
+  - GitProtectionService.rollback_to_commit() call
+  - Admin notification on rollback completion
+  - ROLLED_BACK status (not FAILED)
+- Fixed STATUS_COLORS to include all statuses
+- Fixed SEVERITY_COLORS to match model choices
+
+**Dashboard Template Changes:**
+- Added rollback confirmation modal with reason input
+- Rollback button only shows if git_commit_before exists
+- Added rollback info display in task details (rolled_back_at, rollback_reason)
+- Updated commit hash display to show both before/after
+
+**Tests Added:**
+- TestDashboardRollbackTask: 8 tests for rollback view
+- TestRollbackMethod: 3 tests for model method
+
+**Files Modified:**
+- `assistant/models.py`
+- `assistant/admin_views.py`
+- `templates/assistant/admin/dashboard.html`
+- `assistant/tests/test_admin_views.py`
+
+---
 
 ### Create Background Task Queue for Execution (Task #171)
 

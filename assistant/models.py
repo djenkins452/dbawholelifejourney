@@ -217,6 +217,17 @@ class ImprovementTaskModel(models.Model):
         help_text='Reason for rejecting the task'
     )
 
+    # Rollback tracking
+    rolled_back_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the task was rolled back'
+    )
+    rollback_reason = models.TextField(
+        blank=True,
+        help_text='Reason for rolling back the task'
+    )
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Improvement Task'
@@ -316,6 +327,8 @@ class ImprovementTaskModel(models.Model):
             'error_message': self.error_message,
             'git_commit_before': self.git_commit_before,
             'git_commit_after': self.git_commit_after,
+            'rolled_back_at': self.rolled_back_at.isoformat() if self.rolled_back_at else None,
+            'rollback_reason': self.rollback_reason,
         }
 
     @classmethod
@@ -436,4 +449,23 @@ class ImprovementTaskModel(models.Model):
         self.rejection_reason = reason
         self.clear_approval_token()
         self.save()
+        return True
+
+    def rollback(self, reason=''):
+        """
+        Rollback the task with a reason.
+
+        Args:
+            reason: Required reason for rollback.
+
+        Raises:
+            TaskStatusTransitionError: If task cannot be rolled back.
+
+        Returns:
+            True if rollback status change was successful.
+        """
+        self.transition_status(self.STATUS_ROLLED_BACK)
+        self.rolled_back_at = timezone.now()
+        self.rollback_reason = reason
+        self.save(update_fields=['rolled_back_at', 'rollback_reason'])
         return True

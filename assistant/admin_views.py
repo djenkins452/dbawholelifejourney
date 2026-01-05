@@ -151,17 +151,18 @@ STATUS_COLORS = {
     ImprovementTaskModel.STATUS_PENDING_APPROVAL: 'yellow',
     ImprovementTaskModel.STATUS_APPROVED: 'green',
     ImprovementTaskModel.STATUS_IN_PROGRESS: 'indigo',
+    ImprovementTaskModel.STATUS_TESTING: 'indigo',
     ImprovementTaskModel.STATUS_COMPLETED: 'green',
-    ImprovementTaskModel.STATUS_FAILED: 'red',
+    ImprovementTaskModel.STATUS_ERROR: 'red',
     ImprovementTaskModel.STATUS_REJECTED: 'gray',
+    ImprovementTaskModel.STATUS_ROLLED_BACK: 'orange',
 }
 
 # Severity badge color mapping
 SEVERITY_COLORS = {
     ImprovementTaskModel.SEVERITY_LOW: 'gray',
     ImprovementTaskModel.SEVERITY_MEDIUM: 'yellow',
-    ImprovementTaskModel.SEVERITY_HIGH: 'orange',
-    ImprovementTaskModel.SEVERITY_CRITICAL: 'red',
+    ImprovementTaskModel.SEVERITY_HIGH: 'red',
 }
 
 
@@ -301,6 +302,11 @@ def dashboard_rollback_task(request, task_id):
     """
     Rollback a completed task from the dashboard.
 
+    Requires:
+        - Task must be in COMPLETED status
+        - Task must have git_commit_before set
+        - Reason must be provided in POST body
+
     Args:
         request: The HTTP request.
         task_id: UUID of the task to rollback.
@@ -309,37 +315,72 @@ def dashboard_rollback_task(request, task_id):
         JSON response or redirect.
     """
     task = get_object_or_404(ImprovementTaskModel, id=task_id)
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
+    # Validate task status
     if task.status != ImprovementTaskModel.STATUS_COMPLETED:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({
-                'success': False,
-                'error': f'Only completed tasks can be rolled back. Current status: {task.get_status_display()}'
-            }, status=400)
+        error_msg = f'Only completed tasks can be rolled back. Current status: {task.get_status_display()}'
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': error_msg}, status=400)
+        return redirect('assistant:improvement_dashboard')
+
+    # Validate git_commit_before exists
+    if not task.git_commit_before:
+        error_msg = 'Cannot rollback: No git commit snapshot found for this task.'
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': error_msg}, status=400)
+        return redirect('assistant:improvement_dashboard')
+
+    # Get and validate rollback reason
+    reason = request.POST.get('reason', '').strip()
+    if not reason:
+        error_msg = 'Rollback reason is required.'
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': error_msg}, status=400)
         return redirect('assistant:improvement_dashboard')
 
     try:
-        # Use git service for rollback if available
-        if task.commit_hash:
-            from .git_service import GitProtectionService
-            git_service = GitProtectionService()
-            git_service.rollback_to_commit(task.commit_hash)
+        # Perform git rollback
+        from .git_service import GitProtectionService
+        git_service = GitProtectionService()
+        rollback_result = git_service.rollback_to_commit(task.git_commit_before)
 
-        # Update task status
-        task.status = ImprovementTaskModel.STATUS_FAILED
-        task.save(update_fields=['status'])
+        if not rollback_result.success:
+            error_msg = f'Git rollback failed: {rollback_result.message}'
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': error_msg}, status=500)
+            return redirect('assistant:improvement_dashboard')
 
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        # Update task status using the rollback method
+        task.rollback(reason=reason)
+
+        # Notify admin of rollback completion
+        from .notifications import AdminNotificationService, TaskInfo
+        notification_service = AdminNotificationService()
+        task_info = TaskInfo(
+            task_id=str(task.id),
+            title=task.title,
+            description=task.suggested_fix,
+            severity=task.severity,
+            rollback_hash=task.git_commit_before,
+        )
+        notification_service.notify_task_error(
+            task=task_info,
+            error_details=f'Task was manually rolled back. Reason: {reason}',
+            rollback_successful=True,
+            rollback_hash=task.git_commit_before,
+        )
+
+        if is_ajax:
             return JsonResponse({
                 'success': True,
                 'message': 'Task rolled back successfully',
                 'new_status': task.get_status_display(),
+                'rollback_commit': task.git_commit_before[:8],
             })
         return redirect('assistant:improvement_dashboard')
+
     except Exception as e:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=500)
+        if is_ajax:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
         return redirect('assistant:improvement_dashboard')

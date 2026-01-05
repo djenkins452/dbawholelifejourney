@@ -412,8 +412,8 @@
                                 <button class="btn btn-danger btn-sm" onclick="openRejectModal('{{ item.task.id }}')">
                                     Reject
                                 </button>
-                                {% elif item.task.status == 'completed' %}
-                                <button class="btn btn-warning btn-sm" onclick="rollbackTask('{{ item.task.id }}')">
+                                {% elif item.task.status == 'completed' and item.task.git_commit_before %}
+                                <button class="btn btn-warning btn-sm" onclick="openRollbackModal('{{ item.task.id }}')">
                                     Rollback
                                 </button>
                                 {% endif %}
@@ -456,10 +456,28 @@
                                         <dd>{{ item.task.completed_at|date:"M d, Y H:i" }}</dd>
                                     </div>
                                     {% endif %}
-                                    {% if item.task.commit_hash %}
+                                    {% if item.task.git_commit_before %}
                                     <div class="detail-item">
-                                        <dt>Commit Hash</dt>
-                                        <dd><code>{{ item.task.commit_hash }}</code></dd>
+                                        <dt>Commit Before</dt>
+                                        <dd><code>{{ item.task.git_commit_before }}</code></dd>
+                                    </div>
+                                    {% endif %}
+                                    {% if item.task.git_commit_after %}
+                                    <div class="detail-item">
+                                        <dt>Commit After</dt>
+                                        <dd><code>{{ item.task.git_commit_after }}</code></dd>
+                                    </div>
+                                    {% endif %}
+                                    {% if item.task.rolled_back_at %}
+                                    <div class="detail-item">
+                                        <dt>Rolled Back At</dt>
+                                        <dd>{{ item.task.rolled_back_at|date:"M d, Y H:i" }}</dd>
+                                    </div>
+                                    {% endif %}
+                                    {% if item.task.rollback_reason %}
+                                    <div class="detail-item">
+                                        <dt>Rollback Reason</dt>
+                                        <dd>{{ item.task.rollback_reason }}</dd>
                                     </div>
                                     {% endif %}
                                 </div>
@@ -497,8 +515,23 @@
         </div>
     </div>
 
+    <!-- Rollback Modal -->
+    <div id="rollback-modal" class="modal">
+        <div class="modal-content">
+            <h3>Rollback Task</h3>
+            <p><strong>Warning:</strong> This will revert all code changes made by this task.</p>
+            <p>Please provide a reason for rolling back this task:</p>
+            <textarea id="rollback-reason" placeholder="Enter rollback reason (required)..."></textarea>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeRollbackModal()">Cancel</button>
+                <button class="btn btn-warning" onclick="submitRollback()">Rollback Task</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentRejectTaskId = null;
+        let currentRollbackTaskId = null;
 
         function toggleDetails(taskId) {
             const details = document.getElementById('details-' + taskId);
@@ -596,19 +629,41 @@
             });
         }
 
-        function rollbackTask(taskId) {
-            if (!confirm('Are you sure you want to rollback this task? This will revert the associated code changes.')) return;
+        function openRollbackModal(taskId) {
+            currentRollbackTaskId = taskId;
+            document.getElementById('rollback-modal').classList.add('active');
+            document.getElementById('rollback-reason').value = '';
+            document.getElementById('rollback-reason').focus();
+        }
 
-            fetch('{% url "assistant:improvement_dashboard" %}' + 'rollback/' + taskId + '/', {
+        function closeRollbackModal() {
+            currentRollbackTaskId = null;
+            document.getElementById('rollback-modal').classList.remove('active');
+        }
+
+        function submitRollback() {
+            if (!currentRollbackTaskId) return;
+
+            const reason = document.getElementById('rollback-reason').value.trim();
+            if (!reason) {
+                showAlert('Rollback reason is required.', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('reason', reason);
+
+            fetch('{% url "assistant:improvement_dashboard" %}' + 'rollback/' + currentRollbackTaskId + '/', {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCsrfToken(),
                     'X-Requested-With': 'XMLHttpRequest',
-                    'Content-Type': 'application/json',
                 },
+                body: formData,
             })
             .then(response => response.json())
             .then(data => {
+                closeRollbackModal();
                 if (data.success) {
                     showAlert(data.message, 'success');
                     location.reload();
@@ -617,6 +672,7 @@
                 }
             })
             .catch(error => {
+                closeRollbackModal();
                 showAlert('An error occurred: ' + error, 'error');
             });
         }
@@ -625,6 +681,7 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeRejectModal();
+                closeRollbackModal();
             }
         });
 
@@ -632,6 +689,12 @@
         document.getElementById('reject-modal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closeRejectModal();
+            }
+        });
+
+        document.getElementById('rollback-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeRollbackModal();
             }
         });
     </script>

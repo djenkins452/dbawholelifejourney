@@ -3211,3 +3211,237 @@ class ClarityImportView(AdminRequiredMixin, View):
             messages.warning(request, "No new entries to import (all were duplicates or invalid)")
 
         return render(request, self.template_name, context)
+
+
+class ProjectImportView(AdminRequiredMixin, View):
+    """
+    Import Project Management JSON export into AdminProject, AdminProjectPhase, and AdminTask records.
+
+    Provides a web UI for uploading JSON files that define projects with phases and tasks
+    following the WLJ Executable Task Standard.
+    """
+    template_name = "admin_console/project_import.html"
+
+    def get(self, request):
+        projects = AdminProject.objects.filter(status='open').order_by('name')
+        return render(request, self.template_name, {'existing_projects': projects})
+
+    def post(self, request):
+        import json
+        from django.db import transaction
+
+        # Get form data
+        json_file = request.FILES.get('json_file')
+        dry_run = request.POST.get('dry_run') == 'on'
+
+        projects = AdminProject.objects.filter(status='open').order_by('name')
+        context = {'existing_projects': projects}
+
+        # Validate inputs
+        if not json_file:
+            messages.error(request, "Please upload a JSON file.")
+            return render(request, self.template_name, context)
+
+        # Read and parse JSON
+        try:
+            content = json_file.read().decode('utf-8')
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            messages.error(request, f"Invalid JSON file: {e}")
+            return render(request, self.template_name, context)
+        except Exception as e:
+            messages.error(request, f"Error reading file: {e}")
+            return render(request, self.template_name, context)
+
+        # Validate JSON structure
+        if 'project' not in data:
+            messages.error(request, "JSON must contain a 'project' object with 'name' and 'description'.")
+            return render(request, self.template_name, context)
+
+        if 'tasks' not in data:
+            messages.error(request, "JSON must contain a 'tasks' array.")
+            return render(request, self.template_name, context)
+
+        project_data = data['project']
+        tasks_data = data['tasks']
+
+        if not project_data.get('name'):
+            messages.error(request, "Project must have a 'name'.")
+            return render(request, self.template_name, context)
+
+        # Check for duplicate project name
+        if AdminProject.objects.filter(name=project_data['name']).exists():
+            messages.error(request, f"A project with name '{project_data['name']}' already exists.")
+            return render(request, self.template_name, context)
+
+        # Parse tasks and collect phase information
+        phases_needed = set()
+        valid_tasks = []
+        invalid_tasks = []
+
+        for idx, task in enumerate(tasks_data, 1):
+            # Validate required task fields
+            errors = []
+
+            if not task.get('name'):
+                errors.append("missing 'name'")
+
+            if not task.get('phase'):
+                errors.append("missing 'phase'")
+
+            if not task.get('description'):
+                errors.append("missing 'description'")
+            else:
+                desc = task['description']
+                if not isinstance(desc, dict):
+                    errors.append("'description' must be an object")
+                else:
+                    if not desc.get('objective'):
+                        errors.append("description missing 'objective'")
+                    if 'inputs' not in desc:
+                        errors.append("description missing 'inputs'")
+                    if not desc.get('actions') or not isinstance(desc.get('actions'), list):
+                        errors.append("description must have 'actions' array with at least one item")
+                    if not desc.get('output'):
+                        errors.append("description missing 'output'")
+
+            if errors:
+                invalid_tasks.append({
+                    'index': idx,
+                    'name': task.get('name', f'Task {idx}'),
+                    'errors': errors
+                })
+            else:
+                phases_needed.add(task['phase'])
+                valid_tasks.append(task)
+
+        # Build summary
+        summary = {
+            'project_name': project_data['name'],
+            'project_description': project_data.get('description', ''),
+            'total_tasks': len(tasks_data),
+            'valid_tasks': len(valid_tasks),
+            'invalid_tasks': len(invalid_tasks),
+            'phases': sorted(phases_needed),
+            'dry_run': dry_run,
+            'invalid_task_details': invalid_tasks[:10],  # Show first 10 invalid
+        }
+
+        # Group tasks by phase for display
+        tasks_by_phase = {}
+        for task in valid_tasks:
+            phase = task['phase']
+            if phase not in tasks_by_phase:
+                tasks_by_phase[phase] = []
+            tasks_by_phase[phase].append(task['name'])
+        summary['tasks_by_phase'] = dict(sorted(tasks_by_phase.items()))
+
+        context['summary'] = summary
+
+        if invalid_tasks and not dry_run:
+            messages.error(request, f"Cannot import: {len(invalid_tasks)} task(s) have validation errors.")
+            return render(request, self.template_name, context)
+
+        if dry_run:
+            messages.info(request, f"DRY RUN: Would create project '{project_data['name']}' with {len(valid_tasks)} tasks in {len(phases_needed)} phase(s)")
+            return render(request, self.template_name, context)
+
+        # Actually create the records
+        if not valid_tasks:
+            messages.warning(request, "No valid tasks to import.")
+            return render(request, self.template_name, context)
+
+        try:
+            with transaction.atomic():
+                # Create the project
+                project = AdminProject.objects.create(
+                    name=project_data['name'],
+                    description=project_data.get('description', ''),
+                    status='open',
+                    priority=5
+                )
+
+                # Create or get phases
+                phase_objects = {}
+                for phase_name in phases_needed:
+                    # Extract phase number from name like "Phase 1" or "Phase 2"
+                    phase_num = None
+                    if phase_name.lower().startswith('phase '):
+                        try:
+                            phase_num = int(phase_name.split()[1])
+                        except (ValueError, IndexError):
+                            pass
+
+                    if phase_num is None:
+                        # Generate next phase number
+                        max_phase = AdminProjectPhase.objects.aggregate(
+                            max_num=models.Max('phase_number')
+                        )['max_num'] or 0
+                        phase_num = max_phase + 1
+
+                    # Check if phase exists
+                    phase, created = AdminProjectPhase.objects.get_or_create(
+                        phase_number=phase_num,
+                        defaults={
+                            'name': phase_name,
+                            'objective': f'Tasks from imported project: {project_data["name"]}',
+                            'status': 'not_started'
+                        }
+                    )
+                    phase_objects[phase_name] = phase
+
+                # Create tasks
+                tasks_created = 0
+                for task in valid_tasks:
+                    # Map status
+                    status_map = {
+                        'New': 'backlog',
+                        'Backlog': 'backlog',
+                        'Ready': 'ready',
+                        'In Progress': 'in_progress',
+                        'Blocked': 'blocked',
+                        'Done': 'done',
+                    }
+                    status = status_map.get(task.get('status', 'New'), 'backlog')
+
+                    # Map effort
+                    effort_map = {
+                        'Low': 'S',
+                        'Small': 'S',
+                        'Medium': 'M',
+                        'High': 'L',
+                        'Large': 'L',
+                    }
+                    effort = effort_map.get(task.get('effort', 'Medium'), 'M')
+
+                    # Map priority
+                    priority_map = {
+                        'High': 1,
+                        'Medium': 2,
+                        'Low': 3,
+                    }
+                    priority = priority_map.get(task.get('priority', 'Medium'), 2)
+
+                    AdminTask.objects.create(
+                        title=task['name'],
+                        description=task['description'],
+                        category='feature',
+                        priority=priority,
+                        status=status,
+                        effort=effort,
+                        phase=phase_objects[task['phase']],
+                        project=project,
+                        created_by='human'
+                    )
+                    tasks_created += 1
+
+                messages.success(
+                    request,
+                    f"Successfully imported project '{project_data['name']}' with {tasks_created} tasks in {len(phases_needed)} phase(s)"
+                )
+
+        except Exception as e:
+            messages.error(request, f"Error creating records: {e}")
+            return render(request, self.template_name, context)
+
+        return render(request, self.template_name, context)

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Personal Data Service - Master Query Method)
+# Last Updated: 2026-01-05 (Context Builder)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,27 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Context Builder (Task #149)
+
+**Session:** Create Context Builder
+
+**Changes:**
+1. Created new `assistant/context_builder.py` module
+2. Implemented `build_personal_context()` function that converts query results to natural language
+3. Returns empty string if data_results is None or empty
+4. Formats weight data with count, average, and most recent values
+5. Formats journal data with count and latest date
+6. Formats medication data with consistency percentage and totals
+7. Adds closing instruction for AI to use the data
+8. Added helper functions: `_format_weight_data()`, `_format_journal_data()`, `_format_medication_data()`, `_format_date()`
+9. Added 15 unit tests for various data combinations
+
+**Files Created:**
+- `assistant/context_builder.py` - Context builder with build_personal_context() function
+- `assistant/tests/test_context_builder.py` - 15 unit tests
+
+---
 
 ### Personal Data Service - Master Query Method (Task #148)
 

@@ -14,12 +14,15 @@ from typing import Any, Dict, Optional
 from .context_builder import build_personal_context
 from .data_service import PersonalDataService
 from .date_parser import extract_date_from_message
-from .executor import AutonomousExecutor
 from .gap_detector import detect_knowledge_gap, categorize_gap_severity, GapSeverity
 from .intent_detector import detect_personal_data_intent
-from .models import ImprovementTaskModel
-from .notifications import AdminNotificationService, TaskInfo
 from .task_generator import generate_improvement_task
+
+# Lazy imports to avoid circular import during Django app loading
+# These are imported inside functions that use them:
+# - AutonomousExecutor from .executor
+# - ImprovementTaskModel from .models
+# - AdminNotificationService, TaskInfo from .notifications
 
 
 # Configure logging
@@ -178,6 +181,9 @@ def _handle_gap_detection(
         gap_result: The gap detection result.
         result: The result dict to update with gap info.
     """
+    # Lazy import to avoid circular import during Django app loading
+    from .models import ImprovementTaskModel
+
     logger.info(
         f"Gap detected: type={gap_result['gap_type']}, "
         f"category={gap_result['suggested_category']}, "
@@ -214,13 +220,16 @@ def _handle_gap_detection(
         _send_approval_notification(task_model, severity)
 
 
-def _queue_for_autonomous_execution(task_model: ImprovementTaskModel) -> None:
+def _queue_for_autonomous_execution(task_model) -> None:
     """
     Queue a LOW severity task for autonomous execution if safe.
 
     Args:
         task_model: The ImprovementTaskModel to execute.
     """
+    # Lazy import to avoid circular import during Django app loading
+    from .executor import AutonomousExecutor
+
     try:
         executor = AutonomousExecutor()
         is_safe, reason = executor.is_safe_for_autonomous(task_model)
@@ -243,7 +252,7 @@ def _queue_for_autonomous_execution(task_model: ImprovementTaskModel) -> None:
 
 
 def _send_approval_notification(
-    task_model: ImprovementTaskModel,
+    task_model,
     severity: GapSeverity,
 ) -> None:
     """
@@ -253,6 +262,9 @@ def _send_approval_notification(
         task_model: The ImprovementTaskModel requiring approval.
         severity: The severity level of the task.
     """
+    # Lazy import to avoid circular import during Django app loading
+    from .notifications import AdminNotificationService, TaskInfo
+
     try:
         notification_service = AdminNotificationService()
 

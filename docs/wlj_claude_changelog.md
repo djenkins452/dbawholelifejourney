@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Autonomous Executor - Task #169)
+# Last Updated: 2026-01-05 (Gap Detection Integration - Task #170)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,47 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Integrate Gap Detection into Assistant Flow (Task #170)
+
+**Session:** Gap Detection Integration
+
+**Objective:**
+Wire gap detection into the main assistant processing to trigger improvement tasks.
+Part of Personal Assistant Growth project (Phase 6).
+
+**Changes:**
+1. Updated `assistant/views.py`:
+   - Added imports for gap_detector, task_generator, executor, models, notifications
+   - Added `GAP_DETECTED_MESSAGE` constant for user-facing feedback
+   - Updated `process_assistant_message()` to check for gaps at multiple points
+   - Added new return keys: `gap_detected`, `gap_message`
+   - Added `_handle_gap_detection()` helper function
+   - Added `_queue_for_autonomous_execution()` for LOW severity routing
+   - Added `_send_approval_notification()` for MEDIUM/HIGH severity routing
+   - Comprehensive logging for all gap detection events
+
+2. Updated `assistant/tests/test_views.py`:
+   - Added `TestProcessAssistantMessageGapDetection` test class
+   - Added `TestGapDetectionTaskRouting` test class
+   - Added `TestGapDetectionLogging` test class
+   - Added `TestGapDetectionUserMessage` test class
+
+**Integration Flow:**
+1. User sends query → intent detection
+2. If no data returned → detect_knowledge_gap()
+3. If gap detected → generate_improvement_task()
+4. Save ImprovementTask to database
+5. Route based on severity:
+   - LOW: Check is_safe_for_autonomous(), queue or send to admin
+   - MEDIUM/HIGH: Send approval notification to admin
+6. Return gap_message to user
+
+**Files Modified:**
+- `assistant/views.py`
+- `assistant/tests/test_views.py`
+
+---
 
 ### Create Autonomous Executor for Low-Severity Tasks (Task #169)
 

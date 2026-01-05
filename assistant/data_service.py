@@ -117,3 +117,58 @@ class PersonalDataService:
             'unit': latest_unit,
             'entries': entries,
         }
+
+    def get_journal_data(
+        self,
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's journal entry data.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+                       If None, returns all entries.
+
+        Returns:
+            None if no journal entries exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'journal'
+                - count (int): Total number of entries matching criteria
+                - latest_date (date): Date of most recent entry
+
+        Example:
+            >>> service = PersonalDataService(user)
+            >>> data = service.get_journal_data(since_date=datetime(2024, 12, 1))
+            >>> print(data)
+            {
+                'type': 'journal',
+                'count': 15,
+                'latest_date': date(2024, 12, 18)
+            }
+        """
+        # Import here to avoid circular imports and allow testing without Django
+        from apps.journal.models import JournalEntry
+
+        # Build base queryset - filter by user and exclude soft-deleted
+        queryset = JournalEntry.objects.filter(user=self.user, is_deleted=False)
+
+        # Apply date filter if provided
+        if since_date:
+            queryset = queryset.filter(entry_date__gte=since_date)
+
+        # Check if any entries exist
+        if not queryset.exists():
+            return None
+
+        # Get count
+        count = queryset.count()
+
+        # Get latest entry (queryset is ordered by -entry_date, -created_at by default)
+        latest_entry = queryset.first()
+        latest_date = latest_entry.entry_date
+
+        return {
+            'type': 'journal',
+            'count': count,
+            'latest_date': latest_date,
+        }

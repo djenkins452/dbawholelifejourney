@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Personal Data Service - Weight Module)
+# Last Updated: 2026-01-05 (Personal Data Service - Journal Module)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,24 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Personal Data Service - Journal Module (Task #146)
+
+**Session:** Create Personal Data Service - Journal Module
+
+**Changes:**
+1. Added `get_journal_data()` method to `PersonalDataService` class
+2. Queries `JournalEntry` model filtered by user and `is_deleted=False`
+3. Filters by `since_date` when provided (using `entry_date__gte`)
+4. Returns None if no entries exist
+5. Returns dict with type ('journal'), count, and latest_date
+6. Added 8 new unit tests for journal data querying
+
+**Files Modified:**
+- `assistant/data_service.py` - Added get_journal_data() method
+- `assistant/tests/test_data_service.py` - Added journal data tests (8 new tests, 21 total)
+
+---
 
 ### Personal Data Service - Weight Module (Task #145)
 

@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-05 Changes
 
+### Add Integration Tests for Personal Data Query System (Task #184)
+
+**Session:** Add Integration Tests for Personal Data Query System
+
+**Changes:**
+1. Created `assistant/tests/test_integration.py` with 49 comprehensive tests:
+   - `WeightDataIntegrationTest` (7 tests): Weight entry retrieval, averages, date filtering
+   - `JournalDataIntegrationTest` (5 tests): Journal entry counts, latest dates, soft delete
+   - `MedicationDataIntegrationTest` (6 tests): Medicine logs, consistency calculations
+   - `FoodDataIntegrationTest` (5 tests): Food entries, calorie sums, daily averages
+   - `MoodDataIntegrationTest` (6 tests): Mood distribution, most common mood, soft delete
+   - `SoftDeleteBehaviorIntegrationTest` (3 tests): Soft delete exclusion, archive inclusion
+   - `QueryByIntentIntegrationTest` (5 tests): Multi-type queries, unknown type handling
+   - `ProcessAssistantMessageIntegrationTest` (8 tests): End-to-end pipeline tests
+   - `DateFilteringIntegrationTest` (4 tests): Date filtering for all data types
+
+**Files Created:**
+- `assistant/tests/test_integration.py` - 49 integration tests (966 lines)
+
+**Purpose:** Verify the Personal Data Query System works correctly with real Django ORM operations, ensuring soft delete behavior, date filtering, and the full message processing pipeline function as expected.
+
+---
+
 ### Integrate Personal Data Query with Help Assistant Chat (Task #183)
 
 **Session:** Integrate Personal Data Query with Help Assistant Chat

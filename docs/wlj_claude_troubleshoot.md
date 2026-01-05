@@ -4,7 +4,7 @@
 # Description: Known issues and solutions for common development problems
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-04
-# Last Updated: 2026-01-04
+# Last Updated: 2026-01-05
 # ==============================================================================
 
 # WLJ Troubleshooting Guide
@@ -143,7 +143,47 @@ cursor.execute("""
 
 ---
 
-## 7. Django Management Commands Hanging on Windows
+## 7. SoftDeleteManager and Automatic Filtering
+
+**Error:** `FieldError: Cannot resolve keyword 'is_deleted' into field`
+
+**Cause:** Attempting to filter by `is_deleted=False` on models that use `SoftDeleteModel`
+
+**Background:**
+Models inheriting from `UserOwnedModel` (which inherits `SoftDeleteModel`) use a custom `SoftDeleteManager` that **automatically excludes deleted records**. The manager filters by `status="active"` in its `get_queryset()` method.
+
+**Key Points:**
+- `is_deleted` is a **@property**, NOT a database field - you cannot filter by it
+- The actual database field is `status` with values: `'active'`, `'archived'`, `'deleted'`
+- The default manager (`objects`) already filters to only show active records
+- You do NOT need to manually filter out deleted records
+
+**Correct Pattern:**
+```python
+# CORRECT - Let the manager handle soft delete filtering
+queryset = JournalEntry.objects.filter(user=self.user)
+
+# CORRECT - If you need to include deleted records
+queryset = JournalEntry.all_objects.filter(user=self.user)
+
+# CORRECT - If you need only deleted records
+queryset = JournalEntry.objects.deleted_only()
+```
+
+**Incorrect Pattern:**
+```python
+# WRONG - is_deleted is a property, not a field
+queryset = JournalEntry.objects.filter(user=self.user, is_deleted=False)
+
+# WRONG - status field exists but filtering by it defeats the purpose
+queryset = JournalEntry.objects.filter(user=self.user, status='active')
+```
+
+**Reference:** See `apps/core/models.py` for `SoftDeleteManager` and `SoftDeleteModel` implementation.
+
+---
+
+## 8. Django Management Commands Hanging on Windows
 
 **Problem:** `python manage.py` commands (test, check, makemigrations) hang indefinitely
 
@@ -198,4 +238,6 @@ python manage.py makemigrations --check
 
 - `docs/wlj_claude_deploy.md` - Deployment patterns and Railway-specific issues
 - `docs/wlj_claude_changelog.md` - Historical fixes and what caused them
+- `apps/core/models.py` - SoftDeleteManager and SoftDeleteModel (soft delete pattern)
+- `assistant/data_service.py` - Personal Data Query System (uses soft delete pattern)
 - `CLAUDE.md` - Main project reference

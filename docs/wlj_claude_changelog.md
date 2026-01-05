@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Cache Versioning Strategy)
+# Last Updated: 2026-01-05 (Git Protection Service)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,44 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Create Git Protection Service (Task #161)
+
+**Session:** Create Git Protection Service
+
+**Objective:**
+Build a service that creates Git commits before and after changes, enabling
+rollback if improvements fail. Part of Personal Assistant Growth project.
+
+**Changes:**
+1. Created `assistant/git_service.py` with `GitProtectionService` class:
+   - `create_snapshot(task_id)` - captures current commit state before changes
+   - `commit_changes(task_id, task_title, files)` - commits improvements with
+     standardized message format: `AUTO-IMPROVE {task_title} (Task {task_id})`
+   - `rollback_to_commit(commit_hash)` - reverts to a specific commit via
+     `git reset --hard`
+   - `get_current_commit_hash()` - gets current HEAD reference
+   - `get_file_diff(file_path, staged)` - shows unstaged or staged changes
+   - `get_commit_diff(commit_hash)` - shows what changed in a specific commit
+   - `has_uncommitted_changes()` - safety check before operations
+
+2. Added `GitResult` dataclass for standardized operation results:
+   - `success` boolean, `message` string
+   - Optional `commit_hash` and `output` fields
+
+3. Safety feature: Refuses to operate if working directory has uncommitted
+   changes, preventing accidental commits of unrelated work.
+
+4. Created comprehensive unit tests in `assistant/tests/test_git_service.py`:
+   - 20 test methods covering all functionality
+   - Uses `unittest.mock` to mock Git commands
+   - Tests success cases, failure cases, and edge cases
+
+**Files Created:**
+- `assistant/git_service.py` - Git protection service implementation
+- `assistant/tests/test_git_service.py` - Unit tests with mock Git commands
+
+---
 
 ### Improve Cache Invalidation Strategy (Task #189)
 

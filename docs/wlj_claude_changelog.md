@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-05 Changes
 
+### Integrate Personal Data Query with Help Assistant Chat (Task #183)
+
+**Session:** Integrate Personal Data Query with Help Assistant Chat
+
+**Changes:**
+1. Updated `apps/help/services.py`:
+   - Added import for `process_assistant_message` from assistant module
+   - Added `PERSONAL_DATA_SYSTEM_PROMPT` constant for AI context
+   - Added `_try_personal_data_response()` to detect and handle personal data queries
+   - Added `_generate_ai_response()` to call OpenAI with personal context
+   - Added `_get_coaching_style_instructions()` for style-aware prompts
+   - Modified `generate_response()` to check for personal queries first
+   - Falls back to help article search if not personal query or AI fails
+2. Added comprehensive unit tests in `apps/help/tests/test_services.py`:
+   - Test personal query with data generates AI response
+   - Test personal query without data returns helpful message
+   - Test non-personal queries fall back to article search
+   - Test AI failure falls back gracefully
+   - Test exception handling
+   - Test coaching style instructions
+
+**Files Modified:**
+- `apps/help/services.py` - Added personal data query integration
+- `apps/help/tests/test_services.py` - Added 10 new test cases
+
+**Purpose:** Connect the assistant module's `process_assistant_message()` to the Help Assistant chat, enabling responses to personal data queries like "What was my weight last week?" with actual user data context.
+
+---
+
 ### Integrate Personal Data Query with AI Personal Assistant (Task #182)
 
 **Session:** Integrate Personal Data Query with AI Personal Assistant

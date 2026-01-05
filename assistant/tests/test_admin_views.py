@@ -1,15 +1,18 @@
 """
-Tests for the admin approval views.
+Tests for the admin approval views and dashboard.
 """
 
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from assistant.models import APPROVAL_TOKEN_EXPIRY_HOURS, ImprovementTaskModel
+
+User = get_user_model()
 
 
 class TestApproveTaskView(TestCase):
@@ -283,3 +286,298 @@ class TestApprovalMethods(TestCase):
 
         self.assertEqual(self.task.status, ImprovementTaskModel.STATUS_REJECTED)
         self.assertEqual(self.task.rejection_reason, '')
+
+
+class TestImprovementDashboard(TestCase):
+    """Tests for the improvement dashboard view."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.client = Client()
+        # Create a staff user
+        self.staff_user = User.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            is_staff=True,
+        )
+        # Create a non-staff user
+        self.regular_user = User.objects.create_user(
+            email='user@example.com',
+            password='testpass123',
+            is_staff=False,
+        )
+        # Create test tasks
+        self.task1 = ImprovementTaskModel.objects.create(
+            title="Test Task 1",
+            description={"objective": "Test 1"},
+            gap_type=ImprovementTaskModel.GAP_TYPE_MISSING_KEYWORDS,
+            severity=ImprovementTaskModel.SEVERITY_LOW,
+            original_query="test query 1",
+            suggested_fix="Add keyword 1",
+            status=ImprovementTaskModel.STATUS_PENDING_APPROVAL,
+        )
+        self.task2 = ImprovementTaskModel.objects.create(
+            title="Test Task 2",
+            description={"objective": "Test 2"},
+            gap_type=ImprovementTaskModel.GAP_TYPE_WRONG_INTENT,
+            severity=ImprovementTaskModel.SEVERITY_HIGH,
+            original_query="test query 2",
+            suggested_fix="Fix intent",
+            status=ImprovementTaskModel.STATUS_COMPLETED,
+        )
+
+    def test_dashboard_requires_staff_login(self):
+        """Test that dashboard requires staff login."""
+        url = reverse('assistant:improvement_dashboard')
+        response = self.client.get(url)
+
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/', response.url)
+
+    def test_dashboard_denies_non_staff(self):
+        """Test that non-staff users are denied."""
+        self.client.login(email='user@example.com', password='testpass123')
+        url = reverse('assistant:improvement_dashboard')
+        response = self.client.get(url)
+
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+
+    def test_dashboard_allows_staff(self):
+        """Test that staff users can access dashboard."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_dashboard')
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Improvement Tasks Dashboard')
+
+    def test_dashboard_displays_tasks(self):
+        """Test that dashboard displays tasks."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_dashboard')
+        response = self.client.get(url)
+
+        self.assertContains(response, 'Test Task 1')
+        self.assertContains(response, 'Test Task 2')
+
+    def test_dashboard_filter_by_status(self):
+        """Test filtering tasks by status."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_dashboard')
+        response = self.client.get(f"{url}?status=pending_approval")
+
+        self.assertContains(response, 'Test Task 1')
+        self.assertNotContains(response, 'Test Task 2')
+
+    def test_dashboard_filter_by_severity(self):
+        """Test filtering tasks by severity."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_dashboard')
+        response = self.client.get(f"{url}?severity=high")
+
+        self.assertNotContains(response, 'Test Task 1')
+        self.assertContains(response, 'Test Task 2')
+
+    def test_dashboard_shows_status_badges(self):
+        """Test that status badges are displayed."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:improvement_dashboard')
+        response = self.client.get(url)
+
+        # Check for badge classes
+        self.assertContains(response, 'badge-yellow')  # pending_approval
+        self.assertContains(response, 'badge-green')   # completed
+
+
+class TestDashboardApproveTask(TestCase):
+    """Tests for the dashboard approve task action."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.client = Client()
+        self.staff_user = User.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            is_staff=True,
+        )
+        self.task = ImprovementTaskModel.objects.create(
+            title="Test Task",
+            description={"objective": "Test"},
+            gap_type=ImprovementTaskModel.GAP_TYPE_MISSING_KEYWORDS,
+            severity=ImprovementTaskModel.SEVERITY_LOW,
+            original_query="test query",
+            suggested_fix="Add keyword",
+            status=ImprovementTaskModel.STATUS_PENDING_APPROVAL,
+        )
+
+    def test_approve_requires_staff(self):
+        """Test that approve action requires staff login."""
+        url = reverse('assistant:dashboard_approve_task', args=[self.task.id])
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_approve_requires_post(self):
+        """Test that approve action requires POST method."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_approve_task', args=[self.task.id])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)  # Method not allowed
+
+    def test_approve_success(self):
+        """Test successful task approval from dashboard."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_approve_task', args=[self.task.id])
+        response = self.client.post(url)
+
+        # Should redirect to dashboard
+        self.assertEqual(response.status_code, 302)
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, ImprovementTaskModel.STATUS_APPROVED)
+
+    def test_approve_ajax_success(self):
+        """Test successful AJAX approval."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_approve_task', args=[self.task.id])
+        response = self.client.post(
+            url,
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('approved', data['message'].lower())
+
+    def test_approve_wrong_status(self):
+        """Test that approving non-pending task fails."""
+        self.task.status = ImprovementTaskModel.STATUS_COMPLETED
+        self.task.save()
+
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_approve_task', args=[self.task.id])
+        response = self.client.post(
+            url,
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data['success'])
+
+
+class TestDashboardRejectTask(TestCase):
+    """Tests for the dashboard reject task action."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.client = Client()
+        self.staff_user = User.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            is_staff=True,
+        )
+        self.task = ImprovementTaskModel.objects.create(
+            title="Test Task",
+            description={"objective": "Test"},
+            gap_type=ImprovementTaskModel.GAP_TYPE_MISSING_KEYWORDS,
+            severity=ImprovementTaskModel.SEVERITY_LOW,
+            original_query="test query",
+            suggested_fix="Add keyword",
+            status=ImprovementTaskModel.STATUS_PENDING_APPROVAL,
+        )
+
+    def test_reject_success(self):
+        """Test successful task rejection from dashboard."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_reject_task', args=[self.task.id])
+        response = self.client.post(url, {'reason': 'Not needed'})
+
+        self.assertEqual(response.status_code, 302)
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, ImprovementTaskModel.STATUS_REJECTED)
+        self.assertEqual(self.task.rejection_reason, 'Not needed')
+
+    def test_reject_ajax_success(self):
+        """Test successful AJAX rejection."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_reject_task', args=[self.task.id])
+        response = self.client.post(
+            url,
+            {'reason': 'Test rejection reason'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+
+
+class TestDashboardRollbackTask(TestCase):
+    """Tests for the dashboard rollback task action."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.client = Client()
+        self.staff_user = User.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            is_staff=True,
+        )
+        self.task = ImprovementTaskModel.objects.create(
+            title="Test Task",
+            description={"objective": "Test"},
+            gap_type=ImprovementTaskModel.GAP_TYPE_MISSING_KEYWORDS,
+            severity=ImprovementTaskModel.SEVERITY_LOW,
+            original_query="test query",
+            suggested_fix="Add keyword",
+            status=ImprovementTaskModel.STATUS_COMPLETED,
+        )
+
+    def test_rollback_requires_completed_status(self):
+        """Test that rollback only works on completed tasks."""
+        self.task.status = ImprovementTaskModel.STATUS_PENDING_APPROVAL
+        self.task.save()
+
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
+        response = self.client.post(
+            url,
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data['success'])
+
+    def test_rollback_success(self):
+        """Test successful task rollback."""
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, ImprovementTaskModel.STATUS_FAILED)
+
+    @patch('assistant.admin_views.GitProtectionService')
+    def test_rollback_with_commit_hash(self, mock_git_service):
+        """Test rollback triggers git rollback when commit hash exists."""
+        self.task.commit_hash = 'abc123'
+        self.task.save()
+
+        self.client.login(email='staff@example.com', password='testpass123')
+        url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)
+        mock_git_service.return_value.rollback_to_commit.assert_called_once_with('abc123')

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Improvement Task Generator)
+# Last Updated: 2026-01-05 (Add Task Storage Model)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,41 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Task Storage Model (Task #160)
+
+**Session:** Create Task Storage Model
+
+**Changes:**
+1. Created `assistant/models.py` with `ImprovementTaskModel`:
+   - UUID primary key
+   - Fields: title, description (JSON), gap_type, severity, original_query, suggested_fix, code_template, test_template, requires_approval
+   - Status field with choices: NEW, PENDING_APPROVAL, APPROVED, IN_PROGRESS, TESTING, COMPLETED, ERROR, ROLLED_BACK
+   - Timestamps: created_at, updated_at, approved_at, completed_at
+   - User tracking: approved_by (FK to User)
+   - Error tracking: error_message
+   - Git tracking: git_commit_before, git_commit_after
+   - `transition_status()` method with validation for allowed state transitions
+   - `to_dict()` method for serialization
+   - `create_from_improvement_task()` factory method
+2. Created `assistant/apps.py` for Django app configuration
+3. Created `assistant/admin.py` with color-coded badges for status/severity/gap_type
+4. Created `assistant/migrations/0001_initial.py` migration
+5. Added `assistant` to INSTALLED_APPS in config/settings.py
+
+**Files Created:**
+- `assistant/models.py` - ImprovementTaskModel with full lifecycle tracking
+- `assistant/apps.py` - Django app configuration
+- `assistant/admin.py` - Admin interface for manual oversight
+- `assistant/migrations/0001_initial.py` - Initial database migration
+- `assistant/migrations/__init__.py` - Package init
+
+**Files Modified:**
+- `config/settings.py` - Added 'assistant' to INSTALLED_APPS
+
+**Purpose:** Create Django model to persist improvement tasks with full lifecycle tracking, enabling the self-improving assistant to store, manage, and track improvement tasks through their complete workflow.
+
+---
 
 ### Add Improvement Task Generator (Task #159)
 

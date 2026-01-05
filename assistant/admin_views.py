@@ -17,6 +17,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
+from .health_monitor import HealthMonitor, get_status_report
 from .models import ImprovementTaskModel
 
 
@@ -642,3 +643,108 @@ def _get_task_action_description(task):
         ImprovementTaskModel.STATUS_ROLLED_BACK: 'was rolled back',
     }
     return status_actions.get(task.status, 'was updated')
+
+
+@staff_member_required
+@require_GET
+def system_health_check(request):
+    """
+    Manual health check endpoint for admin.
+
+    Runs a health check on demand and returns the results.
+    Can return JSON for AJAX requests or render an HTML page.
+
+    Requires staff login.
+    """
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    # Get full status report
+    report = get_status_report()
+
+    if is_ajax:
+        return JsonResponse(report)
+
+    # For HTML response, render a template
+    return render(
+        request,
+        'assistant/admin/health_check.html',
+        {
+            'report': report,
+            'status': report['status'],
+            'status_display': report['status_display'],
+            'metrics': report['metrics'],
+            'thresholds': report['thresholds'],
+            'recommendations': report['recommendations'],
+        }
+    )
+
+
+@staff_member_required
+@require_POST
+def system_resume(request):
+    """
+    Resume the system after it has been paused.
+
+    This endpoint allows admins to manually resume the system
+    after resolving issues that caused it to pause.
+
+    Requires staff login.
+    """
+    from .safety_limits import SafetyLimitService
+
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    try:
+        safety_service = SafetyLimitService()
+        safety_service.resume_system()
+
+        if is_ajax:
+            return JsonResponse({
+                'success': True,
+                'message': 'System resumed successfully'
+            })
+        return redirect('assistant:system_health_check')
+
+    except Exception as e:
+        if is_ajax:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+        return redirect('assistant:system_health_check')
+
+
+@staff_member_required
+@require_POST
+def system_pause(request):
+    """
+    Manually pause the system.
+
+    This endpoint allows admins to manually pause autonomous
+    improvements for maintenance or investigation.
+
+    Requires staff login.
+    """
+    from .safety_limits import SafetyLimitService
+
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    reason = request.POST.get('reason', 'Manually paused by admin')
+
+    try:
+        safety_service = SafetyLimitService()
+        safety_service.pause_system(reason=reason)
+
+        if is_ajax:
+            return JsonResponse({
+                'success': True,
+                'message': 'System paused successfully'
+            })
+        return redirect('assistant:system_health_check')
+
+    except Exception as e:
+        if is_ajax:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+        return redirect('assistant:system_health_check')

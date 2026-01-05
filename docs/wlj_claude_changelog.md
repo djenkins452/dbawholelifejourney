@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Learning Rate Limits and Safety Caps - Task #174)
+# Last Updated: 2026-01-05 (System Health Monitor - Task #175)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,102 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Create System Health Monitor (Task #175)
+
+**Session:** System Health Monitoring Service Implementation
+
+**Objective:**
+Build monitoring service that tracks system health and pauses improvements if issues detected.
+Part of Personal Assistant Growth project (Phase 8).
+
+**New Files:**
+1. `assistant/health_monitor.py` - Core health monitoring module:
+   - **Health Thresholds:**
+     - `ERROR_RATE_DEGRADED_THRESHOLD = 20%`
+     - `ERROR_RATE_CRITICAL_THRESHOLD = 40%`
+     - `ROLLBACK_RATE_DEGRADED_THRESHOLD = 15%`
+     - `ROLLBACK_RATE_CRITICAL_THRESHOLD = 30%`
+     - `CONSECUTIVE_FAILURE_THRESHOLD = 5`
+   - **SystemStatus Enum:** HEALTHY, DEGRADED, CRITICAL
+   - **HealthCheckResult Dataclass:** Status, reason, metrics
+   - **RateMetrics Dataclass:** Calculated rate metrics
+   - **HealthMonitor Class:**
+     - `check_error_rate()` - Detect task failure rates
+     - `check_rollback_rate()` - Detect high rollback rates
+     - `check_assistant_response_rate()` - Detect consecutive failures & stuck tasks
+     - `get_system_status()` - Combined health check returning HEALTHY/DEGRADED/CRITICAL
+     - `handle_status()` - Take action based on status (pause, notify)
+     - `run_periodic_check()` - Periodic health check for scheduler
+     - `get_cached_status()` / `get_last_check_time()` - Query cached status
+     - `get_full_status_report()` - Comprehensive report with recommendations
+   - **Convenience Functions:**
+     - `run_health_check()`, `get_system_status()`, `get_status_report()`
+
+2. `templates/assistant/admin/health_check.html` - Health check dashboard:
+   - Status banner (color-coded: green/yellow/red)
+   - Pause/Resume system buttons
+   - Metrics grid (error rate, rollback rate, consecutive failures)
+   - Recommendations list
+   - Threshold configuration reference table
+
+3. `assistant/tests/test_health_monitor.py` - Comprehensive test suite:
+   - TestHealthMonitorConstants (5 tests)
+   - TestSystemStatusEnum (3 tests)
+   - TestHealthCheckResult (2 tests)
+   - TestRateMetrics (1 test)
+   - TestHealthMonitorRateCalculation (2 tests)
+   - TestHealthMonitorErrorRateCheck (3 tests)
+   - TestHealthMonitorRollbackRateCheck (3 tests)
+   - TestHealthMonitorResponseRateCheck (2 tests)
+   - TestHealthMonitorGetSystemStatus (3 tests)
+   - TestHealthMonitorHandleStatus (3 tests)
+   - TestHealthMonitorPeriodicCheck (1 test)
+   - TestHealthMonitorCachedStatus (3 tests)
+   - TestHealthMonitorFullStatusReport (2 tests)
+   - TestConvenienceFunctions (3 tests)
+
+**Changes to Existing Files:**
+
+1. `assistant/tasks.py`:
+   - Import HealthMonitor and run_health_check
+   - Added `run_health_check()` function for APScheduler periodic task
+
+2. `assistant/admin_views.py`:
+   - Import HealthMonitor and get_status_report
+   - Added `system_health_check()` - Manual health check endpoint (GET)
+   - Added `system_resume()` - Resume system endpoint (POST)
+   - Added `system_pause()` - Pause system endpoint (POST)
+
+3. `assistant/urls.py`:
+   - Added `/assistant/admin/health/` - Health check dashboard
+   - Added `/assistant/admin/health/resume/` - Resume system
+   - Added `/assistant/admin/health/pause/` - Pause system
+
+**Health Status Actions:**
+| Status | Error Rate | Rollback Rate | Actions |
+|--------|-----------|---------------|---------|
+| HEALTHY | <20% | <15% | Normal operation |
+| DEGRADED | 20-40% | 15-30% | Pause autonomous, notify admin |
+| CRITICAL | >40% | >30% | Pause ALL, urgent admin notification |
+
+**Additional Triggers:**
+- 5+ consecutive failures = CRITICAL
+- 3+ tasks stuck IN_PROGRESS for 1+ hour = CRITICAL
+- 1-2 stuck tasks = DEGRADED
+
+**Files Modified:**
+- `assistant/tasks.py`
+- `assistant/admin_views.py`
+- `assistant/urls.py`
+- `docs/wlj_claude_changelog.md`
+
+**Files Created:**
+- `assistant/health_monitor.py`
+- `templates/assistant/admin/health_check.html`
+- `assistant/tests/test_health_monitor.py`
+
+---
 
 ### Add Learning Rate Limits and Safety Caps (Task #174)
 

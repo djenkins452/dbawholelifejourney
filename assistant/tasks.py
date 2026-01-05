@@ -20,6 +20,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .executor import AutonomousExecutor, ImprovementExecutor
+from .health_monitor import HealthMonitor, run_health_check as _run_health_check
 from .models import ImprovementTaskModel
 from .notifications import AdminNotificationService, TaskInfo
 
@@ -413,3 +414,24 @@ def get_queue_status() -> dict:
     }
 
     return status
+
+
+def run_health_check() -> dict:
+    """
+    Run a system health check.
+
+    This is a periodic task designed to run every 15 minutes to monitor
+    system health and take appropriate actions if issues are detected.
+
+    Returns:
+        Dictionary with health check results:
+            - timestamp: ISO timestamp of check
+            - status: 'healthy', 'degraded', or 'critical'
+            - reason: Human-readable status reason
+            - error_rate: Current error rate percentage
+            - rollback_rate: Current rollback rate percentage
+            - consecutive_failures: Number of consecutive failures
+            - actions: Dictionary of actions taken
+    """
+    logger.info("Running scheduled health check...")
+    return _run_health_check()

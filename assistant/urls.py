@@ -25,6 +25,25 @@ urlpatterns = [
         name='improvement_analytics'
     ),
 
+    # System health check endpoint
+    path(
+        'admin/health/',
+        admin_views.system_health_check,
+        name='system_health_check'
+    ),
+
+    # System control endpoints
+    path(
+        'admin/health/resume/',
+        admin_views.system_resume,
+        name='system_resume'
+    ),
+    path(
+        'admin/health/pause/',
+        admin_views.system_pause,
+        name='system_pause'
+    ),
+
     # Dashboard action endpoints
     path(
         'admin/dashboard/approve/<uuid:task_id>/',

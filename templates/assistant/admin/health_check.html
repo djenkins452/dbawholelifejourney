@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Health - WLJ Assistant</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #1f2937;
+        }
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+        .nav-links a {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+        .status-banner {
+            border-radius: 8px;
+            padding: 24px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .status-healthy {
+            background-color: #dcfce7;
+            border: 2px solid #22c55e;
+        }
+        .status-degraded {
+            background-color: #fef3c7;
+            border: 2px solid #f59e0b;
+        }
+        .status-critical {
+            background-color: #fee2e2;
+            border: 2px solid #ef4444;
+        }
+        .status-info h2 {
+            margin: 0 0 8px 0;
+            font-size: 28px;
+        }
+        .status-healthy .status-info h2 { color: #15803d; }
+        .status-degraded .status-info h2 { color: #b45309; }
+        .status-critical .status-info h2 { color: #dc2626; }
+        .status-info p {
+            margin: 0;
+            color: #4b5563;
+        }
+        .status-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+        .btn-success {
+            background-color: #22c55e;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #16a34a;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .metric-card {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .metric-card h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #6b7280;
+            text-transform: uppercase;
+        }
+        .metric-card .value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        .metric-card .threshold {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+        .metric-warning { border-left: 4px solid #f59e0b; }
+        .metric-critical { border-left: 4px solid #ef4444; }
+        .metric-ok { border-left: 4px solid #22c55e; }
+        .section {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .section h3 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            color: #1f2937;
+        }
+        .recommendations-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .recommendations-list li {
+            padding: 12px 16px;
+            background-color: #fef3c7;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .recommendations-list li::before {
+            content: "!";
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background-color: #f59e0b;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .no-recommendations {
+            color: #6b7280;
+            font-style: italic;
+        }
+        .thresholds-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .thresholds-table th,
+        .thresholds-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .thresholds-table th {
+            font-weight: 600;
+            color: #374151;
+            background-color: #f9fafb;
+        }
+        .thresholds-table td {
+            color: #4b5563;
+        }
+        .last-check {
+            font-size: 13px;
+            color: #6b7280;
+            text-align: right;
+            margin-top: 10px;
+        }
+        form {
+            display: inline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>System Health Monitor</h1>
+            <nav class="nav-links">
+                <a href="{% url 'assistant:improvement_dashboard' %}">Dashboard</a>
+                <a href="{% url 'assistant:improvement_analytics' %}">Analytics</a>
+            </nav>
+        </header>
+
+        <!-- Status Banner -->
+        <div class="status-banner status-{{ status }}">
+            <div class="status-info">
+                <h2>{{ status_display }}</h2>
+                <p>{{ report.reason }}</p>
+            </div>
+            <div class="status-actions">
+                {% if status == 'healthy' %}
+                    <form method="post" action="{% url 'assistant:system_pause' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="reason" value="Manually paused by admin">
+                        <button type="submit" class="btn btn-danger">Pause System</button>
+                    </form>
+                {% else %}
+                    <form method="post" action="{% url 'assistant:system_resume' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">Resume System</button>
+                    </form>
+                {% endif %}
+                <a href="{% url 'assistant:system_health_check' %}" class="btn btn-primary">Refresh</a>
+            </div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="metrics-grid">
+            <div class="metric-card {% if metrics.error_rate >= thresholds.error_rate_critical %}metric-critical{% elif metrics.error_rate >= thresholds.error_rate_degraded %}metric-warning{% else %}metric-ok{% endif %}">
+                <h3>Error Rate (24h)</h3>
+                <div class="value">{{ metrics.error_rate }}%</div>
+                <div class="threshold">Degraded: {{ thresholds.error_rate_degraded }}% | Critical: {{ thresholds.error_rate_critical }}%</div>
+            </div>
+            <div class="metric-card {% if metrics.rollback_rate >= thresholds.rollback_rate_critical %}metric-critical{% elif metrics.rollback_rate >= thresholds.rollback_rate_degraded %}metric-warning{% else %}metric-ok{% endif %}">
+                <h3>Rollback Rate (24h)</h3>
+                <div class="value">{{ metrics.rollback_rate }}%</div>
+                <div class="threshold">Degraded: {{ thresholds.rollback_rate_degraded }}% | Critical: {{ thresholds.rollback_rate_critical }}%</div>
+            </div>
+            <div class="metric-card {% if metrics.consecutive_failures >= thresholds.consecutive_failure_critical %}metric-critical{% elif metrics.consecutive_failures >= 3 %}metric-warning{% else %}metric-ok{% endif %}">
+                <h3>Consecutive Failures</h3>
+                <div class="value">{{ metrics.consecutive_failures }}</div>
+                <div class="threshold">Critical at: {{ thresholds.consecutive_failure_critical }}</div>
+            </div>
+            <div class="metric-card metric-ok">
+                <h3>Tasks (24h)</h3>
+                <div class="value">{{ metrics.total_tasks_24h }}</div>
+                <div class="threshold">{{ metrics.completed_24h }} completed | {{ metrics.errors_24h }} errors</div>
+            </div>
+        </div>
+
+        <!-- Recommendations -->
+        {% if recommendations %}
+        <div class="section">
+            <h3>Recommendations</h3>
+            <ul class="recommendations-list">
+                {% for rec in recommendations %}
+                <li>{{ rec }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <div class="section">
+            <h3>Recommendations</h3>
+            <p class="no-recommendations">No recommendations - system is healthy.</p>
+        </div>
+        {% endif %}
+
+        <!-- Thresholds Reference -->
+        <div class="section">
+            <h3>Threshold Configuration</h3>
+            <table class="thresholds-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Degraded Threshold</th>
+                        <th>Critical Threshold</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Error Rate</td>
+                        <td>{{ thresholds.error_rate_degraded }}%</td>
+                        <td>{{ thresholds.error_rate_critical }}%</td>
+                    </tr>
+                    <tr>
+                        <td>Rollback Rate</td>
+                        <td>{{ thresholds.rollback_rate_degraded }}%</td>
+                        <td>{{ thresholds.rollback_rate_critical }}%</td>
+                    </tr>
+                    <tr>
+                        <td>Consecutive Failures</td>
+                        <td>3 (warning)</td>
+                        <td>{{ thresholds.consecutive_failure_critical }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="last-check">
+            {% if report.last_check %}
+            Last health check: {{ report.last_check }}
+            {% else %}
+            First health check
+            {% endif %}
+        </p>
+    </div>
+</body>
+</html>

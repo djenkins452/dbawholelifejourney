@@ -53,11 +53,12 @@ CATEGORIES YOU CAN IDENTIFY:
 - medicine: Prescription bottles, pill packages, medical devices
 - supplement: Vitamins, supplements, protein powder
 - receipt: Store receipts, invoices, bills
-- document: Lab reports, appointment cards, medical documents, written notes, letters
+- document: Lab reports, appointment cards, medical documents, written notes, letters, loose papers
 - workout_equipment: Gym equipment, exercise gear, fitness trackers, weights, yoga mats
 - inventory_item: Household items, electronics, furniture, appliances, tools, power tools,
   collectibles, jewelry, musical instruments, art, clothing, sports equipment, gadgets,
-  cameras, computers, TVs, game consoles, kitchen appliances, lawn equipment
+  cameras, computers, TVs, game consoles, kitchen appliances, lawn equipment, books,
+  board games, toys, DVDs, CDs, vinyl records, media
 - recipe: Recipes (handwritten or printed), cookbook pages, recipe cards, food packaging with recipes
 - pet: Animals, pets, pet food, pet supplies, pet toys, pet accessories
 - maintenance: Home repair items, HVAC filters, plumbing parts, paint cans, hardware,
@@ -66,6 +67,7 @@ CATEGORIES YOU CAN IDENTIFY:
 - unknown: ONLY when you truly cannot identify what the item is
 
 CATEGORY SELECTION GUIDANCE:
+- Books (physical books, novels, textbooks, Bibles) → inventory_item with category "Books"
 - Tools (drills, saws, hammers) → inventory_item with category "Tools"
 - Electronics (phones, laptops, TVs) → inventory_item with category "Electronics"
 - Furniture (chairs, tables, beds) → inventory_item with category "Furniture"
@@ -74,9 +76,12 @@ CATEGORY SELECTION GUIDANCE:
 - Musical instruments → inventory_item with category "Musical Instruments"
 - Sports gear (not gym equipment) → inventory_item with category "Sports Equipment"
 - Art/collectibles → inventory_item with category "Art" or "Collectibles"
+- Board games, toys, puzzles → inventory_item with category "Games & Toys"
+- DVDs, CDs, vinyl records → inventory_item with category "Media"
 - Pet food or supplies → pet
 - Recipe on paper/screen → recipe
 - Filter, part, or repair item → maintenance
+- IMPORTANT: Physical books are inventory_item, NOT document. Documents are loose papers only.
 
 RESPONSE FORMAT (strict JSON):
 {

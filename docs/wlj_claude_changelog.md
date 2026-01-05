@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (System Health Monitor - Task #175)
+# Last Updated: 2026-01-05 (Date Defaults - Task #191)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,36 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Fix Date/Time Defaults on Health Log Forms (Task #191)
+
+**Session:** Date Defaults for Health Metric Forms
+
+**Objective:**
+Make date/time fields automatically default to the current date/time when opening health metric log forms.
+
+**Problem:**
+The form's `__init__` method was correctly setting `self.initial["recorded_at"]` to the current datetime using `get_local_now_string(user)`, but the templates weren't accessing the initial value correctly for new entries.
+
+**Solution:**
+Updated templates to use a conditional that checks for existing value first (for edit mode), then falls back to the initial value from the form (for create mode):
+
+```django
+# Before (didn't show default for new entries):
+value="{{ form.recorded_at.value|date:'Y-m-d\TH:i'|default:'' }}"
+
+# After (correctly shows current date/time for new entries):
+value="{% if form.recorded_at.value %}{{ form.recorded_at.value|date:'Y-m-d\TH:i' }}{% else %}{{ form.initial.recorded_at|default:'' }}{% endif %}"
+```
+
+**Files Modified:**
+- `templates/health/blood_oxygen_form.html` - Fixed recorded_at default
+- `templates/health/blood_pressure_form.html` - Fixed recorded_at default
+- `templates/health/weight_form.html` - Fixed recorded_at default
+
+**Note:** `templates/health/heartrate_form.html` already had the correct pattern.
+
+---
 
 ### Create System Health Monitor (Task #175)
 

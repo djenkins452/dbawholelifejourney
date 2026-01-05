@@ -1765,35 +1765,47 @@ class TestQueryByIntentWithMood(CacheMockMixin, unittest.TestCase):
 
 
 class TestGenerateCacheKey(CacheMockMixin, unittest.TestCase):
-    """Tests for _generate_cache_key function."""
+    """Tests for _generate_cache_key function with versioning."""
 
     def test_generates_key_without_date(self):
-        """Should generate key with 'all' when no date provided."""
+        """Should generate versioned key with 'all' when no date provided."""
         from assistant.data_service import _generate_cache_key
+
+        # Setup: version is 1
+        mock_cache.get.return_value = 1
 
         key = _generate_cache_key(user_id=123, data_type='weight')
-        self.assertEqual(key, 'personal_data:123:weight:all')
+        self.assertEqual(key, 'personal_data:123:weight:v1:all')
 
     def test_generates_key_with_datetime(self):
-        """Should generate key with date string from datetime."""
+        """Should generate versioned key with date string from datetime."""
         from assistant.data_service import _generate_cache_key
+
+        # Setup: version is 1
+        mock_cache.get.return_value = 1
 
         since = datetime(2024, 12, 15, 10, 30)
         key = _generate_cache_key(user_id=456, data_type='journal', since_date=since)
-        self.assertEqual(key, 'personal_data:456:journal:2024-12-15')
+        self.assertEqual(key, 'personal_data:456:journal:v1:2024-12-15')
 
     def test_generates_key_with_date(self):
-        """Should generate key with date string from date object."""
+        """Should generate versioned key with date string from date object."""
         from assistant.data_service import _generate_cache_key
         from datetime import date
 
+        # Setup: version is 1
+        mock_cache.get.return_value = 1
+
         since = date(2024, 12, 20)
         key = _generate_cache_key(user_id=789, data_type='food', since_date=since)
-        self.assertEqual(key, 'personal_data:789:food:2024-12-20')
+        self.assertEqual(key, 'personal_data:789:food:v1:2024-12-20')
 
     def test_different_users_have_different_keys(self):
         """Different users should have different cache keys."""
         from assistant.data_service import _generate_cache_key
+
+        # Setup: version is 1
+        mock_cache.get.return_value = 1
 
         key1 = _generate_cache_key(user_id=1, data_type='weight')
         key2 = _generate_cache_key(user_id=2, data_type='weight')
@@ -1803,39 +1815,122 @@ class TestGenerateCacheKey(CacheMockMixin, unittest.TestCase):
         """Different data types should have different cache keys."""
         from assistant.data_service import _generate_cache_key
 
+        # Setup: version is 1
+        mock_cache.get.return_value = 1
+
         key1 = _generate_cache_key(user_id=1, data_type='weight')
         key2 = _generate_cache_key(user_id=1, data_type='journal')
         self.assertNotEqual(key1, key2)
 
 
 class TestInvalidateUserDataCache(CacheMockMixin, unittest.TestCase):
-    """Tests for invalidate_user_data_cache function."""
+    """Tests for invalidate_user_data_cache function using versioning strategy."""
 
-    @patch('assistant.data_service.timezone')
-    def test_deletes_all_key(self, mock_timezone):
-        """Should delete the 'all' cache key."""
+    def test_increments_version_on_invalidate(self):
+        """Should increment the version number when invalidating cache."""
         from assistant.data_service import invalidate_user_data_cache
 
-        mock_timezone.now.return_value.strftime.return_value = '2024-12-18'
+        # Setup: version starts at 5
+        mock_cache.get.return_value = 5
 
         invalidate_user_data_cache(user_id=123, data_type='weight')
 
-        # Check that cache.delete was called with the 'all' key
-        calls = mock_cache.delete.call_args_list
-        self.assertTrue(any('personal_data:123:weight:all' in str(c) for c in calls))
+        # Should set version to 6
+        mock_cache.set.assert_called()
+        call_args = mock_cache.set.call_args
+        self.assertEqual(call_args[0][0], 'personal_data_version:123:weight')
+        self.assertEqual(call_args[0][1], 6)  # Incremented from 5 to 6
 
-    @patch('assistant.data_service.timezone')
-    def test_deletes_today_key(self, mock_timezone):
-        """Should delete today's cache key."""
+    def test_initializes_version_when_not_set(self):
+        """Should initialize version to 1 when no version exists."""
         from assistant.data_service import invalidate_user_data_cache
 
-        mock_timezone.now.return_value.strftime.return_value = '2024-12-18'
+        # Setup: no version exists (returns default 0)
+        mock_cache.get.return_value = 0
 
-        invalidate_user_data_cache(user_id=123, data_type='journal')
+        invalidate_user_data_cache(user_id=456, data_type='journal')
 
-        # Check that cache.delete was called with today's key
-        calls = mock_cache.delete.call_args_list
-        self.assertTrue(any('personal_data:123:journal:2024-12-18' in str(c) for c in calls))
+        # Should set version to 1
+        mock_cache.set.assert_called()
+        call_args = mock_cache.set.call_args
+        self.assertEqual(call_args[0][0], 'personal_data_version:456:journal')
+        self.assertEqual(call_args[0][1], 1)  # Incremented from 0 to 1
+
+    def test_version_key_format(self):
+        """Should use correct version key format."""
+        from assistant.data_service import _get_version_key
+
+        key = _get_version_key(user_id=789, data_type='mood')
+        self.assertEqual(key, 'personal_data_version:789:mood')
+
+
+class TestCacheVersioning(CacheMockMixin, unittest.TestCase):
+    """Tests for cache versioning in _generate_cache_key."""
+
+    def test_includes_version_in_cache_key(self):
+        """Should include version number in generated cache key."""
+        from assistant.data_service import _generate_cache_key
+
+        # Setup: version is 3
+        mock_cache.get.return_value = 3
+
+        key = _generate_cache_key(user_id=123, data_type='weight', since_date=None)
+
+        self.assertIn(':v3:', key)
+        self.assertEqual(key, 'personal_data:123:weight:v3:all')
+
+    def test_includes_version_with_date(self):
+        """Should include version in key with date filter."""
+        from assistant.data_service import _generate_cache_key
+
+        # Setup: version is 7
+        mock_cache.get.return_value = 7
+
+        since_date = datetime(2024, 12, 15)
+        key = _generate_cache_key(user_id=456, data_type='food', since_date=since_date)
+
+        self.assertIn(':v7:', key)
+        self.assertEqual(key, 'personal_data:456:food:v7:2024-12-15')
+
+    def test_initializes_version_if_not_set(self):
+        """Should initialize version to 1 if not in cache."""
+        from assistant.data_service import _get_cache_version
+
+        # Setup: no version exists
+        mock_cache.get.return_value = None
+
+        version = _get_cache_version(user_id=999, data_type='glucose')
+
+        self.assertEqual(version, 1)
+        # Should have set the initial version
+        mock_cache.set.assert_called()
+
+
+class TestVersionedCacheInvalidation(CacheMockMixin, unittest.TestCase):
+    """Integration tests for versioned cache invalidation."""
+
+    def test_invalidation_causes_cache_miss(self):
+        """After invalidation, old cached data should not be returned."""
+        from assistant.data_service import (
+            _generate_cache_key, invalidate_user_data_cache
+        )
+
+        # Step 1: Generate key with version 1
+        mock_cache.get.return_value = 1
+        key_before = _generate_cache_key(user_id=100, data_type='weight')
+        self.assertEqual(key_before, 'personal_data:100:weight:v1:all')
+
+        # Step 2: Invalidate - this increments version
+        mock_cache.get.return_value = 1  # Current version
+        invalidate_user_data_cache(user_id=100, data_type='weight')
+
+        # Step 3: Generate key again - should use new version
+        mock_cache.get.return_value = 2  # New version after invalidation
+        key_after = _generate_cache_key(user_id=100, data_type='weight')
+        self.assertEqual(key_after, 'personal_data:100:weight:v2:all')
+
+        # Keys are different, so old cached data won't be found
+        self.assertNotEqual(key_before, key_after)
 
 
 class TestCacheHitBehavior(CacheMockMixin, unittest.TestCase):
@@ -1956,9 +2051,15 @@ class TestCacheMissBehavior(CacheMockMixin, unittest.TestCase):
         result = service.get_weight_data()
 
         # Verify cache.set was called with the result
+        # Note: cache.set is called twice - once for version init, once for data
         self.assertTrue(mock_cache.set.called)
-        call_args = mock_cache.set.call_args
-        self.assertEqual(call_args[0][0], 'personal_data:123:weight:all')
+        # Find the data cache call (not version cache call)
+        data_cache_calls = [c for c in mock_cache.set.call_args_list
+                           if 'personal_data:123:weight:v' in str(c)]
+        self.assertTrue(len(data_cache_calls) > 0)
+        call_args = data_cache_calls[0]
+        self.assertIn('personal_data:123:weight:v', call_args[0][0])
+        self.assertIn(':all', call_args[0][0])
         self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
 
     @patch('assistant.data_service.timezone')
@@ -1995,9 +2096,15 @@ class TestCacheMissBehavior(CacheMockMixin, unittest.TestCase):
         result = service.get_medication_data()
 
         # Verify cache.set was called
+        # Note: cache.set is called twice - once for version init, once for data
         self.assertTrue(mock_cache.set.called)
-        call_args = mock_cache.set.call_args
-        self.assertEqual(call_args[0][0], 'personal_data:456:medication:all')
+        # Find the data cache call (not version cache call)
+        data_cache_calls = [c for c in mock_cache.set.call_args_list
+                           if 'personal_data:456:medication:v' in str(c)]
+        self.assertTrue(len(data_cache_calls) > 0)
+        call_args = data_cache_calls[0]
+        self.assertIn('personal_data:456:medication:v', call_args[0][0])
+        self.assertIn(':all', call_args[0][0])
         self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
 
 
@@ -2409,9 +2516,15 @@ class TestGlucoseCacheBehavior(CacheMockMixin, unittest.TestCase):
         result = service.get_glucose_data()
 
         # Verify cache.set was called with the result
+        # Note: cache.set is called twice - once for version init, once for data
         self.assertTrue(mock_cache.set.called)
-        call_args = mock_cache.set.call_args
-        self.assertEqual(call_args[0][0], 'personal_data:789:glucose:all')
+        # Find the data cache call (not version cache call)
+        data_cache_calls = [c for c in mock_cache.set.call_args_list
+                           if 'personal_data:789:glucose:v' in str(c)]
+        self.assertTrue(len(data_cache_calls) > 0)
+        call_args = data_cache_calls[0]
+        self.assertIn('personal_data:789:glucose:v', call_args[0][0])
+        self.assertIn(':all', call_args[0][0])
         self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
 
 
@@ -2746,9 +2859,15 @@ class TestFaithCacheBehavior(CacheMockMixin, unittest.TestCase):
         result = service.get_faith_data()
 
         # Verify cache.set was called
+        # Note: cache.set is called twice - once for version init, once for data
         self.assertTrue(mock_cache.set.called)
-        call_args = mock_cache.set.call_args
-        self.assertEqual(call_args[0][0], 'personal_data:456:faith:all')
+        # Find the data cache call (not version cache call)
+        data_cache_calls = [c for c in mock_cache.set.call_args_list
+                           if 'personal_data:456:faith:v' in str(c)]
+        self.assertTrue(len(data_cache_calls) > 0)
+        call_args = data_cache_calls[0]
+        self.assertIn('personal_data:456:faith:v', call_args[0][0])
+        self.assertIn(':all', call_args[0][0])
         self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
 
 
@@ -3054,7 +3173,13 @@ class TestGetGoalsDataCaching(CacheMockMixin, unittest.TestCase):
 
         self.assertTrue(mock_cache.set.called)
         call_args = mock_cache.set.call_args
-        self.assertEqual(call_args[0][0], 'personal_data:999:goals:all')
+        # Cache key now includes version: personal_data:{user_id}:{data_type}:v{version}:{date}
+        import re
+        cache_key = call_args[0][0]
+        self.assertTrue(
+            re.match(r'personal_data:999:goals:v\d+:all', cache_key),
+            f"Cache key '{cache_key}' should match versioned pattern"
+        )
         self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
 
 

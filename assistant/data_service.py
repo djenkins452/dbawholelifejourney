@@ -3,12 +3,35 @@ Personal Data Service for WLJ Personal Data Query System.
 
 This module provides methods to query and summarize user's personal
 wellness data from various models (weight, journal, mood, etc.).
+
+Cache Invalidation Strategy:
+---------------------------
+This module uses a cache versioning approach to handle date-specific cache keys.
+Instead of trying to delete all possible date-variant cache keys (which is
+impossible to enumerate), we:
+
+1. Store a version number per user/data_type combination
+2. Include the version in all data cache keys
+3. On invalidation, increment the version number
+
+This makes all existing cache keys for that user/data_type effectively stale,
+as new requests will use the incremented version in their cache key.
+
+Benefits:
+- Works with any cache backend (not just Redis)
+- No need to enumerate all possible date combinations
+- Guaranteed to invalidate all cached data for a user/data_type
+- Minimal overhead (one extra cache lookup per request)
+
+The version key format is: personal_data_version:{user_id}:{data_type}
+The data cache key format is: personal_data:{user_id}:{data_type}:v{version}:{date}
 """
 
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Avg, Count, QuerySet, Sum
 from django.utils import timezone
@@ -17,19 +40,68 @@ from django.utils import timezone
 # Cache TTL for personal data queries (5 minutes)
 PERSONAL_DATA_CACHE_TTL = 300
 
+# Cache TTL for version keys (longer than data TTL to ensure consistency)
+# Version keys should persist longer to prevent stale data from being served
+VERSION_CACHE_TTL = 86400  # 24 hours
 
-def _generate_cache_key(user_id: int, data_type: str, since_date: Optional[datetime] = None) -> str:
+
+def _get_version_key(user_id: int, data_type: str) -> str:
     """
-    Generate a cache key for personal data queries.
+    Generate the cache key for storing the version number.
 
     Args:
         user_id: The user's ID.
-        data_type: The type of data (weight, journal, medication, food, mood).
+        data_type: The type of data.
+
+    Returns:
+        The version cache key string.
+    """
+    return f"personal_data_version:{user_id}:{data_type}"
+
+
+def _get_cache_version(user_id: int, data_type: str) -> int:
+    """
+    Get the current cache version for a user/data_type combination.
+
+    If no version exists, returns 1 (initial version).
+
+    Args:
+        user_id: The user's ID.
+        data_type: The type of data.
+
+    Returns:
+        The current version number (integer >= 1).
+    """
+    version_key = _get_version_key(user_id, data_type)
+    version = cache.get(version_key)
+    if version is None:
+        # Initialize version to 1 if not set
+        cache.set(version_key, 1, VERSION_CACHE_TTL)
+        return 1
+    return version
+
+
+def _generate_cache_key(user_id: int, data_type: str, since_date: Optional[datetime] = None) -> str:
+    """
+    Generate a versioned cache key for personal data queries.
+
+    The key includes a version number that is incremented when data changes,
+    effectively invalidating all date-variant cache keys at once.
+
+    Args:
+        user_id: The user's ID.
+        data_type: The type of data (weight, journal, medication, food, mood, etc.).
         since_date: Optional date filter. If None, uses 'all'.
 
     Returns:
-        A unique cache key string.
+        A unique, versioned cache key string.
+
+    Key format: personal_data:{user_id}:{data_type}:v{version}:{date}
     """
+    # Get current version for this user/data_type
+    version = _get_cache_version(user_id, data_type)
+
+    # Format the date part
     date_part = 'all'
     if since_date:
         if isinstance(since_date, datetime):
@@ -38,27 +110,37 @@ def _generate_cache_key(user_id: int, data_type: str, since_date: Optional[datet
             date_part = since_date.strftime('%Y-%m-%d')
         else:
             date_part = str(since_date)
-    return f"personal_data:{user_id}:{data_type}:{date_part}"
+
+    return f"personal_data:{user_id}:{data_type}:v{version}:{date_part}"
 
 
 def invalidate_user_data_cache(user_id: int, data_type: str) -> None:
     """
     Invalidate all cached data for a user and data type.
 
-    Since we can't enumerate all possible since_date values, we use
-    Django's cache.delete_pattern if available, or delete common keys.
-    For most use cases, the 'all' key is the most commonly used.
+    This uses a cache versioning strategy: instead of trying to delete
+    all possible cache keys (with various date combinations), we increment
+    the version number. All existing cache keys become stale because new
+    requests will use the new version in their cache key.
+
+    This approach:
+    - Works with any cache backend (LocMemCache, Redis, Memcached, etc.)
+    - Guarantees all date-variant cache keys are invalidated
+    - Avoids the need to enumerate all possible date combinations
 
     Args:
         user_id: The user's ID.
         data_type: The type of data to invalidate.
     """
-    # Delete the most common cache key (no date filter)
-    cache.delete(f"personal_data:{user_id}:{data_type}:all")
+    version_key = _get_version_key(user_id, data_type)
 
-    # Delete today's date key (common case)
-    today = timezone.now().strftime('%Y-%m-%d')
-    cache.delete(f"personal_data:{user_id}:{data_type}:{today}")
+    # Get current version (or 0 if not set)
+    current_version = cache.get(version_key, 0)
+
+    # Increment version - this invalidates all existing cache keys
+    # because they use the old version number
+    new_version = current_version + 1
+    cache.set(version_key, new_version, VERSION_CACHE_TTL)
 
 
 class PersonalDataService:

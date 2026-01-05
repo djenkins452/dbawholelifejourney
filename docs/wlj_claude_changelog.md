@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Gap Detection Integration - Task #170)
+# Last Updated: 2026-01-05 (Fix Circular Import - Hotfix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,27 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Fix Circular Import Error (Hotfix)
+
+**Session:** Production 502 Fix
+
+**Issue:**
+After Task #170, production server returned 502 error with `AppRegistryNotReady: Apps aren't loaded yet.`
+The error occurred because `assistant/__init__.py` imports from `views.py`, which imported
+`AutonomousExecutor`, `ImprovementTaskModel`, and notification services at module level.
+This chain executed before Django apps were fully loaded.
+
+**Fix:**
+Changed `assistant/views.py` to use lazy imports inside the functions that need them:
+- `ImprovementTaskModel` imported inside `_handle_gap_detection()`
+- `AutonomousExecutor` imported inside `_queue_for_autonomous_execution()`
+- `AdminNotificationService`, `TaskInfo` imported inside `_send_approval_notification()`
+
+**Files Modified:**
+- `assistant/views.py`
+
+---
 
 ### Integrate Gap Detection into Assistant Flow (Task #170)
 

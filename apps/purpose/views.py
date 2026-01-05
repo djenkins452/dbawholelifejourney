@@ -803,7 +803,12 @@ class HabitLogTodayView(PurposeAccessMixin, View):
             'date': today.isoformat(),
             'day_number': day_number,
             'state': 'completed',
-            'message': 'Great job! Habit logged for today.' if created else 'Already logged for today.'
+            'message': 'Great job! Habit logged for today.' if created else 'Already logged for today.',
+            'stats': {
+                'completed_days': goal.completed_days,
+                'completion_rate': round(goal.completion_rate),
+                'current_streak': goal.current_streak,
+            }
         })
 
 
@@ -882,5 +887,10 @@ class HabitLogDateView(PurposeAccessMixin, View):
             'date': selected_date.isoformat(),
             'day_number': day_number,
             'state': 'completed',
-            'message': f'Habit logged for {selected_date}.' if created else f'Already logged for {selected_date}.'
+            'message': f'Habit logged for {selected_date}.' if created else f'Already logged for {selected_date}.',
+            'stats': {
+                'completed_days': goal.completed_days,
+                'completion_rate': round(goal.completion_rate),
+                'current_streak': goal.current_streak,
+            }
         })

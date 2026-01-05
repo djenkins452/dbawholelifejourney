@@ -654,6 +654,28 @@ class HabitGoal(UserOwnedModel):
         return (self.end_date - self.start_date).days + 1
 
     @property
+    def elapsed_days(self):
+        """Calculate days elapsed from start to today (opportunities for completion).
+
+        Returns the number of days that have passed where the user could have
+        completed the habit. This is used for Success Rate calculation.
+        - Before start_date: 0
+        - After end_date: same as total_days
+        - Otherwise: days from start_date to today (inclusive)
+        """
+        if not self.start_date or not self.end_date:
+            return 0
+
+        today = get_user_today(self.user)
+
+        if today < self.start_date:
+            return 0
+        if today > self.end_date:
+            return self.total_days
+
+        return (today - self.start_date).days + 1
+
+    @property
     def matrix_rows(self):
         """Calculate optimal number of rows for the habit matrix.
 
@@ -773,11 +795,15 @@ class HabitGoal(UserOwnedModel):
 
     @property
     def completion_rate(self):
-        """Percentage of completed days based on total days in goal period."""
-        if self.total_days <= 0:
+        """Percentage of completed days based on elapsed days (opportunities).
+
+        Success Rate = (completed_days / elapsed_days) * 100
+        For a goal on day 4 with 3 completions, this returns 75%.
+        """
+        if self.elapsed_days <= 0:
             return 0.0
 
-        return (self.completed_days / self.total_days) * 100
+        return (self.completed_days / self.elapsed_days) * 100
 
     @property
     def current_streak(self):

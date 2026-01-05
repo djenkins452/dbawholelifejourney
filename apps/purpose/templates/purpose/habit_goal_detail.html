@@ -180,6 +180,28 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function updateStats(stats) {
+        // Update the stats bar with new values
+        const statsBar = document.querySelector('.stats-bar');
+        if (!statsBar || !stats) return;
+
+        const statElements = statsBar.querySelectorAll('.stat');
+        statElements.forEach(stat => {
+            const label = stat.querySelector('.stat-label');
+            const value = stat.querySelector('.stat-value');
+            if (!label || !value) return;
+
+            const labelText = label.textContent.toLowerCase();
+            if (labelText === 'completed') {
+                value.textContent = stats.completed_days;
+            } else if (labelText === 'success rate') {
+                value.textContent = stats.completion_rate + '%';
+            } else if (labelText === 'current streak') {
+                value.textContent = stats.current_streak;
+            }
+        });
+    }
+
     // Log Today button
     if (logTodayBtn && !logTodayBtn.disabled) {
         logTodayBtn.addEventListener('click', function() {
@@ -200,6 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     logTodayBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done for Today';
                     logTodayBtn.classList.add('btn-success');
                     updateMatrixBox(data.day_number, 'completed');
+                    updateStats(data.stats);
                 } else {
                     showFeedback(data.error, true);
                     logTodayBtn.disabled = false;
@@ -259,6 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     showFeedback(data.message, false);
                     updateMatrixBox(data.day_number, 'completed');
+                    updateStats(data.stats);
                     // Hide date picker after success
                     datePicker.style.display = 'none';
                     pickDateBtn.style.display = 'inline-flex';

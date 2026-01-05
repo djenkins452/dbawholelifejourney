@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Today's Verse Refresh)
+# Last Updated: 2026-01-04 (Insights Refresh Configuration)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,27 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### Configurable Insight Refresh Frequency (Task #135)
+
+**Session:** Insights Refresh
+
+**Changes:**
+1. Added `refresh_frequency` field to AIPromptConfig model
+2. Options: daily, twice/three/four times daily, on data change, daily + on change
+3. Default is "daily_and_on_change" - refreshes daily AND when data changes
+4. Added admin interface section for configuring refresh frequency per insight type
+5. Created signals.py with cache invalidation when user data changes
+6. Signals listen to: Journal entries, Goals, Blood glucose, Weight, Tasks, Prayer requests
+
+**Files Modified:**
+- `apps/ai/models.py` - Added refresh_frequency field and helper methods
+- `apps/ai/admin.py` - Added refresh settings fieldset
+- `apps/ai/apps.py` - Import signals in ready()
+- `apps/ai/signals.py` - New file with data change signal handlers
+- `apps/ai/migrations/0012_add_refresh_frequency_to_prompt_config.py` - New migration
+
+---
 
 ### Today's Verse Refreshes Once Per Day (Task #136)
 

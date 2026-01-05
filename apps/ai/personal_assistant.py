@@ -1462,9 +1462,12 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         if not ai_service.is_available or not AIService.check_user_consent(self.user):
             response = self._get_fallback_response(message)
         else:
-            # First, check for pending confirmation
-            pending = intent_service.get_pending_confirmation(self.user)
-            if pending:
+            # First, check for pending data visibility confirmation
+            if self._handle_data_visibility_confirmation(message, conversation):
+                response = self._data_visibility_response
+                self._data_visibility_response = None  # Clear after use
+            # Then check for pending action confirmation
+            elif (pending := intent_service.get_pending_confirmation(self.user)):
                 # Handle confirmation response
                 action_result = intent_service.handle_confirmation_response(self.user, message)
                 if action_result:
@@ -1555,6 +1558,78 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'created': action_result.created_object
         }
 
+    def _handle_data_visibility_confirmation(
+        self, message: str, conversation: AssistantConversation
+    ) -> bool:
+        """
+        Handle user's response to a data visibility clarifying question.
+
+        When the assistant asks "Can you see your data in the app?", this method
+        processes the user's yes/no response and takes appropriate action.
+
+        Args:
+            message: The user's message (checking for yes/no).
+            conversation: The current conversation.
+
+        Returns:
+            True if this was a data visibility confirmation response (handled).
+            False if not awaiting confirmation or message wasn't yes/no.
+        """
+        from assistant import handle_data_visibility_confirmation
+
+        # Check if we're awaiting a data visibility confirmation
+        metadata = conversation.metadata or {}
+        if not metadata.get('awaiting_data_visibility_confirmation'):
+            return False
+
+        data_type = metadata.get('awaiting_data_type')
+        if not data_type:
+            # Clear invalid state
+            metadata['awaiting_data_visibility_confirmation'] = False
+            conversation.metadata = metadata
+            conversation.save(update_fields=['metadata'])
+            return False
+
+        # Check if message is a yes/no response
+        message_lower = message.lower().strip()
+        affirmative_responses = ['yes', 'yeah', 'yep', 'yup', 'y', 'correct', 'right', 'i can', 'i can see', 'i do']
+        negative_responses = ['no', 'nope', 'n', 'nah', "i can't", 'i cannot', "i don't", 'i do not']
+
+        user_confirms = None
+        if any(resp in message_lower for resp in affirmative_responses):
+            user_confirms = True
+        elif any(resp in message_lower for resp in negative_responses):
+            user_confirms = False
+
+        if user_confirms is None:
+            # User didn't give a clear yes/no - let the normal flow handle it
+            # but keep the awaiting state for the next message
+            return False
+
+        # Clear the awaiting state
+        metadata['awaiting_data_visibility_confirmation'] = False
+        metadata['awaiting_data_type'] = None
+        conversation.metadata = metadata
+        conversation.save(update_fields=['metadata'])
+
+        # Handle the confirmation
+        result = handle_data_visibility_confirmation(
+            user=self.user,
+            data_type=data_type,
+            user_confirms_data_exists=user_confirms,
+        )
+
+        # Store response for retrieval in send_message
+        self._data_visibility_response = result['response_message']
+
+        logger.info(
+            f"Data visibility confirmation handled for user {self.user.id}, "
+            f"data_type={data_type}, user_confirms={user_confirms}, "
+            f"action={result['action_taken']}"
+        )
+
+        return True
+
     def _generate_response(self, message: str, conversation: AssistantConversation) -> str:
         """Generate AI response to user message using coaching style and time awareness.
 
@@ -1602,6 +1677,19 @@ CURRENT USER STATE (focus on what REMAINS):
             logger.debug(
                 f"Personal data context injected for data types: {personal_data_result['data_types']}"
             )
+
+        # If clarification is needed (data query but no data found), ask the user
+        if personal_data_result.get('needs_clarification'):
+            # Store the awaiting data type in conversation metadata for follow-up
+            conversation.metadata = conversation.metadata or {}
+            conversation.metadata['awaiting_data_visibility_confirmation'] = True
+            conversation.metadata['awaiting_data_type'] = personal_data_result.get('awaiting_data_type')
+            conversation.save(update_fields=['metadata'])
+
+            logger.info(
+                f"Asking user to verify data visibility for {personal_data_result.get('awaiting_data_type')}"
+            )
+            return personal_data_result['clarifying_question']
 
         # Build conversation context
         messages_context = ""

@@ -3206,6 +3206,9 @@ class ClarityImportView(AdminRequiredMixin, View):
             from django.db import transaction
             with transaction.atomic():
                 GlucoseEntry.objects.bulk_create(entries_to_create, batch_size=1000)
+            # Invalidate cache since bulk_create bypasses Django signals
+            from assistant.data_service import invalidate_user_data_cache
+            invalidate_user_data_cache(user.id, 'glucose')
             messages.success(request, f"Successfully imported {len(entries_to_create)} glucose entries for {user.email}")
         else:
             messages.warning(request, "No new entries to import (all were duplicates or invalid)")

@@ -11,6 +11,7 @@ from typing import Optional
 
 from dateutil import parser as dateutil_parser
 from dateutil.relativedelta import relativedelta, MO, SU
+from django.utils import timezone
 
 
 def extract_date_from_message(message: str, reference_date: Optional[datetime] = None) -> Optional[datetime]:
@@ -45,8 +46,10 @@ def extract_date_from_message(message: str, reference_date: Optional[datetime] =
     if not message or not isinstance(message, str):
         return None
 
-    # Use reference_date or current date
-    now = reference_date or datetime.now()
+    # Use reference_date or current date with timezone awareness
+    # timezone.localtime() returns current time in the project's configured timezone
+    # This ensures "today" means the user's today, not UTC today
+    now = reference_date or timezone.localtime(timezone.now())
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     message_lower = message.lower()

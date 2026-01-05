@@ -148,6 +148,9 @@ class Command(BaseCommand):
             # Bulk create entries
             with transaction.atomic():
                 GlucoseEntry.objects.bulk_create(entries_to_create, batch_size=1000)
+            # Invalidate cache since bulk_create bypasses Django signals
+            from assistant.data_service import invalidate_user_data_cache
+            invalidate_user_data_cache(user.id, 'glucose')
             self.stdout.write(
                 self.style.SUCCESS(f"Successfully imported {len(entries_to_create)} glucose entries")
             )

@@ -20,11 +20,11 @@ The component reads is_current_page_favorite from context (set by favorites_cont
     aria-label="{% if is_current_page_favorite %}Remove from favorites{% else %}Add to favorites{% endif %}"
     title="{% if is_current_page_favorite %}Remove from favorites{% else %}Add to favorites{% endif %}"
 >
-    <svg class="favorite-star" viewBox="0 0 24 24" width="20" height="20">
+    <svg class="favorite-star" viewBox="0 0 24 24" width="24" height="24">
         <polygon
             points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-            fill="{% if is_current_page_favorite %}currentColor{% else %}none{% endif %}"
-            stroke="currentColor"
+            fill="{% if is_current_page_favorite %}#f59e0b{% else %}none{% endif %}"
+            stroke="{% if is_current_page_favorite %}#f59e0b{% else %}#9ca3af{% endif %}"
             stroke-width="2"
             stroke-linejoin="round"
         />

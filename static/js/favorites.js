@@ -62,10 +62,11 @@
             button.setAttribute('aria-label', isFavorite ? 'Remove from favorites' : 'Add to favorites');
             button.setAttribute('title', isFavorite ? 'Remove from favorites' : 'Add to favorites');
 
-            // Update star fill
+            // Update star fill and stroke colors
             const polygon = button.querySelector('polygon');
             if (polygon) {
-                polygon.setAttribute('fill', isFavorite ? 'currentColor' : 'none');
+                polygon.setAttribute('fill', isFavorite ? '#f59e0b' : 'none');
+                polygon.setAttribute('stroke', isFavorite ? '#f59e0b' : '#9ca3af');
             }
 
             // Add animation class

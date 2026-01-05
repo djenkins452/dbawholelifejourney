@@ -1,0 +1,20 @@
+WLJ Personal Assistant - New Task Created
+==========================================
+
+{{ message }}
+
+Task #{{ task.task_id }}
+-----------------------
+Title: {{ task.title }}
+{% if task.description %}Description: {{ task.description }}{% endif %}
+Severity: {{ task.severity|title }}
+
+This task has been added to the queue and will be processed according to its priority and severity level.
+
+{% if task.severity == 'high' %}
+NOTE: This is a high-severity task that may require manual approval before execution.
+{% endif %}
+
+--
+Sent to: {{ admin_email }}
+Timestamp: {{ timestamp }}

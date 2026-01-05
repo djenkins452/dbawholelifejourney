@@ -1,0 +1,55 @@
+{% extends "assistant/emails/base_email.html" %}
+
+{% block title %}Task Error - WLJ Assistant{% endblock %}
+
+{% block header_title %}Task Execution Error{% endblock %}
+
+{% block content %}
+<div class="action-required">
+    <strong>Error:</strong> {{ message }}
+</div>
+
+<span class="badge badge-error">Task #{{ task.task_id }}</span>
+
+<dl class="task-info">
+    <dt>Task Title</dt>
+    <dd>{{ task.title }}</dd>
+
+    {% if task.description %}
+    <dt>Description</dt>
+    <dd>{{ task.description }}</dd>
+    {% endif %}
+</dl>
+
+<h3>Error Details</h3>
+<div class="code-block">{{ error_details }}</div>
+
+<h3>Rollback Status</h3>
+{% if rollback_successful %}
+<p style="color: #065f46;">
+    <strong>Automatic rollback was successful.</strong><br>
+    The system has been restored to the previous state.
+</p>
+{% else %}
+<p style="color: #991b1b;">
+    <strong>Automatic rollback was not performed or failed.</strong><br>
+    Manual intervention may be required.
+</p>
+{% endif %}
+
+{% if rollback_instructions %}
+<h3>Rollback Instructions</h3>
+<div class="code-block">{{ rollback_instructions }}</div>
+{% endif %}
+
+{% if rollback_hash %}
+<dl class="task-info">
+    <dt>Rollback Commit</dt>
+    <dd><code>{{ rollback_hash }}</code></dd>
+</dl>
+{% endif %}
+
+<p style="margin-top: 20px;">
+    Please review the error and take appropriate action.
+</p>
+{% endblock %}

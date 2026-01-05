@@ -1,0 +1,30 @@
+WLJ Personal Assistant - Task Error
+====================================
+
+ERROR: {{ message }}
+
+Task #{{ task.task_id }}
+-----------------------
+Title: {{ task.title }}
+{% if task.description %}Description: {{ task.description }}{% endif %}
+
+Error Details:
+{{ error_details }}
+
+Rollback Status:
+{% if rollback_successful %}SUCCESSFUL - The system has been restored to the previous state.{% else %}NOT PERFORMED OR FAILED - Manual intervention may be required.{% endif %}
+
+{% if rollback_instructions %}
+Rollback Instructions:
+{{ rollback_instructions }}
+{% endif %}
+
+{% if rollback_hash %}
+Rollback Commit: {{ rollback_hash }}
+{% endif %}
+
+Please review the error and take appropriate action.
+
+--
+Sent to: {{ admin_email }}
+Timestamp: {{ timestamp }}

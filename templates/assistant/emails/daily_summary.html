@@ -1,0 +1,46 @@
+{% extends "assistant/emails/base_email.html" %}
+
+{% block title %}Daily Summary - WLJ Assistant{% endblock %}
+
+{% block header_title %}Daily Activity Summary{% endblock %}
+
+{% block content %}
+<p>{{ message }}</p>
+
+{% if action_required %}
+<div class="action-required">
+    <strong>Action Required:</strong> You have {{ tasks_pending_approval }} task{{ tasks_pending_approval|pluralize }} waiting for approval.
+</div>
+{% endif %}
+
+<dl class="task-info">
+    <dt>Tasks Created</dt>
+    <dd>{{ tasks_created }}</dd>
+
+    <dt>Tasks Completed</dt>
+    <dd>{{ tasks_completed }}</dd>
+
+    <dt>Tasks Failed</dt>
+    <dd>{{ tasks_failed }}</dd>
+
+    <dt>Pending Approval</dt>
+    <dd>{{ tasks_pending_approval }}</dd>
+
+    <dt>Total Activity</dt>
+    <dd>{{ total_activity }}</dd>
+</dl>
+
+{% if total_activity == 0 %}
+<p style="color: #6b7280;">No improvement activity today.</p>
+{% elif tasks_completed > 0 %}
+<p style="color: #065f46;">
+    Great progress! {{ tasks_completed }} improvement{{ tasks_completed|pluralize }} successfully applied today.
+</p>
+{% endif %}
+
+{% if tasks_failed > 0 %}
+<p style="color: #991b1b;">
+    Note: {{ tasks_failed }} task{{ tasks_failed|pluralize }} failed today. Please review the error logs.
+</p>
+{% endif %}
+{% endblock %}

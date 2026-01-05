@@ -1,0 +1,41 @@
+{% extends "assistant/emails/base_email.html" %}
+
+{% block title %}Approval Required - WLJ Assistant{% endblock %}
+
+{% block header_title %}Approval Required{% endblock %}
+
+{% block content %}
+<div class="action-required">
+    <strong>Action Required:</strong> {{ message }}
+</div>
+
+<span class="badge badge-warning">Task #{{ task.task_id }}</span>
+
+<dl class="task-info">
+    <dt>Task Title</dt>
+    <dd>{{ task.title }}</dd>
+
+    {% if task.description %}
+    <dt>Description</dt>
+    <dd>{{ task.description }}</dd>
+    {% endif %}
+
+    <dt>Severity</dt>
+    <dd>{{ task.severity|title }}</dd>
+</dl>
+
+{% if changes_preview %}
+<h3>Proposed Changes</h3>
+<div class="diff-block">{{ changes_preview }}</div>
+{% endif %}
+
+{% if approval_url %}
+<p style="margin-top: 20px;">
+    <a href="{{ approval_url }}" class="btn btn-primary">Review & Approve</a>
+</p>
+{% else %}
+<p style="margin-top: 20px; color: #6b7280; font-size: 14px;">
+    <em>Approval link will be available in Phase 4. For now, please review tasks in the admin console.</em>
+</p>
+{% endif %}
+{% endblock %}

@@ -5,8 +5,7 @@ A floating star button that appears on all pages (except excluded ones).
 Allows users to quickly favorite any page.
 {% endcomment %}
 
-{% with excluded_paths="/,/admin/,/accounts/,/api/,/static/,/media/" %}
-{% if request.path not in excluded_paths and not request.path|slice:":7" == "/admin/" and not request.path|slice:":10" == "/accounts/" and not request.path|slice:":5" == "/api/" %}
+{% if request.path != "/" and "/admin/" not in request.path and "/accounts/" not in request.path and "/api/" not in request.path %}
 <button
     type="button"
     class="favorite-floating-btn {% if is_current_page_favorite %}is-favorite{% endif %}"
@@ -95,4 +94,3 @@ Allows users to quickly favorite any page.
 }
 </style>
 {% endif %}
-{% endwith %}

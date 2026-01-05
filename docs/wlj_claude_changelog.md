@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-04 (Recurring Task Form)
+# Last Updated: 2026-01-04 (What's New Visibility Check)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,20 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-04 Changes
+
+### What's New Visibility Check
+
+**Session:** What's New improvement
+
+**Changes:**
+1. Added visibility change listener to re-check for new release notes when user returns to tab
+2. Users with long sessions will now see new releases when they switch back to the app
+3. Only checks if modal is not already open to avoid interrupting user
+
+**Files Modified:**
+- `static/js/whats_new.js` - Added visibilitychange event listener in init()
+
+---
 
 ### Recurring vs One-Time Task Form (Task #134)
 

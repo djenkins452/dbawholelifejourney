@@ -4005,3 +4005,207 @@ class DataLoadConfigViewTests(TestCase, AdminTestMixin):
             DataLoadConfig.objects.filter(is_loaded=True).count(),
             0
         )
+
+
+# =============================================================================
+# CODEBASE METRICS TESTS
+# =============================================================================
+
+class CodebaseMetricsServiceTest(TestCase):
+    """Tests for the MetricsService class."""
+
+    def test_metrics_service_initialization(self):
+        """Test that MetricsService initializes correctly."""
+        from apps.admin_console.metrics_service import MetricsService
+        service = MetricsService()
+        self.assertIsNotNone(service.project_root)
+
+    def test_file_metrics_returns_dataclass(self):
+        """Test that get_file_metrics returns a FileMetrics dataclass."""
+        from apps.admin_console.metrics_service import MetricsService, FileMetrics
+        service = MetricsService()
+        metrics = service.get_file_metrics()
+        self.assertIsInstance(metrics, FileMetrics)
+
+    def test_file_metrics_has_expected_fields(self):
+        """Test that FileMetrics has all expected fields."""
+        from apps.admin_console.metrics_service import MetricsService
+        service = MetricsService()
+        metrics = service.get_file_metrics()
+
+        # Check all expected fields exist
+        self.assertTrue(hasattr(metrics, 'python_files'))
+        self.assertTrue(hasattr(metrics, 'python_lines'))
+        self.assertTrue(hasattr(metrics, 'html_files'))
+        self.assertTrue(hasattr(metrics, 'html_lines'))
+        self.assertTrue(hasattr(metrics, 'javascript_files'))
+        self.assertTrue(hasattr(metrics, 'css_files'))
+        self.assertTrue(hasattr(metrics, 'markdown_files'))
+        self.assertTrue(hasattr(metrics, 'test_files'))
+        self.assertTrue(hasattr(metrics, 'migration_files'))
+        self.assertTrue(hasattr(metrics, 'total_size_mb'))
+
+    def test_code_metrics_returns_dataclass(self):
+        """Test that get_code_metrics returns a CodeMetrics dataclass."""
+        from apps.admin_console.metrics_service import MetricsService, CodeMetrics
+        service = MetricsService()
+        metrics = service.get_code_metrics()
+        self.assertIsInstance(metrics, CodeMetrics)
+
+    def test_code_metrics_has_expected_fields(self):
+        """Test that CodeMetrics has all expected fields."""
+        from apps.admin_console.metrics_service import MetricsService
+        service = MetricsService()
+        metrics = service.get_code_metrics()
+
+        self.assertTrue(hasattr(metrics, 'django_models'))
+        self.assertTrue(hasattr(metrics, 'view_functions'))
+        self.assertTrue(hasattr(metrics, 'url_routes'))
+        self.assertTrue(hasattr(metrics, 'python_classes'))
+        self.assertTrue(hasattr(metrics, 'python_functions'))
+        self.assertTrue(hasattr(metrics, 'test_methods'))
+        self.assertTrue(hasattr(metrics, 'dependencies'))
+        self.assertTrue(hasattr(metrics, 'unique_imports'))
+        self.assertTrue(hasattr(metrics, 'todo_comments'))
+        self.assertTrue(hasattr(metrics, 'django_apps'))
+        self.assertTrue(hasattr(metrics, 'app_names'))
+
+    def test_git_metrics_returns_dataclass(self):
+        """Test that get_git_metrics returns a GitMetrics dataclass."""
+        from apps.admin_console.metrics_service import MetricsService, GitMetrics
+        service = MetricsService()
+        metrics = service.get_git_metrics()
+        self.assertIsInstance(metrics, GitMetrics)
+
+    def test_git_metrics_has_expected_fields(self):
+        """Test that GitMetrics has all expected fields."""
+        from apps.admin_console.metrics_service import MetricsService
+        service = MetricsService()
+        metrics = service.get_git_metrics()
+
+        self.assertTrue(hasattr(metrics, 'total_commits'))
+        self.assertTrue(hasattr(metrics, 'total_insertions'))
+        self.assertTrue(hasattr(metrics, 'total_deletions'))
+        self.assertTrue(hasattr(metrics, 'net_lines_added'))
+        self.assertTrue(hasattr(metrics, 'unique_days_with_commits'))
+        self.assertTrue(hasattr(metrics, 'first_commit_date'))
+        self.assertTrue(hasattr(metrics, 'last_commit_date'))
+        self.assertTrue(hasattr(metrics, 'project_age_days'))
+        self.assertTrue(hasattr(metrics, 'avg_commits_per_day'))
+        self.assertTrue(hasattr(metrics, 'commits_today'))
+        self.assertTrue(hasattr(metrics, 'lines_added_today'))
+        self.assertTrue(hasattr(metrics, 'lines_deleted_today'))
+        self.assertTrue(hasattr(metrics, 'feature_commits'))
+        self.assertTrue(hasattr(metrics, 'bugfix_commits'))
+        self.assertTrue(hasattr(metrics, 'refactor_commits'))
+        self.assertTrue(hasattr(metrics, 'ai_assisted_commits'))
+        self.assertTrue(hasattr(metrics, 'most_productive_days'))
+        self.assertTrue(hasattr(metrics, 'commits_by_day'))
+        self.assertTrue(hasattr(metrics, 'peak_hours'))
+
+    def test_get_all_metrics_returns_project_metrics(self):
+        """Test that get_all_metrics returns a ProjectMetrics dataclass."""
+        from apps.admin_console.metrics_service import MetricsService, ProjectMetrics
+        service = MetricsService()
+        metrics = service.get_all_metrics()
+        self.assertIsInstance(metrics, ProjectMetrics)
+
+    def test_get_all_metrics_has_all_components(self):
+        """Test that ProjectMetrics contains all metric components."""
+        from apps.admin_console.metrics_service import (
+            MetricsService, FileMetrics, CodeMetrics, GitMetrics
+        )
+        service = MetricsService()
+        metrics = service.get_all_metrics()
+
+        self.assertIsInstance(metrics.file_metrics, FileMetrics)
+        self.assertIsInstance(metrics.code_metrics, CodeMetrics)
+        self.assertIsInstance(metrics.git_metrics, GitMetrics)
+        self.assertIsNotNone(metrics.generated_at)
+
+    def test_convenience_function_works(self):
+        """Test that get_project_metrics convenience function works."""
+        from apps.admin_console.metrics_service import get_project_metrics, ProjectMetrics
+        metrics = get_project_metrics()
+        self.assertIsInstance(metrics, ProjectMetrics)
+
+    def test_python_files_count_is_positive(self):
+        """Test that we detect Python files in the project."""
+        from apps.admin_console.metrics_service import MetricsService
+        service = MetricsService()
+        metrics = service.get_file_metrics()
+        # This project should have Python files
+        self.assertGreater(metrics.python_files, 0)
+
+    def test_django_apps_detected(self):
+        """Test that Django apps are detected."""
+        from apps.admin_console.metrics_service import MetricsService
+        service = MetricsService()
+        metrics = service.get_code_metrics()
+        # This project should have Django apps
+        self.assertGreater(metrics.django_apps, 0)
+        self.assertIn('admin_console', metrics.app_names)
+
+
+class CodebaseMetricsViewTest(AdminTestMixin, TestCase):
+    """Tests for the CodebaseMetricsView."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin = self.create_admin()
+        self.user = self.create_user()
+
+    def test_view_requires_staff(self):
+        """Test that non-staff users cannot access the view."""
+        self.client.login(email='user@example.com', password='testpass123')
+        response = self.client.get(reverse('admin_console:codebase_metrics'))
+        # Should redirect to dashboard (permission denied)
+        self.assertEqual(response.status_code, 302)
+
+    def test_view_accessible_by_admin(self):
+        """Test that staff users can access the view."""
+        self.client.login(email='admin@example.com', password='adminpass123')
+        response = self.client.get(reverse('admin_console:codebase_metrics'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_view_uses_correct_template(self):
+        """Test that the view uses the correct template."""
+        self.client.login(email='admin@example.com', password='adminpass123')
+        response = self.client.get(reverse('admin_console:codebase_metrics'))
+        self.assertTemplateUsed(response, 'admin_console/codebase_metrics.html')
+
+    def test_view_contains_metrics_in_context(self):
+        """Test that the view provides metrics in context."""
+        self.client.login(email='admin@example.com', password='adminpass123')
+        response = self.client.get(reverse('admin_console:codebase_metrics'))
+
+        self.assertIn('metrics', response.context)
+        self.assertIn('file_metrics', response.context)
+        self.assertIn('code_metrics', response.context)
+        self.assertIn('git_metrics', response.context)
+        self.assertIn('generated_at', response.context)
+
+    def test_view_displays_python_files_count(self):
+        """Test that the view displays Python file count."""
+        self.client.login(email='admin@example.com', password='adminpass123')
+        response = self.client.get(reverse('admin_console:codebase_metrics'))
+        # The page should contain the word "Python" somewhere
+        self.assertContains(response, 'Python')
+
+    def test_view_displays_git_metrics(self):
+        """Test that the view displays git metrics."""
+        self.client.login(email='admin@example.com', password='adminpass123')
+        response = self.client.get(reverse('admin_console:codebase_metrics'))
+        # The page should contain git-related content
+        self.assertContains(response, 'Git Activity')
+
+    def test_view_displays_architecture_section(self):
+        """Test that the view displays code architecture section."""
+        self.client.login(email='admin@example.com', password='adminpass123')
+        response = self.client.get(reverse('admin_console:codebase_metrics'))
+        self.assertContains(response, 'Code Architecture')
+
+    def test_url_resolves_correctly(self):
+        """Test that the URL resolves to the correct view."""
+        url = reverse('admin_console:codebase_metrics')
+        self.assertEqual(url, '/admin-console/codebase-metrics/')

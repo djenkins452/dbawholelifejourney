@@ -1531,6 +1531,40 @@ class ProjectStatusView(AdminRequiredMixin, TemplateView):
         return context
 
 
+class CodebaseMetricsView(HelpContextMixin, AdminRequiredMixin, TemplateView):
+    """
+    Admin page displaying comprehensive codebase and project metrics.
+
+    GET /admin/codebase-metrics/
+
+    Displays:
+    - Project Overview (age, size, apps)
+    - File Statistics (counts, lines of code)
+    - Code Architecture (models, views, routes, classes, functions)
+    - Git Activity (commits, insertions, deletions)
+    - Today's Progress
+    - Commit Breakdown by Type
+    - Most Productive Days
+    - Coding Schedule Patterns
+    """
+    template_name = "admin_console/codebase_metrics.html"
+    help_context_id = "ADMIN_CONSOLE_CODEBASE_METRICS"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        from .metrics_service import get_project_metrics
+        metrics = get_project_metrics()
+
+        context['metrics'] = metrics
+        context['file_metrics'] = metrics.file_metrics
+        context['code_metrics'] = metrics.code_metrics
+        context['git_metrics'] = metrics.git_metrics
+        context['generated_at'] = metrics.generated_at
+
+        return context
+
+
 # ============================================================
 # Phase 10 - Hardening & Fail-Safes API Views
 # ============================================================

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Enter Key Chat Submit - Task #193)
+# Last Updated: 2026-01-05 (Codebase Metrics Report)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,41 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Codebase Metrics Report to Admin Console
+
+**Session:** Codebase Metrics
+
+**Objective:**
+Create a comprehensive codebase metrics dashboard in the admin console to display project statistics, file counts, code architecture, and git activity patterns.
+
+**Solution:**
+Built a complete metrics service and admin view that gathers and displays:
+- Project overview (age, size, apps)
+- File statistics (Python, HTML, JS, CSS, Markdown, test files, migrations)
+- Code architecture (models, views, routes, classes, functions, test methods)
+- Git activity (commits, insertions, deletions, daily activity)
+- Today's progress (commits, lines changed, coding window)
+- Commit breakdown by type (features, fixes, AI-assisted, refactoring)
+- Most productive days
+- Commits by day of week
+- Peak coding hours
+
+**Files created:**
+- `apps/admin_console/metrics_service.py` - Service module with MetricsService class
+- `templates/admin_console/codebase_metrics.html` - Dashboard template
+- `docs/wlj_codebase_metrics.md` - Feature documentation
+
+**Files modified:**
+- `apps/admin_console/views.py` - Added CodebaseMetricsView
+- `apps/admin_console/urls.py` - Added route: `/admin-console/codebase-metrics/`
+- `templates/admin_console/dashboard.html` - Added link to metrics page
+- `apps/admin_console/tests/test_admin_console.py` - Added 20 test cases
+- `config/settings.py` - Added django.contrib.humanize to INSTALLED_APPS
+
+**URL:** `/admin-console/codebase-metrics/`
+
+---
 
 ### Add Enter Key Submit for Chat with Assistant (Task #193)
 

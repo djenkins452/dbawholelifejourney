@@ -1,0 +1,708 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Codebase Metrics - Admin Console{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Codebase Metrics{% include "components/favorite_toggle.html" with page_title="Codebase Metrics" %}</h1>
+            <p class="page-subtitle">Comprehensive project statistics and development activity</p>
+        </div>
+        <div class="header-actions">
+            <span class="generated-time">Generated: {{ generated_at|date:"M j, Y g:i A" }}</span>
+            <a href="{% url 'admin_console:codebase_metrics' %}" class="btn btn-primary">Refresh</a>
+            <a href="{% url 'admin_console:dashboard' %}" class="btn btn-outline">Back to Admin</a>
+        </div>
+    </div>
+
+    <!-- Project Overview -->
+    <div class="metrics-section">
+        <h2 class="section-title">Project Overview</h2>
+        <div class="overview-grid">
+            <div class="overview-card">
+                <span class="overview-value">{{ git_metrics.project_age_days }}</span>
+                <span class="overview-label">Days Old</span>
+            </div>
+            <div class="overview-card">
+                <span class="overview-value">{{ file_metrics.total_size_mb|floatformat:0 }} MB</span>
+                <span class="overview-label">Project Size</span>
+            </div>
+            <div class="overview-card">
+                <span class="overview-value">{{ code_metrics.django_apps }}</span>
+                <span class="overview-label">Django Apps</span>
+            </div>
+            <div class="overview-card">
+                <span class="overview-value">{{ git_metrics.first_commit_date }}</span>
+                <span class="overview-label">First Commit</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Statistics -->
+    <div class="metrics-section">
+        <h2 class="section-title">File Statistics</h2>
+        <div class="table-container">
+            <table class="metrics-table">
+                <thead>
+                    <tr>
+                        <th>File Type</th>
+                        <th class="text-right">Count</th>
+                        <th class="text-right">Lines</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Python files</td>
+                        <td class="text-right">{{ file_metrics.python_files|intcomma }}</td>
+                        <td class="text-right">{{ file_metrics.python_lines|intcomma }}</td>
+                    </tr>
+                    <tr>
+                        <td>HTML templates</td>
+                        <td class="text-right">{{ file_metrics.html_files|intcomma }}</td>
+                        <td class="text-right">{{ file_metrics.html_lines|intcomma }}</td>
+                    </tr>
+                    <tr>
+                        <td>JavaScript files</td>
+                        <td class="text-right">{{ file_metrics.javascript_files|intcomma }}</td>
+                        <td class="text-right">-</td>
+                    </tr>
+                    <tr>
+                        <td>CSS files</td>
+                        <td class="text-right">{{ file_metrics.css_files|intcomma }}</td>
+                        <td class="text-right">-</td>
+                    </tr>
+                    <tr>
+                        <td>Markdown docs</td>
+                        <td class="text-right">{{ file_metrics.markdown_files|intcomma }}</td>
+                        <td class="text-right">-</td>
+                    </tr>
+                    <tr>
+                        <td>Test files</td>
+                        <td class="text-right">{{ file_metrics.test_files|intcomma }}</td>
+                        <td class="text-right">-</td>
+                    </tr>
+                    <tr>
+                        <td>Migration files</td>
+                        <td class="text-right">{{ file_metrics.migration_files|intcomma }}</td>
+                        <td class="text-right">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Code Architecture -->
+    <div class="metrics-section">
+        <h2 class="section-title">Code Architecture</h2>
+        <div class="architecture-grid">
+            <div class="arch-card">
+                <span class="arch-value">{{ code_metrics.django_models }}</span>
+                <span class="arch-label">Django Models</span>
+            </div>
+            <div class="arch-card">
+                <span class="arch-value">{{ code_metrics.view_functions|intcomma }}</span>
+                <span class="arch-label">View Functions</span>
+            </div>
+            <div class="arch-card">
+                <span class="arch-value">{{ code_metrics.url_routes|intcomma }}</span>
+                <span class="arch-label">URL Routes</span>
+            </div>
+            <div class="arch-card">
+                <span class="arch-value">{{ code_metrics.python_classes|intcomma }}</span>
+                <span class="arch-label">Python Classes</span>
+            </div>
+            <div class="arch-card">
+                <span class="arch-value">{{ code_metrics.python_functions|intcomma }}</span>
+                <span class="arch-label">Python Functions</span>
+            </div>
+            <div class="arch-card">
+                <span class="arch-value">{{ code_metrics.test_methods|intcomma }}</span>
+                <span class="arch-label">Test Methods</span>
+            </div>
+            <div class="arch-card">
+                <span class="arch-value">{{ code_metrics.dependencies }}</span>
+                <span class="arch-label">Dependencies</span>
+            </div>
+            <div class="arch-card">
+                <span class="arch-value">{{ code_metrics.unique_imports|intcomma }}</span>
+                <span class="arch-label">Unique Imports</span>
+            </div>
+            <div class="arch-card">
+                <span class="arch-value">{{ code_metrics.todo_comments }}</span>
+                <span class="arch-label">TODOs/FIXMEs</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Django Apps -->
+    {% if code_metrics.app_names %}
+    <div class="metrics-section">
+        <h2 class="section-title">Django Apps</h2>
+        <div class="apps-grid">
+            {% for app in code_metrics.app_names %}
+            <span class="app-badge">{{ app }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Git Activity -->
+    <div class="metrics-section">
+        <h2 class="section-title">Git Activity</h2>
+        <div class="git-grid">
+            <div class="git-card">
+                <span class="git-value">{{ git_metrics.total_commits|intcomma }}</span>
+                <span class="git-label">Total Commits</span>
+            </div>
+            <div class="git-card git-success">
+                <span class="git-value">+{{ git_metrics.total_insertions|intcomma }}</span>
+                <span class="git-label">Total Insertions</span>
+            </div>
+            <div class="git-card git-danger">
+                <span class="git-value">-{{ git_metrics.total_deletions|intcomma }}</span>
+                <span class="git-label">Total Deletions</span>
+            </div>
+            <div class="git-card git-info">
+                <span class="git-value">+{{ git_metrics.net_lines_added|intcomma }}</span>
+                <span class="git-label">Net Lines Added</span>
+            </div>
+        </div>
+        <div class="git-stats-row">
+            <div class="git-stat">
+                <strong>{{ git_metrics.unique_days_with_commits }}</strong> unique days with commits
+            </div>
+            <div class="git-stat">
+                <strong>{{ git_metrics.avg_commits_per_day|floatformat:1 }}</strong> avg commits/day
+            </div>
+        </div>
+    </div>
+
+    <!-- Today's Progress -->
+    <div class="metrics-section">
+        <h2 class="section-title">Today's Progress</h2>
+        <div class="today-grid">
+            <div class="today-card">
+                <span class="today-value">{{ git_metrics.commits_today }}</span>
+                <span class="today-label">Commits Today</span>
+            </div>
+            <div class="today-card today-success">
+                <span class="today-value">+{{ git_metrics.lines_added_today|intcomma }}</span>
+                <span class="today-label">Lines Added</span>
+            </div>
+            <div class="today-card today-danger">
+                <span class="today-value">-{{ git_metrics.lines_deleted_today|intcomma }}</span>
+                <span class="today-label">Lines Deleted</span>
+            </div>
+            <div class="today-card today-info">
+                <span class="today-value">{{ git_metrics.coding_hours_today|floatformat:1 }}h</span>
+                <span class="today-label">Coding Time</span>
+            </div>
+        </div>
+        {% if git_metrics.first_commit_today and git_metrics.last_commit_today %}
+        <div class="today-window">
+            <span>Coding window: <strong>{{ git_metrics.first_commit_today }}</strong> to <strong>{{ git_metrics.last_commit_today }}</strong></span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Commit Breakdown -->
+    <div class="metrics-section">
+        <h2 class="section-title">Commit Breakdown by Type</h2>
+        <div class="breakdown-grid">
+            <div class="breakdown-card">
+                <div class="breakdown-bar" style="--bar-width: {% widthratio git_metrics.feature_commits git_metrics.total_commits 100 %}%; --bar-color: #10b981;"></div>
+                <div class="breakdown-content">
+                    <span class="breakdown-value">{{ git_metrics.feature_commits }}</span>
+                    <span class="breakdown-label">Features/Additions</span>
+                    <span class="breakdown-pct">{% widthratio git_metrics.feature_commits git_metrics.total_commits 100 %}%</span>
+                </div>
+            </div>
+            <div class="breakdown-card">
+                <div class="breakdown-bar" style="--bar-width: {% widthratio git_metrics.bugfix_commits git_metrics.total_commits 100 %}%; --bar-color: #f59e0b;"></div>
+                <div class="breakdown-content">
+                    <span class="breakdown-value">{{ git_metrics.bugfix_commits }}</span>
+                    <span class="breakdown-label">Bug Fixes</span>
+                    <span class="breakdown-pct">{% widthratio git_metrics.bugfix_commits git_metrics.total_commits 100 %}%</span>
+                </div>
+            </div>
+            <div class="breakdown-card">
+                <div class="breakdown-bar" style="--bar-width: {% widthratio git_metrics.ai_assisted_commits git_metrics.total_commits 100 %}%; --bar-color: #8b5cf6;"></div>
+                <div class="breakdown-content">
+                    <span class="breakdown-value">{{ git_metrics.ai_assisted_commits }}</span>
+                    <span class="breakdown-label">AI-Assisted (Claude)</span>
+                    <span class="breakdown-pct">{% widthratio git_metrics.ai_assisted_commits git_metrics.total_commits 100 %}%</span>
+                </div>
+            </div>
+            <div class="breakdown-card">
+                <div class="breakdown-bar" style="--bar-width: {% widthratio git_metrics.refactor_commits git_metrics.total_commits 100 %}%; --bar-color: #3b82f6;"></div>
+                <div class="breakdown-content">
+                    <span class="breakdown-value">{{ git_metrics.refactor_commits }}</span>
+                    <span class="breakdown-label">Refactoring</span>
+                    <span class="breakdown-pct">{% widthratio git_metrics.refactor_commits git_metrics.total_commits 100 %}%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Most Productive Days -->
+    {% if git_metrics.most_productive_days %}
+    <div class="metrics-section">
+        <h2 class="section-title">Most Productive Days</h2>
+        <div class="table-container">
+            <table class="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Date</th>
+                        <th class="text-right">Commits</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day in git_metrics.most_productive_days %}
+                    <tr>
+                        <td>
+                            {% if forloop.counter == 1 %}
+                            <span class="rank-badge rank-1">1st</span>
+                            {% elif forloop.counter == 2 %}
+                            <span class="rank-badge rank-2">2nd</span>
+                            {% elif forloop.counter == 3 %}
+                            <span class="rank-badge rank-3">3rd</span>
+                            {% else %}
+                            <span class="rank-badge">{{ forloop.counter }}th</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ day.date }}</td>
+                        <td class="text-right"><strong>{{ day.commits }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Commits by Day of Week -->
+    {% if git_metrics.commits_by_day %}
+    <div class="metrics-section">
+        <h2 class="section-title">Commits by Day of Week</h2>
+        <div class="day-chart">
+            {% for day, count in git_metrics.commits_by_day.items %}
+            <div class="day-bar-container">
+                <span class="day-label">{{ day|slice:":3" }}</span>
+                <div class="day-bar-wrapper">
+                    <div class="day-bar" style="width: {% widthratio count git_metrics.total_commits 200 %}%;"></div>
+                </div>
+                <span class="day-count">{{ count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Peak Coding Hours -->
+    {% if git_metrics.peak_hours %}
+    <div class="metrics-section">
+        <h2 class="section-title">Peak Coding Hours</h2>
+        <div class="hours-grid">
+            {% for hour in git_metrics.peak_hours %}
+            <div class="hour-card">
+                <span class="hour-time">{{ hour.hour }}</span>
+                <span class="hour-count">{{ hour.commits }} commits</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<style>
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.generated-time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.metrics-section {
+    margin-bottom: var(--space-8);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-4);
+    color: var(--color-text);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-2);
+}
+
+/* Overview Grid */
+.overview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+}
+
+.overview-card {
+    background: linear-gradient(135deg, var(--color-accent) 0%, color-mix(in srgb, var(--color-accent) 80%, #000) 100%);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    text-align: center;
+    color: white;
+}
+
+.overview-value {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+}
+
+.overview-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    opacity: 0.9;
+    margin-top: var(--space-1);
+}
+
+/* Table Styles */
+.table-container {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.metrics-table th,
+.metrics-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.metrics-table th {
+    background: var(--color-background);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.metrics-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.metrics-table tbody tr:hover {
+    background: var(--color-background);
+}
+
+.text-right {
+    text-align: right;
+}
+
+/* Architecture Grid */
+.architecture-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-3);
+}
+
+.arch-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    text-align: center;
+}
+
+.arch-value {
+    display: block;
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.arch-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+/* Apps Grid */
+.apps-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.app-badge {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+/* Git Grid */
+.git-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+}
+
+.git-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    text-align: center;
+}
+
+.git-value {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+}
+
+.git-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+}
+
+.git-success .git-value { color: #10b981; }
+.git-danger .git-value { color: #ef4444; }
+.git-info .git-value { color: #3b82f6; }
+
+.git-stats-row {
+    display: flex;
+    gap: var(--space-6);
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.git-stat {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.git-stat strong {
+    color: var(--color-text);
+}
+
+/* Today Grid */
+.today-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+}
+
+.today-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    text-align: center;
+}
+
+.today-value {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+}
+
+.today-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+}
+
+.today-success .today-value { color: #10b981; }
+.today-danger .today-value { color: #ef4444; }
+.today-info .today-value { color: #8b5cf6; }
+
+.today-window {
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Breakdown Grid */
+.breakdown-grid {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.breakdown-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    position: relative;
+}
+
+.breakdown-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--bar-width);
+    background: var(--bar-color);
+    opacity: 0.15;
+}
+
+.breakdown-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: var(--space-4);
+    gap: var(--space-4);
+}
+
+.breakdown-value {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    min-width: 60px;
+}
+
+.breakdown-label {
+    flex: 1;
+    color: var(--color-text-muted);
+}
+
+.breakdown-pct {
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+/* Rank Badges */
+.rank-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.rank-1 {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: white;
+}
+
+.rank-2 {
+    background: linear-gradient(135deg, #9ca3af, #6b7280);
+    color: white;
+}
+
+.rank-3 {
+    background: linear-gradient(135deg, #d97706, #b45309);
+    color: white;
+}
+
+/* Day Chart */
+.day-chart {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.day-bar-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+}
+
+.day-label {
+    width: 40px;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.day-bar-wrapper {
+    flex: 1;
+    height: 24px;
+    background: var(--color-background);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.day-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 70%, #000));
+    border-radius: var(--radius-sm);
+    transition: width 0.3s ease;
+}
+
+.day-count {
+    width: 50px;
+    text-align: right;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+/* Hours Grid */
+.hours-grid {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.hour-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    text-align: center;
+    min-width: 100px;
+}
+
+.hour-time {
+    display: block;
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.hour-count {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .overview-grid,
+    .git-grid,
+    .today-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .header-actions {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+{% endblock %}

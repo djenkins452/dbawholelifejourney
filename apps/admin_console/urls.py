@@ -144,4 +144,7 @@ urlpatterns = [
 
     # Project Management JSON Import
     path("project-import/", views.ProjectImportView.as_view(), name="project_import"),
+
+    # Codebase Metrics Report
+    path("codebase-metrics/", views.CodebaseMetricsView.as_view(), name="codebase_metrics"),
 ]

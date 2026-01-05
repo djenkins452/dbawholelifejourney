@@ -285,8 +285,8 @@ class PersonalDataService:
         # Import here to avoid circular imports and allow testing without Django
         from apps.health.models import MedicineLog
 
-        # Build base queryset - filter by user and exclude soft-deleted
-        queryset = MedicineLog.objects.filter(user=self.user, is_deleted=False)
+        # Build base queryset - filter by user (SoftDeleteManager excludes deleted records)
+        queryset = MedicineLog.objects.filter(user=self.user)
 
         # Apply date filter if provided
         if since_date:

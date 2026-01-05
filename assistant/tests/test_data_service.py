@@ -803,9 +803,9 @@ class TestGetMedicationDataFiltering(CacheMockMixin, unittest.TestCase):
         service = PersonalDataService(mock_user)
         service.get_medication_data()
 
-        # Verify initial filter includes user and is_deleted=False
+        # Verify initial filter includes user (SoftDeleteManager excludes deleted records)
         mock_health_models.MedicineLog.objects.filter.assert_called_with(
-            user=mock_user, is_deleted=False
+            user=mock_user
         )
 
     @patch('assistant.data_service.timezone')

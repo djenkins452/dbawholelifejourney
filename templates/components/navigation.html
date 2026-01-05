@@ -61,22 +61,23 @@
                             </a>
                             {% endfor %}
                         {% endif %}
-                        {% if favorites_menu_data.favorites and favorites_menu_data.recent %}
+                        {% if favorites_menu_data.favorites and favorites_menu_data.most_used %}
                             <hr class="nav-dropdown-divider">
-                            <div class="nav-mega-heading" style="padding: 0.5rem 1rem; font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Most Recent</div>
+                            <div class="nav-mega-heading" style="padding: 0.5rem 1rem; font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Most Used</div>
                         {% endif %}
-                        {% if favorites_menu_data.recent %}
-                            {% for page in favorites_menu_data.recent %}
+                        {% if favorites_menu_data.most_used %}
+                            {% for page in favorites_menu_data.most_used %}
                             <a href="{{ page.url }}" class="nav-dropdown-item">
                                 <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <polyline points="12 6 12 12 16 14"/>
+                                    <path d="M12 20V10"/>
+                                    <path d="M18 20V4"/>
+                                    <path d="M6 20v-4"/>
                                 </svg>
                                 {{ page.title }}
                             </a>
                             {% endfor %}
                         {% endif %}
-                        {% if not favorites_menu_data.favorites and not favorites_menu_data.recent %}
+                        {% if not favorites_menu_data.favorites and not favorites_menu_data.most_used %}
                             <div class="nav-dropdown-empty" style="padding: 1rem; text-align: center; color: var(--color-text-muted); font-size: 0.875rem;">
                                 <svg style="width: 24px; height: 24px; margin: 0 auto 0.5rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>

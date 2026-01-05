@@ -803,6 +803,16 @@
         chatSend.disabled = !chatInput.value.trim();
     });
 
+    // Submit on Enter key (Shift+Enter for newline if needed later)
+    chatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (chatInput.value.trim()) {
+                chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+            }
+        }
+    });
+
     chatForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         if (!chatInput.value.trim()) return;

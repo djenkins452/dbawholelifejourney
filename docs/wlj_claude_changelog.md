@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Add Cache Integration Tests)
+# Last Updated: 2026-01-05 (Add Glucose Data Service Method)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,47 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Glucose Data Service Method (Task #186)
+
+**Session:** Add Glucose Data Service Method
+
+**Changes:**
+1. Implemented `get_glucose_data()` method in `PersonalDataService`:
+   - Queries `GlucoseEntry` model for user's blood glucose data
+   - Returns count, average, latest value, latest date, unit (mg/dL or mmol/L)
+   - Includes recent entries with context and CGM trend information
+   - Supports `since_date` filtering and caching
+
+2. Integrated glucose with Personal Data Query System:
+   - Added 'glucose' to `query_map` in `query_by_intent()`
+   - Added 'glucose' to `supported_types` in `views.py`
+   - Added `_format_glucose_data()` to `context_builder.py`
+
+3. Added cache invalidation for glucose data:
+   - Updated `invalidate_insights_on_glucose_save` signal handler
+   - Updated `invalidate_insights_on_glucose_delete` signal handler
+
+4. Added comprehensive unit tests:
+   - `TestGetGlucoseDataNoEntries` (2 tests)
+   - `TestGetGlucoseDataWithEntries` (5 tests)
+   - `TestGetGlucoseDataFiltering` (1 test)
+   - `TestGetGlucoseDataEntries` (2 tests)
+   - `TestQueryByIntentWithGlucose` (2 tests)
+   - `TestGlucoseCacheBehavior` (2 tests)
+   - Context builder tests for glucose formatting
+
+**Files Modified:**
+- `assistant/data_service.py` - Added `get_glucose_data()` method and query_map entry
+- `assistant/views.py` - Added 'glucose' to supported_types
+- `assistant/context_builder.py` - Added `_format_glucose_data()` and glucose section handling
+- `apps/ai/signals.py` - Added glucose cache invalidation to existing signal handlers
+- `assistant/tests/test_data_service.py` - Added glucose unit tests (14 tests)
+- `assistant/tests/test_context_builder.py` - Added glucose formatting tests (7 tests)
+
+**Purpose:** Enable assistant queries about blood glucose data ("What was my average glucose this week?") with support for Dexcom CGM integration.
+
+---
 
 ### Add Cache Integration Tests (Task #185)
 

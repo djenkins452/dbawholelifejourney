@@ -11,7 +11,7 @@
                 <span>/</span>
                 <span>Projects</span>
             </nav>
-            <h1 class="page-title">Projects</h1>
+            <h1 class="page-title">Projects{% include "components/favorite_toggle.html" with page_title="Projects" %}</h1>
             <p class="page-subtitle">View and manage admin projects</p>
         </div>
         <a href="{% url 'admin_console:admin_project_create' %}" class="btn btn-primary">

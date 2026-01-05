@@ -11,7 +11,7 @@
                 <span>/</span>
                 <span>Activity Logs</span>
             </nav>
-            <h1 class="page-title">Activity Logs</h1>
+            <h1 class="page-title">Activity Logs{% include "components/favorite_toggle.html" with page_title="Activity Logs" %}</h1>
             <p class="page-subtitle">Track task activity and changes</p>
         </div>
         <a href="{% url 'admin_console:activity_log_create' %}" class="btn btn-primary">

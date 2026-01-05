@@ -15,7 +15,7 @@
                 <span>/</span>
                 <span>{% if object %}Edit{% else %}New{% endif %}</span>
             </nav>
-            <h1 class="page-title">{% if object %}Edit Option{% else %}New Option{% endif %}</h1>
+            <h1 class="page-title">{% if object %}Edit Option{% else %}New Option{% endif %}{% include "components/favorite_toggle.html" with page_title="Choice Option Form" %}</h1>
             <p class="page-subtitle">For {{ category.name }} dropdown</p>
         </div>
     </div>

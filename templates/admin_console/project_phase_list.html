@@ -11,7 +11,7 @@
                 <span>/</span>
                 <span>Project Phases</span>
             </nav>
-            <h1 class="page-title">Project Phases</h1>
+            <h1 class="page-title">Project Phases{% include "components/favorite_toggle.html" with page_title="Project Phases" %}</h1>
             <p class="page-subtitle">Manage project phases for task organization</p>
         </div>
         <a href="{% url 'admin_console:project_phase_create' %}" class="btn btn-primary">

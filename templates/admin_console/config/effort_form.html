@@ -15,7 +15,7 @@
                 <span>/</span>
                 <span>{% if object %}Edit{% else %}Add{% endif %}</span>
             </nav>
-            <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Effort</h1>
+            <h1 class="page-title">{% if object %}Edit{% else %}Add{% endif %} Effort{% include "components/favorite_toggle.html" with page_title="Effort Config Form" %}</h1>
         </div>
     </div>
 

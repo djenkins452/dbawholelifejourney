@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from django.db.models import Avg, QuerySet
+from django.db.models import Avg, QuerySet, Sum
 from django.utils import timezone
 
 
@@ -254,6 +254,81 @@ class PersonalDataService:
             'consistency_percent': consistency_percent,
         }
 
+    def get_food_data(
+        self,
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's food entry data with calorie summaries.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+                       If None, returns all entries.
+
+        Returns:
+            None if no food entries exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'food'
+                - total_entries (int): Total number of entries matching criteria
+                - total_calories (float): Sum of all calories in the period
+                - average_daily_calories (float): Average calories per day
+                - latest_date (date): Date of most recent entry
+
+        Example:
+            >>> service = PersonalDataService(user)
+            >>> data = service.get_food_data(since_date=datetime(2024, 12, 1))
+            >>> print(data)
+            {
+                'type': 'food',
+                'total_entries': 45,
+                'total_calories': 67500.0,
+                'average_daily_calories': 1875.0,
+                'latest_date': date(2024, 12, 18)
+            }
+        """
+        # Import here to avoid circular imports and allow testing without Django
+        from apps.health.models import FoodEntry
+
+        # Build base queryset - filter by user
+        queryset = FoodEntry.objects.filter(user=self.user)
+
+        # Apply date filter if provided
+        if since_date:
+            queryset = queryset.filter(logged_date__gte=since_date)
+
+        # Check if any entries exist
+        if not queryset.exists():
+            return None
+
+        # Get total entry count
+        total_entries = queryset.count()
+
+        # Get total calories
+        cal_result = queryset.aggregate(total_cal=Sum('total_calories'))
+        total_calories = float(cal_result['total_cal']) if cal_result['total_cal'] else 0.0
+
+        # Get unique days for average calculation
+        unique_dates = queryset.values_list('logged_date', flat=True).distinct()
+        days_count = len(set(unique_dates))
+
+        # Calculate average daily calories
+        if days_count > 0:
+            average_daily_calories = round(total_calories / days_count, 1)
+        else:
+            average_daily_calories = 0.0
+
+        # Get latest entry (queryset is ordered by -logged_date by default)
+        latest_entry = queryset.first()
+        latest_date = latest_entry.logged_date
+
+        return {
+            'type': 'food',
+            'total_entries': total_entries,
+            'total_calories': round(total_calories, 1),
+            'average_daily_calories': average_daily_calories,
+            'latest_date': latest_date,
+        }
+
     def query_by_intent(
         self,
         data_types: List[str],
@@ -267,7 +342,7 @@ class PersonalDataService:
 
         Args:
             data_types: List of data type strings from the intent detector.
-                       Supported types: 'weight', 'journal', 'medication'
+                       Supported types: 'weight', 'journal', 'medication', 'food'
             since_date: Optional datetime to filter entries from this date.
                        Passed to all underlying query methods.
 
@@ -293,6 +368,7 @@ class PersonalDataService:
             'weight': self.get_weight_data,
             'journal': self.get_journal_data,
             'medication': self.get_medication_data,
+            'food': self.get_food_data,
         }
 
         # Collect results

@@ -1062,5 +1062,330 @@ class TestQueryByIntentAllDataTypes(unittest.TestCase):
         self.assertIn('medication', result)
 
 
+# ==============================================================================
+# Food Data Tests
+# ==============================================================================
+
+
+class TestGetFoodDataNoEntries(unittest.TestCase):
+    """Tests for get_food_data when no entries exist."""
+
+    def test_returns_none_when_no_entries(self):
+        """Should return None when user has no food entries."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup mock queryset that returns no entries
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_health_models.FoodEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_food_data()
+
+        self.assertIsNone(result)
+
+    def test_returns_none_when_no_entries_in_date_range(self):
+        """Should return None when no entries exist in the date range."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+
+        # Setup mock queryset
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = False
+        mock_health_models.FoodEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        since_date = datetime(2024, 12, 1)
+        result = service.get_food_data(since_date=since_date)
+
+        self.assertIsNone(result)
+
+
+class TestGetFoodDataWithEntries(unittest.TestCase):
+    """Tests for get_food_data when entries exist."""
+
+    def _setup_mock(self, total_entries=10, total_cal=15000.0, unique_dates=None,
+                    latest_date=None):
+        """Helper to setup mock queryset."""
+        from datetime import date
+        if unique_dates is None:
+            unique_dates = [date(2024, 12, 15), date(2024, 12, 16), date(2024, 12, 17)]
+        if latest_date is None:
+            latest_date = max(unique_dates)
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = total_entries
+        mock_queryset.aggregate.return_value = {'total_cal': Decimal(str(total_cal))}
+
+        # Mock values_list for unique dates
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        # Mock first() for latest entry
+        mock_latest = MagicMock()
+        mock_latest.logged_date = latest_date
+        mock_queryset.first.return_value = mock_latest
+
+        mock_health_models.FoodEntry.objects.filter.return_value = mock_queryset
+        return mock_queryset
+
+    def test_returns_dict_with_correct_structure(self):
+        """Should return dict with all expected keys."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_food_data()
+
+        self.assertIsNotNone(result)
+        self.assertIn('type', result)
+        self.assertIn('total_entries', result)
+        self.assertIn('total_calories', result)
+        self.assertIn('average_daily_calories', result)
+        self.assertIn('latest_date', result)
+
+    def test_type_is_food(self):
+        """Type should be 'food'."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.get_food_data()
+
+        self.assertEqual(result['type'], 'food')
+
+    def test_total_entries_matches_count(self):
+        """Total entries should match queryset count."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock(total_entries=45)
+
+        service = PersonalDataService(mock_user)
+        result = service.get_food_data()
+
+        self.assertEqual(result['total_entries'], 45)
+
+    def test_total_calories_from_aggregate(self):
+        """Total calories should come from aggregate sum."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_mock(total_cal=25000.5)
+
+        service = PersonalDataService(mock_user)
+        result = service.get_food_data()
+
+        self.assertEqual(result['total_calories'], 25000.5)
+
+
+class TestGetFoodDataAverageCalories(unittest.TestCase):
+    """Tests for average daily calories calculation."""
+
+    def test_average_calculated_correctly(self):
+        """Average should be total / days_count."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+
+        # 6000 calories over 3 days = 2000 avg
+        unique_dates = [date(2024, 12, 15), date(2024, 12, 16), date(2024, 12, 17)]
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 9  # 3 meals per day
+        mock_queryset.aggregate.return_value = {'total_cal': Decimal('6000.0')}
+
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_latest = MagicMock()
+        mock_latest.logged_date = date(2024, 12, 17)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_health_models.FoodEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_food_data()
+
+        self.assertEqual(result['average_daily_calories'], 2000.0)
+
+    def test_average_is_rounded(self):
+        """Average should be rounded to 1 decimal."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+
+        # 5000 calories over 3 days = 1666.666... avg -> 1666.7
+        unique_dates = [date(2024, 12, 15), date(2024, 12, 16), date(2024, 12, 17)]
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 6
+        mock_queryset.aggregate.return_value = {'total_cal': Decimal('5000.0')}
+
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_latest = MagicMock()
+        mock_latest.logged_date = date(2024, 12, 17)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_health_models.FoodEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        result = service.get_food_data()
+
+        self.assertEqual(result['average_daily_calories'], 1666.7)
+
+
+class TestGetFoodDataFiltering(unittest.TestCase):
+    """Tests for get_food_data filtering."""
+
+    def test_filters_by_user(self):
+        """Should filter entries by user."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+        mock_queryset.aggregate.return_value = {'total_cal': Decimal('5000.0')}
+
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = [date(2024, 12, 15)]
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_latest = MagicMock()
+        mock_latest.logged_date = date(2024, 12, 15)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_health_models.FoodEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        service.get_food_data()
+
+        # Verify initial filter includes user
+        mock_health_models.FoodEntry.objects.filter.assert_called_with(user=mock_user)
+
+    def test_filters_by_since_date(self):
+        """Should filter entries by since_date when provided."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+        since_date = datetime(2024, 12, 1)
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = 5
+        mock_queryset.aggregate.return_value = {'total_cal': Decimal('5000.0')}
+
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = [date(2024, 12, 15)]
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_latest = MagicMock()
+        mock_latest.logged_date = date(2024, 12, 15)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_health_models.FoodEntry.objects.filter.return_value = mock_queryset
+
+        service = PersonalDataService(mock_user)
+        service.get_food_data(since_date=since_date)
+
+        # Verify filter was called for date range
+        self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
+
+
+class TestQueryByIntentWithFood(unittest.TestCase):
+    """Tests for query_by_intent including food data type."""
+
+    def _setup_food_mock(self, total_entries=5, total_cal=7500.0):
+        """Helper to setup food mock with data."""
+        from datetime import date
+
+        mock_queryset = MagicMock()
+        mock_queryset.filter.return_value = mock_queryset
+        mock_queryset.exists.return_value = True
+        mock_queryset.count.return_value = total_entries
+        mock_queryset.aggregate.return_value = {'total_cal': Decimal(str(total_cal))}
+
+        unique_dates = [date(2024, 12, 15), date(2024, 12, 16), date(2024, 12, 17)]
+        mock_values_list = MagicMock()
+        mock_values_list.distinct.return_value = unique_dates
+        mock_queryset.values_list.return_value = mock_values_list
+
+        mock_latest = MagicMock()
+        mock_latest.logged_date = date(2024, 12, 17)
+        mock_queryset.first.return_value = mock_latest
+
+        mock_health_models.FoodEntry.objects.filter.return_value = mock_queryset
+        return mock_queryset
+
+    def test_returns_food_data_type(self):
+        """Should return food data when queried."""
+        from assistant.data_service import PersonalDataService
+
+        mock_user = MagicMock()
+        self._setup_food_mock()
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['food'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('food', result)
+        self.assertEqual(result['food']['type'], 'food')
+
+    def test_includes_food_with_other_types(self):
+        """Should include food alongside other data types."""
+        from assistant.data_service import PersonalDataService
+        from datetime import date
+
+        mock_user = MagicMock()
+
+        # Setup food mock
+        self._setup_food_mock()
+
+        # Setup journal mock
+        mock_journal_qs = MagicMock()
+        mock_journal_qs.filter.return_value = mock_journal_qs
+        mock_journal_qs.exists.return_value = True
+        mock_journal_qs.count.return_value = 10
+        mock_journal_latest = MagicMock()
+        mock_journal_latest.entry_date = date.today()
+        mock_journal_qs.first.return_value = mock_journal_latest
+        mock_journal_models.JournalEntry.objects.filter.return_value = mock_journal_qs
+
+        service = PersonalDataService(mock_user)
+        result = service.query_by_intent(data_types=['food', 'journal'])
+
+        self.assertIsNotNone(result)
+        self.assertIn('food', result)
+        self.assertIn('journal', result)
+
+
 if __name__ == '__main__':
     unittest.main()

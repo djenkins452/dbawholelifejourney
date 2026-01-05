@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (dannyjenkins71@gmail.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Integrate Components into Assistant View)
+# Last Updated: 2026-01-05 (Add Food Log Data Service Method)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,28 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-05 Changes
+
+### Add Food Log Data Service Method (Task #151)
+
+**Session:** Add Food Log Data Service Method
+
+**Changes:**
+1. Added `get_food_data()` method to `PersonalDataService` class
+2. Queries `FoodEntry` model filtered by user
+3. Filters by `logged_date__gte` when `since_date` is provided
+4. Returns None if no entries exist
+5. Calculates `total_entries`, `total_calories`, and `average_daily_calories`
+6. Returns `latest_date` from most recent entry
+7. Updated `query_map` in `query_by_intent()` to include 'food'
+8. Updated `supported_types` in `views.py` to include 'food'
+9. Added 12 new unit tests for food data querying (51 total in data_service)
+
+**Files Modified:**
+- `assistant/data_service.py` - Added get_food_data() method and updated query_map
+- `assistant/views.py` - Added 'food' to supported_types list
+- `assistant/tests/test_data_service.py` - Added food data tests (12 new tests)
+
+---
 
 ### Integrate Components into Assistant View (Task #150)
 

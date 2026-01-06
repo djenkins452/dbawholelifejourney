@@ -26,14 +26,32 @@ curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
 
 ## Testing & Migrations
 
-**KNOWN ISSUE (2026-01-04):** `manage.py` commands currently hang during `django.setup()`. Root cause under investigation - may be Python 3.14 compatibility, scheduler initialization, or signal handler issue.
+**RESOLVED (2026-01-06):** `manage.py` commands now work. Ensure `.env` file exists with at minimum:
+```
+SECRET_KEY=dev-secret-key-for-local-testing-only
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+```
 
-**Workaround:** Create migrations manually if needed. Tests should be run when environment is working.
-
-**Normal Testing (when working):**
+**Testing:**
 ```bash
 # Test specific app module
-python manage.py test apps.admin_console.tests -v 1 --failfast
+python manage.py test apps.health.tests.test_fitness -v 1 --failfast
+
+# Run all tests
+python manage.py test -v 1
+
+# Check for issues
+python manage.py check
+```
+
+**Migrations:**
+```bash
+# Create migrations
+python manage.py makemigrations
+
+# Apply migrations
+python manage.py migrate
 ```
 
 ---
@@ -130,8 +148,8 @@ Use `/next` slash command or say "What's Next?"
 4. Show the task objective and actions
 5. Output: `Run /run-task to execute.`
 
-**DO NOT:** Read CLAUDE.md again, execute the task automatically, run `manage.py` commands (they hang).
+**DO NOT:** Read CLAUDE.md again, execute the task automatically.
 
 ---
 
-*Last updated: 2026-01-05*
+*Last updated: 2026-01-06*

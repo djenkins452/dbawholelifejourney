@@ -907,7 +907,7 @@ class TemplateExerciseSet(models.Model):
     template_exercise = models.ForeignKey(
         TemplateExercise,
         on_delete=models.CASCADE,
-        related_name="default_sets",
+        related_name="set_defaults",
     )
     set_number = models.PositiveIntegerField()
     weight = models.DecimalField(

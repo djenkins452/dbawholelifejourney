@@ -780,13 +780,13 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                 context["from_template"] = template
                 # Build template exercise defaults for pre-populating form
                 template_defaults = {}
-                for te in template.template_exercises.select_related("exercise").prefetch_related("default_sets"):
+                for te in template.template_exercises.select_related("exercise").prefetch_related("set_defaults"):
                     exercise_id = te.exercise_id
                     template_defaults[exercise_id] = {
                         "default_sets": te.default_sets,
                         "sets": {},
                     }
-                    for ds in te.default_sets.all():
+                    for ds in te.set_defaults.all():
                         template_defaults[exercise_id]["sets"][ds.set_number] = {
                             "weight": float(ds.weight) if ds.weight else None,
                             "reps": ds.reps,

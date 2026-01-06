@@ -53,7 +53,7 @@ class Migration(migrations.Migration):
                     "template_exercise",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name="default_sets",
+                        related_name="set_defaults",
                         to="health.templateexercise",
                     ),
                 ),

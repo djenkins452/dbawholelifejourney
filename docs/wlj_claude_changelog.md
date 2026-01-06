@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-06 Changes
 
+### Fix workout delete button not working
+
+**Session:** Delete button not work
+
+**Objective:** Fix delete button on /health/fitness/workouts/ page that wasn't functioning.
+
+**Root Cause:**
+Two issues found:
+1. Quote escaping issue in onclick handler - `default:'this workout'` used single quotes inside a single-quoted JS string
+2. Missing button styles - the `.action-btn` CSS class didn't include `background: none; border: none; cursor: pointer;` needed for button elements
+
+**Files modified:**
+- `templates/health/fitness/workout_list.html` - Fixed quote escaping and added button styles to .action-btn CSS
+
+---
+
 ### Workout Template Defaults - Auto-populate from last workout
 
 **Session:** Workouts

@@ -17,7 +17,7 @@ def populate_template_defaults(apps, schema_editor):
 
     # Get all users who have templates
     users_with_templates = User.objects.filter(
-        workouttemplate_set__isnull=False
+        workouttemplates__isnull=False
     ).distinct()
 
     for user in users_with_templates:

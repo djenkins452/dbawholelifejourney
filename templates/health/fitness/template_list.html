@@ -59,7 +59,7 @@
                         <a href="{% url 'health:template_update' template.pk %}" class="btn btn-secondary btn-sm">
                             Edit
                         </a>
-                        <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete('{% url 'health:template_delete' template.pk %}', '{{ template.name|escapejs }}')">
+                        <button type="button" class="btn btn-danger btn-sm delete-btn" data-url="{% url 'health:template_delete' template.pk %}" data-name="{{ template.name|escapejs }}">
                             Delete
                         </button>
                     </div>
@@ -235,12 +235,22 @@
 </form>
 
 <script>
-function confirmDelete(url, name) {
-    if (confirm('Delete "' + name + '"? This cannot be undone.')) {
-        const form = document.getElementById('deleteForm');
-        form.action = url;
-        form.submit();
-    }
-}
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle delete button clicks using event delegation
+    document.addEventListener('click', function(e) {
+        const deleteBtn = e.target.closest('.delete-btn');
+        if (!deleteBtn) return;
+
+        e.preventDefault();
+        const url = deleteBtn.dataset.url;
+        const name = deleteBtn.dataset.name;
+
+        if (confirm('Delete "' + name + '"? This cannot be undone.')) {
+            const form = document.getElementById('deleteForm');
+            form.action = url;
+            form.submit();
+        }
+    });
+});
 </script>
 {% endblock %}

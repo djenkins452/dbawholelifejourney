@@ -791,6 +791,33 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                             "weight": float(ds.weight) if ds.weight else None,
                             "reps": ds.reps,
                         }
+
+                # Fallback: if no set_defaults exist, look at the latest workout using this template
+                if not any(d["sets"] for d in template_defaults.values()):
+                    # Get template exercise IDs
+                    template_exercise_ids = list(template_defaults.keys())
+                    # Find latest completed workout with these exercises
+                    latest_workout = (
+                        WorkoutSession.objects.filter(
+                            user=user,
+                            completed_at__isnull=False,
+                            workout_exercises__exercise_id__in=template_exercise_ids,
+                        )
+                        .order_by("-completed_at")
+                        .first()
+                    )
+                    if latest_workout:
+                        for we in latest_workout.workout_exercises.filter(
+                            exercise_id__in=template_exercise_ids
+                        ):
+                            exercise_id = we.exercise_id
+                            if exercise_id in template_defaults:
+                                for s in we.sets.all():
+                                    template_defaults[exercise_id]["sets"][s.set_number] = {
+                                        "weight": float(s.weight) if s.weight else None,
+                                        "reps": s.reps,
+                                    }
+
                 context["template_defaults_json"] = json.dumps(template_defaults)
             except WorkoutTemplate.DoesNotExist:
                 pass

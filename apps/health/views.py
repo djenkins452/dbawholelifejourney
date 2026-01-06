@@ -62,6 +62,7 @@ from .models import (
     NutritionGoals,
     PersonalRecord,
     TemplateExercise,
+    TemplateExerciseSet,
     WeightEntry,
     WorkoutExercise,
     WorkoutSession,
@@ -774,8 +775,23 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
         template_id = self.request.GET.get("template")
         if template_id:
             try:
+                import json
                 template = WorkoutTemplate.objects.get(pk=template_id, user=user)
                 context["from_template"] = template
+                # Build template exercise defaults for pre-populating form
+                template_defaults = {}
+                for te in template.template_exercises.select_related("exercise").prefetch_related("default_sets"):
+                    exercise_id = te.exercise_id
+                    template_defaults[exercise_id] = {
+                        "default_sets": te.default_sets,
+                        "sets": {},
+                    }
+                    for ds in te.default_sets.all():
+                        template_defaults[exercise_id]["sets"][ds.set_number] = {
+                            "weight": float(ds.weight) if ds.weight else None,
+                            "reps": ds.reps,
+                        }
+                context["template_defaults_json"] = json.dumps(template_defaults)
             except WorkoutTemplate.DoesNotExist:
                 pass
 
@@ -801,6 +817,15 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
             from apps.core.models import UserOwnedModel
             created_via = UserOwnedModel.CREATED_VIA_AI_CAMERA
 
+        # Check if creating from template
+        from_template = None
+        template_id = request.POST.get("template_id") or request.GET.get("template")
+        if template_id:
+            try:
+                from_template = WorkoutTemplate.objects.get(pk=template_id, user=user)
+            except WorkoutTemplate.DoesNotExist:
+                pass
+
         # Create workout session
         workout = WorkoutSession.objects.create(
             user=user,
@@ -808,6 +833,7 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
             name=request.POST.get("name", ""),
             notes=request.POST.get("notes", ""),
             created_via=created_via,
+            from_template=from_template,
         )
 
         # Process exercises
@@ -1384,10 +1410,11 @@ def start_workout_ajax(request):
     # Create new workout session
     template_id = data.get("template_id")
     template_name = ""
+    from_template = None
     if template_id:
         try:
-            template = WorkoutTemplate.objects.get(pk=template_id, user=user)
-            template_name = template.name
+            from_template = WorkoutTemplate.objects.get(pk=template_id, user=user)
+            template_name = from_template.name
         except WorkoutTemplate.DoesNotExist:
             pass
 
@@ -1396,6 +1423,7 @@ def start_workout_ajax(request):
         date=data.get("date") or today,
         name=data.get("name") or template_name,
         started_at=timezone.now(),
+        from_template=from_template,
     )
 
     return JsonResponse({
@@ -1573,11 +1601,51 @@ def complete_workout_ajax(request):
 
     workout.save()
 
+    # Sync workout data back to template if this workout was created from one
+    if workout.from_template:
+        _sync_workout_to_template(workout)
+
     return JsonResponse({
         "success": True,
         "message": "Workout completed!",
         "redirect_url": f"/health/fitness/workout/{workout.pk}/",
     })
+
+
+def _sync_workout_to_template(workout):
+    """
+    Sync completed workout exercise data back to the template.
+
+    Updates the template's default sets with the actual weights/reps used.
+    """
+    template = workout.from_template
+
+    for workout_exercise in workout.workout_exercises.select_related("exercise"):
+        # Find matching template exercise
+        try:
+            template_exercise = TemplateExercise.objects.get(
+                template=template,
+                exercise=workout_exercise.exercise,
+            )
+        except TemplateExercise.DoesNotExist:
+            continue
+
+        # Update template exercise default sets with actual workout data
+        for exercise_set in workout_exercise.sets.all():
+            TemplateExerciseSet.objects.update_or_create(
+                template_exercise=template_exercise,
+                set_number=exercise_set.set_number,
+                defaults={
+                    "weight": exercise_set.weight,
+                    "reps": exercise_set.reps,
+                },
+            )
+
+        # Update the default_sets count if more sets were performed
+        max_set = workout_exercise.sets.count()
+        if max_set > template_exercise.default_sets:
+            template_exercise.default_sets = max_set
+            template_exercise.save(update_fields=["default_sets"])
 
 
 def get_workout_state_ajax(request, workout_id):

@@ -623,6 +623,14 @@ class WorkoutSession(UserOwnedModel):
     )
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    from_template = models.ForeignKey(
+        "WorkoutTemplate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workout_sessions",
+        help_text="Template this workout was created from, if any",
+    )
 
     class Meta:
         ordering = ["-date", "-created_at"]
@@ -886,6 +894,40 @@ class TemplateExercise(models.Model):
 
     def __str__(self):
         return f"{self.exercise.name} in {self.template.name}"
+
+
+class TemplateExerciseSet(models.Model):
+    """
+    Default set configuration for an exercise in a template.
+
+    Stores the last-used weight/reps for each set, auto-updated when
+    a workout using this template is completed.
+    """
+
+    template_exercise = models.ForeignKey(
+        TemplateExercise,
+        on_delete=models.CASCADE,
+        related_name="default_sets",
+    )
+    set_number = models.PositiveIntegerField()
+    weight = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Default weight in pounds",
+    )
+    reps = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["set_number"]
+        unique_together = ["template_exercise", "set_number"]
+        verbose_name = "template exercise set"
+        verbose_name_plural = "template exercise sets"
+
+    def __str__(self):
+        weight_str = f"{self.weight}lbs" if self.weight else "bodyweight"
+        return f"Set {self.set_number}: {weight_str} x {self.reps}"
 
 
 # =============================================================================

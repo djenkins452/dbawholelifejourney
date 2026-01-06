@@ -686,6 +686,9 @@ let workoutStarted = {% if workout %}true{% else %}false{% endif %};
 let setsSavedCount = 0;
 let isEditing = {% if editing %}true{% else %}false{% endif %};
 
+// Template defaults for pre-populating form from last workout
+const templateDefaults = {{ template_defaults_json|default:"{}" }};
+
 // Rest timer state
 let restTimerInterval = null;
 let restTimerSeconds = 0;
@@ -1042,10 +1045,40 @@ document.getElementById('workoutForm').addEventListener('submit', async function
     // If editing or not started, let the form submit normally
 });
 
+// Apply template defaults to pre-populate weight/reps from last workout
+function applyTemplateDefaults() {
+    if (!templateDefaults || Object.keys(templateDefaults).length === 0) return;
+
+    for (const [exerciseId, defaults] of Object.entries(templateDefaults)) {
+        const exerciseRow = document.querySelector(`[data-exercise-id="${exerciseId}"]`);
+        if (!exerciseRow) continue;
+
+        // Apply defaults to each set
+        for (const [setNumber, setDefaults] of Object.entries(defaults.sets || {})) {
+            const setRow = exerciseRow.querySelector(`[data-set-number="${setNumber}"]`);
+            if (!setRow) continue;
+
+            const weightInput = setRow.querySelector('.weight-input');
+            const repsInput = setRow.querySelector('.reps-input');
+
+            if (weightInput && setDefaults.weight != null) {
+                weightInput.value = setDefaults.weight;
+            }
+            if (repsInput && setDefaults.reps != null) {
+                repsInput.value = setDefaults.reps;
+            }
+        }
+    }
+}
+
 // Auto-start workout when template is selected via URL
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const templateId = urlParams.get('template');
+
+    // Apply template defaults first
+    applyTemplateDefaults();
+
     if (templateId && !isEditing) {
         startWorkout(templateId);
     }

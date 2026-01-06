@@ -14,6 +14,41 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-06 Changes
+
+### Workout Template Defaults - Auto-populate from last workout
+
+**Session:** Workouts
+
+**Objective:**
+When a workout template is used and weights/sets are recorded, those values should populate the template so the next time the user uses that template, it reflects the last weights and sets performed. Users can overwrite values.
+
+**Solution:**
+1. Created `TemplateExerciseSet` model to store default weight/reps for each set in a template exercise
+2. Added `from_template` FK on `WorkoutSession` to track which template a workout was created from
+3. Updated `complete_workout_ajax` to sync completed workout data back to template defaults
+4. Updated `WorkoutCreateView` and `start_workout_ajax` to set the template relationship
+5. Updated workout form template to pre-populate input fields from template defaults using JavaScript
+6. Created data migration to populate templates with historical workout data for existing users
+
+**Files created:**
+- `apps/health/migrations/0013_workout_template_defaults.py` - Schema migration for new model and FK
+- `apps/health/migrations/0014_populate_template_defaults.py` - Data migration for historical workouts
+
+**Files modified:**
+- `apps/health/models.py` - Added `TemplateExerciseSet` model and `from_template` FK to `WorkoutSession`
+- `apps/health/views.py` - Updated `WorkoutCreateView`, `start_workout_ajax`, `complete_workout_ajax`, added `_sync_workout_to_template`
+- `templates/health/fitness/workout_form.html` - Added `templateDefaults` JS variable and `applyTemplateDefaults()` function
+
+**How it works:**
+1. User creates a workout from a template
+2. `from_template` FK links the workout to the template
+3. When workout is completed, `_sync_workout_to_template()` copies all weight/reps from `ExerciseSet` to `TemplateExerciseSet`
+4. Next time user starts from that template, the form pre-populates with those default values
+5. User can overwrite any values - new values will be saved on next completion
+
+---
+
 ## 2026-01-05 Changes
 
 ### Add Codebase Metrics Report to Admin Console

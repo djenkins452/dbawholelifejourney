@@ -44,10 +44,13 @@ class Command(BaseCommand):
             templates = WorkoutTemplate.objects.filter(user=user)
 
             for template in templates:
+                self.stdout.write(f"  Checking template: {template.name}")
+
                 # Get template exercise IDs
                 template_exercise_ids = set(
                     template.template_exercises.values_list("exercise_id", flat=True)
                 )
+                self.stdout.write(f"    Template has {len(template_exercise_ids)} exercises")
 
                 if not template_exercise_ids:
                     continue
@@ -64,10 +67,11 @@ class Command(BaseCommand):
                 )
 
                 if not latest_workout:
+                    self.stdout.write(f"    No matching workout found")
                     continue
 
                 self.stdout.write(
-                    f"  Syncing template '{template.name}' from workout on {latest_workout.date}"
+                    f"    Found workout: {latest_workout.name} on {latest_workout.date}"
                 )
 
                 # Link workout to template if not already linked

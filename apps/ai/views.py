@@ -28,6 +28,8 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
+from apps.help.mixins import HelpContextMixin
+
 from .models import (
     AssistantConversation, AssistantMessage, DailyPriority,
     TrendAnalysis, ReflectionPromptQueue, UserStateSnapshot
@@ -678,11 +680,12 @@ class ReflectionPromptUsedView(LoginRequiredMixin, View):
 # ASSISTANT DASHBOARD PAGE
 # =============================================================================
 
-class AssistantDashboardView(LoginRequiredMixin, AssistantMixin, TemplateView):
+class AssistantDashboardView(LoginRequiredMixin, HelpContextMixin, AssistantMixin, TemplateView):
     """
     Full-page assistant dashboard with chat interface.
     """
     template_name = "ai/assistant_dashboard.html"
+    help_context_id = "ASSISTANT_HOME"
 
     def get(self, request, *args, **kwargs):
         """Override get to add request-level error handling."""

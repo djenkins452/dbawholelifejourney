@@ -37,6 +37,7 @@ from apps.health.models import (
     CardioDetails,
     WorkoutTemplate,
     TemplateExercise,
+    TemplateExerciseSet,
     PersonalRecord,
 )
 
@@ -1067,3 +1068,407 @@ class LiveWorkoutAjaxTest(FitnessTestMixin, TestCase):
                     content_type='application/json'
                 )
             self.assertEqual(response.status_code, 401, f"{url_name} should require auth")
+
+
+# =============================================================================
+# 9. TEMPLATE SYNC TESTS
+# =============================================================================
+
+class TemplateSyncTest(FitnessTestMixin, TestCase):
+    """
+    Tests for template weight/reps syncing functionality.
+
+    When a workout is completed that was created from a template:
+    1. The workout's set weights/reps should be synced back to the template
+    2. Next time the template is used, those values should pre-populate
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.login_user()
+        self.exercise = self.create_exercise(name='Bench Press')
+        self.exercise2 = self.create_exercise(name='Squat', muscle_group='Legs')
+
+    def test_complete_workout_syncs_to_template(self):
+        """
+        When a workout created from template is completed,
+        the weights/reps should be saved to TemplateExerciseSet.
+        """
+        # Create template with exercise
+        template = self.create_template(self.user, name='Push Day')
+        template_exercise = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise,
+            order=0,
+            default_sets=3
+        )
+
+        # Verify no TemplateExerciseSet initially
+        self.assertEqual(TemplateExerciseSet.objects.filter(
+            template_exercise=template_exercise
+        ).count(), 0)
+
+        # Create workout from template
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            name='Push Day',
+            from_template=template,
+            started_at=timezone.now() - timedelta(minutes=30),
+        )
+
+        # Add exercise with sets
+        workout_ex = WorkoutExercise.objects.create(
+            session=workout,
+            exercise=self.exercise,
+            order=0
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex,
+            set_number=1,
+            weight=Decimal('135'),
+            reps=10
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex,
+            set_number=2,
+            weight=Decimal('155'),
+            reps=8
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex,
+            set_number=3,
+            weight=Decimal('175'),
+            reps=6
+        )
+
+        # Complete the workout
+        response = self.client.post(
+            reverse('health:complete_workout_ajax'),
+            data=json.dumps({'workout_id': workout.pk}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify TemplateExerciseSet was created with workout values
+        template_sets = TemplateExerciseSet.objects.filter(
+            template_exercise=template_exercise
+        ).order_by('set_number')
+
+        self.assertEqual(template_sets.count(), 3)
+
+        set1 = template_sets.get(set_number=1)
+        self.assertEqual(set1.weight, Decimal('135'))
+        self.assertEqual(set1.reps, 10)
+
+        set2 = template_sets.get(set_number=2)
+        self.assertEqual(set2.weight, Decimal('155'))
+        self.assertEqual(set2.reps, 8)
+
+        set3 = template_sets.get(set_number=3)
+        self.assertEqual(set3.weight, Decimal('175'))
+        self.assertEqual(set3.reps, 6)
+
+    def test_template_defaults_prepopulate_workout_form(self):
+        """
+        When creating a workout from a template that has saved defaults,
+        those values should appear in template_defaults_json.
+        """
+        # Create template with exercise and set defaults
+        template = self.create_template(self.user, name='Push Day')
+        template_exercise = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise,
+            order=0,
+            default_sets=3
+        )
+
+        # Add set defaults (as if synced from previous workout)
+        TemplateExerciseSet.objects.create(
+            template_exercise=template_exercise,
+            set_number=1,
+            weight=Decimal('135'),
+            reps=10
+        )
+        TemplateExerciseSet.objects.create(
+            template_exercise=template_exercise,
+            set_number=2,
+            weight=Decimal('155'),
+            reps=8
+        )
+
+        # Load workout form with template
+        response = self.client.get(
+            reverse('health:workout_create') + f'?template={template.pk}'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify template_defaults_json is in context
+        self.assertIn('template_defaults_json', response.context)
+
+        # Parse the JSON
+        import json
+        defaults = json.loads(response.context['template_defaults_json'])
+
+        # Verify exercise defaults
+        exercise_id = str(self.exercise.pk)
+        self.assertIn(exercise_id, defaults)
+        self.assertEqual(defaults[exercise_id]['default_sets'], 3)
+
+        # Verify set defaults
+        sets = defaults[exercise_id]['sets']
+        self.assertEqual(sets['1']['weight'], 135.0)
+        self.assertEqual(sets['1']['reps'], 10)
+        self.assertEqual(sets['2']['weight'], 155.0)
+        self.assertEqual(sets['2']['reps'], 8)
+
+    def test_complete_workout_updates_existing_template_sets(self):
+        """
+        When completing a second workout from the same template,
+        the template set defaults should be updated (not duplicated).
+        """
+        # Create template with exercise and existing set defaults
+        template = self.create_template(self.user, name='Push Day')
+        template_exercise = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise,
+            order=0,
+            default_sets=3
+        )
+
+        # Add initial set defaults
+        TemplateExerciseSet.objects.create(
+            template_exercise=template_exercise,
+            set_number=1,
+            weight=Decimal('135'),
+            reps=10
+        )
+        TemplateExerciseSet.objects.create(
+            template_exercise=template_exercise,
+            set_number=2,
+            weight=Decimal('155'),
+            reps=8
+        )
+
+        # Create new workout from template with different values
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            name='Push Day',
+            from_template=template,
+            started_at=timezone.now() - timedelta(minutes=30),
+        )
+
+        workout_ex = WorkoutExercise.objects.create(
+            session=workout,
+            exercise=self.exercise,
+            order=0
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex,
+            set_number=1,
+            weight=Decimal('145'),  # Increased from 135
+            reps=12  # Increased from 10
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex,
+            set_number=2,
+            weight=Decimal('165'),  # Increased from 155
+            reps=10  # Increased from 8
+        )
+
+        # Complete the workout
+        response = self.client.post(
+            reverse('health:complete_workout_ajax'),
+            data=json.dumps({'workout_id': workout.pk}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify template sets were updated, not duplicated
+        template_sets = TemplateExerciseSet.objects.filter(
+            template_exercise=template_exercise
+        )
+        self.assertEqual(template_sets.count(), 2)
+
+        set1 = template_sets.get(set_number=1)
+        self.assertEqual(set1.weight, Decimal('145'))
+        self.assertEqual(set1.reps, 12)
+
+        set2 = template_sets.get(set_number=2)
+        self.assertEqual(set2.weight, Decimal('165'))
+        self.assertEqual(set2.reps, 10)
+
+    def test_complete_workout_adds_new_sets_to_template(self):
+        """
+        When workout has more sets than template default,
+        the new sets should be added and default_sets updated.
+        """
+        # Create template with 2 default sets
+        template = self.create_template(self.user, name='Push Day')
+        template_exercise = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise,
+            order=0,
+            default_sets=2
+        )
+
+        # Create workout with 4 sets (more than default)
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            name='Push Day',
+            from_template=template,
+            started_at=timezone.now() - timedelta(minutes=30),
+        )
+
+        workout_ex = WorkoutExercise.objects.create(
+            session=workout,
+            exercise=self.exercise,
+            order=0
+        )
+        for i in range(1, 5):  # 4 sets
+            ExerciseSet.objects.create(
+                workout_exercise=workout_ex,
+                set_number=i,
+                weight=Decimal(str(100 + i * 10)),
+                reps=10 - i
+            )
+
+        # Complete the workout
+        response = self.client.post(
+            reverse('health:complete_workout_ajax'),
+            data=json.dumps({'workout_id': workout.pk}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify 4 template sets were created
+        template_sets = TemplateExerciseSet.objects.filter(
+            template_exercise=template_exercise
+        )
+        self.assertEqual(template_sets.count(), 4)
+
+        # Verify default_sets was updated to 4
+        template_exercise.refresh_from_db()
+        self.assertEqual(template_exercise.default_sets, 4)
+
+    def test_workout_without_template_does_not_sync(self):
+        """
+        Completing a workout NOT created from a template
+        should not affect any templates.
+        """
+        # Create template
+        template = self.create_template(self.user, name='Push Day')
+        template_exercise = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise,
+            order=0,
+            default_sets=3
+        )
+
+        # Create workout WITHOUT from_template
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            name='Random Workout',
+            started_at=timezone.now() - timedelta(minutes=30),
+        )
+
+        workout_ex = WorkoutExercise.objects.create(
+            session=workout,
+            exercise=self.exercise,
+            order=0
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex,
+            set_number=1,
+            weight=Decimal('999'),
+            reps=99
+        )
+
+        # Complete the workout
+        response = self.client.post(
+            reverse('health:complete_workout_ajax'),
+            data=json.dumps({'workout_id': workout.pk}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify no TemplateExerciseSet was created
+        template_sets = TemplateExerciseSet.objects.filter(
+            template_exercise=template_exercise
+        )
+        self.assertEqual(template_sets.count(), 0)
+
+    def test_multiple_exercises_sync_independently(self):
+        """
+        Template with multiple exercises should sync each correctly.
+        """
+        # Create template with two exercises
+        template = self.create_template(self.user, name='Full Body')
+        template_ex1 = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise,
+            order=0,
+            default_sets=3
+        )
+        template_ex2 = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise2,
+            order=1,
+            default_sets=3
+        )
+
+        # Create workout from template
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            name='Full Body',
+            from_template=template,
+            started_at=timezone.now() - timedelta(minutes=30),
+        )
+
+        # Add both exercises with different weights
+        workout_ex1 = WorkoutExercise.objects.create(
+            session=workout,
+            exercise=self.exercise,
+            order=0
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex1,
+            set_number=1,
+            weight=Decimal('135'),
+            reps=10
+        )
+
+        workout_ex2 = WorkoutExercise.objects.create(
+            session=workout,
+            exercise=self.exercise2,
+            order=1
+        )
+        ExerciseSet.objects.create(
+            workout_exercise=workout_ex2,
+            set_number=1,
+            weight=Decimal('225'),
+            reps=5
+        )
+
+        # Complete the workout
+        response = self.client.post(
+            reverse('health:complete_workout_ajax'),
+            data=json.dumps({'workout_id': workout.pk}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify both template exercises have correct sets
+        bench_sets = TemplateExerciseSet.objects.filter(template_exercise=template_ex1)
+        squat_sets = TemplateExerciseSet.objects.filter(template_exercise=template_ex2)
+
+        self.assertEqual(bench_sets.count(), 1)
+        self.assertEqual(squat_sets.count(), 1)
+
+        self.assertEqual(bench_sets.first().weight, Decimal('135'))
+        self.assertEqual(squat_sets.first().weight, Decimal('225'))

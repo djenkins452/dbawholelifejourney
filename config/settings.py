@@ -430,7 +430,7 @@ ACCOUNT_PRESERVE_USERNAME_CASING = False
 ACCOUNT_PREVENT_ENUMERATION = True
 ACCOUNT_SESSION_REMEMBER = True
 ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_EMAIL_VERIFICATION = "optional"  # Changed from "mandatory" - restore after fixing email deliverability to Gmail
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"  # Admin emails bypass via WLJAccountAdapter.is_email_verified()
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 ACCOUNT_RATE_LIMITS = {
     "confirm_email": "3/m",  # 3 confirmation emails per minute (replaces deprecated COOLDOWN setting)

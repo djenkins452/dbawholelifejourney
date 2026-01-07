@@ -5,7 +5,7 @@
 #              honeypot validation, reCAPTCHA verification, and signup attempt logging
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
-# Last Updated: 2026-01-03
+# Last Updated: 2026-01-06
 # ==============================================================================
 
 """
@@ -16,9 +16,17 @@ Extends django-allauth's DefaultAccountAdapter to add:
 - reCAPTCHA v3 token verification and score logging
 - SignupAttempt logging for fraud detection
 - Integration with security hash functions
+- Admin email bypass for email verification
 
 The adapter is registered in settings.py via ACCOUNT_ADAPTER.
 """
+
+# Admin emails that bypass email verification requirement.
+# These accounts can always log in even if email verification is mandatory.
+ADMIN_BYPASS_EMAILS = {
+    "dannyjenkins71@gmail.com",
+    "admin@wholelifejourney.com",
+}
 
 import logging
 
@@ -57,7 +65,28 @@ class WLJAccountAdapter(DefaultAccountAdapter):
     - Honeypot field validation to detect bots
     - SignupAttempt logging for all signup attempts
     - Integration with hash functions for privacy-preserving storage
+    - Admin email bypass for email verification
     """
+
+    def is_email_verified(self, request, email):
+        """
+        Check if an email address should be considered verified.
+
+        Admin emails in ADMIN_BYPASS_EMAILS are always considered verified,
+        allowing them to log in even when ACCOUNT_EMAIL_VERIFICATION is mandatory.
+        This prevents admin lockout if email delivery fails.
+
+        Args:
+            request: The HTTP request
+            email: The email address to check
+
+        Returns:
+            True if the email is in the bypass list, otherwise defers to parent.
+        """
+        if email and email.lower() in ADMIN_BYPASS_EMAILS:
+            logger.info("Admin bypass: treating %s as verified", email)
+            return True
+        return super().is_email_verified(request, email)
 
     def is_open_for_signup(self, request):
         """

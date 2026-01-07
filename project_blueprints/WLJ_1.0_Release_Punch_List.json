@@ -1,0 +1,1159 @@
+{
+
+  "project": {
+
+    "name": "WLJ 1.0 Release Punch List",
+
+    "description": "Pre-release verification and completion tasks for Whole Life Journey v1.0. Covers security fixes, integration testing gaps, functional completeness, and documentation needed before launch."
+
+  },
+
+  "tasks": [
+
+    {
+
+      "phase": "Phase 1 - Security",
+
+      "name": "Implement Plaid Webhook Signature Verification",
+
+      "description": {
+
+        "objective": "Implement proper webhook signature verification for Plaid callbacks to prevent unauthorized webhook calls.",
+
+        "inputs": [
+
+          "apps/finance/views.py line 1217 (stubbed TODO)",
+
+          "Plaid webhook verification documentation",
+
+          "PLAID_WEBHOOK_SECRET environment variable"
+
+        ],
+
+        "actions": [
+
+          "Read Plaid webhook verification documentation for signature format.",
+
+          "Add PLAID_WEBHOOK_SECRET to settings and environment configuration.",
+
+          "Implement verify_plaid_webhook_signature() function in finance/services.",
+
+          "Extract signature from Plaid-Verification header.",
+
+          "Compute expected signature using HMAC-SHA256.",
+
+          "Compare signatures using constant-time comparison to prevent timing attacks.",
+
+          "Return 401 for invalid signatures, log attempt.",
+
+          "Update webhook view to call verification before processing.",
+
+          "Add tests for valid signature, invalid signature, missing header scenarios."
+
+        ],
+
+        "output": "Plaid webhooks are cryptographically verified before processing, with tests confirming security."
+
+      },
+
+      "priority": "High",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 1 - Security",
+
+      "name": "Implement Patient Portal Credential Encryption",
+
+      "description": {
+
+        "objective": "Encrypt patient portal credentials stored in MedicalProvider model to protect sensitive login information.",
+
+        "inputs": [
+
+          "apps/health/models.py MedicalProvider model",
+
+          "Django cryptography or Fernet encryption",
+
+          "Existing credential fields (if any)"
+
+        ],
+
+        "actions": [
+
+          "Audit MedicalProvider model for credential storage fields.",
+
+          "If portal_username/portal_password fields exist, implement encryption.",
+
+          "Create health/encryption.py with encrypt_credential() and decrypt_credential() functions.",
+
+          "Use Fernet symmetric encryption with key from settings.",
+
+          "Add CREDENTIAL_ENCRYPTION_KEY to environment variables.",
+
+          "Create custom EncryptedCharField or use django-encrypted-model-fields.",
+
+          "Migrate existing plaintext credentials to encrypted format.",
+
+          "Update views to decrypt on read, encrypt on write.",
+
+          "Add tests for encryption/decryption round-trip.",
+
+          "If no credential fields exist, remove this task or document decision not to store them."
+
+        ],
+
+        "output": "Patient portal credentials are encrypted at rest with secure key management."
+
+      },
+
+      "priority": "High",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 1 - Security",
+
+      "name": "Audit Plaid Access Token Storage",
+
+      "description": {
+
+        "objective": "Verify that Plaid access tokens in BankConnection model are properly encrypted and not stored in plaintext.",
+
+        "inputs": [
+
+          "apps/finance/models.py BankConnection model",
+
+          "apps/finance/services/plaid_service.py"
+
+        ],
+
+        "actions": [
+
+          "Read BankConnection model and identify access_token field.",
+
+          "Verify field uses encryption (EncryptedTextField or similar).",
+
+          "If plaintext, implement encryption similar to patient portal credentials.",
+
+          "Verify encryption key rotation procedure exists.",
+
+          "Check that tokens are never logged or exposed in error messages.",
+
+          "Add test that raw database value differs from decrypted value.",
+
+          "Document encryption approach in security documentation."
+
+        ],
+
+        "output": "Plaid access tokens confirmed encrypted at rest with audit documentation."
+
+      },
+
+      "priority": "High",
+
+      "status": "New",
+
+      "effort": "Low"
+
+    },
+
+    {
+
+      "phase": "Phase 2 - Integration Testing",
+
+      "name": "Create Dexcom API Integration Tests",
+
+      "description": {
+
+        "objective": "Create comprehensive tests for Dexcom CGM integration using sandbox credentials to verify data sync works end-to-end.",
+
+        "inputs": [
+
+          "apps/health/services/dexcom.py (450 lines, OAuth complete)",
+
+          "Dexcom sandbox credentials",
+
+          "DexcomCredential model"
+
+        ],
+
+        "actions": [
+
+          "Set up Dexcom sandbox developer account if not exists.",
+
+          "Create apps/health/tests/test_dexcom_integration.py file.",
+
+          "Implement test_oauth_authorization_url_generation().",
+
+          "Implement test_token_exchange_with_valid_code() using mock.",
+
+          "Implement test_token_refresh_when_expired() using mock.",
+
+          "Implement test_fetch_egv_data_success() with mock API response.",
+
+          "Implement test_fetch_egv_data_api_error() for error handling.",
+
+          "Implement test_credential_storage_and_retrieval().",
+
+          "Implement test_sync_creates_glucose_entries() end-to-end with mocks.",
+
+          "Document sandbox testing procedure for manual verification.",
+
+          "Add at least 10 tests covering happy path and error scenarios."
+
+        ],
+
+        "output": "Comprehensive Dexcom integration test suite with 10+ tests and sandbox documentation."
+
+      },
+
+      "priority": "High",
+
+      "status": "New",
+
+      "effort": "High"
+
+    },
+
+    {
+
+      "phase": "Phase 2 - Integration Testing",
+
+      "name": "Create Plaid API Integration Tests",
+
+      "description": {
+
+        "objective": "Create comprehensive tests for Plaid bank integration using sandbox environment to verify account linking and transaction sync.",
+
+        "inputs": [
+
+          "apps/finance/services/plaid_service.py (384 lines)",
+
+          "Plaid sandbox credentials",
+
+          "BankConnection, TransactionSyncService"
+
+        ],
+
+        "actions": [
+
+          "Verify Plaid sandbox credentials are configured.",
+
+          "Create apps/finance/tests/test_plaid_integration.py file.",
+
+          "Implement test_create_link_token_success().",
+
+          "Implement test_exchange_public_token_success() with mock.",
+
+          "Implement test_get_accounts_returns_account_info() with mock.",
+
+          "Implement test_transaction_sync_initial_fetch() with mock.",
+
+          "Implement test_transaction_sync_incremental_with_cursor() with mock.",
+
+          "Implement test_handle_item_error_invalid_credentials().",
+
+          "Implement test_handle_rate_limit_error().",
+
+          "Implement test_transaction_category_mapping().",
+
+          "Implement test_bank_connection_lifecycle() end-to-end.",
+
+          "Add at least 12 tests covering full Plaid lifecycle."
+
+        ],
+
+        "output": "Comprehensive Plaid integration test suite with 12+ tests covering all API interactions."
+
+      },
+
+      "priority": "High",
+
+      "status": "New",
+
+      "effort": "High"
+
+    },
+
+    {
+
+      "phase": "Phase 2 - Integration Testing",
+
+      "name": "Expand Google Calendar OAuth Tests",
+
+      "description": {
+
+        "objective": "Expand Google Calendar integration tests from 1 to comprehensive coverage of OAuth flow, token refresh, and event operations.",
+
+        "inputs": [
+
+          "apps/life/tests/test_google_calendar.py (only 1 test)",
+
+          "apps/life/services/google_calendar_service.py",
+
+          "GoogleCalendarCredential model"
+
+        ],
+
+        "actions": [
+
+          "Read existing test_google_calendar.py to understand current coverage.",
+
+          "Add test_oauth_authorization_url_with_state().",
+
+          "Add test_oauth_callback_exchanges_code_for_tokens().",
+
+          "Add test_token_refresh_when_access_token_expired().",
+
+          "Add test_token_refresh_failure_clears_credentials().",
+
+          "Add test_list_calendars_success().",
+
+          "Add test_list_events_with_date_range().",
+
+          "Add test_create_event_success().",
+
+          "Add test_api_error_handling().",
+
+          "Add test_credential_storage_and_retrieval().",
+
+          "Expand to at least 10 tests total."
+
+        ],
+
+        "output": "Google Calendar test suite expanded from 1 to 10+ tests covering OAuth and event operations."
+
+      },
+
+      "priority": "Medium",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 2 - Integration Testing",
+
+      "name": "Create Twilio Webhook Integration Tests",
+
+      "description": {
+
+        "objective": "Create tests for Twilio webhook handling including signature validation with actual Twilio format.",
+
+        "inputs": [
+
+          "apps/sms/views.py webhook handlers",
+
+          "apps/sms/services/twilio_service.py",
+
+          "Twilio webhook signature documentation"
+
+        ],
+
+        "actions": [
+
+          "Create apps/sms/tests/test_twilio_webhooks.py file.",
+
+          "Implement test_incoming_sms_webhook_valid_signature().",
+
+          "Implement test_incoming_sms_webhook_invalid_signature_rejected().",
+
+          "Implement test_delivery_status_webhook_delivered().",
+
+          "Implement test_delivery_status_webhook_failed().",
+
+          "Implement test_reply_parsing_D_marks_done().",
+
+          "Implement test_reply_parsing_R_schedules_reminder().",
+
+          "Implement test_reply_parsing_N_skips_notification().",
+
+          "Implement test_concurrent_webhooks_handled_correctly().",
+
+          "Implement test_webhook_idempotency_duplicate_ignored().",
+
+          "Add at least 10 webhook-specific tests."
+
+        ],
+
+        "output": "Twilio webhook test suite with 10+ tests including signature validation and concurrency."
+
+      },
+
+      "priority": "Medium",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 2 - Integration Testing",
+
+      "name": "Test SMS Concurrent Handling",
+
+      "description": {
+
+        "objective": "Verify the SMS system handles multiple simultaneous SMS sends and webhook callbacks correctly without race conditions.",
+
+        "inputs": [
+
+          "apps/sms/services/",
+
+          "SMSNotification model",
+
+          "APScheduler integration"
+
+        ],
+
+        "actions": [
+
+          "Create apps/sms/tests/test_sms_concurrency.py file.",
+
+          "Implement test_send_multiple_sms_simultaneously() using threading.",
+
+          "Implement test_scheduler_handles_overlapping_schedules().",
+
+          "Implement test_status_update_race_condition_prevented().",
+
+          "Implement test_database_locks_prevent_duplicate_sends().",
+
+          "Implement test_high_volume_webhook_processing() with 50+ callbacks.",
+
+          "Verify no duplicate SMS sent for same notification.",
+
+          "Verify status transitions are atomic.",
+
+          "Add stress test with 100 concurrent operations."
+
+        ],
+
+        "output": "SMS concurrency verified with stress tests confirming no race conditions or duplicates."
+
+      },
+
+      "priority": "Medium",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 3 - Functional Gaps",
+
+      "name": "Complete Dexcom Sync Service Implementation",
+
+      "description": {
+
+        "objective": "Complete the DexcomSyncService that imports glucose readings from Dexcom API into GlucoseEntry model.",
+
+        "inputs": [
+
+          "apps/health/services/dexcom.py (OAuth complete)",
+
+          "GlucoseEntry model with source, trend, trend_rate fields",
+
+          "DexcomCredential model"
+
+        ],
+
+        "actions": [
+
+          "Create or update apps/health/services/dexcom_sync.py file.",
+
+          "Implement DexcomSyncService class.",
+
+          "Implement sync_glucose_data(user, start_date, end_date) method.",
+
+          "Fetch EGV data from Dexcom v3 API.",
+
+          "Map Dexcom trend arrows to trend field (FLAT, RISING, FALLING, etc.).",
+
+          "Map Dexcom rate of change to trend_rate field.",
+
+          "Set source='dexcom' on created GlucoseEntry records.",
+
+          "Handle pagination if >1000 readings.",
+
+          "Implement incremental sync using last sync timestamp.",
+
+          "Store last_sync_at on DexcomCredential.",
+
+          "Add duplicate detection by timestamp.",
+
+          "Create tests for sync service with mock API responses."
+
+        ],
+
+        "output": "DexcomSyncService fully implemented with incremental sync and duplicate detection."
+
+      },
+
+      "priority": "High",
+
+      "status": "New",
+
+      "effort": "High"
+
+    },
+
+    {
+
+      "phase": "Phase 3 - Functional Gaps",
+
+      "name": "Implement Google Calendar Event Update and Delete",
+
+      "description": {
+
+        "objective": "Add update and delete event capabilities to Google Calendar integration for full CRUD support.",
+
+        "inputs": [
+
+          "apps/life/services/google_calendar_service.py",
+
+          "Google Calendar API documentation"
+
+        ],
+
+        "actions": [
+
+          "Read existing google_calendar_service.py to understand current implementation.",
+
+          "Implement update_event(user, calendar_id, event_id, event_data) method.",
+
+          "Implement delete_event(user, calendar_id, event_id) method.",
+
+          "Add corresponding view endpoints for update and delete.",
+
+          "Add URL routes for PATCH and DELETE operations.",
+
+          "Handle API errors (event not found, permission denied).",
+
+          "Add tests for update_event() success and error cases.",
+
+          "Add tests for delete_event() success and error cases.",
+
+          "Update existing event model to store google_event_id for sync."
+
+        ],
+
+        "output": "Google Calendar integration supports full CRUD with update and delete operations."
+
+      },
+
+      "priority": "Low",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 3 - Functional Gaps",
+
+      "name": "Add Plaid Error Recovery and Reconciliation",
+
+      "description": {
+
+        "objective": "Implement error recovery procedures for failed Plaid syncs and transaction reconciliation after gaps.",
+
+        "inputs": [
+
+          "apps/finance/services/plaid_service.py",
+
+          "apps/finance/services/transaction_sync_service.py",
+
+          "BankIntegrationLog model"
+
+        ],
+
+        "actions": [
+
+          "Review existing TransactionSyncService for gap handling.",
+
+          "Implement handle_sync_failure() that logs error and schedules retry.",
+
+          "Implement reconcile_transactions() that detects missing transactions.",
+
+          "Add exponential backoff for retries (1min, 5min, 30min, 2hr).",
+
+          "Implement detect_duplicate_transactions() for matching.",
+
+          "Add manual_reconciliation_required flag to BankConnection.",
+
+          "Create admin view to trigger manual reconciliation.",
+
+          "Implement merge_duplicate_transactions() for cleanup.",
+
+          "Add notification when reconciliation needed.",
+
+          "Create tests for each recovery scenario."
+
+        ],
+
+        "output": "Plaid sync has robust error recovery with automatic retries and reconciliation tools."
+
+      },
+
+      "priority": "Medium",
+
+      "status": "New",
+
+      "effort": "High"
+
+    },
+
+    {
+
+      "phase": "Phase 3 - Functional Gaps",
+
+      "name": "Add Medical Provider Appointment SMS Reminders",
+
+      "description": {
+
+        "objective": "Integrate MedicalProvider appointments with SMS notification system for appointment reminders.",
+
+        "inputs": [
+
+          "apps/health/models.py MedicalProvider model",
+
+          "apps/sms/services/sms_scheduler.py",
+
+          "Existing SMS category system"
+
+        ],
+
+        "actions": [
+
+          "Review if appointment model exists or needs creation.",
+
+          "If needed, create ProviderAppointment model with date, time, provider FK.",
+
+          "Add 'appointment' to SMS categories in UserPreferences.",
+
+          "Implement schedule_appointment_reminder() in SMS scheduler.",
+
+          "Default reminder times: 1 day before, 2 hours before.",
+
+          "Allow user to configure reminder preferences.",
+
+          "Include provider name, address, appointment type in SMS.",
+
+          "Add view for creating appointments with reminder toggle.",
+
+          "Create tests for appointment reminder scheduling.",
+
+          "Integrate with Google Calendar sync if calendar connected."
+
+        ],
+
+        "output": "Medical appointment reminders integrated with SMS system."
+
+      },
+
+      "priority": "Low",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 4 - Documentation",
+
+      "name": "Create Bank Integration User Guide",
+
+      "description": {
+
+        "objective": "Create user-facing documentation for connecting bank accounts via Plaid.",
+
+        "inputs": [
+
+          "Plaid Link flow",
+
+          "apps/finance/ functionality"
+
+        ],
+
+        "actions": [
+
+          "Create HelpArticle for 'Connecting Your Bank Account'.",
+
+          "Document what data is accessed (transactions, balances, account info).",
+
+          "Explain security measures (encryption, no credential storage).",
+
+          "Step-by-step guide with screenshots of Plaid Link flow.",
+
+          "Troubleshooting section for common connection issues.",
+
+          "How to disconnect a bank account.",
+
+          "How to reconnect if credentials change.",
+
+          "Privacy policy reference for financial data.",
+
+          "Add to help_articles.json fixture.",
+
+          "Link from Finance module help button."
+
+        ],
+
+        "output": "User-facing bank integration guide in help system."
+
+      },
+
+      "priority": "Medium",
+
+      "status": "New",
+
+      "effort": "Low"
+
+    },
+
+    {
+
+      "phase": "Phase 4 - Documentation",
+
+      "name": "Create Dexcom Setup Instructions",
+
+      "description": {
+
+        "objective": "Create user-facing documentation for connecting Dexcom CGM account.",
+
+        "inputs": [
+
+          "Dexcom OAuth flow",
+
+          "apps/health/services/dexcom.py"
+
+        ],
+
+        "actions": [
+
+          "Create HelpArticle for 'Connecting Dexcom CGM'.",
+
+          "Document requirements (Dexcom account, active CGM).",
+
+          "Step-by-step OAuth authorization flow.",
+
+          "Explain what data is synced (glucose readings, trends).",
+
+          "How often data syncs automatically.",
+
+          "Troubleshooting: connection errors, missing data.",
+
+          "How to disconnect Dexcom account.",
+
+          "Privacy policy reference for health data.",
+
+          "Add to help_articles.json fixture.",
+
+          "Link from Health module settings."
+
+        ],
+
+        "output": "User-facing Dexcom setup guide in help system."
+
+      },
+
+      "priority": "Medium",
+
+      "status": "New",
+
+      "effort": "Low"
+
+    },
+
+    {
+
+      "phase": "Phase 4 - Documentation",
+
+      "name": "Document Error Recovery Procedures",
+
+      "description": {
+
+        "objective": "Create internal documentation for error recovery procedures across all integrations.",
+
+        "inputs": [
+
+          "All integration services",
+
+          "Error handling patterns in codebase"
+
+        ],
+
+        "actions": [
+
+          "Create docs/wlj_error_recovery.md file.",
+
+          "Document Plaid sync failure recovery steps.",
+
+          "Document Dexcom connection error handling.",
+
+          "Document Google Calendar token refresh failures.",
+
+          "Document SMS delivery failure handling.",
+
+          "Document OpenAI API quota/error handling.",
+
+          "Include manual intervention procedures for each.",
+
+          "Include admin console actions for recovery.",
+
+          "Include log locations for debugging.",
+
+          "Include escalation procedures if automatic recovery fails."
+
+        ],
+
+        "output": "Comprehensive error recovery documentation for all integrations."
+
+      },
+
+      "priority": "Medium",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 4 - Documentation",
+
+      "name": "Document API Key Rotation Procedures",
+
+      "description": {
+
+        "objective": "Create runbook for rotating all third-party API keys without service disruption.",
+
+        "inputs": [
+
+          "All third-party service configurations",
+
+          "Railway environment variables"
+
+        ],
+
+        "actions": [
+
+          "Create docs/wlj_api_key_rotation.md file.",
+
+          "List all API keys: OpenAI, Twilio, Dexcom, Plaid, Google, Bible, Cloudinary, Resend.",
+
+          "Document rotation procedure for each service.",
+
+          "Identify which keys require immediate deployment vs graceful rotation.",
+
+          "Document Railway environment variable update process.",
+
+          "Include verification steps after rotation.",
+
+          "Document emergency procedures for compromised keys.",
+
+          "Include notification templates for key rotation events.",
+
+          "Add calendar reminder recommendations for periodic rotation."
+
+        ],
+
+        "output": "Complete API key rotation runbook for all 8+ third-party services."
+
+      },
+
+      "priority": "Low",
+
+      "status": "New",
+
+      "effort": "Low"
+
+    },
+
+    {
+
+      "phase": "Phase 4 - Documentation",
+
+      "name": "Document OpenAI Cost Controls",
+
+      "description": {
+
+        "objective": "Document OpenAI API usage patterns, cost controls, and monitoring for production.",
+
+        "inputs": [
+
+          "apps/ai/ services",
+
+          "AIUsageLog model",
+
+          "OpenAI pricing documentation"
+
+        ],
+
+        "actions": [
+
+          "Create docs/wlj_openai_costs.md file.",
+
+          "Document all OpenAI API touchpoints in application.",
+
+          "Estimate daily/monthly token usage per feature.",
+
+          "Document caching strategies already implemented.",
+
+          "List model choices and their cost implications.",
+
+          "Document usage logging via AIUsageLog.",
+
+          "Recommend OpenAI dashboard alerts for budget thresholds.",
+
+          "Document fallback behavior when quota exceeded.",
+
+          "Include cost optimization recommendations.",
+
+          "Add monthly cost projection formula."
+
+        ],
+
+        "output": "OpenAI cost documentation with usage estimates and monitoring recommendations."
+
+      },
+
+      "priority": "Low",
+
+      "status": "New",
+
+      "effort": "Low"
+
+    },
+
+    {
+
+      "phase": "Phase 5 - Polish",
+
+      "name": "Add Performance Testing Suite",
+
+      "description": {
+
+        "objective": "Create performance tests to verify system handles realistic data volumes (1000+ records per user).",
+
+        "inputs": [
+
+          "Django test framework",
+
+          "Factory patterns for test data"
+
+        ],
+
+        "actions": [
+
+          "Create apps/core/tests/test_performance.py file.",
+
+          "Create factory for generating 1000+ medicine logs.",
+
+          "Create factory for generating 1000+ transactions.",
+
+          "Create factory for generating 1000+ glucose entries.",
+
+          "Implement test_dashboard_load_with_large_dataset().",
+
+          "Implement test_medicine_tracker_with_1000_logs().",
+
+          "Implement test_transaction_list_pagination().",
+
+          "Implement test_health_trends_calculation_performance().",
+
+          "Assert page load times under 2 seconds.",
+
+          "Assert database query counts are reasonable (N+1 detection).",
+
+          "Document baseline performance metrics."
+
+        ],
+
+        "output": "Performance test suite verifying system handles 1000+ records efficiently."
+
+      },
+
+      "priority": "Low",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 5 - Polish",
+
+      "name": "Evaluate and Configure Sentry Error Tracking",
+
+      "description": {
+
+        "objective": "Evaluate Sentry for production error tracking and configure if appropriate for 1.0.",
+
+        "inputs": [
+
+          "Sentry documentation",
+
+          "Current logging configuration"
+
+        ],
+
+        "actions": [
+
+          "Research Sentry free tier limits and pricing.",
+
+          "Evaluate if current logging is sufficient for 1.0.",
+
+          "If proceeding: create Sentry project for WLJ.",
+
+          "Install sentry-sdk package.",
+
+          "Configure DSN in settings.py for production only.",
+
+          "Configure environment and release tags.",
+
+          "Set up source maps for JavaScript errors if applicable.",
+
+          "Configure sensitive data scrubbing (no PII in errors).",
+
+          "Test error capture with intentional exception.",
+
+          "Document decision and configuration in wlj_third_party_services.md."
+
+        ],
+
+        "output": "Sentry evaluated and either configured for production or documented decision to defer."
+
+      },
+
+      "priority": "Low",
+
+      "status": "New",
+
+      "effort": "Medium"
+
+    },
+
+    {
+
+      "phase": "Phase 5 - Polish",
+
+      "name": "Implement AI Batched Confirmations Enhancement",
+
+      "description": {
+
+        "objective": "Implement the TODO at personal_assistant.py:1506 to batch confirmations for better UX.",
+
+        "inputs": [
+
+          "apps/ai/personal_assistant.py line 1506",
+
+          "AssistantMessage model"
+
+        ],
+
+        "actions": [
+
+          "Read personal_assistant.py to understand confirmation flow.",
+
+          "Identify scenarios where multiple confirmations occur.",
+
+          "Design batched confirmation format (e.g., 'I've done X, Y, and Z').",
+
+          "Implement batch_confirmations() helper function.",
+
+          "Update response generation to use batched format.",
+
+          "Ensure individual actions still logged separately.",
+
+          "Add tests for single and multiple confirmation scenarios.",
+
+          "Remove TODO comment after implementation."
+
+        ],
+
+        "output": "AI confirmations are batched for cleaner user experience."
+
+      },
+
+      "priority": "Low",
+
+      "status": "New",
+
+      "effort": "Low"
+
+    },
+
+    {
+
+      "phase": "Phase 5 - Polish",
+
+      "name": "Remove or Implement Provider Availability Fields",
+
+      "description": {
+
+        "objective": "Clean up MedicalProvider model by either implementing or removing availability/hours tracking fields.",
+
+        "inputs": [
+
+          "apps/health/models.py MedicalProvider model"
+
+        ],
+
+        "actions": [
+
+          "Audit MedicalProvider for unused availability fields.",
+
+          "Decide: implement scheduling UI or remove fields.",
+
+          "If removing: create migration to drop fields.",
+
+          "If implementing: add office hours model and UI.",
+
+          "Update any documentation referencing these fields.",
+
+          "Add test to verify model state matches decision."
+
+        ],
+
+        "output": "MedicalProvider model cleaned up with no unused stub fields."
+
+      },
+
+      "priority": "Low",
+
+      "status": "New",
+
+      "effort": "Low"
+
+    }
+
+  ]
+
+}

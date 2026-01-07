@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-07 (Template workout pre-population tests)
+# Last Updated: 2026-01-07 (Template weight/reps storage)
 # ==============================================================================
 
 # WLJ Change History
@@ -16,32 +16,39 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-07 Changes
 
-### Workout Template Pre-Population Tests
+### Template Weight/Reps Storage
 
 **Task:** Template Workout Pre-Populate (Task #218)
 
 **Problem:**
-The workout template pre-population feature (syncing weight/reps from completed workouts back to templates) existed but lacked test coverage to verify it works correctly.
-
-**Investigation:**
-Confirmed the feature was already implemented:
-- `_sync_workout_to_template()` in `views.py:1642-1675` syncs workout data to template on completion
-- `WorkoutCreateView.get_context_data()` in `views.py:774-823` builds template defaults JSON
-- `applyTemplateDefaults()` in `workout_form.html:1048-1072` pre-populates form inputs from template
+The workout template form only stored exercise names and number of sets. There was no way to store
+the default weight and reps for each set in the template, which prevented the pre-population
+feature from working when creating a workout from a template.
 
 **Solution:**
-Added 6 comprehensive tests to verify the template sync functionality:
-1. `test_complete_workout_syncs_to_template` - Verifies workout data syncs to template
-2. `test_template_defaults_prepopulate_workout_form` - Confirms template defaults appear in form JSON
-3. `test_complete_workout_updates_existing_template_sets` - Tests update vs duplicate behavior
-4. `test_complete_workout_adds_new_sets_to_template` - Verifies extra sets are added and default_sets updated
-5. `test_workout_without_template_does_not_sync` - Confirms non-template workouts don't affect templates
-6. `test_multiple_exercises_sync_independently` - Tests multi-exercise sync
+Updated the template form to allow storing weight/reps per set:
+
+1. **Template Form** (`templates/health/fitness/template_form.html`):
+   - Added per-set weight and reps inputs that expand/collapse based on set count
+   - JavaScript dynamically adjusts set rows when changing set count
+   - Preserves existing values when editing templates
+
+2. **Template Views** (`apps/health/views.py`):
+   - Updated `TemplateCreateView` to save `TemplateExerciseSet` records
+   - Updated `TemplateUpdateView` to handle set defaults
+   - Updated `TemplateDetailView` to prefetch set_defaults for display
+
+3. **Template Detail** (`templates/health/fitness/template_detail.html`):
+   - Now displays saved weight/reps for each set
+   - Shows "no weights saved" for sets without data
 
 **Files modified:**
-- `apps/health/tests/test_fitness.py` - Added `TemplateSyncTest` class with 6 tests, imported `TemplateExerciseSet`
+- `apps/health/views.py` - TemplateCreateView, TemplateUpdateView, TemplateDetailView
+- `templates/health/fitness/template_form.html` - Added set weight/reps inputs
+- `templates/health/fitness/template_detail.html` - Display set details
+- `apps/health/tests/test_fitness.py` - Added 10 new tests (6 sync tests + 4 form tests)
 
-**Tests:** 405 health app tests pass (including 6 new template sync tests)
+**Tests:** 74 fitness tests pass (including 10 new template tests)
 
 ---
 

@@ -176,8 +176,11 @@ class ContentSecurityPolicyMiddleware:
 
         csp_header = "; ".join(csp_directives)
 
-        # Use Content-Security-Policy-Report-Only first to test without breaking things
-        # Change to 'Content-Security-Policy' once verified working
+        # TODO(2026-01-13): After one week of testing, change to enforcing mode:
+        # 1. Check browser console for CSP violation reports
+        # 2. If no violations, change 'Content-Security-Policy-Report-Only' to 'Content-Security-Policy'
+        # 3. Remove this TODO comment
+        # Added: 2026-01-06 by Claude Code
         response['Content-Security-Policy-Report-Only'] = csp_header
 
         return response

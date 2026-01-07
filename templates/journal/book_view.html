@@ -268,9 +268,10 @@
 }
 </style>
 
+{{ entries_json|json_script:"entries-data" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const entries = {{ entries_json|safe }};
+    const entries = JSON.parse(document.getElementById('entries-data').textContent);
     let currentPage = 0;
     
     const pageDate = document.getElementById('pageDate');

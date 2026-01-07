@@ -300,10 +300,11 @@
 
 {% if chart_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{{ chart_data|json_script:"chart-data" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('weightChart').getContext('2d');
-    const chartData = {{ chart_data|safe }};
+    const chartData = JSON.parse(document.getElementById('chart-data').textContent);
 
     // Calculate weight change for annotation
     const firstWeight = chartData.length > 0 ? chartData[0].weight : 0;

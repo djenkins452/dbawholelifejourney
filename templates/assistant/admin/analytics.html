@@ -405,10 +405,12 @@
         </p>
     </div>
 
+    {{ pie_chart_data|json_script:"pie-chart-data" }}
+    {{ line_chart_data|json_script:"line-chart-data" }}
     <script>
         // Pie Chart - Tasks by Status
         const pieCtx = document.getElementById('statusPieChart').getContext('2d');
-        const pieData = {{ pie_chart_data|safe }};
+        const pieData = JSON.parse(document.getElementById('pie-chart-data').textContent);
 
         new Chart(pieCtx, {
             type: 'doughnut',
@@ -438,7 +440,7 @@
 
         // Line Chart - Tasks over Time
         const lineCtx = document.getElementById('tasksLineChart').getContext('2d');
-        const lineData = {{ line_chart_data|safe }};
+        const lineData = JSON.parse(document.getElementById('line-chart-data').textContent);
 
         new Chart(lineCtx, {
             type: 'line',

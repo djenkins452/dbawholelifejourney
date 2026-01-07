@@ -229,9 +229,10 @@
 
 {% if selected_exercise and progress_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{{ progress_data|json_script:"progress-data" }}
 <script>
 const ctx = document.getElementById('progressChart').getContext('2d');
-const data = {{ progress_data|safe }};
+const data = JSON.parse(document.getElementById('progress-data').textContent);
 
 // Sort by date
 data.sort((a, b) => new Date(a.date) - new Date(b.date));

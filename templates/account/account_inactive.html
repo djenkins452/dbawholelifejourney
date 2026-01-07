@@ -1,0 +1,64 @@
+{% extends "account/base.html" %}
+
+{% block title %}Account Inactive - Whole Life Journey{% endblock %}
+
+{% block auth_content %}
+<div class="text-center">
+    <div class="auth-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-warning, #f59e0b);">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" x2="12" y1="8" y2="12"/>
+            <line x1="12" x2="12.01" y1="16" y2="16"/>
+        </svg>
+    </div>
+
+    <h1>Account Inactive</h1>
+
+    <p class="auth-message">
+        This account is currently inactive. If you believe this is an error, please contact support.
+    </p>
+</div>
+
+<div class="auth-actions">
+    <a href="{% url 'account_login' %}" class="btn btn-outline" style="width: 100%;">
+        Back to Sign In
+    </a>
+</div>
+
+<style>
+.auth-icon {
+    margin-bottom: var(--space-6);
+}
+
+.auth-message {
+    color: var(--color-text);
+    margin-bottom: var(--space-6);
+    line-height: 1.6;
+}
+
+.auth-actions {
+    margin-top: var(--space-6);
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.btn-outline:hover {
+    background: var(--color-surface);
+    border-color: var(--color-primary);
+}
+
+.text-center {
+    text-align: center;
+}
+</style>
+{% endblock %}

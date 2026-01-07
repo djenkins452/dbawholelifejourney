@@ -1,0 +1,56 @@
+{% extends "account/base.html" %}
+
+{% block title %}Email Verification Required - Whole Life Journey{% endblock %}
+
+{% block auth_content %}
+<div class="text-center">
+    <div class="auth-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-primary);">
+            <rect width="20" height="16" x="2" y="4" rx="2"/>
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+        </svg>
+    </div>
+
+    <h1>Verify your email</h1>
+
+    <p class="auth-message">
+        This action requires a verified email address. Please check your inbox and click the verification link we sent you.
+    </p>
+
+    <p class="auth-hint">
+        Didn't receive the email? Check your spam folder or request a new verification email from your account settings.
+    </p>
+</div>
+
+<div class="auth-actions">
+    <a href="{% url 'account_login' %}" class="btn btn-primary" style="width: 100%;">
+        Back to Sign In
+    </a>
+</div>
+
+<style>
+.auth-icon {
+    margin-bottom: var(--space-6);
+}
+
+.auth-message {
+    color: var(--color-text);
+    margin-bottom: var(--space-4);
+    line-height: 1.6;
+}
+
+.auth-hint {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-6);
+}
+
+.auth-actions {
+    margin-top: var(--space-6);
+}
+
+.text-center {
+    text-align: center;
+}
+</style>
+{% endblock %}

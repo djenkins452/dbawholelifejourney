@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-05 (Codebase Metrics Report)
+# Last Updated: 2026-01-06 (Security hardening & email deliverability)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,122 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-06 Changes
+
+### Email Deliverability & DNS Configuration
+
+**Session:** Admin login lockout due to email verification
+
+**Problem:**
+Admin was locked out because mandatory email verification was enabled but verification emails were not reaching Gmail.
+
+**Solution:**
+1. Added DNS records in Cloudflare for email authentication:
+   - SPF record: `v=spf1 include:spf.privateemail.com ~all`
+   - DKIM record: `default._domainkey` with Namecheap Private Email key
+   - DMARC record: `v=DMARC1; p=none; rua=mailto:admin@wholelifejourney.com`
+   - MX records: `mx1.privateemail.com` and `mx2.privateemail.com`
+2. Updated Django Sites configuration from `example.com` to `wholelifejourney.com`
+
+**Files modified:**
+- `config/settings.py` - Temporarily set `ACCOUNT_EMAIL_VERIFICATION = "optional"` (later restored to mandatory)
+
+---
+
+### Admin Email Bypass for Email Verification
+
+**Session:** Prevent future admin lockouts
+
+**Problem:**
+If email delivery fails again, admin could be locked out of the application.
+
+**Solution:**
+Added admin email bypass in the account adapter. Specified admin emails are always treated as verified, allowing login even when email verification is mandatory.
+
+**Files modified:**
+- `apps/users/adapters.py` - Added `ADMIN_BYPASS_EMAILS` set and `is_email_verified()` override
+- `config/settings.py` - Restored `ACCOUNT_EMAIL_VERIFICATION = "mandatory"` with comment about admin bypass
+
+---
+
+### Styled Allauth Account Templates
+
+**Session:** Fix ugly default password reset pages
+
+**Problem:**
+Password reset confirmation page was showing unstyled default Django allauth template.
+
+**Solution:**
+Created custom styled templates that match the application's design with logo, card layout, and consistent styling.
+
+**Files created:**
+- `templates/account/password_reset_done.html` - "Check your email" page
+- `templates/account/password_reset_from_key.html` - Set new password form
+- `templates/account/password_reset_from_key_done.html` - Password changed confirmation
+- `templates/account/password_change.html` - Change password form (logged-in users)
+- `templates/account/account_inactive.html` - Inactive account message
+- `templates/account/signup_closed.html` - Registration closed message
+- `templates/account/verified_email_required.html` - Email verification required
+
+**Files modified:**
+- `templates/account/base.html` - Updated copyright year to 2026
+
+---
+
+### Security: XSS Protection via json_script
+
+**Session:** Security audit remediation
+
+**Problem:**
+Templates were using `{{ data|safe }}` pattern to embed JSON in JavaScript, which could be vulnerable to XSS if user content contained `</script>` tags.
+
+**Solution:**
+Replaced with Django's `json_script` template tag which safely escapes special characters.
+
+**Files modified:**
+- `templates/journal/book_view.html` - `entries_json`
+- `templates/health/weight_list.html` - `chart_data`
+- `templates/health/fitness/progress.html` - `progress_data`
+- `templates/assistant/admin/analytics.html` - `pie_chart_data`, `line_chart_data`
+
+---
+
+### Security: Plaid Webhook Signature Verification
+
+**Session:** Security audit remediation
+
+**Problem:**
+Plaid webhook endpoint was missing signature verification, allowing potential forged webhook attacks.
+
+**Solution:**
+Added `verify_plaid_webhook()` function that:
+- Verifies the `Plaid-Verification` JWT header
+- Checks request body SHA256 hash matches
+- Validates timestamp is within 5 minutes
+- Skips verification if PLAID_SECRET not configured (sandbox mode)
+
+**Files modified:**
+- `apps/finance/views.py` - Added webhook verification function and integrated into `plaid_webhook` view
+
+---
+
+### Security: Admin File Upload Validation
+
+**Session:** Security audit remediation
+
+**Problem:**
+Logo and favicon uploads in admin console were stored without validating file content, allowing potential malicious file uploads.
+
+**Solution:**
+Added `validate_image_file()` function that:
+- Checks file extension against whitelist
+- Validates content-type header
+- Verifies actual image content using PIL (for non-SVG)
+- Enforces file size limits
+
+**Files modified:**
+- `apps/admin_console/views.py` - Added validation function and integrated into `SiteConfigView.post()`
+
+---
 
 ### Fix workout delete button not working
 

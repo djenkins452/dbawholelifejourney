@@ -4,7 +4,7 @@
 # Description: Admin console views for site management and project task intake
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-01
-# Last Updated: 2026-01-03 (Added HelpContextMixin to Project views, DataLoadConfig management views)
+# Last Updated: 2026-01-06
 # ==============================================================================
 """
 Admin Views - Custom admin interface for site management.
@@ -33,6 +33,63 @@ from django.views.generic import (
 from apps.core.models import Category, SiteConfiguration, Theme
 from apps.core.models import ChoiceCategory, ChoiceOption
 from apps.help.mixins import HelpContextMixin
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def validate_image_file(uploaded_file, max_size_mb=5):
+    """
+    Validate that an uploaded file is a legitimate image.
+
+    Checks:
+    - File extension is an allowed image type
+    - File content is actually a valid image (not a renamed malicious file)
+    - File size is within limits
+
+    Args:
+        uploaded_file: Django UploadedFile object
+        max_size_mb: Maximum file size in megabytes
+
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+    """
+    ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.svg'}
+    ALLOWED_CONTENT_TYPES = {
+        'image/png', 'image/jpeg', 'image/gif', 'image/x-icon',
+        'image/vnd.microsoft.icon', 'image/webp', 'image/svg+xml'
+    }
+
+    # Check file extension
+    import os
+    ext = os.path.splitext(uploaded_file.name)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return False, f"Invalid file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+
+    # Check file size
+    max_bytes = max_size_mb * 1024 * 1024
+    if uploaded_file.size > max_bytes:
+        return False, f"File too large. Maximum size: {max_size_mb}MB"
+
+    # Check content type header
+    content_type = uploaded_file.content_type
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        return False, f"Invalid content type '{content_type}'"
+
+    # For non-SVG images, verify actual image content using PIL
+    if ext != '.svg':
+        try:
+            from PIL import Image
+            uploaded_file.seek(0)
+            img = Image.open(uploaded_file)
+            img.verify()  # Verify it's a valid image
+            uploaded_file.seek(0)  # Reset for later use
+        except Exception as e:
+            logger.warning(f"Image validation failed for {uploaded_file.name}: {e}")
+            return False, "File is not a valid image"
+
+    return True, None
 
 
 class AdminRequiredMixin(UserPassesTestMixin):
@@ -108,18 +165,30 @@ class SiteConfigView(HelpContextMixin, AdminRequiredMixin, TemplateView):
         config.require_email_verification = request.POST.get('require_email_verification') == 'on'
         config.faith_enabled_by_default = request.POST.get('faith_enabled_by_default') == 'on'
         
-        # Handle logo upload
+        # Handle logo upload with validation
         if 'logo' in request.FILES:
-            config.logo = request.FILES['logo']
+            logo_file = request.FILES['logo']
+            is_valid, error = validate_image_file(logo_file)
+            if is_valid:
+                config.logo = logo_file
+            else:
+                messages.error(request, f"Logo upload failed: {error}")
+                return redirect('admin_console:site_config')
         elif request.POST.get('clear_logo') == 'on':
             config.logo = None
-        
-        # Handle favicon upload
+
+        # Handle favicon upload with validation
         if 'favicon' in request.FILES:
-            config.favicon = request.FILES['favicon']
+            favicon_file = request.FILES['favicon']
+            is_valid, error = validate_image_file(favicon_file, max_size_mb=1)
+            if is_valid:
+                config.favicon = favicon_file
+            else:
+                messages.error(request, f"Favicon upload failed: {error}")
+                return redirect('admin_console:site_config')
         elif request.POST.get('clear_favicon') == 'on':
             config.favicon = None
-        
+
         config.save()
         messages.success(request, "Site configuration updated successfully.")
         return redirect('admin_console:site_config')

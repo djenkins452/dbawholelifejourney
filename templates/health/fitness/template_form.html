@@ -44,19 +44,52 @@
                     {% for te in template_exercises %}
                         <div class="template-exercise-row" data-exercise-id="{{ te.exercise.pk }}">
                             <input type="hidden" name="exercise_id" value="{{ te.exercise.pk }}">
-                            <span class="exercise-name">{{ te.exercise.name }}</span>
+                            <div class="exercise-header-row">
+                                <span class="exercise-name">{{ te.exercise.name }}</span>
+                                <button type="button" class="remove-btn" onclick="removeExercise(this)">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
                             {% if te.exercise.category == "resistance" %}
-                                <div class="default-sets">
-                                    <label>Default sets:</label>
-                                    <input type="number" name="exercise_{{ te.exercise.pk }}_default_sets" value="{{ te.default_sets }}" min="1" max="10">
+                                <div class="sets-config">
+                                    <div class="sets-header">
+                                        <label>Sets:</label>
+                                        <input type="number" name="exercise_{{ te.exercise.pk }}_default_sets"
+                                               value="{{ te.default_sets }}" min="1" max="10" class="sets-count-input"
+                                               onchange="updateSetRows(this, {{ te.exercise.pk }})">
+                                    </div>
+                                    <div class="set-defaults-container" data-exercise-id="{{ te.exercise.pk }}">
+                                        {% for set_default in te.set_defaults.all %}
+                                            <div class="set-default-row" data-set-number="{{ set_default.set_number }}">
+                                                <span class="set-label">Set {{ set_default.set_number }}:</span>
+                                                <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_weight"
+                                                       value="{{ set_default.weight|default:'' }}" placeholder="Weight" step="0.5" class="weight-input">
+                                                <span class="input-suffix">lbs</span>
+                                                <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ set_default.set_number }}_reps"
+                                                       value="{{ set_default.reps|default:'' }}" placeholder="Reps" class="reps-input">
+                                                <span class="input-suffix">reps</span>
+                                            </div>
+                                        {% empty %}
+                                            {% for i in "123456789"|make_list %}
+                                                {% if forloop.counter <= te.default_sets %}
+                                                    <div class="set-default-row" data-set-number="{{ forloop.counter }}">
+                                                        <span class="set-label">Set {{ forloop.counter }}:</span>
+                                                        <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_weight"
+                                                               placeholder="Weight" step="0.5" class="weight-input">
+                                                        <span class="input-suffix">lbs</span>
+                                                        <input type="number" name="exercise_{{ te.exercise.pk }}_set_{{ forloop.counter }}_reps"
+                                                               placeholder="Reps" class="reps-input">
+                                                        <span class="input-suffix">reps</span>
+                                                    </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endfor %}
+                                    </div>
                                 </div>
                             {% endif %}
-                            <button type="button" class="remove-btn" onclick="removeExercise(this)">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
                         </div>
                     {% endfor %}
                 {% endif %}
@@ -160,7 +193,7 @@
 
 .template-exercise-row {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: var(--space-3);
     padding: var(--space-3);
     background: var(--color-surface);
@@ -168,28 +201,74 @@
     border-radius: var(--radius-md);
 }
 
+.exercise-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
 .template-exercise-row .exercise-name {
-    flex: 1;
     font-weight: 500;
 }
 
-.default-sets {
+.sets-config {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-left: var(--space-2);
+    border-left: 2px solid var(--color-border);
+}
+
+.sets-header {
     display: flex;
     align-items: center;
     gap: var(--space-2);
 }
 
-.default-sets label {
+.sets-header label {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
 }
 
-.default-sets input {
+.sets-count-input {
     width: 60px;
     padding: var(--space-2);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     text-align: center;
+}
+
+.set-defaults-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.set-default-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.set-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    min-width: 50px;
+}
+
+.weight-input,
+.reps-input {
+    width: 70px;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.input-suffix {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
 }
 
 .remove-btn {
@@ -263,6 +342,60 @@
 </style>
 
 <script>
+function generateSetRows(exerciseId, count) {
+    let html = '';
+    for (let i = 1; i <= count; i++) {
+        html += `
+            <div class="set-default-row" data-set-number="${i}">
+                <span class="set-label">Set ${i}:</span>
+                <input type="number" name="exercise_${exerciseId}_set_${i}_weight"
+                       placeholder="Weight" step="0.5" class="weight-input">
+                <span class="input-suffix">lbs</span>
+                <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
+                       placeholder="Reps" class="reps-input">
+                <span class="input-suffix">reps</span>
+            </div>
+        `;
+    }
+    return html;
+}
+
+function updateSetRows(input, exerciseId) {
+    const count = parseInt(input.value) || 3;
+    const container = document.querySelector(`.set-defaults-container[data-exercise-id="${exerciseId}"]`);
+    if (!container) return;
+
+    // Get existing values before rebuilding
+    const existingValues = {};
+    container.querySelectorAll('.set-default-row').forEach(row => {
+        const setNum = row.dataset.setNumber;
+        const weightInput = row.querySelector('.weight-input');
+        const repsInput = row.querySelector('.reps-input');
+        existingValues[setNum] = {
+            weight: weightInput ? weightInput.value : '',
+            reps: repsInput ? repsInput.value : ''
+        };
+    });
+
+    // Rebuild rows
+    let html = '';
+    for (let i = 1; i <= count; i++) {
+        const existing = existingValues[i] || {weight: '', reps: ''};
+        html += `
+            <div class="set-default-row" data-set-number="${i}">
+                <span class="set-label">Set ${i}:</span>
+                <input type="number" name="exercise_${exerciseId}_set_${i}_weight"
+                       value="${existing.weight}" placeholder="Weight" step="0.5" class="weight-input">
+                <span class="input-suffix">lbs</span>
+                <input type="number" name="exercise_${exerciseId}_set_${i}_reps"
+                       value="${existing.reps}" placeholder="Reps" class="reps-input">
+                <span class="input-suffix">reps</span>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
 function addExercise() {
     const select = document.getElementById('exerciseSelect');
     const exerciseId = select.value;
@@ -286,27 +419,33 @@ function addExercise() {
     let html = `
         <div class="template-exercise-row" data-exercise-id="${exerciseId}">
             <input type="hidden" name="exercise_id" value="${exerciseId}">
-            <span class="exercise-name">${exerciseName}</span>
+            <div class="exercise-header-row">
+                <span class="exercise-name">${exerciseName}</span>
+                <button type="button" class="remove-btn" onclick="removeExercise(this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
     `;
 
     if (category === 'resistance') {
         html += `
-            <div class="default-sets">
-                <label>Default sets:</label>
-                <input type="number" name="exercise_${exerciseId}_default_sets" value="3" min="1" max="10">
+            <div class="sets-config">
+                <div class="sets-header">
+                    <label>Sets:</label>
+                    <input type="number" name="exercise_${exerciseId}_default_sets" value="3" min="1" max="10"
+                           class="sets-count-input" onchange="updateSetRows(this, ${exerciseId})">
+                </div>
+                <div class="set-defaults-container" data-exercise-id="${exerciseId}">
+                    ${generateSetRows(exerciseId, 3)}
+                </div>
             </div>
         `;
     }
 
-    html += `
-            <button type="button" class="remove-btn" onclick="removeExercise(this)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
-        </div>
-    `;
+    html += `</div>`;
 
     container.insertAdjacentHTML('beforeend', html);
 

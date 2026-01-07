@@ -150,6 +150,7 @@ MIDDLEWARE = [
     "apps.users.middleware.TermsAcceptanceMiddleware",
     "apps.users.middleware.TimezoneMiddleware",  # Convert UTC to user's timezone
     "apps.core.middleware.PageViewTrackingMiddleware",  # Track page views for Favorites
+    "apps.core.middleware.ContentSecurityPolicyMiddleware",  # CSP headers for XSS protection
     "axes.middleware.AxesMiddleware",  # Rate limiting (Security Fix H-3) - must be last
 ]
 

@@ -3,14 +3,16 @@ Whole Life Journey - Core Middleware
 
 Project: Whole Life Journey
 Path: apps/core/middleware.py
-Purpose: Track page views for the Favorites feature
+Purpose: Track page views for the Favorites feature and security headers
 
 Description:
-    This middleware tracks page views for authenticated users to populate
-    the "Most Recent" section of the Favorites menu.
+    This middleware provides:
+    - Page view tracking for the Favorites menu
+    - Content Security Policy (CSP) headers for XSS protection
 
 Key Responsibilities:
     - PageViewTrackingMiddleware: Record page views for authenticated users
+    - ContentSecurityPolicyMiddleware: Add CSP headers to responses
 
 Design Notes:
     - Only tracks GET requests (not API calls, form submissions)
@@ -126,3 +128,56 @@ class PageViewTrackingMiddleware:
 
         except Exception:
             return None
+
+
+class ContentSecurityPolicyMiddleware:
+    """
+    Middleware to add Content-Security-Policy headers for XSS protection.
+
+    CSP restricts which sources can load scripts, styles, images, etc.
+    This helps prevent XSS attacks even if malicious content is injected.
+
+    Policy:
+    - default-src 'self': Only allow resources from same origin by default
+    - script-src: Allow inline scripts (for htmx, chart.js), self, and CDNs
+    - style-src: Allow inline styles (for dynamic styling) and self
+    - img-src: Allow self, data URIs, and common image hosts
+    - font-src: Allow self and Google Fonts
+    - connect-src: Allow self and API endpoints
+    - frame-ancestors 'self': Prevent clickjacking (same as X-Frame-Options)
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        # Only add CSP to HTML responses
+        content_type = response.get('Content-Type', '')
+        if 'text/html' not in content_type:
+            return response
+
+        # Build CSP policy
+        # Note: 'unsafe-inline' is needed for htmx attributes and inline event handlers
+        # In a future iteration, consider using nonces for stricter security
+        csp_directives = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.google.com https://www.gstatic.com",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "img-src 'self' data: https: blob:",
+            "font-src 'self' https://fonts.gstatic.com",
+            "connect-src 'self' https://www.google.com",
+            "frame-src 'self' https://www.google.com",
+            "frame-ancestors 'self'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ]
+
+        csp_header = "; ".join(csp_directives)
+
+        # Use Content-Security-Policy-Report-Only first to test without breaking things
+        # Change to 'Content-Security-Policy' once verified working
+        response['Content-Security-Policy-Report-Only'] = csp_header
+
+        return response

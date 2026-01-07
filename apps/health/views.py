@@ -1096,12 +1096,42 @@ class TemplateCreateView(LoginRequiredMixin, TemplateView):
                 default_sets = request.POST.get(
                     f"exercise_{exercise_id}_default_sets", 3
                 )
-                TemplateExercise.objects.create(
+                default_sets = int(default_sets) if default_sets else 3
+
+                template_exercise = TemplateExercise.objects.create(
                     template=template,
                     exercise=exercise,
                     order=idx,
-                    default_sets=int(default_sets) if default_sets else 3,
+                    default_sets=default_sets,
                 )
+
+                # Save set defaults (weight/reps per set)
+                for set_num in range(1, default_sets + 1):
+                    weight = request.POST.get(
+                        f"exercise_{exercise_id}_set_{set_num}_weight"
+                    )
+                    reps = request.POST.get(
+                        f"exercise_{exercise_id}_set_{set_num}_reps"
+                    )
+                    # Only create if at least one value is provided
+                    if weight or reps:
+                        from decimal import Decimal, InvalidOperation
+                        try:
+                            weight_val = Decimal(weight) if weight else None
+                        except (InvalidOperation, TypeError):
+                            weight_val = None
+                        try:
+                            reps_val = int(reps) if reps else None
+                        except (ValueError, TypeError):
+                            reps_val = None
+
+                        if weight_val is not None or reps_val is not None:
+                            TemplateExerciseSet.objects.create(
+                                template_exercise=template_exercise,
+                                set_number=set_num,
+                                weight=weight_val,
+                                reps=reps_val,
+                            )
             except Exercise.DoesNotExist:
                 continue
 
@@ -1125,7 +1155,7 @@ class TemplateDetailView(LoginRequiredMixin, TemplateView):
         context["template"] = template
         context["template_exercises"] = template.template_exercises.select_related(
             "exercise"
-        )
+        ).prefetch_related("set_defaults")
         return context
 
 
@@ -1145,7 +1175,7 @@ class TemplateUpdateView(LoginRequiredMixin, TemplateView):
         context["template"] = template
         context["template_exercises"] = template.template_exercises.select_related(
             "exercise"
-        )
+        ).prefetch_related("set_defaults")
         context["editing"] = True
 
         context["resistance_exercises"] = Exercise.objects.filter(
@@ -1169,7 +1199,7 @@ class TemplateUpdateView(LoginRequiredMixin, TemplateView):
         template.description = request.POST.get("description", "")
         template.save()
 
-        # Clear and recreate exercises
+        # Clear and recreate exercises (this also cascades to delete set_defaults)
         template.template_exercises.all().delete()
 
         exercise_ids = request.POST.getlist("exercise_id")
@@ -1179,12 +1209,42 @@ class TemplateUpdateView(LoginRequiredMixin, TemplateView):
                 default_sets = request.POST.get(
                     f"exercise_{exercise_id}_default_sets", 3
                 )
-                TemplateExercise.objects.create(
+                default_sets = int(default_sets) if default_sets else 3
+
+                template_exercise = TemplateExercise.objects.create(
                     template=template,
                     exercise=exercise,
                     order=idx,
-                    default_sets=int(default_sets) if default_sets else 3,
+                    default_sets=default_sets,
                 )
+
+                # Save set defaults (weight/reps per set)
+                for set_num in range(1, default_sets + 1):
+                    weight = request.POST.get(
+                        f"exercise_{exercise_id}_set_{set_num}_weight"
+                    )
+                    reps = request.POST.get(
+                        f"exercise_{exercise_id}_set_{set_num}_reps"
+                    )
+                    # Only create if at least one value is provided
+                    if weight or reps:
+                        from decimal import Decimal, InvalidOperation
+                        try:
+                            weight_val = Decimal(weight) if weight else None
+                        except (InvalidOperation, TypeError):
+                            weight_val = None
+                        try:
+                            reps_val = int(reps) if reps else None
+                        except (ValueError, TypeError):
+                            reps_val = None
+
+                        if weight_val is not None or reps_val is not None:
+                            TemplateExerciseSet.objects.create(
+                                template_exercise=template_exercise,
+                                set_number=set_num,
+                                weight=weight_val,
+                                reps=reps_val,
+                            )
             except Exercise.DoesNotExist:
                 continue
 

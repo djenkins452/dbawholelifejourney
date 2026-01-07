@@ -1472,3 +1472,176 @@ class TemplateSyncTest(FitnessTestMixin, TestCase):
 
         self.assertEqual(bench_sets.first().weight, Decimal('135'))
         self.assertEqual(squat_sets.first().weight, Decimal('225'))
+
+
+class TemplateFormSetDefaultsTest(FitnessTestMixin, TestCase):
+    """
+    Tests for template form weight/reps saving functionality.
+
+    The template create/edit form should allow users to save
+    default weight and reps for each set in the template.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.login_user()
+        self.exercise = self.create_exercise(name='Bench Press')
+
+    def test_create_template_saves_set_defaults(self):
+        """
+        Creating a template with weight/reps saves TemplateExerciseSet records.
+        """
+        response = self.client.post(
+            reverse('health:template_create'),
+            data={
+                'name': 'Push Day',
+                'description': 'Chest and triceps',
+                'exercise_id': [self.exercise.pk],
+                f'exercise_{self.exercise.pk}_default_sets': '3',
+                f'exercise_{self.exercise.pk}_set_1_weight': '135',
+                f'exercise_{self.exercise.pk}_set_1_reps': '10',
+                f'exercise_{self.exercise.pk}_set_2_weight': '155',
+                f'exercise_{self.exercise.pk}_set_2_reps': '8',
+                f'exercise_{self.exercise.pk}_set_3_weight': '175',
+                f'exercise_{self.exercise.pk}_set_3_reps': '6',
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        # Verify template was created
+        template = WorkoutTemplate.objects.get(name='Push Day')
+        template_exercise = template.template_exercises.first()
+
+        # Verify set defaults were created
+        set_defaults = TemplateExerciseSet.objects.filter(
+            template_exercise=template_exercise
+        ).order_by('set_number')
+
+        self.assertEqual(set_defaults.count(), 3)
+
+        self.assertEqual(set_defaults[0].weight, Decimal('135'))
+        self.assertEqual(set_defaults[0].reps, 10)
+        self.assertEqual(set_defaults[1].weight, Decimal('155'))
+        self.assertEqual(set_defaults[1].reps, 8)
+        self.assertEqual(set_defaults[2].weight, Decimal('175'))
+        self.assertEqual(set_defaults[2].reps, 6)
+
+    def test_update_template_updates_set_defaults(self):
+        """
+        Updating a template with new weight/reps updates TemplateExerciseSet records.
+        """
+        # Create template with initial set defaults
+        template = self.create_template(self.user, name='Push Day')
+        template_exercise = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise,
+            order=0,
+            default_sets=3
+        )
+        TemplateExerciseSet.objects.create(
+            template_exercise=template_exercise,
+            set_number=1,
+            weight=Decimal('135'),
+            reps=10
+        )
+
+        # Update template with new values
+        response = self.client.post(
+            reverse('health:template_update', kwargs={'pk': template.pk}),
+            data={
+                'name': 'Push Day Updated',
+                'description': '',
+                'exercise_id': [self.exercise.pk],
+                f'exercise_{self.exercise.pk}_default_sets': '2',
+                f'exercise_{self.exercise.pk}_set_1_weight': '145',
+                f'exercise_{self.exercise.pk}_set_1_reps': '12',
+                f'exercise_{self.exercise.pk}_set_2_weight': '165',
+                f'exercise_{self.exercise.pk}_set_2_reps': '10',
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        # Verify template was updated
+        template.refresh_from_db()
+        self.assertEqual(template.name, 'Push Day Updated')
+
+        # Get the new template_exercise (old one was deleted and recreated)
+        template_exercise = template.template_exercises.first()
+
+        # Verify set defaults were updated
+        set_defaults = TemplateExerciseSet.objects.filter(
+            template_exercise=template_exercise
+        ).order_by('set_number')
+
+        self.assertEqual(set_defaults.count(), 2)
+        self.assertEqual(set_defaults[0].weight, Decimal('145'))
+        self.assertEqual(set_defaults[0].reps, 12)
+        self.assertEqual(set_defaults[1].weight, Decimal('165'))
+        self.assertEqual(set_defaults[1].reps, 10)
+
+    def test_template_detail_shows_set_defaults(self):
+        """
+        Template detail page displays saved weight/reps for each set.
+        """
+        # Create template with set defaults
+        template = self.create_template(self.user, name='Push Day')
+        template_exercise = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise,
+            order=0,
+            default_sets=2
+        )
+        TemplateExerciseSet.objects.create(
+            template_exercise=template_exercise,
+            set_number=1,
+            weight=Decimal('135'),
+            reps=10
+        )
+        TemplateExerciseSet.objects.create(
+            template_exercise=template_exercise,
+            set_number=2,
+            weight=Decimal('155'),
+            reps=8
+        )
+
+        response = self.client.get(
+            reverse('health:template_detail', kwargs={'pk': template.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '135')
+        self.assertContains(response, '10 reps')
+        self.assertContains(response, '155')
+        self.assertContains(response, '8 reps')
+
+    def test_template_form_shows_existing_set_defaults(self):
+        """
+        Template edit form pre-populates existing weight/reps values.
+        """
+        # Create template with set defaults
+        template = self.create_template(self.user, name='Push Day')
+        template_exercise = TemplateExercise.objects.create(
+            template=template,
+            exercise=self.exercise,
+            order=0,
+            default_sets=2
+        )
+        TemplateExerciseSet.objects.create(
+            template_exercise=template_exercise,
+            set_number=1,
+            weight=Decimal('135'),
+            reps=10
+        )
+
+        response = self.client.get(
+            reverse('health:template_update', kwargs={'pk': template.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # The form should contain the saved values (weight may be 135 or 135.0)
+        content = response.content.decode()
+        self.assertTrue('value="135"' in content or 'value="135.0"' in content)
+        self.assertContains(response, 'value="10"')

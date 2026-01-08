@@ -1,11 +1,10 @@
 {
     "project": {
-        "name": "UX Improvements",
-        "description": "User experience improvements identified from Task 223 review"
+        "name": "General"
     },
     "tasks": [
         {
-            "phase": "Phase 24",
+            "phase": "Phase 25",
             "name": "Add Save & Add Another to Forms",
             "description": {
                 "objective": "Add a 'Save & Add Another' button to forms throughout the app for power users who want to quickly create multiple entries",
@@ -28,7 +27,7 @@
             "effort": "Medium"
         },
         {
-            "phase": "Phase 24",
+            "phase": "Phase 26",
             "name": "Add Command Palette (Cmd/Ctrl+K)",
             "description": {
                 "objective": "Implement a command palette (like VS Code or Slack) that opens with Cmd/Ctrl+K for quick navigation and actions",
@@ -53,7 +52,7 @@
             "effort": "Large"
         },
         {
-            "phase": "Phase 24",
+            "phase": "Phase 27",
             "name": "Add Bulk Actions to List Views",
             "description": {
                 "objective": "Add ability to select multiple items in list views and perform bulk actions (delete, archive, etc.)",
@@ -78,7 +77,7 @@
             "effort": "Large"
         },
         {
-            "phase": "Phase 24",
+            "phase": "Phase 28",
             "name": "Add Undo Toast Notifications",
             "description": {
                 "objective": "After destructive actions (delete), show a toast notification with an Undo button that allows reverting the action",
@@ -103,7 +102,7 @@
             "effort": "Medium"
         },
         {
-            "phase": "Phase 24",
+            "phase": "Phase 29",
             "name": "Add Breadcrumbs to All Pages",
             "description": {
                 "objective": "Add consistent breadcrumb navigation to all pages that don't already have them",
@@ -128,7 +127,7 @@
             "effort": "Medium"
         },
         {
-            "phase": "Phase 24",
+            "phase": "Phase 30",
             "name": "Add Search History Suggestions",
             "description": {
                 "objective": "Remember user's recent searches and show them as suggestions when focusing the search field",

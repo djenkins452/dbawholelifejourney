@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Consistent CRUD buttons in Purpose module)
+# Last Updated: 2026-01-08 (Standardized button classes across app)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,46 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Standardized Button and Text Color Classes
+
+**Task:** Check the entire app for inconsistencies (Task #220)
+
+**Problem:**
+Button styles were inconsistently defined across templates. Some templates had inline
+`.btn-error` definitions that duplicated functionality and didn't use theme CSS variables.
+Text color utilities like `.text-error` and `.text-danger` were defined inline in templates
+instead of being centralized.
+
+**Solution:**
+Added standardized button and text color classes to `main.css`:
+
+1. **Button variants added:**
+   - `.btn-danger-text` - Ghost button with red text for destructive actions
+   - `.btn-text` - Link-style button using accent color
+   - `.btn-outline` - Transparent with border (alias for btn-secondary)
+   - `.btn-error` - Red background button (alias for btn-danger)
+
+2. **Text color utilities added:**
+   - `.text-error` - Red text using `--color-error`
+   - `.text-danger` - Alias for text-error
+   - `.text-success` - Green text using `--color-success`
+   - `.text-warning` - Yellow/orange text using `--color-warning`
+
+3. **Removed duplicate inline styles from 18 templates:**
+   - Life module: 10 confirm delete templates
+   - Admin Console: 8 confirm delete templates
+
+All styles now use CSS custom properties for theme compatibility.
+
+**Text case audit:** All button text (Edit, Delete, Cancel, Save) uses consistent Title Case.
+
+**Files modified:**
+- `static/css/main.css` - Added standardized button and text color classes
+- `templates/life/*_confirm_delete.html` - Removed inline .btn-error (10 files)
+- `templates/admin_console/*_confirm_delete.html` - Removed inline .btn-error (8 files)
+
+---
 
 ### Consistent CRUD Buttons in Purpose Module
 

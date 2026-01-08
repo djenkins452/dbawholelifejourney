@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Select All checkbox for Task List filters)
+# Last Updated: 2026-01-08 (Save & Add Another button for forms)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,34 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Save & Add Another Button for Forms
+
+**Task:** Add Save & Add Another to Forms (Task #224, User Experience Phase 2)
+
+**Problem:**
+Power users who want to create multiple entries (journal entries, weight logs, food entries, etc.)
+had to navigate back to the list and then to the create form after each save.
+
+**Solution:**
+- Created `SaveAddAnotherMixin` in `apps/core/views.py` for reusable functionality
+- Added "Save & Add Another" button to create forms (hidden on edit forms)
+- When clicked, saves the entry and redirects back to a fresh form with a success toast
+
+**Files modified:**
+- `apps/core/views.py` - Added SaveAddAnotherMixin class
+- `apps/journal/views.py` - EntryCreateView now uses the mixin
+- `apps/health/views.py` - WeightCreateView, HeartRateCreateView, BloodPressureCreateView, FoodEntryCreateView
+- `apps/purpose/views.py` - GoalCreateView
+- `templates/journal/entry_form.html` - Added Save & Add Another button
+- `templates/health/weight_form.html` - Added Save & Add Another button
+- `templates/health/heartrate_form.html` - Added Save & Add Another button
+- `templates/health/blood_pressure_form.html` - Added Save & Add Another button
+- `templates/health/nutrition/food_entry_form.html` - Added Save & Add Another button
+- `apps/purpose/templates/purpose/goal_form.html` - Added Save & Add Another button
+- `templates/components/form_actions.html` - New reusable component (optional)
+
+---
 
 ### Select All Checkbox for Task List Filters
 

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Popup delete confirmations in Purpose module)
+# Last Updated: 2026-01-08 (Select All checkbox for Task List filters)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,32 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Select All Checkbox for Task List Filters
+
+**Task:** Project Task Page Filters (Task #222)
+
+**Problem:**
+The Project and Status dropdown filters on the Task List page lacked a convenient way to
+select or deselect all options at once.
+
+**Solution:**
+Added a "Select All" checkbox at the top of both the Project and Status dropdown filters.
+
+**Behavior:**
+- When "Select All" is checked, all options in that dropdown become checked
+- When "Select All" is unchecked, all options become unchecked
+- If any individual option is unchecked, "Select All" automatically unchecks
+- If all individual options are checked manually, "Select All" automatically checks
+- Default state: all options checked (Select All is checked)
+
+**Files modified:**
+- `templates/admin_console/admin_task_list.html`
+  - Added `select-all-checkbox` class and HTML structure to both dropdowns
+  - Updated `initCheckboxDropdown()` JavaScript function to handle Select All logic
+  - Added CSS for `.select-all-item` and `.dropdown-divider` styling
+
+---
 
 ### Popup Delete Confirmations in Purpose Module
 

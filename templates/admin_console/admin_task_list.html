@@ -108,6 +108,12 @@
                         </svg>
                     </button>
                     <div class="checkbox-dropdown-menu">
+                        <label class="checkbox-dropdown-item select-all-item">
+                            <input type="checkbox" class="select-all-checkbox"
+                                   {% if not current_project_filters %}checked{% endif %}>
+                            <span class="checkbox-label"><strong>Select All</strong></span>
+                        </label>
+                        <div class="dropdown-divider"></div>
                         {% for project in projects %}
                         <label class="checkbox-dropdown-item">
                             <input type="checkbox" name="project" value="{{ project.pk }}"
@@ -141,6 +147,12 @@
                         </svg>
                     </button>
                     <div class="checkbox-dropdown-menu">
+                        <label class="checkbox-dropdown-item select-all-item">
+                            <input type="checkbox" class="select-all-checkbox"
+                                   {% if not current_status_filters %}checked{% endif %}>
+                            <span class="checkbox-label"><strong>Select All</strong></span>
+                        </label>
+                        <div class="dropdown-divider"></div>
                         {% for value, label in status_choices %}
                         <label class="checkbox-dropdown-item">
                             <input type="checkbox" name="status" value="{{ value }}"
@@ -581,20 +593,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const toggle = dropdown.querySelector('.checkbox-dropdown-toggle');
         const dropdownLabel = toggle.querySelector('.dropdown-label');
-        const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+        const selectAllCheckbox = dropdown.querySelector('.select-all-checkbox');
+        // Get only the item checkboxes (not the select-all checkbox)
+        const itemCheckboxes = dropdown.querySelectorAll('input[type="checkbox"][name]');
 
         // Update the label based on selected checkboxes
         function updateLabel() {
-            const checked = Array.from(checkboxes).filter(cb => cb.checked);
+            const checked = Array.from(itemCheckboxes).filter(cb => cb.checked);
             if (checked.length === 0) {
                 dropdownLabel.textContent = 'None';
-            } else if (checked.length === checkboxes.length) {
+            } else if (checked.length === itemCheckboxes.length) {
                 dropdownLabel.textContent = allLabel;
             } else if (checked.length <= 2) {
                 dropdownLabel.textContent = checked.map(cb => cb.nextElementSibling.textContent.trim()).join(', ');
             } else {
                 dropdownLabel.textContent = checked.length + ' selected';
             }
+        }
+
+        // Update Select All checkbox state based on item checkboxes
+        function updateSelectAllState() {
+            if (!selectAllCheckbox) return;
+            const allChecked = Array.from(itemCheckboxes).every(cb => cb.checked);
+            selectAllCheckbox.checked = allChecked;
+        }
+
+        // Handle Select All checkbox change
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                const isChecked = this.checked;
+                itemCheckboxes.forEach(function(cb) {
+                    cb.checked = isChecked;
+                });
+                updateLabel();
+            });
         }
 
         // Toggle dropdown open/close
@@ -607,13 +639,17 @@ document.addEventListener('DOMContentLoaded', function() {
             dropdown.classList.toggle('open');
         });
 
-        // Update label when checkboxes change
-        checkboxes.forEach(function(checkbox) {
-            checkbox.addEventListener('change', updateLabel);
+        // Update label and select-all state when item checkboxes change
+        itemCheckboxes.forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                updateLabel();
+                updateSelectAllState();
+            });
         });
 
-        // Initialize label on page load
+        // Initialize label and select-all state on page load
         updateLabel();
+        updateSelectAllState();
 
         return dropdown;
     }
@@ -835,6 +871,16 @@ document.addEventListener('DOMContentLoaded', function() {
 .checkbox-dropdown-item .checkbox-label {
     font-size: var(--font-size-sm);
     user-select: none;
+}
+
+.select-all-item {
+    background: var(--color-surface);
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: var(--space-1) 0;
 }
 
 /* Quick Filters */

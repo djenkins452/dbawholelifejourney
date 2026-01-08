@@ -58,6 +58,29 @@ All delete buttons use consistent styling:
 
 **Tests:** All 101 purpose module tests pass.
 
+### Missing Migrations Created
+
+**Context:** Fresh MacBook setup - discovered model changes without corresponding migrations.
+
+**Migrations created:**
+
+1. **`ai.0014_alter_aiinsight_insight_type_and_more`**
+   - Alter field `insight_type` on AIInsight
+   - Alter field `prompt_type` on AIPromptConfig
+
+2. **`assistant.0003_rename_assistant_i_status_...`**
+   - Rename indexes on ImprovementTaskModel
+   - Add fields: `approval_token`, `approval_token_created_at`, `rejected_at`, `rejection_reason`, `rollback_reason`, `rolled_back_at`
+   - Alter field `status` on ImprovementTaskModel
+
+3. **`finance.0012_budget_status`**
+   - Add field `status` to Budget model
+
+**Files created:**
+- `apps/ai/migrations/0014_alter_aiinsight_insight_type_and_more.py`
+- `assistant/migrations/0003_rename_assistant_i_status_4b7e8c_idx_assistant_i_status_a738da_idx_and_more.py`
+- `apps/finance/migrations/0012_budget_status.py`
+
 ---
 
 ## 2026-01-07 Changes

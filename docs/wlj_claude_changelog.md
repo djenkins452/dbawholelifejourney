@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Bulk Actions to List Views)
+# Last Updated: 2026-01-08 (Edit Icon Buttons)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,32 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Edit Icon Buttons Consistency (Task #217)
+
+**Task:** Delete and Edit Icons (Task #217, General)
+
+**Problem:**
+Edit links across the app used inconsistent text-based styling. The workout list page
+used clean icon buttons, but other pages had text links like "Edit" with various
+button classes.
+
+**Solution:**
+- Added `.action-btn` CSS class to `static/css/main.css` for consistent icon button styling
+- Replaced text "Edit" links with pencil SVG icon buttons in 46 templates
+- Used same icon pattern as workout list for visual consistency
+- Preserved Delete buttons as-is (only changed links, not buttons per requirements)
+
+**Files modified:**
+- `static/css/main.css` - Added action-btn styles
+- 46 template files across health, finance, life, purpose, and faith apps
+
+**Visual changes:**
+- Edit links now display as icon buttons with hover effects
+- Icons match the existing workout list pattern
+- Delete buttons remain as text buttons (not changed per task requirements)
+
+---
 
 ### Bulk Actions for List Views
 

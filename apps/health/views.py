@@ -4199,3 +4199,67 @@ class BulkDeleteBloodPressureView(LoginRequiredMixin, View):
             'message': f'{count} blood pressure reading{"" if count == 1 else "s"} deleted',
             'count': count
         })
+
+
+class BulkDeleteBloodOxygenView(LoginRequiredMixin, View):
+    """
+    Bulk delete blood oxygen entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = BloodOxygenEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} blood oxygen reading{"" if count == 1 else "s"} deleted',
+            'count': count
+        })
+
+
+class BulkDeleteGlucoseView(LoginRequiredMixin, View):
+    """
+    Bulk delete glucose entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = GlucoseEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} glucose reading{"" if count == 1 else "s"} deleted',
+            'count': count
+        })

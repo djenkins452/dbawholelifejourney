@@ -39,6 +39,7 @@ urlpatterns = [
     path("glucose/log/", views.GlucoseCreateView.as_view(), name="glucose_create"),
     path("glucose/<int:pk>/edit/", views.GlucoseUpdateView.as_view(), name="glucose_update"),
     path("glucose/<int:pk>/delete/", views.GlucoseDeleteView.as_view(), name="glucose_delete"),
+    path("glucose/bulk/delete/", views.BulkDeleteGlucoseView.as_view(), name="glucose_bulk_delete"),
 
     # Dexcom CGM Integration
     path("glucose/dexcom/connect/", views.DexcomConnectView.as_view(), name="dexcom_connect"),
@@ -58,6 +59,7 @@ urlpatterns = [
     path("blood-oxygen/log/", views.BloodOxygenCreateView.as_view(), name="blood_oxygen_create"),
     path("blood-oxygen/<int:pk>/edit/", views.BloodOxygenUpdateView.as_view(), name="blood_oxygen_update"),
     path("blood-oxygen/<int:pk>/delete/", views.BloodOxygenDeleteView.as_view(), name="blood_oxygen_delete"),
+    path("blood-oxygen/bulk/delete/", views.BulkDeleteBloodOxygenView.as_view(), name="blood_oxygen_bulk_delete"),
 
     # Quick log (HTMX)
     path("quick-log/", views.QuickLogView.as_view(), name="quick_log"),

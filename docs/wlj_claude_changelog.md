@@ -4,13 +4,59 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-07 (Template weight/reps storage)
+# Last Updated: 2026-01-08 (Consistent CRUD buttons in Purpose module)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2026-01-08 Changes
+
+### Consistent CRUD Buttons in Purpose Module
+
+**Task:** Ability to Delete Goals (Task #219)
+
+**Problem:**
+While viewing lists of goals, intentions, directions, and reflections in the Purpose module,
+users needed full CRUD capability with consistent UI. Some list views had Edit buttons,
+some had no action buttons at all, and Delete was often hidden deep in the detail pages.
+
+**Solution:**
+Added consistent Edit and Delete action buttons across all Purpose module list views:
+
+1. **Life Goals List** (`goal_list.html`):
+   - Added Delete button next to existing Edit button
+   - Delete button styled with red text (`btn-danger-text`)
+
+2. **Intentions List** (`intention_list.html`):
+   - Added Delete button next to existing Edit button
+   - Wrapped buttons in `.intention-actions` container for proper alignment
+
+3. **Directions List** (`direction_list.html`):
+   - Restructured from all-clickable row to row with separate link and actions
+   - Added Edit and Delete buttons visible in each row
+   - Maintains clickable behavior for the main content area
+
+4. **Reflections List** (`reflection_list.html`):
+   - Restructured from all-clickable row to row with separate link and actions
+   - Added Edit and Delete buttons visible in each row
+
+All delete buttons use consistent styling:
+- Red text color via `.btn-danger-text` class
+- Red background tint on hover
+- Ghost button style for consistency with Edit buttons
+
+**Files modified:**
+- `apps/purpose/templates/purpose/goal_list.html`
+- `apps/purpose/templates/purpose/intention_list.html`
+- `apps/purpose/templates/purpose/direction_list.html`
+- `apps/purpose/templates/purpose/reflection_list.html`
+
+**Tests:** All 101 purpose module tests pass.
 
 ---
 

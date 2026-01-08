@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Standardized button classes across app)
+# Last Updated: 2026-01-08 (Popup delete confirmations in Purpose module)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,42 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Popup Delete Confirmations in Purpose Module
+
+**Task:** Confirmation Popups (Task #221)
+
+**Problem:**
+Delete actions in the Purpose module used separate confirmation pages, requiring navigation
+away from the current page. The user preferred consistent popup/dialog confirmations
+that stay on the current page.
+
+**Solution:**
+Converted all Purpose module delete buttons from `<a>` links to inline `<form>` elements
+with `data-confirm-delete` attribute. This triggers a JavaScript confirm dialog that stays
+on the page instead of navigating to a separate confirmation page.
+
+**Templates updated:**
+- `goal_list.html`, `goal_detail.html`
+- `habit_goal_list.html`, `habit_goal_detail.html`
+- `direction_list.html`, `direction_detail.html`
+- `intention_list.html`, `intention_detail.html`
+- `reflection_list.html`, `reflection_detail.html`
+
+**Pattern used:**
+```html
+<form method="post" action="{% url 'purpose:X_delete' obj.pk %}" class="inline-form" data-confirm-delete="Delete message">
+    {% csrf_token %}
+    <button type="submit" class="btn ...">Delete</button>
+</form>
+```
+
+The `data-confirm-delete` attribute is already handled by `static/js/main.js` which shows
+a browser confirm dialog before submitting the form.
+
+**Tests:** All 101 purpose module tests pass.
+
+---
 
 ### Standardized Button and Text Color Classes
 

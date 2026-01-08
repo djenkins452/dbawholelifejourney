@@ -18,7 +18,10 @@
             <h1>{{ goal.name }}</h1>
             <div class="header-actions">
                 <a href="{% url 'purpose:habit_goal_update' goal.pk %}" class="btn btn-secondary">Edit</a>
-                <a href="{% url 'purpose:habit_goal_delete' goal.pk %}" class="btn btn-danger">Delete</a>
+                <form method="post" action="{% url 'purpose:habit_goal_delete' goal.pk %}" class="inline-form" data-confirm-delete="Delete this habit goal? This action cannot be undone.">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
             </div>
         </div>
         <p class="goal-purpose">{{ goal.purpose }}</p>

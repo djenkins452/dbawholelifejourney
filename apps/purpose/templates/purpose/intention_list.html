@@ -47,7 +47,10 @@
             </div>
             <div class="intention-footer">
                 <span class="badge badge-{{ intention.status }}">{{ intention.get_status_display }}</span>
-                <a href="{% url 'purpose:intention_update' intention.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                <div class="intention-actions">
+                    <a href="{% url 'purpose:intention_update' intention.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                    <a href="{% url 'purpose:intention_delete' intention.pk %}" class="btn btn-ghost btn-sm btn-danger-text">Delete</a>
+                </div>
             </div>
         </div>
         {% endfor %}
@@ -129,6 +132,19 @@
     align-items: center;
     padding-top: var(--space-3);
     border-top: 1px solid var(--color-border);
+}
+
+.intention-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.btn-danger-text {
+    color: var(--color-error);
+}
+
+.btn-danger-text:hover {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
 }
 
 .badge {

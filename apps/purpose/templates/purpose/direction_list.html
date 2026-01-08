@@ -27,21 +27,24 @@
     {% if directions %}
     <div class="direction-list">
         {% for direction in directions %}
-        <a href="{% url 'purpose:direction_detail' direction.pk %}" class="direction-item {% if direction.is_current %}current{% endif %}">
-            <div class="direction-year">{{ direction.year }}</div>
-            <div class="direction-content">
-                <h3 class="direction-word">{{ direction.word_of_year }}</h3>
-                {% if direction.theme %}
-                <p class="direction-theme">{{ direction.theme }}</p>
+        <div class="direction-item {% if direction.is_current %}current{% endif %}">
+            <a href="{% url 'purpose:direction_detail' direction.pk %}" class="direction-link">
+                <div class="direction-year">{{ direction.year }}</div>
+                <div class="direction-content">
+                    <h3 class="direction-word">{{ direction.word_of_year }}</h3>
+                    {% if direction.theme %}
+                    <p class="direction-theme">{{ direction.theme }}</p>
+                    {% endif %}
+                </div>
+                {% if direction.is_current %}
+                <span class="current-badge">Current</span>
                 {% endif %}
+            </a>
+            <div class="direction-actions">
+                <a href="{% url 'purpose:direction_update' direction.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                <a href="{% url 'purpose:direction_delete' direction.pk %}" class="btn btn-ghost btn-sm btn-danger-text">Delete</a>
             </div>
-            {% if direction.is_current %}
-            <span class="current-badge">Current</span>
-            {% endif %}
-            <svg class="direction-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="9 18 15 12 9 6"/>
-            </svg>
-        </a>
+        </div>
         {% endfor %}
     </div>
     {% else %}
@@ -69,13 +72,11 @@
     background: var(--color-background);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    text-decoration: none;
     transition: all var(--transition-fast);
 }
 
 .direction-item:hover {
     border-color: var(--color-accent);
-    transform: translateX(4px);
 }
 
 .direction-item.current {
@@ -83,11 +84,36 @@
     background: linear-gradient(135deg, var(--color-background) 0%, color-mix(in srgb, var(--color-accent) 5%, var(--color-background)) 100%);
 }
 
+.direction-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex: 1;
+    text-decoration: none;
+}
+
+.direction-link:hover .direction-word {
+    color: var(--color-accent);
+}
+
 .direction-year {
     font-size: var(--font-size-2xl);
     font-weight: 700;
     color: var(--color-accent);
     min-width: 80px;
+}
+
+.direction-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.btn-danger-text {
+    color: var(--color-error);
+}
+
+.btn-danger-text:hover {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
 }
 
 .direction-content {
@@ -114,10 +140,6 @@
     background: var(--color-accent);
     color: white;
     border-radius: var(--radius-full);
-}
-
-.direction-arrow {
-    color: var(--color-text-muted);
 }
 
 .empty-state {

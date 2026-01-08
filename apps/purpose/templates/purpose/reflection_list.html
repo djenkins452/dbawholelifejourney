@@ -27,28 +27,31 @@
     {% if reflections %}
     <div class="reflection-list">
         {% for reflection in reflections %}
-        <a href="{% url 'purpose:reflection_detail' reflection.pk %}" class="reflection-card">
-            <div class="reflection-icon">
-                {% if reflection.reflection_type == 'year_end' %}📝{% endif %}
-                {% if reflection.reflection_type == 'year_start' %}🌅{% endif %}
-                {% if reflection.reflection_type == 'quarterly' %}📊{% endif %}
-                {% if reflection.reflection_type == 'custom' %}✨{% endif %}
+        <div class="reflection-card">
+            <a href="{% url 'purpose:reflection_detail' reflection.pk %}" class="reflection-link">
+                <div class="reflection-icon">
+                    {% if reflection.reflection_type == 'year_end' %}📝{% endif %}
+                    {% if reflection.reflection_type == 'year_start' %}🌅{% endif %}
+                    {% if reflection.reflection_type == 'quarterly' %}📊{% endif %}
+                    {% if reflection.reflection_type == 'custom' %}✨{% endif %}
+                </div>
+                <div class="reflection-content">
+                    <h3>{{ reflection }}</h3>
+                    <p class="reflection-meta">
+                        {{ reflection.get_reflection_type_display }}
+                        {% if reflection.is_complete %}
+                        <span class="badge badge-complete">Complete</span>
+                        {% else %}
+                        <span class="badge badge-draft">In Progress</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </a>
+            <div class="reflection-actions">
+                <a href="{% url 'purpose:reflection_edit' reflection.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                <a href="{% url 'purpose:reflection_delete' reflection.pk %}" class="btn btn-ghost btn-sm btn-danger-text">Delete</a>
             </div>
-            <div class="reflection-content">
-                <h3>{{ reflection }}</h3>
-                <p class="reflection-meta">
-                    {{ reflection.get_reflection_type_display }}
-                    {% if reflection.is_complete %}
-                    <span class="badge badge-complete">Complete</span>
-                    {% else %}
-                    <span class="badge badge-draft">In Progress</span>
-                    {% endif %}
-                </p>
-            </div>
-            <svg class="reflection-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="9 18 15 12 9 6"/>
-            </svg>
-        </a>
+        </div>
         {% endfor %}
     </div>
     {% else %}
@@ -76,13 +79,36 @@
     background: var(--color-background);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    text-decoration: none;
     transition: all var(--transition-fast);
 }
 
 .reflection-card:hover {
     border-color: var(--color-accent);
-    transform: translateX(4px);
+}
+
+.reflection-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex: 1;
+    text-decoration: none;
+}
+
+.reflection-link:hover h3 {
+    color: var(--color-accent);
+}
+
+.reflection-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.btn-danger-text {
+    color: var(--color-error);
+}
+
+.btn-danger-text:hover {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
 }
 
 .reflection-icon {
@@ -124,10 +150,6 @@
 .badge-draft {
     background: color-mix(in srgb, var(--color-warning) 20%, transparent);
     color: var(--color-warning);
-}
-
-.reflection-arrow {
-    color: var(--color-text-muted);
 }
 
 .empty-state {

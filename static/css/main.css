@@ -937,6 +937,65 @@ a:hover {
     font-size: var(--font-size-base);
 }
 
+/* Danger text variant - for ghost buttons that indicate destructive actions */
+.btn-danger-text {
+    color: var(--color-error);
+}
+
+.btn-danger-text:hover {
+    background-color: color-mix(in srgb, var(--color-error) 10%, transparent);
+}
+
+/* Text/link style buttons - alias for btn-ghost with text styling */
+.btn-text {
+    background-color: transparent;
+    color: var(--color-accent);
+    padding: var(--space-1) var(--space-2);
+}
+
+.btn-text:hover {
+    background-color: var(--color-surface);
+    color: color-mix(in srgb, var(--color-accent) 80%, black);
+}
+
+/* Outline variant - alias for btn-secondary for backwards compatibility */
+.btn-outline {
+    background-color: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+}
+
+.btn-outline:hover {
+    background-color: var(--color-surface);
+}
+
+/* Error variant - alias for btn-danger for backwards compatibility */
+.btn-error {
+    background-color: var(--color-error);
+    color: white;
+}
+
+.btn-error:hover {
+    background-color: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
+/* Text color utilities */
+.text-error {
+    color: var(--color-error);
+}
+
+.text-danger {
+    color: var(--color-error);
+}
+
+.text-success {
+    color: var(--color-success);
+}
+
+.text-warning {
+    color: var(--color-warning);
+}
+
 /* ==========================================================================
    Forms
    ========================================================================== */

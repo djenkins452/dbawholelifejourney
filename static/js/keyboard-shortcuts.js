@@ -5,6 +5,7 @@
  * Supports both Mac (Cmd) and Windows/Linux (Ctrl) modifiers.
  *
  * Shortcuts:
+ * - Cmd/Ctrl + K: Open command palette
  * - Cmd/Ctrl + N: New entry/item (context-aware)
  * - Cmd/Ctrl + S: Save (when in form)
  * - Cmd/Ctrl + /: Focus search
@@ -201,6 +202,10 @@
                     </div>
                     <div class="shortcuts-section">
                         <h3>Actions</h3>
+                        <div class="shortcut-row">
+                            <span class="shortcut-keys"><kbd>${modKey}</kbd> + <kbd>K</kbd></span>
+                            <span class="shortcut-desc">Open command palette</span>
+                        </div>
                         <div class="shortcut-row">
                             <span class="shortcut-keys"><kbd>${modKey}</kbd> + <kbd>N</kbd></span>
                             <span class="shortcut-desc">New entry/item</span>

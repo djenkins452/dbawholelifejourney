@@ -1211,6 +1211,42 @@ a:hover {
 }
 
 /* ==========================================================================
+   Action Buttons (Icon Buttons for Edit/Delete)
+   ========================================================================== */
+
+.action-btn {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    transition: all var(--transition-fast);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: none;
+}
+
+.action-btn:hover {
+    background: var(--color-surface);
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.action-btn-delete:hover {
+    background: var(--color-error);
+    color: white;
+}
+
+.action-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* ==========================================================================
    Pull-to-Refresh
    ========================================================================== */
 

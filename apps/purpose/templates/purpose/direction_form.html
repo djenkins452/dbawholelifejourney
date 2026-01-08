@@ -1,21 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %}{% if form.instance.pk %}Edit{% else %}Set{% endif %} Direction - Purpose{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}Set{% endif %} Yearly Focus - Goals{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <a href="{% url 'purpose:home' %}">Goals</a>
         <span>/</span>
-        <a href="{% url 'purpose:direction_list' %}">Directions</a>
+        <a href="{% url 'purpose:direction_list' %}">Yearly Focus</a>
         <span>/</span>
         <span>{% if form.instance.pk %}Edit{% else %}New{% endif %}</span>
     </nav>
     
     <div class="form-page">
         <div class="page-header">
-            <h1 class="page-title">{% if form.instance.pk %}Edit Annual Direction{% else %}Set Your Direction{% endif %}</h1>
-            <p class="page-subtitle">Define your Word of the Year and annual focus</p>
+            <h1 class="page-title">{% if form.instance.pk %}Edit Yearly Focus{% else %}Set Your Focus{% endif %}</h1>
+            <p class="page-subtitle">Define your Word of the Year and yearly focus</p>
         </div>
         
         <form method="post" class="form-card">

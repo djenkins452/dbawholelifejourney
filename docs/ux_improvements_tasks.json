@@ -1,0 +1,155 @@
+{
+    "project": {
+        "name": "UX Improvements",
+        "description": "User experience improvements identified from Task 223 review"
+    },
+    "tasks": [
+        {
+            "phase": "Phase 24",
+            "name": "Add Save & Add Another to Forms",
+            "description": {
+                "objective": "Add a 'Save & Add Another' button to forms throughout the app for power users who want to quickly create multiple entries",
+                "inputs": [
+                    "Existing form templates (journal entry, health records, goals, etc.)",
+                    "Form view classes that handle POST submissions"
+                ],
+                "actions": [
+                    "Identify all create forms that would benefit from Save & Add Another",
+                    "Add a secondary submit button labeled 'Save & Add Another' to form templates",
+                    "Modify form view classes to check which button was clicked",
+                    "If Save & Add Another, redirect back to the create form with a success message",
+                    "Add success toast notification showing item was created",
+                    "Test on Journal entry, Health weight, Goals, and other key forms"
+                ],
+                "output": "All major create forms have a Save & Add Another button that saves and redirects back to a fresh form"
+            },
+            "priority": "Medium",
+            "status": "Backlog",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 24",
+            "name": "Add Command Palette (Cmd/Ctrl+K)",
+            "description": {
+                "objective": "Implement a command palette (like VS Code or Slack) that opens with Cmd/Ctrl+K for quick navigation and actions",
+                "inputs": [
+                    "List of all navigable pages and common actions",
+                    "Existing keyboard-shortcuts.js file",
+                    "Navigation structure from navigation.html"
+                ],
+                "actions": [
+                    "Create a command palette modal component with search input",
+                    "Build list of commands: navigation items, quick actions (new entry, search, etc.)",
+                    "Implement fuzzy search filtering of commands as user types",
+                    "Add keyboard navigation (arrow keys, Enter to select)",
+                    "Bind Cmd/Ctrl+K to open the palette",
+                    "Close on Escape or clicking backdrop",
+                    "Style to match app design system"
+                ],
+                "output": "Pressing Cmd/Ctrl+K opens a searchable command palette for quick navigation and actions"
+            },
+            "priority": "Medium",
+            "status": "Backlog",
+            "effort": "Large"
+        },
+        {
+            "phase": "Phase 24",
+            "name": "Add Bulk Actions to List Views",
+            "description": {
+                "objective": "Add ability to select multiple items in list views and perform bulk actions (delete, archive, etc.)",
+                "inputs": [
+                    "List view templates (journal entries, health records, goals, tasks)",
+                    "Existing list view classes"
+                ],
+                "actions": [
+                    "Add checkbox column to list tables",
+                    "Add 'Select All' checkbox in header",
+                    "Create bulk action toolbar that appears when items selected",
+                    "Implement bulk delete action with confirmation modal",
+                    "Implement bulk archive action where applicable",
+                    "Add JavaScript for selection state management",
+                    "Create API endpoints for bulk operations",
+                    "Test on journal entries and health records"
+                ],
+                "output": "Users can select multiple items in list views and perform bulk delete or archive operations"
+            },
+            "priority": "Medium",
+            "status": "Backlog",
+            "effort": "Large"
+        },
+        {
+            "phase": "Phase 24",
+            "name": "Add Undo Toast Notifications",
+            "description": {
+                "objective": "After destructive actions (delete), show a toast notification with an Undo button that allows reverting the action",
+                "inputs": [
+                    "Existing soft delete implementation",
+                    "Delete view classes",
+                    "Base template for toast placement"
+                ],
+                "actions": [
+                    "Create reusable toast notification component with Undo button",
+                    "Implement undo API endpoint that restores soft-deleted items",
+                    "Modify delete views to return item ID and show toast",
+                    "Add 5-second countdown timer on toast",
+                    "If Undo clicked, call restore API and update UI",
+                    "If timer expires, permanently delete (or keep soft-deleted)",
+                    "Style toast to match app design with smooth animations"
+                ],
+                "output": "After deleting items, users see a toast with Undo button to restore the item within 5 seconds"
+            },
+            "priority": "Medium",
+            "status": "Backlog",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 24",
+            "name": "Add Breadcrumbs to All Pages",
+            "description": {
+                "objective": "Add consistent breadcrumb navigation to all pages that don't already have them",
+                "inputs": [
+                    "Audit of current pages with/without breadcrumbs",
+                    "Navigation structure",
+                    "Existing breadcrumb CSS styles"
+                ],
+                "actions": [
+                    "Audit all templates to identify pages missing breadcrumbs",
+                    "Create reusable breadcrumb include template if not exists",
+                    "Add breadcrumbs to Health subpages (medicine, fitness, nutrition detail pages)",
+                    "Add breadcrumbs to Life/Organize subpages",
+                    "Add breadcrumbs to Faith subpages",
+                    "Ensure breadcrumbs use updated module names (Goals, Organize)",
+                    "Test navigation flow through breadcrumbs"
+                ],
+                "output": "All pages have consistent breadcrumb navigation showing the path from module home"
+            },
+            "priority": "Low",
+            "status": "Backlog",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 24",
+            "name": "Add Search History Suggestions",
+            "description": {
+                "objective": "Remember user's recent searches and show them as suggestions when focusing the search field",
+                "inputs": [
+                    "Global search component",
+                    "UserPreferences model for storage"
+                ],
+                "actions": [
+                    "Add search_history JSONField to UserPreferences (list of recent searches)",
+                    "Create migration for the new field",
+                    "Modify search to save successful searches to history (max 10 items)",
+                    "Create dropdown UI showing recent searches when search input is focused",
+                    "Allow clicking a history item to perform that search",
+                    "Add 'Clear history' option",
+                    "Use localStorage as backup for immediate display before API loads"
+                ],
+                "output": "Search field shows recent search history as suggestions, stored per-user"
+            },
+            "priority": "Low",
+            "status": "Backlog",
+            "effort": "Medium"
+        }
+    ]
+}

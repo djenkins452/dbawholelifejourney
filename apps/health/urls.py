@@ -25,6 +25,7 @@ urlpatterns = [
     path("fasting/<int:pk>/end/", views.EndFastView.as_view(), name="fasting_end"),
     path("fasting/<int:pk>/edit/", views.FastingUpdateView.as_view(), name="fasting_update"),
     path("fasting/<int:pk>/delete/", views.FastingDeleteView.as_view(), name="fasting_delete"),
+    path("fasting/bulk/delete/", views.BulkDeleteFastingView.as_view(), name="fasting_bulk_delete"),
 
     # Heart Rate
     path("heart-rate/", views.HeartRateListView.as_view(), name="heartrate_list"),

@@ -28,6 +28,7 @@ urlpatterns = [
     path("scripture/<int:pk>/edit/", views.SavedVerseUpdateView.as_view(), name="saved_verse_edit"),
     path("scripture/<int:pk>/delete/", views.SavedVerseDeleteView.as_view(), name="saved_verse_delete"),
     path("scripture/<int:pk>/memory-verse/", views.ToggleMemoryVerseView.as_view(), name="toggle_memory_verse"),
+    path("scripture/bulk/delete/", views.BulkDeleteSavedVersesView.as_view(), name="saved_verse_bulk_delete"),
 
     # Prayers
     path("prayers/", views.PrayerListView.as_view(), name="prayer_list"),
@@ -37,6 +38,7 @@ urlpatterns = [
     path("prayers/<int:pk>/edit/", views.PrayerUpdateView.as_view(), name="prayer_update"),
     path("prayers/<int:pk>/answered/", views.MarkPrayerAnsweredView.as_view(), name="prayer_answered"),
     path("prayers/<int:pk>/delete/", views.PrayerDeleteView.as_view(), name="prayer_delete"),
+    path("prayers/bulk/delete/", views.BulkDeletePrayersView.as_view(), name="prayer_bulk_delete"),
 
     # Milestones
     path("milestones/", views.MilestoneListView.as_view(), name="milestone_list"),
@@ -71,11 +73,13 @@ urlpatterns = [
     path("study-tools/highlights/", views.HighlightListView.as_view(), name="highlight_list"),
     path("study-tools/highlights/new/", views.HighlightCreateView.as_view(), name="highlight_create"),
     path("study-tools/highlights/<int:pk>/delete/", views.HighlightDeleteView.as_view(), name="highlight_delete"),
+    path("study-tools/highlights/bulk/delete/", views.BulkDeleteHighlightsView.as_view(), name="highlight_bulk_delete"),
 
     # Bookmarks
     path("study-tools/bookmarks/", views.BookmarkListView.as_view(), name="bookmark_list"),
     path("study-tools/bookmarks/new/", views.BookmarkCreateView.as_view(), name="bookmark_create"),
     path("study-tools/bookmarks/<int:pk>/delete/", views.BookmarkDeleteView.as_view(), name="bookmark_delete"),
+    path("study-tools/bookmarks/bulk/delete/", views.BulkDeleteBookmarksView.as_view(), name="bookmark_bulk_delete"),
 
     # Study Notes
     path("study-tools/notes/", views.StudyNoteListView.as_view(), name="study_note_list"),
@@ -83,6 +87,7 @@ urlpatterns = [
     path("study-tools/notes/<int:pk>/", views.StudyNoteDetailView.as_view(), name="study_note_detail"),
     path("study-tools/notes/<int:pk>/edit/", views.StudyNoteUpdateView.as_view(), name="study_note_edit"),
     path("study-tools/notes/<int:pk>/delete/", views.StudyNoteDeleteView.as_view(), name="study_note_delete"),
+    path("study-tools/notes/bulk/delete/", views.BulkDeleteStudyNotesView.as_view(), name="study_note_bulk_delete"),
 
     # ==========================================================================
     # BIBLE API PROXY (Security: keeps API key server-side)

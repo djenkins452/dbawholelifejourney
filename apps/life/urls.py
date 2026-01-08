@@ -78,6 +78,13 @@ from .views import (
     GoogleCalendarDisconnectView,
     GoogleCalendarSyncView,
     GoogleCalendarPushEventView,
+    # Bulk Actions
+    BulkDeleteTasksView,
+    BulkDeleteInventoryView,
+    BulkDeleteDocumentsView,
+    BulkDeleteRecipesView,
+    BulkDeleteMaintenanceView,
+    BulkDeleteSignificantEventsView,
 )
 
 app_name = "life"
@@ -99,6 +106,7 @@ urlpatterns = [
     path("tasks/<int:pk>/edit/", TaskUpdateView.as_view(), name="task_update"),
     path("tasks/<int:pk>/delete/", TaskDeleteView.as_view(), name="task_delete"),
     path("tasks/<int:pk>/toggle/", TaskToggleView.as_view(), name="task_toggle"),
+    path("tasks/bulk/delete/", BulkDeleteTasksView.as_view(), name="task_bulk_delete"),
     
     # Calendar & Events
     path("calendar/", CalendarView.as_view(), name="calendar"),
@@ -112,6 +120,7 @@ urlpatterns = [
     path("inventory/<int:pk>/", InventoryDetailView.as_view(), name="inventory_detail"),
     path("inventory/<int:pk>/edit/", InventoryUpdateView.as_view(), name="inventory_update"),
     path("inventory/<int:pk>/delete/", InventoryDeleteView.as_view(), name="inventory_delete"),
+    path("inventory/bulk/delete/", BulkDeleteInventoryView.as_view(), name="inventory_bulk_delete"),
     
     # Inventory Photos
     path("inventory/<int:item_pk>/photos/new/", InventoryPhotoCreateView.as_view(), name="inventory_photo_create"),
@@ -137,6 +146,7 @@ urlpatterns = [
     path("recipes/<int:pk>/edit/", RecipeUpdateView.as_view(), name="recipe_update"),
     path("recipes/<int:pk>/delete/", RecipeDeleteView.as_view(), name="recipe_delete"),
     path("recipes/<int:pk>/favorite/", RecipeToggleFavoriteView.as_view(), name="recipe_toggle_favorite"),
+    path("recipes/bulk/delete/", BulkDeleteRecipesView.as_view(), name="recipe_bulk_delete"),
     
     # Maintenance Logs
     path("maintenance/", MaintenanceLogListView.as_view(), name="maintenance_list"),
@@ -144,6 +154,7 @@ urlpatterns = [
     path("maintenance/<int:pk>/", MaintenanceLogDetailView.as_view(), name="maintenance_detail"),
     path("maintenance/<int:pk>/edit/", MaintenanceLogUpdateView.as_view(), name="maintenance_update"),
     path("maintenance/<int:pk>/delete/", MaintenanceLogDeleteView.as_view(), name="maintenance_delete"),
+    path("maintenance/bulk/delete/", BulkDeleteMaintenanceView.as_view(), name="maintenance_bulk_delete"),
     
     # Documents
     path("documents/", DocumentListView.as_view(), name="document_list"),
@@ -152,6 +163,7 @@ urlpatterns = [
     path("documents/<int:pk>/edit/", DocumentUpdateView.as_view(), name="document_update"),
     path("documents/<int:pk>/delete/", DocumentDeleteView.as_view(), name="document_delete"),
     path("documents/<int:pk>/download/", DocumentDownloadView.as_view(), name="document_download"),
+    path("documents/bulk/delete/", BulkDeleteDocumentsView.as_view(), name="document_bulk_delete"),
 
     # Significant Events (Birthdays, Anniversaries, etc.)
     path("significant-events/", SignificantEventListView.as_view(), name="significant_event_list"),
@@ -159,6 +171,7 @@ urlpatterns = [
     path("significant-events/<int:pk>/", SignificantEventDetailView.as_view(), name="significant_event_detail"),
     path("significant-events/<int:pk>/edit/", SignificantEventUpdateView.as_view(), name="significant_event_update"),
     path("significant-events/<int:pk>/delete/", SignificantEventDeleteView.as_view(), name="significant_event_delete"),
+    path("significant-events/bulk/delete/", BulkDeleteSignificantEventsView.as_view(), name="significant_event_bulk_delete"),
 
     # Google Calendar
     path("calendar/google/", GoogleCalendarSettingsView.as_view(), name="google_calendar_settings"),

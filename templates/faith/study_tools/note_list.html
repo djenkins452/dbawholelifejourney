@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Bible Study Notes - Whole Life Journey{% endblock %}
 
@@ -50,30 +51,44 @@
     </div>
 
     {% if notes %}
-    <div class="notes-list">
+    <div class="notes-list" data-bulk-container data-bulk-delete-url="{% url 'faith:study_note_bulk_delete' %}" data-item-type="note" data-item-type-plural="notes">
+        <div class="bulk-action-header">
+            <label class="bulk-select-all">
+                <input type="checkbox" data-select-all class="bulk-checkbox">
+                <span>Select All</span>
+            </label>
+            <button type="button" class="btn btn-danger btn-sm bulk-delete-btn" style="display: none;">
+                Delete Selected (<span class="bulk-count">0</span>)
+            </button>
+        </div>
         {% for note in notes %}
-        <a href="{% url 'faith:study_note_detail' pk=note.pk %}" class="note-card">
-            <div class="note-header">
-                <div class="note-title-section">
-                    {% if note.title %}
-                    <h3 class="note-title">{{ note.title }}</h3>
-                    {% endif %}
-                    <span class="note-ref">{{ note.reference }}</span>
+        <div class="note-card-wrapper" data-bulk-item data-item-id="{{ note.pk }}">
+            <div class="item-checkbox" data-item-checkbox>
+                <input type="checkbox" class="bulk-checkbox">
+            </div>
+            <a href="{% url 'faith:study_note_detail' pk=note.pk %}" class="note-card">
+                <div class="note-header">
+                    <div class="note-title-section">
+                        {% if note.title %}
+                        <h3 class="note-title">{{ note.title }}</h3>
+                        {% endif %}
+                        <span class="note-ref">{{ note.reference }}</span>
+                    </div>
+                    <span class="note-translation">{{ note.translation }}</span>
                 </div>
-                <span class="note-translation">{{ note.translation }}</span>
-            </div>
-            <p class="note-excerpt">{{ note.content|truncatewords:30 }}</p>
-            {% if note.tags %}
-            <div class="note-tags">
-                {% for tag in note.tags %}
-                <span class="note-tag">{{ tag }}</span>
-                {% endfor %}
-            </div>
-            {% endif %}
-            <div class="note-meta">
-                <span class="note-date">{{ note.created_at|date:"M j, Y" }}</span>
-            </div>
-        </a>
+                <p class="note-excerpt">{{ note.content|truncatewords:30 }}</p>
+                {% if note.tags %}
+                <div class="note-tags">
+                    {% for tag in note.tags %}
+                    <span class="note-tag">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="note-meta">
+                    <span class="note-date">{{ note.created_at|date:"M j, Y" }}</span>
+                </div>
+            </a>
+        </div>
         {% endfor %}
     </div>
 
@@ -224,5 +239,52 @@ function applyFilters() {
 .page-info {
     color: var(--color-text-muted);
 }
+
+/* Bulk Actions */
+.bulk-action-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    margin-bottom: var(--space-2);
+}
+
+.bulk-select-all {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.bulk-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.bulk-delete-btn {
+    background: var(--color-error);
+    color: white;
+    border: none;
+}
+
+.bulk-delete-btn:hover {
+    background: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
+.item-checkbox {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    z-index: 10;
+}
+
+.note-card-wrapper {
+    position: relative;
+}
 </style>
+
+<script src="{% static 'js/bulk-actions.js' %}"></script>
 {% endblock %}

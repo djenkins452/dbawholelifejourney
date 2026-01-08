@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Life Goals - Purpose{% endblock %}
 
@@ -53,15 +54,27 @@
         </div>
     </div>
     
+    <!-- Bulk Actions Header -->
+    <div class="bulk-action-header">
+        <label class="bulk-select-all">
+            <input type="checkbox" class="bulk-checkbox" data-select-all>
+            <span>Select All</span>
+        </label>
+        <button type="button" class="btn btn-secondary bulk-delete-btn" data-bulk-delete style="display: none;">Delete Selected</button>
+    </div>
+
     <!-- Goals by Domain -->
     {% if goals_by_domain %}
-    <div class="goals-container">
+    <div class="goals-container" data-bulk-container data-bulk-delete-url="{% url 'purpose:goal_bulk_delete' %}" data-item-type="goal" data-item-type-plural="goals">
         {% for domain_name, domain_goals in goals_by_domain.items %}
         <div class="domain-section">
             <h2 class="domain-header">{{ domain_name }}</h2>
             <div class="goal-cards">
                 {% for goal in domain_goals %}
-                <div class="goal-card status-{{ goal.status }}">
+                <div class="goal-card status-{{ goal.status }}" data-bulk-item data-item-id="{{ goal.pk }}">
+                    <div class="goal-checkbox">
+                        <input type="checkbox" class="bulk-checkbox" data-item-checkbox value="{{ goal.pk }}">
+                    </div>
                     <div class="goal-header">
                         <h3 class="goal-title">
                             <a href="{% url 'purpose:goal_detail' goal.pk %}">{{ goal.title }}</a>
@@ -171,6 +184,7 @@
 }
 
 .goal-card {
+    position: relative;
     background: var(--color-background);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -317,5 +331,47 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Bulk Actions */
+.bulk-action-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    margin-bottom: var(--space-2);
+}
+
+.bulk-select-all {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.bulk-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.bulk-delete-btn {
+    background: var(--color-error);
+    color: white;
+    border: none;
+}
+
+.bulk-delete-btn:hover {
+    background: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
+.goal-checkbox {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+}
 </style>
+
+<script src="{% static 'js/bulk-actions.js' %}"></script>
 {% endblock %}

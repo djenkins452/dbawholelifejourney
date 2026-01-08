@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Documents - Life{% endblock %}
 
@@ -58,9 +59,19 @@
     </div>
     
     {% if documents %}
-    <div class="document-grid">
+    <div class="bulk-action-header">
+        <label class="bulk-select-all">
+            <input type="checkbox" data-select-all class="bulk-checkbox">
+            <span>Select All</span>
+        </label>
+        <button type="button" class="btn btn-danger btn-sm bulk-delete-btn" style="display: none;">
+            Delete Selected (<span class="bulk-count">0</span>)
+        </button>
+    </div>
+    <div class="document-grid" data-bulk-container data-bulk-delete-url="{% url 'life:document_bulk_delete' %}" data-item-type="document" data-item-type-plural="documents">
         {% for doc in documents %}
-        <a href="{{ doc.get_absolute_url }}" class="document-card {% if doc.is_expired %}expired{% elif doc.is_expiring_soon %}expiring{% endif %}">
+        <a href="{{ doc.get_absolute_url }}" class="document-card {% if doc.is_expired %}expired{% elif doc.is_expiring_soon %}expiring{% endif %}" data-bulk-item data-item-id="{{ doc.pk }}">
+            <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox" onclick="event.stopPropagation(); event.preventDefault();">
             <div class="document-icon">
                 {% if doc.file_type == 'pdf' %}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -262,5 +273,52 @@
     color: var(--color-text-muted);
     margin-bottom: var(--space-6);
 }
+
+/* Bulk Actions */
+.bulk-action-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    margin-bottom: var(--space-2);
+}
+
+.bulk-select-all {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.bulk-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.bulk-delete-btn {
+    background: var(--color-error);
+    color: white;
+    border: none;
+}
+
+.bulk-delete-btn:hover {
+    background: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
+.item-checkbox {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    z-index: 10;
+}
+
+.document-card {
+    position: relative;
+}
 </style>
+
+<script src="{% static 'js/bulk-actions.js' %}"></script>
 {% endblock %}

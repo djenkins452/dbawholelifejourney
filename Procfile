@@ -1,4 +1,4 @@
-web: python manage.py migrate --noinput && python manage.py load_initial_data && python manage.py sync_workout_to_templates && python manage.py recalculate_task_priorities && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file -
+web: python manage.py migrate --noinput && python manage.py load_initial_data && python manage.py sync_workout_to_templates && python manage.py recalculate_task_priorities && python manage.py load_project_from_json docs/ux_improvements_tasks.json && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file -
 # Updated: 2026-01-03 - Consolidated all data loaders into load_initial_data
 # load_initial_data now handles ALL one-time data loading with DataLoadConfig tracking:
 #   - All fixtures (categories, encouragements, scripture, prompts, help content, etc.)

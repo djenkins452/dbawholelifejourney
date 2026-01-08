@@ -2,6 +2,7 @@
 Health Views - Physical wellness tracking.
 """
 
+import json
 import pytz
 from datetime import timedelta
 from decimal import Decimal
@@ -4097,3 +4098,104 @@ class GlucoseDeleteView(LoginRequiredMixin, View):
         if "glucose/list" in referer:
             return redirect("health:glucose_list")
         return redirect("health:glucose_dashboard")
+
+
+# =============================================================================
+# BULK ACTION VIEWS
+# =============================================================================
+
+
+class BulkDeleteWeightView(LoginRequiredMixin, View):
+    """
+    Bulk delete weight entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = WeightEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} weight entr{"y" if count == 1 else "ies"} deleted',
+            'count': count
+        })
+
+
+class BulkDeleteHeartRateView(LoginRequiredMixin, View):
+    """
+    Bulk delete heart rate entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = HeartRateEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} heart rate entr{"y" if count == 1 else "ies"} deleted',
+            'count': count
+        })
+
+
+class BulkDeleteBloodPressureView(LoginRequiredMixin, View):
+    """
+    Bulk delete blood pressure entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = BloodPressureEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} blood pressure reading{"" if count == 1 else "s"} deleted',
+            'count': count
+        })

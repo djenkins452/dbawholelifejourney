@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Save & Add Another button for forms)
+# Last Updated: 2026-01-08 (Command Palette Cmd/Ctrl+K)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,36 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Command Palette (Cmd/Ctrl+K)
+
+**Task:** Add Command Palette (Task #225, User Experience Phase 3)
+
+**Problem:**
+Users had to navigate through menus or remember multiple keyboard shortcuts to get to different
+pages in the app. Power users wanted a faster way to navigate.
+
+**Solution:**
+- Created VS Code / Slack-style command palette accessible via Cmd+K (Mac) or Ctrl+K (Windows/Linux)
+- Implemented fuzzy search across all navigable pages and quick actions
+- Added keyboard navigation (arrow keys, Enter to select, Escape to close)
+- Organized commands by category: Navigation, Journal, Faith, Health, Goals, Organize, Finance, Account, Quick Actions
+
+**Features:**
+- Fuzzy search matching on titles, categories, and keywords
+- Mouse and keyboard navigation support
+- Clean styling matching app design system
+- Backdrop click or Escape to close
+- Footer showing keyboard hints
+
+**Files added:**
+- `static/js/command-palette.js` - Main command palette implementation (~600 lines)
+
+**Files modified:**
+- `templates/base.html` - Include command palette script
+- `static/js/keyboard-shortcuts.js` - Update shortcuts help modal to show Cmd+K
+
+---
 
 ### Save & Add Another Button for Forms
 

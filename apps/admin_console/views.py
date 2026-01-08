@@ -691,13 +691,22 @@ class AdminTaskListView(HelpContextMixin, AdminRequiredMixin, ListView):
                 Q(description_text__icontains=search_query)
             )
 
-        # Filter by phase if provided
-        phase_filter = self.request.GET.get('phase')
-        if phase_filter:
-            try:
-                queryset = queryset.filter(phase_id=int(phase_filter))
-            except (ValueError, TypeError):
-                pass
+        # Filter by phase if provided (supports multiple values)
+        # When checkboxes are used, no selection means show nothing
+        phase_filters = self.request.GET.getlist('phase')
+        if phase_filters:
+            # Convert to integers, ignore invalid values
+            phase_ids = []
+            for p in phase_filters:
+                try:
+                    phase_ids.append(int(p))
+                except (ValueError, TypeError):
+                    pass
+            if phase_ids:
+                queryset = queryset.filter(phase_id__in=phase_ids)
+        elif 'phase' in self.request.GET:
+            # Phase parameter was in URL but empty = show nothing
+            queryset = queryset.none()
 
         # Filter by status if provided (supports multiple values)
         # When checkboxes are used, no selection means show nothing
@@ -760,7 +769,7 @@ class AdminTaskListView(HelpContextMixin, AdminRequiredMixin, ListView):
 
         # Preserve filter values
         context['current_search_query'] = self.request.GET.get('q', '')
-        context['current_phase_filter'] = self.request.GET.get('phase', '')
+        context['current_phase_filters'] = self.request.GET.getlist('phase')
         context['current_status_filters'] = self.request.GET.getlist('status')
         context['current_project_filters'] = self.request.GET.getlist('project')
 

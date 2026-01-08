@@ -21,11 +21,12 @@ For active development context, see `CLAUDE.md` (project root).
 **Task:** Project Task Page Filters (Task #222)
 
 **Problem:**
-The Project and Status dropdown filters on the Task List page lacked a convenient way to
-select or deselect all options at once.
+The Project, Phase, and Status dropdown filters on the Task List page lacked a convenient way to
+select or deselect all options at once. The Phase dropdown was also a single-select element.
 
 **Solution:**
-Added a "Select All" checkbox at the top of both the Project and Status dropdown filters.
+- Converted Phase dropdown from single-select to multi-select checkbox dropdown
+- Added a "Select All" checkbox at the top of all three dropdowns (Project, Phase, Status)
 
 **Behavior:**
 - When "Select All" is checked, all options in that dropdown become checked
@@ -36,9 +37,13 @@ Added a "Select All" checkbox at the top of both the Project and Status dropdown
 
 **Files modified:**
 - `templates/admin_console/admin_task_list.html`
-  - Added `select-all-checkbox` class and HTML structure to both dropdowns
+  - Converted Phase dropdown from single-select to multi-select checkbox dropdown
+  - Added `select-all-checkbox` class and HTML structure to all three dropdowns
   - Updated `initCheckboxDropdown()` JavaScript function to handle Select All logic
   - Added CSS for `.select-all-item` and `.dropdown-divider` styling
+- `apps/admin_console/views.py`
+  - Updated `AdminTaskListView.get_queryset()` to handle multi-select phase filtering
+  - Changed `current_phase_filter` to `current_phase_filters` (list) in context
 
 ---
 

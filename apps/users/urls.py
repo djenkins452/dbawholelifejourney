@@ -53,6 +53,9 @@ urlpatterns = [
     path("onboarding/start/", views.OnboardingWizardView.as_view(), name="onboarding_wizard"),
     path("onboarding/step/<str:step>/", views.OnboardingWizardView.as_view(), name="onboarding_wizard_step"),
 
+    # API endpoints
+    path("api/dismiss-intro-banner/", views.DismissIntroBannerView.as_view(), name="dismiss_intro_banner"),
+
     # Biometric / WebAuthn Login
     path("biometric/check/", views.BiometricCheckView.as_view(), name="biometric_check"),
     path("biometric/credentials/", views.BiometricCredentialsView.as_view(), name="biometric_credentials"),

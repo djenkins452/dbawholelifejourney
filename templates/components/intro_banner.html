@@ -1,0 +1,150 @@
+{% comment %}
+Intro Banner Component - Shows a dismissible intro message for first-time visitors
+
+Usage:
+{% include "components/intro_banner.html" with module="journal" title="Welcome to Journal" message="Your description here" %}
+
+Parameters:
+- module: The module identifier (dashboard, journal, health, organize, goals, faith)
+- title: The banner title
+- message: The banner description/message
+- icon: Optional emoji icon (default: wave emoji)
+
+Requirements:
+- User must be authenticated
+- request.user.preferences.dismissed_intro_banners must exist
+{% endcomment %}
+
+{% if module not in request.user.preferences.dismissed_intro_banners %}
+<div class="intro-banner" data-intro-module="{{ module }}">
+    <div class="intro-banner-content">
+        <span class="intro-banner-icon">{{ icon|default:"👋" }}</span>
+        <div class="intro-banner-text">
+            <strong>{{ title }}</strong>
+            <p>{{ message }}</p>
+        </div>
+    </div>
+    <button type="button" class="intro-banner-dismiss" onclick="dismissIntroBanner('{{ module }}')" aria-label="Dismiss">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+    </button>
+</div>
+
+<style>
+.intro-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--color-accent) 10%, transparent),
+        color-mix(in srgb, var(--color-accent) 5%, transparent)
+    );
+    border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+    animation: intro-banner-slide-in 0.3s ease-out;
+}
+
+@keyframes intro-banner-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.intro-banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.intro-banner-icon {
+    font-size: 1.5rem;
+}
+
+.intro-banner-text strong {
+    display: block;
+    color: var(--color-text);
+    margin-bottom: var(--space-1);
+}
+
+.intro-banner-text p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+}
+
+.intro-banner-dismiss {
+    flex-shrink: 0;
+    padding: var(--space-2);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.intro-banner-dismiss:hover {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-text);
+}
+
+@media (max-width: 480px) {
+    .intro-banner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .intro-banner-dismiss {
+        position: absolute;
+        top: var(--space-2);
+        right: var(--space-2);
+    }
+
+    .intro-banner {
+        position: relative;
+        padding-right: var(--space-10);
+    }
+}
+</style>
+
+<script>
+function dismissIntroBanner(module) {
+    const banner = document.querySelector(`[data-intro-module="${module}"]`);
+    if (!banner) return;
+
+    // Animate out
+    banner.style.opacity = '0';
+    banner.style.transform = 'translateY(-10px)';
+    banner.style.transition = 'all 0.2s ease-out';
+
+    // Send dismiss request
+    fetch('{% url "users:dismiss_intro_banner" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ module: module })
+    }).then(response => {
+        if (response.ok) {
+            setTimeout(() => banner.remove(), 200);
+        }
+    }).catch(err => {
+        console.error('Failed to dismiss banner:', err);
+        // Still remove the banner visually
+        setTimeout(() => banner.remove(), 200);
+    });
+}
+</script>
+{% endif %}

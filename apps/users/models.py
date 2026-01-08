@@ -370,6 +370,14 @@ class UserPreferences(models.Model):
     # Onboarding status
     has_completed_onboarding = models.BooleanField(default=False)
 
+    # Dismissed intro banners (tracks which module intros user has dismissed)
+    # Format: ["journal", "health", "organize", "goals", "faith", "dashboard"]
+    dismissed_intro_banners = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of module intro banners the user has dismissed",
+    )
+
     # What's New popup preference
     show_whats_new = models.BooleanField(
         default=True,

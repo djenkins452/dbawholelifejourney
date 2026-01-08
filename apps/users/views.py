@@ -514,6 +514,40 @@ class CompleteOnboardingView(LoginRequiredMixin, View):
         return redirect("users:onboarding_wizard")
 
 
+class DismissIntroBannerView(LoginRequiredMixin, View):
+    """
+    API endpoint to dismiss an intro banner for a module.
+
+    POST /user/api/dismiss-intro-banner/
+    Body: {"module": "journal"}
+
+    Valid modules: dashboard, journal, health, organize, goals, faith
+    """
+
+    VALID_MODULES = ['dashboard', 'journal', 'health', 'organize', 'goals', 'faith']
+
+    def post(self, request, *args, **kwargs):
+        import json
+        try:
+            data = json.loads(request.body)
+            module = data.get('module', '').lower()
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if module not in self.VALID_MODULES:
+            return JsonResponse({'error': f'Invalid module: {module}'}, status=400)
+
+        prefs = request.user.preferences
+        dismissed = prefs.dismissed_intro_banners or []
+
+        if module not in dismissed:
+            dismissed.append(module)
+            prefs.dismissed_intro_banners = dismissed
+            prefs.save(update_fields=['dismissed_intro_banners', 'updated_at'])
+
+        return JsonResponse({'success': True, 'dismissed': dismissed})
+
+
 # =============================================================================
 # WebAuthn / Biometric Login Views
 # =============================================================================

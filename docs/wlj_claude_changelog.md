@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Command Palette Cmd/Ctrl+K)
+# Last Updated: 2026-01-08 (Bulk Actions to List Views)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,42 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Bulk Actions for List Views
+
+**Task:** Add Bulk Actions to List Views (Task #226, User Experience Phase 4)
+
+**Problem:**
+Users had to delete or archive items one at a time. For lists with many items (e.g., health
+tracking data, journal entries), this was tedious and time-consuming.
+
+**Solution:**
+- Added checkbox selection to list views
+- Created floating bulk action toolbar that appears when items are selected
+- Implemented confirmation modals for destructive actions (delete)
+- Added API endpoints for bulk operations with proper authentication
+
+**Features:**
+- Select All checkbox in list headers
+- Visual highlight on selected rows
+- Indeterminate checkbox state when partially selected
+- Animated removal of deleted/archived items
+- Toast notifications for action feedback
+- Support for both card-based (journal) and table-based (health) layouts
+
+**Files added:**
+- `static/js/bulk-actions.js` - Bulk actions JavaScript (~585 lines)
+
+**Files modified:**
+- `apps/journal/views.py` - Added BulkDeleteEntriesView, BulkArchiveEntriesView
+- `apps/journal/urls.py` - Added bulk/delete/, bulk/archive/ routes
+- `apps/health/views.py` - Added BulkDeleteWeightView, BulkDeleteHeartRateView, BulkDeleteBloodPressureView
+- `apps/health/urls.py` - Added bulk/delete/ routes for weight, heart-rate, blood-pressure
+- `templates/journal/entry_list.html` - Added checkboxes and bulk action data attributes
+- `templates/health/weight_list.html` - Added checkboxes and bulk action data attributes
+- `templates/base.html` - Include bulk-actions.js
+
+---
 
 ### Command Palette (Cmd/Ctrl+K)
 

@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Select All checkbox for Task List filters)
+# Last Updated: 2026-01-08 (Bulk Actions to List Views)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,100 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Bulk Actions for List Views
+
+**Task:** Add Bulk Actions to List Views (Task #226, User Experience Phase 4)
+
+**Problem:**
+Users had to delete or archive items one at a time. For lists with many items (e.g., health
+tracking data, journal entries), this was tedious and time-consuming.
+
+**Solution:**
+- Added checkbox selection to list views
+- Created floating bulk action toolbar that appears when items are selected
+- Implemented confirmation modals for destructive actions (delete)
+- Added API endpoints for bulk operations with proper authentication
+
+**Features:**
+- Select All checkbox in list headers
+- Visual highlight on selected rows
+- Indeterminate checkbox state when partially selected
+- Animated removal of deleted/archived items
+- Toast notifications for action feedback
+- Support for both card-based (journal) and table-based (health) layouts
+
+**Files added:**
+- `static/js/bulk-actions.js` - Bulk actions JavaScript (~585 lines)
+
+**Files modified:**
+- `apps/journal/views.py` - Added BulkDeleteEntriesView, BulkArchiveEntriesView
+- `apps/journal/urls.py` - Added bulk/delete/, bulk/archive/ routes
+- `apps/health/views.py` - Added BulkDeleteWeightView, BulkDeleteHeartRateView, BulkDeleteBloodPressureView
+- `apps/health/urls.py` - Added bulk/delete/ routes for weight, heart-rate, blood-pressure
+- `templates/journal/entry_list.html` - Added checkboxes and bulk action data attributes
+- `templates/health/weight_list.html` - Added checkboxes and bulk action data attributes
+- `templates/base.html` - Include bulk-actions.js
+
+---
+
+### Command Palette (Cmd/Ctrl+K)
+
+**Task:** Add Command Palette (Task #225, User Experience Phase 3)
+
+**Problem:**
+Users had to navigate through menus or remember multiple keyboard shortcuts to get to different
+pages in the app. Power users wanted a faster way to navigate.
+
+**Solution:**
+- Created VS Code / Slack-style command palette accessible via Cmd+K (Mac) or Ctrl+K (Windows/Linux)
+- Implemented fuzzy search across all navigable pages and quick actions
+- Added keyboard navigation (arrow keys, Enter to select, Escape to close)
+- Organized commands by category: Navigation, Journal, Faith, Health, Goals, Organize, Finance, Account, Quick Actions
+
+**Features:**
+- Fuzzy search matching on titles, categories, and keywords
+- Mouse and keyboard navigation support
+- Clean styling matching app design system
+- Backdrop click or Escape to close
+- Footer showing keyboard hints
+
+**Files added:**
+- `static/js/command-palette.js` - Main command palette implementation (~600 lines)
+
+**Files modified:**
+- `templates/base.html` - Include command palette script
+- `static/js/keyboard-shortcuts.js` - Update shortcuts help modal to show Cmd+K
+
+---
+
+### Save & Add Another Button for Forms
+
+**Task:** Add Save & Add Another to Forms (Task #224, User Experience Phase 2)
+
+**Problem:**
+Power users who want to create multiple entries (journal entries, weight logs, food entries, etc.)
+had to navigate back to the list and then to the create form after each save.
+
+**Solution:**
+- Created `SaveAddAnotherMixin` in `apps/core/views.py` for reusable functionality
+- Added "Save & Add Another" button to create forms (hidden on edit forms)
+- When clicked, saves the entry and redirects back to a fresh form with a success toast
+
+**Files modified:**
+- `apps/core/views.py` - Added SaveAddAnotherMixin class
+- `apps/journal/views.py` - EntryCreateView now uses the mixin
+- `apps/health/views.py` - WeightCreateView, HeartRateCreateView, BloodPressureCreateView, FoodEntryCreateView
+- `apps/purpose/views.py` - GoalCreateView
+- `templates/journal/entry_form.html` - Added Save & Add Another button
+- `templates/health/weight_form.html` - Added Save & Add Another button
+- `templates/health/heartrate_form.html` - Added Save & Add Another button
+- `templates/health/blood_pressure_form.html` - Added Save & Add Another button
+- `templates/health/nutrition/food_entry_form.html` - Added Save & Add Another button
+- `apps/purpose/templates/purpose/goal_form.html` - Added Save & Add Another button
+- `templates/components/form_actions.html` - New reusable component (optional)
+
+---
 
 ### Select All Checkbox for Task List Filters
 

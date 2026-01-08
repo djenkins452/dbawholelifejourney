@@ -126,15 +126,30 @@
             </div>
 
             <div class="filter-group">
-                <label for="filter-phase">Phase:</label>
-                <select name="phase" id="filter-phase" class="form-input form-input-sm">
-                    <option value="">All Phases</option>
-                    {% for phase in phases %}
-                    <option value="{{ phase.pk }}" {% if current_phase_filter == phase.pk|stringformat:"s" %}selected{% endif %}>
-                        Phase {{ phase.phase_number }}: {{ phase.name }}
-                    </option>
-                    {% endfor %}
-                </select>
+                <label>Phase:</label>
+                <div class="checkbox-dropdown" id="phase-dropdown">
+                    <button type="button" class="checkbox-dropdown-toggle form-input form-input-sm">
+                        <span class="dropdown-label">All Phases</span>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </button>
+                    <div class="checkbox-dropdown-menu">
+                        <label class="checkbox-dropdown-item select-all-item">
+                            <input type="checkbox" class="select-all-checkbox"
+                                   {% if not current_phase_filters %}checked{% endif %}>
+                            <span class="checkbox-label"><strong>Select All</strong></span>
+                        </label>
+                        <div class="dropdown-divider"></div>
+                        {% for phase in phases %}
+                        <label class="checkbox-dropdown-item">
+                            <input type="checkbox" name="phase" value="{{ phase.pk }}"
+                                   {% if not current_phase_filters or phase.pk|stringformat:"s" in current_phase_filters %}checked{% endif %}>
+                            <span class="checkbox-label">Phase {{ phase.phase_number }}: {{ phase.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
 
             <div class="filter-group">
@@ -165,7 +180,7 @@
             </div>
 
             <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
-            {% if current_phase_filter or current_status_filters or current_project_filters or current_search_query %}
+            {% if current_phase_filters or current_status_filters or current_project_filters or current_search_query %}
             <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-ghost btn-sm">Clear</a>
             {% endif %}
         </form>
@@ -336,7 +351,7 @@
     {% else %}
     <div class="empty-state">
         <h2>No tasks found</h2>
-        {% if current_phase_filter or current_status_filters or current_project_filters %}
+        {% if current_phase_filters or current_status_filters or current_project_filters %}
         <p>No tasks match your current filters.</p>
         <a href="{% url 'admin_console:admin_task_list' %}" class="btn btn-secondary">Clear Filters</a>
         {% else %}
@@ -364,10 +379,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function saveFiltersToSession() {
         const filterState = {
             search: document.getElementById('filter-search')?.value || '',
-            phase: document.getElementById('filter-phase')?.value || '',
-            projects: Array.from(document.querySelectorAll('#project-dropdown input[type="checkbox"]:checked'))
+            phases: Array.from(document.querySelectorAll('#phase-dropdown input[type="checkbox"][name]:checked'))
                          .map(cb => cb.value),
-            statuses: Array.from(document.querySelectorAll('#status-dropdown input[type="checkbox"]:checked'))
+            projects: Array.from(document.querySelectorAll('#project-dropdown input[type="checkbox"][name]:checked'))
+                         .map(cb => cb.value),
+            statuses: Array.from(document.querySelectorAll('#status-dropdown input[type="checkbox"][name]:checked'))
                          .map(cb => cb.value),
             sort: currentSort,
             dir: currentDir
@@ -399,7 +415,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const url = new URL(window.location.href);
 
             // Check if there's anything to restore
-            const hasFilters = state.search || state.phase ||
+            const hasFilters = state.search ||
+                               (state.phases && state.phases.length > 0 &&
+                                state.phases.length < {{ phases|length }}) ||
                                (state.projects && state.projects.length > 0 &&
                                 state.projects.length < {{ projects|length }}) ||
                                (state.statuses && state.statuses.length > 0 &&
@@ -410,7 +428,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Build URL with saved filters
             if (state.search) url.searchParams.set('q', state.search);
-            if (state.phase) url.searchParams.set('phase', state.phase);
+            if (state.phases && state.phases.length > 0) {
+                // Clear existing phase params
+                url.searchParams.delete('phase');
+                state.phases.forEach(p => url.searchParams.append('phase', p));
+            }
             if (state.projects && state.projects.length > 0) {
                 // Clear existing project params
                 url.searchParams.delete('project');
@@ -654,8 +676,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return dropdown;
     }
 
-    // Initialize both dropdowns
+    // Initialize all dropdowns
     const projectDropdown = initCheckboxDropdown('project-dropdown', 'All Projects');
+    const phaseDropdown = initCheckboxDropdown('phase-dropdown', 'All Phases');
     const statusDropdown = initCheckboxDropdown('status-dropdown', 'All Statuses');
 
     // Close dropdowns when clicking outside

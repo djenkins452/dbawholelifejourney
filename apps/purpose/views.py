@@ -24,6 +24,7 @@ from django.views.generic import (
 )
 
 from apps.core.utils import get_user_today
+from apps.core.views import SaveAddAnotherMixin
 from apps.help.mixins import HelpContextMixin
 
 from .models import (
@@ -292,7 +293,7 @@ class GoalDetailView(PurposeAccessMixin, DetailView):
         return LifeGoal.objects.filter(user=self.request.user)
 
 
-class GoalCreateView(PurposeAccessMixin, CreateView):
+class GoalCreateView(SaveAddAnotherMixin, PurposeAccessMixin, CreateView):
     """Create a new goal."""
     model = LifeGoal
     template_name = "purpose/goal_form.html"
@@ -300,7 +301,8 @@ class GoalCreateView(PurposeAccessMixin, CreateView):
         'title', 'description', 'why_it_matters', 'success_looks_like',
         'domain', 'timeframe', 'target_date', 'annual_direction'
     ]
-    
+    save_add_another_message = "Goal '{title}' created. Add another!"
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['domain'].queryset = LifeDomain.objects.filter(is_active=True)
@@ -308,12 +310,13 @@ class GoalCreateView(PurposeAccessMixin, CreateView):
             user=self.request.user
         ).order_by('-year')
         return form
-    
+
     def form_valid(self, form):
         form.instance.user = self.request.user
-        messages.success(self.request, f"Goal '{form.instance.title}' created.")
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, f"Goal '{form.instance.title}' created.")
         return super().form_valid(form)
-    
+
     def get_success_url(self):
         return reverse('purpose:goal_list')
 

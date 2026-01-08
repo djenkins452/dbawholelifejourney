@@ -167,6 +167,11 @@
             <button type="submit" class="btn btn-primary">
                 {% if is_edit %}Save Changes{% else %}Save Entry{% endif %}
             </button>
+            {% if not is_edit %}
+            <button type="submit" name="save_add_another" class="btn btn-secondary">
+                Save &amp; Add Another
+            </button>
+            {% endif %}
             <a href="{% if is_edit %}{% url 'journal:entry_detail' object.pk %}{% else %}{% url 'journal:entry_list' %}{% endif %}" class="btn btn-ghost">
                 Cancel
             </a>

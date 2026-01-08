@@ -1,0 +1,29 @@
+{% comment %}
+Form Actions Component with Save & Add Another
+===============================================
+Use this component in form templates to add consistent action buttons.
+
+Usage:
+    {% include "components/form_actions.html" with cancel_url="/path" %}
+
+Optional parameters:
+    - cancel_url: URL for cancel button (required)
+    - submit_text: Custom text for submit button (default: "Save")
+    - is_edit: If True, hides "Save & Add Another" (default: False)
+    - show_save_add_another: Override to force show/hide (default: True for create forms)
+    - cancel_text: Custom text for cancel button (default: "Cancel")
+{% endcomment %}
+
+<div class="form-actions">
+    <button type="submit" class="btn btn-primary">
+        {{ submit_text|default:"Save" }}
+    </button>
+    {% if not is_edit and show_save_add_another|default:True %}
+    <button type="submit" name="save_add_another" class="btn btn-secondary">
+        Save &amp; Add Another
+    </button>
+    {% endif %}
+    <a href="{{ cancel_url }}" class="btn btn-ghost">
+        {{ cancel_text|default:"Cancel" }}
+    </a>
+</div>

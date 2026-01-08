@@ -44,9 +44,58 @@ from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView, TemplateView
 
+from django.contrib import messages
+
 from .models import FavoritePage, PageView, ReleaseNote, UserReleaseNoteView
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# SAVE & ADD ANOTHER MIXIN
+# =============================================================================
+
+
+class SaveAddAnotherMixin:
+    """
+    Mixin for CreateViews to add "Save & Add Another" functionality.
+
+    When the user clicks "Save & Add Another", the form is saved and the user
+    is redirected back to the create page with a success message.
+
+    Usage:
+        1. Add this mixin to your CreateView (before CreateView in MRO)
+        2. Add to your form template:
+           <button type="submit" name="save_add_another" class="btn btn-secondary">
+               Save &amp; Add Another
+           </button>
+        3. Set save_add_another_message to customize the success message
+
+    Attributes:
+        save_add_another_message: Message shown after saving. Use {title} as placeholder.
+                                  Default: "{title} created. Add another!"
+    """
+
+    save_add_another_message = "{title} created. Add another!"
+
+    def form_valid(self, form):
+        """Handle form submission, checking for save_add_another button."""
+        response = super().form_valid(form)
+
+        # Check if "Save & Add Another" was clicked
+        if 'save_add_another' in self.request.POST:
+            # Get a title/name for the created object
+            obj = form.instance
+            title = getattr(obj, 'title', None) or getattr(obj, 'name', None) or str(obj)
+
+            # Show success message
+            message = self.save_add_another_message.format(title=title)
+            messages.success(self.request, message)
+
+            # Redirect back to create page (current URL)
+            return redirect(self.request.path)
+
+        return response
 
 
 class LandingPageView(TemplateView):

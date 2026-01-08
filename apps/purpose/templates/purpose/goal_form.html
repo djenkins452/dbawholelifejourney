@@ -118,6 +118,11 @@
                 <button type="submit" class="btn btn-primary">
                     {% if form.instance.pk %}Save Changes{% else %}Add Goal{% endif %}
                 </button>
+                {% if not form.instance.pk %}
+                <button type="submit" name="save_add_another" class="btn btn-secondary">
+                    Save &amp; Add Another
+                </button>
+                {% endif %}
             </div>
         </form>
     </div>

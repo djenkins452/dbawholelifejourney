@@ -73,6 +73,11 @@
             <button type="submit" class="btn btn-primary">
                 {% if object %}Save Changes{% else %}Log Weight{% endif %}
             </button>
+            {% if not object %}
+            <button type="submit" name="save_add_another" class="btn btn-secondary">
+                Save &amp; Add Another
+            </button>
+            {% endif %}
             <a href="{% url 'health:weight_list' %}" class="btn btn-ghost">Cancel</a>
         </div>
     </form>

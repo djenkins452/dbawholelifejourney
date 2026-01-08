@@ -53,6 +53,7 @@ from django.views.generic import (
 )
 
 from apps.core.models import Category, Tag
+from apps.core.views import SaveAddAnotherMixin
 from apps.help.mixins import HelpContextMixin
 
 from .forms import JournalEntryForm, TagForm
@@ -208,7 +209,7 @@ class EntryDetailView(HelpContextMixin, LoginRequiredMixin, DetailView):
         return JournalEntry.objects.include_archived().filter(user=self.request.user)
 
 
-class EntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
+class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
     Create a new journal entry.
     """
@@ -218,6 +219,7 @@ class EntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
     template_name = "journal/entry_form.html"
     success_url = reverse_lazy("journal:entry_list")
     help_context_id = "JOURNAL_ENTRY_CREATE"
+    save_add_another_message = "Journal entry created. Add another!"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -261,7 +263,10 @@ class EntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
             from apps.core.models import UserOwnedModel
             form.instance.created_via = UserOwnedModel.CREATED_VIA_AI_CAMERA
 
-        messages.success(self.request, "Journal entry created.")
+        # Only show success message if not using "Save & Add Another"
+        # (the mixin handles the message for that case)
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, "Journal entry created.")
         return super().form_valid(form)
 
     def get_context_data(self, **kwargs):

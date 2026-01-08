@@ -152,6 +152,11 @@
             <button type="submit" class="btn btn-primary">
                 {% if object %}Save Changes{% else %}Log Blood Pressure{% endif %}
             </button>
+            {% if not object %}
+            <button type="submit" name="save_add_another" class="btn btn-secondary">
+                Save &amp; Add Another
+            </button>
+            {% endif %}
             <a href="{% url 'health:blood_pressure_list' %}" class="btn btn-ghost">Cancel</a>
         </div>
     </form>

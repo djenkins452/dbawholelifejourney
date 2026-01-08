@@ -150,6 +150,11 @@
         <div class="form-actions">
             <a href="{% url 'health:nutrition_home' %}" class="btn btn-secondary">Cancel</a>
             <button type="submit" class="btn btn-primary">{% if form.instance.pk %}Save Changes{% else %}Log Food{% endif %}</button>
+            {% if not form.instance.pk %}
+            <button type="submit" name="save_add_another" class="btn btn-outline">
+                Save &amp; Add Another
+            </button>
+            {% endif %}
         </div>
     </form>
 </div>

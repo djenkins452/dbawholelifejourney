@@ -21,7 +21,10 @@
         </div>
         <div class="header-actions">
             <a href="{% url 'purpose:direction_update' direction.pk %}" class="btn btn-secondary">Edit</a>
-            <a href="{% url 'purpose:direction_delete' direction.pk %}" class="btn btn-ghost text-danger">Delete</a>
+            <form method="post" action="{% url 'purpose:direction_delete' direction.pk %}" class="inline-form" data-confirm-delete="Delete this direction? This action cannot be undone.">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost text-danger">Delete</button>
+            </form>
         </div>
     </div>
     

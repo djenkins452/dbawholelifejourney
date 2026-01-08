@@ -55,7 +55,10 @@
     </div>
     
     <div class="page-footer">
-        <a href="{% url 'purpose:intention_delete' intention.pk %}" class="btn btn-ghost text-danger">Delete Intention</a>
+        <form method="post" action="{% url 'purpose:intention_delete' intention.pk %}" class="inline-form" data-confirm-delete="Delete this intention? This action cannot be undone.">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost text-danger">Delete Intention</button>
+        </form>
     </div>
 </div>
 

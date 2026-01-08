@@ -51,7 +51,10 @@
     </div>
     
     <div class="page-footer">
-        <a href="{% url 'purpose:reflection_delete' reflection.pk %}" class="btn btn-ghost text-danger">Delete Reflection</a>
+        <form method="post" action="{% url 'purpose:reflection_delete' reflection.pk %}" class="inline-form" data-confirm-delete="Delete this reflection? This action cannot be undone.">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost text-danger">Delete Reflection</button>
+        </form>
     </div>
 </div>
 

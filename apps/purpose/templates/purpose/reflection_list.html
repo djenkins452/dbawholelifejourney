@@ -49,7 +49,10 @@
             </a>
             <div class="reflection-actions">
                 <a href="{% url 'purpose:reflection_edit' reflection.pk %}" class="btn btn-ghost btn-sm">Edit</a>
-                <a href="{% url 'purpose:reflection_delete' reflection.pk %}" class="btn btn-ghost btn-sm btn-danger-text">Delete</a>
+                <form method="post" action="{% url 'purpose:reflection_delete' reflection.pk %}" class="inline-form" data-confirm-delete="Delete this reflection? This action cannot be undone.">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm btn-danger-text">Delete</button>
+                </form>
             </div>
         </div>
         {% endfor %}

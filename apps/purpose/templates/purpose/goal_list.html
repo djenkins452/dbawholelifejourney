@@ -91,7 +91,10 @@
                                 <button type="submit" class="btn btn-ghost btn-sm">Complete</button>
                             </form>
                             {% endif %}
-                            <a href="{% url 'purpose:goal_delete' goal.pk %}" class="btn btn-ghost btn-sm btn-danger-text">Delete</a>
+                            <form method="post" action="{% url 'purpose:goal_delete' goal.pk %}" class="inline" data-confirm-delete="Delete this goal? This action cannot be undone.">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-ghost btn-sm btn-danger-text">Delete</button>
+                            </form>
                         </div>
                     </div>
                 </div>

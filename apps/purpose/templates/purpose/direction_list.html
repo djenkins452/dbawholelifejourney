@@ -42,7 +42,10 @@
             </a>
             <div class="direction-actions">
                 <a href="{% url 'purpose:direction_update' direction.pk %}" class="btn btn-ghost btn-sm">Edit</a>
-                <a href="{% url 'purpose:direction_delete' direction.pk %}" class="btn btn-ghost btn-sm btn-danger-text">Delete</a>
+                <form method="post" action="{% url 'purpose:direction_delete' direction.pk %}" class="inline-form" data-confirm-delete="Delete this direction? This action cannot be undone.">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm btn-danger-text">Delete</button>
+                </form>
             </div>
         </div>
         {% endfor %}

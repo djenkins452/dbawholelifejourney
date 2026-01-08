@@ -38,10 +38,11 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import models
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from django.views.generic import (
     CreateView,
     DeleteView,
@@ -53,6 +54,7 @@ from django.views.generic import (
 )
 
 from apps.core.models import Category, Tag
+from apps.core.views import SaveAddAnotherMixin
 from apps.help.mixins import HelpContextMixin
 
 from .forms import JournalEntryForm, TagForm
@@ -208,7 +210,7 @@ class EntryDetailView(HelpContextMixin, LoginRequiredMixin, DetailView):
         return JournalEntry.objects.include_archived().filter(user=self.request.user)
 
 
-class EntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
+class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
     Create a new journal entry.
     """
@@ -218,6 +220,7 @@ class EntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
     template_name = "journal/entry_form.html"
     success_url = reverse_lazy("journal:entry_list")
     help_context_id = "JOURNAL_ENTRY_CREATE"
+    save_add_another_message = "Journal entry created. Add another!"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -261,7 +264,10 @@ class EntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
             from apps.core.models import UserOwnedModel
             form.instance.created_via = UserOwnedModel.CREATED_VIA_AI_CAMERA
 
-        messages.success(self.request, "Journal entry created.")
+        # Only show success message if not using "Save & Add Another"
+        # (the mixin handles the message for that case)
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, "Journal entry created.")
         return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
@@ -610,3 +616,76 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             return []
         total = sum(m['count'] for m in moods)
         return [{'mood': m['mood'], 'emoji': MOOD_EMOJIS.get(m['mood'], '😐'), 'count': m['count'], 'percentage': round((m['count'] / total) * 100)} for m in moods]
+
+
+# =============================================================================
+# BULK ACTION VIEWS
+# =============================================================================
+
+
+class BulkDeleteEntriesView(LoginRequiredMixin, View):
+    """
+    Bulk delete journal entries (soft delete).
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        # Get entries owned by this user
+        entries = JournalEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        # Soft delete each entry
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} entr{"y" if count == 1 else "ies"} deleted',
+            'count': count
+        })
+
+
+class BulkArchiveEntriesView(LoginRequiredMixin, View):
+    """
+    Bulk archive journal entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        # Get entries owned by this user
+        entries = JournalEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        # Archive each entry
+        for entry in entries:
+            entry.archive()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} entr{"y" if count == 1 else "ies"} archived',
+            'count': count
+        })

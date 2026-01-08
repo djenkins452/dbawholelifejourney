@@ -2,6 +2,7 @@
 Health Views - Physical wellness tracking.
 """
 
+import json
 import pytz
 from datetime import timedelta
 from decimal import Decimal
@@ -24,6 +25,7 @@ from django.http import JsonResponse
 from django.template.loader import render_to_string
 
 from apps.core.utils import get_user_today
+from apps.core.views import SaveAddAnotherMixin
 from apps.help.mixins import HelpContextMixin
 
 from django.shortcuts import render
@@ -347,7 +349,7 @@ class WeightListView(LoginRequiredMixin, ListView):
         return context
 
 
-class WeightCreateView(LoginRequiredMixin, CreateView):
+class WeightCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
     Log a new weight entry.
     """
@@ -356,6 +358,7 @@ class WeightCreateView(LoginRequiredMixin, CreateView):
     form_class = WeightEntryForm
     template_name = "health/weight_form.html"
     success_url = reverse_lazy("health:weight_list")
+    save_add_another_message = "Weight logged. Add another!"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -364,7 +367,8 @@ class WeightCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        messages.success(self.request, "Weight logged.")
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, "Weight logged.")
         return super().form_valid(form)
 
 
@@ -584,7 +588,7 @@ class HeartRateListView(LoginRequiredMixin, ListView):
         return context
 
 
-class HeartRateCreateView(LoginRequiredMixin, CreateView):
+class HeartRateCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
     Log a new heart rate entry.
     """
@@ -593,6 +597,7 @@ class HeartRateCreateView(LoginRequiredMixin, CreateView):
     form_class = HeartRateEntryForm
     template_name = "health/heartrate_form.html"
     success_url = reverse_lazy("health:heartrate_list")
+    save_add_another_message = "Heart rate logged. Add another!"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -601,7 +606,8 @@ class HeartRateCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        messages.success(self.request, "Heart rate logged.")
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, "Heart rate logged.")
         return super().form_valid(form)
 
 
@@ -2684,7 +2690,7 @@ class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         return context
 
 
-class FoodEntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
+class FoodEntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
     Log a new food entry.
     """
@@ -2694,6 +2700,7 @@ class FoodEntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
     template_name = "health/nutrition/food_entry_form.html"
     success_url = reverse_lazy("health:nutrition_home")
     help_context_id = "NUTRITION_ENTRY_CREATE"
+    save_add_another_message = "Food logged. Add another!"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -2755,7 +2762,8 @@ class FoodEntryCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
             form.instance.entry_source = FoodEntry.SOURCE_BARCODE
         else:
             form.instance.entry_source = FoodEntry.SOURCE_MANUAL
-        messages.success(self.request, "Food logged.")
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, "Food logged.")
         return super().form_valid(form)
 
 
@@ -3127,7 +3135,7 @@ class BloodPressureListView(LoginRequiredMixin, ListView):
         return context
 
 
-class BloodPressureCreateView(LoginRequiredMixin, CreateView):
+class BloodPressureCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
     Log a new blood pressure entry.
     """
@@ -3136,6 +3144,7 @@ class BloodPressureCreateView(LoginRequiredMixin, CreateView):
     form_class = BloodPressureEntryForm
     template_name = "health/blood_pressure_form.html"
     success_url = reverse_lazy("health:blood_pressure_list")
+    save_add_another_message = "Blood pressure logged. Add another!"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -3144,7 +3153,8 @@ class BloodPressureCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        messages.success(self.request, "Blood pressure logged.")
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, "Blood pressure logged.")
         return super().form_valid(form)
 
 
@@ -4088,3 +4098,104 @@ class GlucoseDeleteView(LoginRequiredMixin, View):
         if "glucose/list" in referer:
             return redirect("health:glucose_list")
         return redirect("health:glucose_dashboard")
+
+
+# =============================================================================
+# BULK ACTION VIEWS
+# =============================================================================
+
+
+class BulkDeleteWeightView(LoginRequiredMixin, View):
+    """
+    Bulk delete weight entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = WeightEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} weight entr{"y" if count == 1 else "ies"} deleted',
+            'count': count
+        })
+
+
+class BulkDeleteHeartRateView(LoginRequiredMixin, View):
+    """
+    Bulk delete heart rate entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = HeartRateEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} heart rate entr{"y" if count == 1 else "ies"} deleted',
+            'count': count
+        })
+
+
+class BulkDeleteBloodPressureView(LoginRequiredMixin, View):
+    """
+    Bulk delete blood pressure entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = BloodPressureEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} blood pressure reading{"" if count == 1 else "s"} deleted',
+            'count': count
+        })

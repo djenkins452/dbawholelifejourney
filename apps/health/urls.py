@@ -17,6 +17,7 @@ urlpatterns = [
     path("weight/log/", views.WeightCreateView.as_view(), name="weight_create"),
     path("weight/<int:pk>/edit/", views.WeightUpdateView.as_view(), name="weight_update"),
     path("weight/<int:pk>/delete/", views.WeightDeleteView.as_view(), name="weight_delete"),
+    path("weight/bulk/delete/", views.BulkDeleteWeightView.as_view(), name="weight_bulk_delete"),
 
     # Fasting
     path("fasting/", views.FastingListView.as_view(), name="fasting_list"),
@@ -30,6 +31,7 @@ urlpatterns = [
     path("heart-rate/log/", views.HeartRateCreateView.as_view(), name="heartrate_create"),
     path("heart-rate/<int:pk>/edit/", views.HeartRateUpdateView.as_view(), name="heartrate_update"),
     path("heart-rate/<int:pk>/delete/", views.HeartRateDeleteView.as_view(), name="heartrate_delete"),
+    path("heart-rate/bulk/delete/", views.BulkDeleteHeartRateView.as_view(), name="heartrate_bulk_delete"),
 
     # Glucose Dashboard (with Dexcom integration)
     path("glucose/", views.GlucoseDashboardView.as_view(), name="glucose_dashboard"),
@@ -49,6 +51,7 @@ urlpatterns = [
     path("blood-pressure/log/", views.BloodPressureCreateView.as_view(), name="blood_pressure_create"),
     path("blood-pressure/<int:pk>/edit/", views.BloodPressureUpdateView.as_view(), name="blood_pressure_update"),
     path("blood-pressure/<int:pk>/delete/", views.BloodPressureDeleteView.as_view(), name="blood_pressure_delete"),
+    path("blood-pressure/bulk/delete/", views.BulkDeleteBloodPressureView.as_view(), name="blood_pressure_bulk_delete"),
 
     # Blood Oxygen
     path("blood-oxygen/", views.BloodOxygenListView.as_view(), name="blood_oxygen_list"),

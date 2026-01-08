@@ -96,9 +96,26 @@
     
     <!-- Entry List -->
     {% if entries %}
-        <div class="entry-list">
+        <div class="entry-list"
+             data-bulk-container
+             data-bulk-delete-url="{% url 'journal:bulk_delete' %}"
+             data-bulk-archive-url="{% url 'journal:bulk_archive' %}"
+             data-item-type="entry"
+             data-item-type-plural="entries">
+
+            <!-- Select All Header -->
+            <div class="bulk-select-header">
+                <label class="bulk-checkbox-label">
+                    <input type="checkbox" data-select-all class="bulk-checkbox">
+                    <span>Select All</span>
+                </label>
+            </div>
+
             {% for entry in entries %}
-                <article class="entry-card">
+                <article class="entry-card" data-bulk-item data-item-id="{{ entry.pk }}">
+                    <div class="entry-checkbox">
+                        <input type="checkbox" data-item-checkbox class="bulk-checkbox" value="{{ entry.pk }}">
+                    </div>
                     <a href="{% url 'journal:entry_detail' entry.pk %}" class="entry-link">
                         <div class="entry-header">
                             <h2 class="entry-title">{{ entry.title }}</h2>
@@ -106,20 +123,20 @@
                                 {{ entry.entry_date|date:"M j, Y" }}
                             </time>
                         </div>
-                        
+
                         <p class="entry-preview">{{ entry.body_preview }}</p>
-                        
+
                         <div class="entry-meta">
                             {% if entry.mood %}
                                 <span class="mood-badge mood-badge-{{ entry.mood }}">
                                     {{ entry.mood_emoji }} {{ entry.get_mood_display }}
                                 </span>
                             {% endif %}
-                            
+
                             {% for category in entry.categories.all %}
                                 <span class="category-tag">{{ category.name }}</span>
                             {% endfor %}
-                            
+
                             <span class="entry-words text-muted text-xs">
                                 {{ entry.word_count }} word{{ entry.word_count|pluralize }}
                             </span>
@@ -270,11 +287,43 @@
     gap: var(--space-4);
 }
 
+.bulk-select-header {
+    display: flex;
+    align-items: center;
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+}
+
+.bulk-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.bulk-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--color-accent);
+}
+
 .entry-card {
+    display: flex;
+    align-items: flex-start;
     background: var(--color-background);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     transition: all var(--transition-fast);
+}
+
+.entry-card.selected {
+    border-color: var(--color-accent);
+    background: var(--color-accent-light, rgba(99, 102, 241, 0.05));
 }
 
 .entry-card:hover {
@@ -282,9 +331,19 @@
     box-shadow: var(--shadow-sm);
 }
 
+.entry-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4) var(--space-3);
+    flex-shrink: 0;
+}
+
 .entry-link {
     display: block;
+    flex: 1;
     padding: var(--space-5);
+    padding-left: 0;
     color: inherit;
     text-decoration: none;
 }

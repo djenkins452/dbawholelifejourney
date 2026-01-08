@@ -27,6 +27,10 @@ urlpatterns = [
     path("<int:pk>/restore/", views.RestoreEntryView.as_view(), name="entry_restore"),
     path("<int:pk>/delete/", views.DeleteEntryView.as_view(), name="entry_delete"),
     path("<int:pk>/permanent-delete/", views.PermanentDeleteEntryView.as_view(), name="entry_permanent_delete"),
+
+    # Bulk actions
+    path("bulk/delete/", views.BulkDeleteEntriesView.as_view(), name="bulk_delete"),
+    path("bulk/archive/", views.BulkArchiveEntriesView.as_view(), name="bulk_archive"),
     
     # Prompts
     path("prompts/", views.PromptListView.as_view(), name="prompt_list"),

@@ -20,6 +20,7 @@ from .views import (
     GoalUpdateView,
     GoalDeleteView,
     GoalToggleStatusView,
+    BulkDeleteGoalsView,
     # Intentions
     IntentionListView,
     IntentionDetailView,
@@ -69,6 +70,7 @@ urlpatterns = [
     path("goals/<int:pk>/edit/", GoalUpdateView.as_view(), name="goal_update"),
     path("goals/<int:pk>/delete/", GoalDeleteView.as_view(), name="goal_delete"),
     path("goals/<int:pk>/status/", GoalToggleStatusView.as_view(), name="goal_toggle_status"),
+    path("goals/bulk/delete/", BulkDeleteGoalsView.as_view(), name="goal_bulk_delete"),
     
     # Intentions
     path("intentions/", IntentionListView.as_view(), name="intention_list"),

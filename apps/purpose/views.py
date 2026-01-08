@@ -897,3 +897,36 @@ class HabitLogDateView(PurposeAccessMixin, View):
                 'current_streak': goal.current_streak,
             }
         })
+
+
+# =============================================================================
+# Bulk Delete Views
+# =============================================================================
+
+class BulkDeleteGoalsView(LoginRequiredMixin, View):
+    """Bulk delete goals."""
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = LifeGoal.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} goal{"" if count == 1 else "s"} deleted',
+            'count': count
+        })

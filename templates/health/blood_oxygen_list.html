@@ -42,10 +42,17 @@
         {% endif %}
 
         <!-- Entry List -->
-        <div class="entry-table">
+        <div class="entry-table"
+             data-bulk-container
+             data-bulk-delete-url="{% url 'health:blood_oxygen_bulk_delete' %}"
+             data-item-type="blood oxygen reading"
+             data-item-type-plural="blood oxygen readings">
             <table>
                 <thead>
                     <tr>
+                        <th class="checkbox-col">
+                            <input type="checkbox" data-select-all class="bulk-checkbox" title="Select All">
+                        </th>
                         <th>Date</th>
                         <th>SpO2</th>
                         <th>Category</th>
@@ -56,7 +63,10 @@
                 </thead>
                 <tbody>
                     {% for entry in entries %}
-                        <tr>
+                        <tr data-bulk-item data-item-id="{{ entry.pk }}">
+                            <td class="checkbox-col">
+                                <input type="checkbox" data-item-checkbox class="bulk-checkbox" value="{{ entry.pk }}">
+                            </td>
                             <td>
                                 <span class="entry-date">{{ entry.recorded_at|date:"M j, Y" }}</span>
                                 <span class="entry-time">{{ entry.recorded_at|date:"g:i A" }}</span>
@@ -166,6 +176,22 @@
     font-size: var(--font-size-sm);
     font-weight: 500;
     color: var(--color-text-muted);
+}
+
+.checkbox-col {
+    width: 40px;
+    text-align: center;
+}
+
+.bulk-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--color-accent);
+}
+
+.entry-table tr.selected {
+    background: var(--color-accent-light, rgba(99, 102, 241, 0.05));
 }
 
 .entry-table tbody tr:last-child td {

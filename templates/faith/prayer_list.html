@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Prayer Requests - Faith - Whole Life Journey{% endblock %}
 
@@ -29,9 +30,26 @@
     {% endif %}
     
     {% if prayers %}
-        <div class="prayer-grid">
+        <div class="prayer-grid"
+             data-bulk-container
+             data-bulk-delete-url="{% url 'faith:prayer_bulk_delete' %}"
+             data-item-type="prayer"
+             data-item-type-plural="prayers">
+            <!-- Bulk Action Header -->
+            <div class="bulk-action-header" style="grid-column: 1 / -1;">
+                <label class="bulk-select-all">
+                    <input type="checkbox" data-select-all class="bulk-checkbox">
+                    <span>Select All</span>
+                </label>
+                <button type="button" class="btn btn-danger btn-sm bulk-delete-btn" style="display: none;">
+                    Delete Selected (<span class="bulk-count">0</span>)
+                </button>
+            </div>
             {% for prayer in prayers %}
-                <article class="prayer-card {% if prayer.priority == 'urgent' %}prayer-urgent{% endif %}">
+                <article class="prayer-card {% if prayer.priority == 'urgent' %}prayer-urgent{% endif %}" data-bulk-item data-item-id="{{ prayer.pk }}">
+                    <div class="prayer-checkbox">
+                        <input type="checkbox" data-item-checkbox class="bulk-checkbox" value="{{ prayer.pk }}">
+                    </div>
                     <div class="prayer-header">
                         <h2 class="prayer-title">{{ prayer.title }}</h2>
                         {% if prayer.priority == 'urgent' %}
@@ -184,5 +202,52 @@
 .inline-form {
     display: inline;
 }
+
+/* Bulk Actions */
+.bulk-action-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    margin-bottom: var(--space-2);
+}
+
+.bulk-select-all {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.bulk-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.bulk-delete-btn {
+    background: var(--color-error);
+    color: white;
+    border: none;
+}
+
+.bulk-delete-btn:hover {
+    background: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
+.prayer-checkbox {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    z-index: 10;
+}
+
+.prayer-card {
+    position: relative;
+}
 </style>
+
+<script src="{% static 'js/bulk-actions.js' %}"></script>
 {% endblock %}

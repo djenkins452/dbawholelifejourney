@@ -1646,3 +1646,150 @@ class StudyToolsHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixi
         context["note_count"] = BibleStudyNote.objects.filter(user=user).count()
 
         return context
+
+
+# =============================================================================
+# Bulk Delete Views
+# =============================================================================
+
+class BulkDeletePrayersView(LoginRequiredMixin, View):
+    """Bulk delete prayer requests."""
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = PrayerRequest.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} prayer{"" if count == 1 else "s"} deleted',
+            'count': count
+        })
+
+
+class BulkDeleteSavedVersesView(LoginRequiredMixin, View):
+    """Bulk delete saved verses."""
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = SavedVerse.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} verse{"" if count == 1 else "s"} deleted',
+            'count': count
+        })
+
+
+class BulkDeleteHighlightsView(LoginRequiredMixin, View):
+    """Bulk delete highlights."""
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = BibleHighlight.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        entries.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} highlight{"" if count == 1 else "s"} deleted',
+            'count': count
+        })
+
+
+class BulkDeleteBookmarksView(LoginRequiredMixin, View):
+    """Bulk delete bookmarks."""
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = BibleBookmark.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        entries.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} bookmark{"" if count == 1 else "s"} deleted',
+            'count': count
+        })
+
+
+class BulkDeleteStudyNotesView(LoginRequiredMixin, View):
+    """Bulk delete study notes."""
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = BibleStudyNote.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} note{"" if count == 1 else "s"} deleted',
+            'count': count
+        })

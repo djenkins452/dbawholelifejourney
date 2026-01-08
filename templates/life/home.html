@@ -5,9 +5,11 @@
 
 {% block content %}
 <div class="container">
+    {% include "components/intro_banner.html" with module="organize" title="Welcome to Organize" message="Manage your calendar, tasks, documents, and more. Keep everything in one place and stay on top of what matters." icon="🏠" %}
+
     <div class="page-header">
         <div>
-            <h1 class="page-title">Life {% include "components/favorite_toggle.html" with page_title="Life" %}</h1>
+            <h1 class="page-title">Organize {% include "components/favorite_toggle.html" with page_title="Organize" %}</h1>
             <p class="page-subtitle">Your daily operating system</p>
         </div>
     </div>

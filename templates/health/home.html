@@ -5,6 +5,8 @@
 
 {% block content %}
 <div class="container">
+    {% include "components/intro_banner.html" with module="health" title="Welcome to Health" message="Track vitals, medicines, fitness, and nutrition at your own pace. Log what matters to you and see trends over time. No judgment, just awareness." icon="❤️" %}
+
     <div class="page-header">
         <h1 class="page-title">Health {% include "components/favorite_toggle.html" with page_title="Health" %}</h1>
         <p class="page-subtitle">Track your physical wellness, gently and without judgment</p>

@@ -4,9 +4,11 @@
 
 {% block content %}
 <div class="container">
+    {% include "components/intro_banner.html" with module="goals" title="Welcome to Goals" message="Set your yearly focus, life goals, and intentions. Track your progress and reflect on your journey. Start with what matters most to you." icon="🎯" %}
+
     <div class="page-header">
         <div>
-            <h1 class="page-title">Purpose {% include "components/favorite_toggle.html" with page_title="Purpose" %}</h1>
+            <h1 class="page-title">Goals {% include "components/favorite_toggle.html" with page_title="Goals" %}</h1>
             <p class="page-subtitle">Your strategic compass for life direction</p>
         </div>
         {% if not current_direction %}

@@ -86,7 +86,7 @@ class DashboardViewTest(TestCase):
         
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(reverse('dashboard:home'))
-        self.assertContains(response, 'Life')
+        self.assertContains(response, 'Organize')
     
     def test_dashboard_shows_faith_tile_when_enabled(self):
         """Faith tile appears when faith module is enabled."""
@@ -113,7 +113,7 @@ class DashboardViewTest(TestCase):
         
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(reverse('dashboard:home'))
-        self.assertContains(response, 'Purpose')
+        self.assertContains(response, 'Goals')
 
 
 class DashboardContextTest(TestCase):

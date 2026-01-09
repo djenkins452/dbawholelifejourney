@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Intention - Purpose{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Intention - Goals{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <a href="{% url 'purpose:home' %}">Goals</a>
         <span>/</span>
         <a href="{% url 'purpose:intention_list' %}">Intentions</a>
         <span>/</span>

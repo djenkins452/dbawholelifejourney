@@ -358,10 +358,10 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
                 {"key": "health_enabled", "name": "Health", "icon": "❤️",
                  "description": "Track weight, fasting, heart rate, and blood glucose.",
                  "enabled": prefs.health_enabled},
-                {"key": "life_enabled", "name": "Life", "icon": "🏠",
+                {"key": "life_enabled", "name": "Organize", "icon": "🏠",
                  "description": "Projects, tasks, calendar, and document storage.",
                  "enabled": prefs.life_enabled},
-                {"key": "purpose_enabled", "name": "Purpose", "icon": "🧭",
+                {"key": "purpose_enabled", "name": "Goals", "icon": "🧭",
                  "description": "Annual direction, goals, and seasonal reflections.",
                  "enabled": prefs.purpose_enabled},
             ]

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}{{ intention.intention }} - Purpose{% endblock %}
+{% block title %}{{ intention.intention }} - Goals{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <a href="{% url 'purpose:home' %}">Goals</a>
         <span>/</span>
         <a href="{% url 'purpose:intention_list' %}">Intentions</a>
         <span>/</span>

@@ -304,8 +304,8 @@ class HelpArticle(models.Model):
         ('journal', 'Journal'),
         ('health', 'Health'),
         ('faith', 'Faith'),
-        ('life', 'Life'),
-        ('purpose', 'Purpose'),
+        ('life', 'Organize'),
+        ('purpose', 'Goals'),
         ('settings', 'Settings'),
     ]
 

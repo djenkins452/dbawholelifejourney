@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}{{ direction.year }} Direction - Purpose{% endblock %}
+{% block title %}{{ direction.year }} Direction - Goals{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'purpose:home' %}">Purpose</a>
+        <a href="{% url 'purpose:home' %}">Goals</a>
         <span>/</span>
         <a href="{% url 'purpose:direction_list' %}">Directions</a>
         <span>/</span>

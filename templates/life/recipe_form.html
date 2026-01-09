@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}{% if object %}Edit Recipe{% else %}New Recipe{% endif %} - Life{% endblock %}
+{% block title %}{% if object %}Edit Recipe{% else %}New Recipe{% endif %} - Organize{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
-        <a href="{% url 'life:home' %}">Life</a>
+        <a href="{% url 'life:home' %}">Organize</a>
         <span>/</span>
         <a href="{% url 'life:recipe_list' %}">Recipes</a>
         <span>/</span>

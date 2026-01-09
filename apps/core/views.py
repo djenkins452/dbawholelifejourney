@@ -19,10 +19,12 @@ Key Responsibilities:
     - WhatsNewCheckView: API to check for unseen release notes
     - WhatsNewDismissView: API to mark release notes as seen
     - WhatsNewListView: Full page listing of all release notes
+    - RestoreItemView: API to restore soft-deleted items (undo)
 
 Security Notes:
     - Error handlers don't expose internal details
     - Release notes API requires authentication
+    - Restore API requires authentication and ownership verification
 
 Dependencies:
     - django.contrib.auth.mixins for LoginRequiredMixin
@@ -33,8 +35,10 @@ Copyright:
     This code is proprietary and may not be copied, modified, or distributed
     without explicit permission.
 """
+import json
 import logging
 
+from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -49,6 +53,89 @@ from django.contrib import messages
 from .models import FavoritePage, PageView, ReleaseNote, UserReleaseNoteView
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# UNDO DELETE MIXIN
+# =============================================================================
+
+
+class UndoDeleteMixin:
+    """
+    Mixin for delete views to support the undo toast notification system.
+
+    When the request is an AJAX request (has X-Requested-With: XMLHttpRequest),
+    the view returns JSON instead of redirecting. This allows the JavaScript
+    to show an undo toast notification.
+
+    Usage:
+        class MyDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
+            model = MyModel
+            item_type = 'myapp.mymodel'
+            item_name = 'item'
+            success_url = 'myapp:list'
+
+            def get_object(self):
+                return get_object_or_404(
+                    MyModel.objects.filter(user=self.request.user),
+                    pk=self.kwargs['pk']
+                )
+
+    Attributes:
+        model: The model class being deleted
+        item_type: String identifier for restore API (e.g., 'health.weightentry')
+        item_name: Human-readable name for messages (e.g., 'weight entry')
+        success_url: URL name to redirect to after delete (for non-AJAX)
+    """
+
+    model = None
+    item_type = None
+    item_name = 'item'
+    success_url = None
+
+    def get_object(self):
+        """Override this to fetch the object to delete."""
+        raise NotImplementedError("Subclasses must implement get_object()")
+
+    def get_success_url(self):
+        """Get the URL to redirect to after deletion."""
+        if self.success_url:
+            from django.urls import reverse
+            return reverse(self.success_url)
+        return '/'
+
+    def get_item_type(self):
+        """Get the item type string for the restore API."""
+        if self.item_type:
+            return self.item_type
+        if self.model:
+            return f"{self.model._meta.app_label}.{self.model._meta.model_name}"
+        return None
+
+    def is_ajax_request(self, request):
+        """Check if this is an AJAX request."""
+        return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    def post(self, request, *args, **kwargs):
+        obj = self.get_object()
+        item_id = obj.pk
+        item_type = self.get_item_type()
+
+        # Perform soft delete
+        obj.soft_delete()
+
+        # For AJAX requests, return JSON
+        if self.is_ajax_request(request):
+            return JsonResponse({
+                'success': True,
+                'item_id': item_id,
+                'item_type': item_type,
+                'message': f'{self.item_name.title()} deleted',
+            })
+
+        # For regular requests, show message and redirect
+        messages.success(request, f"{self.item_name.title()} deleted.")
+        return redirect(self.get_success_url())
 
 
 # =============================================================================
@@ -346,3 +433,175 @@ class FavoritesMenuDataView(LoginRequiredMixin, View):
             ],
             'favorites_count': favorites_count,
         })
+
+
+# =============================================================================
+# RESTORE (UNDO DELETE) VIEW
+# =============================================================================
+
+
+class RestoreItemView(LoginRequiredMixin, View):
+    """
+    API endpoint to restore a soft-deleted item.
+
+    Used by the undo toast notification system to restore items
+    within a short window after deletion.
+
+    POST with JSON body:
+    - item_type: Model identifier (e.g., 'health.weightentry')
+    - item_id: Primary key of the deleted item
+
+    Returns JSON with:
+    - success: boolean
+    - error: error message if any
+
+    Security:
+    - Requires authentication
+    - Verifies the user owns the item being restored
+    - Only works on soft-deleted items (status='deleted')
+    """
+
+    # Whitelist of models that support restore
+    ALLOWED_MODELS = {
+        # Health models
+        'health.weightentry',
+        'health.fastingwindow',
+        'health.heartrateentry',
+        'health.bloodpressureentry',
+        'health.bloodoxygenentry',
+        'health.glucoseentry',
+        'health.workoutsession',
+        'health.workouttemplate',
+        'health.medicine',
+        'health.medicineentry',
+        'health.foodentry',
+        'health.customfood',
+        'health.medicalprovider',
+        'health.providerstaff',
+        # Journal models
+        'journal.journalentry',
+        # Faith models
+        'faith.prayerrequest',
+        'faith.biblestudy',
+        'faith.savedverse',
+        'faith.blessing',
+        'faith.faithquestion',
+        # Purpose models
+        'purpose.goal',
+        'purpose.goalstep',
+        'purpose.habit',
+        # Life models
+        'life.note',
+        'life.task',
+        'life.reminder',
+        'life.bookmark',
+        'life.contact',
+        'life.importantdate',
+        # Finance models
+        'finance.financialaccount',
+        'finance.financialtransaction',
+        'finance.budget',
+        'finance.recurringexpense',
+    }
+
+    def post(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+            item_type = data.get('item_type', '').lower().strip()
+            item_id = data.get('item_id')
+
+            if not item_type:
+                return JsonResponse(
+                    {'success': False, 'error': 'item_type is required'},
+                    status=400
+                )
+
+            if not item_id:
+                return JsonResponse(
+                    {'success': False, 'error': 'item_id is required'},
+                    status=400
+                )
+
+            # Security: Only allow whitelisted models
+            if item_type not in self.ALLOWED_MODELS:
+                logger.warning(
+                    f"Restore attempt for non-whitelisted model: {item_type} "
+                    f"by user {request.user.id}"
+                )
+                return JsonResponse(
+                    {'success': False, 'error': 'Invalid item type'},
+                    status=400
+                )
+
+            # Get the model class
+            try:
+                app_label, model_name = item_type.split('.')
+                model = apps.get_model(app_label, model_name)
+            except (ValueError, LookupError):
+                return JsonResponse(
+                    {'success': False, 'error': 'Invalid item type'},
+                    status=400
+                )
+
+            # Check if model has soft delete support
+            if not hasattr(model, 'restore'):
+                return JsonResponse(
+                    {'success': False, 'error': 'Model does not support restore'},
+                    status=400
+                )
+
+            # Get the item - use all_objects to include deleted items
+            try:
+                if hasattr(model, 'all_objects'):
+                    item = model.all_objects.get(pk=item_id)
+                else:
+                    item = model.objects.get(pk=item_id)
+            except model.DoesNotExist:
+                return JsonResponse(
+                    {'success': False, 'error': 'Item not found'},
+                    status=404
+                )
+
+            # Security: Verify ownership
+            if hasattr(item, 'user_id'):
+                if item.user_id != request.user.id:
+                    logger.warning(
+                        f"Unauthorized restore attempt: user {request.user.id} "
+                        f"tried to restore {item_type} {item_id} owned by {item.user_id}"
+                    )
+                    return JsonResponse(
+                        {'success': False, 'error': 'Item not found'},
+                        status=404
+                    )
+            elif hasattr(item, 'user'):
+                if item.user != request.user:
+                    logger.warning(
+                        f"Unauthorized restore attempt: user {request.user.id} "
+                        f"tried to restore {item_type} {item_id}"
+                    )
+                    return JsonResponse(
+                        {'success': False, 'error': 'Item not found'},
+                        status=404
+                    )
+
+            # Verify item is actually deleted
+            if hasattr(item, 'status') and item.status != 'deleted':
+                return JsonResponse(
+                    {'success': False, 'error': 'Item is not deleted'},
+                    status=400
+                )
+
+            # Restore the item
+            item.restore()
+
+            logger.info(
+                f"Item restored: {item_type} {item_id} by user {request.user.id}"
+            )
+
+            return JsonResponse({'success': True})
+
+        except json.JSONDecodeError:
+            return JsonResponse(
+                {'success': False, 'error': 'Invalid JSON'},
+                status=400
+            )

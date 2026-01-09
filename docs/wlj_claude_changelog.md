@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Bulk Actions to List Views)
+# Last Updated: 2026-01-08 (Undo Toast Notifications)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,48 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Undo Toast Notifications
+
+**Task:** Add Undo Toast Notifications (Task #227, User Experience Phase 5)
+
+**Problem:**
+After deleting items, users had no way to quickly undo the action. The delete operation used
+soft-delete, but users couldn't easily restore recently deleted items.
+
+**Solution:**
+- Created reusable undo toast notification component with 5-second countdown timer
+- Implemented RestoreItemView API endpoint for restoring soft-deleted items
+- Added UndoDeleteMixin for delete views to support AJAX responses
+- Updated delete views in health app to return JSON for AJAX requests
+- Integrated toast system with bulk delete actions
+
+**Features:**
+- Toast notification appears at bottom of screen after delete actions
+- 5-second countdown timer with visual progress bar
+- "Undo" button restores the deleted item instantly
+- Smooth animations for showing/hiding toast
+- Works with both single item and bulk deletes (single-item undo for bulk)
+- Falls back to standard redirect for non-AJAX requests
+- Security: whitelist of allowed models, ownership verification
+
+**Files added:**
+- `static/js/undo-toast.js` - Undo toast JavaScript component (~340 lines)
+
+**Files modified:**
+- `apps/core/views.py` - Added UndoDeleteMixin, RestoreItemView
+- `apps/core/urls.py` - Added /api/restore/ endpoint
+- `apps/health/views.py` - Updated all delete views to use UndoDeleteMixin
+- `static/js/bulk-actions.js` - Integrated undo toast for single-item bulk deletes
+- `templates/base.html` - Added undo-toast.js script include
+
+**How to use:**
+1. Delete views inherit from UndoDeleteMixin and define item_type, item_name, success_url
+2. For AJAX requests, returns JSON with item_id and item_type
+3. JavaScript shows toast; clicking Undo calls /api/restore/ to restore item
+4. If timer expires, item stays soft-deleted (can be restored from archives later)
+
+---
 
 ### Bulk Actions for List Views
 

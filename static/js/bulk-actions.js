@@ -290,17 +290,19 @@
             const data = await response.json();
 
             if (data.success) {
-                // Show success message
-                showToast(data.message || `${data.count || ids.length} item${ids.length > 1 ? 's' : ''} ${action}d successfully`);
+                const count = data.count || ids.length;
+                const itemType = data.item_type || container.dataset.bulkItemType;
+                const itemWord = count === 1 ? 'item' : 'items';
 
-                // Remove deleted/archived items from DOM
+                // Store hidden rows for potential restore
+                const hiddenRows = [];
                 ids.forEach(id => {
                     const row = container.querySelector(`[data-item-id="${id}"]`);
                     if (row) {
+                        hiddenRows.push({ id, row });
                         row.style.transition = 'opacity 0.3s, transform 0.3s';
                         row.style.opacity = '0';
                         row.style.transform = 'translateX(-20px)';
-                        setTimeout(() => row.remove(), 300);
                     }
                 });
 
@@ -308,7 +310,42 @@
                 clearSelection();
 
                 // Update page counts if displayed
-                updatePageCounts(ids.length, action);
+                updatePageCounts(count, action);
+
+                // For deletes, show undo toast if available
+                if (action === 'delete' && window.undoToast && itemType && ids.length === 1) {
+                    // Single item delete - show undo toast
+                    window.undoToast.show({
+                        message: `${count} ${itemWord} deleted`,
+                        itemType: itemType,
+                        itemId: ids[0],
+                        onUndo: () => {
+                            // Restore the row visibility
+                            hiddenRows.forEach(({ row }) => {
+                                row.style.display = '';
+                                row.style.opacity = '1';
+                                row.style.transform = '';
+                            });
+                            // Restore page counts
+                            updatePageCounts(-count, action);
+                        },
+                        onExpire: () => {
+                            // Remove hidden rows from DOM
+                            hiddenRows.forEach(({ row }) => {
+                                if (row.parentNode) row.remove();
+                            });
+                        }
+                    });
+                } else {
+                    // Multiple items or non-delete action - just show simple toast
+                    showToast(data.message || `${count} ${itemWord} ${action}d successfully`);
+                    // Remove items after animation
+                    setTimeout(() => {
+                        hiddenRows.forEach(({ row }) => {
+                            if (row.parentNode) row.remove();
+                        });
+                    }, 300);
+                }
             } else {
                 showToast(data.error || 'An error occurred', 'error');
             }

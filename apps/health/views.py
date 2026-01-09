@@ -25,7 +25,7 @@ from django.http import JsonResponse
 from django.template.loader import render_to_string
 
 from apps.core.utils import get_user_today
-from apps.core.views import SaveAddAnotherMixin
+from apps.core.views import SaveAddAnotherMixin, UndoDeleteMixin
 from apps.help.mixins import HelpContextMixin
 
 from django.shortcuts import render
@@ -391,19 +391,22 @@ class WeightUpdateView(LoginRequiredMixin, UpdateView):
         return kwargs
 
 
-class WeightDeleteView(LoginRequiredMixin, View):
+class WeightDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a weight entry.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        entry = get_object_or_404(
-            WeightEntry.objects.filter(user=request.user),
-            pk=pk
+    model = WeightEntry
+    item_type = 'health.weightentry'
+    item_name = 'weight entry'
+    success_url = 'health:weight_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            WeightEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        entry.soft_delete()
-        messages.success(request, "Weight entry deleted.")
-        return redirect("health:weight_list")
 
 
 # Fasting Views
@@ -536,19 +539,22 @@ class FastingUpdateView(LoginRequiredMixin, UpdateView):
         return kwargs
 
 
-class FastingDeleteView(LoginRequiredMixin, View):
+class FastingDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a fasting window.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        fast = get_object_or_404(
-            FastingWindow.objects.filter(user=request.user),
-            pk=pk
+    model = FastingWindow
+    item_type = 'health.fastingwindow'
+    item_name = 'fasting window'
+    success_url = 'health:fasting_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            FastingWindow.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        fast.soft_delete()
-        messages.success(request, "Fasting window deleted.")
-        return redirect("health:fasting_list")
 
 
 # Heart Rate Views
@@ -630,19 +636,22 @@ class HeartRateUpdateView(LoginRequiredMixin, UpdateView):
         return kwargs
 
 
-class HeartRateDeleteView(LoginRequiredMixin, View):
+class HeartRateDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a heart rate entry.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        entry = get_object_or_404(
-            HeartRateEntry.objects.filter(user=request.user),
-            pk=pk
+    model = HeartRateEntry
+    item_type = 'health.heartrateentry'
+    item_name = 'heart rate entry'
+    success_url = 'health:heartrate_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            HeartRateEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        entry.soft_delete()
-        messages.success(request, "Heart rate entry deleted.")
-        return redirect("health:heartrate_list")
 
 
 # NOTE: Glucose views moved to end of file with Dexcom integration views
@@ -1026,19 +1035,22 @@ class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
         return redirect("health:workout_detail", pk=workout.pk)
 
 
-class WorkoutDeleteView(LoginRequiredMixin, View):
+class WorkoutDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a workout session.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        workout = get_object_or_404(
-            WorkoutSession.objects.filter(user=request.user),
-            pk=pk,
+    model = WorkoutSession
+    item_type = 'health.workoutsession'
+    item_name = 'workout'
+    success_url = 'health:fitness_home'
+
+    def get_object(self):
+        return get_object_or_404(
+            WorkoutSession.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        workout.soft_delete()
-        messages.success(request, "Workout deleted.")
-        return redirect("health:fitness_home")
 
 
 class WorkoutCopyView(LoginRequiredMixin, View):
@@ -1258,20 +1270,22 @@ class TemplateUpdateView(LoginRequiredMixin, TemplateView):
         return redirect("health:template_detail", pk=template.pk)
 
 
-class TemplateDeleteView(LoginRequiredMixin, View):
+class TemplateDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a workout template.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        template = get_object_or_404(
-            WorkoutTemplate.objects.filter(user=request.user),
-            pk=pk,
+    model = WorkoutTemplate
+    item_type = 'health.workouttemplate'
+    item_name = 'template'
+    success_url = 'health:template_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            WorkoutTemplate.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        name = template.name
-        template.soft_delete()
-        messages.success(request, f"Template '{name}' deleted.")
-        return redirect("health:template_list")
 
 
 class UseTemplateView(LoginRequiredMixin, View):
@@ -2092,20 +2106,22 @@ class MedicineUpdateView(LoginRequiredMixin, UpdateView):
         return reverse_lazy("health:medicine_detail", kwargs={"pk": self.object.pk})
 
 
-class MedicineDeleteView(LoginRequiredMixin, View):
+class MedicineDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a medicine.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        medicine = get_object_or_404(
-            Medicine.objects.filter(user=request.user),
-            pk=pk,
+    model = Medicine
+    item_type = 'health.medicine'
+    item_name = 'medicine'
+    success_url = 'health:medicine_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            Medicine.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        name = medicine.name
-        medicine.soft_delete()
-        messages.success(request, f"Deleted {name}.")
-        return redirect("health:medicine_list")
 
 
 class MedicinePauseView(LoginRequiredMixin, View):
@@ -2791,24 +2807,30 @@ class FoodEntryUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class FoodEntryDeleteView(LoginRequiredMixin, View):
+class FoodEntryDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a food entry.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        entry = get_object_or_404(
-            FoodEntry.objects.filter(user=request.user),
-            pk=pk,
-        )
-        entry.soft_delete()
-        messages.success(request, "Food entry deleted.")
+    model = FoodEntry
+    item_type = 'health.foodentry'
+    item_name = 'food entry'
+    success_url = 'health:nutrition_home'
 
+    def get_object(self):
+        return get_object_or_404(
+            FoodEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
+        )
+
+    def get_success_url(self):
         # Redirect back to referring page or nutrition home
-        next_url = request.POST.get('next', request.META.get('HTTP_REFERER'))
+        next_url = self.request.POST.get('next', self.request.META.get('HTTP_REFERER'))
         if next_url:
-            return redirect(next_url)
-        return redirect("health:nutrition_home")
+            return next_url
+        from django.urls import reverse
+        return reverse('health:nutrition_home')
 
 
 class FoodEntryDetailView(HelpContextMixin, LoginRequiredMixin, TemplateView):
@@ -3080,19 +3102,22 @@ class CustomFoodUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class CustomFoodDeleteView(LoginRequiredMixin, View):
+class CustomFoodDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a custom food.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        food = get_object_or_404(
-            CustomFood.objects.filter(user=request.user),
-            pk=pk,
+    model = CustomFood
+    item_type = 'health.customfood'
+    item_name = 'custom food'
+    success_url = 'health:custom_food_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            CustomFood.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        food.soft_delete()
-        messages.success(request, f"Deleted '{food.name}'.")
-        return redirect("health:custom_food_list")
 
 
 # =============================================================================
@@ -3177,19 +3202,22 @@ class BloodPressureUpdateView(LoginRequiredMixin, UpdateView):
         return kwargs
 
 
-class BloodPressureDeleteView(LoginRequiredMixin, View):
+class BloodPressureDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a blood pressure entry.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        entry = get_object_or_404(
-            BloodPressureEntry.objects.filter(user=request.user),
-            pk=pk
+    model = BloodPressureEntry
+    item_type = 'health.bloodpressureentry'
+    item_name = 'blood pressure entry'
+    success_url = 'health:blood_pressure_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            BloodPressureEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        entry.soft_delete()
-        messages.success(request, "Blood pressure entry deleted.")
-        return redirect("health:blood_pressure_list")
 
 
 # =============================================================================
@@ -3270,19 +3298,22 @@ class BloodOxygenUpdateView(LoginRequiredMixin, UpdateView):
         return kwargs
 
 
-class BloodOxygenDeleteView(LoginRequiredMixin, View):
+class BloodOxygenDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a blood oxygen entry.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        entry = get_object_or_404(
-            BloodOxygenEntry.objects.filter(user=request.user),
-            pk=pk
+    model = BloodOxygenEntry
+    item_type = 'health.bloodoxygenentry'
+    item_name = 'blood oxygen entry'
+    success_url = 'health:blood_oxygen_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            BloodOxygenEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        entry.soft_delete()
-        messages.success(request, "Blood oxygen entry deleted.")
-        return redirect("health:blood_oxygen_list")
 
 
 # =============================================================================
@@ -3424,21 +3455,22 @@ class MedicalProviderUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView
         return super().form_valid(form)
 
 
-class MedicalProviderDeleteView(LoginRequiredMixin, View):
+class MedicalProviderDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a medical provider (and all associated staff via CASCADE).
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
+    item_type = 'health.medicalprovider'
+    item_name = 'provider'
+    success_url = 'health:provider_list'
+
+    def get_object(self):
         from .models import MedicalProvider
-        provider = get_object_or_404(
-            MedicalProvider.objects.filter(user=request.user),
-            pk=pk,
+        return get_object_or_404(
+            MedicalProvider.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        provider_name = provider.name
-        provider.soft_delete()
-        messages.success(request, f"Deleted provider: {provider_name}")
-        return redirect("health:provider_list")
 
 
 class ProviderAILookupView(LoginRequiredMixin, View):
@@ -3618,22 +3650,26 @@ class ProviderStaffUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class ProviderStaffDeleteView(LoginRequiredMixin, View):
+class ProviderStaffDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a staff member.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
+    item_type = 'health.providerstaff'
+    item_name = 'staff member'
+
+    def get_object(self):
         from .models import ProviderStaff
-        staff = get_object_or_404(
-            ProviderStaff.objects.filter(user=request.user),
-            pk=pk,
+        return get_object_or_404(
+            ProviderStaff.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        provider_pk = staff.provider.pk
-        staff_name = staff.name
-        staff.soft_delete()
-        messages.success(request, f"Removed staff member: {staff_name}")
-        return redirect("health:provider_detail", pk=provider_pk)
+
+    def get_success_url(self):
+        from django.urls import reverse
+        obj = self.get_object()
+        return reverse("health:provider_detail", kwargs={'pk': obj.provider.pk})
 
 
 # =============================================================================
@@ -4081,23 +4117,30 @@ class GlucoseUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class GlucoseDeleteView(LoginRequiredMixin, View):
+class GlucoseDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a glucose entry.
+    Supports undo via toast notification for AJAX requests.
     """
 
-    def post(self, request, pk):
-        entry = get_object_or_404(
-            GlucoseEntry.objects.filter(user=request.user),
-            pk=pk,
+    model = GlucoseEntry
+    item_type = 'health.glucoseentry'
+    item_name = 'glucose reading'
+    success_url = 'health:glucose_dashboard'
+
+    def get_object(self):
+        return get_object_or_404(
+            GlucoseEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
         )
-        entry.soft_delete()
-        messages.success(request, "Glucose reading deleted.")
+
+    def get_success_url(self):
+        from django.urls import reverse
         # Stay on the same page if coming from list, otherwise go to dashboard
-        referer = request.META.get("HTTP_REFERER", "")
+        referer = self.request.META.get("HTTP_REFERER", "")
         if "glucose/list" in referer:
-            return redirect("health:glucose_list")
-        return redirect("health:glucose_dashboard")
+            return reverse("health:glucose_list")
+        return reverse("health:glucose_dashboard")
 
 
 # =============================================================================
@@ -4133,7 +4176,8 @@ class BulkDeleteWeightView(LoginRequiredMixin, View):
         return JsonResponse({
             'success': True,
             'message': f'{count} weight entr{"y" if count == 1 else "ies"} deleted',
-            'count': count
+            'count': count,
+            'item_type': 'health.weightentry',
         })
 
 
@@ -4165,7 +4209,8 @@ class BulkDeleteHeartRateView(LoginRequiredMixin, View):
         return JsonResponse({
             'success': True,
             'message': f'{count} heart rate entr{"y" if count == 1 else "ies"} deleted',
-            'count': count
+            'count': count,
+            'item_type': 'health.heartrateentry',
         })
 
 
@@ -4197,7 +4242,8 @@ class BulkDeleteBloodPressureView(LoginRequiredMixin, View):
         return JsonResponse({
             'success': True,
             'message': f'{count} blood pressure reading{"" if count == 1 else "s"} deleted',
-            'count': count
+            'count': count,
+            'item_type': 'health.bloodpressureentry',
         })
 
 
@@ -4229,7 +4275,8 @@ class BulkDeleteBloodOxygenView(LoginRequiredMixin, View):
         return JsonResponse({
             'success': True,
             'message': f'{count} blood oxygen reading{"" if count == 1 else "s"} deleted',
-            'count': count
+            'count': count,
+            'item_type': 'health.bloodoxygenentry',
         })
 
 
@@ -4261,7 +4308,8 @@ class BulkDeleteGlucoseView(LoginRequiredMixin, View):
         return JsonResponse({
             'success': True,
             'message': f'{count} glucose reading{"" if count == 1 else "s"} deleted',
-            'count': count
+            'count': count,
+            'item_type': 'health.glucoseentry',
         })
 
 
@@ -4293,5 +4341,6 @@ class BulkDeleteFastingView(LoginRequiredMixin, View):
         return JsonResponse({
             'success': True,
             'message': f'{count} fast{"" if count == 1 else "s"} deleted',
-            'count': count
+            'count': count,
+            'item_type': 'health.fastingwindow',
         })

@@ -45,4 +45,7 @@ urlpatterns = [
     path("api/favorites/toggle/", views.FavoriteToggleView.as_view(), name="favorite_toggle"),
     path("api/favorites/check/", views.FavoriteCheckView.as_view(), name="favorite_check"),
     path("api/favorites/menu/", views.FavoritesMenuDataView.as_view(), name="favorites_menu"),
+
+    # Restore (Undo Delete) API
+    path("api/restore/", views.RestoreItemView.as_view(), name="restore_item"),
 ]

@@ -632,6 +632,9 @@ a:hover {
     width: max-content;
     max-width: calc(100vw - 2rem);
     padding: var(--space-4);
+    /* Position from right to prevent overflow on smaller screens */
+    left: auto;
+    right: 0;
 }
 
 .nav-mega-columns {

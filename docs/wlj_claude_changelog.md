@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-09 Changes
 
+### Fix Health Dropdown Menu Overflow on Laptops
+
+**Problem:**
+The Health mega dropdown menu was positioned with `left: 0`, causing it to overflow off the right edge of the screen on laptop-sized displays.
+
+**Solution:**
+Changed the `.nav-mega-menu` positioning to align from the right side instead:
+- Added `left: auto` to override the default left positioning
+- Added `right: 0` to anchor the menu to the right edge of the Health button
+
+This makes the dropdown expand leftward, keeping all 5 columns (Vitals, Medicine, Fitness, Nutrition, Providers) visible within the viewport.
+
+**Files modified:**
+- `static/css/main.css` - Updated `.nav-mega-menu` positioning rules
+
+---
+
 ### Update Help Articles with New Module Names (Task #231)
 
 **Changes:**

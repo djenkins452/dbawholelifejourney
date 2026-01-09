@@ -132,9 +132,19 @@ Common issues: property shadowing fields, migration state, Nixpacks caching, tes
 
 ## On Task Completion
 
-After ANY code changes, append to `docs/wlj_claude_changelog.md`:
-- Date, what changed, files modified, why
-- Include migration names if created
+After ANY code changes:
+
+1. Append to `docs/wlj_claude_changelog.md`:
+   - Date, what changed, files modified, why
+   - Include migration names if created
+
+2. **Merge and Deploy:**
+   - Go to main repo: `cd /Users/dannyjenkins/Projects/dbawholelifejourney`
+   - Fetch worktree branch: `GIT_SSH_COMMAND="ssh -p 443" git fetch git@ssh.github.com:djenkins452/dbawholelifejourney.git <branch>:refs/remotes/origin/<branch>`
+   - Checkout main and merge: `git checkout main && git merge origin/<branch> --no-edit`
+   - Push to GitHub: `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git main`
+
+**Note:** Use SSH on port 443 (`ssh -p 443` via `ssh.github.com`) as port 22 may timeout.
 
 ---
 
@@ -152,4 +162,4 @@ Use `/next` slash command or say "What's Next?"
 
 ---
 
-*Last updated: 2026-01-06*
+*Last updated: 2026-01-08*

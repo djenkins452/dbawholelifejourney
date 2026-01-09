@@ -63,8 +63,8 @@ The main navigation features a cascading dropdown menu system that allows users 
 | Journal | Dropdown | Home, New Entry, All Entries, Book View, Prompts, Tags |
 | Faith | Dropdown | Home, Today's Verse, Saved Scripture, Prayers, Milestones, Reflections |
 | Health | Mega menu | 5 columns: Vitals, Medicine, Fitness, Nutrition, Providers |
-| Life | Two-column | Home, Calendar, Projects, Tasks, Inventory, Pets, Recipes, Maintenance, Documents, Significant Events |
-| Purpose | Dropdown | Home, Annual Direction, Goals, Intentions, Reflections |
+| Organize | Two-column | Home, Calendar, Projects, Tasks, Inventory, Pets, Recipes, Maintenance, Documents, Significant Events |
+| Goals | Dropdown | Home, Annual Direction, Life Goals, Intentions, Reflections |
 | Assistant | Direct link | Dashboard only |
 
 ### Health Mega Menu Columns
@@ -268,7 +268,7 @@ A task-focused personal assistant that helps users get things done and stay alig
 
 ### Core Philosophy
 - **Action-focused** - Surfaces what needs attention, not what's been accomplished
-- **Faith-first prioritization** (for users with faith enabled): Faith → Purpose → Long-term goals → Commitments → Maintenance → Optional
+- **Faith-first prioritization** (for users with faith enabled): Faith → Goals → Long-term goals → Commitments → Maintenance → Optional
 - **Direct and helpful** - Provides clear next steps without excessive praise
 - **Positive feedback on dashboard** - Celebrations belong on the main dashboard, not the assistant
 - **Personalized reflection prompts** for journaling
@@ -409,7 +409,7 @@ Faith features only shown if `faith_enabled = True`
 
 The AI receives a complete picture of the user's life to generate personalized insights:
 
-**Purpose Module Data:**
+**Goals Module Data:**
 | Data | Source | Description |
 |------|--------|-------------|
 | Word of Year | `AnnualDirection` | User's single-word focus for the year |
@@ -427,7 +427,7 @@ The AI receives a complete picture of the user's life to generate personalized i
 | Scripture Study | `SavedVerse` | Recent verses user is studying |
 | Faith Milestones | `FaithMilestone` | Spiritual journey marker count |
 
-**Life Module Data:**
+**Organize Module Data:**
 | Data | Source | Description |
 |------|--------|-------------|
 | Tasks Today | `Task` | Due today, not completed |
@@ -942,7 +942,7 @@ Scan OTC medicine barcodes to auto-fill medicine forms.
 | Form | Module | Barcode Type | Lookup Service |
 |------|--------|--------------|----------------|
 | Food Entry | Health | UPC/EAN | Open Food Facts + AI |
-| Inventory | Life | UPC/EAN | UPC Item DB + AI |
+| Inventory | Organize | UPC/EAN | UPC Item DB + AI |
 | Medicine | Health | UPC/NDC | FDA + RxNav + AI |
 
 **Scanner UI Features:**
@@ -1702,4 +1702,4 @@ Loads initial reading plan templates. Idempotent - safe to run multiple times.
 
 ---
 
-*Last updated: 2026-01-01*
+*Last updated: 2026-01-09*

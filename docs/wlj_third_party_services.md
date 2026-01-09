@@ -160,7 +160,7 @@ This document catalogs all external services, APIs, and third-party integrations
 | **Status** | Active |
 
 **Purpose:**
-- Sync Life module tasks/events to user's Google Calendar
+- Sync Organize module tasks/events to user's Google Calendar
 - OAuth 2.0 authentication for secure credential storage
 - Event creation and retrieval
 - Multi-calendar support

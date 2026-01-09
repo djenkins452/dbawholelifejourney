@@ -63,8 +63,8 @@ The project includes the following Django apps:
 - `health` - Health metrics and glucose tracking (Dexcom/Clarity import)
 - `help` - Help system and documentation
 - `journal` - Journal entries and prompts
-- `life` - Life events and milestones
-- `purpose` - Purpose and goals tracking
+- `life` - Organize: tasks, projects, events, and milestones
+- `purpose` - Goals: life goals, intentions, and annual direction
 - `scan` - Document scanning features
 - `sms` - SMS notifications
 - `users` - Custom user model and authentication

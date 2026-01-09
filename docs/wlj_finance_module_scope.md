@@ -173,7 +173,7 @@ Calculated indicators of financial health.
 
 The Finance Module is not isolated—it connects meaningfully with existing WLJ modules.
 
-### 3.1 Purpose Module Integration
+### 3.1 Goals Module Integration
 
 | WLJ Concept | Finance Connection |
 |-------------|-------------------|
@@ -182,13 +182,13 @@ The Finance Module is not isolated—it connects meaningfully with existing WLJ 
 | **Annual Direction** | Financial intentions tied to Word of the Year |
 | **Change Intentions** | Behavior shifts like "Spend mindfully" tracked via budget adherence |
 
-### 3.2 Life Module Integration
+### 3.2 Organize Module Integration
 
 | WLJ Concept | Finance Connection |
 |-------------|-------------------|
 | **Projects** | Major purchases or financial milestones as projects (e.g., "Pay off Student Loans") |
 | **Tasks** | Financial to-dos: "Review budget", "Call insurance company", "Transfer to savings" |
-| **Documents** | Financial documents stored in Life module (tax returns, insurance policies, statements) |
+| **Documents** | Financial documents stored in Organize module (tax returns, insurance policies, statements) |
 | **Calendar** | Bill due dates as calendar events |
 
 ### 3.3 Journal Module Integration

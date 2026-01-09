@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-09 Changes
 
+### Update Help Articles with New Module Names (Task #231)
+
+**Changes:**
+Updated help article fixtures to use new user-facing module names:
+- "Life" → "Organize"
+- "Purpose" → "Goals"
+
+**Files modified:**
+- `apps/help/fixtures/help_articles.json` - Updated 5 articles:
+  - Article 1: Welcome (module list, feature table, getting started)
+  - Article 6: Preferences (module toggles list)
+  - Article 8: Hidden Features (sub-navigation reference)
+  - Article 9: Goals Module (renamed from "Purpose Module")
+  - Article 10: Organize Module (renamed from "Life Module")
+
+---
+
 ### Fix Finance Budget Status Migration State
 
 **Problem:**

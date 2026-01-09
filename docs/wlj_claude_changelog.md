@@ -33,6 +33,27 @@ This makes the dropdown expand leftward, keeping all 5 columns (Vitals, Medicine
 
 ---
 
+### Update Context-Aware Help with New Module Names (Task #232)
+
+**Changes:**
+Updated context-aware help fixtures (help topics) to use new user-facing module names:
+- "Life" → "Organize"
+- "Purpose" → "Goals"
+
+**Files modified:**
+- `apps/help/fixtures/help_topics.json` - Updated multiple topics:
+  - DASHBOARD_HOME: Updated profile/goals references
+  - GENERAL: Updated navigation table and menu items
+  - JOURNAL_HOME: Updated profile & goals references
+  - SETTINGS_PREFERENCES: Updated module toggles list
+  - LIFE_HOME: Renamed to "Organize: Your Daily Operating Layer"
+  - PURPOSE_HOME: Renamed to "Goals: Your North Star"
+  - ASSISTANT_HOME: Updated profile & goals references
+  - GLUCOSE_DASHBOARD: Updated goals references
+- `apps/help/fixtures/help_articles.json` - Updated Priority Ordering references
+
+---
+
 ### Update Help Articles with New Module Names (Task #231)
 
 **Changes:**

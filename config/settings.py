@@ -54,11 +54,6 @@ OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
 # Used by Claude Code to authenticate with the Ready Tasks API endpoint
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
 
-# Log OpenAI configuration status at startup
-if OPENAI_API_KEY:
-    print(f"OpenAI configured with model: {OPENAI_MODEL}")
-else:
-    print("OpenAI NOT configured - OPENAI_API_KEY not set")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -267,7 +262,6 @@ if _cloudinary_cloud_name and _cloudinary_api_key and _cloudinary_api_secret:
         api_secret=_cloudinary_api_secret,
         secure=True
     )
-    print(f"Cloudinary configured with cloud_name: {_cloudinary_cloud_name}")
 
     # Also set CLOUDINARY_STORAGE for django-cloudinary-storage
     CLOUDINARY_STORAGE = {
@@ -277,7 +271,6 @@ if _cloudinary_cloud_name and _cloudinary_api_key and _cloudinary_api_secret:
     }
 else:
     # Fall back to local storage if Cloudinary is not configured
-    print(f"Cloudinary NOT configured - cloud_name: '{_cloudinary_cloud_name}', api_key set: {bool(_cloudinary_api_key)}, api_secret set: {bool(_cloudinary_api_secret)}")
     STORAGES["default"] = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     }
@@ -492,13 +485,6 @@ ADMINS = [
     ("WLJ Admin", env("ADMIN_EMAIL", default="admin@wholelifejourney.com")),
 ]
 
-# Log email configuration status
-if not DEBUG:
-    if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
-        print(f"Email configured: SMTP via {EMAIL_HOST}:{EMAIL_PORT} as {EMAIL_HOST_USER}")
-    else:
-        print("WARNING: Email NOT configured - EMAIL_HOST_USER/PASSWORD not set")
-
 
 # CSRF Trusted Origins - must be set for both production and development
 # Django 4.0+ requires this for HTTPS requests
@@ -618,13 +604,6 @@ SCAN_RATE_LIMIT_IP_PER_HOUR = int(os.environ.get('SCAN_RATE_LIMIT_IP_PER_HOUR', 
 SCAN_REQUEST_TIMEOUT_SECONDS = int(os.environ.get('SCAN_REQUEST_TIMEOUT_SECONDS', '30'))
 
 
-
-# Debug output (remove in production)
-if DEBUG:
-    print(f"DEBUG = {DEBUG}")
-    print(f"ALLOWED_HOSTS = {ALLOWED_HOSTS}")
-    print(f"SECURE_SSL_REDIRECT = {SECURE_SSL_REDIRECT}")
-
 # Google Calendar Integration
 GOOGLE_CALENDAR_CLIENT_ID = env('GOOGLE_CALENDAR_CLIENT_ID', default='')
 GOOGLE_CALENDAR_CLIENT_SECRET = env('GOOGLE_CALENDAR_CLIENT_SECRET', default='')
@@ -688,12 +667,6 @@ TWILIO_TEST_MODE = env.bool('TWILIO_TEST_MODE', default=DEBUG)
 # Trigger token for protected API endpoints (used by external cron)
 SMS_TRIGGER_TOKEN = env('SMS_TRIGGER_TOKEN', default='')
 
-# Log Twilio configuration status at startup
-if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
-    print(f"Twilio configured - Test Mode: {TWILIO_TEST_MODE}")
-else:
-    print("Twilio NOT configured - TWILIO_ACCOUNT_SID/AUTH_TOKEN not set")
-
 
 # ==============================================================================
 # Dexcom CGM Integration
@@ -715,12 +688,6 @@ else:
 
 # Use sandbox for development (simulated data, no real Dexcom account needed)
 DEXCOM_USE_SANDBOX = env.bool('DEXCOM_USE_SANDBOX', default=DEBUG)
-
-# Log Dexcom configuration status
-if DEXCOM_CLIENT_ID and DEXCOM_CLIENT_SECRET:
-    print(f"Dexcom configured - Sandbox Mode: {DEXCOM_USE_SANDBOX}")
-else:
-    print("Dexcom NOT configured - DEXCOM_CLIENT_ID/CLIENT_SECRET not set")
 
 
 # ==============================================================================
@@ -747,12 +714,6 @@ RECAPTCHA_V3_SECRET_KEY = env('RECAPTCHA_V3_SECRET_KEY', default='')
 # Score threshold (0.0-1.0) - higher is more likely human
 # 0.5 is recommended default, adjust based on observed traffic
 RECAPTCHA_SCORE_THRESHOLD = float(env('RECAPTCHA_SCORE_THRESHOLD', default='0.5'))
-
-# Log reCAPTCHA configuration status
-if RECAPTCHA_V3_SITE_KEY and RECAPTCHA_V3_SECRET_KEY:
-    print(f"reCAPTCHA v3 configured - Threshold: {RECAPTCHA_SCORE_THRESHOLD}")
-else:
-    print("reCAPTCHA v3 NOT configured - RECAPTCHA_V3_SITE_KEY/SECRET_KEY not set")
 
 
 # ==============================================================================

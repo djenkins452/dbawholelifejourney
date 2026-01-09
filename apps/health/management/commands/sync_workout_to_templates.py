@@ -28,6 +28,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         email = options.get("email")
+        verbosity = options.get("verbosity", 1)
 
         if email:
             users = User.objects.filter(email=email)
@@ -38,19 +39,22 @@ class Command(BaseCommand):
         synced_count = 0
 
         for user in users:
-            self.stdout.write(f"Processing user: {user.email}")
+            if verbosity >= 2:
+                self.stdout.write(f"Processing user: {user.email}")
 
             # Get all templates for this user
             templates = WorkoutTemplate.objects.filter(user=user)
 
             for template in templates:
-                self.stdout.write(f"  Checking template: {template.name}")
+                if verbosity >= 2:
+                    self.stdout.write(f"  Checking template: {template.name}")
 
                 # Get template exercise IDs
                 template_exercise_ids = set(
                     template.template_exercises.values_list("exercise_id", flat=True)
                 )
-                self.stdout.write(f"    Template has {len(template_exercise_ids)} exercises")
+                if verbosity >= 2:
+                    self.stdout.write(f"    Template has {len(template_exercise_ids)} exercises")
 
                 if not template_exercise_ids:
                     continue
@@ -67,12 +71,14 @@ class Command(BaseCommand):
                 )
 
                 if not latest_workout:
-                    self.stdout.write(f"    No matching workout found")
+                    if verbosity >= 2:
+                        self.stdout.write(f"    No matching workout found")
                     continue
 
-                self.stdout.write(
-                    f"    Found workout: {latest_workout.name} on {latest_workout.date}"
-                )
+                if verbosity >= 2:
+                    self.stdout.write(
+                        f"    Found workout: {latest_workout.name} on {latest_workout.date}"
+                    )
 
                 # Link workout to template if not already linked
                 if not latest_workout.from_template:
@@ -108,6 +114,7 @@ class Command(BaseCommand):
 
                 synced_count += 1
 
-        self.stdout.write(
-            self.style.SUCCESS(f"Successfully synced {synced_count} templates")
-        )
+        if verbosity >= 1:
+            self.stdout.write(
+                self.style.SUCCESS(f"Successfully synced {synced_count} templates")
+            )

@@ -206,7 +206,7 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.WARNING(f'  Could not update DataLoadConfig: {e}'))
 
-    def _fix_finance_budget_status(self):
+    def _fix_finance_budget_status(self, verbosity=1):
         """
         Fix missing status column in finance_budget table.
 
@@ -224,8 +224,7 @@ class Command(BaseCommand):
                       AND table_name = 'finance_budget'
                 """)
                 if cursor.fetchone() is None:
-                    self.stdout.write('  finance_budget table does not exist yet, skipping fix')
-                    return
+                    return  # Table doesn't exist yet, nothing to fix
 
                 # Check if status column exists (with explicit schema)
                 cursor.execute("""
@@ -235,7 +234,8 @@ class Command(BaseCommand):
                       AND column_name = 'status'
                 """)
                 if cursor.fetchone() is None:
-                    self.stdout.write('  Adding missing status column to finance_budget...')
+                    if verbosity >= 1:
+                        self.stdout.write('  Adding missing status column to finance_budget...')
                     cursor.execute("""
                         ALTER TABLE finance_budget
                         ADD COLUMN status varchar(10) NOT NULL DEFAULT 'active'
@@ -244,9 +244,8 @@ class Command(BaseCommand):
                         CREATE INDEX IF NOT EXISTS finance_budget_status_idx
                         ON finance_budget (status)
                     """)
-                    self.stdout.write(self.style.SUCCESS(' FIXED!'))
-                else:
-                    self.stdout.write('  finance_budget.status column exists')
+                    if verbosity >= 1:
+                        self.stdout.write(self.style.SUCCESS(' FIXED!'))
 
     def _list_loaders(self, DataLoadConfig):
         """List all loaders and their current status."""
@@ -287,6 +286,7 @@ class Command(BaseCommand):
         force = options.get('force', False)
         reset_loader = options.get('reset')
         list_loaders = options.get('list', False)
+        verbosity = options.get('verbosity', 1)
 
         DataLoadConfig = self._get_data_load_config()
 
@@ -300,17 +300,19 @@ class Command(BaseCommand):
             self._reset_loader(DataLoadConfig, reset_loader)
             return
 
-        if force:
+        if force and verbosity >= 1:
             self.stdout.write(self.style.WARNING('Force mode: reloading all data...\n'))
-        else:
-            self.stdout.write('Loading initial system data (skipping already loaded)...\n')
 
-        # Fix finance_budget status column (Railway workaround) - always runs
+        # Fix finance_budget status column (Railway workaround) - always runs silently
         try:
-            self.stdout.write('  Checking finance_budget.status...')
-            self._fix_finance_budget_status()
+            self._fix_finance_budget_status(verbosity)
         except Exception as e:
-            self.stdout.write(self.style.WARNING(f' Error: {e}'))
+            if verbosity >= 1:
+                self.stdout.write(self.style.WARNING(f'finance_budget fix error: {e}'))
+
+        # Track what actually loaded for summary
+        loaded_count = 0
+        skipped_count = 0
 
         # Load fixtures
         for loader in FIXTURE_LOADERS:
@@ -318,13 +320,16 @@ class Command(BaseCommand):
 
             # Check if already loaded (unless force mode)
             if not force and self._is_loader_complete(DataLoadConfig, loader_name):
-                self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('skip'))
+                skipped_count += 1
                 continue
 
             try:
-                self.stdout.write(f'  Loading {loader_name}...', ending='')
+                if verbosity >= 2:
+                    self.stdout.write(f'  Loading {loader_name}...', ending='')
                 call_command('loaddata', loader_name, verbosity=0)
-                self.stdout.write(self.style.SUCCESS(' OK'))
+                if verbosity >= 2:
+                    self.stdout.write(self.style.SUCCESS(' OK'))
+                loaded_count += 1
 
                 # Mark as complete
                 self._mark_loader_complete(
@@ -332,7 +337,8 @@ class Command(BaseCommand):
                     'fixture', loader.get('description', '')
                 )
             except Exception as e:
-                self.stdout.write(self.style.WARNING(f' Skipped ({e})'))
+                if verbosity >= 1:
+                    self.stdout.write(self.style.WARNING(f'  {loader_name}: Skipped ({e})'))
 
         # Run data population commands
         for loader in COMMAND_LOADERS:
@@ -340,13 +346,16 @@ class Command(BaseCommand):
 
             # Check if already loaded (unless force mode)
             if not force and self._is_loader_complete(DataLoadConfig, loader_name):
-                self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('skip'))
+                skipped_count += 1
                 continue
 
             try:
-                self.stdout.write(f'  Running {loader_name}...', ending='')
+                if verbosity >= 2:
+                    self.stdout.write(f'  Running {loader_name}...', ending='')
                 call_command(loader_name, verbosity=0)
-                self.stdout.write(self.style.SUCCESS(' OK'))
+                if verbosity >= 2:
+                    self.stdout.write(self.style.SUCCESS(' OK'))
+                loaded_count += 1
 
                 # Mark as complete
                 self._mark_loader_complete(
@@ -354,7 +363,8 @@ class Command(BaseCommand):
                     'command', loader.get('description', '')
                 )
             except Exception as e:
-                self.stdout.write(self.style.WARNING(f' Skipped ({e})'))
+                if verbosity >= 1:
+                    self.stdout.write(self.style.WARNING(f'  {loader_name}: Skipped ({e})'))
 
         # Load project blueprints
         for loader in BLUEPRINT_LOADERS:
@@ -362,17 +372,20 @@ class Command(BaseCommand):
 
             # Check if already loaded (unless force mode)
             if not force and self._is_loader_complete(DataLoadConfig, loader_name):
-                self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('skip'))
+                skipped_count += 1
                 continue
 
             try:
-                self.stdout.write(f'  Loading blueprint {loader_name}...', ending='')
+                if verbosity >= 2:
+                    self.stdout.write(f'  Loading blueprint {loader_name}...', ending='')
                 call_command(
                     'load_project_from_json',
                     loader['path'],
                     verbosity=0
                 )
-                self.stdout.write(self.style.SUCCESS(' OK'))
+                if verbosity >= 2:
+                    self.stdout.write(self.style.SUCCESS(' OK'))
+                loaded_count += 1
 
                 # Mark as complete
                 self._mark_loader_complete(
@@ -380,14 +393,19 @@ class Command(BaseCommand):
                     'blueprint', loader.get('description', '')
                 )
             except Exception as e:
-                self.stdout.write(self.style.WARNING(f' Skipped ({e})'))
+                if verbosity >= 1:
+                    self.stdout.write(self.style.WARNING(f'  {loader_name}: Skipped ({e})'))
 
         # Send one-time test email to verify SMTP configuration
-        self._send_smtp_test_email(DataLoadConfig, force)
+        self._send_smtp_test_email(DataLoadConfig, force, verbosity)
 
-        self.stdout.write(self.style.SUCCESS('\nInitial data loading complete!'))
+        # Only output summary if something loaded or if verbose
+        if verbosity >= 1 and loaded_count > 0:
+            self.stdout.write(self.style.SUCCESS(f'Initial data: loaded {loaded_count} items'))
+        elif verbosity >= 2:
+            self.stdout.write(f'Initial data: {skipped_count} items already loaded')
 
-    def _send_smtp_test_email(self, DataLoadConfig, force=False):
+    def _send_smtp_test_email(self, DataLoadConfig, force=False, verbosity=1):
         """
         Send a one-time test email to verify SMTP configuration.
 
@@ -398,8 +416,7 @@ class Command(BaseCommand):
 
         # Check if already sent (unless force mode)
         if not force and self._is_loader_complete(DataLoadConfig, loader_name):
-            self.stdout.write(f'  {loader_name}: ' + self.style.SUCCESS('skip (already sent)'))
-            return
+            return  # Already sent, skip silently
 
         from django.conf import settings
         from django.core.mail import send_mail
@@ -407,16 +424,15 @@ class Command(BaseCommand):
 
         # Only send if SMTP is configured (not console backend)
         if settings.DEBUG or 'console' in getattr(settings, 'EMAIL_BACKEND', '').lower():
-            self.stdout.write(f'  {loader_name}: ' + self.style.WARNING('skip (console backend)'))
-            return
+            return  # Console backend, skip silently
 
         # Check if credentials are configured
         if not getattr(settings, 'EMAIL_HOST_USER', '') or not getattr(settings, 'EMAIL_HOST_PASSWORD', ''):
-            self.stdout.write(f'  {loader_name}: ' + self.style.WARNING('skip (no SMTP credentials)'))
-            return
+            return  # No credentials, skip silently
 
         try:
-            self.stdout.write(f'  Sending SMTP test email...', ending='')
+            if verbosity >= 2:
+                self.stdout.write(f'  Sending SMTP test email...', ending='')
 
             recipient = 'admin@wholelifejourney.com'
             from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'admin@wholelifejourney.com')
@@ -442,15 +458,16 @@ This test email is sent once on first deploy after SMTP is configured.
             )
 
             if result == 1:
-                self.stdout.write(self.style.SUCCESS(f' OK (sent to {recipient})'))
+                if verbosity >= 1:
+                    self.stdout.write(self.style.SUCCESS(f'SMTP test email sent to {recipient}'))
                 # Mark as complete so it doesn't send again
                 self._mark_loader_complete(
                     DataLoadConfig, loader_name, 'SMTP Test Email',
                     'command', 'One-time SMTP configuration verification email'
                 )
-            else:
-                self.stdout.write(self.style.WARNING(f' Warning: send_mail returned {result}'))
+            elif verbosity >= 1:
+                self.stdout.write(self.style.WARNING(f'SMTP test: send_mail returned {result}'))
 
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f' FAILED: {e}'))
-            self.stdout.write(self.style.WARNING('  Check EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in Railway'))
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'SMTP test FAILED: {e}'))

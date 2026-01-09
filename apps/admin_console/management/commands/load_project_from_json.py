@@ -96,12 +96,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         json_path = options['json_file']
         dry_run = options['dry_run']
+        verbosity = options.get('verbosity', 1)
 
         # If path is relative, resolve it from BASE_DIR
         if not os.path.isabs(json_path):
             json_path = os.path.join(settings.BASE_DIR, json_path)
 
-        self.stdout.write(f"Loading project from: {json_path}")
+        if verbosity >= 2:
+            self.stdout.write(f"Loading project from: {json_path}")
 
         # Read and parse JSON file
         try:
@@ -125,16 +127,19 @@ class Command(BaseCommand):
         if 'name' not in project_data:
             raise CommandError("Project must have a 'name'")
 
-        self.stdout.write(f"Project: {project_data['name']}")
-        self.stdout.write(f"Tasks to load: {len(tasks_data)}")
+        if verbosity >= 2:
+            self.stdout.write(f"Project: {project_data['name']}")
+            self.stdout.write(f"Tasks to load: {len(tasks_data)}")
 
         # First pass: validate all tasks before creating anything
-        self.stdout.write("\nValidating all tasks...")
+        if verbosity >= 2:
+            self.stdout.write("\nValidating all tasks...")
         phases_needed = set()
 
         for i, task_data in enumerate(tasks_data, 1):
             task_name = task_data.get('name', f'Task {i}')
-            self.stdout.write(f"  Validating: {task_name}")
+            if verbosity >= 2:
+                self.stdout.write(f"  Validating: {task_name}")
 
             # Check required fields
             if 'name' not in task_data:
@@ -159,11 +164,13 @@ class Command(BaseCommand):
             phase_str = task_data['phase']
             phases_needed.add(phase_str)
 
-        self.stdout.write(self.style.SUCCESS(f"\nAll {len(tasks_data)} tasks validated successfully!"))
-        self.stdout.write(f"Phases needed: {sorted(phases_needed)}")
+        if verbosity >= 2:
+            self.stdout.write(self.style.SUCCESS(f"\nAll {len(tasks_data)} tasks validated successfully!"))
+            self.stdout.write(f"Phases needed: {sorted(phases_needed)}")
 
         if dry_run:
-            self.stdout.write(self.style.WARNING("\n--dry-run specified, no records created."))
+            if verbosity >= 1:
+                self.stdout.write(self.style.WARNING("\n--dry-run specified, no records created."))
             return
 
         # Create records in a transaction
@@ -176,10 +183,11 @@ class Command(BaseCommand):
                     'status': 'open'
                 }
             )
-            if created:
-                self.stdout.write(self.style.SUCCESS(f"\nCreated project: {project.name}"))
-            else:
-                self.stdout.write(f"\nUsing existing project: {project.name}")
+            if verbosity >= 2:
+                if created:
+                    self.stdout.write(self.style.SUCCESS(f"\nCreated project: {project.name}"))
+                else:
+                    self.stdout.write(f"\nUsing existing project: {project.name}")
 
             # Create or get phases
             phases = {}
@@ -199,10 +207,11 @@ class Command(BaseCommand):
                     }
                 )
                 phases[phase_str] = phase
-                if created:
-                    self.stdout.write(f"  Created phase: {phase_str}")
-                else:
-                    self.stdout.write(f"  Using existing phase: {phase_str}")
+                if verbosity >= 2:
+                    if created:
+                        self.stdout.write(f"  Created phase: {phase_str}")
+                    else:
+                        self.stdout.write(f"  Using existing phase: {phase_str}")
 
             # Get or create config records
             status_config = AdminTaskStatusConfig.objects.filter(name='backlog', active=True).first()
@@ -211,7 +220,8 @@ class Command(BaseCommand):
             effort_configs = {c.value: c for c in AdminTaskEffortConfig.objects.filter(active=True)}
 
             # Create tasks
-            self.stdout.write(f"\nCreating tasks...")
+            if verbosity >= 2:
+                self.stdout.write(f"\nCreating tasks...")
             created_count = 0
             skipped_count = 0
 
@@ -227,7 +237,8 @@ class Command(BaseCommand):
                 ).first()
 
                 if existing:
-                    self.stdout.write(f"  Skipped (exists): {task_name}")
+                    if verbosity >= 2:
+                        self.stdout.write(f"  Skipped (exists): {task_name}")
                     skipped_count += 1
                     continue
 
@@ -260,8 +271,10 @@ class Command(BaseCommand):
                 )
                 task.save()  # This will run full validation
                 created_count += 1
-                self.stdout.write(self.style.SUCCESS(f"  Created: {task_name}"))
+                if verbosity >= 2:
+                    self.stdout.write(self.style.SUCCESS(f"  Created: {task_name}"))
 
-        self.stdout.write(self.style.SUCCESS(
-            f"\nDone! Created {created_count} tasks, skipped {skipped_count} existing."
-        ))
+        if verbosity >= 1 and created_count > 0:
+            self.stdout.write(self.style.SUCCESS(
+                f"Loaded {created_count} tasks (skipped {skipped_count} existing)"
+            ))

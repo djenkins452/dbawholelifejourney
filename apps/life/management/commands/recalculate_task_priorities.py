@@ -68,12 +68,13 @@ class Command(BaseCommand):
                         f"{old_priority} -> {new_priority}"
                     )
 
-        # Output summary
-        if dry_run:
+        # Output summary (respect verbosity)
+        verbosity = options.get('verbosity', 1)
+        if dry_run and verbosity >= 1:
             self.stdout.write(
                 self.style.WARNING(f'[DRY RUN] Would update {updated_count} task(s)')
             )
-        elif updated_count > 0:
+        elif updated_count > 0 and verbosity >= 1:
             self.stdout.write(
                 self.style.SUCCESS(
                     f'Updated {updated_count} task priorities '
@@ -81,5 +82,3 @@ class Command(BaseCommand):
                     f'someday: {changes["someday"]})'
                 )
             )
-        else:
-            self.stdout.write('No task priority changes needed')

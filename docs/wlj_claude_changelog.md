@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-08 Changes
 
+### Replace 'Life' with 'Organize' and 'Purpose' with 'Goals'
+
+**Task:** Replace every reference of Life and Purpose (Task #230, User Experience Phase 6)
+
+**Problem:**
+The module names were inconsistent across the app. Navigation showed "Organize" and "Goals"
+but many other places still used the old names "Life" and "Purpose".
+
+**Solution:**
+Updated all user-facing display text across the application to use the new terminology.
+The underlying app/URL names (life, purpose) remain unchanged.
+
+**Files modified (60 files total):**
+- `templates/dashboard/home.html` - Module cards
+- `templates/users/preferences.html` - Module toggle labels
+- `templates/life/home.html` and 27 other life templates - Breadcrumbs and titles
+- `apps/purpose/templates/purpose/home.html` and 20 other purpose templates - Breadcrumbs and titles
+- `apps/help/models.py` - MODULE_CHOICES display names
+- `apps/help/migrations/0002_add_wlj_assistant_chat_models.py` - Migration choices
+- `apps/users/views.py` - Onboarding wizard module definitions
+- `apps/life/apps.py` - verbose_name for Django admin
+- `apps/purpose/apps.py` - verbose_name for Django admin
+- `apps/dashboard/tests/test_dashboard.py` - Test assertions
+
+---
+
 ### Search History Suggestions
 
 **Task:** Add Search History Suggestions (Task #229, User Experience Phase 6)

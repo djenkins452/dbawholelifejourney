@@ -14,6 +14,46 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-09 Changes
+
+### Fix Finance Budget Status Migration State
+
+**Problem:**
+Django was reporting "Your models in app(s): 'finance' have changes that are not yet reflected in a migration".
+The Budget model inherits `status` from SoftDeleteModel (via UserOwnedModel), but migration 0012 used
+RunPython/SQL to add the column directly. Django's migration state tracker didn't recognize this, so it
+kept wanting to add the field again.
+
+**Solution:**
+Created migration `0013_sync_budget_status_state.py` using `SeparateDatabaseAndState` to sync Django's
+ORM state without modifying the database. This tells Django the field exists without running any SQL.
+
+**Files modified:**
+- `apps/finance/migrations/0013_sync_budget_status_state.py` - New state-only migration
+
+---
+
+### Reduce Verbose Startup Logs
+
+**Problem:**
+Railway deployment logs showed excessive output on every startup (DataLoadConfig messages,
+Twilio/Dexcom/reCAPTCHA configuration prints, workout sync details).
+
+**Solution:**
+- Updated management commands to respect verbosity levels (`-v 0` for silent)
+- Removed all `print()` statements from `config/settings.py` for service configurations
+- Updated `Procfile` to use `-v 0` for all startup commands
+
+**Files modified:**
+- `apps/health/management/commands/sync_workout_to_templates.py`
+- `apps/core/management/commands/load_initial_data.py`
+- `apps/life/management/commands/recalculate_task_priorities.py`
+- `apps/admin_console/management/commands/load_project_from_json.py`
+- `config/settings.py` - Removed print statements
+- `Procfile` - Added `-v 0` to all commands
+
+---
+
 ## 2026-01-08 Changes
 
 ### Replace 'Life' with 'Organize' and 'Purpose' with 'Goals'

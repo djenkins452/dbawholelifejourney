@@ -9,6 +9,7 @@
  * - Keyboard navigation (arrow keys, Enter)
  * - Mouse support
  * - Organized by categories
+ * - Search history suggestions
  */
 
 (function() {
@@ -18,6 +19,11 @@
     let isOpen = false;
     let selectedIndex = 0;
     let filteredCommands = [];
+
+    // Search history state
+    let searchHistory = [];
+    let showingHistory = false;
+    const HISTORY_STORAGE_KEY = 'wlj_search_history';
 
     // All available commands
     const COMMANDS = [
@@ -131,6 +137,119 @@
         return 0;
     }
 
+    // =========================================================================
+    // SEARCH HISTORY FUNCTIONS
+    // =========================================================================
+
+    /**
+     * Load search history from localStorage (immediate) and then from API
+     */
+    function loadSearchHistory() {
+        // Load from localStorage first for immediate display
+        try {
+            const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
+            if (stored) {
+                searchHistory = JSON.parse(stored);
+            }
+        } catch (e) {
+            console.warn('Failed to load search history from localStorage:', e);
+        }
+
+        // Then fetch from API for authoritative data
+        fetch('/api/search-history/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.history) {
+                    searchHistory = data.history;
+                    // Update localStorage with server data
+                    try {
+                        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory));
+                    } catch (e) {
+                        // Ignore localStorage errors
+                    }
+                }
+            })
+            .catch(err => {
+                console.warn('Failed to fetch search history from API:', err);
+            });
+    }
+
+    /**
+     * Save a search query to history
+     */
+    function saveSearchQuery(query) {
+        if (!query || query.trim().length < 2) return;
+
+        query = query.trim();
+
+        // Optimistically update local state
+        searchHistory = searchHistory.filter(h => h.toLowerCase() !== query.toLowerCase());
+        searchHistory.unshift(query);
+        searchHistory = searchHistory.slice(0, 10);
+
+        // Update localStorage
+        try {
+            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory));
+        } catch (e) {
+            // Ignore localStorage errors
+        }
+
+        // Save to API
+        fetch('/api/search-history/save/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ query: query })
+        }).catch(err => {
+            console.warn('Failed to save search history to API:', err);
+        });
+    }
+
+    /**
+     * Clear all search history
+     */
+    function clearSearchHistory() {
+        searchHistory = [];
+
+        // Clear localStorage
+        try {
+            localStorage.removeItem(HISTORY_STORAGE_KEY);
+        } catch (e) {
+            // Ignore localStorage errors
+        }
+
+        // Clear on API
+        fetch('/api/search-history/clear/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            }
+        }).catch(err => {
+            console.warn('Failed to clear search history on API:', err);
+        });
+
+        // Re-render the list
+        if (isOpen) {
+            const input = document.querySelector('.command-palette-input');
+            if (input && input.value.trim() === '') {
+                renderCommands(filterCommands(''));
+            }
+        }
+    }
+
+    /**
+     * Get CSRF token for API requests
+     */
+    function getCSRFToken() {
+        const cookie = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrftoken='));
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
     /**
      * Filter and sort commands based on search query
      */
@@ -219,13 +338,45 @@
     /**
      * Render the command list
      */
-    function renderCommands(commands) {
+    function renderCommands(commands, showHistory = false) {
         const list = document.querySelector('.command-palette-list');
         const empty = document.querySelector('.command-palette-empty');
 
         if (!list) return;
 
-        if (commands.length === 0) {
+        let html = '';
+        let index = 0;
+
+        // Show search history section if we have history and no query
+        if (showHistory && searchHistory.length > 0) {
+            showingHistory = true;
+            html += `<div class="command-palette-category">
+                Recent Searches
+                <button class="command-palette-clear-history" type="button" title="Clear search history">Clear</button>
+            </div>`;
+
+            for (const query of searchHistory) {
+                const isSelected = index === selectedIndex ? 'selected' : '';
+                html += `
+                    <div class="command-palette-item command-palette-history-item ${isSelected}" data-index="${index}" data-query="${escapeHtml(query)}">
+                        <svg class="command-palette-history-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span class="command-palette-item-title">${escapeHtml(query)}</span>
+                    </div>
+                `;
+                index++;
+            }
+
+            // Add separator if we have commands
+            if (commands.length > 0) {
+                html += `<div class="command-palette-separator"></div>`;
+            }
+        } else {
+            showingHistory = false;
+        }
+
+        if (commands.length === 0 && !showHistory) {
             list.innerHTML = '';
             if (empty) empty.hidden = false;
             return;
@@ -242,9 +393,6 @@
             grouped[cmd.category].push(cmd);
         }
 
-        let html = '';
-        let index = 0;
-
         for (const category of Object.keys(grouped)) {
             html += `<div class="command-palette-category">${category}</div>`;
 
@@ -260,19 +408,58 @@
         }
 
         list.innerHTML = html;
-        filteredCommands = commands;
 
-        // Add click handlers
+        // Store what's currently rendered for keyboard navigation
+        if (showHistory && searchHistory.length > 0) {
+            // Combine history items and commands for navigation
+            filteredCommands = [
+                ...searchHistory.map(q => ({ isHistory: true, query: q })),
+                ...commands
+            ];
+        } else {
+            filteredCommands = commands;
+        }
+
+        // Add click handlers for command items
         list.querySelectorAll('.command-palette-item').forEach(item => {
             item.addEventListener('click', () => {
                 const idx = parseInt(item.dataset.index, 10);
-                executeCommand(filteredCommands[idx]);
+                const entry = filteredCommands[idx];
+                if (entry && entry.isHistory) {
+                    // Fill in the history query and search
+                    const input = document.querySelector('.command-palette-input');
+                    if (input) {
+                        input.value = entry.query;
+                        selectedIndex = 0;
+                        renderCommands(filterCommands(entry.query));
+                    }
+                } else {
+                    executeCommand(entry);
+                }
             });
             item.addEventListener('mouseenter', () => {
                 selectedIndex = parseInt(item.dataset.index, 10);
                 updateSelection();
             });
         });
+
+        // Add click handler for clear history button
+        const clearBtn = list.querySelector('.command-palette-clear-history');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                clearSearchHistory();
+            });
+        }
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     */
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     /**
@@ -296,6 +483,23 @@
      */
     function executeCommand(cmd) {
         if (!cmd) return;
+
+        // If it's a history item, fill the input and search instead
+        if (cmd.isHistory) {
+            const input = document.querySelector('.command-palette-input');
+            if (input) {
+                input.value = cmd.query;
+                selectedIndex = 0;
+                renderCommands(filterCommands(cmd.query));
+            }
+            return;
+        }
+
+        // Save the current search query to history if we had one
+        const input = document.querySelector('.command-palette-input');
+        if (input && input.value.trim().length >= 2) {
+            saveSearchQuery(input.value.trim());
+        }
 
         closePalette();
 
@@ -333,8 +537,8 @@
         input.value = '';
         input.focus();
 
-        // Show all commands initially
-        renderCommands(filterCommands(''));
+        // Show history and all commands initially
+        renderCommands(filterCommands(''), true);
 
         // Prevent body scroll
         document.body.style.overflow = 'hidden';
@@ -360,7 +564,9 @@
     function handleInput(e) {
         const query = e.target.value;
         selectedIndex = 0;
-        renderCommands(filterCommands(query));
+        // Show history when input is empty
+        const showHistory = query.trim() === '';
+        renderCommands(filterCommands(query), showHistory);
     }
 
     /**
@@ -594,6 +800,48 @@
             font-size: 0.65rem;
         }
 
+        /* Search history styles */
+        .command-palette-category {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .command-palette-clear-history {
+            background: none;
+            border: none;
+            font-size: var(--font-size-xs, 0.75rem);
+            color: var(--color-text-muted, #666);
+            cursor: pointer;
+            padding: var(--space-1, 0.25rem) var(--space-2, 0.5rem);
+            border-radius: var(--radius-sm, 4px);
+            text-transform: none;
+            letter-spacing: normal;
+            font-weight: normal;
+        }
+
+        .command-palette-clear-history:hover {
+            background: var(--color-surface, #f5f5f5);
+            color: var(--color-text, #333);
+        }
+
+        .command-palette-history-icon {
+            width: 16px;
+            height: 16px;
+            color: var(--color-text-muted, #888);
+            flex-shrink: 0;
+        }
+
+        .command-palette-history-item.selected .command-palette-history-icon {
+            color: white;
+        }
+
+        .command-palette-separator {
+            height: 1px;
+            background: var(--color-border, #e5e5e5);
+            margin: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+        }
+
         /* Dark mode support */
         @media (prefers-color-scheme: dark) {
             .command-palette-container {
@@ -624,9 +872,13 @@
     function init() {
         document.addEventListener('keydown', handleGlobalKeydown);
 
+        // Load search history
+        loadSearchHistory();
+
         // Expose functions globally for external use
         window.openCommandPalette = openPalette;
         window.closeCommandPalette = closePalette;
+        window.clearCommandPaletteHistory = clearSearchHistory;
     }
 
     // Initialize on DOM ready

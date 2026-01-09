@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Undo Toast Notifications)
+# Last Updated: 2026-01-08 (Search History Suggestions)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,45 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-08 Changes
+
+### Search History Suggestions
+
+**Task:** Add Search History Suggestions (Task #229, User Experience Phase 6)
+
+**Problem:**
+Users frequently search for the same items (e.g., specific pages, functions) but had to retype
+their searches each time. There was no way to quickly access recent searches.
+
+**Solution:**
+- Added `search_history` JSONField to UserPreferences model
+- Created API endpoints for saving, retrieving, and clearing search history
+- Updated command palette to show recent searches when opened or when input is empty
+- Implemented localStorage backup for immediate display before API loads
+
+**Features:**
+- Recent searches appear at the top of command palette when opened
+- Maximum of 10 searches stored (most recent first)
+- Clicking a history item fills the search and filters results
+- "Clear" button to remove all search history
+- History items have clock icon to distinguish from regular commands
+- Duplicates are removed (case-insensitive)
+- localStorage provides immediate display, synced with server
+
+**Files added:**
+- `apps/users/migrations/0030_add_search_history.py` - Migration for search_history field
+
+**Files modified:**
+- `apps/users/models.py` - Added search_history JSONField to UserPreferences
+- `apps/core/views.py` - Added SearchHistoryGetView, SearchHistorySaveView, SearchHistoryClearView
+- `apps/core/urls.py` - Added /api/search-history/ endpoints
+- `static/js/command-palette.js` - Added search history UI and localStorage integration
+
+**API endpoints:**
+- `GET /api/search-history/` - Get user's search history
+- `POST /api/search-history/save/` - Save a search query to history
+- `POST /api/search-history/clear/` - Clear all search history
+
+---
 
 ### Undo Toast Notifications
 

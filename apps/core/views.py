@@ -605,3 +605,116 @@ class RestoreItemView(LoginRequiredMixin, View):
                 {'success': False, 'error': 'Invalid JSON'},
                 status=400
             )
+
+
+# =============================================================================
+# SEARCH HISTORY VIEWS
+# =============================================================================
+
+
+class SearchHistoryGetView(LoginRequiredMixin, View):
+    """
+    API endpoint to get the user's search history.
+
+    GET returns JSON with:
+    - history: list of recent search queries (max 10)
+    """
+
+    def get(self, request, *args, **kwargs):
+        try:
+            preferences = request.user.preferences
+            history = preferences.search_history or []
+        except Exception:
+            history = []
+
+        return JsonResponse({'history': history})
+
+
+class SearchHistorySaveView(LoginRequiredMixin, View):
+    """
+    API endpoint to save a search query to history.
+
+    POST with JSON body:
+    - query: The search query to save
+
+    Returns JSON with:
+    - success: boolean
+    - history: updated list of search queries
+
+    Behavior:
+    - Adds query to the front of the list
+    - Removes duplicates (case-insensitive)
+    - Limits to 10 items
+    - Ignores empty queries or queries under 2 characters
+    """
+
+    MAX_HISTORY_ITEMS = 10
+
+    def post(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+            query = data.get('query', '').strip()
+
+            # Ignore empty or too-short queries
+            if len(query) < 2:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Query too short'
+                }, status=400)
+
+            try:
+                preferences = request.user.preferences
+            except Exception:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'User preferences not found'
+                }, status=500)
+
+            # Get current history
+            history = preferences.search_history or []
+
+            # Remove any existing instance (case-insensitive)
+            history = [h for h in history if h.lower() != query.lower()]
+
+            # Add new query to front
+            history.insert(0, query)
+
+            # Limit to max items
+            history = history[:self.MAX_HISTORY_ITEMS]
+
+            # Save
+            preferences.search_history = history
+            preferences.save(update_fields=['search_history'])
+
+            return JsonResponse({
+                'success': True,
+                'history': history
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON'
+            }, status=400)
+
+
+class SearchHistoryClearView(LoginRequiredMixin, View):
+    """
+    API endpoint to clear the user's search history.
+
+    POST returns JSON with:
+    - success: boolean
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            preferences = request.user.preferences
+            preferences.search_history = []
+            preferences.save(update_fields=['search_history'])
+            return JsonResponse({'success': True})
+        except Exception as e:
+            logger.error(f"Error clearing search history: {e}")
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to clear history'
+            }, status=500)

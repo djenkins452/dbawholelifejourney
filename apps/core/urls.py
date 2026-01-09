@@ -48,4 +48,9 @@ urlpatterns = [
 
     # Restore (Undo Delete) API
     path("api/restore/", views.RestoreItemView.as_view(), name="restore_item"),
+
+    # Search History API
+    path("api/search-history/", views.SearchHistoryGetView.as_view(), name="search_history_get"),
+    path("api/search-history/save/", views.SearchHistorySaveView.as_view(), name="search_history_save"),
+    path("api/search-history/clear/", views.SearchHistoryClearView.as_view(), name="search_history_clear"),
 ]

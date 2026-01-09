@@ -384,6 +384,13 @@ class UserPreferences(models.Model):
         help_text="Show 'What's New' popup when new features are released",
     )
 
+    # Search history for suggestions
+    search_history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of recent search queries (max 10 items)",
+    )
+
     # Biometric/Face ID login preference
     biometric_login_enabled = models.BooleanField(
         default=False,

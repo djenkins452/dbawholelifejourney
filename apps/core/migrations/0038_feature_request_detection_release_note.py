@@ -50,7 +50,7 @@ def remove_feature_request_release_note(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0011_add_sms_models'),
+        ('core', '0037_pageview_visit_count'),
     ]
 
     operations = [

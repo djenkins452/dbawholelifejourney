@@ -16,6 +16,41 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
+### Feature Request Review: Health Data Export (Task #236)
+
+**Request:** User requested ability to export blood glucose numbers for the last week.
+
+**Decision:** APPROVED
+
+**Rationale:**
+- Data ownership: Users should control and export their own health data
+- Natural complement to existing import functionality (import_clarity_csv.py)
+- GlucoseEntry model already exists with Dexcom CGM integration
+- Can be generalized to export multiple health metrics (weight, glucose, fasting, etc.)
+
+**Next Steps:** Implementation task created for health data export feature with:
+- CSV export for glucose readings with date range filtering
+- Option to include trend data from Dexcom CGM
+- Potential to extend to other health metrics (weight, heart rate, etc.)
+
+---
+
+### Phase Filter Dropdown Fix + Phase 999 Cleanup
+
+**Changes:**
+1. Fixed phase dropdown in Admin Console to show just phase name instead of "Phase X: Phase X"
+2. Created migration to move tasks from Phase 999 to Phase 1
+3. Deleted Phase 999 (was used for User Requests, now uses Phase 1)
+4. Updated feature request service to create tasks in Phase 1
+
+**Files Changed:**
+- `templates/admin_console/admin_task_list.html` - Fixed dropdown label
+- `apps/admin_console/models.py` - Fixed `__str__` method
+- `apps/admin_console/migrations/0016_cleanup_phase_999.py` - Data migration
+- `apps/ai/feature_request_service.py` - Use Phase 1 instead of 999
+
+---
+
 ### AI Assistant Feature Request Detection + Auto Task Creation
 
 **Summary:**

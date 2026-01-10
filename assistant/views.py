@@ -125,7 +125,7 @@ def process_assistant_message(
         # Check if this might still be a gap (user asked about something personal)
         gap_result = detect_knowledge_gap(message, intent, None)
         if gap_result['gap_detected']:
-            _handle_gap_detection(message, intent, None, gap_result, result)
+            _handle_gap_detection(message, intent, None, gap_result, result, user)
         return result
 
     # Step 2: Extract date from message if there's date context
@@ -142,7 +142,7 @@ def process_assistant_message(
         # No queryable data types detected - this is a potential gap
         gap_result = detect_knowledge_gap(message, intent, None)
         if gap_result['gap_detected']:
-            _handle_gap_detection(message, intent, None, gap_result, result)
+            _handle_gap_detection(message, intent, None, gap_result, result, user)
         return result
 
     # Create service and query data
@@ -207,6 +207,7 @@ def _handle_gap_detection(
     data_results: Optional[Dict[str, Any]],
     gap_result: Dict[str, Any],
     result: Dict[str, Any],
+    user=None,
 ) -> None:
     """
     Handle a detected knowledge gap by creating an improvement task.
@@ -226,6 +227,7 @@ def _handle_gap_detection(
         data_results: The data query results (or None).
         gap_result: The gap detection result.
         result: The result dict to update with gap info.
+        user: The Django User who triggered the gap (for tracking).
     """
     # Lazy import to avoid circular import during Django app loading
     from .models import ImprovementTaskModel
@@ -249,6 +251,9 @@ def _handle_gap_detection(
     # Save to database
     try:
         task_model = ImprovementTaskModel.create_from_improvement_task(improvement_task)
+        # Set the user who triggered this gap
+        if user:
+            task_model.triggered_by_user = user
         task_model.save()
         logger.info(f"Created improvement task {task_model.id}: {task_model.title}")
     except Exception as e:
@@ -314,11 +319,24 @@ def _send_approval_notification(
     try:
         notification_service = AdminNotificationService()
 
+        # Get user info if available
+        triggered_by_email = None
+        triggered_by_name = None
+        if task_model.triggered_by_user:
+            triggered_by_email = task_model.triggered_by_user.email
+            triggered_by_name = (
+                task_model.triggered_by_user.get_full_name()
+                or task_model.triggered_by_user.email
+            )
+
         task_info = TaskInfo(
             task_id=str(task_model.id),
             title=task_model.title,
             description=task_model.suggested_fix,
             severity=severity.value,
+            triggered_by_email=triggered_by_email,
+            triggered_by_name=triggered_by_name,
+            original_query=task_model.original_query,
         )
 
         # Generate approval URL (will be implemented in admin views)

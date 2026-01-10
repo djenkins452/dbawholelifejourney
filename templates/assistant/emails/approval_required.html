@@ -11,6 +11,20 @@
 
 <span class="badge badge-warning">Task #{{ task.task_id }}</span>
 
+{% if task.triggered_by_email or task.original_query %}
+<div style="background-color: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 6px; padding: 12px 16px; margin: 16px 0;">
+    <h4 style="margin: 0 0 8px 0; color: #0369a1; font-size: 14px;">Triggered By</h4>
+    {% if task.triggered_by_name %}
+    <p style="margin: 0 0 4px 0;"><strong>User:</strong> {{ task.triggered_by_name }}{% if task.triggered_by_email and task.triggered_by_name != task.triggered_by_email %} ({{ task.triggered_by_email }}){% endif %}</p>
+    {% elif task.triggered_by_email %}
+    <p style="margin: 0 0 4px 0;"><strong>User:</strong> {{ task.triggered_by_email }}</p>
+    {% endif %}
+    {% if task.original_query %}
+    <p style="margin: 0;"><strong>Message:</strong> <em>"{{ task.original_query }}"</em></p>
+    {% endif %}
+</div>
+{% endif %}
+
 <dl class="task-info">
     <dt>Task Title</dt>
     <dd>{{ task.title }}</dd>

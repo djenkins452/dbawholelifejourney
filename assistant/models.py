@@ -166,6 +166,16 @@ class ImprovementTaskModel(models.Model):
         help_text='When the task was completed'
     )
 
+    # User tracking - who triggered the gap detection
+    triggered_by_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='triggered_improvement_tasks',
+        help_text='User whose query triggered this improvement task'
+    )
+
     # Approval tracking
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -304,6 +314,15 @@ class ImprovementTaskModel(models.Model):
         Returns:
             Dictionary representation of the task suitable for JSON serialization.
         """
+        # Build triggered_by_user info
+        triggered_by_info = None
+        if self.triggered_by_user:
+            triggered_by_info = {
+                'email': self.triggered_by_user.email,
+                'name': self.triggered_by_user.get_full_name() or self.triggered_by_user.email,
+                'id': self.triggered_by_user.id,
+            }
+
         return {
             'id': str(self.id),
             'title': self.title,
@@ -323,6 +342,7 @@ class ImprovementTaskModel(models.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'approved_at': self.approved_at.isoformat() if self.approved_at else None,
             'approved_by': self.approved_by.email if self.approved_by else None,
+            'triggered_by_user': triggered_by_info,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'error_message': self.error_message,
             'git_commit_before': self.git_commit_before,

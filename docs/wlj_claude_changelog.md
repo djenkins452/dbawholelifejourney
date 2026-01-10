@@ -4,13 +4,42 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-08 (Search History Suggestions)
+# Last Updated: 2026-01-10 (Track User Who Triggered Gap Detection)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2026-01-10 Changes
+
+### Track User Who Triggered Gap Detection in Approval Emails
+
+**Problem:**
+When the WLJ Assistant sent approval emails for gap-detected tasks (like "Evaluate new data type: 'numbers'"), the email did not show which user triggered the gap or what they typed. This made it impossible to trace the source of the improvement request.
+
+**Solution:**
+Added user tracking throughout the gap detection flow:
+1. Added `triggered_by_user` ForeignKey field to `ImprovementTaskModel`
+2. Updated `_handle_gap_detection()` to accept and store the triggering user
+3. Extended `TaskInfo` dataclass with `triggered_by_email`, `triggered_by_name`, and `original_query` fields
+4. Updated `_send_approval_notification()` to pass user info to the notification service
+5. Updated approval email templates (HTML and plain text) to display:
+   - User name and email who triggered the gap
+   - Original message that triggered the gap detection
+
+**Files modified:**
+- `assistant/models.py` - Added `triggered_by_user` field with FK to User, updated `to_dict()` to include user info
+- `assistant/views.py` - Updated `_handle_gap_detection()` signature to accept user, set `triggered_by_user` on task model, updated `_send_approval_notification()` to pass user details to TaskInfo
+- `assistant/notifications.py` - Extended `TaskInfo` dataclass with `triggered_by_email`, `triggered_by_name`, `original_query` fields
+- `templates/assistant/emails/approval_required.html` - Added "Triggered By" section with user and message info
+- `templates/assistant/emails/approval_required.txt` - Added plain text version of triggered by info
+
+**Migration created:**
+- `assistant/migrations/0004_add_triggered_by_user.py` - Adds `triggered_by_user` FK field
 
 ---
 

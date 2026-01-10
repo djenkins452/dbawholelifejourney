@@ -34,6 +34,11 @@ class TaskInfo:
     git_diff: Optional[str] = None
     error_message: Optional[str] = None
     rollback_hash: Optional[str] = None
+    # User who triggered the gap detection
+    triggered_by_email: Optional[str] = None
+    triggered_by_name: Optional[str] = None
+    # Original query that triggered the gap
+    original_query: Optional[str] = None
 
 
 class AdminNotificationService:

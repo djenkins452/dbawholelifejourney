@@ -166,17 +166,15 @@ AMBIGUOUS_KEYWORDS: Dict[str, Dict] = {
     'sugar': {
         'possible_types': ['glucose', 'food'],
         'clarifying_question': (
-            "When you mention 'sugar', are you referring to:\n"
-            "• Your **blood sugar** (glucose readings), or\n"
-            "• The **sugar in your food** (dietary intake)?"
+            "Just to make sure I pull the right info - are you asking about "
+            "your blood sugar readings or the sugar in your food?"
         ),
     },
     'sugars': {
         'possible_types': ['glucose', 'food'],
         'clarifying_question': (
-            "When you mention 'sugars', are you referring to:\n"
-            "• Your **blood sugar** readings, or\n"
-            "• The **sugars in your food** (dietary intake)?"
+            "Quick question - do you mean your blood sugar levels or "
+            "the sugars you've been eating?"
         ),
     },
 }

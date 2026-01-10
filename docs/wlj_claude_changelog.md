@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-10 (Add Journal Calendar View)
+# Last Updated: 2026-01-10 (Add Calendar Grid Views)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,33 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-10 Changes
+
+### Update Organize/Life Calendar to Grid View
+
+**Issue:**
+The Organize > Calendar page at `/life/calendar/` was displaying events as a list grouped by date,
+not as an actual calendar grid.
+
+**Solution:**
+Converted the Life calendar to display as a proper monthly grid view, matching the Journal calendar.
+
+**Files Modified:**
+- `apps/life/views.py` - Updated `CalendarView` to generate calendar grid data (weeks/days structure)
+- `templates/life/calendar.html` - Complete rewrite with calendar grid layout
+
+**Features:**
+- Monthly calendar grid with 7-column layout (Sun-Sat)
+- Events displayed as color-coded bars by event type
+- Event type legend showing all 8 categories
+- Click events to edit them
+- Hover tooltip shows event title and time
+- Today highlighted with accent circle
+- Previous/next month navigation
+- "Go to Today" button when viewing other months
+- Responsive design (mobile shows colored bars only)
+- Google Calendar integration card preserved
+
+---
 
 ### Add Journal Calendar View
 

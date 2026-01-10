@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-10 (Add Clarifying Question for Ambiguous Sugar)
+# Last Updated: 2026-01-10 (Comprehensive Intent Detector Expansion)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,76 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-10 Changes
+
+### Comprehensive Intent Detector Expansion for All WLJ Data Types
+
+**Problem:**
+The assistant's intent detector only recognized a limited set of data types (weight, journal, medication, food, mood, sleep, exercise, glucose, blood_pressure, faith, goals). Many user queries about other WLJ data couldn't be understood.
+
+**Solution:**
+Performed a comprehensive analysis of all WLJ data models and expanded the intent detector to recognize ~30 data type categories with hundreds of keyword patterns:
+
+**Health Module:**
+- `weight` - weight, BMI, body mass, scale readings
+- `glucose` - blood sugar, CGM, A1c, insulin
+- `blood_pressure` - BP, systolic, diastolic, hypertension
+- `heart_rate` - pulse, BPM, HRV, resting heart rate
+- `blood_oxygen` - SpO2, oxygen saturation
+- `medication` - medications, prescriptions, supplements, vitamins
+- `food` - meals, calories, macros, nutrition
+- `nutrition_goals` - calorie targets, macro goals
+- `workout` - exercise, gym, strength training, lifting
+- `cardio` - running, walking, steps, cycling, swimming
+- `fitness` - yoga, flexibility, activity level
+- `medical_provider` - doctors, specialists, appointments
+
+**Journal Module:**
+- `journal` - entries, reflections, gratitude, morning pages
+
+**Faith Module:**
+- `faith` - spiritual, devotional, quiet time
+- `prayer` - prayer requests, answered prayers
+- `scripture` - bible verses, reading
+- `reading_plan` - bible reading plans
+- `faith_milestone` - salvation, baptism, spiritual milestones
+
+**Life Module (Organize):**
+- `task` - tasks, to-dos, action items
+- `project` - projects, milestones
+- `event` - calendar events, appointments
+- `significant_event` - life events, anniversaries
+- `pet` - pets, pet care
+- `recipe` - recipes, cooking
+- `inventory` - household inventory
+- `maintenance` - home maintenance, vehicle maintenance
+- `document` - important documents, files
+
+**Purpose Module (Goals):**
+- `goals` - goals, objectives
+- `habit` - habits, streaks, habit tracking
+- `intention` - intentions, focus areas
+- `reflection` - self-reflection, reviews
+- `annual_direction` - yearly direction, annual goals
+
+**Finance Module:**
+- `account` - bank accounts, credit cards
+- `transaction` - transactions, spending
+- `budget` - budgets, spending limits
+- `financial_goal` - savings goals, financial targets
+- `net_worth` - net worth, assets, liabilities
+
+**Mental/Wellness:**
+- `mood` - mood, feelings, emotions, anxiety
+- `sleep` - sleep, rest, bedtime, insomnia
+
+Also fixed gap detector to check unsupported query patterns (comparison, correlation, prediction) BEFORE determining no gap exists.
+
+**Files modified:**
+- `assistant/intent_detector.py` - Expanded from ~120 to ~500 lines with comprehensive keywords
+- `assistant/gap_detector.py` - Reordered logic to check unsupported patterns first
+- `assistant/tests/test_intent_detector.py` - Updated tests for new data type structure
+
+---
 
 ### Add Clarifying Question for Ambiguous 'sugar' Queries
 

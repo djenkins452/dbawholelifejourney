@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-10 (Add Fitness Class Category)
+# Last Updated: 2026-01-10 (Add Calendar Grid Views)
 # ==============================================================================
 
 # WLJ Change History
@@ -16,22 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
-### Add Fitness Class Category for Workout Logging (Task #234)
+### Update Organize/Life Calendar to Grid View
 
-**Feature:**
-Users can now log fitness classes (F45, Orange Theory, yoga, spin, etc.) where they
-don't track individual sets/reps - just class attendance, duration, and intensity level.
-The AI will see these as completed workouts.
+**Issue:**
+The Organize > Calendar page at `/life/calendar/` was displaying events as a list grouped by date,
+not as an actual calendar grid.
+
+**Solution:**
+Converted the Life calendar to display as a proper monthly grid view, matching the Journal calendar.
 
 **Files Modified:**
-- `apps/health/models.py` - Added 'class' to Exercise CATEGORY_CHOICES, created ClassDetails model
-- `apps/health/views.py` - Added class exercise handling in WorkoutCreateView/UpdateView, added save_class_ajax endpoint
-- `apps/health/urls.py` - Added `/fitness/api/save-class/` route
-- `templates/health/fitness/workout_form.html` - Added Fitness Classes optgroup, classTemplate JS, CSS, and markClassDone function
-- `templates/health/fitness/partials/exercise_row.html` - Added class category rendering support
+- `apps/life/views.py` - Updated `CalendarView` to generate calendar grid data (weeks/days structure)
+- `templates/life/calendar.html` - Complete rewrite with calendar grid layout
 
-**Migration:**
-- `apps/health/migrations/0017_add_fitness_class_category_and_details.py`
+**Features:**
+- Monthly calendar grid with 7-column layout (Sun-Sat)
+- Events displayed as color-coded bars by event type
+- Event type legend showing all 8 categories
+- Click events to edit them
+- Hover tooltip shows event title and time
+- Today highlighted with accent circle
+- Previous/next month navigation
+- "Go to Today" button when viewing other months
+- Responsive design (mobile shows colored bars only)
+- Google Calendar integration card preserved
 
 ---
 

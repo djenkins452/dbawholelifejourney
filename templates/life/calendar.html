@@ -14,7 +14,7 @@
     <div class="page-header">
         <div>
             <h1 class="page-title">Calendar {% include "components/favorite_toggle.html" with page_title="Calendar" %}</h1>
-            <p class="page-subtitle">Your life events at a glance</p>
+            <p class="page-subtitle">{{ month_event_count }} event{{ month_event_count|pluralize }} in {{ month_name }}</p>
         </div>
         <a href="{% safe_url 'life:event_create' fallback='/life/' %}" class="btn btn-primary">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -24,7 +24,7 @@
             Add Event
         </a>
     </div>
-    
+
     <!-- Google Calendar Integration Card -->
     <div class="google-calendar-card mb-6">
         <div class="gc-card-content">
@@ -74,83 +74,81 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Month Navigation -->
-    <div class="calendar-nav mb-6">
-        <a href="?year={% if month == 1 %}{{ year|add:'-1' }}{% else %}{{ year }}{% endif %}&month={% if month == 1 %}12{% else %}{{ month|add:'-1' }}{% endif %}" class="btn btn-ghost">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+    <div class="calendar-nav">
+        <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-ghost btn-sm">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="15 18 9 12 15 6"/>
             </svg>
+            Previous
         </a>
-        <h2 class="calendar-month" id="monthDisplay"></h2>
-        <a href="?year={% if month == 12 %}{{ year|add:'1' }}{% else %}{{ year }}{% endif %}&month={% if month == 12 %}1{% else %}{{ month|add:'1' }}{% endif %}" class="btn btn-ghost">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+        <h2 class="calendar-month-title">{{ month_name }} {{ year }}</h2>
+        <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-ghost btn-sm">
+            Next
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 18 15 12 9 6"/>
             </svg>
         </a>
-        <a href="{% url 'life:calendar' %}?year={{ today.year }}&month={{ today.month }}" class="btn btn-secondary ml-4">Current Month</a>
     </div>
-    
-    <!-- Events List -->
-    {% if events %}
-    <div class="events-by-date">
-        {% regroup events by start_date as events_by_day %}
-        {% for day in events_by_day %}
-        <div class="day-group {% if day.grouper == today %}today{% endif %}">
-            <div class="day-header">
-                <span class="day-number">{{ day.grouper|date:"j" }}</span>
-                <span class="day-name">{{ day.grouper|date:"l" }}</span>
-                {% if day.grouper == today %}
-                <span class="today-badge">Today</span>
-                {% endif %}
-            </div>
-            <ul class="day-events">
-                {% for event in day.list %}
-                <li class="event-item event-type-{{ event.event_type }}">
-                    <div class="event-time">
-                        {% if event.is_all_day %}
-                            All day
-                        {% elif event.start_time %}
-                            {{ event.start_time|time:"g:i A" }}
-                        {% endif %}
-                    </div>
-                    <div class="event-info">
-                        <span class="event-title">{{ event.title }}</span>
-                        {% if event.location %}
-                        <span class="event-location">{{ event.location }}</span>
-                        {% endif %}
-                    </div>
-                    <span class="event-type-badge">{{ event.get_event_type_display }}</span>
-                    <div class="event-actions">
-                        <a href="{% url 'life:event_update' event.pk %}" class="event-edit">Edit</a>
-                    </div>
-                </li>
-                {% endfor %}
-            </ul>
+
+    <!-- Calendar Grid -->
+    <div class="calendar-container">
+        <div class="calendar-header">
+            <div class="calendar-day-name">Sun</div>
+            <div class="calendar-day-name">Mon</div>
+            <div class="calendar-day-name">Tue</div>
+            <div class="calendar-day-name">Wed</div>
+            <div class="calendar-day-name">Thu</div>
+            <div class="calendar-day-name">Fri</div>
+            <div class="calendar-day-name">Sat</div>
         </div>
-        {% endfor %}
+        <div class="calendar-body">
+            {% for week in weeks %}
+            <div class="calendar-week">
+                {% for day_data in week %}
+                <div class="calendar-day {% if not day_data.day %}calendar-day-empty{% endif %}{% if day_data.is_today %} calendar-day-today{% endif %}{% if day_data.events %} calendar-day-has-events{% endif %}">
+                    {% if day_data.day %}
+                    <div class="calendar-day-number">{{ day_data.day }}</div>
+                    {% if day_data.events %}
+                    <div class="calendar-day-events">
+                        {% for event in day_data.events %}
+                        <a href="{% url 'life:event_update' event.pk %}" class="calendar-event event-type-{{ event.event_type }}" title="{{ event.title }}{% if event.start_time %} at {{ event.start_time|time:'g:i A' }}{% endif %}">
+                            <span class="calendar-event-title">{{ event.title|truncatechars:18 }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
     </div>
-    {% else %}
-    <div class="empty-state">
-        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <h2>No events this month</h2>
-        <p>Add events to keep track of what's happening in your life.</p>
-        <a href="{% url 'life:event_create' %}" class="btn btn-primary">Add Your First Event</a>
+
+    <!-- Today Button -->
+    {% if year != today.year or month != today.month %}
+    <div class="calendar-today-link">
+        <a href="?year={{ today.year }}&month={{ today.month }}" class="btn btn-secondary btn-sm">
+            Go to Today
+        </a>
     </div>
     {% endif %}
-</div>
 
-<script>
-// Display month name
-const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                    'July', 'August', 'September', 'October', 'November', 'December'];
-document.getElementById('monthDisplay').textContent = monthNames[{{ month }} - 1] + ' {{ year }}';
-</script>
+    <!-- Event Type Legend -->
+    <div class="event-legend">
+        <span class="legend-title">Event Types:</span>
+        <span class="legend-item"><span class="legend-color event-type-personal"></span>Personal</span>
+        <span class="legend-item"><span class="legend-color event-type-family"></span>Family</span>
+        <span class="legend-item"><span class="legend-color event-type-work"></span>Work</span>
+        <span class="legend-item"><span class="legend-color event-type-health"></span>Health</span>
+        <span class="legend-item"><span class="legend-color event-type-faith"></span>Faith</span>
+        <span class="legend-item"><span class="legend-color event-type-social"></span>Social</span>
+        <span class="legend-item"><span class="legend-color event-type-travel"></span>Travel</span>
+        <span class="legend-item"><span class="legend-color event-type-household"></span>Household</span>
+    </div>
+</div>
 
 <style>
 /* Google Calendar Integration Card */
@@ -231,170 +229,251 @@ document.getElementById('monthDisplay').textContent = monthNames[{{ month }} - 1
     margin-right: var(--space-1);
 }
 
-@media (max-width: 640px) {
-    .gc-card-content {
-        flex-direction: column;
-        text-align: center;
-    }
-    
-    .gc-actions {
-        width: 100%;
-        justify-content: center;
-    }
-}
-
+/* Calendar Navigation */
 .calendar-nav {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
 }
 
-.calendar-month {
-    min-width: 200px;
-    text-align: center;
+.calendar-month-title {
     font-size: var(--font-size-xl);
+    font-weight: 600;
     margin: 0;
 }
 
-.ml-4 {
-    margin-left: var(--space-4);
-}
-
-.events-by-date {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-}
-
-.day-group {
-    background: var(--color-background);
+/* Calendar Container */
+.calendar-container {
+    background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     overflow: hidden;
 }
 
-.day-group.today {
-    border-color: var(--color-accent);
-}
-
-.day-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    background: var(--color-surface);
+.calendar-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: var(--color-background);
     border-bottom: 1px solid var(--color-border);
 }
 
-.day-number {
-    font-size: var(--font-size-2xl);
-    font-weight: 700;
-    color: var(--color-accent);
-    min-width: 40px;
-}
-
-.day-name {
-    font-size: var(--font-size-base);
+.calendar-day-name {
+    padding: var(--space-3);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
     color: var(--color-text-muted);
 }
 
-.today-badge {
-    font-size: var(--font-size-xs);
-    background: var(--color-accent);
-    color: white;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
-}
-
-.day-events {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.event-item {
+.calendar-body {
     display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-4);
-    border-bottom: 1px solid var(--color-border);
-    border-left: 3px solid var(--color-accent);
+    flex-direction: column;
 }
 
-.event-item:last-child {
+.calendar-week {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.calendar-week:last-child {
     border-bottom: none;
 }
 
-.event-type-personal { border-left-color: #6366f1; }
-.event-type-family { border-left-color: #ec4899; }
-.event-type-household { border-left-color: #f59e0b; }
-.event-type-faith { border-left-color: #8b5cf6; }
-.event-type-health { border-left-color: #10b981; }
-.event-type-work { border-left-color: #3b82f6; }
-.event-type-social { border-left-color: #f97316; }
-.event-type-travel { border-left-color: #14b8a6; }
-
-.event-time {
-    min-width: 80px;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
+.calendar-day {
+    min-height: 100px;
+    padding: var(--space-2);
+    border-right: 1px solid var(--color-border);
+    background: var(--color-background);
+    transition: background var(--transition-fast);
 }
 
-.event-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+.calendar-day:last-child {
+    border-right: none;
 }
 
-.event-title {
-    font-weight: 500;
-}
-
-.event-location {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-}
-
-.event-type-badge {
-    font-size: var(--font-size-xs);
+.calendar-day-empty {
     background: var(--color-surface);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
-    color: var(--color-text-muted);
 }
 
-.event-actions {
-    opacity: 0;
-    transition: opacity var(--transition-fast);
+.calendar-day-today {
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-background));
 }
 
-.event-item:hover .event-actions {
-    opacity: 1;
+.calendar-day-today .calendar-day-number {
+    background: var(--color-accent);
+    color: white;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.event-edit {
+.calendar-day-has-events:hover {
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-background));
+}
+
+.calendar-day-number {
     font-size: var(--font-size-sm);
-    color: var(--color-accent);
-}
-
-.empty-state {
-    text-align: center;
-    padding: var(--space-12) var(--space-4);
-}
-
-.empty-state svg {
+    font-weight: 500;
     color: var(--color-text-muted);
-    margin-bottom: var(--space-4);
-}
-
-.empty-state h2 {
     margin-bottom: var(--space-2);
 }
 
-.empty-state p {
+.calendar-day-events {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.calendar-event {
+    display: block;
+    padding: 2px var(--space-1);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: white;
+    text-decoration: none;
+    transition: all var(--transition-fast);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.calendar-event:hover {
+    filter: brightness(1.1);
+    text-decoration: none;
+}
+
+/* Event Type Colors */
+.calendar-event.event-type-personal { background: #6366f1; }
+.calendar-event.event-type-family { background: #ec4899; }
+.calendar-event.event-type-household { background: #f59e0b; }
+.calendar-event.event-type-faith { background: #8b5cf6; }
+.calendar-event.event-type-health { background: #10b981; }
+.calendar-event.event-type-work { background: #3b82f6; }
+.calendar-event.event-type-social { background: #f97316; }
+.calendar-event.event-type-travel { background: #14b8a6; }
+.calendar-event.event-type-other { background: #6b7280; }
+
+.calendar-event-title {
+    display: block;
+}
+
+.calendar-today-link {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--space-4);
+}
+
+/* Event Legend */
+.event-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    font-size: var(--font-size-sm);
+}
+
+.legend-title {
+    font-weight: 600;
     color: var(--color-text-muted);
-    margin-bottom: var(--space-6);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--color-text-muted);
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-sm);
+}
+
+.legend-color.event-type-personal { background: #6366f1; }
+.legend-color.event-type-family { background: #ec4899; }
+.legend-color.event-type-household { background: #f59e0b; }
+.legend-color.event-type-faith { background: #8b5cf6; }
+.legend-color.event-type-health { background: #10b981; }
+.legend-color.event-type-work { background: #3b82f6; }
+.legend-color.event-type-social { background: #f97316; }
+.legend-color.event-type-travel { background: #14b8a6; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        gap: var(--space-4);
+    }
+
+    .gc-card-content {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .gc-actions {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .calendar-day {
+        min-height: 60px;
+        padding: var(--space-1);
+    }
+
+    .calendar-day-number {
+        font-size: var(--font-size-xs);
+    }
+
+    .calendar-event {
+        padding: 1px 2px;
+        font-size: 10px;
+    }
+
+    .calendar-nav {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .calendar-nav .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .event-legend {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-day-name {
+        font-size: var(--font-size-xs);
+        padding: var(--space-2);
+    }
+
+    .calendar-day {
+        min-height: 50px;
+    }
+
+    .calendar-event-title {
+        display: none;
+    }
+
+    .calendar-event {
+        height: 6px;
+        padding: 0;
+    }
 }
 </style>
 {% endblock %}

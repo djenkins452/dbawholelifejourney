@@ -460,42 +460,99 @@ class TaskToggleView(LifeAccessMixin, View):
 # =============================================================================
 
 class CalendarView(LifeAccessMixin, TemplateView):
-    """Monthly calendar view."""
+    """Monthly calendar view with grid display."""
     template_name = "life/calendar.html"
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from apps.core.utils import get_user_today
+        import calendar as cal_module
+        from datetime import date, timedelta
 
         # Get month/year from query params or use current
         today = get_user_today(self.request.user)
-        year = int(self.request.GET.get('year', today.year))
-        month = int(self.request.GET.get('month', today.month))
-        
+        try:
+            year = int(self.request.GET.get('year', today.year))
+            month = int(self.request.GET.get('month', today.month))
+            if month < 1 or month > 12:
+                month = today.month
+                year = today.year
+        except (ValueError, TypeError):
+            year = today.year
+            month = today.month
+
         # Get events for this month
-        from calendar import monthrange
-        _, last_day = monthrange(year, month)
-        
-        start_date = timezone.datetime(year, month, 1).date()
-        end_date = timezone.datetime(year, month, last_day).date()
-        
-        context['events'] = LifeEvent.objects.filter(
+        _, last_day = cal_module.monthrange(year, month)
+
+        start_date = date(year, month, 1)
+        end_date = date(year, month, last_day)
+
+        events = LifeEvent.objects.filter(
             user=self.request.user,
             start_date__gte=start_date,
             start_date__lte=end_date
         ).order_by('start_date', 'start_time')
-        
+
+        # Build dict mapping dates to events
+        events_by_date = {}
+        for event in events:
+            date_key = event.start_date
+            if date_key not in events_by_date:
+                events_by_date[date_key] = []
+            events_by_date[date_key].append(event)
+
+        # Build calendar weeks (Sunday first)
+        calendar = cal_module.Calendar(firstweekday=6)
+        weeks = []
+        for week in calendar.monthdayscalendar(year, month):
+            week_data = []
+            for day in week:
+                if day == 0:
+                    week_data.append({"day": None, "events": [], "is_today": False})
+                else:
+                    day_date = date(year, month, day)
+                    week_data.append({
+                        "day": day,
+                        "date": day_date,
+                        "events": events_by_date.get(day_date, []),
+                        "is_today": day_date == today,
+                    })
+            weeks.append(week_data)
+
+        # Calculate prev/next month
+        if month == 1:
+            prev_month = 12
+            prev_year = year - 1
+        else:
+            prev_month = month - 1
+            prev_year = year
+
+        if month == 12:
+            next_month = 1
+            next_year = year + 1
+        else:
+            next_month = month + 1
+            next_year = year
+
+        context['weeks'] = weeks
+        context['events'] = events  # Keep for list view fallback
         context['year'] = year
         context['month'] = month
+        context['month_name'] = cal_module.month_name[month]
+        context['prev_month'] = prev_month
+        context['prev_year'] = prev_year
+        context['next_month'] = next_month
+        context['next_year'] = next_year
         context['today'] = today
-        
+        context['month_event_count'] = events.count()
+
         # Google Calendar status
         credential = get_user_google_credential(self.request.user)
         context['google_calendar_connected'] = credential is not None and credential.is_connected
         if context['google_calendar_connected']:
             context['google_calendar_name'] = credential.selected_calendar_name
             context['google_last_sync'] = credential.last_sync
-        
+
         return context
 
 

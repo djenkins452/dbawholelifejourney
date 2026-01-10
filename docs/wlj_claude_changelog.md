@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
+### Fix: Missing `logging` import in settings.py
+
+**Problem:** Production deployment failing with `NameError: name 'logging' is not defined` at line 303 in settings.py.
+
+**Cause:** The `JsonFormatter` class inherits from `logging.Formatter`, but `logging` was never imported at module level.
+
+**Fix:** Added `import logging` to the imports at the top of `config/settings.py`.
+
+**Files Modified:**
+- `config/settings.py` (line 44)
+
+---
+
 ### Production Readiness Improvements
 
 **Summary:**

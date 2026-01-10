@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-10 (Add Steps Tracking Feature)
+# Last Updated: 2026-01-10 (Add Journal Calendar View)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,33 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-10 Changes
+
+### Add Journal Calendar View
+
+**Issue:**
+The Journal home page had a "Calendar View" link pointing to `?view=calendar` on the entry list,
+but the calendar view was never implemented - clicking the link just showed the regular entry list.
+
+**Solution:**
+Implemented a full calendar view for journal entries with monthly navigation.
+
+**Files Modified:**
+- `apps/journal/views.py` - Added `CalendarView` class with monthly calendar generation
+- `apps/journal/urls.py` - Added `/journal/calendar/` route
+- `templates/journal/home.html` - Updated Calendar View link to use proper URL
+- `templates/journal/entry_list.html` - Added calendar icon to view toggle
+- `templates/journal/calendar_view.html` - New template for calendar display
+
+**Features:**
+- Monthly calendar grid view showing entries by date
+- Entries display with mood emoji and truncated title
+- Previous/next month navigation
+- "Go to Today" button when viewing other months
+- Responsive design (mobile shows mood emojis only)
+- View toggle consistent with other journal views (list, calendar, page, book)
+- Entry counts for total and current month
+
+---
 
 ### Add Steps Tracking Feature to Health Module (Task #233)
 

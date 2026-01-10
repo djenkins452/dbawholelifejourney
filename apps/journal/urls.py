@@ -12,6 +12,7 @@ urlpatterns = [
     
     # Entry list views
     path("entries/", views.EntryListView.as_view(), name="entry_list"),
+    path("calendar/", views.CalendarView.as_view(), name="calendar_view"),
     path("page-view/", views.PageView.as_view(), name="page_view"),
     path("book-view/", views.BookView.as_view(), name="book_view"),
     path("archived/", views.ArchivedEntryListView.as_view(), name="archived_list"),

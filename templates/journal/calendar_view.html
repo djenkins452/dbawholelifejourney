@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+
+{% block title %}Journal Calendar - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'journal:home' %}">Journal</a>
+        <span>/</span>
+        <span>Calendar</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Journal Calendar {% include "components/favorite_toggle.html" with page_title="Journal Calendar" %}</h1>
+            <p class="page-subtitle">{{ total_count }} total entr{{ total_count|pluralize:"y,ies" }} · {{ month_entry_count }} in {{ month_name }}</p>
+        </div>
+        <div class="header-actions">
+            <div class="view-toggle">
+                <a href="{% url 'journal:entry_list' %}" class="btn btn-ghost btn-sm" title="List View">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="8" y1="6" x2="21" y2="6"/>
+                        <line x1="8" y1="12" x2="21" y2="12"/>
+                        <line x1="8" y1="18" x2="21" y2="18"/>
+                        <line x1="3" y1="6" x2="3.01" y2="6"/>
+                        <line x1="3" y1="12" x2="3.01" y2="12"/>
+                        <line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                </a>
+                <a href="{% url 'journal:page_view' %}" class="btn btn-ghost btn-sm" title="Page View">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <path d="M14 2v6h6"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                </a>
+                <a href="{% url 'journal:calendar_view' %}" class="btn btn-secondary btn-sm" title="Calendar View">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                </a>
+                <a href="{% url 'journal:book_view' %}" class="btn btn-ghost btn-sm desktop-only" title="Book View">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                    </svg>
+                </a>
+            </div>
+            <a href="{% url 'journal:entry_create' %}" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                New Entry
+            </a>
+        </div>
+    </div>
+
+    <!-- Month Navigation -->
+    <div class="calendar-nav">
+        <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-ghost btn-sm">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Previous
+        </a>
+        <h2 class="calendar-month-title">{{ month_name }} {{ year }}</h2>
+        <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-ghost btn-sm">
+            Next
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+            </svg>
+        </a>
+    </div>
+
+    <!-- Calendar Grid -->
+    <div class="calendar-container">
+        <div class="calendar-header">
+            <div class="calendar-day-name">Sun</div>
+            <div class="calendar-day-name">Mon</div>
+            <div class="calendar-day-name">Tue</div>
+            <div class="calendar-day-name">Wed</div>
+            <div class="calendar-day-name">Thu</div>
+            <div class="calendar-day-name">Fri</div>
+            <div class="calendar-day-name">Sat</div>
+        </div>
+        <div class="calendar-body">
+            {% for week in weeks %}
+            <div class="calendar-week">
+                {% for day_data in week %}
+                <div class="calendar-day {% if not day_data.day %}calendar-day-empty{% endif %}{% if day_data.is_today %} calendar-day-today{% endif %}{% if day_data.entries %} calendar-day-has-entries{% endif %}">
+                    {% if day_data.day %}
+                    <div class="calendar-day-number">{{ day_data.day }}</div>
+                    {% if day_data.entries %}
+                    <div class="calendar-day-entries">
+                        {% for entry in day_data.entries %}
+                        <a href="{% url 'journal:entry_detail' entry.pk %}" class="calendar-entry" title="{{ entry.title }}">
+                            {% if entry.mood %}
+                            <span class="calendar-entry-mood">{{ entry.mood_emoji }}</span>
+                            {% endif %}
+                            <span class="calendar-entry-title">{{ entry.title|truncatechars:20 }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Today Button -->
+    {% if year != today.year or month != today.month %}
+    <div class="calendar-today-link">
+        <a href="?year={{ today.year }}&month={{ today.month }}" class="btn btn-secondary btn-sm">
+            Go to Today
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Quick Links -->
+    <div class="quick-nav mt-8">
+        <a href="{% url 'journal:entry_list' %}" class="quick-nav-link">
+            View All Entries
+        </a>
+        <a href="{% url 'journal:prompt_list' %}" class="quick-nav-link">
+            Browse Prompts
+        </a>
+        <a href="{% url 'journal:tag_list' %}" class="quick-nav-link">
+            Manage Tags
+        </a>
+    </div>
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.view-toggle {
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.view-toggle .btn {
+    padding: var(--space-2);
+}
+
+.desktop-only {
+    display: none;
+}
+
+@media (min-width: 1024px) {
+    .desktop-only {
+        display: inline-flex;
+    }
+}
+
+/* Calendar Navigation */
+.calendar-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.calendar-month-title {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Calendar Container */
+.calendar-container {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.calendar-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: var(--color-background);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.calendar-day-name {
+    padding: var(--space-3);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.calendar-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.calendar-week {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.calendar-week:last-child {
+    border-bottom: none;
+}
+
+.calendar-day {
+    min-height: 100px;
+    padding: var(--space-2);
+    border-right: 1px solid var(--color-border);
+    background: var(--color-background);
+    transition: background var(--transition-fast);
+}
+
+.calendar-day:last-child {
+    border-right: none;
+}
+
+.calendar-day-empty {
+    background: var(--color-surface);
+}
+
+.calendar-day-today {
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-background));
+}
+
+.calendar-day-today .calendar-day-number {
+    background: var(--color-accent);
+    color: white;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-day-has-entries:hover {
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-background));
+}
+
+.calendar-day-number {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.calendar-day-entries {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.calendar-entry {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+    overflow: hidden;
+}
+
+.calendar-entry:hover {
+    background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+    text-decoration: none;
+}
+
+.calendar-entry-mood {
+    flex-shrink: 0;
+}
+
+.calendar-entry-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-today-link {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--space-4);
+}
+
+.quick-nav {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+
+.quick-nav-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.quick-nav-link:hover {
+    color: var(--color-accent);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .calendar-day {
+        min-height: 60px;
+        padding: var(--space-1);
+    }
+
+    .calendar-day-number {
+        font-size: var(--font-size-xs);
+    }
+
+    .calendar-entry {
+        padding: var(--space-1);
+    }
+
+    .calendar-entry-title {
+        display: none;
+    }
+
+    .calendar-entry-mood {
+        font-size: var(--font-size-sm);
+    }
+
+    .calendar-nav {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .calendar-nav .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-day-name {
+        font-size: var(--font-size-xs);
+        padding: var(--space-2);
+    }
+
+    .calendar-day {
+        min-height: 50px;
+    }
+}
+</style>
+{% endblock %}

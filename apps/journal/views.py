@@ -30,6 +30,7 @@ Copyright:
     without explicit permission.
 """
 
+import calendar
 import json
 import random
 from datetime import date
@@ -164,6 +165,104 @@ class BookView(LoginRequiredMixin, ListView):
         # Serialize to JSON string for safe JavaScript embedding
         context["entries_json"] = json.dumps(entries_data)
         context["total_entries"] = len(entries)
+        return context
+
+
+class CalendarView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    Calendar view - displays journal entries in a monthly calendar format.
+    """
+
+    template_name = "journal/calendar_view.html"
+    help_context_id = "JOURNAL_CALENDAR"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.core.utils import get_user_today
+
+        user = self.request.user
+        today = get_user_today(user)
+
+        # Get month/year from query params or default to current month
+        try:
+            year = int(self.request.GET.get("year", today.year))
+            month = int(self.request.GET.get("month", today.month))
+            # Validate month range
+            if month < 1 or month > 12:
+                month = today.month
+                year = today.year
+        except (ValueError, TypeError):
+            year = today.year
+            month = today.month
+
+        # Get first and last day of the month
+        first_day = date(year, month, 1)
+        if month == 12:
+            last_day = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            last_day = date(year, month + 1, 1) - timedelta(days=1)
+
+        # Get entries for this month
+        entries = JournalEntry.objects.filter(
+            user=user,
+            entry_date__gte=first_day,
+            entry_date__lte=last_day
+        ).order_by('entry_date')
+
+        # Build a dict mapping dates to entries
+        entries_by_date = {}
+        for entry in entries:
+            date_key = entry.entry_date
+            if date_key not in entries_by_date:
+                entries_by_date[date_key] = []
+            entries_by_date[date_key].append(entry)
+
+        # Build calendar weeks
+        cal = calendar.Calendar(firstweekday=6)  # Sunday first
+        weeks = []
+        for week in cal.monthdayscalendar(year, month):
+            week_data = []
+            for day in week:
+                if day == 0:
+                    week_data.append({"day": None, "entries": [], "is_today": False})
+                else:
+                    day_date = date(year, month, day)
+                    week_data.append({
+                        "day": day,
+                        "date": day_date,
+                        "entries": entries_by_date.get(day_date, []),
+                        "is_today": day_date == today,
+                    })
+            weeks.append(week_data)
+
+        # Calculate prev/next month
+        if month == 1:
+            prev_month = 12
+            prev_year = year - 1
+        else:
+            prev_month = month - 1
+            prev_year = year
+
+        if month == 12:
+            next_month = 1
+            next_year = year + 1
+        else:
+            next_month = month + 1
+            next_year = year
+
+        context["weeks"] = weeks
+        context["current_month"] = first_day
+        context["year"] = year
+        context["month"] = month
+        context["month_name"] = calendar.month_name[month]
+        context["prev_month"] = prev_month
+        context["prev_year"] = prev_year
+        context["next_month"] = next_month
+        context["next_year"] = next_year
+        context["today"] = today
+        context["total_count"] = JournalEntry.objects.filter(user=user).count()
+        context["month_entry_count"] = entries.count()
+
         return context
 
 

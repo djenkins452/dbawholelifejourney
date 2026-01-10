@@ -42,8 +42,9 @@
     <div class="workout-summary mb-6">
         <div class="summary-stat">
             <span class="stat-value">{{ workout.exercise_count }}</span>
-            <span class="stat-label">Exercises</span>
+            <span class="stat-label">{% if workout.exercise_count == 1 %}Activity{% else %}Activities{% endif %}</span>
         </div>
+        {% if workout.total_sets > 0 %}
         <div class="summary-stat">
             <span class="stat-value">{{ workout.total_sets }}</span>
             <span class="stat-label">Sets</span>
@@ -52,6 +53,12 @@
             <span class="stat-value">{{ workout.total_volume|floatformat:0 }}</span>
             <span class="stat-label">Total Volume (lbs)</span>
         </div>
+        {% elif workout.duration_minutes %}
+        <div class="summary-stat">
+            <span class="stat-value">{{ workout.duration_minutes }}</span>
+            <span class="stat-label">Minutes</span>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Exercises -->
@@ -94,7 +101,7 @@
                     {% else %}
                         <p class="text-muted">No sets recorded</p>
                     {% endif %}
-                {% else %}
+                {% elif we.exercise.category == "cardio" %}
                     <!-- Cardio details -->
                     {% if we.cardio_details %}
                         <div class="cardio-details">
@@ -121,6 +128,24 @@
                                 </div>
                             {% endif %}
                         </div>
+                    {% endif %}
+                {% elif we.exercise.category == "class" %}
+                    <!-- Fitness class details -->
+                    {% if we.class_details %}
+                        <div class="class-details">
+                            {% if we.class_details.duration_minutes %}
+                                <div class="class-stat">
+                                    <span class="stat-value">{{ we.class_details.duration_minutes }}</span>
+                                    <span class="stat-label">minutes</span>
+                                </div>
+                            {% endif %}
+                            <div class="class-stat">
+                                <span class="stat-value intensity-{{ we.class_details.intensity }}">{{ we.class_details.get_intensity_display }}</span>
+                                <span class="stat-label">intensity</span>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Class completed</p>
                     {% endif %}
                 {% endif %}
 
@@ -285,19 +310,22 @@
     color: white;
 }
 
-.cardio-details {
+.cardio-details,
+.class-details {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-6);
 }
 
-.cardio-stat .stat-value {
+.cardio-stat .stat-value,
+.class-stat .stat-value {
     display: block;
     font-size: var(--font-size-xl);
     font-weight: 600;
 }
 
-.cardio-stat .stat-label {
+.cardio-stat .stat-label,
+.class-stat .stat-label {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
 }

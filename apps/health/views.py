@@ -914,7 +914,7 @@ class WorkoutDetailView(LoginRequiredMixin, TemplateView):
         context["workout"] = workout
         context["workout_exercises"] = workout.workout_exercises.select_related(
             "exercise"
-        ).prefetch_related("sets", "cardio_details")
+        ).prefetch_related("sets", "cardio_details", "class_details")
         return context
 
 

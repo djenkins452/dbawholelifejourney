@@ -34,6 +34,13 @@ urlpatterns = [
     path("heart-rate/<int:pk>/delete/", views.HeartRateDeleteView.as_view(), name="heartrate_delete"),
     path("heart-rate/bulk/delete/", views.BulkDeleteHeartRateView.as_view(), name="heartrate_bulk_delete"),
 
+    # Steps
+    path("steps/", views.StepsListView.as_view(), name="steps_list"),
+    path("steps/log/", views.StepsCreateView.as_view(), name="steps_create"),
+    path("steps/<int:pk>/edit/", views.StepsUpdateView.as_view(), name="steps_update"),
+    path("steps/<int:pk>/delete/", views.StepsDeleteView.as_view(), name="steps_delete"),
+    path("steps/bulk/delete/", views.BulkDeleteStepsView.as_view(), name="steps_bulk_delete"),
+
     # Glucose Dashboard (with Dexcom integration)
     path("glucose/", views.GlucoseDashboardView.as_view(), name="glucose_dashboard"),
     path("glucose/list/", views.GlucoseListView.as_view(), name="glucose_list"),

@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Steps History - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Steps</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Steps {% include "components/favorite_toggle.html" with page_title="Steps" %}</h1>
+            <p class="page-subtitle">Track your daily step count</p>
+        </div>
+        <a href="{% url 'health:steps_create' %}" class="btn btn-primary">Log Steps</a>
+    </div>
+
+    {% if entries %}
+        <!-- Stats Summary -->
+        <div class="stats-bar mb-6">
+            {% if latest %}
+            <div class="stat-item">
+                <span class="stat-label">Latest</span>
+                <span class="stat-value">{{ latest.count|intcomma }}</span>
+                <span class="stat-date">{{ latest.logged_date|date:"M j" }}</span>
+            </div>
+            {% endif %}
+            {% if week_avg %}
+            <div class="stat-item">
+                <span class="stat-label">7-Day Avg</span>
+                <span class="stat-value">{{ week_avg|intcomma }}</span>
+            </div>
+            {% endif %}
+            {% if week_total %}
+            <div class="stat-item">
+                <span class="stat-label">7-Day Total</span>
+                <span class="stat-value">{{ week_total|intcomma }}</span>
+            </div>
+            {% endif %}
+            {% if goals_met %}
+            <div class="stat-item">
+                <span class="stat-label">Goals Met</span>
+                <span class="stat-value stat-success">{{ goals_met }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Chart -->
+        {% if chart_data %}
+        <div class="chart-container mb-6">
+            <canvas id="stepsChart"></canvas>
+        </div>
+        {% endif %}
+
+        <!-- Entry List -->
+        <div class="entry-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Steps</th>
+                        <th>Goal</th>
+                        <th>Distance</th>
+                        <th>Notes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                        <tr>
+                            <td>
+                                <span class="entry-date">{{ entry.logged_date|date:"M j, Y" }}</span>
+                                {% if entry.source != 'manual' %}
+                                <span class="entry-source">{{ entry.get_source_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="entry-value">{{ entry.count|intcomma }}</td>
+                            <td>
+                                {% if entry.goal %}
+                                    <span class="goal-badge {% if entry.goal_reached %}goal-reached{% endif %}">
+                                        {{ entry.goal_percentage }}%
+                                    </span>
+                                    <span class="goal-target">/ {{ entry.goal|intcomma }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if entry.distance_miles %}
+                                    {{ entry.distance_miles }} mi
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="entry-notes">{{ entry.notes|truncatewords:10|default:"-" }}</td>
+                            <td class="entry-actions">
+                                <a href="{% url 'health:steps_update' entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                                <form method="post" action="{% url 'health:steps_delete' entry.pk %}" class="inline-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-ghost btn-sm text-error">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination mt-6">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">&larr; Previous</a>
+                {% endif %}
+                <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next &rarr;</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No steps logged yet</h2>
+            <p class="empty-state-text">Start tracking your daily steps to monitor your activity level.</p>
+            <a href="{% url 'health:steps_create' %}" class="btn btn-primary">Log Your First Entry</a>
+        </div>
+    {% endif %}
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">&larr; Back to Health</a>
+    </div>
+</div>
+
+<style>
+.stats-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-item .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-item .stat-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.stat-item .stat-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.stat-success {
+    color: var(--color-success);
+}
+
+.chart-container {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    height: 250px;
+}
+
+.entry-table {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.entry-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.entry-table th,
+.entry-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.entry-table th {
+    background: var(--color-surface);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.entry-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.entry-table tbody tr:hover {
+    background: var(--color-surface);
+}
+
+.entry-date {
+    display: block;
+}
+
+.entry-source {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.entry-value {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.goal-badge {
+    display: inline-block;
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+}
+
+.goal-reached {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.goal-target {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+}
+
+.entry-notes {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.entry-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.text-error {
+    color: var(--color-error);
+}
+
+@media (max-width: 768px) {
+    .entry-table {
+        overflow-x: auto;
+    }
+
+    .entry-table table {
+        min-width: 600px;
+    }
+}
+</style>
+
+{% if chart_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('stepsChart').getContext('2d');
+    const labels = {{ chart_labels|safe }};
+    const data = {{ chart_data|safe }};
+    const goals = {{ chart_goals|safe }};
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Steps',
+                data: data,
+                backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                borderColor: 'rgb(59, 130, 246)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

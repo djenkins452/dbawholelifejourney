@@ -153,7 +153,43 @@
                 </a>
             {% endif %}
         </div>
-        
+
+        <!-- Steps Card -->
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 4v2c4.39.54 8 4.53 8 9.19V17l2 2v1H1v-1l2-2v-1.81C3 10.53 6.61 6.54 11 6V4h2zM11 6a9 9 0 0 0-9 9h18a9 9 0 0 0-9-9z"/>
+                    </svg>
+                    Steps
+                </h2>
+                <a href="{% url 'health:steps_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_steps %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_steps.count|intcomma }}</span>
+                    <span class="metric-unit">steps</span>
+                </div>
+                <p class="metric-date">{{ latest_steps.logged_date|date:"M j" }}</p>
+
+                {% if latest_steps.goal_percentage %}
+                    <p class="metric-avg">{{ latest_steps.goal_percentage }}% of goal</p>
+                {% endif %}
+
+                {% if avg_steps %}
+                    <p class="metric-avg">7-day avg: {{ avg_steps|intcomma }}</p>
+                {% endif %}
+
+                <a href="{% url 'health:steps_list' %}" class="card-link">View history</a>
+            {% else %}
+                <p class="text-muted">No steps logged yet.</p>
+                <a href="{% url 'health:steps_create' %}" class="btn btn-secondary btn-sm mt-4">
+                    Log your steps
+                </a>
+            {% endif %}
+        </div>
+
         <!-- Glucose Card -->
         <div class="health-card">
             <div class="card-header">

@@ -212,6 +212,100 @@ class HeartRateEntry(UserOwnedModel):
         return f"{self.bpm} BPM ({self.context}) on {self.recorded_at.date()}"
 
 
+class StepsEntry(UserOwnedModel):
+    """
+    Daily step count tracking.
+
+    Tracks daily steps with support for wearable/app sync.
+    Designed to integrate with iOS/Android fitness apps via Connect API.
+    """
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("apple_health", "Apple Health"),
+        ("google_fit", "Google Fit"),
+        ("fitbit", "Fitbit"),
+        ("garmin", "Garmin"),
+        ("samsung_health", "Samsung Health"),
+        ("other", "Other App/Device"),
+    ]
+
+    count = models.PositiveIntegerField(
+        help_text="Number of steps",
+    )
+    logged_date = models.DateField(
+        help_text="Date the steps were logged for",
+    )
+    recorded_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When this entry was recorded",
+    )
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="manual",
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="External ID from synced source to prevent duplicates",
+    )
+    goal = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Daily step goal (optional)",
+    )
+    distance_miles = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Distance in miles (if available)",
+    )
+    calories_burned = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Estimated calories burned (if available)",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-logged_date", "-recorded_at"]
+        verbose_name = "steps entry"
+        verbose_name_plural = "steps entries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "logged_date", "source"],
+                name="unique_steps_per_day_per_source",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.count:,} steps on {self.logged_date}"
+
+    @property
+    def goal_percentage(self):
+        """Percentage of daily goal achieved."""
+        if self.goal and self.goal > 0:
+            return min(100, round((self.count / self.goal) * 100, 1))
+        return None
+
+    @property
+    def goal_reached(self):
+        """Whether the daily goal was met."""
+        if self.goal:
+            return self.count >= self.goal
+        return None
+
+    @property
+    def distance_km(self):
+        """Convert distance to kilometers."""
+        if self.distance_miles:
+            return round(float(self.distance_miles) * 1.60934, 2)
+        return None
+
+
 class GlucoseEntry(UserOwnedModel):
     """
     Blood glucose tracking entry.

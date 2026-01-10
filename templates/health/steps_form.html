@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Log{% endif %} Steps - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:steps_list' %}">Steps</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Log{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Log{% endif %} Steps</h1>
+    </div>
+
+    <form method="post" class="card">
+        {% csrf_token %}
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_count" class="form-label">Step Count</label>
+                <input
+                    type="number"
+                    name="count"
+                    id="id_count"
+                    class="form-input"
+                    value="{{ form.count.value|default:'' }}"
+                    min="0"
+                    max="200000"
+                    placeholder="e.g., 10000"
+                    required
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="id_logged_date" class="form-label">Date</label>
+                <input
+                    type="date"
+                    name="logged_date"
+                    id="id_logged_date"
+                    class="form-input"
+                    value="{% if form.logged_date.value %}{{ form.logged_date.value|date:'Y-m-d' }}{% else %}{{ form.initial.logged_date|default:'' }}{% endif %}"
+                    required
+                >
+            </div>
+        </div>
+
+        <div class="steps-guide">
+            <h3>Daily Step Goals</h3>
+            <ul>
+                <li><strong>Sedentary:</strong> Less than 5,000 steps</li>
+                <li><strong>Low Active:</strong> 5,000-7,499 steps</li>
+                <li><strong>Somewhat Active:</strong> 7,500-9,999 steps</li>
+                <li><strong>Active:</strong> 10,000-12,499 steps</li>
+                <li><strong>Highly Active:</strong> 12,500+ steps</li>
+            </ul>
+            <p class="text-muted text-sm">The commonly cited goal of 10,000 steps equals roughly 5 miles.</p>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_goal" class="form-label">Daily Goal (optional)</label>
+                <input
+                    type="number"
+                    name="goal"
+                    id="id_goal"
+                    class="form-input"
+                    value="{{ form.goal.value|default:'' }}"
+                    min="0"
+                    max="100000"
+                    placeholder="e.g., 10000"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="id_distance_miles" class="form-label">Distance in Miles (optional)</label>
+                <input
+                    type="number"
+                    name="distance_miles"
+                    id="id_distance_miles"
+                    class="form-input"
+                    value="{{ form.distance_miles.value|default:'' }}"
+                    min="0"
+                    step="0.01"
+                    placeholder="e.g., 5.2"
+                >
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_calories_burned" class="form-label">Calories Burned (optional)</label>
+            <input
+                type="number"
+                name="calories_burned"
+                id="id_calories_burned"
+                class="form-input"
+                value="{{ form.calories_burned.value|default:'' }}"
+                min="0"
+                placeholder="e.g., 400"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes" class="form-label">Notes (optional)</label>
+            <textarea
+                name="notes"
+                id="id_notes"
+                class="form-textarea"
+                placeholder="Any notes about today's activity..."
+                rows="2"
+            >{{ form.notes.value|default:'' }}</textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Log Steps{% endif %}
+            </button>
+            {% if not object %}
+            <button type="submit" name="save_add_another" class="btn btn-secondary">
+                Save &amp; Add Another
+            </button>
+            {% endif %}
+            <a href="{% url 'health:steps_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.steps-guide {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.steps-guide h3 {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-2);
+}
+
+.steps-guide ul {
+    margin: 0 0 var(--space-2) 0;
+    padding-left: var(--space-4);
+}
+
+.steps-guide li {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+{% endblock %}

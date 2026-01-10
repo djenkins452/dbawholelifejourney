@@ -32,6 +32,7 @@ from .models import (
     MedicineSchedule,
     NutritionGoals,
     ProviderStaff,
+    StepsEntry,
     WeightEntry,
 )
 
@@ -248,6 +249,58 @@ class HeartRateEntryForm(forms.ModelForm):
         """Convert datetime from user's timezone to UTC."""
         recorded_at = self.cleaned_data.get('recorded_at')
         return interpret_as_user_timezone(recorded_at, self.user)
+
+
+class StepsEntryForm(forms.ModelForm):
+    """
+    Form for logging daily steps.
+    """
+
+    class Meta:
+        model = StepsEntry
+        fields = ["count", "logged_date", "goal", "distance_miles", "calories_burned", "notes"]
+        widgets = {
+            "count": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Number of steps",
+                "min": 0,
+                "max": 200000,
+            }),
+            "logged_date": forms.DateInput(attrs={
+                "class": "form-input",
+                "type": "date",
+            }),
+            "goal": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Daily goal (optional)",
+                "min": 0,
+                "max": 100000,
+            }),
+            "distance_miles": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Distance in miles (optional)",
+                "min": 0,
+                "step": "0.01",
+            }),
+            "calories_burned": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Calories burned (optional)",
+                "min": 0,
+            }),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "placeholder": "Any notes? (optional)",
+                "rows": 2,
+            }),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        # Set default logged_date to today for new entries
+        if not self.instance.pk:
+            today = get_user_today(user) if user else timezone.now().date()
+            self.initial["logged_date"] = today.strftime("%Y-%m-%d")
 
 
 class GlucoseEntryForm(forms.ModelForm):

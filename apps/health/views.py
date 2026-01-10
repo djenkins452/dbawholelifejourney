@@ -9,7 +9,8 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Avg, Max, Min
+from django.db import models
+from django.db.models import Avg, Max, Min, Sum, F
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -44,6 +45,7 @@ from .forms import (
     MedicineScheduleForm,
     PRNDoseForm,
     QuickWeightForm,
+    StepsEntryForm,
     UpdateSupplyForm,
     WeightEntryForm,
 )
@@ -63,6 +65,7 @@ from .models import (
     MedicineSchedule,
     NutritionGoals,
     PersonalRecord,
+    StepsEntry,
     TemplateExercise,
     TemplateExerciseSet,
     WeightEntry,
@@ -127,7 +130,18 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if resting_hr.exists():
                 avg = resting_hr.aggregate(avg=Avg("bpm"))["avg"]
                 context["avg_resting_hr"] = round(avg)
-        
+
+        # Steps summary
+        steps_entries = StepsEntry.objects.filter(user=user)
+        if steps_entries.exists():
+            context["latest_steps"] = steps_entries.first()
+            # 7-day average
+            week_ago = now - timedelta(days=7)
+            week_steps = steps_entries.filter(logged_date__gte=week_ago.date())
+            if week_steps.exists():
+                avg = week_steps.aggregate(avg=Avg("count"))["avg"]
+                context["avg_steps"] = round(avg) if avg else None
+
         # Glucose summary
         glucose_entries = GlucoseEntry.objects.filter(user=user)
         if glucose_entries.exists():
@@ -652,6 +666,149 @@ class HeartRateDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
             HeartRateEntry.objects.filter(user=self.request.user),
             pk=self.kwargs['pk']
         )
+
+
+# =============================================================================
+# STEPS VIEWS
+# =============================================================================
+
+
+class StepsListView(LoginRequiredMixin, ListView):
+    """
+    List steps entries.
+    """
+
+    model = StepsEntry
+    template_name = "health/steps_list.html"
+    context_object_name = "entries"
+    paginate_by = 30
+
+    def get_queryset(self):
+        return StepsEntry.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        entries = self.get_queryset()
+
+        if entries.exists():
+            context["latest"] = entries.first()
+            context["total_count"] = entries.count()
+
+            # Stats for past 7 days
+            week_ago = timezone.now() - timedelta(days=7)
+            week_entries = entries.filter(logged_date__gte=week_ago.date())
+            if week_entries.exists():
+                stats = week_entries.aggregate(
+                    avg=Avg("count"),
+                    total=Sum("count"),
+                    max=Max("count"),
+                )
+                context["week_avg"] = round(stats["avg"]) if stats["avg"] else 0
+                context["week_total"] = stats["total"] or 0
+                context["week_max"] = stats["max"] or 0
+                context["week_count"] = week_entries.count()
+
+            # Goals met count
+            goals_met = entries.filter(
+                goal__isnull=False,
+                count__gte=F("goal")
+            ).count()
+            context["goals_met"] = goals_met
+
+            # Chart data for last 14 days
+            two_weeks_ago = timezone.now() - timedelta(days=14)
+            chart_entries = entries.filter(
+                logged_date__gte=two_weeks_ago.date()
+            ).order_by("logged_date")
+            if chart_entries.exists():
+                context["chart_labels"] = json.dumps([
+                    e.logged_date.strftime("%m/%d") for e in chart_entries
+                ])
+                context["chart_data"] = json.dumps([
+                    e.count for e in chart_entries
+                ])
+                # Include goals if available
+                context["chart_goals"] = json.dumps([
+                    e.goal if e.goal else None for e in chart_entries
+                ])
+
+        return context
+
+
+class StepsCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
+    """
+    Log a new steps entry.
+    """
+
+    model = StepsEntry
+    form_class = StepsEntryForm
+    template_name = "health/steps_form.html"
+    success_url = reverse_lazy("health:steps_list")
+    save_add_another_message = "Steps logged. Add another!"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, "Steps logged.")
+        return super().form_valid(form)
+
+
+class StepsUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Edit a steps entry.
+    """
+
+    model = StepsEntry
+    form_class = StepsEntryForm
+    template_name = "health/steps_form.html"
+    success_url = reverse_lazy("health:steps_list")
+
+    def get_queryset(self):
+        return StepsEntry.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+
+class StepsDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
+    """
+    Delete a steps entry.
+    Supports undo via toast notification for AJAX requests.
+    """
+
+    model = StepsEntry
+    item_type = 'health.stepsentry'
+    item_name = 'steps entry'
+    success_url = 'health:steps_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            StepsEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
+        )
+
+
+class BulkDeleteStepsView(LoginRequiredMixin, View):
+    """
+    Bulk delete steps entries.
+    """
+
+    def post(self, request):
+        ids = request.POST.getlist("ids[]")
+        if ids:
+            deleted_count = StepsEntry.objects.filter(
+                user=request.user,
+                pk__in=ids
+            ).delete()[0]
+            messages.success(request, f"Deleted {deleted_count} steps entries.")
+        return redirect("health:steps_list")
 
 
 # NOTE: Glucose views moved to end of file with Dexcom integration views

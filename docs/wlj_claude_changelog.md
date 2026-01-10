@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-10 (Comprehensive Intent Detector Expansion)
+# Last Updated: 2026-01-10 (Add Steps Tracking Feature)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,57 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-10 Changes
+
+### Add Steps Tracking Feature to Health Module (Task #233)
+
+**Feature:**
+Added daily step count tracking to the Health module with full CRUD functionality.
+
+**StepsEntry Model:**
+- `count` - Daily step count (PositiveIntegerField)
+- `logged_date` - Date for the steps
+- `source` - Manual or synced from wearables (Apple Health, Google Fit, Fitbit, Garmin, Samsung Health)
+- `sync_id` - For deduplication when syncing from external sources
+- `goal` - Optional daily step goal
+- `distance_miles` - Optional distance in miles
+- `calories_burned` - Optional calories estimate
+- Properties: `goal_percentage`, `goal_reached`, `distance_km`
+- UniqueConstraint: One entry per day per source per user
+
+**Views:**
+- `StepsListView` - List with stats (7-day avg, total, goals met) and Chart.js bar chart
+- `StepsCreateView` - Form with Save & Add Another support
+- `StepsUpdateView` - Edit existing entries
+- `StepsDeleteView` - Soft delete with undo support
+- `BulkDeleteStepsView` - Bulk deletion
+
+**URLs:**
+- `/health/steps/` - List view
+- `/health/steps/log/` - Create new entry
+- `/health/steps/<pk>/edit/` - Edit entry
+- `/health/steps/<pk>/delete/` - Delete entry
+
+**Templates:**
+- `steps_list.html` - List view with activity chart
+- `steps_form.html` - Create/edit form with activity level guide
+
+**Health Home Integration:**
+- Added Steps card showing latest entry and 7-day average
+
+**Future Connect API:**
+Model designed for iOS/Android app integration via `source` and `sync_id` fields.
+
+**Files modified:**
+- `apps/health/models.py` - Added StepsEntry model
+- `apps/health/forms.py` - Added StepsEntryForm
+- `apps/health/views.py` - Added 5 views for Steps CRUD
+- `apps/health/urls.py` - Added 5 URL patterns
+- `templates/health/home.html` - Added Steps card
+- `templates/health/steps_list.html` - New template
+- `templates/health/steps_form.html` - New template
+- `apps/health/migrations/0016_add_steps_entry.py` - Migration
+
+---
 
 ### Comprehensive Intent Detector Expansion for All WLJ Data Types
 

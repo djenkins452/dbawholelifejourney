@@ -300,7 +300,7 @@ class StepsEntryForm(forms.ModelForm):
         # Set default logged_date to today for new entries
         if not self.instance.pk:
             today = get_user_today(user) if user else timezone.now().date()
-            self.initial["logged_date"] = today.strftime("%Y-%m-%d")
+            self.initial["logged_date"] = today
 
 
 class GlucoseEntryForm(forms.ModelForm):

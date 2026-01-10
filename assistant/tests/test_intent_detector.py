@@ -21,9 +21,12 @@ class TestPersonalDataKeywords(unittest.TestCase):
 
     def test_keywords_dictionary_has_expected_keys(self):
         """Ensure all expected data types are present."""
+        # Core data types that must exist
         expected_keys = [
             'weight', 'journal', 'medication', 'food', 'mood',
-            'sleep', 'exercise', 'glucose', 'blood_pressure', 'faith', 'goals',
+            'sleep', 'glucose', 'blood_pressure', 'faith', 'goals',
+            # Exercise-related types (split from old 'exercise')
+            'workout', 'cardio', 'fitness',
         ]
         for key in expected_keys:
             self.assertIn(key, PERSONAL_DATA_KEYWORDS)
@@ -246,13 +249,13 @@ class TestMultipleDataTypes(unittest.TestCase):
         self.assertTrue(result['is_compound_query'])
 
     def test_food_and_exercise(self):
-        """Should detect food and exercise."""
+        """Should detect food and workout."""
         result = detect_personal_data_intent(
             "What did I eat and how much did I exercise yesterday?"
         )
         self.assertTrue(result['is_personal_query'])
         self.assertIn('food', result['data_types'])
-        self.assertIn('exercise', result['data_types'])
+        self.assertIn('workout', result['data_types'])  # 'exercise' keyword in workout
         self.assertTrue(result['is_compound_query'])
 
 
@@ -360,7 +363,7 @@ class TestEdgeCases(unittest.TestCase):
 
 
 class TestAdditionalDataTypes(unittest.TestCase):
-    """Tests for additional data types like sleep, exercise, glucose."""
+    """Tests for additional data types like sleep, cardio, glucose."""
 
     def test_sleep_query(self):
         """Should detect sleep queries."""
@@ -368,11 +371,11 @@ class TestAdditionalDataTypes(unittest.TestCase):
         self.assertTrue(result['is_personal_query'])
         self.assertIn('sleep', result['data_types'])
 
-    def test_exercise_query(self):
-        """Should detect exercise queries."""
+    def test_steps_query(self):
+        """Should detect steps as cardio queries."""
         result = detect_personal_data_intent("How many steps have I walked?")
         self.assertTrue(result['is_personal_query'])
-        self.assertIn('exercise', result['data_types'])
+        self.assertIn('cardio', result['data_types'])  # steps/walking in cardio
 
     def test_glucose_query(self):
         """Should detect glucose queries."""
@@ -386,17 +389,29 @@ class TestAdditionalDataTypes(unittest.TestCase):
         self.assertTrue(result['is_personal_query'])
         self.assertIn('blood_pressure', result['data_types'])
 
-    def test_faith_query(self):
-        """Should detect faith/prayer queries."""
+    def test_scripture_query(self):
+        """Should detect scripture queries."""
         result = detect_personal_data_intent("What scriptures have I read?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('scripture', result['data_types'])  # scripture is its own type
+
+    def test_faith_query(self):
+        """Should detect faith queries."""
+        result = detect_personal_data_intent("How is my spiritual journey?")
         self.assertTrue(result['is_personal_query'])
         self.assertIn('faith', result['data_types'])
 
     def test_goals_query(self):
-        """Should detect goals/habits queries."""
-        result = detect_personal_data_intent("What is my habit streak?")
+        """Should detect goals queries."""
+        result = detect_personal_data_intent("What are my goals?")
         self.assertTrue(result['is_personal_query'])
         self.assertIn('goals', result['data_types'])
+
+    def test_habit_query(self):
+        """Should detect habit queries."""
+        result = detect_personal_data_intent("What is my habit streak?")
+        self.assertTrue(result['is_personal_query'])
+        self.assertIn('habit', result['data_types'])  # habit is its own type now
 
 
 class TestMetaQuestionKeywords(unittest.TestCase):
@@ -494,15 +509,15 @@ class TestCompoundQueryDetection(unittest.TestCase):
         self.assertIn('weight', result['data_types'])
         self.assertIn('mood', result['data_types'])
 
-    def test_food_or_exercise_compound(self):
-        """Should detect food or exercise as compound query."""
+    def test_food_or_workout_compound(self):
+        """Should detect food or workout as compound query."""
         result = detect_personal_data_intent(
             "Did I track food or exercise today?"
         )
         self.assertTrue(result['is_personal_query'])
         self.assertTrue(result['is_compound_query'])
         self.assertIn('food', result['data_types'])
-        self.assertIn('exercise', result['data_types'])
+        self.assertIn('workout', result['data_types'])  # 'exercise' keyword in workout
 
     def test_three_data_types_compound(self):
         """Should detect three data types as compound query."""
@@ -560,16 +575,16 @@ class TestNewKeywordCoverage(unittest.TestCase):
         self.assertIn('sleep', result['data_types'])
 
     def test_fitness_keyword(self):
-        """Should detect fitness as exercise type."""
+        """Should detect fitness queries."""
         result = detect_personal_data_intent("What is my fitness level?")
         self.assertTrue(result['is_personal_query'])
-        self.assertIn('exercise', result['data_types'])
+        self.assertIn('fitness', result['data_types'])
 
     def test_yoga_keyword(self):
-        """Should detect yoga as exercise type."""
+        """Should detect yoga as fitness type."""
         result = detect_personal_data_intent("Did I do yoga this week?")
         self.assertTrue(result['is_personal_query'])
-        self.assertIn('exercise', result['data_types'])
+        self.assertIn('fitness', result['data_types'])  # yoga in fitness
 
     def test_insulin_keyword(self):
         """Should detect insulin as glucose type."""
@@ -578,10 +593,10 @@ class TestNewKeywordCoverage(unittest.TestCase):
         self.assertIn('glucose', result['data_types'])
 
     def test_heart_rate_keyword(self):
-        """Should detect heart rate as blood pressure type."""
+        """Should detect heart rate queries."""
         result = detect_personal_data_intent("What is my heart rate?")
         self.assertTrue(result['is_personal_query'])
-        self.assertIn('blood_pressure', result['data_types'])
+        self.assertIn('heart_rate', result['data_types'])  # heart_rate is its own type
 
     def test_quiet_time_keyword(self):
         """Should detect quiet time as faith type."""
@@ -590,10 +605,10 @@ class TestNewKeywordCoverage(unittest.TestCase):
         self.assertIn('faith', result['data_types'])
 
     def test_milestone_keyword(self):
-        """Should detect milestone as goals type."""
+        """Should detect milestone as project type."""
         result = detect_personal_data_intent("What milestones have I reached?")
         self.assertTrue(result['is_personal_query'])
-        self.assertIn('goals', result['data_types'])
+        self.assertIn('project', result['data_types'])  # milestone in project type
 
     def test_rx_keyword(self):
         """Should detect rx as medication type."""

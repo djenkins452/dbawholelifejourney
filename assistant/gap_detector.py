@@ -124,7 +124,21 @@ def detect_knowledge_gap(
     if not original_query or intent_result is None:
         return base_response
 
-    # Case 1: Intent detected a personal query but we couldn't get data
+    query_lower = original_query.lower()
+
+    # Case 1: Check for unsupported query patterns FIRST
+    # (comparison, correlation, prediction patterns that we can't handle yet)
+    if intent_result.get('is_personal_query'):
+        unsupported_patterns = _check_unsupported_patterns(query_lower)
+        if unsupported_patterns:
+            return {
+                **base_response,
+                'gap_detected': True,
+                'gap_type': GapType.UNSUPPORTED_QUERY_PATTERN,
+                'suggested_category': unsupported_patterns[0],
+            }
+
+    # Case 2: Intent detected a personal query but we couldn't get data
     if intent_result.get('is_personal_query'):
         detected_types = intent_result.get('data_types', [])
 
@@ -152,7 +166,7 @@ def detect_knowledge_gap(
         if detected_types and all(dt in DATA_TYPES_WITH_METHODS for dt in detected_types):
             return base_response
 
-    # Case 2: Query looks personal but we didn't detect any data types
+    # Case 3: Query looks personal but we didn't detect any data types
     if intent_result.get('is_personal_query') and not intent_result.get('data_types'):
         # Might be missing keywords - extract potential keywords
         potential_keywords = extract_potential_keywords(original_query)
@@ -164,9 +178,8 @@ def detect_knowledge_gap(
             'suggested_category': suggested,
         }
 
-    # Case 3: Not detected as personal query but might be one
+    # Case 4: Not detected as personal query but might be one
     # Check for query patterns that suggest it should be personal
-    query_lower = original_query.lower()
     has_personal_indicators = any(
         word in query_lower
         for word in ['my', 'i', 'me', "i've", "i'm"]
@@ -181,18 +194,6 @@ def detect_knowledge_gap(
                 'gap_detected': True,
                 'gap_type': GapType.UNKNOWN_DATA_TYPE,
                 'suggested_category': potential_keywords[0],
-            }
-
-    # Case 4: Check for unsupported query patterns
-    if intent_result.get('is_personal_query'):
-        # Check if the query uses patterns we don't fully support
-        unsupported_patterns = _check_unsupported_patterns(query_lower)
-        if unsupported_patterns:
-            return {
-                **base_response,
-                'gap_detected': True,
-                'gap_type': GapType.UNSUPPORTED_QUERY_PATTERN,
-                'suggested_category': unsupported_patterns[0],
             }
 
     return base_response

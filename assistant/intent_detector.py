@@ -2,165 +2,424 @@
 Intent Detector Module for WLJ Personal Data Query System.
 
 This module provides rule-based detection of user queries that relate
-to their personal WLJ data (weight, journal entries, medications, food, mood, etc.).
+to their personal WLJ data across all WLJ modules:
+- Health (weight, glucose, blood pressure, medications, food, workouts, heart rate, etc.)
+- Journal (entries, reflections, prompts)
+- Faith (scripture, prayers, reading plans, milestones)
+- Life (tasks, events, projects, pets, recipes, maintenance, inventory)
+- Purpose (goals, habits, reflections, annual direction)
+- Finance (accounts, transactions, budgets, financial goals)
 """
 
 import re
 from typing import Dict, List
 
 
-# Dictionary mapping data types to keyword lists for personal data detection
+# =============================================================================
+# PERSONAL DATA KEYWORDS - Comprehensive mapping for all WLJ data types
+# =============================================================================
+
 PERSONAL_DATA_KEYWORDS: Dict[str, List[str]] = {
+    # =========================================================================
+    # HEALTH MODULE
+    # =========================================================================
     'weight': [
         'weight', 'weigh', 'weighed', 'weighing', 'pounds', 'lbs', 'kg',
         'kilograms', 'scale', 'body weight', 'lost weight', 'gained weight',
         'weight loss', 'weight gain', 'heaviest', 'lightest',
-        # Additional weight keywords
         'bmi', 'body mass', 'mass', 'heavy', 'lighter', 'heavier',
         'weight trend', 'weight history', 'weight progress', 'weight change',
     ],
-    'journal': [
-        'journal', 'journaled', 'journaling', 'entry', 'entries', 'wrote',
-        'written', 'diary', 'note', 'notes', 'reflection', 'reflections',
-        'thoughts', 'gratitude', 'grateful',
-        # Additional journal keywords
-        'log', 'logged', 'logging', 'record', 'recorded', 'recording',
-        'morning pages', 'evening reflection', 'daily entry', 'journalling',
+
+    'glucose': [
+        'glucose', 'blood sugar', 'sugar level', 'sugar levels', 'a1c',
+        'hba1c', 'diabetes', 'diabetic', 'cgm', 'blood glucose', 'bg',
+        'fasting glucose', 'glucose reading', 'glucose readings',
+        'insulin', 'hyperglycemia', 'hypoglycemia', 'blood sugar level',
+        'glucose monitor', 'glucose log', 'sugar check', 'glucose check',
+        'dexcom', 'continuous glucose', 'glucose trend', 'in range',
+        'time in range', 'high glucose', 'low glucose', 'glucose spike',
+        # Note: standalone 'sugar' is ambiguous - handled separately
     ],
+
+    'blood_pressure': [
+        'blood pressure', 'bp', 'systolic', 'diastolic', 'hypertension',
+        'pressure reading', 'pressure readings', 'bp reading',
+        'high blood pressure', 'low blood pressure', 'blood pressure log',
+        'pulse pressure', 'bp trend', 'bp history',
+    ],
+
+    'heart_rate': [
+        'heart rate', 'pulse', 'bpm', 'beats per minute', 'resting heart rate',
+        'resting pulse', 'heart rate variability', 'hrv', 'pulse rate',
+        'heart beat', 'heartbeat', 'cardio heart rate', 'active heart rate',
+    ],
+
+    'blood_oxygen': [
+        'blood oxygen', 'oxygen level', 'oxygen levels', 'spo2', 'o2 sat',
+        'oxygen saturation', 'pulse ox', 'pulse oximeter', 'oximetry',
+    ],
+
     'medication': [
         'medication', 'medications', 'medicine', 'medicines', 'pill', 'pills',
         'dose', 'doses', 'dosage', 'prescription', 'prescriptions', 'meds',
         'supplement', 'supplements', 'vitamin', 'vitamins', 'took', 'taking',
-        'drug', 'drugs',
-        # Additional medication keywords
-        'rx', 'refill', 'pharmacy', 'tablet', 'tablets', 'capsule', 'capsules',
-        'treatment', 'treatments', 'regimen', 'med schedule', 'med log',
+        'drug', 'drugs', 'rx', 'refill', 'pharmacy', 'tablet', 'tablets',
+        'capsule', 'capsules', 'treatment', 'treatments', 'regimen',
+        'med schedule', 'med log', 'missed dose', 'took my', 'take my',
+        'prn', 'as needed', 'medication schedule', 'medicine schedule',
+        'medication reminder', 'medicine reminder', 'drug interaction',
     ],
+
     'food': [
         'food', 'foods', 'ate', 'eaten', 'eat', 'eating', 'meal', 'meals',
         'breakfast', 'lunch', 'dinner', 'snack', 'snacks', 'calories',
         'calorie', 'nutrition', 'diet', 'carbs', 'carbohydrates', 'protein',
         'fat', 'fats', 'fiber', 'sodium', 'cholesterol',
-        # Note: 'sugar' is ambiguous - handled separately for clarification
-        # Additional food keywords
         'macros', 'micronutrients', 'nutrients', 'kcal', 'brunch', 'supper',
         'food log', 'food diary', 'what i ate', 'food intake', 'consumption',
+        'net carbs', 'saturated fat', 'trans fat', 'potassium', 'calcium',
+        'iron', 'vitamin', 'food entry', 'logged food', 'daily calories',
+        'calorie intake', 'calorie count', 'macro breakdown', 'macro split',
+        'hunger', 'fullness', 'eating pace', 'meal type',
+        # Note: 'sugar' is ambiguous - handled separately for clarification
     ],
+
+    'nutrition_goals': [
+        'calorie target', 'calorie goal', 'macro target', 'macro goal',
+        'protein target', 'protein goal', 'carb target', 'carb goal',
+        'fat target', 'fat goal', 'nutrition goal', 'nutrition target',
+        'dietary goal', 'diet goal', 'calorie limit', 'sugar limit',
+        'sodium limit', 'daily allowance', 'nutritional needs',
+    ],
+
+    'workout': [
+        'workout', 'workouts', 'exercise', 'exercises', 'exercised',
+        'exercising', 'worked out', 'gym', 'strength training', 'lifting',
+        'weights', 'weight training', 'resistance training', 'reps', 'sets',
+        'volume', 'personal record', 'pr', 'one rep max', '1rm',
+        'workout session', 'training session', 'gym session', 'routine',
+        'workout routine', 'exercise routine', 'lift', 'lifted', 'bench',
+        'squat', 'deadlift', 'curl', 'press', 'row', 'pullup', 'pushup',
+        'dumbbell', 'barbell', 'kettlebell', 'machine', 'free weights',
+    ],
+
+    'cardio': [
+        'cardio', 'run', 'ran', 'running', 'walk', 'walked', 'walking',
+        'steps', 'miles', 'kilometers', 'distance', 'pace', 'swim', 'swam',
+        'swimming', 'bike', 'biked', 'biking', 'cycling', 'cycle', 'hike',
+        'hiked', 'hiking', 'jog', 'jogged', 'jogging', 'treadmill',
+        'elliptical', 'stair', 'stairs', 'rowing', 'rower', 'marathon',
+        'half marathon', '5k', '10k', 'sprint', 'interval', 'hiit',
+    ],
+
+    'fitness': [
+        'fitness', 'fit', 'physical activity', 'active', 'activity',
+        'yoga', 'stretching', 'flexibility', 'mobility', 'warm up',
+        'cool down', 'recovery', 'rest day', 'active recovery',
+        'workout template', 'workout plan', 'training plan', 'exercise plan',
+    ],
+
+    'medical_provider': [
+        'doctor', 'doctors', 'physician', 'physicians', 'provider', 'providers',
+        'healthcare provider', 'medical provider', 'specialist', 'specialists',
+        'cardiologist', 'endocrinologist', 'primary care', 'pcp',
+        'nurse practitioner', 'np', 'physician assistant', 'pa',
+        'dentist', 'optometrist', 'dermatologist', 'psychiatrist',
+        'therapist', 'counselor', 'vet', 'veterinarian',
+        'doctor appointment', 'doctor visit', 'medical appointment',
+        'patient portal', 'office hours', 'doctor phone', 'doctor address',
+    ],
+
+    # =========================================================================
+    # JOURNAL MODULE
+    # =========================================================================
+    'journal': [
+        'journal', 'journaled', 'journaling', 'entry', 'entries', 'wrote',
+        'written', 'diary', 'note', 'notes', 'reflection', 'reflections',
+        'thoughts', 'gratitude', 'grateful', 'log', 'logged', 'logging',
+        'record', 'recorded', 'recording', 'morning pages', 'evening reflection',
+        'daily entry', 'journalling', 'write', 'writing', 'journaled about',
+        'wrote about', 'reflected on', 'journal prompt', 'writing prompt',
+    ],
+
+    # =========================================================================
+    # FAITH MODULE
+    # =========================================================================
+    'faith': [
+        'faith', 'spiritual', 'spirituality', 'devotional', 'devotionals',
+        'quiet time', 'devotion', 'faith journey', 'spiritual practice',
+        'worship', 'worshipped', 'church', 'sermon', 'sermons',
+    ],
+
+    'prayer': [
+        'prayer', 'prayers', 'prayed', 'praying', 'prayer request',
+        'prayer requests', 'answered prayer', 'answered prayers',
+        'prayer list', 'pray for', 'praying for', 'intercession',
+        'petition', 'supplication', 'prayer journal',
+    ],
+
+    'scripture': [
+        'scripture', 'scriptures', 'bible', 'verse', 'verses', 'passage',
+        'passages', 'chapter', 'book of', 'biblical', 'bible verse',
+        'memory verse', 'memory verses', 'daily verse', 'verse of the day',
+        'bible reading', 'scripture reading', 'bible study', 'study notes',
+        'highlighted', 'highlight', 'bookmarked', 'bookmark', 'saved verse',
+    ],
+
+    'reading_plan': [
+        'reading plan', 'reading plans', 'bible plan', 'devotional plan',
+        'reading progress', 'plan progress', 'day of plan', 'reading streak',
+        'bible in a year', 'chronological', 'topical study',
+    ],
+
+    'faith_milestone': [
+        'salvation', 'baptism', 'baptized', 'rededication', 'spiritual milestone',
+        'faith milestone', 'accepted christ', 'born again', 'confirmation',
+    ],
+
+    # =========================================================================
+    # LIFE MODULE
+    # =========================================================================
+    'task': [
+        'task', 'tasks', 'to do', 'todo', 'to-do', 'to dos', 'todos',
+        'to-dos', 'due', 'overdue', 'deadline', 'deadlines', 'complete',
+        'completed', 'incomplete', 'pending', 'priority', 'priorities',
+        'urgent', 'important', 'quick task', 'small task', 'big task',
+        'recurring task', 'daily task', 'weekly task', 'task list',
+    ],
+
+    'project': [
+        'project', 'projects', 'project status', 'project progress',
+        'active project', 'completed project', 'paused project',
+        'project task', 'project tasks', 'milestone', 'milestones',
+    ],
+
+    'event': [
+        'event', 'events', 'appointment', 'appointments', 'meeting', 'meetings',
+        'calendar', 'schedule', 'scheduled', 'upcoming', 'coming up',
+        'happening', 'planned', 'plans', 'reminder', 'reminders',
+    ],
+
+    'significant_event': [
+        'birthday', 'birthdays', 'anniversary', 'anniversaries', 'memorial',
+        'holiday', 'holidays', 'special day', 'special days', 'celebration',
+        'turning', 'years old', 'years together', 'years married',
+    ],
+
+    'pet': [
+        'pet', 'pets', 'dog', 'dogs', 'cat', 'cats', 'puppy', 'kitten',
+        'bird', 'fish', 'rabbit', 'hamster', 'pet vet', 'pet appointment',
+        'pet vaccination', 'pet medication', 'pet weight', 'microchip',
+        'pet grooming', 'pet food', 'pet record', 'vet visit',
+    ],
+
+    'recipe': [
+        'recipe', 'recipes', 'cook', 'cooking', 'bake', 'baking',
+        'ingredient', 'ingredients', 'prep time', 'cook time', 'servings',
+        'favorite recipe', 'family recipe', 'how to make', 'how to cook',
+    ],
+
+    'inventory': [
+        'inventory', 'item', 'items', 'appliance', 'appliances', 'furniture',
+        'electronics', 'warranty', 'warranties', 'serial number', 'model number',
+        'purchase date', 'purchase price', 'home inventory', 'asset', 'assets',
+        'household item', 'household items', 'insurance inventory',
+    ],
+
+    'maintenance': [
+        'maintenance', 'repair', 'repairs', 'service', 'serviced', 'hvac',
+        'plumbing', 'electrical', 'roof', 'appliance repair', 'home repair',
+        'contractor', 'handyman', 'service provider', 'maintenance log',
+        'when was', 'last serviced', 'next service', 'follow up',
+    ],
+
+    'document': [
+        'document', 'documents', 'file', 'files', 'paperwork', 'record',
+        'records', 'insurance policy', 'legal document', 'tax document',
+        'warranty document', 'expiring', 'expires', 'expiration',
+        'medical record', 'financial document', 'important document',
+    ],
+
+    # =========================================================================
+    # PURPOSE MODULE
+    # =========================================================================
+    'goals': [
+        'goal', 'goals', 'objective', 'objectives', 'target', 'targets',
+        'life goal', 'life goals', 'long term goal', 'short term goal',
+        'annual goal', 'yearly goal', 'goal progress', 'goal status',
+        'achieved', 'achievement', 'achievements', 'accomplish', 'accomplished',
+    ],
+
+    'habit': [
+        'habit', 'habits', 'habit goal', 'habit goals', 'streak', 'streaks',
+        'habit streak', 'daily habit', 'habit tracker', 'habit tracking',
+        'habit matrix', 'completion rate', 'habit progress', 'habit history',
+        'did i', 'have i', 'days in a row', 'consecutive days',
+    ],
+
+    'intention': [
+        'intention', 'intentions', 'change intention', 'behavior change',
+        'identity', 'becoming', 'want to be', 'working on', 'improving',
+        'personal growth', 'self improvement', 'development',
+    ],
+
+    'reflection': [
+        'reflection', 'reflections', 'year end', 'year start', 'quarterly',
+        'annual review', 'year in review', 'looking back', 'lessons learned',
+        'what worked', 'what didnt work', 'gratitude', 'grateful for',
+    ],
+
+    'annual_direction': [
+        'word of the year', 'yearly theme', 'annual theme', 'guiding word',
+        'anchor scripture', 'anchor verse', 'focus for the year',
+        'theme for the year', 'year ahead',
+    ],
+
+    # =========================================================================
+    # FINANCE MODULE
+    # =========================================================================
+    'account': [
+        'account', 'accounts', 'bank account', 'checking', 'savings',
+        'credit card', 'credit cards', 'loan', 'loans', 'mortgage',
+        'student loan', 'investment', 'investments', 'balance', 'balances',
+        'account balance', 'available balance', 'current balance',
+    ],
+
+    'transaction': [
+        'transaction', 'transactions', 'spent', 'spend', 'spending',
+        'purchase', 'purchases', 'bought', 'paid', 'payment', 'payments',
+        'charge', 'charges', 'deposit', 'deposits', 'transfer', 'transfers',
+        'withdrew', 'withdrawal', 'income', 'expense', 'expenses',
+    ],
+
+    'budget': [
+        'budget', 'budgets', 'budgeted', 'budgeting', 'over budget',
+        'under budget', 'on budget', 'budget status', 'remaining budget',
+        'budget category', 'monthly budget', 'spending limit',
+        'how much left', 'how much can i spend', 'budget progress',
+    ],
+
+    'financial_goal': [
+        'savings goal', 'saving for', 'emergency fund', 'debt payoff',
+        'pay off', 'paying off', 'financial goal', 'money goal',
+        'savings target', 'savings progress', 'how much saved',
+        'how much more', 'when will i', 'monthly contribution',
+    ],
+
+    'net_worth': [
+        'net worth', 'total assets', 'total liabilities', 'total debt',
+        'financial health', 'financial snapshot', 'debt to income',
+        'savings rate', 'cash flow', 'monthly cash flow',
+    ],
+
+    # =========================================================================
+    # MOOD & MENTAL STATE
+    # =========================================================================
     'mood': [
         'mood', 'moods', 'feeling', 'feelings', 'felt', 'feel', 'emotion',
         'emotions', 'emotional', 'happy', 'sad', 'anxious', 'anxiety',
         'stressed', 'stress', 'depressed', 'depression', 'angry', 'anger',
         'calm', 'peaceful', 'worried', 'worry', 'hopeful', 'hope',
         'frustrated', 'frustration', 'excited', 'excitement', 'tired',
-        'exhausted', 'energetic', 'energy',
-        # Additional mood keywords
-        'mental state', 'wellbeing', 'well-being', 'mental health', 'mindset',
-        'overwhelmed', 'content', 'joyful', 'joy', 'low mood', 'mood swing',
-        'irritable', 'irritated', 'nervous', 'relaxed', 'motivated',
+        'exhausted', 'energetic', 'energy', 'mental state', 'wellbeing',
+        'well-being', 'mental health', 'mindset', 'overwhelmed', 'content',
+        'joyful', 'joy', 'low mood', 'mood swing', 'irritable', 'irritated',
+        'nervous', 'relaxed', 'motivated', 'unmotivated', 'burned out',
+        'burnout', 'how am i feeling', 'how do i feel', 'mood today',
     ],
+
+    # =========================================================================
+    # SLEEP (future feature placeholder)
+    # =========================================================================
     'sleep': [
         'sleep', 'slept', 'sleeping', 'asleep', 'awake', 'woke', 'wake',
         'rest', 'rested', 'resting', 'insomnia', 'nap', 'naps', 'napped',
-        'bedtime', 'hours of sleep',
-        # Additional sleep keywords
-        'sleep quality', 'sleep schedule', 'sleep pattern', 'sleep log',
-        'wake up', 'woke up', 'dream', 'dreams', 'nightmare', 'nightmares',
-        'sleep duration', 'time in bed', 'sleep cycle',
-    ],
-    'exercise': [
-        'exercise', 'exercised', 'exercising', 'workout', 'workouts',
-        'worked out', 'gym', 'run', 'ran', 'running', 'walk', 'walked',
-        'walking', 'steps', 'miles', 'cardio', 'strength', 'training',
-        'physical activity', 'active', 'activity',
-        # Additional exercise keywords
-        'fitness', 'fit', 'swim', 'swimming', 'swam', 'bike', 'biking',
-        'cycling', 'hike', 'hiking', 'hiked', 'yoga', 'stretching',
-        'lifting', 'weights', 'reps', 'sets', 'distance', 'pace', 'marathon',
-    ],
-    'glucose': [
-        'glucose', 'blood sugar', 'sugar level', 'sugar levels', 'a1c',
-        'hba1c', 'diabetes', 'diabetic', 'cgm', 'blood glucose', 'bg',
-        'fasting glucose', 'glucose reading', 'glucose readings',
-        # Additional glucose keywords
-        'insulin', 'hyperglycemia', 'hypoglycemia', 'blood sugar level',
-        'glucose monitor', 'glucose log', 'sugar check', 'glucose check',
-        # Note: standalone 'sugar' is ambiguous - handled separately for clarification
-    ],
-    'blood_pressure': [
-        'blood pressure', 'bp', 'systolic', 'diastolic', 'hypertension',
-        'pressure reading', 'pressure readings',
-        # Additional blood pressure keywords
-        'pulse', 'heart rate', 'bpm', 'resting heart rate', 'bp reading',
-        'high blood pressure', 'low blood pressure', 'blood pressure log',
-    ],
-    'faith': [
-        'faith', 'prayer', 'prayers', 'prayed', 'praying', 'devotional',
-        'devotionals', 'scripture', 'scriptures', 'bible', 'meditation',
-        'meditated', 'spiritual', 'spirituality', 'worship', 'worshipped',
-        # Additional faith keywords
-        'quiet time', 'devotion', 'verse', 'verses', 'reading plan',
-        'church', 'sermon', 'sermons', 'praise', 'thankful', 'blessing',
-        'blessings', 'faith journey', 'spiritual practice',
-    ],
-    'goals': [
-        'goal', 'goals', 'habit', 'habits', 'target', 'targets', 'objective',
-        'objectives', 'progress', 'streak', 'streaks', 'completed',
-        'achievement', 'achievements',
-        # Additional goals keywords
-        'milestone', 'milestones', 'resolution', 'resolutions', 'challenge',
-        'challenges', 'commitment', 'commitments', 'routine', 'routines',
-        'daily goal', 'weekly goal', 'monthly goal', 'tracking',
+        'bedtime', 'hours of sleep', 'sleep quality', 'sleep schedule',
+        'sleep pattern', 'sleep log', 'wake up', 'woke up', 'dream',
+        'dreams', 'nightmare', 'nightmares', 'sleep duration', 'time in bed',
+        'sleep cycle', 'well rested', 'sleep deprived',
     ],
 }
 
-# List of time-related keywords that indicate date context in queries
+
+# =============================================================================
+# DATE/TIME KEYWORDS - Indicate temporal context in queries
+# =============================================================================
+
 DATE_KEYWORDS: List[str] = [
     # Relative time references
-    'since', 'from', 'after', 'before', 'until', 'between',
+    'since', 'from', 'after', 'before', 'until', 'between', 'during',
     # Aggregation keywords
-    'last', 'past', 'previous', 'recent', 'recently',
-    'average', 'avg', 'mean', 'total', 'sum', 'count',
-    'how many', 'how much', 'how often',
+    'last', 'past', 'previous', 'recent', 'recently', 'latest',
+    'average', 'avg', 'mean', 'total', 'sum', 'count', 'minimum', 'maximum',
+    'min', 'max', 'highest', 'lowest', 'best', 'worst',
+    'how many', 'how much', 'how often', 'how long',
     # Specific time periods
-    'today', 'yesterday', 'tomorrow',
-    'this week', 'last week', 'next week',
+    'today', 'yesterday', 'tomorrow', 'tonight', 'this morning', 'this afternoon',
+    'this week', 'last week', 'next week', 'this weekend',
     'this month', 'last month', 'next month',
-    'this year', 'last year', 'next year',
+    'this year', 'last year', 'next year', 'this quarter', 'last quarter',
     # Days of week
     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
     # Months
     'january', 'february', 'march', 'april', 'may', 'june',
     'july', 'august', 'september', 'october', 'november', 'december',
+    'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
     # Time ranges
     'week', 'weeks', 'month', 'months', 'year', 'years', 'day', 'days',
+    'hour', 'hours', 'morning', 'afternoon', 'evening', 'night',
     # Ordinals and dates
     '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th',
     '11th', '12th', '13th', '14th', '15th', '16th', '17th', '18th', '19th', '20th',
     '21st', '22nd', '23rd', '24th', '25th', '26th', '27th', '28th', '29th', '30th', '31st',
     # Trend indicators
     'trend', 'trends', 'trending', 'over time', 'history', 'historical',
+    'progress', 'change', 'changed', 'changes', 'compared to', 'comparison',
+    # Frequency
+    'daily', 'weekly', 'monthly', 'yearly', 'annually', 'quarterly',
+    'every day', 'each day', 'per day', 'per week', 'per month',
 ]
 
-# Personal pronouns indicating the query is about the user's own data
+
+# =============================================================================
+# PERSONAL PRONOUNS - Indicate query is about user's own data
+# =============================================================================
+
 PERSONAL_PRONOUNS: List[str] = [
     'my', 'i', 'me', 'mine', "i've", "i'm", "i'd", 'myself',
+    'we', 'our', 'ours', "we've", "we're",  # for family/household data
 ]
 
-# Keywords indicating meta-questions about data existence or logging status
+
+# =============================================================================
+# META-QUESTION KEYWORDS - Questions about data existence
+# =============================================================================
+
 META_QUESTION_KEYWORDS: List[str] = [
     'have i logged', 'did i log', 'did i record', 'have i recorded',
     'have i tracked', 'did i track', 'have i entered', 'did i enter',
     'did i write', 'have i written', 'is there any', 'are there any',
     'do i have any', 'any entries', 'any data', 'any records',
+    'do i have', 'have i', 'did i', 'when did i', 'when was',
+    'how many times', 'how many days', 'am i tracking', 'have i been',
 ]
 
-# Compound query connectors for detecting multi-data-type queries
+
+# =============================================================================
+# COMPOUND QUERY CONNECTORS
+# =============================================================================
+
 COMPOUND_CONNECTORS: List[str] = [
     ' and ', ' or ', ' with ', ' plus ', ' along with ', ' as well as ',
-    ', ', ' & ',
+    ', ', ' & ', ' also ', ' including ',
 ]
 
-# Ambiguous keywords that could match multiple data types and need clarification
+
+# =============================================================================
+# AMBIGUOUS KEYWORDS - Need clarification before processing
+# =============================================================================
+
 # Format: {keyword: {possible_types: [...], clarifying_questions: {style: "..."}}}
 # Coaching styles: direct, gentle, supportive (default)
 AMBIGUOUS_KEYWORDS: Dict[str, Dict] = {
@@ -224,6 +483,7 @@ def detect_personal_data_intent(message: str) -> Dict:
     3. Whether there's a date/time context to the query
     4. Whether it's a meta-question (asking about data existence vs. data values)
     5. Whether it's a compound query (asking about multiple data types)
+    6. Whether an ambiguous keyword requires clarification
 
     Args:
         message: The user's message string to analyze.
@@ -240,6 +500,9 @@ def detect_personal_data_intent(message: str) -> Dict:
               existence (e.g., 'have I logged') rather than data values.
             - is_compound_query (bool): True if the message asks about multiple
               data types together.
+            - has_ambiguous_keyword (bool): True if an ambiguous keyword was found.
+            - ambiguous_keyword (str): The ambiguous keyword if found.
+            - ambiguous_info (dict): Info about the ambiguous keyword.
 
     Example:
         >>> detect_personal_data_intent("What was my average weight last week?")
@@ -248,25 +511,10 @@ def detect_personal_data_intent(message: str) -> Dict:
             'data_types': ['weight'],
             'has_date_context': True,
             'is_meta_question': False,
-            'is_compound_query': False
-        }
-
-        >>> detect_personal_data_intent("Have I logged my weight today?")
-        {
-            'is_personal_query': True,
-            'data_types': ['weight'],
-            'has_date_context': True,
-            'is_meta_question': True,
-            'is_compound_query': False
-        }
-
-        >>> detect_personal_data_intent("How do I reset my password?")
-        {
-            'is_personal_query': False,
-            'data_types': [],
-            'has_date_context': False,
-            'is_meta_question': False,
-            'is_compound_query': False
+            'is_compound_query': False,
+            'has_ambiguous_keyword': False,
+            'ambiguous_keyword': None,
+            'ambiguous_info': None
         }
     """
     if not message or not isinstance(message, str):
@@ -276,6 +524,9 @@ def detect_personal_data_intent(message: str) -> Dict:
             'has_date_context': False,
             'is_meta_question': False,
             'is_compound_query': False,
+            'has_ambiguous_keyword': False,
+            'ambiguous_keyword': None,
+            'ambiguous_info': None,
         }
 
     # Normalize message for matching
@@ -324,10 +575,11 @@ def detect_personal_data_intent(message: str) -> Dict:
 
     # Question patterns that suggest querying data
     query_patterns = [
-        r'\bwhat\b', r'\bhow\b', r'\bwhen\b', r'\bwhere\b',
-        r'\bshow\b', r'\btell\b', r'\blist\b', r'\bget\b',
+        r'\bwhat\b', r'\bhow\b', r'\bwhen\b', r'\bwhere\b', r'\bwhich\b',
+        r'\bshow\b', r'\btell\b', r'\blist\b', r'\bget\b', r'\bgive\b',
         r'\bfind\b', r'\bsearch\b', r'\blook\b', r'\bcheck\b',
         r'\bdid\b', r'\bhave\b', r'\bhas\b', r'\bwas\b', r'\bwere\b',
+        r'\bis\b', r'\bare\b', r'\bam\b', r'\bdo\b', r'\bdoes\b',
         r'\?',  # Question mark
     ]
 
@@ -362,9 +614,9 @@ def detect_personal_data_intent(message: str) -> Dict:
         if re.search(pattern, message_lower):
             # Check if the query already has context that resolves ambiguity
             # Blood sugar context - unambiguous glucose
-            glucose_context = ['blood sugar', 'sugar level', 'glucose', 'reading', 'a1c', 'diabetes']
+            glucose_context = ['blood sugar', 'sugar level', 'glucose', 'reading', 'a1c', 'diabetes', 'dexcom', 'cgm']
             # Food context - unambiguous dietary sugar
-            food_context = ['ate', 'eat', 'eaten', 'food', 'meal', 'diet', 'calories', 'carbs']
+            food_context = ['ate', 'eat', 'eaten', 'food', 'meal', 'diet', 'calories', 'carbs', 'dietary']
 
             has_glucose_context = any(term in message_lower for term in glucose_context)
             has_food_context = any(term in message_lower for term in food_context)

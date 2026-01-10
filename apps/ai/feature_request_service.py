@@ -1,16 +1,19 @@
 # ==============================================================================
 # File: feature_request_service.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Detects user feature requests ("I wish", "I want") and sends
-#              notifications to admin when no matching solution exists
+# Description: Detects user feature requests ("I wish", "I want") and creates
+#              admin tasks + sends notifications when no matching solution exists
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-10
+# Last Updated: 2026-01-10 (Added automatic AdminTask creation in New Requests project)
 # ==============================================================================
 """
 Feature Request Detection Service
 
 Detects when users express wishes or wants in the AI Assistant that the system
-doesn't currently handle, and sends notifications to admin for review.
+doesn't currently handle. When detected:
+1. Creates an AdminTask in the "New Requests" project with status 'backlog'
+2. Sends an email notification to admin for review
 
 This enables continuous improvement by capturing user needs that aren't yet met.
 
@@ -89,6 +92,7 @@ class FeatureRequestInfo:
     detected_pattern: str
     timestamp: str
     conversation_context: Optional[str] = None
+    task_id: Optional[int] = None  # ID of the created AdminTask
 
 
 class FeatureRequestService:
@@ -96,8 +100,13 @@ class FeatureRequestService:
     Service for detecting and notifying admin about user feature requests.
 
     When users express wishes or wants that the assistant can't fulfill,
-    this service captures those requests and sends them to admin for review.
+    this service:
+    1. Creates an AdminTask in the "New Requests" project (status: backlog)
+    2. Sends an email notification to admin for review
     """
+
+    # Project name for feature requests
+    NEW_REQUESTS_PROJECT = "New Requests"
 
     def __init__(self):
         self.admin_email = ADMIN_EMAIL
@@ -165,6 +174,105 @@ class FeatureRequestService:
         # Cache for rate_limit_hours
         cache.set(cache_key, True, timeout=self.rate_limit_hours * 3600)
 
+    def _create_admin_task(self, request_info: FeatureRequestInfo) -> Optional[int]:
+        """
+        Create an AdminTask in the "New Requests" project.
+
+        Args:
+            request_info: FeatureRequestInfo with all relevant details
+
+        Returns:
+            The created task ID, or None if creation failed
+        """
+        try:
+            from apps.admin_console.models import (
+                AdminTask,
+                AdminProject,
+                AdminProjectPhase
+            )
+
+            # Get or create the "New Requests" project
+            project, created = AdminProject.objects.get_or_create(
+                name=self.NEW_REQUESTS_PROJECT,
+                defaults={
+                    'description': 'Feature requests from AI Assistant users',
+                    'status': 'open',
+                    'priority': 3,  # High priority for user feedback
+                }
+            )
+
+            if created:
+                logger.info(f"Created '{self.NEW_REQUESTS_PROJECT}' project")
+
+            # Get or create a phase for user requests
+            phase, phase_created = AdminProjectPhase.objects.get_or_create(
+                phase_number=999,  # High number to not conflict with other phases
+                defaults={
+                    'name': 'User Requests',
+                    'objective': 'Collect and review feature requests from users',
+                    'status': 'in_progress',
+                }
+            )
+
+            if phase_created:
+                logger.info("Created 'User Requests' phase")
+
+            # Generate a title from the message (truncate if too long)
+            title = f"User Request: {request_info.message[:100]}"
+            if len(request_info.message) > 100:
+                title += "..."
+
+            # Build the executable task description
+            description = {
+                "objective": f"Review and potentially implement feature request from {request_info.user_name}",
+                "inputs": [
+                    f"User: {request_info.user_name} ({request_info.user_email})",
+                    f"Detected pattern: {request_info.detected_pattern}",
+                    f"Timestamp: {request_info.timestamp}",
+                ],
+                "actions": [
+                    "Review the user's request below",
+                    "Determine if this aligns with WLJ's mission and roadmap",
+                    "If approved, create a detailed implementation task",
+                    "If rejected, document the reason",
+                ],
+                "output": "Decision on whether to implement, with rationale",
+            }
+
+            # Add the user's message to inputs
+            description["inputs"].append(f"User message: {request_info.message}")
+
+            # Add conversation context if available
+            if request_info.conversation_context:
+                description["inputs"].append(
+                    f"Conversation context:\n{request_info.conversation_context}"
+                )
+
+            # Create the task with skip_validation since we're using JSONField
+            task = AdminTask(
+                title=title,
+                description=description,
+                category='feature',
+                priority=3,  # Medium-high priority
+                status='backlog',  # Starts in backlog for admin review
+                effort='S',  # Small effort for initial review
+                phase=phase,
+                project=project,
+                created_by='claude',  # Created by AI system
+            )
+            task.save(skip_validation=False)
+
+            logger.info(
+                f"Created AdminTask #{task.id} for feature request "
+                f"from user {request_info.user_id}"
+            )
+
+            return task.id
+
+        except Exception as e:
+            logger.error(f"Failed to create AdminTask for feature request: {e}")
+            return None
+
     def check_and_notify(
         self,
         user,
@@ -173,10 +281,14 @@ class FeatureRequestService:
         conversation_context: Optional[str] = None
     ) -> bool:
         """
-        Check if message is a feature request and send notification if needed.
+        Check if message is a feature request and create task + send notification.
 
         This is the main entry point. Call after intent recognition to capture
         requests that the system couldn't handle.
+
+        When a feature request is detected:
+        1. Creates an AdminTask in the "New Requests" project (status: backlog)
+        2. Sends an email notification to admin for review
 
         Args:
             user: The User model instance
@@ -185,7 +297,7 @@ class FeatureRequestService:
             conversation_context: Optional recent conversation for context
 
         Returns:
-            True if notification was sent, False otherwise
+            True if task was created (notification is secondary), False otherwise
         """
         # Only check messages where no actionable intent was found
         if intent_type != 'no_action':
@@ -216,17 +328,24 @@ class FeatureRequestService:
             conversation_context=conversation_context,
         )
 
-        # Send notification
-        success = self._send_notification(request_info)
+        # Create AdminTask in "New Requests" project
+        task_id = self._create_admin_task(request_info)
+        request_info.task_id = task_id
 
-        if success:
+        # Send email notification (even if task creation failed)
+        email_sent = self._send_notification(request_info)
+
+        # Mark as notified if either task was created or email was sent
+        if task_id or email_sent:
             self.mark_notified(user, message)
             logger.info(
-                f"Feature request notification sent: user={user.id}, "
-                f"pattern={pattern_match}, message={message[:50]}..."
+                f"Feature request processed: user={user.id}, "
+                f"pattern={pattern_match}, task_id={task_id}, "
+                f"email_sent={email_sent}, message={message[:50]}..."
             )
+            return True
 
-        return success
+        return False
 
     def _send_notification(self, request_info: FeatureRequestInfo) -> bool:
         """

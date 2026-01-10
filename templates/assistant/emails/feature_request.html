@@ -7,9 +7,18 @@
 {% block content %}
 <p>A user has expressed a wish or request that the AI Assistant couldn't fulfill.</p>
 
+{% if request.task_id %}
+<span class="badge badge-success">Task #{{ request.task_id }} Created</span>
+{% else %}
 <span class="badge badge-warning">User Request</span>
+{% endif %}
 
 <dl class="task-info">
+    {% if request.task_id %}
+    <dt>Task ID</dt>
+    <dd><strong>#{{ request.task_id }}</strong> (in "New Requests" project - status: backlog)</dd>
+    {% endif %}
+
     <dt>User</dt>
     <dd>{{ request.user_name }} ({{ request.user_email }})</dd>
 
@@ -35,22 +44,38 @@
 </div>
 {% endif %}
 
+{% if request.task_id %}
+<div class="action-required">
+    <strong>Action Required:</strong>
+    <ul>
+        <li>Review Task #{{ request.task_id }} in the Admin Console</li>
+        <li>If approved, mark as "Ready" so Claude can work on it</li>
+        <li>If rejected, mark as "Done" or delete the task</li>
+    </ul>
+</div>
+{% else %}
 <div class="action-required">
     <strong>Action Required:</strong>
     <ul>
         <li>Review this feature request</li>
-        <li>Consider creating a project task if the feature would be valuable</li>
+        <li>Manually create a project task if the feature would be valuable</li>
         <li>The user expressed a need that the assistant couldn't fulfill</li>
     </ul>
+    <p><em>Note: Automatic task creation failed. Please create manually.</em></p>
 </div>
+{% endif %}
 
 <p>
-    <strong>Suggested Next Steps:</strong>
+    <strong>Next Steps:</strong>
 </p>
 <ol>
     <li>Evaluate if this feature aligns with WLJ's mission</li>
     <li>Check if a similar feature already exists that the user may not have found</li>
+    {% if request.task_id %}
+    <li>Mark Task #{{ request.task_id }} as "Ready" to approve, or close it to reject</li>
+    {% else %}
     <li>Create a project task with the user's request details if approved</li>
+    {% endif %}
     <li>Consider reaching out to the user if clarification is needed</li>
 </ol>
 {% endblock %}

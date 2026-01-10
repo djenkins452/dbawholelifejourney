@@ -5,15 +5,23 @@ from django.db import migrations, models, connection
 
 
 def column_exists(table_name, column_name):
-    """Check if a column exists in the database."""
+    """Check if a column exists in the database (supports PostgreSQL and SQLite)."""
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name = %s AND column_name = %s
-            )
-        """, [table_name, column_name])
-        return cursor.fetchone()[0]
+        if connection.vendor == 'postgresql':
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = %s
+                      AND column_name = %s
+                )
+            """, [table_name, column_name])
+            return cursor.fetchone()[0]
+        else:
+            # SQLite: Use PRAGMA table_info
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = [col[1] for col in cursor.fetchall()]
+            return column_name in columns
 
 
 def add_status_if_missing(apps, schema_editor):
@@ -24,10 +32,20 @@ def add_status_if_missing(apps, schema_editor):
                 ALTER TABLE finance_budget
                 ADD COLUMN status VARCHAR(10) DEFAULT 'active' NOT NULL
             """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS finance_budget_status_idx
-                ON finance_budget (status)
-            """)
+            if connection.vendor == 'postgresql':
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS finance_budget_status_idx
+                    ON finance_budget (status)
+                """)
+            else:
+                # SQLite: Try to create index, ignore if exists
+                try:
+                    cursor.execute("""
+                        CREATE INDEX finance_budget_status_idx
+                        ON finance_budget (status)
+                    """)
+                except Exception:
+                    pass  # Index might already exist
 
 
 def noop(apps, schema_editor):

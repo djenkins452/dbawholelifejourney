@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-10 (Track User Who Triggered Gap Detection)
+# Last Updated: 2026-01-10 (Fix Finance Migration for SQLite)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,23 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-10 Changes
+
+### Fix Finance Migration 0012 for SQLite Compatibility
+
+**Problem:**
+Migration `apps/finance/migrations/0012_budget_status.py` used PostgreSQL-specific `information_schema.columns` query which doesn't exist in SQLite. This caused tests to fail during database setup.
+
+**Solution:**
+Updated `column_exists()` function to detect database vendor and use appropriate query:
+- PostgreSQL: Uses `information_schema.columns` with `table_schema = 'public'`
+- SQLite: Uses `PRAGMA table_info()` to check column existence
+
+Also updated index creation to handle SQLite's lack of `IF NOT EXISTS` for indexes.
+
+**Files modified:**
+- `apps/finance/migrations/0012_budget_status.py` - Added SQLite support to `column_exists()` and `add_status_if_missing()` functions
+
+---
 
 ### Track User Who Triggered Gap Detection in Approval Emails
 

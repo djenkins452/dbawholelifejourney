@@ -120,6 +120,24 @@ def process_assistant_message(
     result['is_personal_query'] = intent['is_personal_query']
     result['data_types'] = intent['data_types']
 
+    # Check for ambiguous keywords that need clarification FIRST
+    if intent.get('has_ambiguous_keyword'):
+        ambiguous_info = intent.get('ambiguous_info', {})
+        result['needs_clarification'] = True
+        result['clarifying_question'] = ambiguous_info.get(
+            'clarifying_question',
+            "Could you clarify what you mean?"
+        )
+        result['awaiting_data_type'] = 'ambiguous'
+        result['ambiguous_keyword'] = intent.get('ambiguous_keyword')
+        result['possible_data_types'] = ambiguous_info.get('possible_types', [])
+
+        logger.info(
+            f"Ambiguous keyword '{intent.get('ambiguous_keyword')}' detected, "
+            f"asking for clarification: '{message[:50]}...'"
+        )
+        return result
+
     # If not a personal query, check for gap and return
     if not intent['is_personal_query']:
         # Check if this might still be a gap (user asked about something personal)

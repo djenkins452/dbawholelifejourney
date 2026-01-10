@@ -40,7 +40,8 @@ PERSONAL_DATA_KEYWORDS: Dict[str, List[str]] = {
         'food', 'foods', 'ate', 'eaten', 'eat', 'eating', 'meal', 'meals',
         'breakfast', 'lunch', 'dinner', 'snack', 'snacks', 'calories',
         'calorie', 'nutrition', 'diet', 'carbs', 'carbohydrates', 'protein',
-        'fat', 'fats', 'sugar', 'sugars', 'fiber', 'sodium', 'cholesterol',
+        'fat', 'fats', 'fiber', 'sodium', 'cholesterol',
+        # Note: 'sugar' is ambiguous - handled separately for clarification
         # Additional food keywords
         'macros', 'micronutrients', 'nutrients', 'kcal', 'brunch', 'supper',
         'food log', 'food diary', 'what i ate', 'food intake', 'consumption',
@@ -83,6 +84,7 @@ PERSONAL_DATA_KEYWORDS: Dict[str, List[str]] = {
         # Additional glucose keywords
         'insulin', 'hyperglycemia', 'hypoglycemia', 'blood sugar level',
         'glucose monitor', 'glucose log', 'sugar check', 'glucose check',
+        # Note: standalone 'sugar' is ambiguous - handled separately for clarification
     ],
     'blood_pressure': [
         'blood pressure', 'bp', 'systolic', 'diastolic', 'hypertension',
@@ -157,6 +159,27 @@ COMPOUND_CONNECTORS: List[str] = [
     ' and ', ' or ', ' with ', ' plus ', ' along with ', ' as well as ',
     ', ', ' & ',
 ]
+
+# Ambiguous keywords that could match multiple data types and need clarification
+# Format: {keyword: {possible_types: [...], clarifying_question: "..."}}
+AMBIGUOUS_KEYWORDS: Dict[str, Dict] = {
+    'sugar': {
+        'possible_types': ['glucose', 'food'],
+        'clarifying_question': (
+            "When you mention 'sugar', are you referring to:\n"
+            "• Your **blood sugar** (glucose readings), or\n"
+            "• The **sugar in your food** (dietary intake)?"
+        ),
+    },
+    'sugars': {
+        'possible_types': ['glucose', 'food'],
+        'clarifying_question': (
+            "When you mention 'sugars', are you referring to:\n"
+            "• Your **blood sugar** readings, or\n"
+            "• The **sugars in your food** (dietary intake)?"
+        ),
+    },
+}
 
 
 def detect_personal_data_intent(message: str) -> Dict:
@@ -299,12 +322,41 @@ def detect_personal_data_intent(message: str) -> Dict:
                 # This is still valid but not a compound query
                 break
 
+    # Detect ambiguous keywords that need clarification
+    ambiguous_keyword_found = None
+    ambiguous_info = None
+    for keyword, info in AMBIGUOUS_KEYWORDS.items():
+        pattern = r'\b' + re.escape(keyword) + r'\b'
+        if re.search(pattern, message_lower):
+            # Check if the query already has context that resolves ambiguity
+            # Blood sugar context - unambiguous glucose
+            glucose_context = ['blood sugar', 'sugar level', 'glucose', 'reading', 'a1c', 'diabetes']
+            # Food context - unambiguous dietary sugar
+            food_context = ['ate', 'eat', 'eaten', 'food', 'meal', 'diet', 'calories', 'carbs']
+
+            has_glucose_context = any(term in message_lower for term in glucose_context)
+            has_food_context = any(term in message_lower for term in food_context)
+
+            # Only ambiguous if neither context is clear, or both are present
+            if has_glucose_context and not has_food_context:
+                # Clear glucose context - not ambiguous
+                pass
+            elif has_food_context and not has_glucose_context:
+                # Clear food context - not ambiguous
+                pass
+            else:
+                # Truly ambiguous - no clear context
+                ambiguous_keyword_found = keyword
+                ambiguous_info = info
+                break
+
     # Determine if it's a personal query:
-    # - Must have detected at least one data type
+    # - Must have detected at least one data type OR have an ambiguous keyword
     # - Must have either a personal pronoun OR a query pattern with data types
     # - Meta-questions about personal data are also personal queries
-    is_personal_query = bool(detected_data_types) and (
-        has_personal_pronoun or (has_query_pattern and len(detected_data_types) > 0)
+    has_data_indicator = bool(detected_data_types) or ambiguous_keyword_found
+    is_personal_query = has_data_indicator and (
+        has_personal_pronoun or (has_query_pattern and has_data_indicator)
         or is_meta_question
     )
 
@@ -314,4 +366,7 @@ def detect_personal_data_intent(message: str) -> Dict:
         'has_date_context': has_date_context,
         'is_meta_question': is_meta_question,
         'is_compound_query': is_compound_query,
+        'has_ambiguous_keyword': ambiguous_keyword_found is not None,
+        'ambiguous_keyword': ambiguous_keyword_found,
+        'ambiguous_info': ambiguous_info,
     }

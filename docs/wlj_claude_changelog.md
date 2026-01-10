@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-10 (Fix Finance Migration for SQLite)
+# Last Updated: 2026-01-10 (Add Clarifying Question for Ambiguous Sugar)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,31 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-10 Changes
+
+### Add Clarifying Question for Ambiguous 'sugar' Queries
+
+**Problem:**
+When users asked "what's my average sugar the past 7 days", the word "sugar" is ambiguous - it could mean blood sugar (glucose) or dietary sugar (food). Rather than guessing, the assistant should ask for clarification.
+
+**Solution:**
+Implemented an ambiguous keyword detection system that:
+1. Detects when "sugar" or "sugars" is used without clear context
+2. Checks for contextual clues (e.g., "blood sugar" → glucose, "ate sugar" → food)
+3. When truly ambiguous, asks a clarifying question before proceeding
+
+The assistant now responds to "what's my average sugar" with:
+> When you mention 'sugar', are you referring to:
+> • Your **blood sugar** (glucose readings), or
+> • The **sugar in your food** (dietary intake)?
+
+Also updated `DATA_TYPES_WITH_METHODS` to include 'glucose', 'faith', 'goals'.
+
+**Files modified:**
+- `assistant/intent_detector.py` - Added `AMBIGUOUS_KEYWORDS` dict and detection logic
+- `assistant/views.py` - Added handling for ambiguous keywords before data query
+- `assistant/gap_detector.py` - Updated DATA_TYPES_WITH_METHODS list
+
+---
 
 ### Fix Finance Migration 0012 for SQLite Compatibility
 

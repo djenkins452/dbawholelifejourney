@@ -39,7 +39,10 @@ SUPPORTED_DATA_TYPES = [
 ]
 
 # Data types that have query methods in PersonalDataService
-DATA_TYPES_WITH_METHODS = ['weight', 'journal', 'medication', 'food', 'mood']
+DATA_TYPES_WITH_METHODS = [
+    'weight', 'journal', 'medication', 'food', 'mood',
+    'glucose', 'faith', 'goals',
+]
 
 # Common words to exclude from potential keyword extraction
 STOP_WORDS = {

@@ -38,14 +38,7 @@
 
             <div class="form-group">
                 <label for="id_logged_date" class="form-label">Date</label>
-                <input
-                    type="date"
-                    name="logged_date"
-                    id="id_logged_date"
-                    class="form-input"
-                    value="{% if form.logged_date.value %}{{ form.logged_date.value|date:'Y-m-d' }}{% else %}{{ form.initial.logged_date }}{% endif %}"
-                    required
-                >
+                {{ form.logged_date }}
             </div>
         </div>
 

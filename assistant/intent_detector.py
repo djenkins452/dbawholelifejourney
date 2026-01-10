@@ -161,23 +161,57 @@ COMPOUND_CONNECTORS: List[str] = [
 ]
 
 # Ambiguous keywords that could match multiple data types and need clarification
-# Format: {keyword: {possible_types: [...], clarifying_question: "..."}}
+# Format: {keyword: {possible_types: [...], clarifying_questions: {style: "..."}}}
+# Coaching styles: direct, gentle, supportive (default)
 AMBIGUOUS_KEYWORDS: Dict[str, Dict] = {
     'sugar': {
         'possible_types': ['glucose', 'food'],
-        'clarifying_question': (
-            "Just to make sure I pull the right info - are you asking about "
-            "your blood sugar readings or the sugar in your food?"
-        ),
+        'clarifying_questions': {
+            'direct': "Blood sugar or dietary sugar?",
+            'gentle': (
+                "I want to make sure I understand - are you asking about "
+                "your blood sugar readings, or the sugar in what you've been eating?"
+            ),
+            'supportive': (
+                "Just to make sure I pull the right info - are you asking about "
+                "your blood sugar readings or the sugar in your food?"
+            ),
+        },
     },
     'sugars': {
         'possible_types': ['glucose', 'food'],
-        'clarifying_question': (
-            "Quick question - do you mean your blood sugar levels or "
-            "the sugars you've been eating?"
-        ),
+        'clarifying_questions': {
+            'direct': "Blood sugar readings or dietary sugars?",
+            'gentle': (
+                "Just checking - do you mean your blood sugar levels, "
+                "or the sugars in your food?"
+            ),
+            'supportive': (
+                "Quick question - do you mean your blood sugar levels or "
+                "the sugars you've been eating?"
+            ),
+        },
     },
 }
+
+
+def get_clarifying_question(keyword: str, coaching_style: str = 'supportive') -> str:
+    """
+    Get the clarifying question for an ambiguous keyword in the user's preferred style.
+
+    Args:
+        keyword: The ambiguous keyword (e.g., 'sugar')
+        coaching_style: The user's preferred coaching style
+
+    Returns:
+        The clarifying question string in the appropriate style.
+    """
+    if keyword not in AMBIGUOUS_KEYWORDS:
+        return "Could you clarify what you mean?"
+
+    questions = AMBIGUOUS_KEYWORDS[keyword].get('clarifying_questions', {})
+    # Fall back to supportive style if user's style not available
+    return questions.get(coaching_style, questions.get('supportive', "Could you clarify?"))
 
 
 def detect_personal_data_intent(message: str) -> Dict:

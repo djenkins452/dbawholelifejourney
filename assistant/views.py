@@ -122,18 +122,24 @@ def process_assistant_message(
 
     # Check for ambiguous keywords that need clarification FIRST
     if intent.get('has_ambiguous_keyword'):
+        from .intent_detector import get_clarifying_question
+
+        ambiguous_keyword = intent.get('ambiguous_keyword')
         ambiguous_info = intent.get('ambiguous_info', {})
+
+        # Get user's preferred coaching style
+        coaching_style = 'supportive'  # default
+        if user and hasattr(user, 'preferences'):
+            coaching_style = getattr(user.preferences, 'ai_coaching_style', 'supportive')
+
         result['needs_clarification'] = True
-        result['clarifying_question'] = ambiguous_info.get(
-            'clarifying_question',
-            "Could you clarify what you mean?"
-        )
+        result['clarifying_question'] = get_clarifying_question(ambiguous_keyword, coaching_style)
         result['awaiting_data_type'] = 'ambiguous'
-        result['ambiguous_keyword'] = intent.get('ambiguous_keyword')
+        result['ambiguous_keyword'] = ambiguous_keyword
         result['possible_data_types'] = ambiguous_info.get('possible_types', [])
 
         logger.info(
-            f"Ambiguous keyword '{intent.get('ambiguous_keyword')}' detected, "
+            f"Ambiguous keyword '{ambiguous_keyword}' detected (style: {coaching_style}), "
             f"asking for clarification: '{message[:50]}...'"
         )
         return result

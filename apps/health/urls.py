@@ -127,6 +127,7 @@ urlpatterns = [
     path("fitness/api/start-workout/", views.start_workout_ajax, name="start_workout_ajax"),
     path("fitness/api/save-set/", views.save_set_ajax, name="save_set_ajax"),
     path("fitness/api/save-cardio/", views.save_cardio_ajax, name="save_cardio_ajax"),
+    path("fitness/api/save-class/", views.save_class_ajax, name="save_class_ajax"),
     path("fitness/api/complete-workout/", views.complete_workout_ajax, name="complete_workout_ajax"),
     path("fitness/api/workout-state/<int:workout_id>/", views.get_workout_state_ajax, name="get_workout_state_ajax"),
 

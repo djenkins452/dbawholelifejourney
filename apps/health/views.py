@@ -53,6 +53,7 @@ from .models import (
     BloodOxygenEntry,
     BloodPressureEntry,
     CardioDetails,
+    ClassDetails,
     CustomFood,
     Exercise,
     ExerciseSet,
@@ -939,6 +940,9 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
         context["cardio_exercises"] = Exercise.objects.filter(
             category="cardio", is_active=True
         ).order_by("name")
+        context["class_exercises"] = Exercise.objects.filter(
+            category="class", is_active=True
+        ).order_by("name")
 
         # User's templates for quick start
         context["templates"] = WorkoutTemplate.objects.filter(user=user)
@@ -1083,6 +1087,19 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                         intensity=intensity,
                     )
 
+                elif exercise.category == "class":
+                    # Process class details (no sets/reps, just duration + intensity)
+                    duration = request.POST.get(f"exercise_{exercise_id}_duration")
+                    intensity = request.POST.get(
+                        f"exercise_{exercise_id}_intensity", "medium"
+                    )
+
+                    ClassDetails.objects.create(
+                        workout_exercise=workout_exercise,
+                        duration_minutes=int(duration) if duration else None,
+                        intensity=intensity,
+                    )
+
             except Exercise.DoesNotExist:
                 continue
 
@@ -1108,7 +1125,7 @@ class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
         context["workout"] = workout
         context["workout_exercises"] = workout.workout_exercises.select_related(
             "exercise"
-        ).prefetch_related("sets", "cardio_details")
+        ).prefetch_related("sets", "cardio_details", "class_details")
         context["date"] = workout.date
         context["editing"] = True
 
@@ -1118,6 +1135,9 @@ class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
         ).order_by("muscle_group", "name")
         context["cardio_exercises"] = Exercise.objects.filter(
             category="cardio", is_active=True
+        ).order_by("name")
+        context["class_exercises"] = Exercise.objects.filter(
+            category="class", is_active=True
         ).order_by("name")
 
         return context
@@ -1182,6 +1202,18 @@ class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
                         workout_exercise=workout_exercise,
                         duration_minutes=int(duration) if duration else None,
                         distance=Decimal(distance) if distance else None,
+                        intensity=intensity,
+                    )
+
+                elif exercise.category == "class":
+                    duration = request.POST.get(f"exercise_{exercise_id}_duration")
+                    intensity = request.POST.get(
+                        f"exercise_{exercise_id}_intensity", "medium"
+                    )
+
+                    ClassDetails.objects.create(
+                        workout_exercise=workout_exercise,
+                        duration_minutes=int(duration) if duration else None,
                         intensity=intensity,
                     )
 
@@ -1820,6 +1852,66 @@ def save_cardio_ajax(request):
         "cardio_id": cardio.pk,
         "workout_exercise_id": workout_exercise.pk,
         "message": "Cardio saved",
+    })
+
+
+def save_class_ajax(request):
+    """
+    Save class details for a fitness class exercise in an in-progress workout.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    user = request.user
+    workout_id = data.get("workout_id")
+    exercise_id = data.get("exercise_id")
+    duration = data.get("duration")
+    intensity = data.get("intensity", "medium")
+
+    if not all([workout_id, exercise_id]):
+        return JsonResponse({"error": "Missing required fields"}, status=400)
+
+    # Validate workout belongs to user
+    try:
+        workout = WorkoutSession.objects.get(pk=workout_id, user=user)
+    except WorkoutSession.DoesNotExist:
+        return JsonResponse({"error": "Workout not found"}, status=404)
+
+    # Get or create the WorkoutExercise
+    try:
+        exercise = Exercise.objects.get(pk=exercise_id)
+    except Exercise.DoesNotExist:
+        return JsonResponse({"error": "Exercise not found"}, status=404)
+
+    workout_exercise, _ = WorkoutExercise.objects.get_or_create(
+        session=workout,
+        exercise=exercise,
+        defaults={"order": workout.workout_exercises.count()},
+    )
+
+    # Create or update class details
+    class_details, created = ClassDetails.objects.update_or_create(
+        workout_exercise=workout_exercise,
+        defaults={
+            "duration_minutes": int(duration) if duration else None,
+            "intensity": intensity,
+        },
+    )
+
+    return JsonResponse({
+        "success": True,
+        "class_id": class_details.pk,
+        "workout_exercise_id": workout_exercise.pk,
+        "message": "Class saved",
     })
 
 

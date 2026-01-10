@@ -672,6 +672,7 @@ class Exercise(models.Model):
     CATEGORY_CHOICES = [
         ("resistance", "Resistance Training"),
         ("cardio", "Cardio"),
+        ("class", "Fitness Class"),
     ]
 
     name = models.CharField(max_length=100)
@@ -883,6 +884,48 @@ class CardioDetails(models.Model):
             parts.append(f"{self.duration_minutes} min")
         if self.distance:
             parts.append(f"{self.distance} mi")
+        parts.append(self.intensity)
+        return " - ".join(parts)
+
+
+class ClassDetails(models.Model):
+    """
+    Details specific to fitness class exercises.
+
+    For classes like F45, Orange Theory, yoga, spin, etc. where you
+    don't track individual sets/reps - just attendance and duration.
+    """
+
+    INTENSITY_CHOICES = [
+        ("easy", "Easy"),
+        ("medium", "Medium"),
+        ("hard", "Hard"),
+    ]
+
+    workout_exercise = models.OneToOneField(
+        WorkoutExercise,
+        on_delete=models.CASCADE,
+        related_name="class_details",
+    )
+    duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Class duration in minutes",
+    )
+    intensity = models.CharField(
+        max_length=10,
+        choices=INTENSITY_CHOICES,
+        default="medium",
+    )
+
+    class Meta:
+        verbose_name = "class details"
+        verbose_name_plural = "class details"
+
+    def __str__(self):
+        parts = []
+        if self.duration_minutes:
+            parts.append(f"{self.duration_minutes} min")
         parts.append(self.intensity)
         return " - ".join(parts)
 

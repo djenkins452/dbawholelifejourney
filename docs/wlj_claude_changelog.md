@@ -16,19 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
-### AI Assistant Feature Request Detection
+### AI Assistant Feature Request Detection + Auto Task Creation
 
 **Summary:**
 Added automatic detection of user feature requests ("I wish", "I want") in the AI Assistant.
-When a user expresses a wish or want that the system can't fulfill, an email notification
-is automatically sent to admin@wholelifejourney.com for review.
+When a user expresses a wish or want that the system can't fulfill:
+1. Creates an AdminTask in the "New Requests" project (status: backlog)
+2. Sends email notification with task ID for easy review
+
+**Admin Workflow:**
+- Tasks appear in "New Requests" project with status: backlog
+- Review the task in Admin Console
+- Mark as "Ready" to approve for implementation
+- Mark as "Done" or delete to reject
 
 **Changes Made:**
 
-1. **New Feature Request Detection Service**
+1. **Feature Request Detection Service**
    - Detects 15+ patterns including "I wish I could", "I want to be able", "can you add",
      "it would be nice if", "there should be a way", etc.
-   - Sends email notification to admin with user info, message, and conversation context
+   - Auto-creates AdminTask in "New Requests" project (creates project if needed)
+   - Auto-creates "User Requests" phase (phase 999) for organizing requests
+   - Sends email notification with task ID to admin
    - Includes rate limiting (24h) to prevent duplicate notifications for similar requests
    - File: `apps/ai/feature_request_service.py`
 
@@ -40,8 +49,9 @@ is automatically sent to admin@wholelifejourney.com for review.
 
 3. **Email Template**
    - HTML email template extending base_email.html
+   - Shows task ID when created, with link to Admin Console workflow
    - Shows user details, detected pattern, message, and conversation context
-   - Includes action items for admin review
+   - Clear action items based on whether task was created
    - File: `templates/assistant/emails/feature_request.html`
 
 4. **Test Suite**

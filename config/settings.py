@@ -46,6 +46,7 @@ import os
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 # Sentry SDK is optional - only import if available
 try:
@@ -187,19 +188,29 @@ WSGI_APPLICATION = "config.wsgi.application"
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 # Database
-# Use DATABASE_URL if provided (Railway provides this), otherwise SQLite
+# Use DATABASE_URL if provided (Railway provides this), otherwise SQLite for development only
 DATABASE_URL = env("DATABASE_URL", default="")
 if DATABASE_URL:
     DATABASES = {
-        "default": env.db("DATABASE_URL"),
+        "default": {
+            **env.db("DATABASE_URL"),
+            "CONN_MAX_AGE": 600,  # Keep connections alive for 10 minutes
+            "CONN_HEALTH_CHECKS": True,  # Verify connections before reuse
+        },
     }
-else:
+elif DEBUG:
+    # SQLite is only allowed in development mode
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+else:
+    raise ImproperlyConfigured(
+        "DATABASE_URL environment variable is required in production. "
+        "SQLite is not supported for production use."
+    )
 
 
 

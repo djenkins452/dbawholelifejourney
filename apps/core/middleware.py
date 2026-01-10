@@ -176,7 +176,7 @@ class ContentSecurityPolicyMiddleware:
 
         csp_header = "; ".join(csp_directives)
 
-        # TODO(2026-01-13): After one week of testing, change to enforcing mode:
+        # TODO(2026-01-25): After testing period, change to enforcing mode:
         # 1. Check browser console for CSP violation reports
         # 2. If no violations, change 'Content-Security-Policy-Report-Only' to 'Content-Security-Policy'
         # 3. Remove this TODO comment

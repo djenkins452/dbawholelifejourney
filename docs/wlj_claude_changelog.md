@@ -16,6 +16,53 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
+### AI Assistant Feature Request Detection
+
+**Summary:**
+Added automatic detection of user feature requests ("I wish", "I want") in the AI Assistant.
+When a user expresses a wish or want that the system can't fulfill, an email notification
+is automatically sent to admin@wholelifejourney.com for review.
+
+**Changes Made:**
+
+1. **New Feature Request Detection Service**
+   - Detects 15+ patterns including "I wish I could", "I want to be able", "can you add",
+     "it would be nice if", "there should be a way", etc.
+   - Sends email notification to admin with user info, message, and conversation context
+   - Includes rate limiting (24h) to prevent duplicate notifications for similar requests
+   - File: `apps/ai/feature_request_service.py`
+
+2. **Integration with Personal Assistant**
+   - Added `_check_feature_request()` method to detect feature requests after intent recognition
+   - Only triggers when no actionable intent is found (intent_type='no_action')
+   - Graceful error handling that doesn't break the chat flow
+   - File: `apps/ai/personal_assistant.py`
+
+3. **Email Template**
+   - HTML email template extending base_email.html
+   - Shows user details, detected pattern, message, and conversation context
+   - Includes action items for admin review
+   - File: `templates/assistant/emails/feature_request.html`
+
+4. **Test Suite**
+   - Comprehensive tests for pattern detection
+   - Rate limiting tests
+   - Email notification tests
+   - Edge case handling (empty messages, long messages, special characters)
+   - File: `apps/ai/tests/test_feature_request_service.py`
+
+**Files Added:**
+- `apps/ai/feature_request_service.py`
+- `apps/ai/tests/test_feature_request_service.py`
+- `templates/assistant/emails/feature_request.html`
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py`
+
+---
+
+## 2026-01-10 Changes (Earlier)
+
 ### Production Readiness - Pre-Launch Hardening
 
 **Summary:**

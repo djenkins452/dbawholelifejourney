@@ -146,6 +146,102 @@ After any restore:
 
 ---
 
+## 4.1 DATABASE BACKUP VERIFICATION PROCEDURE
+
+**Purpose:** Ensure backup integrity before relying on it for disaster recovery.
+
+**Frequency:** Monthly or after any major data migration.
+
+### Step 1: Download Backup
+
+```bash
+# Option A: Railway CLI (if available)
+railway run pg_dump $DATABASE_URL > backup_verify_$(date +%Y-%m-%d).sql
+
+# Option B: Direct PostgreSQL (requires connection details)
+pg_dump -h HOST -U USER -d DATABASE > backup_verify_$(date +%Y-%m-%d).sql
+```
+
+### Step 2: Create Test Database
+
+```bash
+# Create a temporary test database
+createdb wlj_backup_test
+
+# Restore the backup to test database
+psql wlj_backup_test < backup_verify_$(date +%Y-%m-%d).sql
+```
+
+### Step 3: Verify Data Integrity
+
+```bash
+# Connect to test database and run verification queries
+psql wlj_backup_test << EOF
+-- Check table counts
+SELECT 'users_user' as table_name, COUNT(*) as row_count FROM users_user
+UNION ALL
+SELECT 'journal_journalentry', COUNT(*) FROM journal_journalentry
+UNION ALL
+SELECT 'health_weightentry', COUNT(*) FROM health_weightentry
+UNION ALL
+SELECT 'faith_prayerrequest', COUNT(*) FROM faith_prayerrequest;
+
+-- Check for data corruption (should return 0)
+SELECT COUNT(*) as orphaned_entries
+FROM journal_journalentry j
+LEFT JOIN users_user u ON j.user_id = u.id
+WHERE u.id IS NULL;
+
+-- Verify recent activity (should show recent dates)
+SELECT MAX(created_at) as latest_entry FROM journal_journalentry;
+EOF
+```
+
+### Step 4: Application Verification
+
+```bash
+# Point Django to test database temporarily
+export DATABASE_URL="postgresql://localhost/wlj_backup_test"
+
+# Run Django checks
+python manage.py check
+
+# Run critical tests
+python manage.py test apps.users.tests.test_models -v 1
+python manage.py test apps.journal.tests -v 1
+```
+
+### Step 5: Cleanup
+
+```bash
+# Drop test database
+dropdb wlj_backup_test
+
+# Remove backup file (or archive it)
+rm backup_verify_$(date +%Y-%m-%d).sql
+```
+
+### Verification Checklist
+
+| Check | Expected Result | Pass/Fail |
+|-------|-----------------|-----------|
+| Backup file size | > 1MB (varies by data) | |
+| Table counts match production | Within 1% | |
+| No orphaned records | 0 orphans | |
+| Django checks pass | No errors | |
+| Critical tests pass | All pass | |
+| Recent data present | Within 24 hours | |
+
+### Verification Log
+
+| Date | Backup Source | Result | Notes |
+|------|---------------|--------|-------|
+| | | | |
+
+**Important:** Document every verification in the log above. Failed verifications require immediate investigation.
+
+---
+
 ## 5. CONTACT & ESCALATION
 
 **Primary Contact:** Danny Jenkins (admin@wholelifejourney.com)

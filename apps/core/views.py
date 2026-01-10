@@ -42,6 +42,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import connection
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views import View
@@ -183,6 +184,49 @@ class SaveAddAnotherMixin:
             return redirect(self.request.path)
 
         return response
+
+
+# =============================================================================
+# HEALTH CHECK ENDPOINT
+# =============================================================================
+
+
+class HealthCheckView(View):
+    """
+    Health check endpoint for monitoring services.
+
+    Returns JSON with:
+    - status: "healthy" or "unhealthy"
+    - database: "connected" or error message
+    - version: Current release/commit SHA if available
+
+    Used by:
+    - Railway for deployment health checks
+    - External uptime monitors (UptimeRobot, Pingdom, etc.)
+    - Load balancers for backend health
+
+    This endpoint is public (no authentication required) and should
+    respond quickly without hitting expensive resources.
+    """
+
+    def get(self, request, *args, **kwargs):
+        health_status = {
+            'status': 'healthy',
+            'database': 'connected',
+            'version': settings.SENTRY_DSN and getattr(settings, 'RAILWAY_GIT_COMMIT_SHA', 'development') or 'development',
+        }
+
+        # Check database connectivity
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT 1')
+                cursor.fetchone()
+        except Exception as e:
+            health_status['status'] = 'unhealthy'
+            health_status['database'] = f'error: {str(e)[:100]}'
+            return JsonResponse(health_status, status=503)
+
+        return JsonResponse(health_status, status=200)
 
 
 class LandingPageView(TemplateView):

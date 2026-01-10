@@ -1,0 +1,126 @@
+# ==============================================================================
+# Whole Life Journey - CI/CD Test Workflow
+# ==============================================================================
+# Runs automated tests on every push and pull request
+# Includes linting, security checks, and coverage reporting
+
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: '3.12'
+  SECRET_KEY: 'test-secret-key-for-ci-only-do-not-use-in-production'
+  DEBUG: 'True'
+  ALLOWED_HOSTS: 'localhost,127.0.0.1'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Django checks
+        run: python manage.py check
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run tests with coverage
+        run: |
+          coverage run --source='apps' manage.py test -v 2
+          coverage report --fail-under=50
+          coverage xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install linting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort flake8
+
+      - name: Check code formatting with Black
+        run: black --check --diff .
+        continue-on-error: true
+
+      - name: Check import sorting with isort
+        run: isort --check-only --diff .
+        continue-on-error: true
+
+      - name: Run Flake8 linting
+        run: flake8 apps/ config/ --max-line-length=120 --ignore=E501,W503
+        continue-on-error: true
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install safety bandit
+
+      - name: Check for vulnerable dependencies
+        run: safety check --full-report
+        continue-on-error: true
+
+      - name: Run Bandit security linter
+        run: bandit -r apps/ -ll --skip B101
+        continue-on-error: true
+
+      - name: Check Django deployment settings
+        run: python manage.py check --deploy
+        continue-on-error: true
+        env:
+          DEBUG: 'False'
+          SECURE_SSL_REDIRECT: 'False'

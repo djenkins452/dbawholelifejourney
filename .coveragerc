@@ -1,0 +1,77 @@
+# ==============================================================================
+# Whole Life Journey - Coverage Configuration
+# ==============================================================================
+# Configuration for coverage.py test coverage reporting
+# Run: coverage run --source='apps' manage.py test
+# Report: coverage report -m
+# HTML: coverage html
+
+[run]
+# Measure branch coverage in addition to line coverage
+branch = True
+
+# Source directories to measure
+source = apps
+
+# Files/directories to omit from coverage
+omit =
+    */migrations/*
+    */tests/*
+    */__pycache__/*
+    */admin.py
+    */apps.py
+    */.venv/*
+    */venv/*
+    */conftest.py
+    manage.py
+    config/wsgi.py
+    config/asgi.py
+
+# Enable multiprocessing support
+concurrency = multiprocessing
+
+[report]
+# Minimum coverage percentage to pass
+fail_under = 50
+
+# Exclude lines from coverage
+exclude_lines =
+    # Don't complain about missing debug-only code
+    pragma: no cover
+    def __repr__
+    def __str__
+
+    # Don't complain if tests don't hit defensive assertions
+    raise AssertionError
+    raise NotImplementedError
+
+    # Don't complain if non-runnable code isn't run
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+
+    # Don't complain about abstract methods
+    @abstractmethod
+
+    # Don't complain about logging
+    logger\.
+    logging\.
+
+# Show missing lines in report
+show_missing = True
+
+# Precision of coverage percentages
+precision = 2
+
+# Skip files with 100% coverage in report
+skip_covered = False
+
+[html]
+# Directory for HTML coverage report
+directory = htmlcov
+
+# Title for HTML report
+title = Whole Life Journey - Test Coverage Report
+
+[xml]
+# Output file for XML coverage report (used by CI)
+output = coverage.xml

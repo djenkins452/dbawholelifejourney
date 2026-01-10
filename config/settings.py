@@ -46,6 +46,15 @@ from pathlib import Path
 
 import environ
 
+# Sentry SDK is optional - only import if available
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    SENTRY_AVAILABLE = True
+except ImportError:
+    SENTRY_AVAILABLE = False
+
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 OPENAI_VISION_MODEL = os.environ.get('OPENAI_VISION_MODEL', 'gpt-4o')
@@ -287,6 +296,53 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOG_DIR = BASE_DIR / 'logs'
 LOG_DIR.mkdir(exist_ok=True)
 
+# JSON log formatter for production (structured logging)
+# Enables easier parsing by log aggregation tools (Railway, Datadog, ELK, etc.)
+
+
+class JsonFormatter(logging.Formatter):
+    """
+    Custom JSON formatter for structured logging in production.
+
+    Outputs logs as single-line JSON objects with consistent fields:
+    - timestamp: ISO 8601 format
+    - level: Log level (INFO, WARNING, ERROR, etc.)
+    - logger: Logger name
+    - message: Log message
+    - module: Python module name
+    - line: Line number
+    - Additional fields from extra dict
+    """
+
+    def format(self, record):
+        import json as json_module
+        from datetime import datetime, timezone
+
+        log_obj = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': record.getMessage(),
+            'module': record.module,
+            'line': record.lineno,
+        }
+
+        # Add exception info if present
+        if record.exc_info:
+            log_obj['exception'] = self.formatException(record.exc_info)
+
+        # Add any extra fields
+        if hasattr(record, 'request_id'):
+            log_obj['request_id'] = record.request_id
+        if hasattr(record, 'user_id'):
+            log_obj['user_id'] = record.user_id
+
+        return json_module.dumps(log_obj)
+
+
+# Import logging module for JsonFormatter
+import logging
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -303,6 +359,9 @@ LOGGING = {
             'format': '[{asctime}] {levelname} {name} {module}:{lineno} - {message}',
             'style': '{',
         },
+        'json': {
+            '()': JsonFormatter,
+        },
     },
     'filters': {
         'require_debug_false': {
@@ -316,6 +375,11 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
+        },
+        'console_json': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'json',
+            'filters': ['require_debug_false'],
         },
         'file_error': {
             'level': 'ERROR',
@@ -349,22 +413,22 @@ LOGGING = {
         },
     },
     'root': {
-        'handlers': ['console', 'file_error'],
+        'handlers': ['console', 'console_json', 'file_error'],
         'level': 'INFO',
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file_error'],
+            'handlers': ['console', 'console_json', 'file_error'],
             'level': 'INFO',
             'propagate': False,
         },
         'django.request': {
-            'handlers': ['console', 'file_error', 'mail_admins'],
+            'handlers': ['console', 'console_json', 'file_error', 'mail_admins'],
             'level': 'ERROR',
             'propagate': False,
         },
         'django.security': {
-            'handlers': ['console', 'file_error', 'file_security', 'mail_admins'],
+            'handlers': ['console', 'console_json', 'file_error', 'file_security', 'mail_admins'],
             'level': 'WARNING',
             'propagate': False,
         },
@@ -374,26 +438,32 @@ LOGGING = {
             'propagate': False,
         },
         'apps': {
-            'handlers': ['console', 'file_app', 'file_error', 'mail_admins'],
+            'handlers': ['console', 'console_json', 'file_app', 'file_error', 'mail_admins'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
         # Security-related loggers - send all warnings/errors to email
         'wlj.security': {
-            'handlers': ['console', 'file_security', 'mail_admins'],
+            'handlers': ['console', 'console_json', 'file_security', 'mail_admins'],
             'level': 'WARNING',
             'propagate': False,
         },
         # Axes (brute force protection) logs
         'axes': {
-            'handlers': ['console', 'file_security'],
+            'handlers': ['console', 'console_json', 'file_security'],
             'level': 'WARNING',
             'propagate': False,
         },
         # Management command errors (nightly jobs, scheduled tasks)
         'django.management': {
-            'handlers': ['console', 'file_error', 'mail_admins'],
+            'handlers': ['console', 'console_json', 'file_error', 'mail_admins'],
             'level': 'ERROR',
+            'propagate': False,
+        },
+        # Sentry SDK logs
+        'sentry_sdk': {
+            'handlers': ['console'],
+            'level': 'WARNING',
             'propagate': False,
         },
     },
@@ -725,4 +795,40 @@ RECAPTCHA_SCORE_THRESHOLD = float(env('RECAPTCHA_SCORE_THRESHOLD', default='0.5'
 GITHUB_REPO_OWNER = env('GITHUB_REPO_OWNER', default='djenkins452')
 GITHUB_REPO_NAME = env('GITHUB_REPO_NAME', default='dbawholelifejourney')
 GITHUB_API_TOKEN = env('GITHUB_API_TOKEN', default=None)  # Optional, for higher rate limits
+
+
+# ==============================================================================
+# Sentry Error Tracking Configuration
+# ==============================================================================
+# Get your DSN at: https://sentry.io/
+# Sentry provides real-time error tracking, performance monitoring, and alerting
+
+SENTRY_DSN = env('SENTRY_DSN', default='')
+
+if SENTRY_DSN and not DEBUG and SENTRY_AVAILABLE:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(
+                transaction_style='url',
+                middleware_spans=True,
+            ),
+            LoggingIntegration(
+                level=None,  # Capture all log levels as breadcrumbs
+                event_level='ERROR',  # Send ERROR and above as events
+            ),
+        ],
+        # Performance monitoring - sample 10% of transactions
+        traces_sample_rate=float(env('SENTRY_TRACES_SAMPLE_RATE', default='0.1')),
+        # Profile 10% of sampled transactions for performance insights
+        profiles_sample_rate=float(env('SENTRY_PROFILES_SAMPLE_RATE', default='0.1')),
+        # Associate errors with releases for tracking
+        release=env('RAILWAY_GIT_COMMIT_SHA', default='development'),
+        # Environment tag (production, staging, development)
+        environment=env('SENTRY_ENVIRONMENT', default='production'),
+        # Send user info (ID only, no PII)
+        send_default_pii=False,
+        # Filter out health check endpoints from performance monitoring
+        before_send_transaction=lambda event, hint: None if event.get('transaction') == '/health/' else event,
+    )
     

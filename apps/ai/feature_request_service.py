@@ -204,18 +204,20 @@ class FeatureRequestService:
             if created:
                 logger.info(f"Created '{self.NEW_REQUESTS_PROJECT}' project")
 
-            # Get or create a phase for user requests
-            phase, phase_created = AdminProjectPhase.objects.get_or_create(
-                phase_number=999,  # High number to not conflict with other phases
-                defaults={
-                    'name': 'User Requests',
-                    'objective': 'Collect and review feature requests from users',
-                    'status': 'in_progress',
-                }
-            )
-
-            if phase_created:
-                logger.info("Created 'User Requests' phase")
+            # Get Phase 1 for new requests (must exist - standard phase)
+            try:
+                phase = AdminProjectPhase.objects.get(phase_number=1)
+            except AdminProjectPhase.DoesNotExist:
+                # Phase 1 should always exist, but create if needed
+                phase, _ = AdminProjectPhase.objects.get_or_create(
+                    phase_number=1,
+                    defaults={
+                        'name': 'Phase 1',
+                        'objective': 'Initial phase for new requests and tasks',
+                        'status': 'in_progress',
+                    }
+                )
+                logger.info("Created Phase 1 for feature requests")
 
             # Generate a title from the message (truncate if too long)
             title = f"User Request: {request_info.message[:100]}"

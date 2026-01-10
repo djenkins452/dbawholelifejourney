@@ -337,7 +337,7 @@ class AdminProjectPhase(models.Model):
         verbose_name_plural = 'Project Phases'
 
     def __str__(self):
-        return f"Phase {self.phase_number}: {self.name}"
+        return self.name
 
     def clean(self):
         """Validate phase status transitions."""

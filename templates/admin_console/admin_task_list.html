@@ -145,7 +145,7 @@
                         <label class="checkbox-dropdown-item">
                             <input type="checkbox" name="phase" value="{{ phase.pk }}"
                                    {% if not current_phase_filters or phase.pk|stringformat:"s" in current_phase_filters %}checked{% endif %}>
-                            <span class="checkbox-label">Phase {{ phase.phase_number }}: {{ phase.name }}</span>
+                            <span class="checkbox-label">{{ phase.name }}</span>
                         </label>
                         {% endfor %}
                     </div>

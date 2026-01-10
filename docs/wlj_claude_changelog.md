@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-10 (Production Readiness Improvements)
+# Last Updated: 2026-01-10 (Production Readiness - Pre-Launch)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,42 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-10 Changes
+
+### Production Readiness - Pre-Launch Hardening
+
+**Summary:**
+Final production hardening before go-live. Addressed security and reliability concerns from production readiness assessment.
+
+**Changes Made:**
+
+1. **Remove Test SMS from Startup**
+   - Removed `send_test_sms` command from nixpacks.toml startup
+   - Prevents real SMS being sent on every Railway deploy
+   - File: `nixpacks.toml`
+
+2. **Database Connection Pooling**
+   - Added `CONN_MAX_AGE=600` (10 minutes) for persistent connections
+   - Added `CONN_HEALTH_CHECKS=True` to verify connections before reuse
+   - Reduces latency and database connection overhead
+   - File: `config/settings.py`
+
+3. **Require PostgreSQL in Production**
+   - Added check that raises `ImproperlyConfigured` if `DATABASE_URL` missing in production
+   - SQLite now only allowed when `DEBUG=True`
+   - Prevents accidental use of SQLite in production (data loss risk)
+   - File: `config/settings.py`
+
+4. **CSP Testing Period Extended**
+   - Extended CSP report-only testing period to 2026-01-25
+   - Allows more time to monitor for CSP violations before enforcement
+   - File: `apps/core/middleware.py`
+
+**Files Modified:**
+- `nixpacks.toml`
+- `config/settings.py`
+- `apps/core/middleware.py`
+
+---
 
 ### Fix: Missing `logging` import in settings.py
 

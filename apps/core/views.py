@@ -210,10 +210,11 @@ class HealthCheckView(View):
     """
 
     def get(self, request, *args, **kwargs):
+        import os
         health_status = {
             'status': 'healthy',
             'database': 'connected',
-            'version': settings.SENTRY_DSN and getattr(settings, 'RAILWAY_GIT_COMMIT_SHA', 'development') or 'development',
+            'version': os.environ.get('RAILWAY_GIT_COMMIT_SHA', 'development')[:12],
         }
 
         # Check database connectivity

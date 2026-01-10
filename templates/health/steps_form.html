@@ -43,7 +43,7 @@
                     name="logged_date"
                     id="id_logged_date"
                     class="form-input"
-                    value="{% if form.logged_date.value %}{{ form.logged_date.value|date:'Y-m-d' }}{% else %}{{ form.initial.logged_date|default:'' }}{% endif %}"
+                    value="{% if form.logged_date.value %}{{ form.logged_date.value|date:'Y-m-d' }}{% else %}{{ form.initial.logged_date }}{% endif %}"
                     required
                 >
             </div>

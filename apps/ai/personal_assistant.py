@@ -1445,6 +1445,9 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         Supports multi-command messages like "update my oxygen to 95 and weight to 350"
         which will execute multiple actions and combine responses.
 
+        Also detects feature requests ("I wish", "I want") when no matching solution
+        exists and sends notifications to admin for review.
+
         Args:
             message: User's message
             conversation: Optional conversation to add to
@@ -1453,6 +1456,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             Dict with 'response' (str) and optionally 'actions_taken' (list of dicts)
         """
         from .intent_service import intent_service
+        from .feature_request_service import feature_request_service
 
         if not conversation:
             conversation = self.get_or_create_conversation()
@@ -1538,6 +1542,14 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     # No action intent - generate normal chat response
                     response = self._generate_response(message, conversation)
 
+                    # Check for feature requests ("I wish", "I want") and notify admin
+                    # This captures user needs that the system doesn't currently handle
+                    self._check_feature_request(
+                        message=message,
+                        conversation=conversation,
+                        feature_request_service=feature_request_service
+                    )
+
         # Save assistant response
         msg_type = 'action' if actions_taken else 'text'
         assistant_msg = AssistantMessage.objects.create(
@@ -1567,6 +1579,47 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'success': action_result.success,
             'created': action_result.created_object
         }
+
+    def _check_feature_request(
+        self,
+        message: str,
+        conversation: AssistantConversation,
+        feature_request_service
+    ) -> bool:
+        """
+        Check if message is a feature request and notify admin if needed.
+
+        When users express wishes or wants ("I wish", "I want") that the system
+        doesn't currently handle, this sends a notification to admin for review.
+
+        Args:
+            message: The user's message
+            conversation: The current conversation
+            feature_request_service: The feature request service instance
+
+        Returns:
+            True if a notification was sent, False otherwise
+        """
+        try:
+            # Build conversation context from recent messages
+            recent_messages = conversation.messages.order_by('-created_at')[:5]
+            context_parts = []
+            for msg in reversed(list(recent_messages)):
+                role = "User" if msg.role == 'user' else "Assistant"
+                context_parts.append(f"{role}: {msg.content[:200]}")
+            conversation_context = "\n".join(context_parts) if context_parts else None
+
+            # Check and notify (handles rate limiting internally)
+            return feature_request_service.check_and_notify(
+                user=self.user,
+                message=message,
+                intent_type='no_action',
+                conversation_context=conversation_context
+            )
+        except Exception as e:
+            # Don't let feature request detection break the chat flow
+            logger.warning(f"Feature request check failed: {e}")
+            return False
 
     def _handle_data_visibility_confirmation(
         self, message: str, conversation: AssistantConversation

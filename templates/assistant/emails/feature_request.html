@@ -1,0 +1,56 @@
+{% extends "assistant/emails/base_email.html" %}
+
+{% block title %}Feature Request - WLJ Assistant{% endblock %}
+
+{% block header_title %}Feature Request Detected{% endblock %}
+
+{% block content %}
+<p>A user has expressed a wish or request that the AI Assistant couldn't fulfill.</p>
+
+<span class="badge badge-warning">User Request</span>
+
+<dl class="task-info">
+    <dt>User</dt>
+    <dd>{{ request.user_name }} ({{ request.user_email }})</dd>
+
+    <dt>User ID</dt>
+    <dd>{{ request.user_id }}</dd>
+
+    <dt>Timestamp</dt>
+    <dd>{{ request.timestamp }}</dd>
+
+    <dt>Detected Pattern</dt>
+    <dd>"{{ request.detected_pattern }}"</dd>
+</dl>
+
+<p><strong>User Message:</strong></p>
+<div class="code-block" style="background-color: #f3f4f6; color: #111827;">
+{{ request.message }}
+</div>
+
+{% if request.conversation_context %}
+<p><strong>Recent Conversation Context:</strong></p>
+<div class="diff-block">
+{{ request.conversation_context }}
+</div>
+{% endif %}
+
+<div class="action-required">
+    <strong>Action Required:</strong>
+    <ul>
+        <li>Review this feature request</li>
+        <li>Consider creating a project task if the feature would be valuable</li>
+        <li>The user expressed a need that the assistant couldn't fulfill</li>
+    </ul>
+</div>
+
+<p>
+    <strong>Suggested Next Steps:</strong>
+</p>
+<ol>
+    <li>Evaluate if this feature aligns with WLJ's mission</li>
+    <li>Check if a similar feature already exists that the user may not have found</li>
+    <li>Create a project task with the user's request details if approved</li>
+    <li>Consider reaching out to the user if clarification is needed</li>
+</ol>
+{% endblock %}

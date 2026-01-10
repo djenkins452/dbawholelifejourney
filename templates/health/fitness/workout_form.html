@@ -82,12 +82,12 @@
                 {% elif copy_from %}
                     <!-- Pre-populate from copied workout -->
                     {% for we in copy_from.workout_exercises.all %}
-                        {% include "health/fitness/partials/exercise_row.html" with exercise=we.exercise existing_sets=we.sets.all is_cardio=we.exercise.category|add:""|lower|slice:":6"|make_list|first cardio_details=we.cardio_details %}
+                        {% include "health/fitness/partials/exercise_row.html" with exercise=we.exercise existing_sets=we.sets.all cardio_details=we.cardio_details class_details=we.class_details %}
                     {% endfor %}
                 {% elif workout_exercises %}
                     <!-- Existing workout exercises (editing) -->
                     {% for we in workout_exercises %}
-                        {% include "health/fitness/partials/exercise_row.html" with exercise=we.exercise existing_sets=we.sets.all cardio_details=we.cardio_details %}
+                        {% include "health/fitness/partials/exercise_row.html" with exercise=we.exercise existing_sets=we.sets.all cardio_details=we.cardio_details class_details=we.class_details %}
                     {% endfor %}
                 {% endif %}
             </div>
@@ -110,6 +110,11 @@
                         <optgroup label="Cardio">
                             {% for exercise in cardio_exercises %}
                                 <option value="{{ exercise.pk }}" data-category="cardio">{{ exercise.name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Fitness Classes">
+                            {% for exercise in class_exercises %}
+                                <option value="{{ exercise.pk }}" data-category="class">{{ exercise.name }}</option>
                             {% endfor %}
                         </optgroup>
                     </select>
@@ -230,6 +235,43 @@
             <div class="cardio-field cardio-done-field">
                 <label>&nbsp;</label>
                 <button type="button" class="done-btn cardio-done-btn" onclick="markCardioDone(this, EXERCISE_ID)">Done</button>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="classTemplate">
+    <div class="exercise-row class-row" data-exercise-id="EXERCISE_ID">
+        <input type="hidden" name="exercise_id" value="EXERCISE_ID">
+        <div class="exercise-header">
+            <h3 class="exercise-name">EXERCISE_NAME</h3>
+            <button type="button" class="remove-btn" onclick="removeExercise(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="class-inputs">
+            <div class="class-field">
+                <label>Duration</label>
+                <div class="input-with-suffix">
+                    <input type="number" name="exercise_EXERCISE_ID_duration" placeholder="45" class="class-duration">
+                    <span class="input-suffix">min</span>
+                </div>
+            </div>
+            <div class="class-field">
+                <label>Intensity</label>
+                <select name="exercise_EXERCISE_ID_intensity" class="class-intensity">
+                    <option value="easy">Easy</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+            <div class="class-field class-done-field">
+                <label>&nbsp;</label>
+                <button type="button" class="done-btn class-done-btn" onclick="markClassDone(this, EXERCISE_ID)">Done</button>
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>
@@ -561,19 +603,22 @@
     color: var(--color-accent);
 }
 
-.cardio-inputs {
+.cardio-inputs,
+.class-inputs {
     display: flex;
     gap: var(--space-4);
     flex-wrap: wrap;
     align-items: flex-end;
 }
 
-.cardio-field {
+.cardio-field,
+.class-field {
     flex: 1;
     min-width: 120px;
 }
 
-.cardio-done-field {
+.cardio-done-field,
+.class-done-field {
     flex: 0;
     min-width: auto;
     display: flex;
@@ -581,11 +626,13 @@
     gap: var(--space-2);
 }
 
-.cardio-done-btn {
+.cardio-done-btn,
+.class-done-btn {
     white-space: nowrap;
 }
 
-.cardio-field label {
+.cardio-field label,
+.class-field label {
     display: block;
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
@@ -605,7 +652,8 @@
     border-radius: var(--radius-md);
 }
 
-.cardio-field select {
+.cardio-field select,
+.class-field select {
     width: 100%;
     padding: var(--space-2);
     border: 1px solid var(--color-border);
@@ -945,6 +993,59 @@ async function markCardioDone(button, exerciseId) {
     }
 }
 
+// Mark fitness class as done
+async function markClassDone(button, exerciseId) {
+    // Start workout if not started
+    if (!workoutStarted && !isEditing) {
+        await startWorkout();
+    }
+
+    const exerciseRow = button.closest('.exercise-row');
+    const duration = exerciseRow.querySelector('.class-duration')?.value;
+    const intensity = exerciseRow.querySelector('.class-intensity')?.value || 'medium';
+
+    if (!duration) {
+        alert('Please enter class duration');
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Saving...';
+
+    try {
+        const response = await fetch('/health/fitness/api/save-class/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify({
+                workout_id: workoutId,
+                exercise_id: exerciseId,
+                duration: duration || null,
+                intensity: intensity,
+            }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            button.classList.add('saved');
+            button.textContent = 'Saved';
+            const indicator = exerciseRow.querySelector('.set-saved-indicator');
+            if (indicator) indicator.style.display = 'inline';
+            setsSavedCount++;
+            updateSavedCount();
+        } else {
+            throw new Error(data.error || 'Failed to save');
+        }
+    } catch (error) {
+        console.error('Failed to save class:', error);
+        button.disabled = false;
+        button.textContent = 'Done';
+        alert('Failed to save class. Please try again.');
+    }
+}
+
 function addExercise() {
     const select = document.getElementById('exerciseSelect');
     const exerciseId = select.value;
@@ -967,6 +1068,8 @@ function addExercise() {
     let template;
     if (category === 'cardio') {
         template = document.getElementById('cardioTemplate').innerHTML;
+    } else if (category === 'class') {
+        template = document.getElementById('classTemplate').innerHTML;
     } else {
         template = document.getElementById('resistanceTemplate').innerHTML;
     }

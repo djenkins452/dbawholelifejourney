@@ -7,9 +7,10 @@ Variables:
 - set_count: Number of default sets (from template)
 - existing_sets: QuerySet of existing sets (from copy or edit)
 - cardio_details: CardioDetails object (for cardio exercises)
+- class_details: ClassDetails object (for fitness class exercises)
 {% endcomment %}
 
-<div class="exercise-row {% if exercise.category == 'cardio' %}cardio-row{% endif %}" data-exercise-id="{{ exercise.pk }}">
+<div class="exercise-row {% if exercise.category == 'cardio' %}cardio-row{% elif exercise.category == 'class' %}class-row{% endif %}" data-exercise-id="{{ exercise.pk }}">
     <input type="hidden" name="exercise_id" value="{{ exercise.pk }}">
     <div class="exercise-header">
         <h3 class="exercise-name">{{ exercise.name }}</h3>
@@ -62,7 +63,7 @@ Variables:
             {% endif %}
         </div>
         <button type="button" class="add-set-btn" onclick="addSet(this)">+ Add Set</button>
-    {% else %}
+    {% elif exercise.category == "cardio" %}
         <div class="cardio-inputs">
             <div class="cardio-field">
                 <label>Duration</label>
@@ -91,6 +92,30 @@ Variables:
             <div class="cardio-field cardio-done-field">
                 <label>&nbsp;</label>
                 <button type="button" class="done-btn cardio-done-btn" onclick="markCardioDone(this, {{ exercise.pk }})">Done</button>
+                <span class="set-saved-indicator" style="display: none;">&#10003;</span>
+            </div>
+        </div>
+    {% elif exercise.category == "class" %}
+        <div class="class-inputs">
+            <div class="class-field">
+                <label>Duration</label>
+                <div class="input-with-suffix">
+                    <input type="number" name="exercise_{{ exercise.pk }}_duration"
+                           value="{{ class_details.duration_minutes|default:'' }}" placeholder="45" class="class-duration">
+                    <span class="input-suffix">min</span>
+                </div>
+            </div>
+            <div class="class-field">
+                <label>Intensity</label>
+                <select name="exercise_{{ exercise.pk }}_intensity" class="class-intensity">
+                    <option value="easy" {% if class_details.intensity == "easy" %}selected{% endif %}>Easy</option>
+                    <option value="medium" {% if class_details.intensity == "medium" or not class_details %}selected{% endif %}>Medium</option>
+                    <option value="hard" {% if class_details.intensity == "hard" %}selected{% endif %}>Hard</option>
+                </select>
+            </div>
+            <div class="class-field class-done-field">
+                <label>&nbsp;</label>
+                <button type="button" class="done-btn class-done-btn" onclick="markClassDone(this, {{ exercise.pk }})">Done</button>
                 <span class="set-saved-indicator" style="display: none;">&#10003;</span>
             </div>
         </div>

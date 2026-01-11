@@ -1,109 +1,103 @@
 {% load static %}
-{# WLJ Assistant Chat Widget - Floating bottom-right chat button and panel #}
+{# Unified Assistant Chat Drawer - Slide-out drawer using Personal Assistant backend #}
 
-<!-- Chat Widget Container -->
-<div id="wlj-chat-widget" class="chat-widget" data-module="{{ help_module|default:'general' }}">
+<!-- Floating Chat Button -->
+<button id="assistant-toggle-btn" class="assistant-toggle-btn" aria-label="Open Assistant" title="Chat with your Assistant">
+    <span class="assistant-btn-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+    </span>
+</button>
 
-    <!-- Floating Chat Button -->
-    <button id="chat-toggle-btn" class="chat-toggle-btn" aria-label="Open WLJ Assistant" title="Need help? Chat with WLJ Assistant">
-        <span class="chat-btn-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-        </span>
-        <span class="chat-btn-close" style="display: none;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-        </span>
-    </button>
+<!-- Drawer Overlay -->
+<div id="assistant-overlay" class="assistant-overlay"></div>
 
-    <!-- Chat Panel -->
-    <div id="chat-panel" class="chat-panel" style="display: none;">
-        <!-- Header -->
-        <div class="chat-header">
-            <div class="chat-header-info">
-                {% if site_logo_url %}
-                <img src="{{ site_logo_url }}" alt="{{ site_name }}" class="chat-avatar-logo">
-                {% else %}
-                <img src="{% static 'icons/common/logo.svg' %}" alt="WLJ" class="chat-avatar-logo">
-                {% endif %}
-                <span class="chat-title">WLJ Assistant</span>
-            </div>
-            <div class="chat-header-actions">
-                <button id="chat-email-btn" class="chat-header-btn" title="Email this conversation" style="display: none;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                        <polyline points="22,6 12,13 2,6"></polyline>
-                    </svg>
-                </button>
-                <button id="chat-close-btn" class="chat-header-btn" title="Close chat">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
+<!-- Assistant Drawer -->
+<div id="assistant-drawer" class="assistant-drawer">
+    <!-- Header -->
+    <div class="assistant-drawer-header">
+        <div class="assistant-header-info">
+            {% if site_logo_url %}
+            <img src="{{ site_logo_url }}" alt="{{ site_name }}" class="assistant-avatar-logo">
+            {% else %}
+            <img src="{% static 'icons/common/logo.svg' %}" alt="WLJ" class="assistant-avatar-logo">
+            {% endif %}
+            <div class="assistant-header-text">
+                <span class="assistant-title">Your Assistant</span>
+                <span class="assistant-subtitle">Ask questions or get personalized guidance</span>
             </div>
         </div>
-
-        <!-- Messages Container -->
-        <div id="chat-messages" class="chat-messages">
-            <!-- Messages will be inserted here -->
+        <div class="assistant-header-actions">
+            <button id="assistant-clear-btn" class="assistant-header-btn" title="Clear conversation">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+            </button>
+            <button id="assistant-fullscreen-btn" class="assistant-header-btn" title="Open full Assistant page">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+            </button>
+            <button id="assistant-close-btn" class="assistant-header-btn" title="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
         </div>
+    </div>
 
-        <!-- Quick Suggestions (shown when starting) -->
-        <div id="chat-suggestions" class="chat-suggestions" style="display: none;">
-            <p class="suggestions-label">Popular topics:</p>
-            <div class="suggestions-list">
-                <!-- Suggestions will be loaded dynamically -->
-            </div>
+    <!-- Messages Container -->
+    <div id="assistant-messages" class="assistant-messages">
+        <!-- Loading state -->
+        <div id="assistant-loading" class="assistant-loading">
+            <div class="assistant-loading-spinner"></div>
+            <span>Loading conversation...</span>
         </div>
+    </div>
 
-        <!-- Input Area -->
-        <div class="chat-input-area">
-            <form id="chat-form" class="chat-form">
-                <input
-                    type="text"
-                    id="chat-input"
-                    class="chat-input"
-                    placeholder="Type your question..."
-                    autocomplete="off"
-                    maxlength="500"
-                >
-                <button type="submit" id="chat-send-btn" class="chat-send-btn" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                    </svg>
-                </button>
-            </form>
-        </div>
+    <!-- Input Area -->
+    <div class="assistant-input-area">
+        <form id="assistant-form" class="assistant-form">
+            {% csrf_token %}
+            <input
+                type="text"
+                id="assistant-input"
+                class="assistant-input"
+                placeholder="Ask me anything..."
+                autocomplete="off"
+                maxlength="2000"
+            >
+            <button type="submit" id="assistant-send-btn" class="assistant-send-btn" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </form>
+    </div>
 
-        <!-- End Chat Confirmation -->
-        <div id="chat-end-dialog" class="chat-end-dialog" style="display: none;">
-            <p>Would you like to email this conversation before closing?</p>
-            <div class="chat-end-actions">
-                <button id="chat-end-email" class="btn btn-secondary btn-sm">Email & Close</button>
-                <button id="chat-end-close" class="btn btn-outline btn-sm">Just Close</button>
-                <button id="chat-end-cancel" class="btn btn-link btn-sm">Cancel</button>
-            </div>
+    <!-- Clear Confirmation Dialog -->
+    <div id="assistant-clear-dialog" class="assistant-clear-dialog">
+        <p>Clear all messages and start fresh?</p>
+        <div class="assistant-clear-actions">
+            <button id="assistant-clear-confirm" class="btn btn-danger btn-sm">Clear Conversation</button>
+            <button id="assistant-clear-cancel" class="btn btn-outline btn-sm">Cancel</button>
         </div>
     </div>
 </div>
 
-<!-- Chat Widget Styles -->
+<!-- Assistant Drawer Styles -->
 <style>
-.chat-widget {
+/* Floating Button */
+.assistant-toggle-btn {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    z-index: 9999;
-    font-family: inherit;
-}
-
-/* Floating Button */
-.chat-toggle-btn {
     width: 56px;
     height: 56px;
     border-radius: 50%;
@@ -116,140 +110,205 @@
     justify-content: center;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     transition: transform 0.2s, box-shadow 0.2s;
+    z-index: 9998;
 }
 
-.chat-toggle-btn:hover {
+.assistant-toggle-btn:hover {
     transform: scale(1.05);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
 }
 
-.chat-toggle-btn:active {
+.assistant-toggle-btn:active {
     transform: scale(0.95);
 }
 
-/* Chat Panel */
-.chat-panel {
-    position: absolute;
-    bottom: 70px;
+/* Overlay */
+.assistant-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
     right: 0;
-    width: 360px;
-    max-width: calc(100vw - 40px);
-    height: 500px;
-    max-height: calc(100vh - 100px);
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+    z-index: 9999;
+}
+
+.assistant-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Drawer */
+.assistant-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 420px;
+    max-width: 100vw;
+    height: 100vh;
     background: var(--color-background, #fff);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    border: 1px solid var(--color-border, #e5e7eb);
+    transform: translateX(100%);
+    transition: transform 0.3s ease-out;
+    z-index: 10000;
+}
+
+.assistant-drawer.open {
+    transform: translateX(0);
 }
 
 /* Header */
-.chat-header {
+.assistant-drawer-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 16px 20px;
     background: var(--color-accent, #6366f1);
     color: white;
+    flex-shrink: 0;
 }
 
-.chat-header-info {
+.assistant-header-info {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
-.chat-avatar {
-    font-size: 24px;
-}
-
-.chat-avatar-logo {
-    width: 28px;
-    height: 28px;
+.assistant-avatar-logo {
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: white;
-    padding: 2px;
+    padding: 3px;
 }
 
-.chat-title {
+.assistant-header-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.assistant-title {
     font-weight: 600;
     font-size: 16px;
 }
 
-.chat-header-actions {
+.assistant-subtitle {
+    font-size: 12px;
+    opacity: 0.9;
+}
+
+.assistant-header-actions {
     display: flex;
     gap: 4px;
 }
 
-.chat-header-btn {
+.assistant-header-btn {
     background: transparent;
     border: none;
     color: white;
     cursor: pointer;
-    padding: 6px;
-    border-radius: 4px;
+    padding: 8px;
+    border-radius: 6px;
     opacity: 0.8;
-    transition: opacity 0.2s;
+    transition: opacity 0.2s, background 0.2s;
 }
 
-.chat-header-btn:hover {
+.assistant-header-btn:hover {
     opacity: 1;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.15);
 }
 
 /* Messages */
-.chat-messages {
+.assistant-messages {
     flex: 1;
     overflow-y: auto;
-    padding: 16px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
-.chat-message {
+.assistant-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 40px;
+    color: var(--color-text-muted, #6b7280);
+}
+
+.assistant-loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--color-border, #e5e7eb);
+    border-top-color: var(--color-accent, #6366f1);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.assistant-message {
     max-width: 85%;
-    padding: 10px 14px;
-    border-radius: 12px;
+    padding: 12px 16px;
+    border-radius: 16px;
     font-size: 14px;
     line-height: 1.5;
     word-wrap: break-word;
 }
 
-.chat-message.user {
+.assistant-message.user {
     align-self: flex-end;
     background: var(--color-accent, #6366f1);
     color: white;
     border-bottom-right-radius: 4px;
 }
 
-.chat-message.assistant {
+.assistant-message.assistant {
     align-self: flex-start;
     background: var(--color-surface, #f3f4f6);
     color: var(--color-text, #374151);
     border-bottom-left-radius: 4px;
 }
 
-.chat-message.assistant a {
+.assistant-message.assistant a {
     color: var(--color-accent, #6366f1);
     text-decoration: underline;
 }
 
-.chat-message.assistant strong {
+.assistant-message.assistant strong {
     font-weight: 600;
 }
 
-/* Typing indicator */
-.chat-typing {
-    display: flex;
-    gap: 4px;
-    padding: 10px 14px;
-    align-self: flex-start;
+.assistant-message.system {
+    align-self: center;
+    background: transparent;
+    color: var(--color-text-muted, #6b7280);
+    font-size: 13px;
+    padding: 8px 12px;
+    text-align: center;
 }
 
-.chat-typing span {
+/* Typing indicator */
+.assistant-typing {
+    display: flex;
+    gap: 4px;
+    padding: 12px 16px;
+    align-self: flex-start;
+    background: var(--color-surface, #f3f4f6);
+    border-radius: 16px;
+    border-bottom-left-radius: 4px;
+}
+
+.assistant-typing span {
     width: 8px;
     height: 8px;
     background: var(--color-text-muted, #9ca3af);
@@ -257,86 +316,82 @@
     animation: typing 1.4s infinite ease-in-out;
 }
 
-.chat-typing span:nth-child(1) { animation-delay: 0s; }
-.chat-typing span:nth-child(2) { animation-delay: 0.2s; }
-.chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+.assistant-typing span:nth-child(1) { animation-delay: 0s; }
+.assistant-typing span:nth-child(2) { animation-delay: 0.2s; }
+.assistant-typing span:nth-child(3) { animation-delay: 0.4s; }
 
 @keyframes typing {
     0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
     30% { transform: translateY(-4px); opacity: 1; }
 }
 
-/* Suggestions */
-.chat-suggestions {
-    padding: 8px 16px 12px;
-    border-top: 1px solid var(--color-border, #e5e7eb);
-    background: var(--color-surface, #f9fafb);
+/* Empty State */
+.assistant-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px;
+    color: var(--color-text-muted, #6b7280);
 }
 
-.suggestions-label {
-    font-size: 12px;
-    color: var(--color-text-muted, #6b7280);
+.assistant-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.assistant-empty h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text, #374151);
     margin-bottom: 8px;
 }
 
-.suggestions-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.suggestion-btn {
-    font-size: 12px;
-    padding: 4px 10px;
-    background: var(--color-background, #fff);
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: 16px;
-    cursor: pointer;
-    transition: all 0.2s;
-    color: var(--color-text, #374151);
-}
-
-.suggestion-btn:hover {
-    background: var(--color-accent, #6366f1);
-    color: white;
-    border-color: var(--color-accent, #6366f1);
+.assistant-empty p {
+    font-size: 14px;
+    line-height: 1.5;
 }
 
 /* Input Area */
-.chat-input-area {
-    padding: 12px;
+.assistant-input-area {
+    padding: 16px 20px;
     border-top: 1px solid var(--color-border, #e5e7eb);
     background: var(--color-background, #fff);
+    flex-shrink: 0;
 }
 
-.chat-form {
+.assistant-form {
     display: flex;
-    gap: 8px;
+    gap: 10px;
 }
 
-.chat-input {
+.assistant-input {
     flex: 1;
-    padding: 10px 14px;
+    padding: 12px 18px;
     border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: 20px;
+    border-radius: 24px;
     font-size: 14px;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
     background: var(--color-background, #fff);
     color: var(--color-text, #374151);
 }
 
-.chat-input:focus {
+.assistant-input:focus {
     border-color: var(--color-accent, #6366f1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
-.chat-input::placeholder {
+.assistant-input::placeholder {
     color: var(--color-text-muted, #9ca3af);
 }
 
-.chat-send-btn {
-    width: 40px;
-    height: 40px;
+.assistant-send-btn {
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: var(--color-accent, #6366f1);
     color: white;
@@ -346,123 +401,85 @@
     align-items: center;
     justify-content: center;
     transition: opacity 0.2s, transform 0.2s;
+    flex-shrink: 0;
 }
 
-.chat-send-btn:disabled {
+.assistant-send-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
 
-.chat-send-btn:not(:disabled):hover {
+.assistant-send-btn:not(:disabled):hover {
     transform: scale(1.05);
 }
 
-/* End Dialog */
-.chat-end-dialog {
+/* Clear Dialog */
+.assistant-clear-dialog {
     position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: 80px;
+    left: 20px;
+    right: 20px;
     background: var(--color-background, #fff);
-    padding: 16px;
-    border-top: 1px solid var(--color-border, #e5e7eb);
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--color-border, #e5e7eb);
+    display: none;
+    z-index: 10;
 }
 
-.chat-end-dialog p {
+.assistant-clear-dialog.visible {
+    display: block;
+}
+
+.assistant-clear-dialog p {
     font-size: 14px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
     color: var(--color-text, #374151);
 }
 
-.chat-end-actions {
+.assistant-clear-actions {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
 }
 
 /* Mobile adjustments */
 @media (max-width: 480px) {
-    .chat-widget {
+    .assistant-toggle-btn {
         bottom: 16px;
         right: 16px;
-    }
-
-    .chat-panel {
-        width: calc(100vw - 32px);
-        height: calc(100vh - 120px);
-        bottom: 66px;
-        right: -8px;
-    }
-
-    .chat-toggle-btn {
         width: 50px;
         height: 50px;
+    }
+
+    .assistant-drawer {
+        width: 100vw;
     }
 }
 </style>
 
-<!-- Chat Widget JavaScript -->
+<!-- Assistant Drawer JavaScript -->
 <script>
 (function() {
-    const widget = document.getElementById('wlj-chat-widget');
-    const toggleBtn = document.getElementById('chat-toggle-btn');
-    const panel = document.getElementById('chat-panel');
-    const messagesContainer = document.getElementById('chat-messages');
-    const form = document.getElementById('chat-form');
-    const input = document.getElementById('chat-input');
-    const sendBtn = document.getElementById('chat-send-btn');
-    const closeBtn = document.getElementById('chat-close-btn');
-    const emailBtn = document.getElementById('chat-email-btn');
-    const suggestionsContainer = document.getElementById('chat-suggestions');
-    const endDialog = document.getElementById('chat-end-dialog');
+    const toggleBtn = document.getElementById('assistant-toggle-btn');
+    const overlay = document.getElementById('assistant-overlay');
+    const drawer = document.getElementById('assistant-drawer');
+    const messagesContainer = document.getElementById('assistant-messages');
+    const loadingEl = document.getElementById('assistant-loading');
+    const form = document.getElementById('assistant-form');
+    const input = document.getElementById('assistant-input');
+    const sendBtn = document.getElementById('assistant-send-btn');
+    const closeBtn = document.getElementById('assistant-close-btn');
+    const clearBtn = document.getElementById('assistant-clear-btn');
+    const fullscreenBtn = document.getElementById('assistant-fullscreen-btn');
+    const clearDialog = document.getElementById('assistant-clear-dialog');
+    const clearConfirm = document.getElementById('assistant-clear-confirm');
+    const clearCancel = document.getElementById('assistant-clear-cancel');
 
-    let conversationId = null;
     let isOpen = false;
+    let isLoaded = false;
     let hasMessages = false;
-
-    // Format assistant message with proper markdown-like parsing
-    function formatAssistantMessage(content) {
-        // Split into paragraphs (double newlines)
-        let paragraphs = content.split(/\n\n+/);
-
-        let formatted = paragraphs.map(para => {
-            // Check if this paragraph is a list
-            let lines = para.split('\n');
-            let isNumberedList = lines.every(line => /^\d+\.\s/.test(line.trim()) || line.trim() === '');
-            let isBulletList = lines.every(line => /^[-*]\s/.test(line.trim()) || line.trim() === '');
-
-            if (isNumberedList && lines.some(line => /^\d+\.\s/.test(line.trim()))) {
-                // Format as ordered list
-                let items = lines
-                    .filter(line => /^\d+\.\s/.test(line.trim()))
-                    .map(line => '<li>' + formatInlineMarkdown(line.replace(/^\d+\.\s*/, '')) + '</li>')
-                    .join('');
-                return '<ol style="margin: 8px 0; padding-left: 20px;">' + items + '</ol>';
-            } else if (isBulletList && lines.some(line => /^[-*]\s/.test(line.trim()))) {
-                // Format as unordered list
-                let items = lines
-                    .filter(line => /^[-*]\s/.test(line.trim()))
-                    .map(line => '<li>' + formatInlineMarkdown(line.replace(/^[-*]\s*/, '')) + '</li>')
-                    .join('');
-                return '<ul style="margin: 8px 0; padding-left: 20px;">' + items + '</ul>';
-            } else {
-                // Regular paragraph - convert single newlines to <br>
-                return '<p style="margin: 8px 0;">' +
-                    lines.map(line => formatInlineMarkdown(line)).join('<br>') +
-                    '</p>';
-            }
-        }).join('');
-
-        return formatted;
-    }
-
-    // Format inline markdown (bold, links)
-    function formatInlineMarkdown(text) {
-        return text
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
-    }
 
     // Get CSRF token
     function getCsrfToken() {
@@ -472,131 +489,147 @@
                    ?.split('=')[1] || '';
     }
 
-    // Toggle chat panel
-    toggleBtn.addEventListener('click', function() {
-        if (isOpen) {
-            showEndDialog();
-        } else {
-            openChat();
-        }
-    });
+    // Format assistant message with markdown-like parsing
+    function formatAssistantMessage(content) {
+        // Escape HTML first to prevent XSS
+        content = content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    closeBtn.addEventListener('click', showEndDialog);
+        // Split into paragraphs
+        let paragraphs = content.split(/\n\n+/);
 
-    // Open chat
-    async function openChat() {
-        panel.style.display = 'flex';
+        let formatted = paragraphs.map(para => {
+            let lines = para.split('\n');
+            let isNumberedList = lines.every(line => /^\d+\.\s/.test(line.trim()) || line.trim() === '');
+            let isBulletList = lines.every(line => /^[-*]\s/.test(line.trim()) || line.trim() === '');
+
+            if (isNumberedList && lines.some(line => /^\d+\.\s/.test(line.trim()))) {
+                let items = lines
+                    .filter(line => /^\d+\.\s/.test(line.trim()))
+                    .map(line => '<li>' + formatInlineMarkdown(line.replace(/^\d+\.\s*/, '')) + '</li>')
+                    .join('');
+                return '<ol style="margin: 8px 0; padding-left: 20px;">' + items + '</ol>';
+            } else if (isBulletList && lines.some(line => /^[-*]\s/.test(line.trim()))) {
+                let items = lines
+                    .filter(line => /^[-*]\s/.test(line.trim()))
+                    .map(line => '<li>' + formatInlineMarkdown(line.replace(/^[-*]\s*/, '')) + '</li>')
+                    .join('');
+                return '<ul style="margin: 8px 0; padding-left: 20px;">' + items + '</ul>';
+            } else {
+                return '<p style="margin: 8px 0;">' +
+                    lines.map(line => formatInlineMarkdown(line)).join('<br>') +
+                    '</p>';
+            }
+        }).join('');
+
+        return formatted;
+    }
+
+    function formatInlineMarkdown(text) {
+        return text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+    }
+
+    // Open drawer
+    function openDrawer() {
         isOpen = true;
-        toggleBtn.querySelector('.chat-btn-icon').style.display = 'none';
-        toggleBtn.querySelector('.chat-btn-close').style.display = 'block';
+        drawer.classList.add('open');
+        overlay.classList.add('visible');
+        document.body.style.overflow = 'hidden';
         input.focus();
 
-        if (!conversationId) {
-            await startConversation();
+        if (!isLoaded) {
+            loadHistory();
         }
     }
 
-    // Start conversation
-    async function startConversation() {
-        const module = widget.dataset.module || 'general';
-        const url = window.location.pathname;
-
-        try {
-            const response = await fetch('/help/api/chat/start/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: JSON.stringify({ module, url })
-            });
-
-            const data = await response.json();
-            conversationId = data.conversation_id;
-            addMessage(data.message, false);
-            loadSuggestions(module);
-
-        } catch (error) {
-            console.error('Error starting chat:', error);
-            addMessage('Sorry, I had trouble starting the chat. Please try again.', false);
-        }
+    // Close drawer
+    function closeDrawer() {
+        isOpen = false;
+        drawer.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+        clearDialog.classList.remove('visible');
     }
 
-    // Load suggestions
-    async function loadSuggestions(module) {
+    // Load conversation history
+    async function loadHistory() {
         try {
-            const response = await fetch(`/help/api/chat/suggestions/?module=${module}`);
+            const response = await fetch('/assistant/api/history/');
             const data = await response.json();
 
-            if (data.suggestions && data.suggestions.length > 0) {
-                const list = suggestionsContainer.querySelector('.suggestions-list');
-                list.innerHTML = '';
+            loadingEl.style.display = 'none';
+            isLoaded = true;
 
-                data.suggestions.slice(0, 4).forEach(suggestion => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'suggestion-btn';
-                    btn.textContent = suggestion.title;
-                    btn.addEventListener('click', () => {
-                        input.value = suggestion.title;
-                        sendMessage();
-                        suggestionsContainer.style.display = 'none';
-                    });
-                    list.appendChild(btn);
+            if (data.success && data.messages && data.messages.length > 0) {
+                data.messages.forEach(msg => {
+                    addMessage(msg.content, msg.role === 'user', false);
                 });
-
-                suggestionsContainer.style.display = 'block';
+                hasMessages = true;
+            } else {
+                // Show welcome message
+                showEmptyState();
             }
 
         } catch (error) {
-            console.error('Error loading suggestions:', error);
+            console.error('Error loading history:', error);
+            loadingEl.innerHTML = '<p>Unable to load conversation. Please try again.</p>';
         }
     }
 
-    // Add message to chat
-    function addMessage(content, isUser) {
-        const msg = document.createElement('div');
-        msg.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
+    // Show empty state
+    function showEmptyState() {
+        messagesContainer.innerHTML = `
+            <div class="assistant-empty">
+                <div class="assistant-empty-icon">&#128172;</div>
+                <h4>Start a Conversation</h4>
+                <p>I'm here to help you get things done. Ask me about your priorities, what needs attention, or how to tackle your goals.</p>
+            </div>
+        `;
+    }
 
-        // Parse markdown-like formatting for assistant messages
+    // Add message to chat
+    function addMessage(content, isUser, scroll = true) {
+        // Remove empty state if present
+        const emptyState = messagesContainer.querySelector('.assistant-empty');
+        if (emptyState) emptyState.remove();
+
+        const msg = document.createElement('div');
+        msg.className = `assistant-message ${isUser ? 'user' : 'assistant'}`;
+
         if (!isUser) {
-            content = formatAssistantMessage(content);
-            msg.innerHTML = content;
+            msg.innerHTML = formatAssistantMessage(content);
         } else {
             msg.textContent = content;
         }
 
         messagesContainer.appendChild(msg);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        if (scroll) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
 
         hasMessages = true;
-        emailBtn.style.display = 'block';
-
-        // Hide suggestions after first user message
-        if (isUser) {
-            suggestionsContainer.style.display = 'none';
-        }
     }
 
     // Show typing indicator
     function showTyping() {
         const typing = document.createElement('div');
-        typing.className = 'chat-typing';
-        typing.id = 'typing-indicator';
+        typing.className = 'assistant-typing';
+        typing.id = 'assistant-typing';
         typing.innerHTML = '<span></span><span></span><span></span>';
         messagesContainer.appendChild(typing);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
     function hideTyping() {
-        const typing = document.getElementById('typing-indicator');
+        const typing = document.getElementById('assistant-typing');
         if (typing) typing.remove();
     }
 
     // Send message
     async function sendMessage() {
         const message = input.value.trim();
-        if (!message || !conversationId) return;
+        if (!message) return;
 
         addMessage(message, true);
         input.value = '';
@@ -604,103 +637,98 @@
         showTyping();
 
         try {
-            const response = await fetch('/help/api/chat/message/', {
+            const response = await fetch('/assistant/api/chat/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCsrfToken()
                 },
-                body: JSON.stringify({
-                    conversation_id: conversationId,
-                    message: message
-                })
+                body: JSON.stringify({ message })
             });
 
             hideTyping();
             const data = await response.json();
 
-            if (data.error) {
-                addMessage('Sorry, something went wrong. Please try again.', false);
+            if (data.success) {
+                addMessage(data.response, false);
             } else {
-                addMessage(data.message, false);
+                addMessage(data.error || 'Sorry, something went wrong. Please try again.', false);
             }
 
         } catch (error) {
             hideTyping();
-            console.error('Error sending message:', error);
+            console.error('Chat error:', error);
             addMessage('Sorry, I had trouble responding. Please try again.', false);
         }
     }
 
-    // Form submit
+    // Clear conversation
+    async function clearConversation() {
+        clearDialog.classList.remove('visible');
+
+        try {
+            const response = await fetch('/assistant/api/clear/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                hasMessages = false;
+                showEmptyState();
+            }
+
+        } catch (error) {
+            console.error('Clear error:', error);
+        }
+    }
+
+    // Event listeners
+    toggleBtn.addEventListener('click', openDrawer);
+    overlay.addEventListener('click', closeDrawer);
+    closeBtn.addEventListener('click', closeDrawer);
+
+    fullscreenBtn.addEventListener('click', function() {
+        window.location.href = '/assistant/';
+    });
+
+    clearBtn.addEventListener('click', function() {
+        if (hasMessages) {
+            clearDialog.classList.add('visible');
+        }
+    });
+
+    clearConfirm.addEventListener('click', clearConversation);
+    clearCancel.addEventListener('click', function() {
+        clearDialog.classList.remove('visible');
+    });
+
     form.addEventListener('submit', function(e) {
         e.preventDefault();
         sendMessage();
     });
 
-    // Enable/disable send button
     input.addEventListener('input', function() {
         sendBtn.disabled = !input.value.trim();
     });
 
-    // End chat dialog
-    function showEndDialog() {
-        if (hasMessages) {
-            endDialog.style.display = 'block';
-        } else {
-            closeChat(false);
-        }
-    }
-
-    document.getElementById('chat-end-email').addEventListener('click', () => closeChat(true));
-    document.getElementById('chat-end-close').addEventListener('click', () => closeChat(false));
-    document.getElementById('chat-end-cancel').addEventListener('click', () => {
-        endDialog.style.display = 'none';
-    });
-
-    emailBtn.addEventListener('click', () => {
-        endDialog.style.display = 'block';
-    });
-
-    // Close chat
-    async function closeChat(sendEmail) {
-        if (conversationId) {
-            try {
-                await fetch('/help/api/chat/end/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCsrfToken()
-                    },
-                    body: JSON.stringify({
-                        conversation_id: conversationId,
-                        send_email: sendEmail
-                    })
-                });
-            } catch (error) {
-                console.error('Error ending chat:', error);
-            }
-        }
-
-        // Reset state
-        conversationId = null;
-        hasMessages = false;
-        messagesContainer.innerHTML = '';
-        panel.style.display = 'none';
-        endDialog.style.display = 'none';
-        emailBtn.style.display = 'none';
-        isOpen = false;
-        toggleBtn.querySelector('.chat-btn-icon').style.display = 'block';
-        toggleBtn.querySelector('.chat-btn-close').style.display = 'none';
-    }
-
-    // Enter key to send
     input.addEventListener('keypress', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             if (input.value.trim()) {
                 sendMessage();
             }
+        }
+    });
+
+    // Escape key to close
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && isOpen) {
+            closeDrawer();
         }
     });
 

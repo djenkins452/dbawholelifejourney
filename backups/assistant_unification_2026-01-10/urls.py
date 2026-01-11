@@ -25,7 +25,6 @@ urlpatterns = [
     path('api/history/', views.ConversationHistoryView.as_view(), name='api_history'),
     path('api/history/<int:conversation_id>/', views.ConversationHistoryView.as_view(), name='api_history_detail'),
     path('api/feedback/', views.MessageFeedbackView.as_view(), name='api_feedback'),
-    path('api/clear/', views.ClearConversationView.as_view(), name='api_clear'),
 
     # Daily Priorities
     path('api/priorities/', views.DailyPrioritiesView.as_view(), name='api_priorities'),

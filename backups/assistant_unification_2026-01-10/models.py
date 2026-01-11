@@ -502,56 +502,23 @@ class AssistantConversation(models.Model):
 
     @classmethod
     def get_or_create_active(cls, user):
-        """
-        Get or create an active conversation for the user.
+        """Get or create an active conversation for today."""
+        from django.utils import timezone
+        from apps.core.utils import get_user_today
 
-        Conversations now persist across days/sessions until explicitly cleared.
-        This provides continuity in the chat experience.
-        """
-        # Look for any active conversation (not limited to today)
+        today = get_user_today(user)
+
+        # Look for active conversation from today
         conversation = cls.objects.filter(
             user=user,
-            is_active=True
-        ).order_by('-updated_at').first()
+            is_active=True,
+            created_at__date=today
+        ).first()
 
         if not conversation:
             conversation = cls.objects.create(
                 user=user,
-                session_type='general',
-                is_active=True
-            )
-
-        return conversation
-
-    def clear_messages(self):
-        """
-        Clear all messages in this conversation and reset it.
-
-        This allows users to start fresh while keeping the same conversation object.
-        """
-        self.messages.all().delete()
-        self.context_summary = ''
-        self.metadata = {}
-        self.save(update_fields=['context_summary', 'metadata', 'updated_at'])
-
-    @classmethod
-    def clear_active_conversation(cls, user):
-        """
-        Clear the active conversation for a user, starting fresh.
-
-        Returns the cleared (or new) conversation.
-        """
-        conversation = cls.objects.filter(
-            user=user,
-            is_active=True
-        ).first()
-
-        if conversation:
-            conversation.clear_messages()
-        else:
-            conversation = cls.objects.create(
-                user=user,
-                session_type='general',
+                session_type='daily_checkin',
                 is_active=True
             )
 

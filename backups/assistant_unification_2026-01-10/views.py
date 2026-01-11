@@ -306,31 +306,6 @@ class MessageFeedbackView(LoginRequiredMixin, View):
             }, status=500)
 
 
-class ClearConversationView(LoginRequiredMixin, View):
-    """
-    Clear the active conversation, starting fresh.
-
-    This allows users to clear their chat history and start a new conversation.
-    """
-
-    def post(self, request, *args, **kwargs):
-        try:
-            conversation = AssistantConversation.clear_active_conversation(request.user)
-
-            return JsonResponse({
-                'success': True,
-                'conversation_id': conversation.id,
-                'message': 'Conversation cleared successfully',
-            })
-
-        except Exception as e:
-            logger.error(f"Clear conversation error: {e}", exc_info=True)
-            return JsonResponse({
-                'success': False,
-                'error': 'Failed to clear conversation',
-            }, status=500)
-
-
 # =============================================================================
 # DAILY PRIORITIES
 # =============================================================================

@@ -16,6 +16,49 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
+### Unified Assistant Experience - Slide-out Drawer
+
+**Request:** User wanted a unified assistant experience where:
+1. Clicking the floating chat button opens a slide-out drawer (not a popup widget)
+2. The drawer uses the same Personal Assistant backend as the `/assistant/` page
+3. Conversation history persists across pages and sessions until cleared
+4. Users can clear conversation to start fresh
+
+**Changes:**
+
+1. **AssistantConversation Model** (`apps/ai/models.py`):
+   - Changed `get_or_create_active()` to persist conversations across days (not daily reset)
+   - Added `clear_messages()` method to clear conversation content
+   - Added `clear_active_conversation()` class method for clearing via API
+
+2. **New Clear Conversation API** (`apps/ai/views.py`, `apps/ai/urls.py`):
+   - Added `ClearConversationView` at `/assistant/api/clear/`
+   - POST endpoint to clear all messages and start fresh
+
+3. **New Slide-out Drawer** (`templates/components/chat_widget.html`):
+   - Replaced old popup widget with full-height slide-out drawer
+   - Loads conversation history from Personal Assistant API on open
+   - Features: clear conversation button, open full page button, close button
+   - Smooth slide-in animation with overlay backdrop
+   - Responsive design (full width on mobile)
+
+4. **Updated Assistant Dashboard** (`templates/ai/assistant_dashboard.html`):
+   - Chat sidebar now loads conversation history on page load
+   - Added clear conversation button in header
+   - Added loading state and empty state UI
+   - Both interfaces now share the same conversation
+
+**Files Changed:**
+- `apps/ai/models.py` - Updated AssistantConversation model
+- `apps/ai/views.py` - Added ClearConversationView
+- `apps/ai/urls.py` - Added clear endpoint route
+- `templates/components/chat_widget.html` - Complete rewrite as slide-out drawer
+- `templates/ai/assistant_dashboard.html` - Load history, clear button, UI updates
+
+**Backup Location:** `backups/assistant_unification_2026-01-10/`
+
+---
+
 ### Added "What's New" Link to User Dropdown Menu
 
 **Request:** User requested a direct link to the What's New page in the user dropdown menu.

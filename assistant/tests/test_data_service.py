@@ -11,28 +11,28 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 
+# Store original modules before mocking
+_original_modules = {}
+
 # Create mocks for model modules before importing PersonalDataService
 mock_health_models = MagicMock()
 mock_journal_models = MagicMock()
 mock_faith_models = MagicMock()
 mock_purpose_models = MagicMock()
+
+# Save originals if they exist
+for mod_name in ['apps.health.models', 'apps.journal.models', 'apps.faith.models', 'apps.purpose.models']:
+    if mod_name in sys.modules:
+        _original_modules[mod_name] = sys.modules[mod_name]
+
 sys.modules['apps.health.models'] = mock_health_models
 sys.modules['apps.journal.models'] = mock_journal_models
 sys.modules['apps.faith.models'] = mock_faith_models
 sys.modules['apps.purpose.models'] = mock_purpose_models
 
 # Create mock cache that returns None by default (cache miss)
-# We need to mock this before the module imports
 mock_cache = MagicMock()
 mock_cache.get.return_value = None  # Always miss cache in tests by default
-mock_cache_module = MagicMock()
-mock_cache_module.cache = mock_cache
-sys.modules['django.core.cache'] = mock_cache_module
-
-# Now import data_service to get it to use our mocked cache
-# (Need to remove it from sys.modules if already imported)
-if 'assistant.data_service' in sys.modules:
-    del sys.modules['assistant.data_service']
 
 
 class CacheMockMixin:
@@ -42,6 +42,13 @@ class CacheMockMixin:
         """Reset cache mock before each test."""
         mock_cache.reset_mock()
         mock_cache.get.return_value = None  # Cache miss by default
+        # Patch cache properly instead of replacing the module
+        self.cache_patcher = patch('django.core.cache.cache', mock_cache)
+        self.cache_patcher.start()
+
+    def tearDown(self):
+        """Stop cache patcher."""
+        self.cache_patcher.stop()
 
 
 class TestPersonalDataServiceInit(CacheMockMixin, unittest.TestCase):

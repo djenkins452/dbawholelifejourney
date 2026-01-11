@@ -1840,6 +1840,17 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
                     if page_content.get('content'):
                         content_description += f"- Details: {page_content['content']}\n"
 
+                elif content_type == 'fasting':
+                    content_description = "\nFASTING PAGE (user is viewing this):\n"
+                    if page_content.get('active_fast_duration'):
+                        content_description += f"- Active fast duration: {page_content['active_fast_duration']}\n"
+                        if page_content.get('active_fast_type'):
+                            content_description += f"- Fast type: {page_content['active_fast_type']}\n"
+                    if page_content.get('fasting_history'):
+                        content_description += "- Completed fasts shown on page:\n"
+                        for entry in page_content['fasting_history'][:10]:  # Limit to 10 entries
+                            content_description += f"  * {entry.get('date', '')}: {entry.get('duration', '')} ({entry.get('type', '')})\n"
+
                 elif content_type == 'health':
                     content_description = "\nHEALTH PAGE (user is viewing this):\n"
                     if page_content.get('current_weight'):

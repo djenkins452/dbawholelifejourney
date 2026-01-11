@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (Reading Plan Status Field Fix)
+# Last Updated: 2026-01-11 (Fasting Page Context Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,30 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-11 Changes
+
+### Fix Fasting Page Context and Title Extraction
+
+**Issue:** On the Fasting page, the assistant context indicator showed CSS code instead of the page title, and the assistant gave wrong fasting data answers.
+
+**Root Cause:** Two issues:
+1. The page title extraction was grabbing the entire `.page-title` element including the nested favorite toggle component (which contains inline CSS)
+2. The fasting page had no specific context handler, so the assistant didn't see the fasting history data
+
+**Solution:**
+1. Fixed title extraction to get only direct text nodes from headings, avoiding nested elements
+2. Added dedicated fasting page handler to capture active fast and completed fasts history
+
+**Files Modified:**
+- `templates/components/chat_widget.html`:
+  - Fixed `getPageContext()` to extract only direct text from headings
+  - Added `fasting` content type handler in `extractPageContent()`
+  - Added fasting summary in `buildContextSummary()`
+- `apps/ai/personal_assistant.py`:
+  - Added fasting content type handling with active fast and history display
+
+**Result:** On the Fasting page, the assistant now sees all displayed fast entries (date, duration, type) and can correctly answer questions like "what was my fast on Jan 7th?"
+
+---
 
 ### Fix Reading Plan 404 After Completion (Status Field Conflict)
 

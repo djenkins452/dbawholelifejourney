@@ -531,10 +531,21 @@
         let pageTitle = '';
 
         // Try to get the main heading or the document title
-        const mainHeading = document.querySelector('h1, .page-title, .content-header h2');
-        if (mainHeading && mainHeading.textContent) {
-            pageTitle = mainHeading.textContent.trim();
-        } else {
+        // Use childNodes to get only direct text, avoiding nested elements like favorite toggle
+        const mainHeading = document.querySelector('h1.page-title, h1, .content-header h2');
+        if (mainHeading) {
+            // Get only direct text content, not nested elements
+            pageTitle = Array.from(mainHeading.childNodes)
+                .filter(node => node.nodeType === Node.TEXT_NODE)
+                .map(node => node.textContent.trim())
+                .join(' ')
+                .trim();
+            // If no direct text found, fall back to textContent but clean it up
+            if (!pageTitle) {
+                pageTitle = mainHeading.textContent.trim().split('\n')[0].trim();
+            }
+        }
+        if (!pageTitle) {
             // Fall back to document title, remove site name suffix if present
             pageTitle = document.title.replace(/\s*[-|]\s*Whole Life Journey.*$/i, '').trim();
         }
@@ -670,7 +681,43 @@
             }
         }
 
-        // Health tracking pages
+        // Fasting page
+        else if (url.match(/\/health\/fasting/)) {
+            content.type = 'fasting';
+
+            // Get active fast info
+            const activeFast = document.querySelector('.active-fast-card');
+            if (activeFast) {
+                const timerValue = activeFast.querySelector('.timer-value');
+                if (timerValue) {
+                    content.active_fast_duration = timerValue.textContent.trim();
+                }
+                const fastType = activeFast.querySelector('.fast-type');
+                if (fastType) {
+                    content.active_fast_type = fastType.textContent.trim();
+                }
+            }
+
+            // Get fasting history from the page
+            const fastEntries = document.querySelectorAll('.fast-entry');
+            if (fastEntries.length > 0) {
+                content.fasting_history = [];
+                fastEntries.forEach(entry => {
+                    const type = entry.querySelector('.fast-entry-type');
+                    const duration = entry.querySelector('.fast-entry-duration');
+                    const date = entry.querySelector('.fast-entry-date');
+                    if (type && duration && date) {
+                        content.fasting_history.push({
+                            type: type.textContent.trim(),
+                            duration: duration.textContent.trim(),
+                            date: date.textContent.trim()
+                        });
+                    }
+                });
+            }
+        }
+
+        // Other Health tracking pages
         else if (url.startsWith('/health/')) {
             content.type = 'health';
 
@@ -723,6 +770,15 @@
 
         if (pc.type === 'prayer_request' && pc.title) {
             return 'Prayer: ' + pc.title;
+        }
+
+        if (pc.type === 'fasting') {
+            if (pc.active_fast_duration) {
+                return 'Active Fast: ' + pc.active_fast_duration;
+            }
+            if (pc.fasting_history && pc.fasting_history.length > 0) {
+                return 'Fasting History (' + pc.fasting_history.length + ' entries)';
+            }
         }
 
         return context.page_title || null;

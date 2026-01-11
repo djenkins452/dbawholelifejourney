@@ -890,6 +890,13 @@
         chatSend.disabled = !chatInput.value.trim();
     });
 
+    // Refresh chat when user clicks/focuses on chat input (sync with drawer)
+    chatInput.addEventListener('focus', function() {
+        if (hasMessages) {
+            refreshChatHistory();
+        }
+    });
+
     // Submit on Enter key (Shift+Enter for newline if needed later)
     chatInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {

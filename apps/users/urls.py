@@ -55,6 +55,10 @@ urlpatterns = [
 
     # API endpoints
     path("api/dismiss-intro-banner/", views.DismissIntroBannerView.as_view(), name="dismiss_intro_banner"),
+    path("api/ai-profile-nudge/", views.AIProfileNudgeActionView.as_view(), name="ai_profile_nudge"),
+    path("api/ai-profile-builder/", views.AIProfileBuilderView.as_view(), name="ai_profile_builder"),
+    path("api/sub-feature-toggle/", views.SubFeatureToggleView.as_view(), name="sub_feature_toggle"),
+    path("api/sub-features/", views.SubFeaturesBulkView.as_view(), name="sub_features"),
 
     # Biometric / WebAuthn Login
     path("biometric/check/", views.BiometricCheckView.as_view(), name="biometric_check"),

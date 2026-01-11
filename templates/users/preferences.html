@@ -278,6 +278,214 @@
             </div>
 
             <!-- ═══════════════════════════════════════════════════════════════════
+                 CUSTOMIZE FEATURES
+                 ═══════════════════════════════════════════════════════════════════ -->
+            <div class="accordion-group" data-accordion-key="features">
+                <button type="button" class="accordion-header">
+                    <div class="accordion-header-content">
+                        <span class="accordion-icon">⚙️</span>
+                        <div class="accordion-title-group">
+                            <h2 class="accordion-title">Customize Features</h2>
+                            <p class="accordion-subtitle">Show or hide specific features within each module</p>
+                        </div>
+                    </div>
+                    <div class="accordion-header-right">
+                        <div class="accordion-status">
+                            <span class="accordion-badge accordion-badge-inactive">Fine-tune your experience</span>
+                        </div>
+                        <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </button>
+                <div class="accordion-body">
+                    <p class="text-muted text-sm mb-4">
+                        Choose which features you want to see and use. Disabled features will be hidden from navigation and dashboards, but your data is always preserved.
+                    </p>
+
+                    <!-- Nested Accordion for each module's features -->
+                    <div class="accordion" data-accordion-id="feature-toggles">
+
+                        <!-- Health Features -->
+                        <div class="accordion-group" data-accordion-key="health-features">
+                            <button type="button" class="accordion-header">
+                                <div class="accordion-header-content">
+                                    <span class="accordion-icon">❤️</span>
+                                    <div class="accordion-title-group">
+                                        <h3 class="accordion-title">Health Features</h3>
+                                    </div>
+                                </div>
+                                <div class="accordion-header-right">
+                                    <span class="accordion-badge accordion-badge-inactive" id="health-features-count">All enabled</span>
+                                    <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </button>
+                            <div class="accordion-body">
+                                <div class="feature-toggles-grid" data-module="health">
+                                    {% for feature in health_features %}
+                                    <div class="feature-toggle-item">
+                                        <label class="feature-toggle-label">
+                                            <input type="checkbox"
+                                                   class="feature-checkbox"
+                                                   data-module="health"
+                                                   data-feature="{{ feature.key }}"
+                                                   {% if feature.enabled %}checked{% endif %}>
+                                            <span class="feature-icon">{{ feature.icon }}</span>
+                                            <span class="feature-name">{{ feature.label }}</span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Organize Features -->
+                        <div class="accordion-group" data-accordion-key="organize-features">
+                            <button type="button" class="accordion-header">
+                                <div class="accordion-header-content">
+                                    <span class="accordion-icon">🏠</span>
+                                    <div class="accordion-title-group">
+                                        <h3 class="accordion-title">Organize Features</h3>
+                                    </div>
+                                </div>
+                                <div class="accordion-header-right">
+                                    <span class="accordion-badge accordion-badge-inactive" id="organize-features-count">All enabled</span>
+                                    <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </button>
+                            <div class="accordion-body">
+                                <div class="feature-toggles-grid" data-module="organize">
+                                    {% for feature in organize_features %}
+                                    <div class="feature-toggle-item">
+                                        <label class="feature-toggle-label">
+                                            <input type="checkbox"
+                                                   class="feature-checkbox"
+                                                   data-module="organize"
+                                                   data-feature="{{ feature.key }}"
+                                                   {% if feature.enabled %}checked{% endif %}>
+                                            <span class="feature-icon">{{ feature.icon }}</span>
+                                            <span class="feature-name">{{ feature.label }}</span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Goals Features -->
+                        <div class="accordion-group" data-accordion-key="goals-features">
+                            <button type="button" class="accordion-header">
+                                <div class="accordion-header-content">
+                                    <span class="accordion-icon">🧭</span>
+                                    <div class="accordion-title-group">
+                                        <h3 class="accordion-title">Goals Features</h3>
+                                    </div>
+                                </div>
+                                <div class="accordion-header-right">
+                                    <span class="accordion-badge accordion-badge-inactive" id="goals-features-count">All enabled</span>
+                                    <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </button>
+                            <div class="accordion-body">
+                                <div class="feature-toggles-grid" data-module="goals">
+                                    {% for feature in goals_features %}
+                                    <div class="feature-toggle-item">
+                                        <label class="feature-toggle-label">
+                                            <input type="checkbox"
+                                                   class="feature-checkbox"
+                                                   data-module="goals"
+                                                   data-feature="{{ feature.key }}"
+                                                   {% if feature.enabled %}checked{% endif %}>
+                                            <span class="feature-icon">{{ feature.icon }}</span>
+                                            <span class="feature-name">{{ feature.label }}</span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Faith Features -->
+                        <div class="accordion-group" data-accordion-key="faith-features">
+                            <button type="button" class="accordion-header">
+                                <div class="accordion-header-content">
+                                    <span class="accordion-icon">✝️</span>
+                                    <div class="accordion-title-group">
+                                        <h3 class="accordion-title">Faith Features</h3>
+                                    </div>
+                                </div>
+                                <div class="accordion-header-right">
+                                    <span class="accordion-badge accordion-badge-inactive" id="faith-features-count">All enabled</span>
+                                    <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </button>
+                            <div class="accordion-body">
+                                <div class="feature-toggles-grid" data-module="faith">
+                                    {% for feature in faith_features %}
+                                    <div class="feature-toggle-item">
+                                        <label class="feature-toggle-label">
+                                            <input type="checkbox"
+                                                   class="feature-checkbox"
+                                                   data-module="faith"
+                                                   data-feature="{{ feature.key }}"
+                                                   {% if feature.enabled %}checked{% endif %}>
+                                            <span class="feature-icon">{{ feature.icon }}</span>
+                                            <span class="feature-name">{{ feature.label }}</span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Journal Features -->
+                        <div class="accordion-group" data-accordion-key="journal-features">
+                            <button type="button" class="accordion-header">
+                                <div class="accordion-header-content">
+                                    <span class="accordion-icon">📝</span>
+                                    <div class="accordion-title-group">
+                                        <h3 class="accordion-title">Journal Features</h3>
+                                    </div>
+                                </div>
+                                <div class="accordion-header-right">
+                                    <span class="accordion-badge accordion-badge-inactive" id="journal-features-count">All enabled</span>
+                                    <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </button>
+                            <div class="accordion-body">
+                                <div class="feature-toggles-grid" data-module="journal">
+                                    {% for feature in journal_features %}
+                                    <div class="feature-toggle-item">
+                                        <label class="feature-toggle-label">
+                                            <input type="checkbox"
+                                                   class="feature-checkbox"
+                                                   data-module="journal"
+                                                   data-feature="{{ feature.key }}"
+                                                   {% if feature.enabled %}checked{% endif %}>
+                                            <span class="feature-icon">{{ feature.icon }}</span>
+                                            <span class="feature-name">{{ feature.label }}</span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════════════
                  AI & INTELLIGENCE
                  ═══════════════════════════════════════════════════════════════════ -->
             <div class="accordion-group" data-accordion-key="ai">
@@ -2083,6 +2291,113 @@ Examples:
 .quiet-hours-times .form-row {
     max-width: 300px;
 }
+
+/* Feature Toggles Grid */
+.feature-toggles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--space-3);
+}
+
+.feature-toggle-item {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    transition: var(--transition-fast);
+}
+
+.feature-toggle-item:hover {
+    border-color: var(--color-accent);
+    background: var(--color-background);
+}
+
+.feature-toggle-item.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.feature-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    user-select: none;
+}
+
+.feature-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.feature-icon {
+    font-size: var(--font-size-lg);
+    flex-shrink: 0;
+}
+
+.feature-name {
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    line-height: 1.3;
+}
+
+/* Feature toggle saving indicator */
+.feature-toggle-item.saving {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.feature-toggle-item.saving::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: var(--space-2);
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Nested accordions for features */
+[data-accordion-id="feature-toggles"] .accordion-group {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+}
+
+[data-accordion-id="feature-toggles"] .accordion-group:last-child {
+    margin-bottom: 0;
+}
+
+[data-accordion-id="feature-toggles"] .accordion-header {
+    padding: var(--space-3);
+    background: var(--color-surface);
+}
+
+[data-accordion-id="feature-toggles"] .accordion-body {
+    padding: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+[data-accordion-id="feature-toggles"] .accordion-title {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+}
+
+@media (max-width: 480px) {
+    .feature-toggles-grid {
+        grid-template-columns: 1fr;
+    }
+}
 </style>
 
 <script src="{% static 'js/accordion.js' %}"></script>
@@ -2560,6 +2875,103 @@ async function removePhone() {
         alert('Network error. Please try again.');
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Sub-Feature Toggles
+// ═══════════════════════════════════════════════════════════════════
+
+// Initialize feature toggle handlers
+function initFeatureToggles() {
+    const featureCheckboxes = document.querySelectorAll('.feature-checkbox');
+
+    featureCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', handleFeatureToggle);
+    });
+
+    // Update all feature counts on load
+    updateAllFeatureCounts();
+}
+
+// Handle individual feature toggle
+async function handleFeatureToggle(event) {
+    const checkbox = event.target;
+    const module = checkbox.dataset.module;
+    const feature = checkbox.dataset.feature;
+    const enabled = checkbox.checked;
+    const toggleItem = checkbox.closest('.feature-toggle-item');
+
+    // Add saving indicator
+    toggleItem.classList.add('saving');
+
+    try {
+        const response = await fetch('/user/api/sub-feature-toggle/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                module: module,
+                feature: feature,
+                enabled: enabled
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            // Revert on failure
+            checkbox.checked = !enabled;
+            console.error('Failed to toggle feature:', data.error);
+        }
+
+        // Update the feature count badge for this module
+        updateFeatureCount(module);
+
+    } catch (error) {
+        // Revert on network error
+        checkbox.checked = !enabled;
+        console.error('Network error toggling feature:', error);
+    } finally {
+        toggleItem.classList.remove('saving');
+    }
+}
+
+// Update feature count badge for a specific module
+function updateFeatureCount(module) {
+    const grid = document.querySelector(`.feature-toggles-grid[data-module="${module}"]`);
+    if (!grid) return;
+
+    const checkboxes = grid.querySelectorAll('.feature-checkbox');
+    const total = checkboxes.length;
+    const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+
+    const badge = document.getElementById(`${module}-features-count`);
+    if (badge) {
+        if (checked === total) {
+            badge.textContent = 'All enabled';
+            badge.classList.remove('accordion-badge-active');
+            badge.classList.add('accordion-badge-inactive');
+        } else if (checked === 0) {
+            badge.textContent = 'All disabled';
+            badge.classList.remove('accordion-badge-inactive');
+            badge.classList.add('accordion-badge-active');
+        } else {
+            badge.textContent = `${checked}/${total} enabled`;
+            badge.classList.remove('accordion-badge-inactive');
+            badge.classList.add('accordion-badge-active');
+        }
+    }
+}
+
+// Update all module feature counts
+function updateAllFeatureCounts() {
+    const modules = ['health', 'organize', 'goals', 'faith', 'journal'];
+    modules.forEach(updateFeatureCount);
+}
+
+// Initialize on DOM ready
+document.addEventListener('DOMContentLoaded', initFeatureToggles);
 </script>
 <script src="{% static 'js/biometric.js' %}"></script>
 {% endblock %}

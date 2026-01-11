@@ -77,6 +77,14 @@ def theme_context(request):
         # Personal Assistant - defaults
         'personal_assistant_enabled': False,
         'personal_assistant_consent': False,
+        # Sub-feature toggles - all True by default (opt-out model)
+        'features': {
+            'health': {},
+            'organize': {},
+            'goals': {},
+            'faith': {},
+            'journal': {},
+        },
     }
 
     if request.user.is_authenticated:
@@ -102,6 +110,20 @@ def theme_context(request):
             context['user_today'] = get_user_today(request.user)
             # User's timezone for datetime conversion in templates
             context['user_timezone'] = prefs.timezone
+            # Sub-feature toggles - build dict of feature states per module
+            from apps.users.models import UserPreferences
+            context['features'] = {
+                'health': {key: prefs.is_feature_enabled('health', key)
+                           for key in UserPreferences.HEALTH_FEATURES.keys()},
+                'organize': {key: prefs.is_feature_enabled('organize', key)
+                             for key in UserPreferences.ORGANIZE_FEATURES.keys()},
+                'goals': {key: prefs.is_feature_enabled('goals', key)
+                          for key in UserPreferences.GOALS_FEATURES.keys()},
+                'faith': {key: prefs.is_feature_enabled('faith', key)
+                          for key in UserPreferences.FAITH_FEATURES.keys()},
+                'journal': {key: prefs.is_feature_enabled('journal', key)
+                            for key in UserPreferences.JOURNAL_FEATURES.keys()},
+            }
         except Exception:
             pass
 

@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-11 Changes
 
+### Fix Navigation Logo and Profile Picture Shrinking
+
+**Issue:** On desktop, the navigation logo (left side) and profile picture/initials (right side) were being shrunk to tiny, unreadable sizes when the nav had many items.
+
+**Cause:** Flexbox was shrinking the logo and user avatar elements to accommodate the navigation links when space was tight.
+
+**Solution:** Added `flex-shrink: 0` and `min-width`/`min-height` constraints to prevent the logo and user elements from being compressed.
+
+**Files Modified:**
+- `templates/components/navigation.html` (inline styles for logo, avatar, initials)
+- `static/css/main.css` (nav-logo, nav-user, nav-user-initial)
+
+---
+
 ### HTMX Modal for Tag Creation During Journal Entry
 
 **Issue:** When typing a journal entry and clicking "+ Create new tag", the browser navigated away to `/journal/tags/create/`. After creating the tag, it redirected to the tag list page - not back to the entry form. This caused users to lose any unsaved journal entry content they had typed.

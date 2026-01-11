@@ -634,21 +634,35 @@
 </header>
 
 <style>
+.nav-logo {
+    flex-shrink: 0;
+}
+
 .nav-logo-img {
     height: 44px;
     width: auto;
+    min-height: 44px;
+}
+
+.nav-user {
+    flex-shrink: 0;
 }
 
 .nav-user-avatar {
     width: 32px;
     height: 32px;
+    min-width: 32px;
+    min-height: 32px;
     border-radius: var(--radius-full);
     object-fit: cover;
+    flex-shrink: 0;
 }
 
 .nav-user-initial {
     width: 32px;
     height: 32px;
+    min-width: 32px;
+    min-height: 32px;
     border-radius: var(--radius-full);
     background: var(--color-accent);
     color: white;
@@ -657,11 +671,13 @@
     justify-content: center;
     font-size: var(--font-size-sm);
     font-weight: 600;
+    flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
     .nav-logo-img {
         height: 36px;
+        min-height: 36px;
     }
 }
 </style>

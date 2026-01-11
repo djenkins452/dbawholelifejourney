@@ -344,6 +344,8 @@ class FeatureRequestService:
         Returns:
             The created task ID, or None if creation failed
         """
+        import traceback
+
         try:
             from apps.admin_console.models import (
                 AdminTask,
@@ -351,51 +353,75 @@ class FeatureRequestService:
                 AdminProjectPhase
             )
 
-            # Get or create the "New Requests" project
-            project, created = AdminProject.objects.get_or_create(
-                name=self.NEW_REQUESTS_PROJECT,
-                defaults={
-                    'description': 'Feature requests from AI Assistant users',
-                    'status': 'open',
-                    'priority': 3,  # High priority for user feedback
-                }
-            )
+            logger.info(f"Starting task creation for user {request_info.user_id}")
 
-            if created:
-                logger.info(f"Created '{self.NEW_REQUESTS_PROJECT}' project")
+            # Get or create the "New Requests" project
+            try:
+                project, created = AdminProject.objects.get_or_create(
+                    name=self.NEW_REQUESTS_PROJECT,
+                    defaults={
+                        'description': 'Feature requests from AI Assistant users',
+                        'status': 'open',
+                        'priority': 3,  # High priority for user feedback
+                    }
+                )
+                if created:
+                    logger.info(f"Created '{self.NEW_REQUESTS_PROJECT}' project")
+                else:
+                    logger.info(f"Using existing project: {project.id} - {project.name}")
+            except Exception as e:
+                logger.error(f"Failed to get/create project: {e}\n{traceback.format_exc()}")
+                raise
 
             # Get Phase 1 for new requests (must exist - standard phase)
-            phase = AdminProjectPhase.objects.filter(phase_number=1).first()
-            if not phase:
-                # Try to get any existing phase
-                phase = AdminProjectPhase.objects.first()
-            if not phase:
-                # Create Phase 1 if no phases exist at all
-                phase = AdminProjectPhase.objects.create(
-                    phase_number=1,
-                    name='Phase 1',
-                    objective='Initial phase for new requests and tasks',
-                    status='in_progress',
-                )
-                logger.info("Created Phase 1 for feature requests")
+            try:
+                phase = AdminProjectPhase.objects.filter(phase_number=1).first()
+                if phase:
+                    logger.info(f"Found Phase 1: {phase.id} - {phase.name}")
+                else:
+                    # Try to get any existing phase
+                    phase = AdminProjectPhase.objects.first()
+                    if phase:
+                        logger.info(f"Using first available phase: {phase.id} - {phase.name}")
+                    else:
+                        # Create Phase 1 if no phases exist at all
+                        phase = AdminProjectPhase.objects.create(
+                            phase_number=1,
+                            name='Phase 1',
+                            objective='Initial phase for new requests and tasks',
+                            status='in_progress',
+                        )
+                        logger.info("Created Phase 1 for feature requests")
+            except Exception as e:
+                logger.error(f"Failed to get/create phase: {e}\n{traceback.format_exc()}")
+                raise
 
             # Use pre-generated title and description from request_info
             title = request_info.task_title or self._generate_task_title(request_info.message)
             description = request_info.task_description or self._build_implementation_task(request_info)
 
-            # Create the task with skip_validation since we're using JSONField
-            task = AdminTask(
-                title=title,
-                description=description,
-                category='feature',
-                priority=3,  # Medium-high priority
-                status='backlog',  # Starts in backlog for admin review
-                effort='S',  # Small effort for initial review
-                phase=phase,
-                project=project,
-                created_by='claude',  # Created by AI system
-            )
-            task.save(skip_validation=False)
+            logger.info(f"Creating task with title: {title[:50]}...")
+            logger.info(f"Description keys: {list(description.keys()) if isinstance(description, dict) else 'NOT A DICT'}")
+
+            # Create the task
+            try:
+                task = AdminTask(
+                    title=title,
+                    description=description,
+                    category='feature',
+                    priority=3,  # Medium-high priority
+                    status='backlog',  # Starts in backlog for admin review
+                    effort='S',  # Small effort for initial review
+                    phase=phase,
+                    project=project,
+                    created_by='claude',  # Created by AI system
+                )
+                logger.info("AdminTask object created, attempting save...")
+                task.save(skip_validation=False)
+                logger.info(f"Task saved successfully with ID: {task.id}")
+            except Exception as e:
+                logger.error(f"Failed to create/save AdminTask: {e}\n{traceback.format_exc()}")
+                raise
 
             logger.info(
                 f"Created AdminTask #{task.id} for feature request "
@@ -405,7 +431,6 @@ class FeatureRequestService:
             return task.id
 
         except Exception as e:
-            import traceback
             logger.error(
                 f"Failed to create AdminTask for feature request: {e}\n"
                 f"Title: {request_info.task_title}\n"

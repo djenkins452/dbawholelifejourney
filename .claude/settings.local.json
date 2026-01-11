@@ -176,7 +176,14 @@
       "Bash(xargs cat:*)",
       "Bash(xargs:*)",
       "Bash(python3:*)",
-      "Bash(GIT_SSH_COMMAND=\"ssh -p 443\" git fetch:*)"
+      "Bash(GIT_SSH_COMMAND=\"ssh -p 443\" git fetch:*)",
+      "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/tasks/235/status/\")",
+      "Bash(pip3 install:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd feature request detection for AI Assistant\n\nWhen users type \"I wish\" or \"I want\" patterns and the assistant doesn''t\nhave a matching solution, automatically sends an email notification to\nadmin@wholelifejourney.com with user info and request details.\n\nFeatures:\n- Pattern detection for 15+ wish/want patterns \\(e.g., \"I wish I could\",\n  \"I want to be able\", \"can you add\", \"it would be nice if\"\\)\n- Email notification with user details, message, and conversation context\n- Rate limiting \\(24h\\) to prevent duplicate notifications for similar requests\n- Graceful error handling that doesn''t break the chat flow\n- Comprehensive test suite\n\nFiles:\n- apps/ai/feature_request_service.py \\(new service\\)\n- apps/ai/personal_assistant.py \\(integration\\)\n- apps/ai/tests/test_feature_request_service.py \\(tests\\)\n- templates/assistant/emails/feature_request.html \\(email template\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/235/status/\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/236/status/\")",
+      "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/tasks/236/status/\")",
+      "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=5\")"
     ]
   }
 }

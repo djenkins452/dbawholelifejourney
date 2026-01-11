@@ -481,6 +481,9 @@
     let isLoaded = false;
     let hasMessages = false;
 
+    // Storage key for persisting drawer state
+    const DRAWER_STATE_KEY = 'wlj_assistant_drawer_open';
+
     // Get CSRF token
     function getCsrfToken() {
         return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
@@ -531,12 +534,21 @@
     }
 
     // Open drawer
-    function openDrawer() {
+    function openDrawer(skipSave = false) {
         isOpen = true;
         drawer.classList.add('open');
         overlay.classList.add('visible');
         document.body.style.overflow = 'hidden';
         input.focus();
+
+        // Save state to persist across page navigations
+        if (!skipSave) {
+            try {
+                localStorage.setItem(DRAWER_STATE_KEY, 'true');
+            } catch (e) {
+                // localStorage not available
+            }
+        }
 
         if (!isLoaded) {
             loadHistory();
@@ -553,6 +565,13 @@
         overlay.classList.remove('visible');
         document.body.style.overflow = '';
         clearDialog.classList.remove('visible');
+
+        // Clear saved state
+        try {
+            localStorage.removeItem(DRAWER_STATE_KEY);
+        } catch (e) {
+            // localStorage not available
+        }
     }
 
     // Load conversation history
@@ -696,6 +715,10 @@
     closeBtn.addEventListener('click', closeDrawer);
 
     fullscreenBtn.addEventListener('click', function() {
+        // Clear saved state since we're going to the full assistant page
+        try {
+            localStorage.removeItem(DRAWER_STATE_KEY);
+        } catch (e) {}
         window.location.href = '/assistant/';
     });
 
@@ -773,6 +796,22 @@
             console.error('Error refreshing history:', error);
         }
     }
+
+    // Check if drawer should be open on page load (persisted state)
+    function checkSavedState() {
+        try {
+            const savedState = localStorage.getItem(DRAWER_STATE_KEY);
+            if (savedState === 'true') {
+                // Use skipSave=true to avoid re-saving the same state
+                openDrawer(true);
+            }
+        } catch (e) {
+            // localStorage not available
+        }
+    }
+
+    // Initialize - check if drawer was open before navigation
+    checkSavedState();
 
 })();
 </script>

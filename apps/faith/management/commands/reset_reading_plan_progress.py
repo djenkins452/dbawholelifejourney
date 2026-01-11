@@ -56,9 +56,9 @@ class Command(BaseCommand):
             if first_incomplete:
                 old_day = plan.current_day
                 plan.current_day = first_incomplete.plan_day.day_number
-                plan.status = "active"
+                plan.plan_status = "active"
                 plan.completed_at = None
-                plan.save(update_fields=["current_day", "status", "completed_at", "updated_at"])
+                plan.save(update_fields=["current_day", "plan_status", "completed_at", "updated_at"])
 
                 self.stdout.write(
                     self.style.SUCCESS(

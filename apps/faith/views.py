@@ -1039,12 +1039,12 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
 
         # User's active plans
         context["active_plans"] = UserReadingPlan.objects.filter(
-            user=user, status="active"
+            user=user, plan_status="active"
         ).select_related("template")
 
         # User's completed plans
         context["completed_plans"] = UserReadingPlan.objects.filter(
-            user=user, status="completed"
+            user=user, plan_status="completed"
         ).select_related("template")[:5]
 
         # Filter by topic if requested
@@ -1084,7 +1084,7 @@ class ReadingPlanDetailView(LoginRequiredMixin, FaithRequiredMixin, DetailView):
         context["user_plan"] = UserReadingPlan.objects.filter(
             user=self.request.user,
             template=self.object,
-            status="active",
+            plan_status="active",
         ).first()
 
         # Show all days for preview
@@ -1108,7 +1108,7 @@ class StartReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
         existing = UserReadingPlan.objects.filter(
             user=request.user,
             template=template,
-            status="active",
+            plan_status="active",
         ).first()
 
         if existing:
@@ -1119,7 +1119,7 @@ class StartReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
         user_plan = UserReadingPlan.objects.create(
             user=request.user,
             template=template,
-            status="active",
+            plan_status="active",
         )
 
         # Optionally set reminder time from form
@@ -1226,11 +1226,11 @@ class PauseReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
 
     def post(self, request, pk):
         user_plan = get_object_or_404(
-            UserReadingPlan.objects.filter(user=request.user, status="active"),
+            UserReadingPlan.objects.filter(user=request.user, plan_status="active"),
             pk=pk
         )
-        user_plan.status = "paused"
-        user_plan.save(update_fields=["status", "updated_at"])
+        user_plan.plan_status = "paused"
+        user_plan.save(update_fields=["plan_status", "updated_at"])
         messages.info(request, f"'{user_plan.template.title}' has been paused.")
         return redirect("faith:reading_plans")
 
@@ -1242,11 +1242,11 @@ class ResumeReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
 
     def post(self, request, pk):
         user_plan = get_object_or_404(
-            UserReadingPlan.objects.filter(user=request.user, status="paused"),
+            UserReadingPlan.objects.filter(user=request.user, plan_status="paused"),
             pk=pk
         )
-        user_plan.status = "active"
-        user_plan.save(update_fields=["status", "updated_at"])
+        user_plan.plan_status = "active"
+        user_plan.save(update_fields=["plan_status", "updated_at"])
         messages.success(request, f"Welcome back! '{user_plan.template.title}' resumed.")
         return redirect("faith:reading_plan_progress", pk=pk)
 
@@ -1261,8 +1261,8 @@ class AbandonReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
             UserReadingPlan.objects.filter(user=request.user),
             pk=pk
         )
-        user_plan.status = "abandoned"
-        user_plan.save(update_fields=["status", "updated_at"])
+        user_plan.plan_status = "abandoned"
+        user_plan.save(update_fields=["plan_status", "updated_at"])
         messages.info(request, f"'{user_plan.template.title}' has been removed from your active plans.")
         return redirect("faith:reading_plans")
 

@@ -418,7 +418,7 @@ class UserReadingPlan(UserOwnedModel):
     to track their progress through the plan.
     """
 
-    STATUS_CHOICES = [
+    PLAN_STATUS_CHOICES = [
         ("active", "In Progress"),
         ("completed", "Completed"),
         ("paused", "Paused"),
@@ -431,10 +431,10 @@ class UserReadingPlan(UserOwnedModel):
         related_name="user_plans",
     )
 
-    # Progress tracking
-    status = models.CharField(
+    # Progress tracking - named plan_status to avoid conflict with SoftDeleteModel.status
+    plan_status = models.CharField(
         max_length=20,
-        choices=STATUS_CHOICES,
+        choices=PLAN_STATUS_CHOICES,
         default="active",
     )
     started_at = models.DateTimeField(default=timezone.now)
@@ -479,9 +479,9 @@ class UserReadingPlan(UserOwnedModel):
 
     def mark_complete(self):
         """Mark the plan as completed."""
-        self.status = "completed"
+        self.plan_status = "completed"
         self.completed_at = timezone.now()
-        self.save(update_fields=["status", "completed_at", "updated_at"])
+        self.save(update_fields=["plan_status", "completed_at", "updated_at"])
 
 
 class UserReadingProgress(UserOwnedModel):

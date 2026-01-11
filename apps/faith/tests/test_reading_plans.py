@@ -82,7 +82,7 @@ class ReadingPlanTestMixin:
         user_plan = UserReadingPlan.objects.create(
             user=user,
             template=template,
-            status='active',
+            plan_status='active',
             current_day=1,
         )
         # Create progress entries for all days
@@ -131,7 +131,7 @@ class UserReadingPlanModelTest(ReadingPlanTestMixin, TestCase):
     def test_start_reading_plan(self):
         """User can start a reading plan."""
         user_plan = self.start_reading_plan(self.user, self.template)
-        self.assertEqual(user_plan.status, 'active')
+        self.assertEqual(user_plan.plan_status, 'active')
         self.assertEqual(user_plan.current_day, 1)
         self.assertEqual(user_plan.user, self.user)
 

@@ -137,13 +137,13 @@ class UserReadingPlanAdmin(admin.ModelAdmin):
     list_display = [
         "user",
         "template",
-        "status",
+        "plan_status",
         "current_day",
         "progress_display",
         "started_at",
         "completed_at",
     ]
-    list_filter = ["status", "template"]
+    list_filter = ["plan_status", "template"]
     search_fields = ["user__email", "template__title"]
     raw_id_fields = ["user"]
     date_hierarchy = "started_at"
@@ -161,9 +161,9 @@ class UserReadingPlanAdmin(admin.ModelAdmin):
             plan.day_completions.update(is_completed=False, completed_at=None)
             # Reset plan to day 1
             plan.current_day = 1
-            plan.status = "active"
+            plan.plan_status = "active"
             plan.completed_at = None
-            plan.save(update_fields=["current_day", "status", "completed_at", "updated_at"])
+            plan.save(update_fields=["current_day", "plan_status", "completed_at", "updated_at"])
 
         self.message_user(
             request,
@@ -190,9 +190,9 @@ class UserReadingPlanAdmin(admin.ModelAdmin):
                 ).order_by("plan_day__day_number").first()
                 if first_incomplete:
                     plan.current_day = first_incomplete.plan_day.day_number
-                    plan.status = "active"
+                    plan.plan_status = "active"
                     plan.completed_at = None
-                    plan.save(update_fields=["current_day", "status", "completed_at", "updated_at"])
+                    plan.save(update_fields=["current_day", "plan_status", "completed_at", "updated_at"])
                 total_reset += count
 
         self.message_user(

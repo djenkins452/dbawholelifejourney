@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (Page-Aware Assistant Chat)
+# Last Updated: 2026-01-11 (Reading Plan Status Field Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,29 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-11 Changes
+
+### Fix Reading Plan 404 After Completion (Status Field Conflict)
+
+**Issue:** After completing Day 7 of a reading plan (marking it complete), users got a 404 error on the progress page.
+
+**Root Cause:** The `UserReadingPlan` model had a `status` field with values like "active", "completed", "paused", "abandoned". However, it inherits from `UserOwnedModel` which inherits from `SoftDeleteModel`, which also has a `status` field with values "active", "archived", "deleted".
+
+The `SoftDeleteManager` filters `status="active"` by default. When a reading plan was marked complete (status changed to "completed"), the manager filtered it out, causing the 404.
+
+**Solution:** Renamed `UserReadingPlan.status` to `plan_status` to avoid conflict with the soft delete status field.
+
+**Files Modified:**
+- `apps/faith/models.py`: Renamed `status` → `plan_status`, updated `STATUS_CHOICES` → `PLAN_STATUS_CHOICES`, updated `mark_complete()` method
+- `apps/faith/views.py`: Updated all references to `status` → `plan_status` in queries and saves
+- `apps/faith/admin.py`: Updated list_display, list_filter, and admin actions
+- `apps/faith/tests/test_reading_plans.py`: Updated test assertions
+- `apps/faith/management/commands/reset_reading_plan_progress.py`: Updated field reference
+- `templates/faith/reading_plans/progress.html`: Updated template conditions
+- `apps/faith/migrations/0007_rename_status_to_plan_status.py`: Migration to rename the field
+
+**Migration:** `0007_rename_status_to_plan_status.py` - Uses `RenameField` operation
+
+---
 
 ### Page-Aware Assistant Chat (Context-Aware Responses)
 

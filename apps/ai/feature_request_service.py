@@ -174,6 +174,164 @@ class FeatureRequestService:
         # Cache for rate_limit_hours
         cache.set(cache_key, True, timeout=self.rate_limit_hours * 3600)
 
+    def _generate_task_title(self, message: str) -> str:
+        """
+        Generate a clear, actionable task title from user's message.
+
+        Extracts the core feature request and formats it as an action.
+        """
+        # Remove common prefixes that don't add meaning
+        cleaned = message.lower()
+        prefixes_to_remove = [
+            r'^i wish i could\s+',
+            r'^i wish the app could\s+',
+            r'^i wish there was a way to\s+',
+            r'^i want to be able to\s+',
+            r'^i want the ability to\s+',
+            r'^i want to\s+',
+            r'^can you add\s+',
+            r'^could you add\s+',
+            r'^please add\s+',
+            r'^it would be nice if i could\s+',
+            r'^it would be nice to\s+',
+            r'^there should be a way to\s+',
+            r'^why can\'?t i\s+',
+        ]
+
+        for prefix in prefixes_to_remove:
+            cleaned = re.sub(prefix, '', cleaned, flags=re.IGNORECASE)
+
+        # Capitalize first letter and truncate
+        if cleaned:
+            cleaned = cleaned[0].upper() + cleaned[1:]
+
+        # Truncate if too long
+        if len(cleaned) > 80:
+            cleaned = cleaned[:77] + "..."
+
+        return cleaned
+
+    def _build_implementation_task(self, request_info: FeatureRequestInfo) -> dict:
+        """
+        Build an implementation-ready task description based on the user's request.
+
+        Returns a task description with specific actions to implement the feature.
+        """
+        user_request = request_info.message.lower()
+
+        # Determine the type of feature request and generate appropriate actions
+        actions = []
+        objective = ""
+
+        # Export-related requests
+        if any(word in user_request for word in ['export', 'download', 'csv', 'save']):
+            # Determine what data to export
+            data_type = self._identify_data_type(user_request)
+            objective = f"Add {data_type} export functionality"
+            actions = [
+                f"Add export view in the appropriate app (health/journal/etc.) that generates CSV",
+                f"Include date range filtering (default: last 7 days)",
+                f"Add 'Export' button to the {data_type} list/dashboard page",
+                f"Include relevant fields: date, value, notes, source",
+                "Test the export with sample data",
+                "Update the AI Assistant to inform users about the new export feature",
+            ]
+
+        # Import-related requests
+        elif any(word in user_request for word in ['import', 'upload']):
+            data_type = self._identify_data_type(user_request)
+            objective = f"Add {data_type} import functionality"
+            actions = [
+                f"Create import view that accepts CSV files",
+                f"Add file upload form to the {data_type} page",
+                "Validate CSV format and handle errors gracefully",
+                "Preview data before import confirmation",
+                "Test with sample CSV files",
+            ]
+
+        # Notification/reminder requests
+        elif any(word in user_request for word in ['remind', 'notification', 'alert']):
+            objective = "Add reminder/notification feature"
+            actions = [
+                "Determine notification type: email, SMS, or in-app",
+                "Add notification preferences to user settings",
+                "Create notification scheduling system",
+                "Implement notification sending logic",
+                "Test notification delivery",
+            ]
+
+        # Tracking/logging requests
+        elif any(word in user_request for word in ['track', 'log', 'record']):
+            data_type = self._identify_data_type(user_request)
+            objective = f"Add {data_type} tracking functionality"
+            actions = [
+                f"Create model for {data_type} if it doesn't exist",
+                "Add form and view for data entry",
+                "Add list/history view to see past entries",
+                "Add to AI Assistant intent recognition",
+                "Test data entry and retrieval",
+            ]
+
+        # Visualization/chart requests
+        elif any(word in user_request for word in ['chart', 'graph', 'visualize', 'trend']):
+            data_type = self._identify_data_type(user_request)
+            objective = f"Add {data_type} visualization"
+            actions = [
+                f"Add chart component to {data_type} dashboard",
+                "Include date range selector",
+                "Show trend line or average",
+                "Make chart responsive for mobile",
+                "Test with various data ranges",
+            ]
+
+        # Default generic actions if we can't determine specific type
+        else:
+            objective = f"Implement user request: {request_info.message[:60]}"
+            actions = [
+                "Analyze the user's request and determine technical requirements",
+                "Identify which app/module should contain this feature",
+                "Implement the core functionality",
+                "Add appropriate UI elements",
+                "Test the feature end-to-end",
+                "Update the AI Assistant if applicable",
+            ]
+
+        return {
+            "objective": objective,
+            "inputs": [
+                f"User request: {request_info.message}",
+                f"Requested by: {request_info.user_name} ({request_info.user_email})",
+                f"Timestamp: {request_info.timestamp}",
+            ],
+            "actions": actions,
+            "output": f"Working feature as requested: {request_info.message[:60]}",
+        }
+
+    def _identify_data_type(self, message: str) -> str:
+        """Identify what type of health/journal data is being referenced."""
+        message = message.lower()
+
+        if any(word in message for word in ['glucose', 'blood sugar', 'cgm', 'dexcom']):
+            return "blood glucose"
+        elif any(word in message for word in ['weight', 'scale']):
+            return "weight"
+        elif any(word in message for word in ['heart', 'pulse', 'hr', 'bpm']):
+            return "heart rate"
+        elif any(word in message for word in ['blood pressure', 'bp']):
+            return "blood pressure"
+        elif any(word in message for word in ['fast', 'fasting']):
+            return "fasting"
+        elif any(word in message for word in ['sleep']):
+            return "sleep"
+        elif any(word in message for word in ['journal', 'entry', 'note']):
+            return "journal"
+        elif any(word in message for word in ['medicine', 'medication', 'pill', 'drug']):
+            return "medication"
+        elif any(word in message for word in ['exercise', 'workout', 'activity']):
+            return "exercise"
+        else:
+            return "health data"
+
     def _create_admin_task(self, request_info: FeatureRequestInfo) -> Optional[int]:
         """
         Create an AdminTask in the "New Requests" project.
@@ -219,36 +377,11 @@ class FeatureRequestService:
                 )
                 logger.info("Created Phase 1 for feature requests")
 
-            # Generate a title from the message (truncate if too long)
-            title = f"User Request: {request_info.message[:100]}"
-            if len(request_info.message) > 100:
-                title += "..."
+            # Generate a clear title based on user's request
+            title = self._generate_task_title(request_info.message)
 
-            # Build the executable task description
-            description = {
-                "objective": f"Review and potentially implement feature request from {request_info.user_name}",
-                "inputs": [
-                    f"User: {request_info.user_name} ({request_info.user_email})",
-                    f"Detected pattern: {request_info.detected_pattern}",
-                    f"Timestamp: {request_info.timestamp}",
-                ],
-                "actions": [
-                    "Review the user's request below",
-                    "Determine if this aligns with WLJ's mission and roadmap",
-                    "If approved, create a detailed implementation task",
-                    "If rejected, document the reason",
-                ],
-                "output": "Decision on whether to implement, with rationale",
-            }
-
-            # Add the user's message to inputs
-            description["inputs"].append(f"User message: {request_info.message}")
-
-            # Add conversation context if available
-            if request_info.conversation_context:
-                description["inputs"].append(
-                    f"Conversation context:\n{request_info.conversation_context}"
-                )
+            # Build an implementation-ready task description
+            description = self._build_implementation_task(request_info)
 
             # Create the task with skip_validation since we're using JSONField
             task = AdminTask(

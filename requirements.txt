@@ -1,6 +1,6 @@
 # Whole Life Journey - Dependencies
 # Django Core
-Django>=5.0,<6.0
+Django>=5.1,<6.0
 django-environ>=0.11.2
 
 # Database
@@ -72,4 +72,4 @@ sentry-sdk>=2.0.0
 # Test Coverage
 coverage>=7.4.0
 
-# Force rebuild: 2026-01-10-v1
+# Force rebuild: 2026-01-11-v1 (fix corrupted Django cache)

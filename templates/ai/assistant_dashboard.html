@@ -1110,12 +1110,24 @@
             const data = await response.json();
 
             if (data.success && data.messages) {
-                // Get current message count
+                // Get current message count and last message
                 const currentMessages = chatMessages.querySelectorAll('.chat-message');
                 const newMessageCount = data.messages.length;
 
-                // Only update if message count changed
-                if (newMessageCount !== currentMessages.length) {
+                // Check if content has changed (count or last message content)
+                let needsUpdate = newMessageCount !== currentMessages.length;
+
+                // Also check if the last message content differs (handles conversation clear/restart)
+                if (!needsUpdate && newMessageCount > 0 && currentMessages.length > 0) {
+                    const lastServerMsg = data.messages[data.messages.length - 1].content;
+                    const lastDisplayedMsg = currentMessages[currentMessages.length - 1].textContent.trim();
+                    // Compare first 50 chars to detect content difference
+                    if (lastServerMsg.substring(0, 50) !== lastDisplayedMsg.substring(0, 50)) {
+                        needsUpdate = true;
+                    }
+                }
+
+                if (needsUpdate) {
                     // Clear and reload
                     chatMessages.innerHTML = '';
                     if (newMessageCount > 0) {

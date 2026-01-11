@@ -2,47 +2,70 @@
 Unit tests for the Personal Data Service.
 
 Tests cover weight, journal, medication data querying and query_by_intent with mock data.
+
+NOTE: These tests use mocking to isolate the data service from actual Django models.
+We patch at the test class/method level rather than module level to avoid polluting
+sys.modules for other tests.
 """
 
-import sys
 import unittest
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 
-# Store original modules before mocking
-_original_modules = {}
-
-# Create mocks for model modules before importing PersonalDataService
+# Create reusable mock objects
 mock_health_models = MagicMock()
 mock_journal_models = MagicMock()
 mock_faith_models = MagicMock()
 mock_purpose_models = MagicMock()
-
-# Save originals if they exist
-for mod_name in ['apps.health.models', 'apps.journal.models', 'apps.faith.models', 'apps.purpose.models']:
-    if mod_name in sys.modules:
-        _original_modules[mod_name] = sys.modules[mod_name]
-
-sys.modules['apps.health.models'] = mock_health_models
-sys.modules['apps.journal.models'] = mock_journal_models
-sys.modules['apps.faith.models'] = mock_faith_models
-sys.modules['apps.purpose.models'] = mock_purpose_models
-
-# Create mock cache that returns None by default (cache miss)
 mock_cache = MagicMock()
 mock_cache.get.return_value = None  # Always miss cache in tests by default
 
 
-class CacheMockMixin:
-    """Mixin to reset cache mock before each test."""
+class DataServiceTestCase(unittest.TestCase):
+    """Base test case that properly patches models and cache for data service tests."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up patchers for the entire test class."""
+        super().setUpClass()
+        # Patch the models where they're used in data_service
+        cls.health_patcher = patch.dict('sys.modules', {
+            'apps.health.models': mock_health_models,
+        })
+        cls.journal_patcher = patch.dict('sys.modules', {
+            'apps.journal.models': mock_journal_models,
+        })
+        cls.faith_patcher = patch.dict('sys.modules', {
+            'apps.faith.models': mock_faith_models,
+        })
+        cls.purpose_patcher = patch.dict('sys.modules', {
+            'apps.purpose.models': mock_purpose_models,
+        })
+        cls.health_patcher.start()
+        cls.journal_patcher.start()
+        cls.faith_patcher.start()
+        cls.purpose_patcher.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        """Stop all patchers."""
+        cls.purpose_patcher.stop()
+        cls.faith_patcher.stop()
+        cls.journal_patcher.stop()
+        cls.health_patcher.stop()
+        super().tearDownClass()
 
     def setUp(self):
-        """Reset cache mock before each test."""
+        """Reset mocks before each test."""
         mock_cache.reset_mock()
         mock_cache.get.return_value = None  # Cache miss by default
-        # Patch cache properly instead of replacing the module
+        mock_health_models.reset_mock()
+        mock_journal_models.reset_mock()
+        mock_faith_models.reset_mock()
+        mock_purpose_models.reset_mock()
+        # Patch cache properly
         self.cache_patcher = patch('django.core.cache.cache', mock_cache)
         self.cache_patcher.start()
 
@@ -51,7 +74,7 @@ class CacheMockMixin:
         self.cache_patcher.stop()
 
 
-class TestPersonalDataServiceInit(CacheMockMixin, unittest.TestCase):
+class TestPersonalDataServiceInit(DataServiceTestCase):
     """Tests for PersonalDataService initialization."""
 
     def test_init_stores_user(self):
@@ -63,7 +86,7 @@ class TestPersonalDataServiceInit(CacheMockMixin, unittest.TestCase):
         self.assertEqual(service.user, mock_user)
 
 
-class TestGetWeightDataNoEntries(CacheMockMixin, unittest.TestCase):
+class TestGetWeightDataNoEntries(DataServiceTestCase):
     """Tests for get_weight_data when no entries exist."""
 
     def test_returns_none_when_no_entries(self):
@@ -102,7 +125,7 @@ class TestGetWeightDataNoEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetWeightDataWithEntries(CacheMockMixin, unittest.TestCase):
+class TestGetWeightDataWithEntries(DataServiceTestCase):
     """Tests for get_weight_data when entries exist."""
 
     def _setup_mock(self, count=5, avg_value=Decimal('175.5'),
@@ -208,7 +231,7 @@ class TestGetWeightDataWithEntries(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['unit'], 'kg')
 
 
-class TestGetWeightDataFiltering(CacheMockMixin, unittest.TestCase):
+class TestGetWeightDataFiltering(DataServiceTestCase):
     """Tests for get_weight_data date filtering."""
 
     def test_filters_by_since_date(self):
@@ -243,7 +266,7 @@ class TestGetWeightDataFiltering(CacheMockMixin, unittest.TestCase):
         self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
 
 
-class TestGetWeightDataEntries(CacheMockMixin, unittest.TestCase):
+class TestGetWeightDataEntries(DataServiceTestCase):
     """Tests for entries list in get_weight_data result."""
 
     def test_entries_contain_expected_fields(self):
@@ -321,7 +344,7 @@ class TestGetWeightDataEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsInstance(result['entries'][0]['value'], float)
 
 
-class TestGetWeightDataDefaultLimit(CacheMockMixin, unittest.TestCase):
+class TestGetWeightDataDefaultLimit(DataServiceTestCase):
     """Tests for default limit behavior."""
 
     def test_default_limit_is_10(self):
@@ -392,7 +415,7 @@ class TestGetWeightDataDefaultLimit(CacheMockMixin, unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetJournalDataNoEntries(CacheMockMixin, unittest.TestCase):
+class TestGetJournalDataNoEntries(DataServiceTestCase):
     """Tests for get_journal_data when no entries exist."""
 
     def test_returns_none_when_no_entries(self):
@@ -431,7 +454,7 @@ class TestGetJournalDataNoEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetJournalDataWithEntries(CacheMockMixin, unittest.TestCase):
+class TestGetJournalDataWithEntries(DataServiceTestCase):
     """Tests for get_journal_data when entries exist."""
 
     def _setup_mock(self, count=5, latest_date=None):
@@ -506,7 +529,7 @@ class TestGetJournalDataWithEntries(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['latest_date'], expected_date)
 
 
-class TestGetJournalDataFiltering(CacheMockMixin, unittest.TestCase):
+class TestGetJournalDataFiltering(DataServiceTestCase):
     """Tests for get_journal_data filtering."""
 
     def test_filters_by_user_and_not_deleted(self):
@@ -566,7 +589,7 @@ class TestGetJournalDataFiltering(CacheMockMixin, unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetMedicationDataNoEntries(CacheMockMixin, unittest.TestCase):
+class TestGetMedicationDataNoEntries(DataServiceTestCase):
     """Tests for get_medication_data when no entries exist."""
 
     def test_returns_none_when_no_entries(self):
@@ -605,7 +628,7 @@ class TestGetMedicationDataNoEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetMedicationDataWithEntries(CacheMockMixin, unittest.TestCase):
+class TestGetMedicationDataWithEntries(DataServiceTestCase):
     """Tests for get_medication_data when entries exist."""
 
     def _setup_mock(self, total_logs=10, unique_dates=None, earliest_date=None):
@@ -708,7 +731,7 @@ class TestGetMedicationDataWithEntries(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['days_logged'], 5)
 
 
-class TestGetMedicationDataConsistency(CacheMockMixin, unittest.TestCase):
+class TestGetMedicationDataConsistency(DataServiceTestCase):
     """Tests for consistency calculation."""
 
     @patch('assistant.data_service.timezone')
@@ -780,7 +803,7 @@ class TestGetMedicationDataConsistency(CacheMockMixin, unittest.TestCase):
         self.assertIsInstance(result['consistency_percent'], float)
 
 
-class TestGetMedicationDataFiltering(CacheMockMixin, unittest.TestCase):
+class TestGetMedicationDataFiltering(DataServiceTestCase):
     """Tests for get_medication_data filtering."""
 
     @patch('assistant.data_service.timezone')
@@ -860,7 +883,7 @@ class TestGetMedicationDataFiltering(CacheMockMixin, unittest.TestCase):
 # ==============================================================================
 
 
-class TestQueryByIntentNoData(CacheMockMixin, unittest.TestCase):
+class TestQueryByIntentNoData(DataServiceTestCase):
     """Tests for query_by_intent when no data exists."""
 
     def test_returns_none_when_no_data_types(self):
@@ -914,7 +937,7 @@ class TestQueryByIntentNoData(CacheMockMixin, unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestQueryByIntentWithData(CacheMockMixin, unittest.TestCase):
+class TestQueryByIntentWithData(DataServiceTestCase):
     """Tests for query_by_intent when data exists."""
 
     def _setup_weight_mock(self, count=5):
@@ -1026,7 +1049,7 @@ class TestQueryByIntentWithData(CacheMockMixin, unittest.TestCase):
         self.assertTrue(mock_weight_qs.filter.called)
 
 
-class TestQueryByIntentAllDataTypes(CacheMockMixin, unittest.TestCase):
+class TestQueryByIntentAllDataTypes(DataServiceTestCase):
     """Tests for query_by_intent with all data types."""
 
     @patch('assistant.data_service.timezone')
@@ -1100,7 +1123,7 @@ class TestQueryByIntentAllDataTypes(CacheMockMixin, unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetFoodDataNoEntries(CacheMockMixin, unittest.TestCase):
+class TestGetFoodDataNoEntries(DataServiceTestCase):
     """Tests for get_food_data when no entries exist."""
 
     def test_returns_none_when_no_entries(self):
@@ -1139,7 +1162,7 @@ class TestGetFoodDataNoEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetFoodDataWithEntries(CacheMockMixin, unittest.TestCase):
+class TestGetFoodDataWithEntries(DataServiceTestCase):
     """Tests for get_food_data when entries exist."""
 
     def _setup_mock(self, total_entries=10, total_cal=15000.0, unique_dates=None,
@@ -1224,7 +1247,7 @@ class TestGetFoodDataWithEntries(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['total_calories'], 25000.5)
 
 
-class TestGetFoodDataAverageCalories(CacheMockMixin, unittest.TestCase):
+class TestGetFoodDataAverageCalories(DataServiceTestCase):
     """Tests for average daily calories calculation."""
 
     def test_average_calculated_correctly(self):
@@ -1290,7 +1313,7 @@ class TestGetFoodDataAverageCalories(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['average_daily_calories'], 1666.7)
 
 
-class TestGetFoodDataFiltering(CacheMockMixin, unittest.TestCase):
+class TestGetFoodDataFiltering(DataServiceTestCase):
     """Tests for get_food_data filtering."""
 
     def test_filters_by_user(self):
@@ -1353,7 +1376,7 @@ class TestGetFoodDataFiltering(CacheMockMixin, unittest.TestCase):
         self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
 
 
-class TestQueryByIntentWithFood(CacheMockMixin, unittest.TestCase):
+class TestQueryByIntentWithFood(DataServiceTestCase):
     """Tests for query_by_intent including food data type."""
 
     def _setup_food_mock(self, total_entries=5, total_cal=7500.0):
@@ -1425,7 +1448,7 @@ class TestQueryByIntentWithFood(CacheMockMixin, unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetMoodDataNoEntries(CacheMockMixin, unittest.TestCase):
+class TestGetMoodDataNoEntries(DataServiceTestCase):
     """Tests for get_mood_data when no entries exist."""
 
     def test_returns_none_when_no_entries_with_mood(self):
@@ -1466,7 +1489,7 @@ class TestGetMoodDataNoEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetMoodDataWithEntries(CacheMockMixin, unittest.TestCase):
+class TestGetMoodDataWithEntries(DataServiceTestCase):
     """Tests for get_mood_data when entries exist."""
 
     def _setup_mock(self, count=10, mood_distribution=None, latest_mood='good',
@@ -1557,7 +1580,7 @@ class TestGetMoodDataWithEntries(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['mood_distribution']['good'], 5)
 
 
-class TestGetMoodDataMostCommon(CacheMockMixin, unittest.TestCase):
+class TestGetMoodDataMostCommon(DataServiceTestCase):
     """Tests for most_common mood calculation."""
 
     def test_most_common_is_first_in_distribution(self):
@@ -1593,7 +1616,7 @@ class TestGetMoodDataMostCommon(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['most_common'], 'great')
 
 
-class TestGetMoodDataFiltering(CacheMockMixin, unittest.TestCase):
+class TestGetMoodDataFiltering(DataServiceTestCase):
     """Tests for get_mood_data filtering."""
 
     def test_filters_by_user_and_not_deleted(self):
@@ -1690,7 +1713,7 @@ class TestGetMoodDataFiltering(CacheMockMixin, unittest.TestCase):
         self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
 
 
-class TestQueryByIntentWithMood(CacheMockMixin, unittest.TestCase):
+class TestQueryByIntentWithMood(DataServiceTestCase):
     """Tests for query_by_intent including mood data type."""
 
     def _setup_mood_mock(self, count=10):
@@ -1771,7 +1794,7 @@ class TestQueryByIntentWithMood(CacheMockMixin, unittest.TestCase):
 # ==============================================================================
 
 
-class TestGenerateCacheKey(CacheMockMixin, unittest.TestCase):
+class TestGenerateCacheKey(DataServiceTestCase):
     """Tests for _generate_cache_key function with versioning."""
 
     def test_generates_key_without_date(self):
@@ -1830,7 +1853,7 @@ class TestGenerateCacheKey(CacheMockMixin, unittest.TestCase):
         self.assertNotEqual(key1, key2)
 
 
-class TestInvalidateUserDataCache(CacheMockMixin, unittest.TestCase):
+class TestInvalidateUserDataCache(DataServiceTestCase):
     """Tests for invalidate_user_data_cache function using versioning strategy."""
 
     def test_increments_version_on_invalidate(self):
@@ -1871,7 +1894,7 @@ class TestInvalidateUserDataCache(CacheMockMixin, unittest.TestCase):
         self.assertEqual(key, 'personal_data_version:789:mood')
 
 
-class TestCacheVersioning(CacheMockMixin, unittest.TestCase):
+class TestCacheVersioning(DataServiceTestCase):
     """Tests for cache versioning in _generate_cache_key."""
 
     def test_includes_version_in_cache_key(self):
@@ -1913,7 +1936,7 @@ class TestCacheVersioning(CacheMockMixin, unittest.TestCase):
         mock_cache.set.assert_called()
 
 
-class TestVersionedCacheInvalidation(CacheMockMixin, unittest.TestCase):
+class TestVersionedCacheInvalidation(DataServiceTestCase):
     """Integration tests for versioned cache invalidation."""
 
     def test_invalidation_causes_cache_miss(self):
@@ -1940,7 +1963,7 @@ class TestVersionedCacheInvalidation(CacheMockMixin, unittest.TestCase):
         self.assertNotEqual(key_before, key_after)
 
 
-class TestCacheHitBehavior(CacheMockMixin, unittest.TestCase):
+class TestCacheHitBehavior(DataServiceTestCase):
     """Tests for cache hit behavior in data methods."""
 
     def test_weight_returns_cached_data_on_hit(self):
@@ -2023,7 +2046,7 @@ class TestCacheHitBehavior(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result, cached_result)
 
 
-class TestCacheMissBehavior(CacheMockMixin, unittest.TestCase):
+class TestCacheMissBehavior(DataServiceTestCase):
     """Tests for cache miss behavior - data should be fetched and cached."""
 
     def test_weight_caches_result_on_miss(self):
@@ -2115,7 +2138,7 @@ class TestCacheMissBehavior(CacheMockMixin, unittest.TestCase):
         self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
 
 
-class TestCacheTTL(CacheMockMixin, unittest.TestCase):
+class TestCacheTTL(DataServiceTestCase):
     """Tests for cache TTL constant."""
 
     def test_cache_ttl_is_300_seconds(self):
@@ -2130,7 +2153,7 @@ class TestCacheTTL(CacheMockMixin, unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetGlucoseDataNoEntries(CacheMockMixin, unittest.TestCase):
+class TestGetGlucoseDataNoEntries(DataServiceTestCase):
     """Tests for get_glucose_data when no entries exist."""
 
     def test_returns_none_when_no_entries(self):
@@ -2169,7 +2192,7 @@ class TestGetGlucoseDataNoEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetGlucoseDataWithEntries(CacheMockMixin, unittest.TestCase):
+class TestGetGlucoseDataWithEntries(DataServiceTestCase):
     """Tests for get_glucose_data when entries exist."""
 
     def _setup_mock(self, count=5, avg_value=Decimal('120.5'),
@@ -2275,7 +2298,7 @@ class TestGetGlucoseDataWithEntries(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['unit'], 'mmol/L')
 
 
-class TestGetGlucoseDataFiltering(CacheMockMixin, unittest.TestCase):
+class TestGetGlucoseDataFiltering(DataServiceTestCase):
     """Tests for get_glucose_data date filtering."""
 
     def test_filters_by_since_date(self):
@@ -2310,7 +2333,7 @@ class TestGetGlucoseDataFiltering(CacheMockMixin, unittest.TestCase):
         self.assertGreaterEqual(mock_queryset.filter.call_count, 1)
 
 
-class TestGetGlucoseDataEntries(CacheMockMixin, unittest.TestCase):
+class TestGetGlucoseDataEntries(DataServiceTestCase):
     """Tests for entries list in get_glucose_data result."""
 
     def test_entries_contain_expected_fields(self):
@@ -2391,7 +2414,7 @@ class TestGetGlucoseDataEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsInstance(result['entries'][0]['value'], float)
 
 
-class TestQueryByIntentWithGlucose(CacheMockMixin, unittest.TestCase):
+class TestQueryByIntentWithGlucose(DataServiceTestCase):
     """Tests for query_by_intent including glucose data type."""
 
     def _setup_glucose_mock(self, count=50):
@@ -2465,7 +2488,7 @@ class TestQueryByIntentWithGlucose(CacheMockMixin, unittest.TestCase):
         self.assertIn('weight', result)
 
 
-class TestGlucoseCacheBehavior(CacheMockMixin, unittest.TestCase):
+class TestGlucoseCacheBehavior(DataServiceTestCase):
     """Tests for glucose data caching."""
 
     def test_glucose_returns_cached_data_on_hit(self):
@@ -2540,7 +2563,7 @@ class TestGlucoseCacheBehavior(CacheMockMixin, unittest.TestCase):
 # ==============================================================================
 
 
-class TestGetFaithDataNoEntries(CacheMockMixin, unittest.TestCase):
+class TestGetFaithDataNoEntries(DataServiceTestCase):
     """Tests for get_faith_data when no entries exist."""
 
     def _setup_empty_mocks(self):
@@ -2581,7 +2604,7 @@ class TestGetFaithDataNoEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetFaithDataWithPrayerRequests(CacheMockMixin, unittest.TestCase):
+class TestGetFaithDataWithPrayerRequests(DataServiceTestCase):
     """Tests for get_faith_data with prayer requests."""
 
     def _setup_prayer_mock(self, total=10, answered=3, now=None):
@@ -2669,7 +2692,7 @@ class TestGetFaithDataWithPrayerRequests(CacheMockMixin, unittest.TestCase):
         self.assertIn('latest_date', prayer_data)
 
 
-class TestGetFaithDataWithSavedVerses(CacheMockMixin, unittest.TestCase):
+class TestGetFaithDataWithSavedVerses(DataServiceTestCase):
     """Tests for get_faith_data with saved verses."""
 
     def test_includes_saved_verses_count(self):
@@ -2707,7 +2730,7 @@ class TestGetFaithDataWithSavedVerses(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['saved_verses'], 25)
 
 
-class TestGetFaithDataWithReadingPlans(CacheMockMixin, unittest.TestCase):
+class TestGetFaithDataWithReadingPlans(DataServiceTestCase):
     """Tests for get_faith_data with reading plans."""
 
     def test_includes_reading_plans(self):
@@ -2752,7 +2775,7 @@ class TestGetFaithDataWithReadingPlans(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['reading_plans']['completed'], 3)
 
 
-class TestQueryByIntentWithFaith(CacheMockMixin, unittest.TestCase):
+class TestQueryByIntentWithFaith(DataServiceTestCase):
     """Tests for query_by_intent including faith data type."""
 
     def _setup_faith_mock(self):
@@ -2799,7 +2822,7 @@ class TestQueryByIntentWithFaith(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['faith']['type'], 'faith')
 
 
-class TestFaithCacheBehavior(CacheMockMixin, unittest.TestCase):
+class TestFaithCacheBehavior(DataServiceTestCase):
     """Tests for faith data caching."""
 
     def test_faith_returns_cached_data_on_hit(self):
@@ -2883,7 +2906,7 @@ class TestFaithCacheBehavior(CacheMockMixin, unittest.TestCase):
 # =============================================================================
 
 
-class TestGetGoalsDataNoEntries(CacheMockMixin, unittest.TestCase):
+class TestGetGoalsDataNoEntries(DataServiceTestCase):
     """Tests for get_goals_data when no goals exist."""
 
     def test_returns_none_when_no_goals(self):
@@ -2920,7 +2943,7 @@ class TestGetGoalsDataNoEntries(CacheMockMixin, unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestGetGoalsDataWithEntries(CacheMockMixin, unittest.TestCase):
+class TestGetGoalsDataWithEntries(DataServiceTestCase):
     """Tests for get_goals_data when goals exist."""
 
     def _setup_mock(self, total=10, by_status=None, by_timeframe=None,
@@ -3124,7 +3147,7 @@ class TestGetGoalsDataWithEntries(CacheMockMixin, unittest.TestCase):
         self.assertEqual(result['completion_rate'], 20.0)
 
 
-class TestGetGoalsDataCaching(CacheMockMixin, unittest.TestCase):
+class TestGetGoalsDataCaching(DataServiceTestCase):
     """Tests for caching behavior of get_goals_data."""
 
     def test_returns_cached_data_on_hit(self):
@@ -3190,7 +3213,7 @@ class TestGetGoalsDataCaching(CacheMockMixin, unittest.TestCase):
         self.assertEqual(call_args[0][2], PERSONAL_DATA_CACHE_TTL)
 
 
-class TestQueryByIntentWithGoals(CacheMockMixin, unittest.TestCase):
+class TestQueryByIntentWithGoals(DataServiceTestCase):
     """Tests for query_by_intent with goals data type."""
 
     def test_includes_goals_in_results(self):

@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-11 Changes
 
+### Reading Plan Progress - Notes Not Saving Bug Fix
+
+**Issue:** When users marked a reading plan day as complete, any notes they entered were not being saved to the database. This was because the `mark_complete()` method used `update_fields` that only included `is_completed`, `completed_at`, and `updated_at` - not the `notes` field.
+
+**Changes:**
+- `apps/faith/views.py`: Modified `MarkDayCompleteView.post()` to save notes separately before calling `mark_complete()`
+- Notes are now saved with their own `save(update_fields=["notes", "updated_at"])` call
+
+**Files Modified:**
+- `apps/faith/views.py` (lines 1202-1208)
+
+---
+
 ### AI Assistant Update - Responsive Behavior
 
 **Issue:** The AI Assistant was proactively summarizing tasks, overdue items, and outstanding priorities in every response. User wanted the assistant to only provide this information when explicitly asked.

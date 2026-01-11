@@ -1199,9 +1199,12 @@ class MarkDayCompleteView(LoginRequiredMixin, FaithRequiredMixin, View):
             plan_day__pk=day_pk
         )
 
-        # Save any notes
+        # Save any notes first (must save separately since mark_complete uses update_fields)
         notes = request.POST.get("notes", "")
-        progress.notes = notes
+        if notes != progress.notes:
+            progress.notes = notes
+            progress.save(update_fields=["notes", "updated_at"])
+
         progress.mark_complete()
 
         messages.success(request, f"Day {progress.plan_day.day_number} complete!")

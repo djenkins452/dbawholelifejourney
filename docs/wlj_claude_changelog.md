@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
+### Army Drill Sergeant Coaching Persona
+
+**Request:** User wanted a new AI coaching persona styled as an Army Drill Sergeant.
+
+**Changes:**
+
+1. **Coaching Styles Fixture** (`apps/ai/fixtures/coaching_styles.json`):
+   - Added new "Army Drill Sergeant" persona (pk: 8, key: drill_sergeant)
+   - Icon: 🎖️
+   - Style: Tough but invested military drill instructor
+   - Uses military expressions: "Drop and give me twenty!", "HOOAH!", "No excuses, recruit!"
+   - Tough love approach that builds up, never tears down
+
+**Result:** Users can now select the Army Drill Sergeant coaching style in their preferences for a high-intensity, accountability-focused coaching experience.
+
+**Files Changed:**
+- `apps/ai/fixtures/coaching_styles.json` - Added drill_sergeant persona
+
+---
+
 ### Context-Aware Assistant Responses
 
 **Request:** User wanted the assistant to know what page they are on so it can provide context-aware feedback.

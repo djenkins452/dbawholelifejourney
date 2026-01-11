@@ -892,9 +892,12 @@
 
     // Refresh chat when user clicks/focuses on chat input (sync with drawer)
     chatInput.addEventListener('focus', function() {
-        if (hasMessages) {
-            refreshChatHistory();
-        }
+        refreshChatHistory();
+    });
+
+    // Also refresh when clicking anywhere in the chat sidebar (sync with drawer)
+    document.querySelector('.chat-sidebar').addEventListener('click', function() {
+        refreshChatHistory();
     });
 
     // Submit on Enter key (Shift+Enter for newline if needed later)

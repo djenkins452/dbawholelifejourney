@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-11 Changes
 
+### Debug Logging for CI 500 Errors
+
+**Issue:** CI tests failing with 500 errors for `/admin-console/` path. The ERROR logs show the 500 handler being called but no actual exception traceback, making it impossible to diagnose the root cause.
+
+**Changes:**
+1. **Enhanced 500 Handler** - `apps/core/views.py`: Modified `custom_500()` to capture and log the full exception traceback using `sys.exc_info()` and `traceback.format_exception()`
+
+2. **AdminDashboardView Debug** - `apps/admin_console/views.py`: Wrapped `get_context_data()` in try/except with `logger.exception()` to capture any errors during context building
+
+**Files Modified:**
+- `apps/core/views.py` (custom_500 function)
+- `apps/admin_console/views.py` (AdminDashboardView.get_context_data)
+
+**Purpose:** When CI runs again, the logs will show the actual exception and traceback that's causing the 500 errors, allowing us to fix the root cause.
+
+---
+
 ### Reading Plan Progress - Notes Not Saving Bug Fix
 
 **Issue:** When users marked a reading plan day as complete, any notes they entered were not being saved to the database. This was because the `mark_complete()` method used `update_fields` that only included `is_completed`, `completed_at`, and `updated_at` - not the `notes` field.

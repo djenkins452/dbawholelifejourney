@@ -297,7 +297,14 @@ def custom_500(request):
     Logs the error and returns a user-friendly error page.
     Note: The actual exception is logged by Django's default handler.
     """
-    logger.error(f"500 error occurred for path: {request.path}")
+    import sys
+    import traceback
+    exc_type, exc_value, exc_tb = sys.exc_info()
+    if exc_type:
+        tb_str = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        logger.error(f"500 error occurred for path: {request.path}\n{tb_str}")
+    else:
+        logger.error(f"500 error occurred for path: {request.path} (no exception info available)")
     return render(request, '500.html', status=500)
 
 

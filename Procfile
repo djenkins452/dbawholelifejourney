@@ -1,5 +1,5 @@
-web: python manage.py migrate --noinput && python manage.py add_drill_sergeant && python manage.py load_initial_data -v 0 && python manage.py sync_workout_to_templates -v 0 && python manage.py recalculate_task_priorities -v 0 && python manage.py load_project_from_json docs/ux_improvements_tasks.json -v 0 && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file -
-# Updated: 2026-01-03 - Consolidated all data loaders into load_initial_data
+web: python manage.py fix_stale_migrations && python manage.py migrate --noinput && python manage.py add_drill_sergeant && python manage.py load_initial_data -v 0 && python manage.py sync_workout_to_templates -v 0 && python manage.py recalculate_task_priorities -v 0 && python manage.py load_project_from_json docs/ux_improvements_tasks.json -v 0 && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file -
+# Updated: 2026-01-11 - Added fix_stale_migrations before migrate to fix broken dependencies
 # load_initial_data now handles ALL one-time data loading with DataLoadConfig tracking:
 #   - All fixtures (categories, encouragements, scripture, prompts, help content, etc.)
 #   - All populate commands (choices, themes, exercises, etc.)

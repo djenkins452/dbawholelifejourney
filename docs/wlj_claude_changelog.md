@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (Preferences Page Accordion Redesign)
+# Last Updated: 2026-01-11 (Fix stale migration dependency in production)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,29 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-11 Changes
+
+### Fix Stale Migration Dependency (NodeNotFoundError)
+
+**Problem:** Production crashed with `NodeNotFoundError: Migration core.0012_feature_request_detection_release_note dependencies reference nonexistent parent node ('core', '0011_add_sms_models')`. The production database had stale migration records from a previously deployed branch with different migration history.
+
+**Root Cause:** A migration file was deployed with incorrect dependencies - `0012_feature_request_detection_release_note` depending on `0011_add_sms_models` which never existed in the codebase. The correct migration is `0038_feature_request_detection_release_note` which depends on `0037_pageview_visit_count`.
+
+**Solution:** Created a pre-migrate fix command that runs BEFORE `migrate` in the Procfile to clean up stale migration records.
+
+**Files Changed:**
+- `apps/core/management/commands/fix_stale_migrations.py` (NEW) - Command to remove stale migration records from `django_migrations` table
+- `apps/core/management/commands/load_initial_data.py` - Added `_fix_stale_migration_records()` method as backup
+- `Procfile` - Added `fix_stale_migrations` command before `migrate`
+
+**How the fix works:**
+1. `fix_stale_migrations` runs before `migrate` in Procfile
+2. Connects directly to PostgreSQL database
+3. Removes records for known stale migrations: `core.0012_feature_request_detection_release_note` and `core.0011_add_sms_models`
+4. Django `migrate` can then run normally with clean migration state
+
+**Prevention:** Added to troubleshooting documentation to watch for divergent migration histories when deploying from feature branches.
+
+---
 
 ### Preferences Page Accordion Redesign
 

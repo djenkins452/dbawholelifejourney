@@ -139,6 +139,7 @@ class UserReadingPlanAdmin(admin.ModelAdmin):
         "template",
         "status",
         "current_day",
+        "progress_display",
         "started_at",
         "completed_at",
     ]
@@ -146,6 +147,58 @@ class UserReadingPlanAdmin(admin.ModelAdmin):
     search_fields = ["user__email", "template__title"]
     raw_id_fields = ["user"]
     date_hierarchy = "started_at"
+    actions = ["reset_to_day_one", "reset_specific_days"]
+
+    @admin.display(description="Progress")
+    def progress_display(self, obj):
+        return f"{obj.days_completed}/{obj.template.duration_days} ({obj.progress_percentage}%)"
+
+    @admin.action(description="Reset selected plans to Day 1 (keep notes)")
+    def reset_to_day_one(self, request, queryset):
+        """Reset selected reading plans back to day 1, preserving any notes."""
+        for plan in queryset:
+            # Reset all progress entries
+            plan.day_completions.update(is_completed=False, completed_at=None)
+            # Reset plan to day 1
+            plan.current_day = 1
+            plan.status = "active"
+            plan.completed_at = None
+            plan.save(update_fields=["current_day", "status", "completed_at", "updated_at"])
+
+        self.message_user(
+            request,
+            f"Reset {queryset.count()} reading plan(s) to Day 1. Notes preserved."
+        )
+
+    @admin.action(description="Reset incomplete days only (for bug recovery)")
+    def reset_specific_days(self, request, queryset):
+        """
+        Reset days that were marked complete but may have lost notes due to bug.
+        This resets days that have is_completed=True but empty notes,
+        allowing users to redo them with the fixed code.
+        """
+        total_reset = 0
+        for plan in queryset:
+            # Find days marked complete with no notes (potentially affected by bug)
+            affected = plan.day_completions.filter(is_completed=True, notes="")
+            count = affected.count()
+            if count > 0:
+                affected.update(is_completed=False, completed_at=None)
+                # Reset current_day to the first incomplete day
+                first_incomplete = plan.day_completions.filter(
+                    is_completed=False
+                ).order_by("plan_day__day_number").first()
+                if first_incomplete:
+                    plan.current_day = first_incomplete.plan_day.day_number
+                    plan.status = "active"
+                    plan.completed_at = None
+                    plan.save(update_fields=["current_day", "status", "completed_at", "updated_at"])
+                total_reset += count
+
+        self.message_user(
+            request,
+            f"Reset {total_reset} day(s) across {queryset.count()} plan(s) that had no notes."
+        )
 
 
 @admin.register(UserReadingProgress)

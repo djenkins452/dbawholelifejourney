@@ -21,11 +21,24 @@ For active development context, see `CLAUDE.md` (project root).
 **Issue:** When users marked a reading plan day as complete, any notes they entered were not being saved to the database. This was because the `mark_complete()` method used `update_fields` that only included `is_completed`, `completed_at`, and `updated_at` - not the `notes` field.
 
 **Changes:**
-- `apps/faith/views.py`: Modified `MarkDayCompleteView.post()` to save notes separately before calling `mark_complete()`
-- Notes are now saved with their own `save(update_fields=["notes", "updated_at"])` call
+1. **Bug Fix** - `apps/faith/views.py`: Modified `MarkDayCompleteView.post()` to save notes separately before calling `mark_complete()`
+   - Notes are now saved with their own `save(update_fields=["notes", "updated_at"])` call
+
+2. **Regression Tests** - `apps/faith/tests/test_reading_plans.py`: Added comprehensive test suite
+   - Critical regression test: `test_mark_day_complete_saves_notes`
+   - Model tests for ReadingPlanTemplate, UserReadingPlan, UserReadingProgress
+   - View tests for marking progress and viewing plans
+   - Data isolation tests to ensure users can only see their own plans
+
+3. **Admin Recovery Actions** - `apps/faith/admin.py`: Added admin actions to help affected users
+   - "Reset selected plans to Day 1 (keep notes)" - Full reset preserving any notes
+   - "Reset incomplete days only (for bug recovery)" - Only resets days marked complete with empty notes
+   - Added progress display column showing completion percentage
 
 **Files Modified:**
 - `apps/faith/views.py` (lines 1202-1208)
+- `apps/faith/tests/test_reading_plans.py` (new file)
+- `apps/faith/admin.py` (UserReadingPlanAdmin)
 
 ---
 

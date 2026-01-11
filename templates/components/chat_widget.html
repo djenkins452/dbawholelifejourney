@@ -444,6 +444,31 @@
     justify-content: flex-end;
 }
 
+/* Context Indicator */
+.assistant-context-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-background));
+    border-bottom: 1px solid var(--color-border);
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+.assistant-context-indicator .context-icon {
+    display: flex;
+    align-items: center;
+    color: var(--color-accent);
+}
+
+.assistant-context-indicator .context-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+}
+
 /* Mobile adjustments */
 @media (max-width: 480px) {
     .assistant-toggle-btn {
@@ -484,6 +509,9 @@
     // Storage key for persisting drawer state
     const DRAWER_STATE_KEY = 'wlj_assistant_drawer_open';
 
+    // Current page context - updated on page load and can be refreshed
+    let currentPageContext = null;
+
     // Get current page context for context-aware responses
     function getPageContext() {
         const url = window.location.pathname;
@@ -493,8 +521,8 @@
         if (url.startsWith('/faith/')) module = 'Faith';
         else if (url.startsWith('/health/')) module = 'Health';
         else if (url.startsWith('/journal/')) module = 'Journal';
-        else if (url.startsWith('/life/')) module = 'Life';
-        else if (url.startsWith('/purpose/')) module = 'Purpose';
+        else if (url.startsWith('/life/')) module = 'Organize';
+        else if (url.startsWith('/purpose/')) module = 'Goals';
         else if (url.startsWith('/assistant/')) module = 'Assistant';
         else if (url.startsWith('/dashboard/')) module = 'Dashboard';
         else if (url === '/') module = 'Dashboard';
@@ -511,11 +539,237 @@
             pageTitle = document.title.replace(/\s*[-|]\s*Whole Life Journey.*$/i, '').trim();
         }
 
-        return {
+        // Build base context
+        let context = {
             url: url,
             module: module,
-            page_title: pageTitle
+            page_title: pageTitle,
+            page_content: null
         };
+
+        // Extract rich content based on page type
+        context.page_content = extractPageContent(url, module);
+
+        return context;
+    }
+
+    // Extract rich content from specific page types
+    function extractPageContent(url, module) {
+        let content = {};
+
+        // Reading Plan Progress page
+        if (url.match(/\/faith\/reading-plans\/progress\/\d+/)) {
+            content.type = 'reading_plan_progress';
+
+            // Get current day info
+            const sectionTitle = document.querySelector('.current-reading .section-title');
+            if (sectionTitle) {
+                content.current_day = sectionTitle.textContent.trim();
+            }
+
+            // Get reading title (theme for the day)
+            const readingTitle = document.querySelector('.reading-title');
+            if (readingTitle) {
+                content.reading_title = readingTitle.textContent.trim();
+            }
+
+            // Get scripture references
+            const scriptureLinks = document.querySelectorAll('.scripture-ref-link');
+            if (scriptureLinks.length > 0) {
+                content.scriptures = Array.from(scriptureLinks).map(el => el.textContent.trim());
+            }
+
+            // Get devotional text
+            const devotional = document.querySelector('.devotional-text p');
+            if (devotional) {
+                content.devotional = devotional.textContent.trim();
+            }
+
+            // Get reflection prompt
+            const reflection = document.querySelector('.reflection-prompt p');
+            if (reflection) {
+                content.reflection_prompt = reflection.textContent.trim();
+            }
+
+            // Get progress stats
+            const progressText = document.querySelector('.progress-text');
+            if (progressText) {
+                content.progress = progressText.textContent.trim();
+            }
+        }
+
+        // Journal Entry Detail page
+        else if (url.match(/\/journal\/\d+\//)) {
+            content.type = 'journal_entry';
+
+            const entryTitle = document.querySelector('.entry-title, h1');
+            if (entryTitle) {
+                content.title = entryTitle.textContent.trim();
+            }
+
+            const entryBody = document.querySelector('.entry-body, .entry-content');
+            if (entryBody) {
+                // Truncate to avoid huge context
+                content.body = entryBody.textContent.trim().substring(0, 500);
+                if (entryBody.textContent.length > 500) content.body += '...';
+            }
+
+            const entryMood = document.querySelector('.entry-mood');
+            if (entryMood) {
+                content.mood = entryMood.textContent.trim();
+            }
+        }
+
+        // Task Detail page
+        else if (url.match(/\/life\/tasks\/\d+\//)) {
+            content.type = 'task';
+
+            const taskTitle = document.querySelector('.task-title, h1');
+            if (taskTitle) {
+                content.title = taskTitle.textContent.trim();
+            }
+
+            const taskDue = document.querySelector('.task-due-date, .due-date');
+            if (taskDue) {
+                content.due_date = taskDue.textContent.trim();
+            }
+
+            const taskDesc = document.querySelector('.task-description, .task-notes');
+            if (taskDesc) {
+                content.description = taskDesc.textContent.trim().substring(0, 300);
+            }
+        }
+
+        // Goal Detail page
+        else if (url.match(/\/purpose\/goals\/\d+\//)) {
+            content.type = 'goal';
+
+            const goalTitle = document.querySelector('.goal-title, h1');
+            if (goalTitle) {
+                content.title = goalTitle.textContent.trim();
+            }
+
+            const goalWhy = document.querySelector('.why-it-matters');
+            if (goalWhy) {
+                content.why_it_matters = goalWhy.textContent.trim().substring(0, 300);
+            }
+        }
+
+        // Prayer Request page
+        else if (url.match(/\/faith\/prayers\/\d+\//)) {
+            content.type = 'prayer_request';
+
+            const prayerTitle = document.querySelector('.prayer-title, h1');
+            if (prayerTitle) {
+                content.title = prayerTitle.textContent.trim();
+            }
+
+            const prayerContent = document.querySelector('.prayer-content, .prayer-body');
+            if (prayerContent) {
+                content.content = prayerContent.textContent.trim().substring(0, 300);
+            }
+        }
+
+        // Health tracking pages
+        else if (url.startsWith('/health/')) {
+            content.type = 'health';
+
+            // Try to capture current values if visible
+            const currentWeight = document.querySelector('.current-weight, .weight-value');
+            if (currentWeight) {
+                content.current_weight = currentWeight.textContent.trim();
+            }
+
+            const workoutInfo = document.querySelector('.workout-summary, .recent-workout');
+            if (workoutInfo) {
+                content.workout_info = workoutInfo.textContent.trim().substring(0, 200);
+            }
+        }
+
+        // Only return content if we captured something meaningful
+        return Object.keys(content).length > 1 ? content : null;
+    }
+
+    // Build context summary for display in UI
+    function buildContextSummary(context) {
+        if (!context || !context.page_content) {
+            if (context && context.page_title) {
+                return context.page_title;
+            }
+            return null;
+        }
+
+        const pc = context.page_content;
+
+        if (pc.type === 'reading_plan_progress') {
+            let summary = pc.current_day || 'Reading Plan';
+            if (pc.reading_title) {
+                summary += ': ' + pc.reading_title;
+            }
+            return summary;
+        }
+
+        if (pc.type === 'journal_entry' && pc.title) {
+            return 'Journal: ' + pc.title;
+        }
+
+        if (pc.type === 'task' && pc.title) {
+            return 'Task: ' + pc.title;
+        }
+
+        if (pc.type === 'goal' && pc.title) {
+            return 'Goal: ' + pc.title;
+        }
+
+        if (pc.type === 'prayer_request' && pc.title) {
+            return 'Prayer: ' + pc.title;
+        }
+
+        return context.page_title || null;
+    }
+
+    // Update context indicator in UI
+    function updateContextIndicator() {
+        currentPageContext = getPageContext();
+        const summary = buildContextSummary(currentPageContext);
+
+        let indicator = document.getElementById('assistant-context-indicator');
+
+        if (summary) {
+            if (!indicator) {
+                // Create the indicator element
+                indicator = document.createElement('div');
+                indicator.id = 'assistant-context-indicator';
+                indicator.className = 'assistant-context-indicator';
+
+                // Insert after header
+                const header = document.querySelector('.assistant-drawer-header');
+                if (header && header.nextSibling) {
+                    header.parentNode.insertBefore(indicator, header.nextSibling);
+                }
+            }
+
+            indicator.innerHTML = `
+                <span class="context-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                </span>
+                <span class="context-text">Context: ${escapeHtml(summary)}</span>
+            `;
+            indicator.style.display = 'flex';
+        } else if (indicator) {
+            indicator.style.display = 'none';
+        }
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     // Get CSRF token
@@ -574,6 +828,9 @@
         overlay.classList.add('visible');
         document.body.style.overflow = 'hidden';
         input.focus();
+
+        // Update page context indicator
+        updateContextIndicator();
 
         // Save state to persist across page navigations
         if (!skipSave) {
@@ -693,8 +950,11 @@
         showTyping();
 
         try {
-            // Include page context for context-aware responses
-            const pageContext = getPageContext();
+            // Use current page context (already captured when drawer opened)
+            // Refresh it to ensure we have the latest
+            if (!currentPageContext) {
+                currentPageContext = getPageContext();
+            }
 
             const response = await fetch('/assistant/api/chat/', {
                 method: 'POST',
@@ -704,7 +964,7 @@
                 },
                 body: JSON.stringify({
                     message: message,
-                    page_context: pageContext
+                    page_context: currentPageContext
                 })
             });
 

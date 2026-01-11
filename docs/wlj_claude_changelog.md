@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (Armed Forces Coaching Styles)
+# Last Updated: 2026-01-11 (Page-Aware Assistant Chat)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,39 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-11 Changes
+
+### Page-Aware Assistant Chat (Context-Aware Responses)
+
+**Feature:** The AI Assistant chat drawer now captures the content of the page you're viewing, allowing you to ask questions like "help me with this scripture" or "explain this entry" without having to specify what you're looking at.
+
+**How it works:**
+1. When you open the assistant chat, it captures the current page's content
+2. A "Context:" indicator appears below the header showing what page is loaded
+3. The AI can now answer questions about "this page", "this scripture", "this entry", etc.
+
+**Supported page types:**
+- **Reading Plan Progress:** Captures scriptures, devotional text, reflection prompt, day number
+- **Journal Entries:** Captures title, mood, and content
+- **Tasks:** Captures title, due date, description
+- **Goals:** Captures title and why it matters
+- **Prayer Requests:** Captures title and content
+- **Health pages:** Captures current weight and workout info
+
+**Files Modified:**
+- `templates/components/chat_widget.html`:
+  - Added `extractPageContent()` function to capture rich page content by type
+  - Added `updateContextIndicator()` function to show current context in UI
+  - Added CSS for `.assistant-context-indicator` element
+  - Updated `sendMessage()` to use captured page context
+  - Changed module names: `/life/` → "Organize", `/purpose/` → "Goals"
+- `apps/ai/personal_assistant.py`:
+  - Enhanced `_generate_response()` to build rich content descriptions from `page_content`
+  - Added handling for reading_plan_progress, journal_entry, task, goal, prayer_request, health content types
+  - Added instruction for AI to understand "this page", "this scripture" references
+
+**User Experience:** On a Reading Plan page, you can now say "help me understand this scripture" and the assistant will know which scriptures you're viewing (e.g., Hebrews 12:14-15, Ephesians 4:31-32) and provide relevant explanations.
+
+---
 
 ### Fix Journal Book View Not Displaying Content
 

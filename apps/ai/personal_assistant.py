@@ -1780,21 +1780,80 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
             page_url = page_context.get('url', '')
             page_module = page_context.get('module', '')
             page_title = page_context.get('page_title', '')
+            page_content = page_context.get('page_content')
 
             context_parts = []
             if page_title:
                 context_parts.append(f"Page: {page_title}")
             if page_module:
                 context_parts.append(f"Module: {page_module}")
-            if page_url:
-                context_parts.append(f"URL: {page_url}")
 
-            if context_parts:
+            # Build rich content description based on page type
+            content_description = ""
+            if page_content:
+                content_type = page_content.get('type', '')
+
+                if content_type == 'reading_plan_progress':
+                    content_description = "\nREADING PLAN CONTENT (user is viewing this):\n"
+                    if page_content.get('current_day'):
+                        content_description += f"- {page_content['current_day']}\n"
+                    if page_content.get('reading_title'):
+                        content_description += f"- Theme: {page_content['reading_title']}\n"
+                    if page_content.get('scriptures'):
+                        content_description += f"- Scriptures: {', '.join(page_content['scriptures'])}\n"
+                    if page_content.get('devotional'):
+                        content_description += f"- Devotional: {page_content['devotional'][:300]}...\n" if len(page_content.get('devotional', '')) > 300 else f"- Devotional: {page_content['devotional']}\n"
+                    if page_content.get('reflection_prompt'):
+                        content_description += f"- Reflection Question: {page_content['reflection_prompt']}\n"
+                    if page_content.get('progress'):
+                        content_description += f"- Progress: {page_content['progress']}\n"
+
+                elif content_type == 'journal_entry':
+                    content_description = "\nJOURNAL ENTRY (user is viewing this):\n"
+                    if page_content.get('title'):
+                        content_description += f"- Title: {page_content['title']}\n"
+                    if page_content.get('mood'):
+                        content_description += f"- Mood: {page_content['mood']}\n"
+                    if page_content.get('body'):
+                        content_description += f"- Content: {page_content['body']}\n"
+
+                elif content_type == 'task':
+                    content_description = "\nTASK (user is viewing this):\n"
+                    if page_content.get('title'):
+                        content_description += f"- Title: {page_content['title']}\n"
+                    if page_content.get('due_date'):
+                        content_description += f"- Due: {page_content['due_date']}\n"
+                    if page_content.get('description'):
+                        content_description += f"- Description: {page_content['description']}\n"
+
+                elif content_type == 'goal':
+                    content_description = "\nGOAL (user is viewing this):\n"
+                    if page_content.get('title'):
+                        content_description += f"- Goal: {page_content['title']}\n"
+                    if page_content.get('why_it_matters'):
+                        content_description += f"- Why it matters: {page_content['why_it_matters']}\n"
+
+                elif content_type == 'prayer_request':
+                    content_description = "\nPRAYER REQUEST (user is viewing this):\n"
+                    if page_content.get('title'):
+                        content_description += f"- Prayer: {page_content['title']}\n"
+                    if page_content.get('content'):
+                        content_description += f"- Details: {page_content['content']}\n"
+
+                elif content_type == 'health':
+                    content_description = "\nHEALTH PAGE (user is viewing this):\n"
+                    if page_content.get('current_weight'):
+                        content_description += f"- Current weight: {page_content['current_weight']}\n"
+                    if page_content.get('workout_info'):
+                        content_description += f"- Workout info: {page_content['workout_info']}\n"
+
+            if context_parts or content_description:
                 system_prompt += f"""
 PAGE CONTEXT (where the user is currently viewing):
-{chr(10).join('- ' + p for p in context_parts)}
-
-Use this context to provide relevant, contextual help when appropriate.
+{chr(10).join('- ' + p for p in context_parts) if context_parts else ''}
+{content_description}
+When the user asks about "this page", "this scripture", "this entry", etc., they are referring to the content above.
+Use this context to provide relevant, contextual help. For scripture questions, explain the passage and its meaning.
 """
 
         # Process message for personal data queries (weight, journal, medication, food, mood)

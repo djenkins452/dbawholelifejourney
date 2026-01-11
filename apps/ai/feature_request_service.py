@@ -93,6 +93,8 @@ class FeatureRequestInfo:
     timestamp: str
     conversation_context: Optional[str] = None
     task_id: Optional[int] = None  # ID of the created AdminTask
+    task_title: Optional[str] = None  # Generated task title
+    task_description: Optional[dict] = None  # Implementation details
 
 
 class FeatureRequestService:
@@ -377,11 +379,9 @@ class FeatureRequestService:
                 )
                 logger.info("Created Phase 1 for feature requests")
 
-            # Generate a clear title based on user's request
-            title = self._generate_task_title(request_info.message)
-
-            # Build an implementation-ready task description
-            description = self._build_implementation_task(request_info)
+            # Use pre-generated title and description from request_info
+            title = request_info.task_title or self._generate_task_title(request_info.message)
+            description = request_info.task_description or self._build_implementation_task(request_info)
 
             # Create the task with skip_validation since we're using JSONField
             task = AdminTask(
@@ -462,6 +462,10 @@ class FeatureRequestService:
             timestamp=timezone.now().strftime("%Y-%m-%d %H:%M:%S %Z"),
             conversation_context=conversation_context,
         )
+
+        # Generate task title and description for email
+        request_info.task_title = self._generate_task_title(message)
+        request_info.task_description = self._build_implementation_task(request_info)
 
         # Create AdminTask in "New Requests" project
         task_id = self._create_admin_task(request_info)

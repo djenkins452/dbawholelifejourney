@@ -37,6 +37,24 @@
 {{ request.message }}
 </div>
 
+{% if request.task_description %}
+<div style="margin-top: 20px; padding: 15px; background-color: #f0fdf4; border: 1px solid #86efac; border-radius: 8px;">
+    <p style="margin: 0 0 10px 0; font-weight: 600; color: #166534;">
+        📋 Implementation Task Created
+    </p>
+    {% if request.task_title %}
+    <p style="margin: 0 0 10px 0;"><strong>Title:</strong> {{ request.task_title }}</p>
+    {% endif %}
+    <p style="margin: 0 0 10px 0;"><strong>Objective:</strong> {{ request.task_description.objective }}</p>
+    <p style="margin: 0 0 5px 0;"><strong>Actions:</strong></p>
+    <ol style="margin: 0; padding-left: 20px;">
+        {% for action in request.task_description.actions %}
+        <li style="margin-bottom: 5px;">{{ action }}</li>
+        {% endfor %}
+    </ol>
+</div>
+{% endif %}
+
 {% if request.conversation_context %}
 <p><strong>Recent Conversation Context:</strong></p>
 <div class="diff-block">
@@ -49,7 +67,7 @@
     <strong>Action Required:</strong>
     <ul>
         <li>Review Task #{{ request.task_id }} in the Admin Console</li>
-        <li>If approved, mark as "Ready" so Claude can work on it</li>
+        <li>If approved, mark as "Ready" so Claude can implement it</li>
         <li>If rejected, mark as "Done" or delete the task</li>
     </ul>
 </div>
@@ -64,18 +82,4 @@
     <p><em>Note: Automatic task creation failed. Please create manually.</em></p>
 </div>
 {% endif %}
-
-<p>
-    <strong>Next Steps:</strong>
-</p>
-<ol>
-    <li>Evaluate if this feature aligns with WLJ's mission</li>
-    <li>Check if a similar feature already exists that the user may not have found</li>
-    {% if request.task_id %}
-    <li>Mark Task #{{ request.task_id }} as "Ready" to approve, or close it to reject</li>
-    {% else %}
-    <li>Create a project task with the user's request details if approved</li>
-    {% endif %}
-    <li>Consider reaching out to the user if clarification is needed</li>
-</ol>
 {% endblock %}

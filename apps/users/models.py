@@ -720,6 +720,7 @@ class UserPreferences(models.Model):
     # FASTING PREFERENCES
     # ===================
     FASTING_TYPE_CHOICES = [
+        ("none", "No Fasting"),
         ("16:8", "16:8 Intermittent Fasting"),
         ("18:6", "18:6 Extended Fast"),
         ("20:4", "20:4 Warrior Diet"),
@@ -730,6 +731,7 @@ class UserPreferences(models.Model):
     ]
 
     FASTING_TYPE_DESCRIPTIONS = {
+        "none": "You don't practice intermittent fasting. The fasting tracker will not be shown in your dashboard.",
         "16:8": "The most popular fasting method. Fast for 16 hours and eat within an 8-hour window. Example: Eat between 12pm-8pm.",
         "18:6": "A more advanced fast. 18 hours of fasting with a 6-hour eating window. Example: Eat between 1pm-7pm.",
         "20:4": "Also known as the Warrior Diet. 20 hours fasting with a 4-hour eating window. Example: Eat between 4pm-8pm.",

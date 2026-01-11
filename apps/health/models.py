@@ -71,6 +71,7 @@ class FastingWindow(UserOwnedModel):
     """
 
     FASTING_TYPE_CHOICES = [
+        ("none", "No Fasting"),
         ("16:8", "16:8 (16 hours fast)"),
         ("18:6", "18:6 (18 hours fast)"),
         ("20:4", "20:4 (20 hours fast)"),

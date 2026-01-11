@@ -208,6 +208,15 @@ class FastingWindowForm(forms.ModelForm):
         ended_at = self.cleaned_data.get('ended_at')
         return interpret_as_user_timezone(ended_at, self.user)
 
+    def clean_fasting_type(self):
+        """Validate fasting type - 'none' is not a valid choice for starting a fast."""
+        fasting_type = self.cleaned_data.get('fasting_type')
+        if fasting_type == 'none':
+            raise forms.ValidationError(
+                "Please select a fasting type. 'No Fasting' is only used as a default preference."
+            )
+        return fasting_type
+
 
 class HeartRateEntryForm(forms.ModelForm):
     """

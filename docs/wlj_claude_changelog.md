@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (Comprehensive Sub-Feature Toggles)
+# Last Updated: 2026-01-11 (No Fasting Option)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,31 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-11 Changes
+
+### Add "No Fasting" Option to Fasting Feature
+
+**Issue:** Users who don't practice fasting had no way to indicate this preference. The fasting type dropdown only showed actual fasting schedules (16:8, 18:6, etc.) with no option to opt out.
+
+**Fix:** Added "No Fasting" (`none`) as the first option in fasting type choices:
+
+1. **FastingWindow Model** (`apps/health/models.py`):
+   - Added `("none", "No Fasting")` to `FASTING_TYPE_CHOICES`
+
+2. **UserPreferences Model** (`apps/users/models.py`):
+   - Added `("none", "No Fasting")` to `FASTING_TYPE_CHOICES`
+   - Added description: "You don't practice intermittent fasting. The fasting tracker will not be shown in your dashboard."
+
+3. **FastingWindowForm** (`apps/health/forms.py`):
+   - Added `clean_fasting_type()` validation to prevent starting a fast with "none" type
+   - Shows user-friendly error if they try to start a fast with "No Fasting" selected
+
+**Files Modified:**
+- `apps/health/models.py` - Added "none" choice
+- `apps/users/models.py` - Added "none" choice and description
+- `apps/health/forms.py` - Added validation
+
+---
+
 
 ### Comprehensive Sub-Feature Toggles Update
 

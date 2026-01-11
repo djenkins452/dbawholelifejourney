@@ -162,8 +162,8 @@ class BookView(LoginRequiredMixin, ListView):
             }
             for e in entries
         ]
-        # Serialize to JSON string for safe JavaScript embedding
-        context["entries_json"] = json.dumps(entries_data)
+        # Pass raw data - json_script filter handles serialization
+        context["entries_data"] = entries_data
         context["total_entries"] = len(entries)
         return context
 

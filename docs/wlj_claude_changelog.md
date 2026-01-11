@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-11 Changes
 
+### Fix Journal Book View Not Displaying Content
+
+**Issue:** Journal Book View page showed the book structure but no content (title, date, body were blank).
+
+**Cause:** The view was using `json.dumps()` to serialize entry data, then passing it to Django's `json_script` filter which serializes again. This caused double-encoding, resulting in the JavaScript parsing an escaped string instead of the actual data.
+
+**Solution:** Changed the view to pass raw Python data (`entries_data`) and let the `json_script` template filter handle serialization.
+
+**Files Modified:**
+- `apps/journal/views.py` (BookView.get_context_data - changed `entries_json` to `entries_data`)
+- `templates/journal/book_view.html` (changed `entries_json` to `entries_data` in json_script)
+
+---
+
 ### Fix Navigation Logo and Profile Picture Shrinking
 
 **Issue:** On desktop, the navigation logo (left side) and profile picture/initials (right side) were being shrunk to tiny, unreadable sizes when the nav had many items.

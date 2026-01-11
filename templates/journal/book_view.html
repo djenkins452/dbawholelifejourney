@@ -268,7 +268,7 @@
 }
 </style>
 
-{{ entries_json|json_script:"entries-data" }}
+{{ entries_data|json_script:"entries-data" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const entries = JSON.parse(document.getElementById('entries-data').textContent);

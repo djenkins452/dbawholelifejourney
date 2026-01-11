@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (Fasting Page Context Fix)
+# Last Updated: 2026-01-11 (Reading Plans List 500 Error Fix)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,21 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-11 Changes
+
+### Fix Reading Plans List 500 Error (Null Topics Field)
+
+**Issue:** Navigating to `/faith/reading-plans/` caused a 500 error.
+
+**Root Cause:** The `ReadingPlanListView.get_context_data()` method iterates through all active reading plan templates and calls `topics.update(plan.topics)` to build a list of unique topics. If any `ReadingPlanTemplate` had a `None` value for the `topics` JSONField (instead of an empty list), calling `.update(None)` on a set throws a TypeError.
+
+**Solution:** Added a safety check `if plan.topics:` before calling `topics.update()` to handle cases where the field is `None` or empty.
+
+**Files Modified:**
+- `apps/faith/views.py`: Line ~1059 - Added null check for `plan.topics` in `ReadingPlanListView.get_context_data()`
+
+**Result:** Reading plans list page now loads correctly even if some templates have null topics.
+
+---
 
 ### Fix Fasting Page Context and Title Extraction
 

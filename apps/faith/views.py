@@ -1056,7 +1056,8 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
         # Get all unique topics for filtering
         topics = set()
         for plan in ReadingPlanTemplate.objects.filter(is_active=True):
-            topics.update(plan.topics)
+            if plan.topics:
+                topics.update(plan.topics)
         context["available_topics"] = sorted(topics)
 
         return context

@@ -329,7 +329,6 @@ class UserPreferences(models.Model):
         'steps': {'label': 'Steps Tracking', 'default': True, 'icon': '👟'},
         'nutrition': {'label': 'Nutrition & Food', 'default': True, 'icon': '🥗'},
         'fasting': {'label': 'Fasting', 'default': True, 'icon': '🍽️'},
-        'sleep': {'label': 'Sleep Tracking', 'default': True, 'icon': '😴'},
         'providers': {'label': 'Medical Providers', 'default': True, 'icon': '🏥'},
     }
 

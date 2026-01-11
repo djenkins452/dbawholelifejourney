@@ -568,6 +568,7 @@
                 <div id="user-menu" class="nav-user-dropdown" hidden>
                     <a href="{% url 'users:profile' %}" class="nav-user-link">Profile</a>
                     <a href="{% url 'users:preferences' %}" class="nav-user-link">Preferences</a>
+                    <a href="{% url 'core:whats_new_list' %}" class="nav-user-link">What's New</a>
                     {% if user.is_staff %}
                     <hr class="nav-user-divider">
                     <a href="{% url 'admin_console:dashboard' %}" class="nav-user-link">Admin Console</a>

@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
+### Added "What's New" Link to User Dropdown Menu
+
+**Request:** User requested a direct link to the What's New page in the user dropdown menu.
+
+**Changes:**
+- Added "What's New" link after "Preferences" in the user dropdown menu
+- Links to existing `core:whats_new_list` route at `/whats-new/`
+
+**Files Changed:**
+- `templates/components/navigation.html` - Added nav-user-link for What's New
+
+---
+
 ### Task Creation Debugging for Feature Requests
 
 **Issue:** Emails were being sent for feature requests but tasks were not being created in the Admin Console.

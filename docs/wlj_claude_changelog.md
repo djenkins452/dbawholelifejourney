@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (No Fasting Option)
+# Last Updated: 2026-01-11 (Armed Forces Coaching Styles)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,35 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-11 Changes
+
+### Armed Forces Coaching Styles
+
+**Feature:** Added coaching styles for all 6 U.S. military branches, organized under a new "Armed Forces" category.
+
+**New Coaching Styles:**
+1. **Army Drill Sergeant** - Intense boot camp accountability
+2. **Navy Chief Petty Officer** - Nautical teamwork and navigation metaphors
+3. **Marine Gunnery Sergeant** - Semper Fi warrior ethos
+4. **Air Force Training Instructor** - Precision and excellence focus
+5. **Coast Guard Chief** - Semper Paratus rescue/service mindset
+6. **Space Force Guardian** - Innovation and reaching for the stars
+
+**Implementation:**
+1. Added `category` field to `CoachingStyle` model for grouping styles
+2. Added `get_styles_by_category()` method for grouped retrieval
+3. Updated onboarding wizard and preferences templates to display grouped styles
+4. Added CSS for category headers (uppercase, muted color, border separator)
+
+**Files Modified:**
+- `apps/ai/models.py` - Added category field and grouped retrieval method
+- `apps/users/views.py` - Pass grouped styles to templates
+- `templates/users/onboarding_wizard.html` - Grouped display with category headers
+- `templates/users/preferences.html` - Grouped display with category headers
+
+**Migration:**
+- `apps/ai/migrations/0015_add_drill_sergeant_coaching_style.py` - Adds category field and all 6 Armed Forces styles
+
+---
 
 ### Add "No Fasting" Option to Fasting Feature
 

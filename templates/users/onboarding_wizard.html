@@ -186,18 +186,25 @@
                     <h2>Choose Your Coaching Voice</h2>
                     <p class="section-subtitle">Each voice has a different personality. Pick the one that feels most supportive to you.</p>
 
+                    {% for category_name, styles in coaching_styles_grouped %}
+                    <div class="coaching-category">
+                        <h3 class="category-title">{{ category_name }}</h3>
+                        <div class="coaching-grid">
+                            {% for style in styles %}
+                            <label class="coaching-card {% if style.key == current_coaching_style or style.is_default and not current_coaching_style %}selected{% endif %}">
+                                <input type="radio" name="ai_coaching_style" value="{{ style.key }}"
+                                       {% if style.key == current_coaching_style or style.is_default and not current_coaching_style %}checked{% endif %}>
+                                <div class="coaching-content">
+                                    <div class="coaching-icon">{{ style.icon }}</div>
+                                    <h3>{{ style.name }}</h3>
+                                    <p>{{ style.description }}</p>
+                                </div>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% empty %}
                     <div class="coaching-grid">
-                        {% for style in coaching_styles %}
-                        <label class="coaching-card {% if style.key == current_coaching_style or style.is_default and not current_coaching_style %}selected{% endif %}">
-                            <input type="radio" name="ai_coaching_style" value="{{ style.key }}"
-                                   {% if style.key == current_coaching_style or style.is_default and not current_coaching_style %}checked{% endif %}>
-                            <div class="coaching-content">
-                                <div class="coaching-icon">{{ style.icon }}</div>
-                                <h3>{{ style.name }}</h3>
-                                <p>{{ style.description }}</p>
-                            </div>
-                        </label>
-                        {% empty %}
                         <label class="coaching-card selected">
                             <input type="radio" name="ai_coaching_style" value="supportive" checked>
                             <div class="coaching-content">
@@ -206,8 +213,8 @@
                                 <p>Balanced warmth with gentle accountability.</p>
                             </div>
                         </label>
-                        {% endfor %}
                     </div>
+                    {% endfor %}
                 </div>
 
                 <!-- Personal Assistant Section (shown when AI is enabled and consent given) -->
@@ -872,6 +879,25 @@
 .section-subtitle {
     color: var(--color-text-muted);
     margin-bottom: var(--space-6);
+}
+
+.coaching-category {
+    margin-bottom: var(--space-6);
+}
+
+.coaching-category:last-child {
+    margin-bottom: 0;
+}
+
+.category-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
 }
 
 .coaching-grid {

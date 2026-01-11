@@ -573,20 +573,27 @@
                                     Choose how you'd like the AI to communicate with you. This affects the tone of insights, encouragements, and accountability nudges.
                                 </p>
 
-                                <div class="coaching-style-options">
-                                    {% for style in coaching_styles %}
-                                    <label class="coaching-style-card {% if form.ai_coaching_style.value == style.key or not form.ai_coaching_style.value and style.is_default %}selected{% endif %}">
-                                        <input type="radio" name="ai_coaching_style" value="{{ style.key }}"
-                                               {% if form.ai_coaching_style.value == style.key or not form.ai_coaching_style.value and style.is_default %}checked{% endif %}>
-                                        <div class="card-content">
-                                            <div class="card-icon">{{ style.icon }}</div>
-                                            <div class="card-text">
-                                                <div class="card-title">{{ style.name }}</div>
-                                                <div class="card-description">{{ style.description }}</div>
+                                {% for category_name, styles in coaching_styles_grouped %}
+                                <div class="coaching-category">
+                                    <h4 class="category-title">{{ category_name }}</h4>
+                                    <div class="coaching-style-options">
+                                        {% for style in styles %}
+                                        <label class="coaching-style-card {% if form.ai_coaching_style.value == style.key or not form.ai_coaching_style.value and style.is_default %}selected{% endif %}">
+                                            <input type="radio" name="ai_coaching_style" value="{{ style.key }}"
+                                                   {% if form.ai_coaching_style.value == style.key or not form.ai_coaching_style.value and style.is_default %}checked{% endif %}>
+                                            <div class="card-content">
+                                                <div class="card-icon">{{ style.icon }}</div>
+                                                <div class="card-text">
+                                                    <div class="card-title">{{ style.name }}</div>
+                                                    <div class="card-description">{{ style.description }}</div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </label>
-                                    {% empty %}
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="coaching-style-options">
                                     <label class="coaching-style-card selected">
                                         <input type="radio" name="ai_coaching_style" value="supportive" checked>
                                         <div class="card-content">
@@ -597,8 +604,8 @@
                                             </div>
                                         </div>
                                     </label>
-                                    {% endfor %}
                                 </div>
+                                {% endfor %}
                             </div>
                         </div>
 
@@ -1885,6 +1892,25 @@ Examples:
 }
 
 /* AI Coaching Style Cards */
+.coaching-category {
+    margin-bottom: var(--space-5);
+}
+
+.coaching-category:last-child {
+    margin-bottom: 0;
+}
+
+.coaching-category .category-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+}
+
 .coaching-style-options {
     display: grid;
     grid-template-columns: 1fr;

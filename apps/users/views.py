@@ -170,15 +170,17 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         # NOTE: Bible API key is NO LONGER sent to frontend (Security Fix C-2)
         # Bible API is now accessed via server-side proxy at /faith/api/bible/
 
-        # AI Coaching styles from database
+        # AI Coaching styles from database (grouped by category)
         try:
             from apps.ai.models import CoachingStyle
             context['coaching_styles'] = CoachingStyle.get_active_styles()
+            context['coaching_styles_grouped'] = CoachingStyle.get_styles_by_category()
         except (ImportError, Exception) as e:
             # CoachingStyle table may not exist yet during migrations
             import logging
             logging.getLogger(__name__).debug(f"Could not load coaching styles: {e}")
             context['coaching_styles'] = []
+            context['coaching_styles_grouped'] = []
 
         # Sub-feature toggles data
         from apps.users.models import UserPreferences
@@ -398,11 +400,13 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
             try:
                 from apps.ai.models import CoachingStyle
                 context["coaching_styles"] = CoachingStyle.get_active_styles()
+                context["coaching_styles_grouped"] = CoachingStyle.get_styles_by_category()
             except (ImportError, Exception) as e:
                 # CoachingStyle table may not exist yet during migrations
                 import logging
                 logging.getLogger(__name__).debug(f"Could not load coaching styles: {e}")
                 context["coaching_styles"] = []
+                context["coaching_styles_grouped"] = []
 
         elif current_step["id"] == "location":
             context["current_timezone"] = prefs.timezone

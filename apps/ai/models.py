@@ -43,6 +43,11 @@ class CoachingStyle(models.Model):
 
     Allows admin to add, edit, or disable coaching styles without code deploys.
     """
+    CATEGORY_CHOICES = [
+        ('', 'General'),
+        ('armed_forces', 'Armed Forces'),
+    ]
+
     key = models.SlugField(
         max_length=50,
         unique=True,
@@ -60,6 +65,13 @@ class CoachingStyle(models.Model):
         max_length=10,
         default="🤝",
         help_text="Emoji icon displayed in the UI"
+    )
+    category = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        choices=CATEGORY_CHOICES,
+        help_text="Category for grouping styles in UI (empty = General)"
     )
     prompt_instructions = models.TextField(
         help_text="Full AI prompt instructions for this coaching style"
@@ -91,6 +103,7 @@ class CoachingStyle(models.Model):
     def save(self, *args, **kwargs):
         # Clear cache when style is updated
         cache.delete('coaching_styles_all')
+        cache.delete('coaching_styles_by_category')
         cache.delete(f'coaching_style_{self.key}')
 
         # Also invalidate system prompt cache (uses coaching style)
@@ -136,6 +149,43 @@ class CoachingStyle(models.Model):
     def get_choices(cls):
         """Get choices tuple for form fields."""
         return [(s.key, s.name) for s in cls.get_active_styles()]
+
+    @classmethod
+    def get_styles_by_category(cls):
+        """
+        Get active styles grouped by category for template display.
+
+        Returns a list of tuples: [(category_display_name, [styles...]), ...]
+        General (empty category) styles come first, then other categories.
+        """
+        cache_key = 'coaching_styles_by_category'
+        grouped = cache.get(cache_key)
+        if grouped is None:
+            styles = cls.objects.filter(is_active=True).order_by('category', 'sort_order', 'name')
+
+            # Group by category
+            category_map = {}
+            for style in styles:
+                cat = style.category or ''
+                if cat not in category_map:
+                    category_map[cat] = []
+                category_map[cat].append(style)
+
+            # Build ordered list with display names
+            category_display = dict(cls.CATEGORY_CHOICES)
+            grouped = []
+
+            # General (empty) category first
+            if '' in category_map:
+                grouped.append(('General', category_map['']))
+
+            # Then other categories in order
+            for cat_key, cat_name in cls.CATEGORY_CHOICES:
+                if cat_key and cat_key in category_map:
+                    grouped.append((cat_name, category_map[cat_key]))
+
+            cache.set(cache_key, grouped, 3600)
+        return grouped
 
 
 class AIInsight(models.Model):

@@ -540,6 +540,9 @@
 
         if (!isLoaded) {
             loadHistory();
+        } else {
+            // Already loaded - refresh in background to sync with /assistant/ page
+            refreshHistory();
         }
     }
 
@@ -731,6 +734,45 @@
             closeDrawer();
         }
     });
+
+    // Sync on visibility change - refresh messages when user returns to tab
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible' && isOpen && isLoaded) {
+            // Refresh history when user returns to tab with drawer open
+            refreshHistory();
+        }
+    });
+
+    // Refresh history without showing loading state
+    async function refreshHistory() {
+        try {
+            const response = await fetch('/assistant/api/history/');
+            const data = await response.json();
+
+            if (data.success && data.messages) {
+                // Get current message count
+                const currentMessages = messagesContainer.querySelectorAll('.assistant-message');
+                const newMessageCount = data.messages.length;
+
+                // Only update if message count changed
+                if (newMessageCount !== currentMessages.length) {
+                    // Clear and reload
+                    messagesContainer.innerHTML = '';
+                    if (newMessageCount > 0) {
+                        data.messages.forEach(msg => {
+                            addMessage(msg.content, msg.role === 'user', false);
+                        });
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        hasMessages = true;
+                    } else {
+                        showEmptyState();
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error refreshing history:', error);
+        }
+    }
 
 })();
 </script>

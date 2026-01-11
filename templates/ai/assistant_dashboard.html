@@ -1091,6 +1091,45 @@
         }
     });
 
+    // Refresh history without showing loading state (for sync)
+    async function refreshChatHistory() {
+        if (!personalAssistantAccessible) return;
+
+        try {
+            const response = await fetch('/assistant/api/history/');
+            const data = await response.json();
+
+            if (data.success && data.messages) {
+                // Get current message count
+                const currentMessages = chatMessages.querySelectorAll('.chat-message');
+                const newMessageCount = data.messages.length;
+
+                // Only update if message count changed
+                if (newMessageCount !== currentMessages.length) {
+                    // Clear and reload
+                    chatMessages.innerHTML = '';
+                    if (newMessageCount > 0) {
+                        data.messages.forEach(msg => {
+                            addChatMessage(msg.content, msg.role === 'user', false);
+                        });
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    } else {
+                        showEmptyState();
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error refreshing chat history:', error);
+        }
+    }
+
+    // Sync on visibility change - refresh when user returns to tab
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            refreshChatHistory();
+        }
+    });
+
     // Load initial data
     loadOpening();
     loadChatHistory();

@@ -21,16 +21,17 @@ For active development context, see `CLAUDE.md` (project root).
 **Issue:** The AI Assistant was proactively summarizing tasks, overdue items, and outstanding priorities in every response. User wanted the assistant to only provide this information when explicitly asked.
 
 **Changes:**
-1. **Opening message now only shows full check-in on first visit of the day**
-   - Tracks `last_opening_shown_date` in conversation metadata
-   - Subsequent visits show simple greeting only
-   - First visit shows state summary, priorities, nudges, and reflection prompt
-   - Added `is_first_visit` flag to API response for frontend awareness
+1. **Dashboard check-in (left side) ALWAYS shows full coaching review**
+   - State summary, priorities, nudges, and reflection prompt always shown
+   - Tracks `last_opening_shown_date` in conversation metadata for info purposes
+   - The `is_first_visit` flag is tracked but doesn't hide content
+   - This is the coach actively reviewing your information
 
-2. **System prompt updated to prevent unsolicited task summaries**
+2. **Chat (right side) is now interactive and responsive**
+   - System prompt updated to prevent unsolicited task summaries
    - Added explicit "NEVER VOLUNTEER THESE UNLESS ASKED" section
-   - Removed automatic task/priority mentions from responses
-   - AI only provides task information when user explicitly asks
+   - Chat only provides task info when user explicitly asks (e.g., "what do I have left to do today?")
+   - Chat doesn't repeat what's already shown on the left side
 
 3. **Response generation no longer injects state data by default**
    - State context only added when user asks about tasks/priorities
@@ -42,8 +43,14 @@ For active development context, see `CLAUDE.md` (project root).
    - Also fixed in DashboardAI and TrendTracker classes
    - Ensures latest coaching style is always used across all AI components
 
+5. **Fixed AI assessment not regenerating when coaching style changes**
+   - AI assessment was cached in UserStateSnapshot for the day
+   - Now stores coaching style in snapshot metadata (`alignment_gaps`)
+   - When coaching style changes, forces regeneration of AI assessment
+   - Handles legacy snapshots without stored style by regenerating
+
 **Files Modified:**
-- `apps/ai/personal_assistant.py` - Updated system prompt, opening message, response generation, refresh_from_db fix
+- `apps/ai/personal_assistant.py` - Updated system prompt, opening message, response generation, refresh_from_db fix, coaching style tracking in snapshot
 - `apps/ai/views.py` - Added is_first_visit to opening API response
 - `apps/ai/dashboard_ai.py` - Added refresh_from_db for coaching style
 - `apps/ai/trend_tracking.py` - Added refresh_from_db for coaching style

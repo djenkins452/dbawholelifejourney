@@ -411,7 +411,26 @@ class PersonalAssistant:
             snapshot_date=today
         ).first()
 
-        if snapshot and not force_refresh:
+        # Check if coaching style changed - if so, we need to regenerate the AI assessment
+        # The coaching style is stored in alignment_gaps metadata when present
+        coaching_style_changed = False
+        if snapshot:
+            snapshot_metadata = snapshot.alignment_gaps or []
+            # We store coaching_style in a special metadata entry
+            stored_style = None
+            for item in snapshot_metadata:
+                if isinstance(item, dict) and item.get('_coaching_style'):
+                    stored_style = item.get('_coaching_style')
+                    break
+            # Regenerate if style changed OR if no style was stored (legacy snapshot)
+            if stored_style is None or stored_style != self.coaching_style:
+                coaching_style_changed = True
+                if stored_style:
+                    logger.info(f"Coaching style changed from {stored_style} to {self.coaching_style}, regenerating assessment")
+                else:
+                    logger.info(f"No coaching style stored in snapshot, regenerating assessment with {self.coaching_style}")
+
+        if snapshot and not force_refresh and not coaching_style_changed:
             # Return cached data but with FRESH task counts
             result = self._snapshot_to_dict(snapshot)
             result['tasks'] = {
@@ -435,6 +454,11 @@ class PersonalAssistant:
             ai_assessment = ai_result.get('assessment', '')
             alignment_gaps = ai_result.get('gaps', [])
             celebration_worthy = ai_result.get('celebrations', [])
+
+        # Store coaching style in alignment_gaps metadata so we can detect style changes
+        # and regenerate the AI assessment when needed
+        alignment_gaps_with_style = list(alignment_gaps) if alignment_gaps else []
+        alignment_gaps_with_style.append({'_coaching_style': self.coaching_style})
 
         # Create or update snapshot
         snapshot, created = UserStateSnapshot.objects.update_or_create(
@@ -467,7 +491,7 @@ class PersonalAssistant:
                 'habit_goals_data': state_data.get('habit_goals_data', []),
                 # AI assessment
                 'ai_assessment': ai_assessment,
-                'alignment_gaps': alignment_gaps,
+                'alignment_gaps': alignment_gaps_with_style,
                 'celebration_worthy': celebration_worthy,
             }
         )
@@ -1857,23 +1881,28 @@ Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do 
         """
         Generate the opening message when user opens the app.
 
-        On first visit of the day: Full check-in with state summary, priorities, nudges
-        On subsequent visits: Simple greeting only - user drives the conversation
+        The dashboard check-in card (left side) ALWAYS shows the full coaching review:
+        - State summary with AI assessment
+        - Today's priorities
+        - Nudges for items needing attention
+
+        The is_first_visit flag is tracked for informational purposes but doesn't
+        affect what's shown in the check-in card. The coaching review should always
+        be visible when viewing the assistant dashboard.
+
+        Note: The CHAT (right side) is separate and should be interactive/responsive,
+        not proactively showing task summaries.
 
         Args:
             is_first_visit: Override for first visit detection (used by views).
                            If None, will be determined automatically.
-
-        The assistant should be responsive, not proactive. Users ask questions
-        and the assistant answers - it doesn't volunteer task summaries or
-        outstanding items unless asked.
         """
         from apps.core.utils import get_user_today
 
         today = get_user_today(self.user)
         time_context = self._get_time_context()
 
-        # Determine if this is first visit of the day
+        # Track first visit of the day for informational purposes
         if is_first_visit is None:
             conversation = self.get_or_create_conversation()
             metadata = conversation.metadata or {}
@@ -1886,32 +1915,26 @@ Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do 
                 conversation.metadata = metadata
                 conversation.save(update_fields=['metadata'])
 
-        # Base result - always include greeting and time context
+        # Always show full coaching check-in on the dashboard card
+        # This is the "Good morning, Danny" section with your coach reviewing your status
+        state = self.assess_current_state()
+        priorities = self.generate_daily_priorities()
+
         result = {
             'greeting': self._get_greeting(),
             'time_context': time_context,
-            'state_summary': '',
-            'priorities': [],
+            'state_summary': state.get('ai_assessment', ''),
+            'priorities': list(priorities),
             'celebrations': [],
-            'nudges': [],
+            'nudges': self._build_nudges(state),
             'reflection_prompt': None,
             'coaching_style': self.coaching_style,
             'is_first_visit': is_first_visit,
         }
 
-        if is_first_visit:
-            # First visit of the day - show full check-in
-            state = self.assess_current_state()
-            priorities = self.generate_daily_priorities()
-
-            result['state_summary'] = state.get('ai_assessment', '')
-            result['priorities'] = list(priorities)
-            result['nudges'] = self._build_nudges(state)
-
-            # Add reflection prompt if appropriate
-            if self._should_offer_reflection():
-                result['reflection_prompt'] = self.generate_reflection_prompt('morning')
-        # On subsequent visits, return minimal result - user drives conversation
+        # Add reflection prompt if appropriate
+        if self._should_offer_reflection():
+            result['reflection_prompt'] = self.generate_reflection_prompt('morning')
 
         return result
 

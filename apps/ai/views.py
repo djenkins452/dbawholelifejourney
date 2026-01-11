@@ -136,6 +136,7 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
                 'celebrations': opening['celebrations'],
                 'nudges': opening['nudges'],
                 'reflection_prompt': opening['reflection_prompt'],
+                'is_first_visit': opening.get('is_first_visit', True),
             })
 
         except Exception as e:

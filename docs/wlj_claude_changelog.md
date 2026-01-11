@@ -16,6 +16,37 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-11 Changes
 
+### AI Assistant Update - Responsive Behavior
+
+**Issue:** The AI Assistant was proactively summarizing tasks, overdue items, and outstanding priorities in every response. User wanted the assistant to only provide this information when explicitly asked.
+
+**Changes:**
+1. **Opening message now only shows full check-in on first visit of the day**
+   - Tracks `last_opening_shown_date` in conversation metadata
+   - Subsequent visits show simple greeting only
+   - First visit shows state summary, priorities, nudges, and reflection prompt
+   - Added `is_first_visit` flag to API response for frontend awareness
+
+2. **System prompt updated to prevent unsolicited task summaries**
+   - Added explicit "NEVER VOLUNTEER THESE UNLESS ASKED" section
+   - Removed automatic task/priority mentions from responses
+   - AI only provides task information when user explicitly asks
+
+3. **Response generation no longer injects state data by default**
+   - State context only added when user asks about tasks/priorities
+   - Phrase detection for task-related queries triggers state injection
+   - Time context removed from default prompts (was too pushy)
+
+4. **Fixed AI Coach selection not being read on change**
+   - Added `refresh_from_db()` calls in PersonalAssistant.__init__
+   - Ensures latest coaching style is always used
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Updated system prompt, opening message, response generation, refresh_from_db fix
+- `apps/ai/views.py` - Added is_first_visit to opening API response
+
+---
+
 ### Armed Forces Coaching Styles
 
 **Feature:** Added coaching styles for all 6 U.S. military branches, organized under a new "Armed Forces" category.

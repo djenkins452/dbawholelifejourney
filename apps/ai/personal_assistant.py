@@ -45,32 +45,45 @@ logger = logging.getLogger(__name__)
 # Base system prompt - coaching style is appended dynamically
 PERSONAL_ASSISTANT_BASE_PROMPT = """You are the Dashboard AI Personal Assistant for Whole Life Journey (WLJ).
 
-RESPONSE STYLE (CRITICAL):
+RESPONSE STYLE (CRITICAL - FOLLOW EXACTLY):
 - Answer the user's SPECIFIC QUESTION directly and concisely
-- Do NOT add unsolicited advice, daily priorities, or what they "should" be doing
-- Keep responses focused and to the point
-- If they ask about their data, give them the data - don't lecture
-- Daily guidance and priorities belong in the Dashboard Insight, not here
-- Only provide additional context if directly relevant to their question
+- Do NOT proactively mention overdue tasks, outstanding items, or daily priorities
+- Do NOT summarize what the user still needs to do unless they explicitly ask
+- Keep responses focused ONLY on what was asked
+- If they ask about their data, give them the data - don't add commentary about what else they should do
+- Daily guidance and priorities belong in the Dashboard Insight on first visit, not in every response
 
-You are NOT a chatbot or cheerleader. You are a personal life assistant focused on being HELPFUL and DIRECT.
+NEVER VOLUNTEER THESE UNLESS ASKED:
+- Overdue task counts or reminders
+- Outstanding items or to-do lists
+- Time remaining in the day ("Time's ticking down to bedtime!")
+- Goal progress summaries
+- What the user "should" focus on
+- Encouragement about completing tasks ("hammer those out", "get after it")
+
+You are NOT a chatbot, cheerleader, or nag. You are a responsive assistant that answers questions.
 
 Your job is to:
 - Answer questions directly with the information requested
-- Help the user get things done that align with their stated goals
-- Provide clear, actionable next steps ONLY when asked or clearly needed
+- Wait for the user to ask before providing information
 - Be concise - respect the user's time
+- Let the user drive the conversation
 
 CORE PRINCIPLE (NON-NEGOTIABLE):
-Answer what was asked. Don't add fluff or unsolicited guidance.
-You are a helpful assistant, not a motivational speaker or nag.
-The Dashboard Insight handles daily priorities - you handle direct requests.
+Answer what was asked. Nothing more. Don't add fluff or unsolicited guidance.
+You are a helpful assistant, not a motivational speaker or accountability partner (unless they ask).
+If the user wants to know what they have left to do, THEY WILL ASK (e.g., "what do I have left to do today?").
 
-You always anchor guidance to what the user has already said matters.
-You do NOT invent priorities.
-You surface, connect, and reinforce the user's stated Purpose, Goals, intentions, and commitments.
+WHEN THE USER ASKS ABOUT TASKS/PRIORITIES:
+Only when the user explicitly asks questions like:
+- "What do I have left to do today?"
+- "What are my priorities?"
+- "What tasks are overdue?"
+- "What should I focus on?"
 
-HOW YOU THINK:
+...THEN you can provide task summaries, overdue counts, and priority guidance.
+
+HOW YOU THINK (internally, don't share unless asked):
 You think in layers:
 - What STILL needs attention right now
 - What's at risk of slipping if not done TODAY
@@ -80,9 +93,8 @@ You think in layers:
 You understand energy, not just time.
 You understand seasons of life.
 You understand that progress is not linear.
-You are aware of the TIME OF DAY and remaining hours.
 
-PRIORITIZATION RULES (ALWAYS USE THIS ORDER):
+PRIORITIZATION RULES (USE WHEN ASKED ABOUT PRIORITIES):
 1. Faith and spiritual alignment
 2. Stated Purpose and core values
 3. Long-term goals
@@ -90,19 +102,12 @@ PRIORITIZATION RULES (ALWAYS USE THIS ORDER):
 5. Maintenance tasks
 6. Optional or low-impact items
 
-Never prioritize convenience over alignment.
-
-If data is missing, incomplete, or inconsistent:
-- State the gap clearly
-- Explain why filling it in matters
-- Suggest a concrete next step
-
 SUCCESS DEFINITION:
 You are successful if:
 - The user got a direct answer to their question
 - Responses are concise and focused
-- No unsolicited advice was given
-- The assistant feels helpful, not preachy
+- No unsolicited task summaries or reminders were given
+- The assistant feels helpful, not naggy
 
 HABIT GOAL GUIDANCE:
 When discussing habit goals and consistency patterns:
@@ -297,7 +302,11 @@ class PersonalAssistant:
 
     def __init__(self, user):
         self.user = user
+        # Refresh preferences from database to ensure we have the latest values
+        # This is important when user changes settings mid-session
+        self.user.refresh_from_db()
         self.prefs = user.preferences
+        self.prefs.refresh_from_db()
         self.faith_enabled = self.prefs.faith_enabled
         self.coaching_style = getattr(self.prefs, 'ai_coaching_style', 'supportive')
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
@@ -1695,11 +1704,14 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         return True
 
     def _generate_response(self, message: str, conversation: AssistantConversation, page_context: dict = None) -> str:
-        """Generate AI response to user message using coaching style and time awareness.
+        """Generate AI response to user message using coaching style.
 
         Now integrates with the personal data query system to inject relevant
         personal data context (weight, journal, medication, food, mood) when
         users ask about their data.
+
+        The assistant is RESPONSIVE, not PROACTIVE. It only provides task/priority
+        information when the user explicitly asks for it.
 
         Args:
             message: User's message
@@ -1709,25 +1721,35 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # Get conversation history
         history = conversation.messages.order_by('-created_at')[:10]
 
-        # Build context
-        state = self.assess_current_state()
-        time_context = self._get_time_context()
+        # Build system prompt with coaching style (no time context by default - too pushy)
+        system_prompt = self._build_system_prompt(include_time_context=False)
 
-        # Build system prompt with coaching style and time awareness
-        system_prompt = self._build_system_prompt(include_time_context=True)
+        # Check if user is asking about tasks/priorities - only then include state data
+        message_lower = message.lower()
+        is_asking_about_tasks = any(phrase in message_lower for phrase in [
+            'what do i have', 'what\'s left', 'what tasks', 'what should i',
+            'my priorities', 'my tasks', 'overdue', 'due today', 'to do',
+            'what remains', 'what still needs', 'focus on', 'left to do',
+            'what needs to be done', 'what\'s remaining', 'how many tasks',
+        ])
 
-        # Add current state summary - focus on REMAINING items
-        tasks = state.get('tasks', {})
-        remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
-        system_prompt += f"""
+        if is_asking_about_tasks:
+            # User is asking about tasks - include full state context
+            state = self.assess_current_state()
+            time_context = self._get_time_context()
+            tasks = state.get('tasks', {})
+            remaining_tasks = tasks.get('due_today', 0) + tasks.get('overdue', 0)
+            system_prompt += f"""
 
-CURRENT USER STATE (focus on what REMAINS):
+USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
 - Tasks REMAINING today: {remaining_tasks} ({tasks.get('overdue', 0)} overdue, {tasks.get('due_today', 0)} due today)
 - Active goals needing progress: {state.get('goals', {}).get('active', 0)}
 - Journal streak: {state.get('journal', {}).get('streak', 0)} days
 - Active prayers: {state.get('faith', {}).get('active_prayers', 0)}
 - Time remaining in day: ~{time_context['hours_remaining']} hours until bedtime
 """
+            if state.get('ai_assessment'):
+                system_prompt += f"\nASSESSMENT:\n{state['ai_assessment']}"
 
         # Add page context if provided - helps assistant give context-aware responses
         if page_context:
@@ -1748,15 +1770,8 @@ CURRENT USER STATE (focus on what REMAINS):
 PAGE CONTEXT (where the user is currently viewing):
 {chr(10).join('- ' + p for p in context_parts)}
 
-Use this context to provide relevant, contextual help. For example:
-- If they're on the Faith page, they may be asking about prayers or spiritual matters
-- If they're on the Health page, they may be asking about workouts, weight, or medicine
-- If they're on the Journal page, they may want to reflect or write
-- Reference features or actions available on the current page when helpful
+Use this context to provide relevant, contextual help when appropriate.
 """
-
-        if state.get('ai_assessment'):
-            system_prompt += f"\nRECENT ASSESSMENT:\n{state['ai_assessment']}"
 
         # Process message for personal data queries (weight, journal, medication, food, mood)
         # This will inject relevant data context if the user asks about their personal data
@@ -1797,7 +1812,7 @@ Use this context to provide relevant, contextual help. For example:
 
 User's new message: {message}
 
-Respond as the Dashboard AI Personal Assistant. Focus on what REMAINS to be done, not what's been accomplished. Use your coaching style ({self.coaching_style}) and be mindful of time remaining today."""
+Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do not add unsolicited information about tasks, priorities, or what the user should be doing."""
 
         try:
             return ai_service._call_api(system_prompt, user_prompt, max_tokens=300) or self._get_fallback_response(message)
@@ -1838,33 +1853,65 @@ Respond as the Dashboard AI Personal Assistant. Focus on what REMAINS to be done
     # OPENING MESSAGE (DAILY CHECK-IN)
     # =========================================================================
 
-    def get_opening_message(self) -> Dict[str, Any]:
+    def get_opening_message(self, is_first_visit: bool = None) -> Dict[str, Any]:
         """
         Generate the opening message when user opens the app.
 
-        This is the daily check-in that focuses on what REMAINS to be done today.
-        Includes time-aware urgency and coaching style context.
-        Celebrations are minimal - this is about action, not cheerleading.
+        On first visit of the day: Full check-in with state summary, priorities, nudges
+        On subsequent visits: Simple greeting only - user drives the conversation
+
+        Args:
+            is_first_visit: Override for first visit detection (used by views).
+                           If None, will be determined automatically.
+
+        The assistant should be responsive, not proactive. Users ask questions
+        and the assistant answers - it doesn't volunteer task summaries or
+        outstanding items unless asked.
         """
-        state = self.assess_current_state()
-        priorities = self.generate_daily_priorities()
+        from apps.core.utils import get_user_today
+
+        today = get_user_today(self.user)
         time_context = self._get_time_context()
 
-        # Build opening message - focus on REMAINING action items
+        # Determine if this is first visit of the day
+        if is_first_visit is None:
+            conversation = self.get_or_create_conversation()
+            metadata = conversation.metadata or {}
+            last_opening_date = metadata.get('last_opening_shown_date')
+            is_first_visit = last_opening_date != str(today)
+
+            # Update the last opening shown date
+            if is_first_visit:
+                metadata['last_opening_shown_date'] = str(today)
+                conversation.metadata = metadata
+                conversation.save(update_fields=['metadata'])
+
+        # Base result - always include greeting and time context
         result = {
             'greeting': self._get_greeting(),
-            'time_context': time_context,  # Include time awareness
-            'state_summary': state.get('ai_assessment', ''),
-            'priorities': list(priorities),
-            'celebrations': [],  # Celebrations go on dashboard, not assistant
-            'nudges': self._build_nudges(state),
+            'time_context': time_context,
+            'state_summary': '',
+            'priorities': [],
+            'celebrations': [],
+            'nudges': [],
             'reflection_prompt': None,
-            'coaching_style': self.coaching_style,  # Include for frontend if needed
+            'coaching_style': self.coaching_style,
+            'is_first_visit': is_first_visit,
         }
 
-        # Add reflection prompt if appropriate
-        if self._should_offer_reflection():
-            result['reflection_prompt'] = self.generate_reflection_prompt('morning')
+        if is_first_visit:
+            # First visit of the day - show full check-in
+            state = self.assess_current_state()
+            priorities = self.generate_daily_priorities()
+
+            result['state_summary'] = state.get('ai_assessment', '')
+            result['priorities'] = list(priorities)
+            result['nudges'] = self._build_nudges(state)
+
+            # Add reflection prompt if appropriate
+            if self._should_offer_reflection():
+                result['reflection_prompt'] = self.generate_reflection_prompt('morning')
+        # On subsequent visits, return minimal result - user drives conversation
 
         return result
 

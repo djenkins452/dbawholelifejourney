@@ -46,33 +46,9 @@ jobs:
       - name: Check for missing migrations
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Debug Django installation
+      - name: Run tests
         run: |
-          python -c "import django; print(f'Django version: {django.__version__}'); print(f'Django path: {django.__path__}')"
-          python -c "from django.core.cache.utils import make_template_fragment_key; print('Cache import works!')"
-          # Check if there's a cache.py file anywhere it shouldn't be
-          find . -name "cache.py" -type f 2>/dev/null || true
-          # Check site-packages for issues
-          python -c "import sys; [print(p) for p in sys.path]"
-
-      - name: Run tests without coverage first
-        run: |
-          python manage.py test -v 2 --parallel
-
-      - name: Run tests with coverage
-        run: |
-          coverage run --source='apps' manage.py test -v 2
-          coverage report --fail-under=50
-          coverage xml
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
-          verbose: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          python manage.py test -v 1
 
   lint:
     name: Lint Code

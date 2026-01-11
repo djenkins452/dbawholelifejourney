@@ -39,11 +39,14 @@ For active development context, see `CLAUDE.md` (project root).
 
 4. **Fixed AI Coach selection not being read on change**
    - Added `refresh_from_db()` calls in PersonalAssistant.__init__
-   - Ensures latest coaching style is always used
+   - Also fixed in DashboardAI and TrendTracker classes
+   - Ensures latest coaching style is always used across all AI components
 
 **Files Modified:**
 - `apps/ai/personal_assistant.py` - Updated system prompt, opening message, response generation, refresh_from_db fix
 - `apps/ai/views.py` - Added is_first_visit to opening API response
+- `apps/ai/dashboard_ai.py` - Added refresh_from_db for coaching style
+- `apps/ai/trend_tracking.py` - Added refresh_from_db for coaching style
 
 ---
 

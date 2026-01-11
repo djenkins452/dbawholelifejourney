@@ -43,7 +43,11 @@ class DashboardAI:
     
     def __init__(self, user):
         self.user = user
+        # Refresh preferences from database to ensure we have the latest values
+        # This is important when user changes settings mid-session
+        self.user.refresh_from_db()
         self.prefs = user.preferences
+        self.prefs.refresh_from_db()
         self.faith_enabled = self.prefs.faith_enabled
         self.coaching_style = getattr(self.prefs, 'ai_coaching_style', 'supportive')
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''

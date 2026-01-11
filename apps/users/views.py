@@ -180,6 +180,28 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
             logging.getLogger(__name__).debug(f"Could not load coaching styles: {e}")
             context['coaching_styles'] = []
 
+        # Sub-feature toggles data
+        from apps.users.models import UserPreferences
+        prefs = self.request.user.preferences
+
+        # Build feature data with current enabled state
+        def build_feature_data(defaults, module):
+            features = []
+            for key, meta in defaults.items():
+                features.append({
+                    'key': key,
+                    'label': meta['label'],
+                    'icon': meta['icon'],
+                    'enabled': prefs.is_feature_enabled(module, key),
+                })
+            return features
+
+        context['health_features'] = build_feature_data(UserPreferences.HEALTH_FEATURES, 'health')
+        context['organize_features'] = build_feature_data(UserPreferences.ORGANIZE_FEATURES, 'organize')
+        context['goals_features'] = build_feature_data(UserPreferences.GOALS_FEATURES, 'goals')
+        context['faith_features'] = build_feature_data(UserPreferences.FAITH_FEATURES, 'faith')
+        context['journal_features'] = build_feature_data(UserPreferences.JOURNAL_FEATURES, 'journal')
+
         return context
 
     def form_valid(self, form):
@@ -546,6 +568,399 @@ class DismissIntroBannerView(LoginRequiredMixin, View):
             prefs.save(update_fields=['dismissed_intro_banners', 'updated_at'])
 
         return JsonResponse({'success': True, 'dismissed': dismissed})
+
+
+class AIProfileNudgeActionView(LoginRequiredMixin, View):
+    """
+    API endpoint to handle AI Profile nudge actions.
+
+    POST /user/api/ai-profile-nudge/
+    Body: {"action": "dismiss" | "snooze" | "snooze_week"}
+
+    Actions:
+    - dismiss: Permanently hide the nudge
+    - snooze: Hide for 3 days
+    - snooze_week: Hide for 7 days
+    """
+
+    def post(self, request, *args, **kwargs):
+        import json
+        from datetime import timedelta
+
+        try:
+            data = json.loads(request.body)
+            action = data.get('action', '').lower()
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        prefs = request.user.preferences
+
+        if action == 'dismiss':
+            prefs.ai_profile_nudge_dismissed = True
+            prefs.ai_profile_nudge_snoozed_until = None
+            prefs.save(update_fields=['ai_profile_nudge_dismissed', 'ai_profile_nudge_snoozed_until', 'updated_at'])
+            return JsonResponse({'success': True, 'action': 'dismissed'})
+
+        elif action == 'snooze':
+            prefs.ai_profile_nudge_snoozed_until = timezone.now() + timedelta(days=3)
+            prefs.save(update_fields=['ai_profile_nudge_snoozed_until', 'updated_at'])
+            return JsonResponse({'success': True, 'action': 'snoozed', 'until': prefs.ai_profile_nudge_snoozed_until.isoformat()})
+
+        elif action == 'snooze_week':
+            prefs.ai_profile_nudge_snoozed_until = timezone.now() + timedelta(days=7)
+            prefs.save(update_fields=['ai_profile_nudge_snoozed_until', 'updated_at'])
+            return JsonResponse({'success': True, 'action': 'snoozed', 'until': prefs.ai_profile_nudge_snoozed_until.isoformat()})
+
+        else:
+            return JsonResponse({'error': f'Invalid action: {action}'}, status=400)
+
+
+class SubFeatureToggleView(LoginRequiredMixin, View):
+    """
+    API endpoint to toggle sub-features within modules.
+
+    POST /user/api/sub-feature-toggle/
+    Body: {
+        "module": "health",
+        "feature": "medicine",
+        "enabled": false
+    }
+
+    Valid modules: health, organize, goals, faith, journal
+    Features vary by module (see UserPreferences.*_FEATURES for valid keys)
+    """
+
+    VALID_MODULES = ['health', 'organize', 'goals', 'faith', 'journal']
+
+    def post(self, request, *args, **kwargs):
+        import json
+        from apps.users.models import UserPreferences
+
+        try:
+            data = json.loads(request.body)
+            module = data.get('module', '').lower()
+            feature = data.get('feature', '')
+            enabled = data.get('enabled', True)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if module not in self.VALID_MODULES:
+            return JsonResponse({'error': f'Invalid module: {module}'}, status=400)
+
+        if not feature:
+            return JsonResponse({'error': 'Feature key required'}, status=400)
+
+        # Validate feature exists in the module's feature list
+        features_map = {
+            'health': UserPreferences.HEALTH_FEATURES,
+            'organize': UserPreferences.ORGANIZE_FEATURES,
+            'goals': UserPreferences.GOALS_FEATURES,
+            'faith': UserPreferences.FAITH_FEATURES,
+            'journal': UserPreferences.JOURNAL_FEATURES,
+        }
+
+        valid_features = features_map.get(module, {})
+        if feature not in valid_features:
+            return JsonResponse({'error': f'Invalid feature: {feature} for module {module}'}, status=400)
+
+        prefs = request.user.preferences
+        prefs.set_feature_enabled(module, feature, bool(enabled))
+        prefs.save(update_fields=[f'{module}_features', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'module': module,
+            'feature': feature,
+            'enabled': prefs.is_feature_enabled(module, feature)
+        })
+
+
+class SubFeaturesBulkView(LoginRequiredMixin, View):
+    """
+    API endpoint to get or update all sub-features for a module.
+
+    GET /user/api/sub-features/?module=health
+    Returns current state of all features for the module.
+
+    POST /user/api/sub-features/
+    Body: {
+        "module": "health",
+        "features": {
+            "weight": true,
+            "medicine": false,
+            "workouts": true
+        }
+    }
+    Updates multiple features at once.
+    """
+
+    VALID_MODULES = ['health', 'organize', 'goals', 'faith', 'journal']
+
+    def get(self, request, *args, **kwargs):
+        from apps.users.models import UserPreferences
+
+        module = request.GET.get('module', '').lower()
+
+        if module and module not in self.VALID_MODULES:
+            return JsonResponse({'error': f'Invalid module: {module}'}, status=400)
+
+        prefs = request.user.preferences
+
+        if module:
+            # Return features for specific module
+            features_map = {
+                'health': UserPreferences.HEALTH_FEATURES,
+                'organize': UserPreferences.ORGANIZE_FEATURES,
+                'goals': UserPreferences.GOALS_FEATURES,
+                'faith': UserPreferences.FAITH_FEATURES,
+                'journal': UserPreferences.JOURNAL_FEATURES,
+            }
+            defaults = features_map.get(module, {})
+            result = {}
+            for key, meta in defaults.items():
+                result[key] = {
+                    'enabled': prefs.is_feature_enabled(module, key),
+                    'label': meta['label'],
+                    'icon': meta['icon'],
+                }
+            return JsonResponse({'module': module, 'features': result})
+        else:
+            # Return features for all modules
+            all_features = {}
+            for mod in self.VALID_MODULES:
+                features_map = {
+                    'health': UserPreferences.HEALTH_FEATURES,
+                    'organize': UserPreferences.ORGANIZE_FEATURES,
+                    'goals': UserPreferences.GOALS_FEATURES,
+                    'faith': UserPreferences.FAITH_FEATURES,
+                    'journal': UserPreferences.JOURNAL_FEATURES,
+                }
+                defaults = features_map.get(mod, {})
+                all_features[mod] = {}
+                for key, meta in defaults.items():
+                    all_features[mod][key] = {
+                        'enabled': prefs.is_feature_enabled(mod, key),
+                        'label': meta['label'],
+                        'icon': meta['icon'],
+                    }
+            return JsonResponse({'features': all_features})
+
+    def post(self, request, *args, **kwargs):
+        import json
+        from apps.users.models import UserPreferences
+
+        try:
+            data = json.loads(request.body)
+            module = data.get('module', '').lower()
+            features = data.get('features', {})
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if module not in self.VALID_MODULES:
+            return JsonResponse({'error': f'Invalid module: {module}'}, status=400)
+
+        if not isinstance(features, dict):
+            return JsonResponse({'error': 'Features must be an object'}, status=400)
+
+        prefs = request.user.preferences
+
+        # Update each feature
+        for feature_key, enabled in features.items():
+            prefs.set_feature_enabled(module, feature_key, bool(enabled))
+
+        prefs.save(update_fields=[f'{module}_features', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'module': module,
+            'enabled_features': prefs.get_enabled_features(module)
+        })
+
+
+class AIProfileBuilderView(LoginRequiredMixin, View):
+    """
+    API endpoint to generate an AI profile from guided questions.
+
+    POST /user/api/ai-profile-builder/
+    Body: {
+        "answers": {
+            "life_stage": "empty_nester",
+            "family_status": "married",
+            "faith_importance": "very",
+            "health_focus": ["weight", "fitness"],
+            "work_life": "professional",
+            "communication_style": "direct",
+            "goals": "...",
+            "other": "..."
+        }
+    }
+    """
+
+    def post(self, request, *args, **kwargs):
+        import json
+
+        try:
+            data = json.loads(request.body)
+            answers = data.get('answers', {})
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        if not answers:
+            return JsonResponse({'error': 'No answers provided'}, status=400)
+
+        # Generate the profile text from the answers
+        profile_text = self._generate_profile_text(answers)
+
+        # Save to user preferences
+        prefs = request.user.preferences
+        prefs.ai_profile = profile_text
+        # Clear the nudge since they've now set up their profile
+        prefs.ai_profile_nudge_snoozed_until = None
+        prefs.save(update_fields=['ai_profile', 'ai_profile_nudge_snoozed_until', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'profile': profile_text,
+            'char_count': len(profile_text)
+        })
+
+    def _generate_profile_text(self, answers):
+        """
+        Generate a natural-language AI profile from structured answers.
+
+        This creates a well-written profile that the AI can use to personalize responses.
+        """
+        parts = []
+
+        # Life stage and age
+        life_stage = answers.get('life_stage', '')
+        birth_year = answers.get('birth_year', '')
+        if birth_year:
+            parts.append(f"I was born in {birth_year}.")
+        if life_stage:
+            stage_text = {
+                'student': "I'm currently a student.",
+                'young_professional': "I'm a young professional building my career.",
+                'mid_career': "I'm in the middle of my career.",
+                'parent_young_kids': "I'm a parent with young children at home.",
+                'parent_teens': "I'm a parent with teenagers.",
+                'empty_nester': "I'm an empty nester.",
+                'retired': "I'm retired.",
+                'other': ""
+            }.get(life_stage, '')
+            if stage_text:
+                parts.append(stage_text)
+
+        # Family status
+        family_status = answers.get('family_status', '')
+        spouse_info = answers.get('spouse_info', '')
+        children_info = answers.get('children_info', '')
+        if family_status:
+            status_text = {
+                'single': "I'm single.",
+                'dating': "I'm in a relationship.",
+                'married': "I'm married.",
+                'divorced': "I'm divorced.",
+                'widowed': "I'm widowed.",
+            }.get(family_status, '')
+            if status_text:
+                parts.append(status_text)
+        if spouse_info:
+            parts.append(spouse_info)
+        if children_info:
+            parts.append(children_info)
+
+        # Faith
+        faith_importance = answers.get('faith_importance', '')
+        faith_details = answers.get('faith_details', '')
+        if faith_importance:
+            faith_text = {
+                'central': "Faith is central to my life.",
+                'important': "Faith is important to me.",
+                'exploring': "I'm exploring my faith.",
+                'private': "My faith is a private matter.",
+                'not_applicable': ""
+            }.get(faith_importance, '')
+            if faith_text:
+                parts.append(faith_text)
+        if faith_details:
+            parts.append(faith_details)
+
+        # Work/career
+        work_life = answers.get('work_life', '')
+        job_details = answers.get('job_details', '')
+        if work_life:
+            work_text = {
+                'professional': "I work in a professional role.",
+                'entrepreneur': "I'm an entrepreneur.",
+                'creative': "I work in a creative field.",
+                'service': "I work in a service industry.",
+                'healthcare': "I work in healthcare.",
+                'education': "I work in education.",
+                'stay_at_home': "I'm a stay-at-home parent/caregiver.",
+                'retired': "I'm retired from my career.",
+                'student': "I'm currently studying.",
+            }.get(work_life, '')
+            if work_text:
+                parts.append(work_text)
+        if job_details:
+            parts.append(job_details)
+
+        # Health focus
+        health_focus = answers.get('health_focus', [])
+        if isinstance(health_focus, str):
+            health_focus = [health_focus]
+        if health_focus:
+            focus_items = []
+            focus_map = {
+                'weight': 'weight management',
+                'fitness': 'physical fitness',
+                'nutrition': 'nutrition',
+                'sleep': 'better sleep',
+                'stress': 'stress management',
+                'chronic': 'managing a chronic condition',
+                'mental': 'mental wellness',
+                'energy': 'more energy'
+            }
+            for item in health_focus:
+                if item in focus_map:
+                    focus_items.append(focus_map[item])
+            if focus_items:
+                if len(focus_items) == 1:
+                    parts.append(f"My health focus is on {focus_items[0]}.")
+                else:
+                    parts.append(f"My health priorities include {', '.join(focus_items[:-1])} and {focus_items[-1]}.")
+
+        # Communication style
+        communication_style = answers.get('communication_style', '')
+        if communication_style:
+            style_text = {
+                'direct': "I appreciate direct, honest feedback.",
+                'encouraging': "I respond well to encouragement and positive reinforcement.",
+                'analytical': "I like data-driven insights and detailed analysis.",
+                'gentle': "I prefer gentle, supportive guidance.",
+            }.get(communication_style, '')
+            if style_text:
+                parts.append(style_text)
+
+        # Goals
+        goals = answers.get('goals', '')
+        if goals:
+            parts.append(f"My current goals: {goals}")
+
+        # Other/freeform
+        other = answers.get('other', '')
+        if other:
+            parts.append(other)
+
+        # Join all parts into a coherent profile
+        profile = " ".join(parts)
+
+        # Ensure it doesn't exceed the 2000 character limit
+        if len(profile) > 2000:
+            profile = profile[:1997] + "..."
+
+        return profile
 
 
 # =============================================================================

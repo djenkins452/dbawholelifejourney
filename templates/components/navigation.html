@@ -153,12 +153,14 @@
                             </svg>
                             Prompts
                         </a>
+                        {% if features.journal.tags %}
                         <a href="{% url 'journal:tag_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                             </svg>
                             Tags
                         </a>
+                        {% endif %}
                     </div>
                 </li>
                 {% endif %}
@@ -187,6 +189,7 @@
                             </svg>
                             Faith Home
                         </a>
+                        {% if features.faith.scripture %}
                         <a href="{% url 'faith:todays_verse' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
@@ -194,6 +197,7 @@
                             Today's Verse
                         </a>
                         <hr class="nav-dropdown-divider">
+                        {% if features.faith.reading_plans %}
                         <a href="{% url 'faith:reading_plans' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5V5a2 2 0 012-2h14v14H6.5a2.5 2.5 0 00-2.5 2.5z"/>
@@ -201,6 +205,8 @@
                             </svg>
                             Reading Plans
                         </a>
+                        {% endif %}
+                        {% if features.faith.study_tools %}
                         <a href="{% url 'faith:study_tools' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -208,6 +214,7 @@
                             </svg>
                             Study Tools
                         </a>
+                        {% endif %}
                         <hr class="nav-dropdown-divider">
                         <a href="{% url 'faith:scripture_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -215,24 +222,31 @@
                             </svg>
                             Saved Scripture
                         </a>
+                        {% endif %}
+                        {% if features.faith.prayers %}
                         <a href="{% url 'faith:prayer_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"/>
                             </svg>
                             Prayers
                         </a>
+                        {% endif %}
+                        {% if features.faith.milestones %}
                         <a href="{% url 'faith:milestone_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                             </svg>
                             Milestones
                         </a>
+                        {% endif %}
+                        {% if features.faith.reflections %}
                         <a href="{% url 'faith:reflections' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                             </svg>
                             Reflections
                         </a>
+                        {% endif %}
                     </div>
                 </li>
                 {% endif %}
@@ -260,13 +274,14 @@
                             <div class="nav-mega-column">
                                 <div class="nav-mega-heading">Vitals</div>
                                 <a href="{% url 'health:home' %}" class="nav-dropdown-item">Health Home</a>
-                                <a href="{% url 'health:weight_list' %}" class="nav-dropdown-item">Weight</a>
-                                <a href="{% url 'health:heartrate_list' %}" class="nav-dropdown-item">Heart Rate</a>
-                                <a href="{% url 'health:blood_pressure_list' %}" class="nav-dropdown-item">Blood Pressure</a>
-                                <a href="{% url 'health:glucose_dashboard' %}" class="nav-dropdown-item">Glucose</a>
-                                <a href="{% url 'health:blood_oxygen_list' %}" class="nav-dropdown-item">Blood Oxygen</a>
+                                {% if features.health.weight %}<a href="{% url 'health:weight_list' %}" class="nav-dropdown-item">Weight</a>{% endif %}
+                                {% if features.health.heart_rate %}<a href="{% url 'health:heartrate_list' %}" class="nav-dropdown-item">Heart Rate</a>{% endif %}
+                                {% if features.health.heart_rate %}<a href="{% url 'health:blood_pressure_list' %}" class="nav-dropdown-item">Blood Pressure</a>{% endif %}
+                                {% if features.health.glucose %}<a href="{% url 'health:glucose_dashboard' %}" class="nav-dropdown-item">Glucose</a>{% endif %}
+                                {% if features.health.heart_rate %}<a href="{% url 'health:blood_oxygen_list' %}" class="nav-dropdown-item">Blood Oxygen</a>{% endif %}
                             </div>
                             <!-- Medicine Column -->
+                            {% if features.health.medicine %}
                             <div class="nav-mega-column">
                                 <div class="nav-mega-heading">Medicine</div>
                                 <a href="{% url 'health:medicine_home' %}" class="nav-dropdown-item">Today's Medicines</a>
@@ -274,7 +289,9 @@
                                 <a href="{% url 'health:medicine_history' %}" class="nav-dropdown-item">History</a>
                                 <a href="{% url 'health:medicine_adherence' %}" class="nav-dropdown-item">Adherence</a>
                             </div>
+                            {% endif %}
                             <!-- Fitness Column -->
+                            {% if features.health.workouts %}
                             <div class="nav-mega-column">
                                 <div class="nav-mega-heading">Fitness</div>
                                 <a href="{% url 'health:fitness_home' %}" class="nav-dropdown-item">Fitness Home</a>
@@ -283,15 +300,18 @@
                                 <a href="{% url 'health:template_list' %}" class="nav-dropdown-item">Templates</a>
                                 <a href="{% url 'health:personal_records' %}" class="nav-dropdown-item">Personal Records</a>
                             </div>
+                            {% endif %}
                             <!-- Nutrition Column -->
+                            {% if features.health.nutrition %}
                             <div class="nav-mega-column">
                                 <div class="nav-mega-heading">Nutrition</div>
                                 <a href="{% url 'health:nutrition_home' %}" class="nav-dropdown-item">Nutrition Home</a>
                                 <a href="{% url 'health:food_history' %}" class="nav-dropdown-item">Food History</a>
                                 <a href="{% url 'health:nutrition_stats' %}" class="nav-dropdown-item">Statistics</a>
                                 <a href="{% url 'health:nutrition_goals' %}" class="nav-dropdown-item">Goals</a>
-                                <a href="{% url 'health:fasting_list' %}" class="nav-dropdown-item">Fasting</a>
+                                {% if features.health.fasting %}<a href="{% url 'health:fasting_list' %}" class="nav-dropdown-item">Fasting</a>{% endif %}
                             </div>
+                            {% endif %}
                             <!-- Providers Column -->
                             <div class="nav-mega-column">
                                 <div class="nav-mega-heading">Providers</div>
@@ -329,6 +349,7 @@
                                     </svg>
                                     Organize Home
                                 </a>
+                                {% if features.organize.calendar %}
                                 <a href="{% url 'life:calendar' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -338,44 +359,56 @@
                                     </svg>
                                     Calendar
                                 </a>
+                                {% endif %}
+                                {% if features.organize.projects %}
                                 <a href="{% url 'life:project_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
                                     </svg>
                                     Projects
                                 </a>
+                                {% endif %}
+                                {% if features.organize.tasks %}
                                 <a href="{% url 'life:task_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
                                     </svg>
                                     Tasks
                                 </a>
+                                {% endif %}
                             </div>
                             <div class="nav-mega-column">
+                                {% if features.organize.inventory %}
                                 <a href="{% url 'life:inventory_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                                     </svg>
                                     Inventory
                                 </a>
+                                {% endif %}
+                                {% if features.organize.pets %}
                                 <a href="{% url 'life:pet_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M10 5.172C10 3.782 8.423 2.679 6.5 3c-2.823.47-4.113 6.006-4 7 .08.703 1.725 1.722 3.656 1 1.261-.472 1.96-1.45 2.344-2.5M14 5.172c0-1.39 1.577-2.493 3.5-2.172 2.823.47 4.113 6.006 4 7-.08.703-1.725 1.722-3.656 1-1.261-.472-1.855-1.45-2.344-2.5M8 14v.5M16 14v.5M11.25 16.25h1.5L12 17l-.75-.75zM4.42 11.247A13.152 13.152 0 004 14.556C4 18.728 7.582 21 12 21s8-2.272 8-6.444c0-1.061-.162-2.2-.493-3.309m-9.243-6.082A8.801 8.801 0 0112 5c.78 0 1.5.108 2.161.306"/>
                                     </svg>
                                     Pets
                                 </a>
+                                {% endif %}
+                                {% if features.organize.recipes %}
                                 <a href="{% url 'life:recipe_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M15 11h.01M11 15h.01M16 16h.01M2 16l20 6-6-20A20 20 0 002 16M5.71 17.11a17.04 17.04 0 0111.4-11.4"/>
                                     </svg>
                                     Recipes
                                 </a>
+                                {% endif %}
                                 <a href="{% url 'life:maintenance_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
                                     </svg>
                                     Maintenance
                                 </a>
+                                {% if features.organize.documents %}
                                 <a href="{% url 'life:document_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -383,12 +416,15 @@
                                     </svg>
                                     Documents
                                 </a>
+                                {% endif %}
+                                {% if features.organize.significant_events %}
                                 <a href="{% url 'life:significant_event_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
                                     Significant Events
                                 </a>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -422,6 +458,7 @@
                             Goals Home
                         </a>
                         <hr class="nav-dropdown-divider">
+                        {% if features.goals.annual_direction %}
                         <a href="{% url 'purpose:direction_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
@@ -429,6 +466,8 @@
                             </svg>
                             Yearly Focus
                         </a>
+                        {% endif %}
+                        {% if features.goals.goals %}
                         <a href="{% url 'purpose:goal_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
@@ -444,18 +483,23 @@
                             </svg>
                             Habit Goals
                         </a>
+                        {% endif %}
+                        {% if features.goals.intentions %}
                         <a href="{% url 'purpose:intention_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
                             </svg>
                             Intentions
                         </a>
+                        {% endif %}
+                        {% if features.goals.reflections %}
                         <a href="{% url 'purpose:reflection_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                             </svg>
                             Reflections
                         </a>
+                        {% endif %}
                     </div>
                 </li>
                 {% endif %}

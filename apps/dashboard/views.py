@@ -97,6 +97,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["life_enabled"] = prefs.life_enabled
             context["purpose_enabled"] = prefs.purpose_enabled
 
+            # AI Profile nudge - shown when AI is enabled but profile is empty/short
+            context["show_ai_profile_nudge"] = self._should_show_ai_profile_nudge(prefs)
+
             return context
         except Exception as e:
             logger.error(f"Dashboard error for user {self.request.user.email}: {e}", exc_info=True)
@@ -849,7 +852,36 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 })
 
         return nudges[:2]  # Max 2 nudges
-    
+
+    def _should_show_ai_profile_nudge(self, prefs):
+        """
+        Determine if the AI profile setup nudge should be shown.
+
+        Shows the nudge when:
+        - AI is enabled
+        - Profile is empty or very short (<50 chars)
+        - User hasn't permanently dismissed it
+        - Snooze period has passed (if snoozed)
+        """
+        # Only show if AI is enabled
+        if not prefs.ai_enabled:
+            return False
+
+        # Don't show if profile is already filled out (more than 50 characters)
+        if prefs.ai_profile and len(prefs.ai_profile.strip()) >= 50:
+            return False
+
+        # Don't show if user has permanently dismissed
+        if prefs.ai_profile_nudge_dismissed:
+            return False
+
+        # Check if snoozed
+        if prefs.ai_profile_nudge_snoozed_until:
+            if timezone.now() < prefs.ai_profile_nudge_snoozed_until:
+                return False
+
+        return True
+
     def _get_quick_stats(self, user_data):
         """Get quick stats for the header."""
         return {

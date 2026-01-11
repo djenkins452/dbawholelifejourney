@@ -274,7 +274,180 @@ class UserPreferences(models.Model):
         default=False,
         help_text="Enable Habits module for building and tracking daily habits",
     )
-    
+
+    # ===================
+    # SUB-FEATURE TOGGLES
+    # ===================
+    # These JSON fields allow users to enable/disable specific features within each module.
+    # All features default to True (enabled). The structure is {"feature_key": True/False}
+
+    # Health sub-features: weight, fasting, medicine, workouts, nutrition, heart_rate, glucose
+    health_features = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Sub-feature toggles for Health module",
+    )
+
+    # Organize (Life) sub-features: tasks, calendar, projects, inventory, pets, recipes, documents, significant_events
+    organize_features = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Sub-feature toggles for Organize module",
+    )
+
+    # Goals (Purpose) sub-features: goals, annual_direction, intentions, reflections
+    goals_features = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Sub-feature toggles for Goals module",
+    )
+
+    # Faith sub-features: prayers, scripture, memory_verses, devotionals
+    faith_features = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Sub-feature toggles for Faith module",
+    )
+
+    # Journal sub-features: mood_tracking, tags, ai_reflections
+    journal_features = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Sub-feature toggles for Journal module",
+    )
+
+    # Sub-feature defaults and metadata
+    # These define what features exist and their default states
+    HEALTH_FEATURES = {
+        'weight': {'label': 'Weight Tracking', 'default': True, 'icon': '⚖️'},
+        'fasting': {'label': 'Fasting', 'default': True, 'icon': '🍽️'},
+        'medicine': {'label': 'Medicine Tracker', 'default': True, 'icon': '💊'},
+        'workouts': {'label': 'Workouts', 'default': True, 'icon': '🏋️'},
+        'nutrition': {'label': 'Nutrition & Food', 'default': True, 'icon': '🥗'},
+        'heart_rate': {'label': 'Heart Rate', 'default': True, 'icon': '❤️'},
+        'glucose': {'label': 'Glucose', 'default': True, 'icon': '🩸'},
+    }
+
+    ORGANIZE_FEATURES = {
+        'tasks': {'label': 'Tasks', 'default': True, 'icon': '✅'},
+        'calendar': {'label': 'Calendar & Events', 'default': True, 'icon': '📅'},
+        'projects': {'label': 'Projects', 'default': True, 'icon': '📁'},
+        'inventory': {'label': 'Home Inventory', 'default': True, 'icon': '📦'},
+        'pets': {'label': 'Pets', 'default': True, 'icon': '🐾'},
+        'recipes': {'label': 'Recipes', 'default': True, 'icon': '🍳'},
+        'documents': {'label': 'Documents', 'default': True, 'icon': '📄'},
+        'significant_events': {'label': 'Significant Events', 'default': True, 'icon': '🎂'},
+    }
+
+    GOALS_FEATURES = {
+        'goals': {'label': 'Goals', 'default': True, 'icon': '🎯'},
+        'annual_direction': {'label': 'Annual Direction', 'default': True, 'icon': '🧭'},
+        'intentions': {'label': 'Intentions', 'default': True, 'icon': '💭'},
+        'reflections': {'label': 'Reflections', 'default': True, 'icon': '🪞'},
+    }
+
+    FAITH_FEATURES = {
+        'prayers': {'label': 'Prayer List', 'default': True, 'icon': '🙏'},
+        'scripture': {'label': 'Scripture Reading', 'default': True, 'icon': '📖'},
+        'memory_verses': {'label': 'Memory Verses', 'default': True, 'icon': '💬'},
+        'devotionals': {'label': 'Devotionals', 'default': True, 'icon': '✝️'},
+    }
+
+    JOURNAL_FEATURES = {
+        'mood_tracking': {'label': 'Mood Tracking', 'default': True, 'icon': '😊'},
+        'tags': {'label': 'Tags & Categories', 'default': True, 'icon': '🏷️'},
+        'ai_reflections': {'label': 'AI Reflections', 'default': True, 'icon': '🤖'},
+    }
+
+    def is_feature_enabled(self, module: str, feature: str) -> bool:
+        """
+        Check if a specific sub-feature is enabled.
+
+        Args:
+            module: One of 'health', 'organize', 'goals', 'faith', 'journal'
+            feature: The feature key (e.g., 'weight', 'medicine', 'tasks')
+
+        Returns:
+            True if the feature is enabled (defaults to True if not explicitly set)
+        """
+        # First check if the parent module is enabled
+        module_enabled_map = {
+            'health': self.health_enabled,
+            'organize': self.life_enabled,
+            'goals': self.purpose_enabled,
+            'faith': self.faith_enabled,
+            'journal': self.journal_enabled,
+        }
+
+        if not module_enabled_map.get(module, True):
+            return False
+
+        # Get the features dict and defaults for this module
+        features_map = {
+            'health': (self.health_features, self.HEALTH_FEATURES),
+            'organize': (self.organize_features, self.ORGANIZE_FEATURES),
+            'goals': (self.goals_features, self.GOALS_FEATURES),
+            'faith': (self.faith_features, self.FAITH_FEATURES),
+            'journal': (self.journal_features, self.JOURNAL_FEATURES),
+        }
+
+        features_dict, defaults = features_map.get(module, ({}, {}))
+        if not features_dict:
+            features_dict = {}
+
+        # Check if feature exists in defaults
+        if feature not in defaults:
+            return True  # Unknown features default to enabled
+
+        # Return the user's setting, or the default if not set
+        return features_dict.get(feature, defaults[feature]['default'])
+
+    def get_enabled_features(self, module: str) -> list:
+        """
+        Get a list of enabled feature keys for a module.
+
+        Args:
+            module: One of 'health', 'organize', 'goals', 'faith', 'journal'
+
+        Returns:
+            List of enabled feature keys
+        """
+        features_map = {
+            'health': self.HEALTH_FEATURES,
+            'organize': self.ORGANIZE_FEATURES,
+            'goals': self.GOALS_FEATURES,
+            'faith': self.FAITH_FEATURES,
+            'journal': self.JOURNAL_FEATURES,
+        }
+
+        defaults = features_map.get(module, {})
+        return [key for key in defaults.keys() if self.is_feature_enabled(module, key)]
+
+    def set_feature_enabled(self, module: str, feature: str, enabled: bool):
+        """
+        Enable or disable a specific sub-feature.
+
+        Args:
+            module: One of 'health', 'organize', 'goals', 'faith', 'journal'
+            feature: The feature key
+            enabled: True to enable, False to disable
+        """
+        features_attr_map = {
+            'health': 'health_features',
+            'organize': 'organize_features',
+            'goals': 'goals_features',
+            'faith': 'faith_features',
+            'journal': 'journal_features',
+        }
+
+        attr_name = features_attr_map.get(module)
+        if not attr_name:
+            return
+
+        features_dict = getattr(self, attr_name) or {}
+        features_dict[feature] = enabled
+        setattr(self, attr_name, features_dict)
+
     # AI Features
     ai_enabled = models.BooleanField(
         default=False,
@@ -305,6 +478,17 @@ class UserPreferences(models.Model):
         default='',
         max_length=2000,
         help_text='Personal details for AI personalization (age, family, interests, goals, health conditions, etc.)',
+    )
+
+    # AI Profile nudge settings - track when user has dismissed the profile reminder
+    ai_profile_nudge_dismissed = models.BooleanField(
+        default=False,
+        help_text="User has permanently dismissed the AI profile setup nudge",
+    )
+    ai_profile_nudge_snoozed_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="If set, hide the AI profile nudge until this datetime (for 'remind me later')",
     )
 
     # ===================

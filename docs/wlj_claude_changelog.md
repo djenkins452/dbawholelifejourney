@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (Preferences Page Accordion Redesign)
+# Last Updated: 2026-01-11 (Sub-Feature Toggles)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,123 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-11 Changes
+
+### Sub-Feature Toggles (Customize Features)
+
+**Feature Request:** Users should be able to enable/disable specific features within each module (e.g., turn off Medicine tracking in Health module while keeping Weight tracking). All features default to ON (opt-out model). Disabled features are hidden from navigation/dashboard but data is never deleted.
+
+**Implementation:**
+
+1. **Model Changes** (`apps/users/models.py`):
+   - Added 5 JSONField columns for sub-feature storage:
+     - `health_features` - Weight, Fasting, Medicine, Workouts, Nutrition, Heart Rate, Glucose
+     - `organize_features` - Tasks, Calendar, Projects, Inventory, Pets, Recipes, Documents, Significant Events
+     - `goals_features` - Goals, Annual Direction, Intentions, Reflections
+     - `faith_features` - Prayers, Scripture, Reading Plans, Study Tools, Milestones, Reflections
+     - `journal_features` - Mood Tracking, Tags, AI Reflections
+   - Added feature metadata constants (HEALTH_FEATURES, ORGANIZE_FEATURES, etc.) with labels, icons, defaults
+   - Added helper methods:
+     - `is_feature_enabled(module, feature)` - Check if feature enabled (respects parent module)
+     - `get_enabled_features(module)` - List of enabled feature keys
+     - `set_feature_enabled(module, feature, enabled)` - Update feature setting
+   - Migration: `0032_sub_feature_toggles.py`
+
+2. **API Endpoints** (`apps/users/views.py`, `apps/users/urls.py`):
+   - `SubFeatureToggleView` - POST `/user/api/sub-feature-toggle/`
+     - Toggle individual feature: `{module, feature, enabled}`
+   - `SubFeaturesBulkView` - GET/POST `/user/api/sub-features/`
+     - GET: Returns all feature states
+     - POST: Bulk update features
+
+3. **Context Processor** (`apps/core/context_processors.py`):
+   - Added `features` dict to theme_context with all module feature states
+   - Available in templates as `features.health.weight`, `features.organize.tasks`, etc.
+
+4. **Preferences UI** (`templates/users/preferences.html`):
+   - Added "Customize Features" accordion section with nested accordions per module
+   - Feature toggles displayed in responsive grid with icons and labels
+   - Real-time API calls on checkbox change (no page reload needed)
+   - Badge shows "All enabled", "All disabled", or "X/Y enabled"
+   - CSS: `.feature-toggles-grid`, `.feature-toggle-item`, `.feature-toggle-label`
+   - JS: `initFeatureToggles()`, `handleFeatureToggle()`, `updateFeatureCount()`
+
+5. **Navigation Updates** (`templates/components/navigation.html`):
+   - Health menu: Vitals items conditional on weight/heart_rate/glucose; Medicine/Fitness/Nutrition columns conditional
+   - Organize menu: Calendar, Projects, Tasks, Inventory, Pets, Recipes, Documents, Significant Events conditional
+   - Goals menu: Annual Direction, Goals/Habit Goals, Intentions, Reflections conditional
+   - Faith menu: Scripture-related items, Prayers, Milestones, Reflections conditional
+   - Journal menu: Tags conditional
+
+**Design Decisions:**
+- Opt-out model: All features enabled by default
+- Data preservation: Disabling a feature hides it, never deletes data
+- Parent module respect: Sub-features auto-disabled if parent module disabled
+- Real-time updates: No form submission needed for toggles
+- UI naming: "Life" displays as "Organize", "Purpose" as "Goals" (apps.py verbose_name)
+
+**Files Modified:**
+- `apps/users/models.py` - Added 5 JSON fields, constants, helper methods
+- `apps/users/migrations/0032_sub_feature_toggles.py` - New migration
+- `apps/users/views.py` - Added 2 API views, updated PreferencesView
+- `apps/users/urls.py` - Added 2 URL routes
+- `apps/core/context_processors.py` - Added features dict to theme_context
+- `templates/users/preferences.html` - Added Customize Features section with CSS/JS
+- `templates/components/navigation.html` - Added conditional feature checks
+
+---
+
+### AI Profile Setup Nudge & Guided Builder
+
+**Feature Request:** Users should be reminded to complete their AI Profile for a personalized experience. The nudge should offer help building the profile through guided questions, with options to dismiss or snooze.
+
+**Implementation:**
+
+1. **Model Changes** (`apps/users/models.py`):
+   - Added `ai_profile_nudge_dismissed` (BooleanField) - permanent dismissal flag
+   - Added `ai_profile_nudge_snoozed_until` (DateTimeField) - snooze until datetime
+   - Migration: `0031_ai_profile_nudge_settings.py`
+
+2. **Dashboard Logic** (`apps/dashboard/views.py`):
+   - Added `_should_show_ai_profile_nudge()` method
+   - Shows nudge when: AI enabled, profile empty/short (<50 chars), not dismissed, snooze expired
+   - Added `show_ai_profile_nudge` to context
+
+3. **API Endpoints** (`apps/users/views.py`, `apps/users/urls.py`):
+   - `AIProfileNudgeActionView` - POST `/user/api/ai-profile-nudge/`
+     - Actions: dismiss (permanent), snooze (3 days), snooze_week (7 days)
+   - `AIProfileBuilderView` - POST `/user/api/ai-profile-builder/`
+     - Accepts structured answers, generates natural-language profile
+
+4. **Dashboard UI** (`templates/dashboard/home.html`):
+   - Nudge card with prominent styling (gradient background, accent border)
+   - Three options: "Help Me Set It Up", "I'll Do It Myself", "Don't Show Again"
+   - Close button snoozes for 3 days (respects user intent without permanent dismissal)
+
+5. **Profile Builder Modal** (6-step wizard):
+   - Step 1: About You (birth year, life stage)
+   - Step 2: Family (relationship status, spouse/children info)
+   - Step 3: Faith (importance, details)
+   - Step 4: Work & Career (type, details)
+   - Step 5: Health Focus (multi-select checkboxes)
+   - Step 6: Communication & Goals (style, goals, other)
+   - All fields optional - users can skip any they prefer not to answer
+   - Generates coherent natural-language profile from answers
+
+**Industry Standards Applied:**
+- Progressive disclosure (collapsed by default after initial nudge)
+- Respect user choice (snooze vs permanent dismiss)
+- Low friction (guided wizard as alternative to manual entry)
+- Maximum 50 chars threshold for "empty" profile
+
+**Files Modified:**
+- `apps/users/models.py` - Added 2 new fields
+- `apps/users/migrations/0031_ai_profile_nudge_settings.py` - New migration
+- `apps/dashboard/views.py` - Added nudge logic
+- `apps/users/views.py` - Added 2 API views
+- `apps/users/urls.py` - Added 2 URL routes
+- `templates/dashboard/home.html` - Added nudge card, modal, JS, CSS
+
+---
 
 ### Preferences Page Accordion Redesign
 

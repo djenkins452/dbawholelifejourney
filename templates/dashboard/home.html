@@ -74,6 +74,38 @@
     </section>
     {% endif %}
 
+    <!-- AI Profile Setup Nudge -->
+    {% if show_ai_profile_nudge %}
+    <section class="ai-profile-nudge-section" id="ai-profile-nudge">
+        <div class="ai-profile-nudge-card">
+            <div class="nudge-header">
+                <span class="nudge-icon">🤖</span>
+                <div class="nudge-title-area">
+                    <h3>Personalize Your AI Experience</h3>
+                    <p>Help the AI understand you better for more relevant insights and coaching.</p>
+                </div>
+                <button type="button" class="nudge-close" onclick="handleProfileNudgeAction('snooze')" title="Remind me later">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="nudge-actions">
+                <button type="button" class="btn btn-primary" onclick="openProfileBuilder()">
+                    Help Me Set It Up
+                </button>
+                <a href="{% url 'users:preferences' %}#ai-profile" class="btn btn-secondary">
+                    I'll Do It Myself
+                </a>
+                <button type="button" class="btn btn-link" onclick="handleProfileNudgeAction('dismiss')">
+                    Don't Show Again
+                </button>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
     {% if ai_enabled and ai_insights %}
     <!-- AI Insight Card (Main Focus) -->
     <section class="ai-insight-hero">
@@ -1313,6 +1345,646 @@ button.quick-action-card {
 
     // Update every second
     setInterval(updateTimer, 1000);
+})();
+</script>
+{% endif %}
+
+{% if show_ai_profile_nudge %}
+<!-- AI Profile Builder Modal -->
+<dialog id="profile-builder-modal" class="profile-builder-modal">
+    <div class="profile-builder-content">
+        <div class="profile-builder-header">
+            <h2>Let's Build Your Profile</h2>
+            <button type="button" class="modal-close" onclick="closeProfileBuilder()">&times;</button>
+        </div>
+
+        <div class="profile-builder-body">
+            <p class="intro-text">Answer a few questions to help personalize your AI experience. Skip any you'd prefer not to answer.</p>
+
+            <!-- Step 1: Life Stage -->
+            <div class="builder-step" data-step="1">
+                <h3>About You</h3>
+
+                <div class="form-group">
+                    <label>What year were you born? (optional)</label>
+                    <input type="number" id="pb-birth-year" class="form-input" min="1920" max="2020" placeholder="e.g., 1971">
+                </div>
+
+                <div class="form-group">
+                    <label>What best describes your current life stage?</label>
+                    <select id="pb-life-stage" class="form-select">
+                        <option value="">Select...</option>
+                        <option value="student">Student</option>
+                        <option value="young_professional">Young Professional</option>
+                        <option value="mid_career">Mid-Career</option>
+                        <option value="parent_young_kids">Parent with Young Children</option>
+                        <option value="parent_teens">Parent with Teenagers</option>
+                        <option value="empty_nester">Empty Nester</option>
+                        <option value="retired">Retired</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Step 2: Family -->
+            <div class="builder-step" data-step="2">
+                <h3>Family</h3>
+
+                <div class="form-group">
+                    <label>Relationship Status</label>
+                    <select id="pb-family-status" class="form-select">
+                        <option value="">Prefer not to say</option>
+                        <option value="single">Single</option>
+                        <option value="dating">In a Relationship</option>
+                        <option value="married">Married</option>
+                        <option value="divorced">Divorced</option>
+                        <option value="widowed">Widowed</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Tell us about your spouse/partner (optional)</label>
+                    <input type="text" id="pb-spouse-info" class="form-input" placeholder="e.g., Married since 1997 to my best friend">
+                </div>
+
+                <div class="form-group">
+                    <label>Children (optional)</label>
+                    <input type="text" id="pb-children-info" class="form-input" placeholder="e.g., One daughter (born 2002), now married">
+                </div>
+            </div>
+
+            <!-- Step 3: Faith -->
+            <div class="builder-step" data-step="3">
+                <h3>Faith</h3>
+
+                <div class="form-group">
+                    <label>How important is faith in your life?</label>
+                    <select id="pb-faith-importance" class="form-select">
+                        <option value="">Prefer not to say</option>
+                        <option value="central">Central to everything I do</option>
+                        <option value="important">Important to me</option>
+                        <option value="exploring">I'm exploring my faith</option>
+                        <option value="private">It's private</option>
+                        <option value="not_applicable">Not applicable</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Anything else about your faith journey? (optional)</label>
+                    <input type="text" id="pb-faith-details" class="form-input" placeholder="e.g., My spouse has a strong heart for God">
+                </div>
+            </div>
+
+            <!-- Step 4: Work -->
+            <div class="builder-step" data-step="4">
+                <h3>Work & Career</h3>
+
+                <div class="form-group">
+                    <label>What type of work do you do?</label>
+                    <select id="pb-work-life" class="form-select">
+                        <option value="">Prefer not to say</option>
+                        <option value="professional">Professional/Corporate</option>
+                        <option value="entrepreneur">Entrepreneur/Business Owner</option>
+                        <option value="creative">Creative/Arts</option>
+                        <option value="service">Service Industry</option>
+                        <option value="healthcare">Healthcare</option>
+                        <option value="education">Education</option>
+                        <option value="stay_at_home">Stay-at-Home Parent/Caregiver</option>
+                        <option value="retired">Retired</option>
+                        <option value="student">Student</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Tell us more about your work (optional)</label>
+                    <textarea id="pb-job-details" class="form-textarea" rows="2" placeholder="e.g., Director of Payroll at UT Medical Center. My biggest stress is paying people accurately and on time."></textarea>
+                </div>
+            </div>
+
+            <!-- Step 5: Health -->
+            <div class="builder-step" data-step="5">
+                <h3>Health Focus</h3>
+
+                <div class="form-group">
+                    <label>What health areas are you focused on? (select all that apply)</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="health_focus" value="weight"> Weight Management
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="health_focus" value="fitness"> Physical Fitness
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="health_focus" value="nutrition"> Nutrition
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="health_focus" value="sleep"> Better Sleep
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="health_focus" value="stress"> Stress Management
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="health_focus" value="chronic"> Managing a Condition
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="health_focus" value="mental"> Mental Wellness
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="health_focus" value="energy"> More Energy
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 6: Communication & Goals -->
+            <div class="builder-step" data-step="6">
+                <h3>Communication & Goals</h3>
+
+                <div class="form-group">
+                    <label>How do you prefer to receive feedback?</label>
+                    <select id="pb-communication-style" class="form-select">
+                        <option value="">No preference</option>
+                        <option value="direct">Direct and honest</option>
+                        <option value="encouraging">Encouraging and supportive</option>
+                        <option value="analytical">Data-driven and analytical</option>
+                        <option value="gentle">Gentle and nurturing</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>What are your current goals or priorities? (optional)</label>
+                    <textarea id="pb-goals" class="form-textarea" rows="2" placeholder="e.g., Lose 20 lbs, build Whole Life Journey, be a servant leader"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Anything else you'd like the AI to know? (optional)</label>
+                    <textarea id="pb-other" class="form-textarea" rows="2" placeholder="Hobbies, interests, challenges, dreams..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-builder-footer">
+            <div class="step-indicator">
+                <span class="step-dot active"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+                <span class="step-dot"></span>
+            </div>
+            <div class="builder-actions">
+                <button type="button" class="btn btn-secondary" id="pb-prev-btn" onclick="prevBuilderStep()" disabled>Back</button>
+                <button type="button" class="btn btn-primary" id="pb-next-btn" onclick="nextBuilderStep()">Next</button>
+                <button type="button" class="btn btn-primary" id="pb-submit-btn" onclick="submitProfile()" style="display: none;">Create My Profile</button>
+            </div>
+        </div>
+    </div>
+</dialog>
+
+<style>
+/* AI Profile Nudge Card */
+.ai-profile-nudge-section {
+    margin-bottom: 1.5rem;
+}
+
+.ai-profile-nudge-card {
+    background: linear-gradient(135deg, var(--color-accent-light, #e0f2fe) 0%, var(--color-surface) 100%);
+    border: 1px solid var(--color-accent, #0ea5e9);
+    border-radius: 12px;
+    padding: 1.25rem;
+}
+
+.nudge-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.nudge-header .nudge-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.nudge-title-area {
+    flex: 1;
+}
+
+.nudge-title-area h3 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.nudge-title-area p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+}
+
+.nudge-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    color: var(--color-text-secondary);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.nudge-close:hover {
+    opacity: 1;
+}
+
+.nudge-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.nudge-actions .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+.nudge-actions .btn-link {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.nudge-actions .btn-link:hover {
+    color: var(--color-text);
+}
+
+/* Profile Builder Modal */
+.profile-builder-modal {
+    border: none;
+    border-radius: 16px;
+    padding: 0;
+    max-width: 540px;
+    width: 95%;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.profile-builder-modal::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.profile-builder-content {
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+}
+
+.profile-builder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.profile-builder-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    padding: 0.25rem 0.5rem;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: var(--color-text);
+}
+
+.profile-builder-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.intro-text {
+    color: var(--color-text-secondary);
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+}
+
+.builder-step {
+    display: none;
+}
+
+.builder-step.active {
+    display: block;
+}
+
+.builder-step h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    color: var(--color-accent);
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-light, rgba(14, 165, 233, 0.2));
+}
+
+.checkbox-group {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: normal;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.profile-builder-footer {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.step-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.step-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-border);
+    transition: background 0.2s;
+}
+
+.step-dot.active {
+    background: var(--color-accent);
+}
+
+.step-dot.completed {
+    background: var(--color-success, #22c55e);
+}
+
+.builder-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.builder-actions .btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+}
+
+@media (max-width: 480px) {
+    .checkbox-group {
+        grid-template-columns: 1fr;
+    }
+
+    .nudge-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .nudge-actions .btn {
+        text-align: center;
+    }
+}
+</style>
+
+<script>
+(function() {
+    'use strict';
+
+    let modal, currentStep = 1;
+    const totalSteps = 6;
+
+    function initProfileBuilder() {
+        modal = document.getElementById('profile-builder-modal');
+    }
+
+    window.openProfileBuilder = function() {
+        initProfileBuilder();
+        if (!modal) return;
+
+        currentStep = 1;
+        updateStepDisplay();
+        modal.showModal();
+    };
+
+    window.closeProfileBuilder = function() {
+        if (modal) modal.close();
+    };
+
+    function updateStepDisplay() {
+        // Hide all steps, show current
+        document.querySelectorAll('.builder-step').forEach((step, idx) => {
+            step.classList.toggle('active', idx + 1 === currentStep);
+        });
+
+        // Update step dots
+        document.querySelectorAll('.step-dot').forEach((dot, idx) => {
+            dot.classList.remove('active', 'completed');
+            if (idx + 1 === currentStep) {
+                dot.classList.add('active');
+            } else if (idx + 1 < currentStep) {
+                dot.classList.add('completed');
+            }
+        });
+
+        // Update buttons
+        const prevBtn = document.getElementById('pb-prev-btn');
+        const nextBtn = document.getElementById('pb-next-btn');
+        const submitBtn = document.getElementById('pb-submit-btn');
+
+        prevBtn.disabled = currentStep === 1;
+
+        if (currentStep === totalSteps) {
+            nextBtn.style.display = 'none';
+            submitBtn.style.display = 'block';
+        } else {
+            nextBtn.style.display = 'block';
+            submitBtn.style.display = 'none';
+        }
+    }
+
+    window.nextBuilderStep = function() {
+        if (currentStep < totalSteps) {
+            currentStep++;
+            updateStepDisplay();
+        }
+    };
+
+    window.prevBuilderStep = function() {
+        if (currentStep > 1) {
+            currentStep--;
+            updateStepDisplay();
+        }
+    };
+
+    window.submitProfile = async function() {
+        const submitBtn = document.getElementById('pb-submit-btn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creating...';
+
+        // Gather all answers
+        const answers = {
+            birth_year: document.getElementById('pb-birth-year')?.value || '',
+            life_stage: document.getElementById('pb-life-stage')?.value || '',
+            family_status: document.getElementById('pb-family-status')?.value || '',
+            spouse_info: document.getElementById('pb-spouse-info')?.value || '',
+            children_info: document.getElementById('pb-children-info')?.value || '',
+            faith_importance: document.getElementById('pb-faith-importance')?.value || '',
+            faith_details: document.getElementById('pb-faith-details')?.value || '',
+            work_life: document.getElementById('pb-work-life')?.value || '',
+            job_details: document.getElementById('pb-job-details')?.value || '',
+            health_focus: Array.from(document.querySelectorAll('input[name="health_focus"]:checked')).map(cb => cb.value),
+            communication_style: document.getElementById('pb-communication-style')?.value || '',
+            goals: document.getElementById('pb-goals')?.value || '',
+            other: document.getElementById('pb-other')?.value || ''
+        };
+
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+            const response = await fetch('{% url "users:ai_profile_builder" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ answers })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Close modal and hide nudge
+                closeProfileBuilder();
+                const nudgeSection = document.getElementById('ai-profile-nudge');
+                if (nudgeSection) {
+                    nudgeSection.style.display = 'none';
+                }
+
+                // Show success message
+                alert('Your AI profile has been created! The AI will now provide more personalized insights.');
+
+                // Optionally reload to show updated insights
+                // window.location.reload();
+            } else {
+                throw new Error(data.error || 'Failed to create profile');
+            }
+        } catch (err) {
+            console.error('Profile builder error:', err);
+            alert('Something went wrong. Please try again or fill out the profile manually in Settings.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Create My Profile';
+        }
+    };
+
+    window.handleProfileNudgeAction = async function(action) {
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+            const response = await fetch('{% url "users:ai_profile_nudge" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ action })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Hide the nudge card
+                const nudgeSection = document.getElementById('ai-profile-nudge');
+                if (nudgeSection) {
+                    nudgeSection.style.opacity = '0';
+                    nudgeSection.style.transform = 'translateY(-10px)';
+                    nudgeSection.style.transition = 'opacity 0.3s, transform 0.3s';
+                    setTimeout(() => {
+                        nudgeSection.style.display = 'none';
+                    }, 300);
+                }
+            }
+        } catch (err) {
+            console.error('Nudge action error:', err);
+        }
+    };
+
+    // Close modal on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal && modal.open) {
+            closeProfileBuilder();
+        }
+    });
+
+    // Close on backdrop click
+    document.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeProfileBuilder();
+        }
+    });
 })();
 </script>
 {% endif %}

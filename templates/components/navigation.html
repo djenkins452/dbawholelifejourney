@@ -147,12 +147,14 @@
                             Book View
                         </a>
                         <hr class="nav-dropdown-divider">
+                        {% if features.journal.prompts %}
                         <a href="{% url 'journal:prompt_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
                             </svg>
                             Prompts
                         </a>
+                        {% endif %}
                         {% if features.journal.tags %}
                         <a href="{% url 'journal:tag_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -276,9 +278,10 @@
                                 <a href="{% url 'health:home' %}" class="nav-dropdown-item">Health Home</a>
                                 {% if features.health.weight %}<a href="{% url 'health:weight_list' %}" class="nav-dropdown-item">Weight</a>{% endif %}
                                 {% if features.health.heart_rate %}<a href="{% url 'health:heartrate_list' %}" class="nav-dropdown-item">Heart Rate</a>{% endif %}
-                                {% if features.health.heart_rate %}<a href="{% url 'health:blood_pressure_list' %}" class="nav-dropdown-item">Blood Pressure</a>{% endif %}
+                                {% if features.health.blood_pressure %}<a href="{% url 'health:blood_pressure_list' %}" class="nav-dropdown-item">Blood Pressure</a>{% endif %}
                                 {% if features.health.glucose %}<a href="{% url 'health:glucose_dashboard' %}" class="nav-dropdown-item">Glucose</a>{% endif %}
-                                {% if features.health.heart_rate %}<a href="{% url 'health:blood_oxygen_list' %}" class="nav-dropdown-item">Blood Oxygen</a>{% endif %}
+                                {% if features.health.blood_oxygen %}<a href="{% url 'health:blood_oxygen_list' %}" class="nav-dropdown-item">Blood Oxygen</a>{% endif %}
+                                {% if features.health.sleep %}<a href="{% url 'health:sleep_list' %}" class="nav-dropdown-item">Sleep</a>{% endif %}
                             </div>
                             <!-- Medicine Column -->
                             {% if features.health.medicine %}
@@ -295,7 +298,7 @@
                             <div class="nav-mega-column">
                                 <div class="nav-mega-heading">Fitness</div>
                                 <a href="{% url 'health:fitness_home' %}" class="nav-dropdown-item">Fitness Home</a>
-                                <a href="{% url 'health:steps_list' %}" class="nav-dropdown-item">Steps</a>
+                                {% if features.health.steps %}<a href="{% url 'health:steps_list' %}" class="nav-dropdown-item">Steps</a>{% endif %}
                                 <a href="{% url 'health:workout_list' %}" class="nav-dropdown-item">Workouts</a>
                                 <a href="{% url 'health:template_list' %}" class="nav-dropdown-item">Templates</a>
                                 <a href="{% url 'health:personal_records' %}" class="nav-dropdown-item">Personal Records</a>
@@ -313,10 +316,12 @@
                             </div>
                             {% endif %}
                             <!-- Providers Column -->
+                            {% if features.health.providers %}
                             <div class="nav-mega-column">
                                 <div class="nav-mega-heading">Providers</div>
                                 <a href="{% url 'health:provider_list' %}" class="nav-dropdown-item">Medical Providers</a>
                             </div>
+                            {% endif %}
                         </div>
                     </div>
                 </li>
@@ -402,12 +407,14 @@
                                     Recipes
                                 </a>
                                 {% endif %}
+                                {% if features.organize.maintenance %}
                                 <a href="{% url 'life:maintenance_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
                                     </svg>
                                     Maintenance
                                 </a>
+                                {% endif %}
                                 {% if features.organize.documents %}
                                 <a href="{% url 'life:document_list' %}" class="nav-dropdown-item">
                                     <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -474,6 +481,8 @@
                             </svg>
                             Life Goals
                         </a>
+                        {% endif %}
+                        {% if features.goals.habit_goals %}
                         <a href="{% url 'purpose:habit_goal_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <rect x="3" y="3" width="7" height="7" rx="1"/>

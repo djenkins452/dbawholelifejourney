@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
+### Task Creation Debugging for Feature Requests
+
+**Issue:** Emails were being sent for feature requests but tasks were not being created in the Admin Console.
+
+**Diagnosis:** Added detailed step-by-step logging to identify the exact failure point.
+
+**Changes:**
+1. Added comprehensive logging at each step of task creation:
+   - Project lookup/creation
+   - Phase 1 lookup/fallback
+   - Task object creation
+   - Task save operation
+2. Fixed Phase 1 lookup to use `.filter().first()` instead of `.get()` for robustness
+3. Added fallback to use any existing phase if Phase 1 not found
+4. Added fallback to create Phase 1 if no phases exist
+
+**Files Changed:**
+- `apps/ai/feature_request_service.py` - Enhanced logging and robust phase lookup
+
+**Monitoring:** After deployment, logs will reveal exactly where task creation is failing.
+
+---
+
 ### Feature Request Review: Health Data Export (Task #236)
 
 **Request:** User requested ability to export blood glucose numbers for the last week.

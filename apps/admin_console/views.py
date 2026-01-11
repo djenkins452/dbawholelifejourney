@@ -2949,9 +2949,9 @@ class ReadyTasksAPIView(View):
         # 3. Task Priority (highest first = lowest number)
         # 4. Create Date (oldest first)
         # 5. Task ID (tie-breaker)
+        # Note: No project status filter - task status is what matters
         tasks = list(AdminTask.objects.filter(
             status='ready',
-            project__status='open'  # Only from active/open projects
         ).select_related(
             'phase', 'project'
         ).order_by(

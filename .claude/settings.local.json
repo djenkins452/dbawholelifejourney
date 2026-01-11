@@ -183,7 +183,10 @@
       "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/235/status/\")",
       "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/236/status/\")",
       "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/tasks/236/status/\")",
-      "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=5\")"
+      "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=5\")",
+      "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/tasks/236/\")",
+      "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/ready-tasks/\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nRemove project status filter from ready-tasks API\n\nThe ready-tasks API was filtering for project__status=''open'', which\nexcluded tasks from projects like \"New Requests\" that may not have\nan open status. Since the task''s own status \\(''ready''\\) is what matters\nfor the API, removed the project status filter.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

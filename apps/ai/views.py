@@ -170,6 +170,7 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
         try:
             data = json.loads(request.body)
             message = data.get('message', '').strip()
+            page_context = data.get('page_context', {})
 
             if not message:
                 return JsonResponse({
@@ -185,7 +186,7 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
 
             assistant = self.get_assistant()
             conversation = assistant.get_or_create_conversation()
-            result = assistant.send_message(message, conversation)
+            result = assistant.send_message(message, conversation, page_context=page_context)
 
             # Handle both old string response and new dict response
             if isinstance(result, dict):

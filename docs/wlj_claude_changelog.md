@@ -16,6 +16,69 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-10 Changes
 
+### Context-Aware Assistant Responses
+
+**Request:** User wanted the assistant to know what page they are on so it can provide context-aware feedback.
+
+**Changes:**
+
+1. **AssistantChatView** (`apps/ai/views.py`):
+   - Now accepts `page_context` from request body (url, module, page_title)
+   - Passes page context through to PersonalAssistant.send_message()
+
+2. **PersonalAssistant.send_message()** (`apps/ai/personal_assistant.py`):
+   - Updated signature to accept `page_context` parameter
+   - Passes page context to `_generate_response()`
+
+3. **PersonalAssistant._generate_response()** (`apps/ai/personal_assistant.py`):
+   - Updated to accept `page_context` parameter
+   - Adds PAGE CONTEXT section to AI system prompt when context is provided
+   - Provides guidance to AI on how to use page context (Faith, Health, Journal, etc.)
+
+4. **Chat Widget Frontend** (`templates/components/chat_widget.html`):
+   - Added `getPageContext()` function to extract URL, module, and page title
+   - Module detection for Faith, Health, Journal, Life, Purpose, Assistant, Dashboard
+   - Page title extraction from h1, .page-title, or document.title
+   - Sends page_context with every chat message
+
+**Result:** When users open the assistant drawer while on a specific page (e.g., Faith), the assistant now knows the context and can provide more relevant, contextual help.
+
+**Files Changed:**
+- `apps/ai/views.py` - Accept page_context in chat API
+- `apps/ai/personal_assistant.py` - Pass and use page_context in AI prompts
+- `templates/components/chat_widget.html` - Send page context with messages
+
+---
+
+### Drawer Persistence Across Page Navigation
+
+**Request:** User wanted the assistant drawer to stay open when navigating between pages.
+
+**Changes:**
+- Added localStorage persistence for drawer open state
+- Drawer automatically reopens on page load if it was previously open
+- State cleared when going to full `/assistant/` page or manually closing
+
+**Files Changed:**
+- `templates/components/chat_widget.html` - localStorage persistence logic
+
+---
+
+### Sync on Focus for Chat
+
+**Request:** User wanted chat to sync between drawer and /assistant/ page.
+
+**Changes:**
+- Added `visibilitychange` event listener to both interfaces
+- When user switches tabs/windows and returns, chat history refreshes
+- Only updates DOM if message count changed (avoids flicker)
+
+**Files Changed:**
+- `templates/components/chat_widget.html` - Visibility change sync
+- `templates/ai/assistant_dashboard.html` - Visibility change sync
+
+---
+
 ### Unified Assistant Experience - Slide-out Drawer
 
 **Request:** User wanted a unified assistant experience where:

@@ -1434,7 +1434,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         """Get or create today's conversation."""
         return AssistantConversation.get_or_create_active(self.user)
 
-    def send_message(self, message: str, conversation: AssistantConversation = None) -> dict:
+    def send_message(self, message: str, conversation: AssistantConversation = None, page_context: dict = None) -> dict:
         """
         Send a message to the assistant and get a response.
 
@@ -1451,6 +1451,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         Args:
             message: User's message
             conversation: Optional conversation to add to
+            page_context: Optional dict with 'url', 'module', 'page_title' for context-aware responses
 
         Returns:
             Dict with 'response' (str) and optionally 'actions_taken' (list of dicts)
@@ -1540,7 +1541,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         response = " ".join(response_parts)
                 else:
                     # No action intent - generate normal chat response
-                    response = self._generate_response(message, conversation)
+                    response = self._generate_response(message, conversation, page_context=page_context)
 
                     # Check for feature requests ("I wish", "I want") and notify admin
                     # This captures user needs that the system doesn't currently handle
@@ -1693,12 +1694,17 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
         return True
 
-    def _generate_response(self, message: str, conversation: AssistantConversation) -> str:
+    def _generate_response(self, message: str, conversation: AssistantConversation, page_context: dict = None) -> str:
         """Generate AI response to user message using coaching style and time awareness.
 
         Now integrates with the personal data query system to inject relevant
         personal data context (weight, journal, medication, food, mood) when
         users ask about their data.
+
+        Args:
+            message: User's message
+            conversation: The conversation object
+            page_context: Optional dict with 'url', 'module', 'page_title' for context-aware responses
         """
         # Get conversation history
         history = conversation.messages.order_by('-created_at')[:10]
@@ -1721,6 +1727,32 @@ CURRENT USER STATE (focus on what REMAINS):
 - Journal streak: {state.get('journal', {}).get('streak', 0)} days
 - Active prayers: {state.get('faith', {}).get('active_prayers', 0)}
 - Time remaining in day: ~{time_context['hours_remaining']} hours until bedtime
+"""
+
+        # Add page context if provided - helps assistant give context-aware responses
+        if page_context:
+            page_url = page_context.get('url', '')
+            page_module = page_context.get('module', '')
+            page_title = page_context.get('page_title', '')
+
+            context_parts = []
+            if page_title:
+                context_parts.append(f"Page: {page_title}")
+            if page_module:
+                context_parts.append(f"Module: {page_module}")
+            if page_url:
+                context_parts.append(f"URL: {page_url}")
+
+            if context_parts:
+                system_prompt += f"""
+PAGE CONTEXT (where the user is currently viewing):
+{chr(10).join('- ' + p for p in context_parts)}
+
+Use this context to provide relevant, contextual help. For example:
+- If they're on the Faith page, they may be asking about prayers or spiritual matters
+- If they're on the Health page, they may be asking about workouts, weight, or medicine
+- If they're on the Journal page, they may want to reflect or write
+- Reference features or actions available on the current page when helpful
 """
 
         if state.get('ai_assessment'):

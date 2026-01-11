@@ -484,6 +484,40 @@
     // Storage key for persisting drawer state
     const DRAWER_STATE_KEY = 'wlj_assistant_drawer_open';
 
+    // Get current page context for context-aware responses
+    function getPageContext() {
+        const url = window.location.pathname;
+
+        // Determine module from URL path
+        let module = '';
+        if (url.startsWith('/faith/')) module = 'Faith';
+        else if (url.startsWith('/health/')) module = 'Health';
+        else if (url.startsWith('/journal/')) module = 'Journal';
+        else if (url.startsWith('/life/')) module = 'Life';
+        else if (url.startsWith('/purpose/')) module = 'Purpose';
+        else if (url.startsWith('/assistant/')) module = 'Assistant';
+        else if (url.startsWith('/dashboard/')) module = 'Dashboard';
+        else if (url === '/') module = 'Dashboard';
+
+        // Get page title - try to find a meaningful title
+        let pageTitle = '';
+
+        // Try to get the main heading or the document title
+        const mainHeading = document.querySelector('h1, .page-title, .content-header h2');
+        if (mainHeading && mainHeading.textContent) {
+            pageTitle = mainHeading.textContent.trim();
+        } else {
+            // Fall back to document title, remove site name suffix if present
+            pageTitle = document.title.replace(/\s*[-|]\s*Whole Life Journey.*$/i, '').trim();
+        }
+
+        return {
+            url: url,
+            module: module,
+            page_title: pageTitle
+        };
+    }
+
     // Get CSRF token
     function getCsrfToken() {
         return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
@@ -659,13 +693,19 @@
         showTyping();
 
         try {
+            // Include page context for context-aware responses
+            const pageContext = getPageContext();
+
             const response = await fetch('/assistant/api/chat/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCsrfToken()
                 },
-                body: JSON.stringify({ message })
+                body: JSON.stringify({
+                    message: message,
+                    page_context: pageContext
+                })
             });
 
             hideTyping();

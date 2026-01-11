@@ -4,7 +4,7 @@
 # Description: Management command to load initial system data (one-time loads)
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-01-01
-# Last Updated: 2026-01-03 (Consolidated all data loaders from Procfile)
+# Last Updated: 2026-01-11 (Added migration dependency fix for stale migration)
 # ==============================================================================
 """
 Management command to load all initial/system data.
@@ -206,6 +206,46 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.WARNING(f'  Could not update DataLoadConfig: {e}'))
 
+    def _fix_stale_migration_records(self, verbosity=1):
+        """
+        Fix stale/broken migration records in django_migrations table.
+
+        This fixes migration dependency issues where a migration file in production
+        references a parent migration that no longer exists. This can happen when:
+        - A migration was created with wrong dependencies during development
+        - Code was deployed from a branch with divergent migration history
+        - Migration files were deleted/renamed but records remain in DB
+
+        The fix removes stale records so Django can properly rebuild the migration graph.
+        """
+        with connection.cursor() as cursor:
+            if connection.vendor != 'postgresql':
+                return  # Only needed for production PostgreSQL
+
+            # Fix: core.0012_feature_request_detection_release_note depends on
+            # core.0011_add_sms_models which never existed. The correct migration is
+            # core.0038_feature_request_detection_release_note.
+            stale_migrations = [
+                ('core', '0012_feature_request_detection_release_note'),
+                ('core', '0011_add_sms_models'),
+            ]
+
+            for app, name in stale_migrations:
+                cursor.execute(
+                    "SELECT id FROM django_migrations WHERE app = %s AND name = %s",
+                    [app, name]
+                )
+                row = cursor.fetchone()
+                if row:
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Removing stale migration record: {app}.{name}')
+                    cursor.execute(
+                        "DELETE FROM django_migrations WHERE app = %s AND name = %s",
+                        [app, name]
+                    )
+                    if verbosity >= 1:
+                        self.stdout.write(self.style.SUCCESS(' FIXED!'))
+
     def _fix_finance_budget_status(self, verbosity=1):
         """
         Fix missing status column in finance_budget table.
@@ -302,6 +342,14 @@ class Command(BaseCommand):
 
         if force and verbosity >= 1:
             self.stdout.write(self.style.WARNING('Force mode: reloading all data...\n'))
+
+        # Fix stale migration records FIRST (before any other DB operations)
+        # This fixes NodeNotFoundError for migrations with broken dependencies
+        try:
+            self._fix_stale_migration_records(verbosity)
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.WARNING(f'stale migration fix error: {e}'))
 
         # Fix finance_budget status column (Railway workaround) - always runs silently
         try:

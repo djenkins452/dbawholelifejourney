@@ -1059,6 +1059,8 @@
             chatLoading.style.display = 'none';
 
             if (data.success && data.messages && data.messages.length > 0) {
+                // Clear any existing content (loading spinner, empty state) before adding messages
+                chatMessages.innerHTML = '';
                 data.messages.forEach(msg => {
                     addChatMessage(msg.content, msg.role === 'user', false);
                 });

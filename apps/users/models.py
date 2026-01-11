@@ -320,12 +320,17 @@ class UserPreferences(models.Model):
     # These define what features exist and their default states
     HEALTH_FEATURES = {
         'weight': {'label': 'Weight Tracking', 'default': True, 'icon': '⚖️'},
-        'fasting': {'label': 'Fasting', 'default': True, 'icon': '🍽️'},
-        'medicine': {'label': 'Medicine Tracker', 'default': True, 'icon': '💊'},
-        'workouts': {'label': 'Workouts', 'default': True, 'icon': '🏋️'},
-        'nutrition': {'label': 'Nutrition & Food', 'default': True, 'icon': '🥗'},
         'heart_rate': {'label': 'Heart Rate', 'default': True, 'icon': '❤️'},
+        'blood_pressure': {'label': 'Blood Pressure', 'default': True, 'icon': '🩺'},
+        'blood_oxygen': {'label': 'Blood Oxygen', 'default': True, 'icon': '💨'},
         'glucose': {'label': 'Glucose', 'default': True, 'icon': '🩸'},
+        'medicine': {'label': 'Medicine Tracker', 'default': True, 'icon': '💊'},
+        'workouts': {'label': 'Workouts & Fitness', 'default': True, 'icon': '🏋️'},
+        'steps': {'label': 'Steps Tracking', 'default': True, 'icon': '👟'},
+        'nutrition': {'label': 'Nutrition & Food', 'default': True, 'icon': '🥗'},
+        'fasting': {'label': 'Fasting', 'default': True, 'icon': '🍽️'},
+        'sleep': {'label': 'Sleep Tracking', 'default': True, 'icon': '😴'},
+        'providers': {'label': 'Medical Providers', 'default': True, 'icon': '🏥'},
     }
 
     ORGANIZE_FEATURES = {
@@ -335,25 +340,32 @@ class UserPreferences(models.Model):
         'inventory': {'label': 'Home Inventory', 'default': True, 'icon': '📦'},
         'pets': {'label': 'Pets', 'default': True, 'icon': '🐾'},
         'recipes': {'label': 'Recipes', 'default': True, 'icon': '🍳'},
+        'maintenance': {'label': 'Home Maintenance', 'default': True, 'icon': '🔧'},
         'documents': {'label': 'Documents', 'default': True, 'icon': '📄'},
         'significant_events': {'label': 'Significant Events', 'default': True, 'icon': '🎂'},
     }
 
     GOALS_FEATURES = {
-        'goals': {'label': 'Goals', 'default': True, 'icon': '🎯'},
-        'annual_direction': {'label': 'Annual Direction', 'default': True, 'icon': '🧭'},
+        'goals': {'label': 'Life Goals', 'default': True, 'icon': '🎯'},
+        'habit_goals': {'label': 'Habit Goals', 'default': True, 'icon': '🔁'},
+        'annual_direction': {'label': 'Yearly Focus', 'default': True, 'icon': '🧭'},
         'intentions': {'label': 'Intentions', 'default': True, 'icon': '💭'},
-        'reflections': {'label': 'Reflections', 'default': True, 'icon': '🪞'},
+        'reflections': {'label': 'Goal Reflections', 'default': True, 'icon': '🪞'},
     }
 
     FAITH_FEATURES = {
-        'prayers': {'label': 'Prayer List', 'default': True, 'icon': '🙏'},
         'scripture': {'label': 'Scripture Reading', 'default': True, 'icon': '📖'},
+        'reading_plans': {'label': 'Reading Plans', 'default': True, 'icon': '📚'},
+        'study_tools': {'label': 'Study Tools', 'default': True, 'icon': '✏️'},
+        'prayers': {'label': 'Prayer List', 'default': True, 'icon': '🙏'},
+        'milestones': {'label': 'Faith Milestones', 'default': True, 'icon': '🏆'},
+        'reflections': {'label': 'Faith Reflections', 'default': True, 'icon': '🪞'},
         'memory_verses': {'label': 'Memory Verses', 'default': True, 'icon': '💬'},
         'devotionals': {'label': 'Devotionals', 'default': True, 'icon': '✝️'},
     }
 
     JOURNAL_FEATURES = {
+        'prompts': {'label': 'Writing Prompts', 'default': True, 'icon': '💡'},
         'mood_tracking': {'label': 'Mood Tracking', 'default': True, 'icon': '😊'},
         'tags': {'label': 'Tags & Categories', 'default': True, 'icon': '🏷️'},
         'ai_reflections': {'label': 'AI Reflections', 'default': True, 'icon': '🤖'},

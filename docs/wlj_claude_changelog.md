@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (Sub-Feature Toggles)
+# Last Updated: 2026-01-11 (Comprehensive Sub-Feature Toggles)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,42 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-11 Changes
+
+### Comprehensive Sub-Feature Toggles Update
+
+**Issue:** Initial sub-feature toggle implementation was missing several features that exist in the navigation (Blood Pressure, Blood Oxygen, Sleep, Steps, Providers, Reading Plans, Study Tools, Milestones, Maintenance, Habit Goals, Prompts).
+
+**Fix:** Expanded all FEATURES constants to include every toggleable sub-feature:
+
+1. **HEALTH_FEATURES** (12 features):
+   - weight, heart_rate, blood_pressure, blood_oxygen, glucose
+   - medicine, workouts, steps, nutrition, fasting, sleep, providers
+
+2. **FAITH_FEATURES** (8 features):
+   - scripture, reading_plans, study_tools, prayers
+   - milestones, reflections, memory_verses, devotionals
+
+3. **ORGANIZE_FEATURES** (9 features):
+   - tasks, calendar, projects, inventory, pets
+   - recipes, maintenance, documents, significant_events
+
+4. **GOALS_FEATURES** (5 features):
+   - goals, habit_goals, annual_direction, intentions, reflections
+
+5. **JOURNAL_FEATURES** (4 features):
+   - prompts, mood_tracking, tags, ai_reflections
+
+**Navigation Updates** (`templates/components/navigation.html`):
+- Fixed Health menu to use proper feature keys (blood_pressure, blood_oxygen, sleep, steps, providers)
+- Added maintenance conditional to Organize menu
+- Added prompts conditional to Journal menu
+- Added habit_goals conditional to Goals menu
+
+**Files Modified:**
+- `apps/users/models.py` - Expanded FEATURES constants
+- `templates/components/navigation.html` - Added feature conditionals
+
+---
 
 ### Sub-Feature Toggles (Customize Features)
 

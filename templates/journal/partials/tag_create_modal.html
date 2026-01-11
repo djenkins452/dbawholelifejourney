@@ -1,0 +1,233 @@
+{% comment %}
+Tag Creation Modal (HTMX partial)
+
+Displays a modal dialog for creating a new tag inline while editing a journal entry.
+Loaded via HTMX into the entry form page.
+{% endcomment %}
+
+<dialog id="tag-create-modal" class="tag-modal" open>
+    <div class="tag-modal-content">
+        <header class="tag-modal-header">
+            <h2>Create New Tag</h2>
+            <button type="button" class="tag-modal-close" onclick="document.getElementById('tag-create-modal').remove();" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </header>
+
+        <form
+            hx-post="{% url 'journal:htmx_tag_create' %}"
+            hx-target="#tag-selector-container"
+            hx-swap="innerHTML"
+            class="tag-modal-body"
+        >
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="modal_tag_name" class="form-label">Tag Name</label>
+                <input
+                    type="text"
+                    name="name"
+                    id="modal_tag_name"
+                    class="form-input"
+                    value="{{ form.name.value|default:'' }}"
+                    placeholder="e.g., Work, Family, Goals"
+                    required
+                    maxlength="50"
+                    autofocus
+                >
+                {% if form.name.errors %}
+                    <p class="form-error">{{ form.name.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="modal_tag_color" class="form-label">Tag Color</label>
+                <div class="color-picker-wrapper">
+                    <input
+                        type="color"
+                        name="color"
+                        id="modal_tag_color"
+                        class="form-color"
+                        value="{{ form.color.value|default:'#6366f1' }}"
+                    >
+                    <span class="color-preview">
+                        <span class="tag-preview" id="modalTagPreview">Preview</span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="tag-modal-actions">
+                <button type="submit" class="btn btn-primary">Create Tag</button>
+                <button type="button" class="btn btn-ghost" onclick="document.getElementById('tag-create-modal').remove();">Cancel</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<script>
+(function() {
+    const modal = document.getElementById('tag-create-modal');
+    const colorInput = document.getElementById('modal_tag_color');
+    const nameInput = document.getElementById('modal_tag_name');
+    const tagPreview = document.getElementById('modalTagPreview');
+
+    // Close modal when clicking backdrop
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && document.getElementById('tag-create-modal')) {
+            modal.remove();
+        }
+    });
+
+    // Update preview
+    function updatePreview() {
+        const color = colorInput.value;
+        tagPreview.style.borderLeftColor = color;
+        tagPreview.style.backgroundColor = color + '20';
+        tagPreview.style.color = color;
+        tagPreview.textContent = nameInput.value || 'Preview';
+    }
+
+    colorInput.addEventListener('input', updatePreview);
+    nameInput.addEventListener('input', updatePreview);
+    updatePreview();
+
+    // Focus the name input
+    nameInput.focus();
+})();
+</script>
+
+<style>
+.tag-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    z-index: 1000;
+}
+
+.tag-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.tag-modal[open] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tag-modal-content {
+    width: 100%;
+    max-width: 400px;
+    margin: 1rem;
+    background: var(--color-background, #ffffff);
+    border-radius: var(--radius-lg, 0.5rem);
+    box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
+    overflow: hidden;
+}
+
+.tag-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+    background: var(--color-surface, #f3f4f6);
+}
+
+.tag-modal-header h2 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-text, #374151);
+}
+
+.tag-modal-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-full, 50%);
+    background: transparent;
+    color: var(--color-text-muted, #6b7280);
+    cursor: pointer;
+    transition: all var(--transition-fast, 150ms ease);
+}
+
+.tag-modal-close:hover {
+    background: var(--color-border, #e5e7eb);
+    color: var(--color-text, #374151);
+}
+
+.tag-modal-close svg {
+    width: 18px;
+    height: 18px;
+}
+
+.tag-modal-body {
+    padding: 1.5rem;
+}
+
+.tag-modal-body .form-group {
+    margin-bottom: 1rem;
+}
+
+.tag-modal-body .color-picker-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.tag-modal-body .form-color {
+    width: 60px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    background: transparent;
+}
+
+.tag-modal-body .form-color::-webkit-color-swatch-wrapper {
+    padding: 4px;
+}
+
+.tag-modal-body .form-color::-webkit-color-swatch {
+    border: none;
+    border-radius: var(--radius-sm);
+}
+
+.tag-modal-body .tag-preview {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    background: var(--color-surface);
+    border-left: 3px solid var(--color-accent);
+}
+
+.tag-modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border, #e5e7eb);
+}
+</style>

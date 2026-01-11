@@ -138,30 +138,42 @@
             </div>
         </div>
         
-        {% if form.fields.tags.queryset.exists %}
         <div class="form-group">
             <label class="form-label">Tags (optional)</label>
-            <div class="tag-selector">
-                {% for tag in form.fields.tags.queryset %}
-                    <label class="tag-option">
-                        <input 
-                            type="checkbox" 
-                            name="tags" 
-                            value="{{ tag.pk }}"
-                            {% if tag.pk in form.tags.value %}checked{% endif %}
-                        >
-                        <span class="tag-button" style="--tag-color: {{ tag.color }}">{{ tag.name }}</span>
-                    </label>
-                {% endfor %}
+            <div id="tag-selector-container">
+                {% if form.fields.tags.queryset.exists %}
+                <div class="tag-selector">
+                    {% for tag in form.fields.tags.queryset %}
+                        <label class="tag-option">
+                            <input
+                                type="checkbox"
+                                name="tags"
+                                value="{{ tag.pk }}"
+                                {% if tag.pk in form.tags.value %}checked{% endif %}
+                            >
+                            <span class="tag-button" style="--tag-color: {{ tag.color }}">{{ tag.name }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+                <button
+                    type="button"
+                    class="text-sm create-tag-btn"
+                    hx-get="{% url 'journal:htmx_tag_create' %}"
+                    hx-target="body"
+                    hx-swap="beforeend"
+                >+ Create new tag</button>
+                {% else %}
+                <p class="text-muted text-sm">No tags created yet.</p>
+                <button
+                    type="button"
+                    class="text-sm create-tag-btn"
+                    hx-get="{% url 'journal:htmx_tag_create' %}"
+                    hx-target="body"
+                    hx-swap="beforeend"
+                >Create a tag</button>
+                {% endif %}
             </div>
-            <a href="{% url 'journal:tag_create' %}" class="text-sm">+ Create new tag</a>
         </div>
-        {% else %}
-        <div class="form-group">
-            <label class="form-label">Tags (optional)</label>
-            <p class="text-muted text-sm">No tags created yet. <a href="{% url 'journal:tag_create' %}">Create a tag</a></p>
-        </div>
-        {% endif %}
         
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">
@@ -293,6 +305,22 @@
 
 .tag-button {
     border-left: 3px solid var(--tag-color, var(--color-border));
+}
+
+.create-tag-btn {
+    display: inline-block;
+    margin-top: var(--space-2);
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--color-accent);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    text-decoration: none;
+}
+
+.create-tag-btn:hover {
+    text-decoration: underline;
 }
 
 .form-actions {

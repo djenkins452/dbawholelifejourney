@@ -1,0 +1,48 @@
+{% comment %}
+Tag Selector Partial (HTMX response)
+
+Displays the list of tags as checkboxes for the journal entry form.
+Returned after creating a new tag to update the selector in place.
+{% endcomment %}
+
+{% if tags %}
+<div class="tag-selector">
+    {% for tag in tags %}
+        <label class="tag-option">
+            <input
+                type="checkbox"
+                name="tags"
+                value="{{ tag.pk }}"
+                {% if tag.pk == new_tag_id %}checked{% endif %}
+            >
+            <span class="tag-button" style="--tag-color: {{ tag.color }}">{{ tag.name }}</span>
+        </label>
+    {% endfor %}
+</div>
+<button
+    type="button"
+    class="text-sm create-tag-btn"
+    hx-get="{% url 'journal:htmx_tag_create' %}"
+    hx-target="body"
+    hx-swap="beforeend"
+>+ Create new tag</button>
+{% else %}
+<p class="text-muted text-sm">No tags created yet.</p>
+<button
+    type="button"
+    class="text-sm create-tag-btn"
+    hx-get="{% url 'journal:htmx_tag_create' %}"
+    hx-target="body"
+    hx-swap="beforeend"
+>Create a tag</button>
+{% endif %}
+
+<script>
+// Close the modal after successful tag creation
+(function() {
+    const modal = document.getElementById('tag-create-modal');
+    if (modal) {
+        modal.remove();
+    }
+})();
+</script>

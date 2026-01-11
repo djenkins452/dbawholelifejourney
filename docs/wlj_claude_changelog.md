@@ -16,6 +16,41 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-11 Changes
 
+### HTMX Modal for Tag Creation During Journal Entry
+
+**Issue:** When typing a journal entry and clicking "+ Create new tag", the browser navigated away to `/journal/tags/create/`. After creating the tag, it redirected to the tag list page - not back to the entry form. This caused users to lose any unsaved journal entry content they had typed.
+
+**Solution:** Implemented an HTMX-powered modal for inline tag creation. The modal opens as an overlay without leaving the page, and after creating a tag, the tag selector is updated in place with the new tag pre-selected.
+
+**Changes:**
+1. **New HTMX View** - `apps/journal/views.py`: Added `HTMXTagCreateModalView` class that:
+   - Returns the modal form on GET requests
+   - Processes tag creation on POST and returns updated tag selector partial
+
+2. **New URL** - `apps/journal/urls.py`: Added `htmx/tag-create/` endpoint
+
+3. **New Template Partials** - `templates/journal/partials/`:
+   - `tag_create_modal.html`: Modal dialog with tag name/color form, HTMX-enabled
+   - `tag_selector.html`: Tag checkbox list partial, returned after successful tag creation
+
+4. **Updated Entry Form** - `templates/journal/entry_form.html`:
+   - Wrapped tag selector in `#tag-selector-container` div for HTMX targeting
+   - Changed "+ Create new tag" link to button with HTMX attributes
+   - Added `.create-tag-btn` styling to make button look like a link
+
+**Files Modified:**
+- `apps/journal/views.py` (added HTMXTagCreateModalView, added render import)
+- `apps/journal/urls.py` (added htmx_tag_create URL)
+- `templates/journal/entry_form.html` (HTMX button, container div, CSS)
+
+**Files Created:**
+- `templates/journal/partials/tag_create_modal.html`
+- `templates/journal/partials/tag_selector.html`
+
+**User Experience:** Users can now create tags while typing a journal entry without losing their work. The modal appears as an overlay, and after creating a tag, it's automatically selected in the entry form.
+
+---
+
 ### Debug Logging for CI 500 Errors
 
 **Issue:** CI tests failing with 500 errors for `/admin-console/` path. The ERROR logs show the 500 handler being called but no actual exception traceback, making it impossible to diagnose the root cause.

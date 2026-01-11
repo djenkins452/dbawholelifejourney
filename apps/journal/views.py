@@ -40,7 +40,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import models
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -626,6 +626,39 @@ class HTMXMoodSelectView(LoginRequiredMixin, TemplateView):
         context["mood_choices"] = JournalEntry.MOOD_CHOICES
         context["selected_mood"] = self.request.GET.get("current", "")
         return context
+
+
+class HTMXTagCreateModalView(LoginRequiredMixin, View):
+    """
+    HTMX endpoint for tag creation modal.
+    Returns the modal form on GET, processes tag creation on POST.
+    """
+
+    def get(self, request):
+        form = TagForm()
+        return render(request, "journal/partials/tag_create_modal.html", {"form": form})
+
+    def post(self, request):
+        form = TagForm(request.POST)
+        if form.is_valid():
+            tag = form.save(commit=False)
+            tag.user = request.user
+            tag.save()
+            # Return updated tag selector to swap into the form
+            tags = Tag.objects.filter(user=request.user)
+            return render(
+                request,
+                "journal/partials/tag_selector.html",
+                {"tags": tags, "new_tag_id": tag.pk},
+            )
+        # Return form with errors
+        return render(
+            request,
+            "journal/partials/tag_create_modal.html",
+            {"form": form},
+            status=422,
+        )
+
 
 # =============================================================================
 # JOURNAL HOME VIEW (apps/journal/views.py)

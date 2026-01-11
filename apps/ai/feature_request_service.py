@@ -365,17 +365,17 @@ class FeatureRequestService:
                 logger.info(f"Created '{self.NEW_REQUESTS_PROJECT}' project")
 
             # Get Phase 1 for new requests (must exist - standard phase)
-            try:
-                phase = AdminProjectPhase.objects.get(phase_number=1)
-            except AdminProjectPhase.DoesNotExist:
-                # Phase 1 should always exist, but create if needed
-                phase, _ = AdminProjectPhase.objects.get_or_create(
+            phase = AdminProjectPhase.objects.filter(phase_number=1).first()
+            if not phase:
+                # Try to get any existing phase
+                phase = AdminProjectPhase.objects.first()
+            if not phase:
+                # Create Phase 1 if no phases exist at all
+                phase = AdminProjectPhase.objects.create(
                     phase_number=1,
-                    defaults={
-                        'name': 'Phase 1',
-                        'objective': 'Initial phase for new requests and tasks',
-                        'status': 'in_progress',
-                    }
+                    name='Phase 1',
+                    objective='Initial phase for new requests and tasks',
+                    status='in_progress',
                 )
                 logger.info("Created Phase 1 for feature requests")
 
@@ -405,7 +405,13 @@ class FeatureRequestService:
             return task.id
 
         except Exception as e:
-            logger.error(f"Failed to create AdminTask for feature request: {e}")
+            import traceback
+            logger.error(
+                f"Failed to create AdminTask for feature request: {e}\n"
+                f"Title: {request_info.task_title}\n"
+                f"User: {request_info.user_id}\n"
+                f"Traceback: {traceback.format_exc()}"
+            )
             return None
 
     def check_and_notify(

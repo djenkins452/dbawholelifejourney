@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-12 (AI save_verse now auto-fetches verse text)
+# Last Updated: 2026-01-12 (Exclude today's date from Coming Up sections)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,19 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-12 Changes
+
+### Exclude Today's Date from "Coming Up" Dashboard Sections
+
+**Issue:** Items scheduled for today were appearing in the "Coming Up" and "Upcoming Celebrations" sections on the dashboard. Semantically, if something is happening today, it's current, not "coming up."
+
+**Solution:** Changed the date filtering logic to exclude today's date:
+- For LifeEvent: Changed `start_date__gte=today` to `start_date__gt=today`
+- For SignificantEvent: Changed `days_until <= 30` to `0 < days_until <= 30`
+
+**Files Modified:**
+- `apps/dashboard/views.py`: Updated `_get_life_data()` method to exclude today from upcoming events
+
+---
 
 ### AI save_verse Now Auto-Fetches Verse Text from Bible API
 

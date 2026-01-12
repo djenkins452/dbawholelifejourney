@@ -30,6 +30,7 @@ Copyright:
 """
 
 import base64
+import logging
 import os
 import re
 

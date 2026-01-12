@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Hotfix: Missing logging import in middleware
+
+**Summary:** Fixed deployment crash caused by missing `import logging` statement in
+`APIRequestLoggingMiddleware` class.
+
+**Problem:** The `APIRequestLoggingMiddleware.__init__()` method used `logging.getLogger()`
+but the `logging` module was not imported at the top of the file, causing a `NameError`
+when gunicorn attempted to load the WSGI application.
+
+**Fix:** Added `import logging` to the imports section of `apps/core/middleware.py`.
+
+**Files Modified:**
+- `apps/core/middleware.py` - Added missing logging import
+
+---
+
 ### Security: API Request Logging with Anomaly Detection (CISO Review Complete)
 
 **Summary:** Implemented comprehensive API request logging infrastructure with real-time

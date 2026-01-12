@@ -24,6 +24,16 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
+def get_billing_config():
+    """
+    Get billing configuration from settings.
+
+    Returns a dict with all pricing, rewards, and threshold configuration.
+    This is the single source of truth for all billing-related values.
+    """
+    return getattr(settings, 'BILLING_CONFIG', {})
+
+
 def get_stripe():
     """Get configured Stripe client."""
     stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -499,12 +509,16 @@ class StripeService:
 
         # If referrer is Founding Member, create qualification tracking
         if referrer_profile.is_founding_member:
+            # Get qualification days from config (defaults to 90)
+            config = get_billing_config()
+            qualification_days = config.get('rewards', {}).get('referral_qualification_days', 90)
+
             ReferralQualification.objects.get_or_create(
                 referrer=referrer,
                 referred_user=user,
                 defaults={
                     'signup_date': timezone.now().date(),
-                    'qualified_date': timezone.now().date() + timedelta(days=90),
+                    'qualified_date': timezone.now().date() + timedelta(days=qualification_days),
                 }
             )
 
@@ -549,14 +563,16 @@ def determine_tier_by_age(birth_date):
     """
     Determine pricing tier based on age.
 
-    - Age <= 22: Student tier
-    - Age >= 23: Adult tier
+    Uses BILLING_CONFIG for age thresholds.
     """
     age = calculate_age(birth_date)
     if age is None:
         return BillingProfile.TIER_ADULT  # Default to adult if unknown
 
-    if age <= 22:
+    # Get age threshold from config (defaults to 22 if not set)
+    student_max_age = getattr(settings, 'BILLING_CONFIG', {}).get('student_max_age', 22)
+
+    if age <= student_max_age:
         return BillingProfile.TIER_STUDENT
     return BillingProfile.TIER_ADULT
 

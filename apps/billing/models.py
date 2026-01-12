@@ -39,6 +39,21 @@ from django.utils import timezone
 from apps.core.models import TimeStampedModel
 
 
+def get_reward_amount(reward_type):
+    """
+    Get reward amount from BILLING_CONFIG.
+
+    Args:
+        reward_type: 'referral_bonus' or 'suggestion_reward'
+
+    Returns:
+        Decimal amount (defaults to 5.00 if not configured)
+    """
+    config = getattr(settings, 'BILLING_CONFIG', {})
+    rewards = config.get('rewards', {})
+    return rewards.get(reward_type, Decimal('5.00'))
+
+
 class BillingProfile(TimeStampedModel):
     """
     User's billing profile with subscription and payment information.
@@ -355,22 +370,25 @@ class ReferralReward(TimeStampedModel):
         Process rewards for both parties after first payment.
 
         Called by webhook when invoice.paid event fires for a referred user.
+        Uses BILLING_CONFIG for reward amounts.
         """
+        referral_bonus = get_reward_amount('referral_bonus')
+
         if self.first_payment_date and not self.referrer_reward_given:
-            # Give referrer $5 credit
+            # Give referrer credit from config
             referrer_profile = self.referrer.billing_profile
             referrer_profile.add_credit(
-                Decimal('5.00'),
+                referral_bonus,
                 CreditTransaction.TYPE_REFERRAL,
                 f"Referral bonus: {self.referred_user.first_name or self.referred_user.email} subscribed"
             )
             self.referrer_reward_given = True
 
         if self.first_payment_date and not self.referred_reward_given:
-            # Give referred user $5 credit
+            # Give referred user credit from config
             referred_profile = self.referred_user.billing_profile
             referred_profile.add_credit(
-                Decimal('5.00'),
+                referral_bonus,
                 CreditTransaction.TYPE_REFERRAL,
                 "Welcome bonus: Thanks for joining via referral!"
             )
@@ -571,6 +589,13 @@ class FeatureSuggestion(TimeStampedModel):
 
     def __str__(self):
         return f"{self.user.email}: {self.suggestion_text[:50]}..."
+
+    def save(self, *args, **kwargs):
+        """Set default reward amount from config on first save."""
+        if not self.pk and self.reward_amount == Decimal('5.00'):
+            # New record - set reward from config
+            self.reward_amount = get_reward_amount('suggestion_reward')
+        super().save(*args, **kwargs)
 
     def mark_implemented(self):
         """Mark as implemented and give reward."""

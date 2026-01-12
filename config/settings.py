@@ -178,6 +178,7 @@ TEMPLATES = [
                 "apps.core.context_processors.theme_context",
                 "apps.core.context_processors.site_context",
                 "apps.core.context_processors.favorites_context",
+                "apps.billing.context_processors.billing_config",
             ],
         },
     },
@@ -848,6 +849,77 @@ STRIPE_LIVE_MODE = not DEBUG  # Use live mode in production
 DJSTRIPE_WEBHOOK_SECRET = STRIPE_WEBHOOK_SECRET
 DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'
 DJSTRIPE_USE_NATIVE_JSONFIELD = True
+
+# ==============================================================================
+# Billing Configuration (Centralized Pricing & Rewards)
+# ==============================================================================
+# All pricing, rewards, and age thresholds are defined here.
+# Templates and documentation can reference these values dynamically.
+# To change pricing, update values here - no code changes needed.
+
+from decimal import Decimal
+
+BILLING_CONFIG = {
+    # Business Entity
+    'business_name': 'Beacon Innovation LLC',
+    'product_name': 'Whole Life Journey',
+
+    # Age-based tier thresholds
+    'student_max_age': 22,  # Age 22 and under qualifies for student pricing
+    'adult_min_age': 23,    # Age 23+ requires adult pricing
+
+    # Student Tier Pricing
+    'student': {
+        'name': 'Student',
+        'description': 'For students age 22 and under',
+        'monthly_price': Decimal('4.99'),
+        'annual_price': Decimal('49.00'),
+        'annual_savings_percent': 18,  # (4.99*12 - 49) / (4.99*12) * 100
+    },
+
+    # Adult Tier Pricing
+    'adult': {
+        'name': 'Adult',
+        'description': 'For adults age 23 and over',
+        'monthly_price': Decimal('7.99'),
+        'annual_price': Decimal('79.00'),
+        'annual_savings_percent': 18,
+    },
+
+    # Founding Member Tier
+    'founding': {
+        'name': 'Founding Member',
+        'description': 'Lifetime access with quarterly referral bonuses',
+        'lifetime_price': Decimal('59.00'),
+        'quarterly_bonus_per_referral': Decimal('5.00'),
+    },
+
+    # Rewards Configuration
+    'rewards': {
+        'referral_bonus': Decimal('5.00'),           # Both referrer and referred get this
+        'suggestion_reward': Decimal('5.00'),         # For implemented feature suggestions
+        'referral_qualification_days': 90,            # Days to qualify for Founding bonus
+        'suggestions_per_month_limit': 3,             # Max suggestions per user per month
+    },
+
+    # Stripe Fee Reference (for documentation/analysis)
+    'stripe_fees': {
+        'percentage': Decimal('2.9'),
+        'flat_fee': Decimal('0.30'),
+    },
+
+    # Environment Variable Names (for documentation)
+    'env_vars': {
+        'STRIPE_PUBLIC_KEY': 'Stripe publishable key (pk_live_... or pk_test_...)',
+        'STRIPE_SECRET_KEY': 'Stripe secret key (sk_live_... or sk_test_...)',
+        'STRIPE_WEBHOOK_SECRET': 'Webhook signing secret (whsec_...)',
+        'STRIPE_PRICE_STUDENT_MONTHLY': 'Price ID for student monthly plan',
+        'STRIPE_PRICE_STUDENT_ANNUAL': 'Price ID for student annual plan',
+        'STRIPE_PRICE_ADULT_MONTHLY': 'Price ID for adult monthly plan',
+        'STRIPE_PRICE_ADULT_ANNUAL': 'Price ID for adult annual plan',
+        'STRIPE_PRICE_FOUNDING': 'Price ID for founding member lifetime',
+    },
+}
 
 
 if SENTRY_DSN and not DEBUG and SENTRY_AVAILABLE:

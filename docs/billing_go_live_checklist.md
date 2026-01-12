@@ -1,173 +1,118 @@
 # WLJ Billing System - Go Live Checklist (Phase 12)
 
-**Created:** 2026-01-12
-**Status:** Ready for implementation
-**Phases 1-11:** Complete (all code deployed, 59 tests passing)
+**Auto-generated from BILLING_CONFIG**
+**Business Entity:** Beacon Innovation LLC
+**Product:** Whole Life Journey
 
 ---
 
-## Overview
+## Pricing Configuration
 
-The billing system code is 100% complete and deployed. This document covers the remaining configuration steps to enable live payments.
+### Tier Thresholds
+- **Student Max Age:** 22 (age 22 and under)
+- **Adult Min Age:** 23 (age 23 and over)
 
-**Business Entity:** Beacon Innovation LLC (has EIN and bank account)
+### Pricing Tiers
+
+| Tier | Monthly | Annual | Savings | Description |
+|------|---------|--------|---------|-------------|
+| **Student** | $4.99 | $49.00 | 18% | For students age 22 and under |
+| **Adult** | $7.99 | $79.00 | 18% | For adults age 23 and over |
+| **Founding Member** | - | - | Lifetime | $59.00 one-time |
+
+### Revenue After Stripe Fees (2.9% + $0.30)
+
+| Plan | Price | Stripe Fee | Net Revenue | Margin |
+|------|-------|------------|-------------|--------|
+| Student Monthly | $4.99 | $0.44 | $4.55 | 91.1% |
+| Student Annual | $49.00 | $1.72 | $47.28 | 96.5% |
+| Adult Monthly | $7.99 | $0.53 | $7.46 | 93.3% |
+| Adult Annual | $79.00 | $2.59 | $76.41 | 96.7% |
+| Founding Lifetime | $59.00 | $2.01 | $56.99 | 96.6% |
 
 ---
 
-## Step 1: Create Stripe Account
+## Rewards Configuration
+
+| Reward Type | Amount | Description |
+|-------------|--------|-------------|
+| **Referral Bonus** | $5.00 | Both referrer and referred user receive this |
+| **Suggestion Reward** | $5.00 | For implemented feature suggestions |
+| **Founding Quarterly Bonus** | $5.00 | Per qualified referral (90 days) |
+
+**Limits:**
+- Suggestions per month: 3
+- Referral qualification period: 90 days
+
+---
+
+## Stripe Setup
+
+### Step 1: Create Stripe Account
 
 1. Go to https://dashboard.stripe.com/register
-2. Sign up using Beacon Innovation LLC business details
-3. Complete business verification (EIN, bank account for payouts)
-4. Note your API keys from https://dashboard.stripe.com/apikeys:
-   - Publishable key: `pk_live_...`
-   - Secret key: `sk_live_...`
+2. Sign up using **Beacon Innovation LLC** business details
+3. Complete business verification (EIN, bank account)
 
----
-
-## Step 2: Create Products and Prices in Stripe
+### Step 2: Create Products in Stripe Dashboard
 
 Go to https://dashboard.stripe.com/products and create:
 
-### Product 1: Student Subscription
-- Name: "WLJ Student"
-- Description: "Whole Life Journey subscription for students (age 22 and under)"
-- **Price 1 (Monthly):** $3.99/month, recurring
-  - Copy Price ID → `STRIPE_PRICE_STUDENT_MONTHLY`
-- **Price 2 (Annual):** $39.00/year, recurring
-  - Copy Price ID → `STRIPE_PRICE_STUDENT_ANNUAL`
+#### Product 1: Student Subscription
+- **Monthly Price:** $4.99/month → copy ID to `STRIPE_PRICE_STUDENT_MONTHLY`
+- **Annual Price:** $49.00/year → copy ID to `STRIPE_PRICE_STUDENT_ANNUAL`
 
-### Product 2: Adult Subscription
-- Name: "WLJ Adult"
-- Description: "Whole Life Journey subscription for adults (age 23+)"
-- **Price 1 (Monthly):** $7.99/month, recurring
-  - Copy Price ID → `STRIPE_PRICE_ADULT_MONTHLY`
-- **Price 2 (Annual):** $79.00/year, recurring
-  - Copy Price ID → `STRIPE_PRICE_ADULT_ANNUAL`
+#### Product 2: Adult Subscription
+- **Monthly Price:** $7.99/month → copy ID to `STRIPE_PRICE_ADULT_MONTHLY`
+- **Annual Price:** $79.00/year → copy ID to `STRIPE_PRICE_ADULT_ANNUAL`
 
-### Product 3: Founding Member
-- Name: "WLJ Founding Member"
-- Description: "Lifetime access with quarterly referral bonuses"
-- **Price:** $59.00 one-time
-  - Copy Price ID → `STRIPE_PRICE_FOUNDING`
+#### Product 3: Founding Member
+- **Lifetime Price:** $59.00 one-time → copy ID to `STRIPE_PRICE_FOUNDING`
 
----
+### Step 3: Configure Webhook
 
-## Step 3: Create Promo Codes (Optional)
-
-Go to https://dashboard.stripe.com/coupons
-
-### Launch Discount (20% off)
-1. Click "Create coupon"
-2. Type: Percentage discount
-3. Percentage off: 20%
-4. Duration: Once (first payment only)
-5. Create a promo code: `LAUNCH20`
-
-### Founding Member Discount
-1. Create another coupon if desired for early bird pricing
-
----
-
-## Step 4: Configure Webhook
-
-Go to https://dashboard.stripe.com/webhooks
-
-1. Click "Add endpoint"
-2. Endpoint URL: `https://wholelifejourney.com/billing/webhook/stripe/`
-3. Select events to listen for:
+1. Go to https://dashboard.stripe.com/webhooks
+2. Add endpoint: `https://wholelifejourney.com/billing/webhook/stripe/`
+3. Select events:
    - `checkout.session.completed`
    - `invoice.paid`
    - `invoice.payment_failed`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
-4. Click "Add endpoint"
-5. Copy the **Signing secret** → `STRIPE_WEBHOOK_SECRET`
+4. Copy signing secret to `STRIPE_WEBHOOK_SECRET`
 
 ---
 
-## Step 5: Set Environment Variables in Railway
+## Environment Variables
 
-Go to Railway dashboard → WLJ project → Variables
+Set these in Railway (or your hosting provider):
 
-Add these environment variables:
-
-```
+```bash
+# Stripe API Keys
 STRIPE_PUBLIC_KEY=pk_live_xxxxxxxxxxxxxxxxxxxx
 STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxxxxxxxxxx
 STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxx
-STRIPE_PRICE_STUDENT_MONTHLY=price_xxxxxxxxxxxxxxxxxxxx
-STRIPE_PRICE_STUDENT_ANNUAL=price_xxxxxxxxxxxxxxxxxxxx
-STRIPE_PRICE_ADULT_MONTHLY=price_xxxxxxxxxxxxxxxxxxxx
-STRIPE_PRICE_ADULT_ANNUAL=price_xxxxxxxxxxxxxxxxxxxx
-STRIPE_PRICE_FOUNDING=price_xxxxxxxxxxxxxxxxxxxx
+
+# Price IDs (from Stripe Dashboard)
+STRIPE_PRICE_STUDENT_MONTHLY=price_xxxx  # $4.99/month
+STRIPE_PRICE_STUDENT_ANNUAL=price_xxxx   # $49.00/year
+STRIPE_PRICE_ADULT_MONTHLY=price_xxxx    # $7.99/month
+STRIPE_PRICE_ADULT_ANNUAL=price_xxxx     # $79.00/year
+STRIPE_PRICE_FOUNDING=price_xxxx         # $59.00 lifetime
 ```
 
----
+### Variable Reference
 
-## Step 6: Run Database Migration (if not auto-run)
-
-Railway should auto-run migrations on deploy. If needed manually:
-
-```bash
-# In Railway console or via railway run
-python manage.py migrate
-```
-
-The billing migration creates:
-- BillingProfile (linked to each user)
-- ReferralReward
-- ReferralQualification
-- FoundingMemberPayout
-- FeatureSuggestion
-- CreditTransaction
-- PromoCodeUsage
-- PaymentAuditLog
-
----
-
-## Step 7: Start Billing Scheduler
-
-The billing scheduler handles automated tasks. Add to your Railway start command or run separately:
-
-```bash
-# Option A: Add to Procfile (if using)
-scheduler: python manage.py run_billing_scheduler
-
-# Option B: Run as separate Railway service
-python manage.py run_billing_scheduler
-```
-
-**Scheduled Tasks:**
-- Daily 3am: Birthday processing (age recalculation, student→adult graduation)
-- Monthly 1st: Referral qualification checks (90-day tracking)
-- Quarterly (Jan/Apr/Jul/Oct 1st): Founding Member bonus payouts
-
----
-
-## Step 8: Verify Setup
-
-### Test Webhook
-1. Go to Stripe webhook dashboard
-2. Click "Send test webhook"
-3. Select `checkout.session.completed`
-4. Verify 200 response in webhook logs
-
-### Test Checkout Flow
-1. Log in to WLJ as test user
-2. Go to /billing/plans/
-3. Click a plan
-4. Use Stripe test card: `4242 4242 4242 4242`
-5. Complete checkout
-6. Verify BillingProfile updated in Django admin
-
----
-
-## Step 9: Invite Founding Members
-
-Send email invitations with:
-- Direct signup link: `https://wholelifejourney.com/join`
-- Or with promo code: `https://wholelifejourney.com/billing/plans/?promo=LAUNCH20`
+| Variable | Description |
+|----------|-------------|
+| `STRIPE_PUBLIC_KEY` | Stripe publishable key (pk_live_... or pk_test_...) |
+| `STRIPE_SECRET_KEY` | Stripe secret key (sk_live_... or sk_test_...) |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret (whsec_...) |
+| `STRIPE_PRICE_STUDENT_MONTHLY` | Price ID for student monthly plan |
+| `STRIPE_PRICE_STUDENT_ANNUAL` | Price ID for student annual plan |
+| `STRIPE_PRICE_ADULT_MONTHLY` | Price ID for adult monthly plan |
+| `STRIPE_PRICE_ADULT_ANNUAL` | Price ID for adult annual plan |
+| `STRIPE_PRICE_FOUNDING` | Price ID for founding member lifetime |
 
 ---
 
@@ -178,7 +123,7 @@ Send email invitations with:
 | `/join` | Referral capture + redirect to signup |
 | `/billing/plans/` | Plan selection page |
 | `/billing/settings/` | Billing settings (manage subscription) |
-| `/billing/portal/` | Stripe Customer Portal redirect |
+| `/billing/portal/` | Stripe Customer Portal |
 | `/billing/webhook/stripe/` | Stripe webhook endpoint |
 | `/billing/suggest/` | Feature suggestion form |
 | `/billing/credits/` | Credit history |
@@ -186,85 +131,19 @@ Send email invitations with:
 
 ---
 
-## Admin Features
+## Post-Setup Verification
 
-Access at `/admin/billing/`:
-
-- **BillingProfile**: View/edit user subscriptions, credits, tiers
-- **ReferralReward**: Track referral signups and rewards
-- **FeatureSuggestion**: Review suggestions, mark implemented (awards $5)
-- **FoundingMemberPayout**: Quarterly payout records
-- **PaymentAuditLog**: Immutable payment activity log
+1. **Test Webhook:** Send test event from Stripe dashboard
+2. **Test Checkout:** Use test card `4242 4242 4242 4242`
+3. **Verify Profile:** Check BillingProfile updated in Django admin
 
 ---
 
-## Pricing Summary
+## Configuration File Reference
 
-| Tier | Monthly | Annual | One-time |
-|------|---------|--------|----------|
-| Student (≤22) | $3.99 | $39 | - |
-| Adult (≥23) | $7.99 | $79 | - |
-| Founding | - | - | $59 lifetime |
+To change pricing, edit `BILLING_CONFIG` in `config/settings.py`.
+Then run: `python manage.py generate_billing_docs` to update this file.
 
 ---
 
-## Rewards System
-
-| Action | Reward |
-|--------|--------|
-| Referral (both parties) | $5 credit each |
-| Feature suggestion implemented | $5 credit |
-| Founding Member quarterly bonus | $5 per qualified referral |
-
-Credits apply automatically to next invoice.
-
----
-
-## Troubleshooting
-
-### Webhook 400 errors
-- Check STRIPE_WEBHOOK_SECRET matches Stripe dashboard
-- Verify endpoint URL is exactly `/billing/webhook/stripe/`
-
-### Users not getting correct tier
-- Check date_of_birth is set on User model
-- Run: `python manage.py shell` then check `user.billing_profile.pricing_tier`
-
-### Scheduler not running
-- Check Railway logs for scheduler process
-- Verify django-apscheduler tables exist
-
-### Missing BillingProfile
-- Signal should auto-create on user creation
-- Manual fix: `BillingProfile.objects.get_or_create(user=user)`
-
----
-
-## Files Reference
-
-**Core Files:**
-- `apps/billing/models.py` - All billing models
-- `apps/billing/services.py` - StripeService class
-- `apps/billing/webhooks.py` - Webhook handler
-- `apps/billing/views.py` - UI views
-- `apps/billing/admin.py` - Admin interface
-- `apps/billing/email_service.py` - Email notifications
-
-**Management Commands:**
-- `python manage.py run_billing_scheduler` - Start scheduler
-- `python manage.py process_birthdays` - Manual birthday processing
-- `python manage.py process_quarterly_bonuses` - Manual bonus processing
-
-**Templates:**
-- `templates/billing/*.html` - UI templates (6 files)
-- `templates/billing/email/*.html` - Email templates (13 files)
-
----
-
-## Support
-
-For issues, check:
-1. Railway logs for errors
-2. Stripe webhook logs for delivery failures
-3. Django admin PaymentAuditLog for payment history
-4. `docs/wlj_claude_changelog.md` for implementation details
+*Auto-generated by `python manage.py generate_billing_docs`*

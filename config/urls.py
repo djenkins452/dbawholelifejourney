@@ -93,6 +93,12 @@ urlpatterns = [
     path('sms/', include('apps.sms.urls', namespace='sms')),
     # Finance
     path('finance/', include('apps.finance.urls', namespace='finance')),
+    # Billing & Subscriptions
+    path('billing/', include('apps.billing.urls', namespace='billing')),
+    # Referral link redirect (short URL)
+    path('join', include([
+        path('', lambda r: __import__('django.shortcuts', fromlist=['redirect']).redirect('billing:capture_referral') if r.GET.get('ref') else __import__('django.shortcuts', fromlist=['redirect']).redirect('account_signup')),
+    ])),
 ]
 
 # Serve media files

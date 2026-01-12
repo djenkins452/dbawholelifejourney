@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Billing Settings - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Billing Settings</h1>
+
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Current Plan -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Current Plan</h2>
+
+        <div class="space-y-3">
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600 dark:text-gray-400">Plan</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ profile.get_pricing_tier_display }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600 dark:text-gray-400">Status</span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                    {% if profile.subscription_status == 'active' or profile.subscription_status == 'lifetime' %}bg-green-100 text-green-800
+                    {% elif profile.subscription_status == 'past_due' %}bg-yellow-100 text-yellow-800
+                    {% elif profile.subscription_status == 'canceled' %}bg-red-100 text-red-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ profile.get_subscription_status_display }}
+                </span>
+            </div>
+            {% if profile.billing_cycle %}
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600 dark:text-gray-400">Billing Cycle</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ profile.get_billing_cycle_display }}</span>
+            </div>
+            {% endif %}
+            {% if profile.current_period_end and profile.subscription_status == 'active' %}
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600 dark:text-gray-400">Next Billing Date</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ profile.current_period_end|date:"F d, Y" }}</span>
+            </div>
+            {% endif %}
+            {% if profile.cancel_at_period_end %}
+            <div class="bg-yellow-50 dark:bg-yellow-900 p-3 rounded-lg mt-4">
+                <p class="text-sm text-yellow-800 dark:text-yellow-200">
+                    Your subscription will end on {{ profile.current_period_end|date:"F d, Y" }}.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if profile.subscription_status == 'active' %}
+        <div class="mt-6 flex flex-wrap gap-3">
+            <a href="{% url 'billing:customer_portal' %}"
+               class="py-2 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm">
+                Manage Subscription
+            </a>
+            {% if not profile.cancel_at_period_end %}
+            <form method="post" action="{% url 'billing:cancel_subscription' %}"
+                  onsubmit="return confirm('Are you sure you want to cancel? You will retain access until the end of your billing period.');">
+                {% csrf_token %}
+                <button type="submit" class="py-2 px-4 text-red-600 hover:text-red-700 text-sm">
+                    Cancel Subscription
+                </button>
+            </form>
+            {% endif %}
+        </div>
+        {% elif profile.subscription_status == 'none' or profile.subscription_status == 'canceled' %}
+        <div class="mt-6">
+            <a href="{% url 'billing:select_plan' %}"
+               class="py-2 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm">
+                Subscribe Now
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Account Credits -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account Credits</h2>
+        <div class="flex items-center justify-between">
+            <span class="text-gray-600 dark:text-gray-400">Available Balance</span>
+            <span class="text-2xl font-bold text-green-600">${{ profile.account_credit }}</span>
+        </div>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            Credits are automatically applied to your next invoice.
+        </p>
+    </div>
+
+    <!-- Referral Program -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Share Whole Life Journey</h2>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">
+            Earn $5 credit for every friend who subscribes. They get $5 too!
+        </p>
+
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
+            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Your Referral Link</label>
+            <div class="flex">
+                <input type="text" readonly value="{{ profile.referral_link }}"
+                       class="flex-1 rounded-l-lg border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-800 text-sm"
+                       id="referral-link">
+                <button onclick="copyReferralLink()"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700 text-sm">
+                    Copy
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 text-center">
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ referral_count }}</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">People Referred</div>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                <div class="text-2xl font-bold text-green-600">${{ paying_referrals|default:0|floatformat:0 }}0</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">Credits Earned</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyReferralLink() {
+    const input = document.getElementById('referral-link');
+    input.select();
+    document.execCommand('copy');
+    alert('Referral link copied!');
+}
+</script>
+{% endblock %}

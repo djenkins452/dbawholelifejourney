@@ -72,4 +72,8 @@ sentry-sdk>=2.0.0
 # Test Coverage
 coverage>=7.4.0
 
+# Payment Processing (Stripe)
+stripe>=7.0.0
+dj-stripe>=2.8.0
+
 # Force rebuild: 2026-01-11-v1 (fix corrupted Django cache)

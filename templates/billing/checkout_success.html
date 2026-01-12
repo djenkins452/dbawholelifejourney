@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome! - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-16 text-center">
+    <div class="mb-8">
+        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg class="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Welcome to Whole Life Journey!</h1>
+        <p class="text-lg text-gray-600 dark:text-gray-400 mb-2">
+            Your subscription is now active.
+        </p>
+        <p class="text-gray-500 dark:text-gray-500">
+            You now have full access to all features.
+        </p>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Your Plan</h2>
+        <div class="text-left space-y-2">
+            <p class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Plan:</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ profile.get_pricing_tier_display }}</span>
+            </p>
+            <p class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Billing:</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ profile.get_billing_cycle_display }}</span>
+            </p>
+            {% if profile.current_period_end %}
+            <p class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Next billing:</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ profile.current_period_end|date:"M d, Y" }}</span>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="space-y-4">
+        <a href="{% url 'dashboard:home' %}"
+           class="inline-block w-full py-3 px-6 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium">
+            Go to Dashboard
+        </a>
+        <a href="{% url 'billing:billing_settings' %}"
+           class="inline-block w-full py-3 px-6 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+            View Billing Settings
+        </a>
+    </div>
+</div>
+{% endblock %}

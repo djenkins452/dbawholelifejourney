@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-12 (Google Calendar Auto-Sync on Dashboard)
+# Last Updated: 2026-01-12 (Billing & Subscriptions - Phase 1)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,78 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-12 Changes
+
+### Billing & Subscriptions System - Phase 1: Stripe Foundation
+
+**Task:** Implement payment and rewards system with Stripe integration, referral tracking, and account credits.
+
+**Implementation:** Created new `apps/billing` app with full Stripe integration:
+
+**Models Created:**
+- `BillingProfile`: User billing info, subscription status, pricing tier, referral code, account credits, payout preferences
+- `ReferralReward`: Tracks referral signups and $5 reward distribution
+- `ReferralQualification`: 90-day qualification tracking for Founding Member bonuses
+- `FoundingMemberPayout`: Quarterly payout records for Founding Members
+- `FeatureSuggestion`: User-submitted feature ideas with $5 reward tracking
+- `CreditTransaction`: Account credit ledger (referral bonuses, suggestion rewards, applied to invoices)
+- `PromoCodeUsage`: Tracks promo code redemptions
+- `PaymentAuditLog`: Immutable audit trail for all payment actions
+
+**Views & Endpoints:**
+- Plan selection page with age-based tier display (Student $3.99/mo, Adult $7.99/mo)
+- Stripe Checkout session creation with promo code and referral support
+- Success/cancel pages for checkout flow
+- Stripe Customer Portal redirect for subscription management
+- Billing settings page with plan details, credits, and referral stats
+- Webhook endpoint for Stripe events
+
+**Webhook Handlers:**
+- `checkout.session.completed`: Updates user tier and subscription status
+- `invoice.paid`: Marks successful payment, processes referral rewards
+- `invoice.payment_failed`: Updates status to past_due
+- `customer.subscription.updated`: Syncs subscription changes
+- `customer.subscription.deleted`: Handles cancellation
+
+**Files Created:**
+- `apps/billing/__init__.py`, `apps.py`, `models.py`, `admin.py`
+- `apps/billing/services.py`: StripeService class with checkout, portal, webhook handling
+- `apps/billing/webhooks.py`: Stripe webhook receiver with signature verification
+- `apps/billing/views.py`: Plan selection, checkout, settings views
+- `apps/billing/urls.py`: URL routing for billing endpoints
+- `apps/billing/signals.py`: Auto-create BillingProfile on User creation
+- `apps/billing/migrations/0001_initial.py`: Database migration
+- `templates/billing/select_plan.html`: Plan selection UI
+- `templates/billing/checkout_success.html`: Success confirmation
+- `templates/billing/billing_settings.html`: Subscription management UI
+
+**Files Modified:**
+- `requirements.txt`: Added `stripe>=7.0.0` and `dj-stripe>=2.8.0`
+- `config/settings.py`: Added `apps.billing` and `djstripe` to INSTALLED_APPS, Stripe configuration
+- `config/urls.py`: Added `/billing/` and `/join` URL patterns
+
+**Environment Variables Needed:**
+- `STRIPE_PUBLIC_KEY`: Stripe publishable key
+- `STRIPE_SECRET_KEY`: Stripe secret key
+- `STRIPE_WEBHOOK_SECRET`: Webhook signing secret
+- `STRIPE_PRICE_STUDENT_MONTHLY`, `STRIPE_PRICE_STUDENT_ANNUAL`: Student price IDs
+- `STRIPE_PRICE_ADULT_MONTHLY`, `STRIPE_PRICE_ADULT_ANNUAL`: Adult price IDs
+- `STRIPE_PRICE_FOUNDING`: Founding Member lifetime price ID
+
+**Pricing Tiers:**
+- Free: Default tier before subscription
+- Student ($3.99/mo or $39/yr): Age 22 and under
+- Adult ($7.99/mo or $79/yr): Age 23 and over
+- Founding Member ($59 one-time): Lifetime access, quarterly referral bonuses
+
+**Next Steps (Phases 2-12):**
+- Phase 2: Auto-assign tier at signup based on age
+- Phase 3: Promo code admin interface
+- Phase 4: Referral capture at signup
+- Phase 5: Founding Member quarterly bonus calculation
+- Phase 6: Birthday graduation system (student -> adult)
+- Phase 7-12: Email templates, scheduled tasks, testing, go-live
+
+---
 
 ### Smart Food Autocomplete with 3-Tier Search
 

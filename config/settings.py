@@ -129,8 +129,10 @@ INSTALLED_APPS = [
     'apps.scan',
     'apps.sms',
     'apps.finance',
+    'apps.billing',
     'assistant',
     'django_apscheduler',
+    'djstripe',
 ]
 
 # Development-only: Add django-watchfiles for efficient autoreload (fixes Python 3.14 StatReloader issue)
@@ -821,6 +823,32 @@ GITHUB_API_TOKEN = env('GITHUB_API_TOKEN', default=None)  # Optional, for higher
 # Sentry provides real-time error tracking, performance monitoring, and alerting
 
 SENTRY_DSN = env('SENTRY_DSN', default='')
+
+
+# ==============================================================================
+# Stripe Payment Configuration
+# ==============================================================================
+# Get your keys at: https://dashboard.stripe.com/apikeys
+# Webhook signing secret: https://dashboard.stripe.com/webhooks
+
+STRIPE_PUBLIC_KEY = env('STRIPE_PUBLIC_KEY', default='')
+STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', default='')
+STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', default='')
+
+# Stripe Price IDs - create products in Stripe Dashboard first
+# These should be set in environment variables for each environment
+STRIPE_PRICE_STUDENT_MONTHLY = env('STRIPE_PRICE_STUDENT_MONTHLY', default='')
+STRIPE_PRICE_STUDENT_ANNUAL = env('STRIPE_PRICE_STUDENT_ANNUAL', default='')
+STRIPE_PRICE_ADULT_MONTHLY = env('STRIPE_PRICE_ADULT_MONTHLY', default='')
+STRIPE_PRICE_ADULT_ANNUAL = env('STRIPE_PRICE_ADULT_ANNUAL', default='')
+STRIPE_PRICE_FOUNDING = env('STRIPE_PRICE_FOUNDING', default='')
+
+# dj-stripe configuration
+STRIPE_LIVE_MODE = not DEBUG  # Use live mode in production
+DJSTRIPE_WEBHOOK_SECRET = STRIPE_WEBHOOK_SECRET
+DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'
+DJSTRIPE_USE_NATIVE_JSONFIELD = True
+
 
 if SENTRY_DSN and not DEBUG and SENTRY_AVAILABLE:
     sentry_sdk.init(

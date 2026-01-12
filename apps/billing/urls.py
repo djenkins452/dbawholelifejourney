@@ -23,6 +23,15 @@ urlpatterns = [
     # Referral capture
     path('referral/', views.capture_referral, name='capture_referral'),
 
+    # Feature suggestions
+    path('suggest/', views.submit_suggestion, name='submit_suggestion'),
+
+    # Founding Member payout preferences
+    path('payout-preferences/', views.payout_preferences, name='payout_preferences'),
+
+    # Credit history
+    path('credits/', views.credit_history, name='credit_history'),
+
     # Webhooks
     path('webhook/stripe/', webhooks.stripe_webhook, name='stripe_webhook'),
 ]

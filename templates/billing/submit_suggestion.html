@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Submit a Feature Suggestion - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Submit a Feature Suggestion</h1>
+    <p class="text-gray-600 dark:text-gray-400 mb-6">
+        Have an idea to make Whole Life Journey better? We'd love to hear it!
+        If we implement your suggestion, you'll earn $5 in account credit.
+    </p>
+
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+        <div class="mb-4 flex items-center justify-between">
+            <span class="text-sm text-gray-500 dark:text-gray-400">
+                {{ suggestions_remaining }} suggestion{{ suggestions_remaining|pluralize }} remaining this month
+            </span>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="mb-4">
+                <label for="id_suggestion_text" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {{ form.suggestion_text.label }}
+                </label>
+                {{ form.suggestion_text }}
+                {% if form.suggestion_text.help_text %}
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ form.suggestion_text.help_text }}</p>
+                {% endif %}
+                {% if form.suggestion_text.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.suggestion_text.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-6">
+                <label class="flex items-center">
+                    {{ form.public_credit_consent }}
+                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                        {{ form.public_credit_consent.label }}
+                    </span>
+                </label>
+                {% if form.public_credit_consent.help_text %}
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-6">{{ form.public_credit_consent.help_text }}</p>
+                {% endif %}
+            </div>
+
+            {% if form.non_field_errors %}
+            <div class="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <div class="flex gap-3">
+                <button type="submit"
+                        class="py-2 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                        {% if suggestions_remaining == 0 %}disabled{% endif %}>
+                    Submit Suggestion
+                </button>
+                <a href="{% url 'billing:billing_settings' %}"
+                   class="py-2 px-4 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

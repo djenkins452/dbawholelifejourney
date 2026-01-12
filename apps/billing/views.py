@@ -223,3 +223,107 @@ def capture_referral(request):
 
     # Redirect to signup
     return redirect('account_signup')
+
+
+@login_required
+def submit_suggestion(request):
+    """
+    Submit a feature suggestion.
+
+    Rate limited to 3 suggestions per user per month.
+    """
+    from .forms import FeatureSuggestionForm
+    from .models import FeatureSuggestion
+    from django.utils import timezone
+    from datetime import timedelta
+
+    # Check rate limit (3 per month)
+    month_ago = timezone.now() - timedelta(days=30)
+    recent_count = FeatureSuggestion.objects.filter(
+        user=request.user,
+        created_at__gte=month_ago,
+    ).count()
+
+    if request.method == 'POST':
+        if recent_count >= 3:
+            messages.error(
+                request,
+                'You can only submit 3 suggestions per month. Please wait before submitting more.'
+            )
+            return redirect('billing:billing_settings')
+
+        form = FeatureSuggestionForm(request.POST)
+        if form.is_valid():
+            suggestion = form.save(commit=False)
+            suggestion.user = request.user
+            suggestion.save()
+            messages.success(
+                request,
+                'Thank you for your suggestion! We review all ideas and will notify you if we implement yours.'
+            )
+            return redirect('billing:billing_settings')
+    else:
+        form = FeatureSuggestionForm()
+
+    return render(request, 'billing/submit_suggestion.html', {
+        'form': form,
+        'suggestions_remaining': max(0, 3 - recent_count),
+    })
+
+
+@login_required
+def payout_preferences(request):
+    """
+    Founding Members can set their payout preferences.
+    """
+    from .forms import PayoutPreferencesForm
+
+    profile = request.user.billing_profile
+
+    # Only Founding Members can access this
+    if not profile.is_founding_member:
+        messages.error(request, 'Payout preferences are only available for Founding Members.')
+        return redirect('billing:billing_settings')
+
+    if request.method == 'POST':
+        form = PayoutPreferencesForm(request.POST)
+        if form.is_valid():
+            profile.payout_method = form.cleaned_data['payout_method']
+            profile.payout_email = form.cleaned_data.get('payout_email', '')
+            profile.payout_phone = form.cleaned_data.get('payout_phone', '')
+            profile.save(update_fields=[
+                'payout_method',
+                'payout_email',
+                'payout_phone',
+                'updated_at',
+            ])
+            messages.success(request, 'Payout preferences updated.')
+            return redirect('billing:billing_settings')
+    else:
+        form = PayoutPreferencesForm(initial={
+            'payout_method': profile.payout_method,
+            'payout_email': profile.payout_email,
+            'payout_phone': profile.payout_phone,
+        })
+
+    return render(request, 'billing/payout_preferences.html', {
+        'form': form,
+        'profile': profile,
+    })
+
+
+@login_required
+def credit_history(request):
+    """
+    View account credit transaction history.
+    """
+    from .models import CreditTransaction
+
+    transactions = CreditTransaction.objects.filter(
+        user=request.user
+    ).order_by('-created_at')[:50]
+
+    return render(request, 'billing/credit_history.html', {
+        'transactions': transactions,
+        'profile': request.user.billing_profile,
+    })

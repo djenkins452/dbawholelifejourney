@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Payout Preferences - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Payout Preferences</h1>
+    <p class="text-gray-600 dark:text-gray-400 mb-6">
+        As a Founding Member, you earn $5 for each referral who stays subscribed for 3 months.
+        Set up your preferred payout method to receive your quarterly bonuses.
+    </p>
+
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="mb-4">
+                <label for="id_payout_method" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {{ form.payout_method.label }}
+                </label>
+                {{ form.payout_method }}
+            </div>
+
+            <div class="mb-4">
+                <label for="id_payout_email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {{ form.payout_email.label }}
+                </label>
+                {{ form.payout_email }}
+                {% if form.payout_email.help_text %}
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ form.payout_email.help_text }}</p>
+                {% endif %}
+            </div>
+
+            <div class="mb-6">
+                <label for="id_payout_phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {{ form.payout_phone.label }}
+                </label>
+                {{ form.payout_phone }}
+                {% if form.payout_phone.help_text %}
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ form.payout_phone.help_text }}</p>
+                {% endif %}
+            </div>
+
+            {% if form.non_field_errors %}
+            <div class="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <div class="flex gap-3">
+                <button type="submit"
+                        class="py-2 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
+                    Save Preferences
+                </button>
+                <a href="{% url 'billing:billing_settings' %}"
+                   class="py-2 px-4 text-gray-600 dark:text-gray-400 hover:text-gray-800">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <div class="mt-6 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+        <h3 class="font-medium text-gray-900 dark:text-white mb-2">Payout Schedule</h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+            Payouts are processed quarterly (January, April, July, October).
+            You'll receive an email when your payout is ready.
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Credit History - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 py-8">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Credit History</h1>
+        <div class="text-right">
+            <span class="text-sm text-gray-500 dark:text-gray-400">Current Balance</span>
+            <div class="text-2xl font-bold text-green-600">${{ profile.account_credit }}</div>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+        {% if transactions %}
+        <table class="w-full">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Date</th>
+                    <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Description</th>
+                    <th class="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">Amount</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for tx in transactions %}
+                <tr>
+                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                        {{ tx.created_at|date:"M d, Y" }}
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="text-sm text-gray-900 dark:text-white">{{ tx.get_transaction_type_display }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ tx.description|truncatewords:10 }}</div>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        {% if tx.amount >= 0 %}
+                        <span class="text-green-600 font-medium">+${{ tx.amount }}</span>
+                        {% else %}
+                        <span class="text-red-600 font-medium">${{ tx.amount }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+            <p>No credit transactions yet.</p>
+            <p class="text-sm mt-2">Earn credits by referring friends or submitting feature ideas!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="mt-6 flex gap-4">
+        <a href="{% url 'billing:billing_settings' %}"
+           class="text-indigo-600 hover:text-indigo-700 text-sm">
+            &larr; Back to Billing Settings
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -160,6 +160,7 @@ MIDDLEWARE = [
     "apps.core.middleware.PageViewTrackingMiddleware",  # Track page views for Favorites
     "apps.core.middleware.CSPNonceMiddleware",  # Generate CSP nonce (CISO Review) - must be before CSP
     "apps.core.middleware.ContentSecurityPolicyMiddleware",  # CSP headers for XSS protection
+    "apps.core.middleware.APIRequestLoggingMiddleware",  # API logging with anomaly detection (CISO Review)
     "axes.middleware.AxesMiddleware",  # Rate limiting (Security Fix H-3) - must be last
 ]
 
@@ -694,6 +695,11 @@ WLJ_SETTINGS = {
     "ADMIN_OVERRIDE_TIMEOUT_MINUTES": 30,
     # Set to False to disable admin override confirmation entirely (emergency bypass)
     "ADMIN_OVERRIDE_REQUIRE_CONFIRMATION": True,
+    # API Request Logging with Anomaly Detection (CISO Review 2026-01-12)
+    "API_LOGGING_ENABLED": True,
+    "API_LOGGING_PATHS": ["/api/", "/admin-console/api/"],
+    "API_ANOMALY_DETECTION": True,
+    "API_LOG_RETENTION_DAYS": 30,
 }
 
 # Bible API (required for Scripture lookups in Faith module)

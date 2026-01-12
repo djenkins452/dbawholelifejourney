@@ -1801,6 +1801,7 @@ class ResetPhaseOverrideAPIView(APIRateLimitMixin, View):
         import json
         from .models import AdminProjectPhase
         from .services import reset_active_phase
+        from apps.core.security_logging import log_admin_override
 
         # Check admin permission
         if not request.user.is_authenticated or not request.user.is_staff:
@@ -1832,6 +1833,19 @@ class ResetPhaseOverrideAPIView(APIRateLimitMixin, View):
                 {'error': f'Phase with ID {phase_id} not found'},
                 status=404
             )
+
+        # CISO Review 2026-01-12: Audit log all override actions
+        log_admin_override(
+            action='reset_phase',
+            request=request,
+            target_type='phase',
+            target_id=phase_id,
+            details={
+                'new_phase_number': phase.phase_number,
+                'new_phase_name': phase.name,
+                'new_status': phase.status,
+            }
+        )
 
         return JsonResponse({
             'success': True,
@@ -1876,6 +1890,7 @@ class UnblockTaskOverrideAPIView(APIRateLimitMixin, View):
         import json
         from .models import AdminTask
         from .services import force_unblock_task
+        from apps.core.security_logging import log_admin_override
 
         # Check admin permission
         if not request.user.is_authenticated or not request.user.is_staff:
@@ -1909,6 +1924,19 @@ class UnblockTaskOverrideAPIView(APIRateLimitMixin, View):
 
         try:
             task = force_unblock_task(task_id, reason, created_by='human')
+
+            # CISO Review 2026-01-12: Audit log all override actions
+            log_admin_override(
+                action='unblock_task',
+                request=request,
+                target_type='task',
+                target_id=task_id,
+                details={
+                    'task_title': task.title,
+                    'new_status': task.status,
+                    'reason': reason,
+                }
+            )
         except AdminTask.DoesNotExist:
             return JsonResponse(
                 {'error': f'Task with ID {task_id} not found'},
@@ -1967,6 +1995,7 @@ class RecheckPhaseOverrideAPIView(APIRateLimitMixin, View):
         import json
         from .models import AdminProjectPhase
         from .services import recheck_phase_completion
+        from apps.core.security_logging import log_admin_override
 
         # Check admin permission
         if not request.user.is_authenticated or not request.user.is_staff:
@@ -2001,6 +2030,21 @@ class RecheckPhaseOverrideAPIView(APIRateLimitMixin, View):
 
         # Build response
         phase = AdminProjectPhase.objects.get(pk=phase_id)
+
+        # CISO Review 2026-01-12: Audit log all override actions
+        log_admin_override(
+            action='recheck_phase',
+            request=request,
+            target_type='phase',
+            target_id=phase_id,
+            details={
+                'phase_number': phase.phase_number,
+                'phase_name': phase.name,
+                'was_completed': was_completed,
+                'unlocked_phase_id': unlocked_phase.id if unlocked_phase else None,
+            }
+        )
+
         result = {
             'success': True,
             'phase': {
@@ -3033,8 +3077,9 @@ class ReadyTasksAPIView(APIRateLimitMixin, View):
     def get(self, request):
         from django.conf import settings
         from .models import AdminTask
+        from apps.core.rate_limiting import secure_compare_api_key
 
-        # Authenticate via API key
+        # Authenticate via API key (CISO Review 2026-01-12: use constant-time comparison)
         api_key = request.headers.get('X-Claude-API-Key', '')
 
         # Check if API key is configured
@@ -3044,8 +3089,8 @@ class ReadyTasksAPIView(APIRateLimitMixin, View):
                 status=500
             )
 
-        # Validate API key
-        if not api_key or api_key != settings.CLAUDE_API_KEY:
+        # Validate API key using constant-time comparison to prevent timing attacks
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
             return JsonResponse(
                 {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
                 status=401
@@ -3150,8 +3195,9 @@ class UpdateTaskStatusAPIView(APIRateLimitMixin, View):
         import json
         from django.conf import settings
         from .models import AdminTask, TaskStatusTransitionError
+        from apps.core.rate_limiting import secure_compare_api_key
 
-        # Authenticate via API key
+        # Authenticate via API key (CISO Review 2026-01-12: use constant-time comparison)
         api_key = request.headers.get('X-Claude-API-Key', '')
 
         # Check if API key is configured
@@ -3161,8 +3207,8 @@ class UpdateTaskStatusAPIView(APIRateLimitMixin, View):
                 status=500
             )
 
-        # Validate API key
-        if not api_key or api_key != settings.CLAUDE_API_KEY:
+        # Validate API key using constant-time comparison to prevent timing attacks
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
             return JsonResponse(
                 {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
                 status=401

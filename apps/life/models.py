@@ -983,22 +983,28 @@ class Document(UserOwnedModel):
 class GoogleCalendarCredential(models.Model):
     """
     Store Google Calendar OAuth credentials in the database.
-    
+
     This ensures tokens persist across sessions and can be refreshed properly.
+
+    Security Note (CISO Review 2026-01-12):
+        OAuth tokens are encrypted at rest using Fernet AES-256 encryption.
+        Use the property accessors (access_token_decrypted, etc.) to get
+        plaintext values. Raw database fields contain encrypted data.
     """
-    
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='google_calendar_credential'
     )
-    
-    # OAuth tokens
-    access_token = models.TextField()
-    refresh_token = models.TextField(blank=True)
+
+    # OAuth tokens (encrypted at rest)
+    # Use the _decrypted property accessors for plaintext values
+    access_token = models.TextField(help_text="Encrypted access token")
+    refresh_token = models.TextField(blank=True, help_text="Encrypted refresh token")
     token_uri = models.CharField(max_length=500, default='https://oauth2.googleapis.com/token')
     client_id = models.CharField(max_length=500)
-    client_secret = models.CharField(max_length=500)
+    client_secret = models.CharField(max_length=500, help_text="Encrypted client secret")
     
     # Token expiration
     token_expiry = models.DateTimeField(null=True, blank=True)
@@ -1073,31 +1079,71 @@ class GoogleCalendarCredential(models.Model):
         if not self.token_expiry:
             return True
         return timezone.now() >= self.token_expiry
-    
+
     @property
     def is_connected(self):
         """Check if we have valid credentials."""
         return bool(self.access_token)
-    
+
+    # =========================================================================
+    # Encrypted Token Accessors (CISO Review 2026-01-12)
+    # =========================================================================
+
+    @property
+    def access_token_decrypted(self):
+        """Get the decrypted access token."""
+        from apps.core.encryption import decrypt_oauth_token
+        return decrypt_oauth_token(self.access_token)
+
+    @property
+    def refresh_token_decrypted(self):
+        """Get the decrypted refresh token."""
+        from apps.core.encryption import decrypt_oauth_token
+        return decrypt_oauth_token(self.refresh_token)
+
+    @property
+    def client_secret_decrypted(self):
+        """Get the decrypted client secret."""
+        from apps.core.encryption import decrypt_oauth_token
+        return decrypt_oauth_token(self.client_secret)
+
+    def set_access_token(self, plaintext):
+        """Set and encrypt the access token."""
+        from apps.core.encryption import encrypt_oauth_token
+        self.access_token = encrypt_oauth_token(plaintext)
+
+    def set_refresh_token(self, plaintext):
+        """Set and encrypt the refresh token."""
+        from apps.core.encryption import encrypt_oauth_token
+        self.refresh_token = encrypt_oauth_token(plaintext) if plaintext else ''
+
+    def set_client_secret(self, plaintext):
+        """Set and encrypt the client secret."""
+        from apps.core.encryption import encrypt_oauth_token
+        self.client_secret = encrypt_oauth_token(plaintext)
+
     def get_credentials_dict(self):
         """Return credentials in the format expected by Google API."""
         return {
-            'token': self.access_token,
-            'refresh_token': self.refresh_token,
+            'token': self.access_token_decrypted,
+            'refresh_token': self.refresh_token_decrypted,
             'token_uri': self.token_uri,
             'client_id': self.client_id,
-            'client_secret': self.client_secret,
+            'client_secret': self.client_secret_decrypted,
             'scopes': self.get_scopes_list(),
         }
-    
+
     def update_from_credentials(self, credentials_dict):
-        """Update model from a credentials dictionary."""
-        self.access_token = credentials_dict.get('token', '')
-        self.refresh_token = credentials_dict.get('refresh_token', self.refresh_token)
+        """Update model from a credentials dictionary (encrypts tokens)."""
+        if 'token' in credentials_dict:
+            self.set_access_token(credentials_dict.get('token', ''))
+        if 'refresh_token' in credentials_dict:
+            self.set_refresh_token(credentials_dict.get('refresh_token', ''))
         self.token_uri = credentials_dict.get('token_uri', self.token_uri)
         self.client_id = credentials_dict.get('client_id', self.client_id)
-        self.client_secret = credentials_dict.get('client_secret', self.client_secret)
-        
+        if 'client_secret' in credentials_dict:
+            self.set_client_secret(credentials_dict.get('client_secret', ''))
+
         # Handle expiry
         expiry = credentials_dict.get('expiry')
         if expiry:
@@ -1106,10 +1152,10 @@ class GoogleCalendarCredential(models.Model):
                 self.token_expiry = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
             else:
                 self.token_expiry = expiry
-        
+
         if credentials_dict.get('scopes'):
             self.set_scopes_list(credentials_dict['scopes'])
-        
+
         self.save()
     
     def get_scopes_list(self):

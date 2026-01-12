@@ -725,6 +725,13 @@ PLAID_ENV = env('PLAID_ENV', default='sandbox')  # sandbox, development, product
 # Token encryption key - generate with: Fernet.generate_key()
 BANK_TOKEN_ENCRYPTION_KEY = env('BANK_TOKEN_ENCRYPTION_KEY', default='')
 
+# ==============================================================================
+# OAuth Token Encryption (CISO Review 2026-01-12)
+# ==============================================================================
+# Encryption key for OAuth tokens (Google Calendar, Dexcom, etc.)
+# Generate with: from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())
+OAUTH_TOKEN_ENCRYPTION_KEY = env('OAUTH_TOKEN_ENCRYPTION_KEY', default='')
+
 # Webhook URL for real-time transaction updates
 if DEBUG:
     PLAID_WEBHOOK_URL = ''  # Webhooks don't work with localhost

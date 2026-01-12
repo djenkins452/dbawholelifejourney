@@ -46,7 +46,7 @@ jobs:
 
       - name: Run tests
         run: |
-          python manage.py test -v 1
+          python manage.py test --settings=config.settings_test -v 1
 
   lint:
     name: Lint Code

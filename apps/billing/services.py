@@ -26,12 +26,18 @@ logger = logging.getLogger(__name__)
 
 def get_billing_config():
     """
-    Get billing configuration from settings.
+    Get billing configuration from the database.
 
     Returns a dict with all pricing, rewards, and threshold configuration.
     This is the single source of truth for all billing-related values.
     """
-    return getattr(settings, 'BILLING_CONFIG', {})
+    from .models import BillingConfiguration
+    try:
+        config = BillingConfiguration.get_config()
+        return config.as_dict()
+    except Exception:
+        # Fallback to empty dict if database not available
+        return {}
 
 
 def get_stripe():
@@ -563,14 +569,20 @@ def determine_tier_by_age(birth_date):
     """
     Determine pricing tier based on age.
 
-    Uses BILLING_CONFIG for age thresholds.
+    Uses database configuration for age thresholds.
     """
+    from .models import BillingConfiguration
+
     age = calculate_age(birth_date)
     if age is None:
         return BillingProfile.TIER_ADULT  # Default to adult if unknown
 
-    # Get age threshold from config (defaults to 22 if not set)
-    student_max_age = getattr(settings, 'BILLING_CONFIG', {}).get('student_max_age', 22)
+    # Get age threshold from database config (defaults to 22 if not set)
+    try:
+        config = BillingConfiguration.get_config()
+        student_max_age = config.student_max_age
+    except Exception:
+        student_max_age = 22
 
     if age <= student_max_age:
         return BillingProfile.TIER_STUDENT

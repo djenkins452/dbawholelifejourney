@@ -8,6 +8,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from .models import (
+    BillingConfiguration,
     BillingProfile,
     CreditTransaction,
     FeatureSuggestion,
@@ -17,6 +18,66 @@ from .models import (
     ReferralQualification,
     ReferralReward,
 )
+
+
+@admin.register(BillingConfiguration)
+class BillingConfigurationAdmin(admin.ModelAdmin):
+    """Admin interface for billing configuration (singleton)."""
+
+    list_display = ['__str__', 'student_monthly_price', 'adult_monthly_price', 'updated_at']
+
+    fieldsets = (
+        ('Business Info', {
+            'fields': ('business_name', 'product_name'),
+        }),
+        ('Age Thresholds', {
+            'fields': ('student_max_age',),
+            'description': 'Student pricing applies to users at or below this age.',
+        }),
+        ('Student Pricing', {
+            'fields': ('student_monthly_price', 'student_annual_price'),
+        }),
+        ('Adult Pricing', {
+            'fields': ('adult_monthly_price', 'adult_annual_price'),
+        }),
+        ('Founding Member', {
+            'fields': ('founding_lifetime_price', 'founding_quarterly_bonus'),
+        }),
+        ('Rewards', {
+            'fields': (
+                'referral_bonus',
+                'suggestion_reward',
+                'suggestions_per_month_limit',
+                'referral_qualification_days',
+            ),
+        }),
+        ('Stripe Fees (for documentation)', {
+            'fields': ('stripe_fee_percentage', 'stripe_fee_flat'),
+            'classes': ('collapse',),
+            'description': 'Used for margin calculations in documentation.',
+        }),
+    )
+
+    def has_add_permission(self, request):
+        """Prevent creating additional configurations - singleton pattern."""
+        return not BillingConfiguration.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        """Prevent deleting the configuration."""
+        return False
+
+    def save_model(self, request, obj, form, change):
+        """Invalidate cache when configuration is saved."""
+        super().save_model(request, obj, form, change)
+        BillingConfiguration.invalidate_cache()
+
+    def changelist_view(self, request, extra_context=None):
+        """Redirect changelist to the edit form for singleton."""
+        if BillingConfiguration.objects.exists():
+            obj = BillingConfiguration.objects.first()
+            from django.shortcuts import redirect
+            return redirect(f'../billingconfiguration/{obj.pk}/change/')
+        return super().changelist_view(request, extra_context)
 
 
 @admin.register(BillingProfile)

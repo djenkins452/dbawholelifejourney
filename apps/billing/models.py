@@ -39,9 +39,215 @@ from django.utils import timezone
 from apps.core.models import TimeStampedModel
 
 
+class BillingConfiguration(models.Model):
+    """
+    Singleton model for billing configuration.
+
+    Stores all pricing, rewards, and threshold configuration in the database.
+    Managed via Django Admin for easy updates without code changes.
+
+    Only one record should exist - use get_config() class method to access.
+    """
+
+    # Business Info
+    business_name = models.CharField(
+        max_length=100,
+        default='Beacon Innovation LLC',
+        help_text="Business entity name",
+    )
+    product_name = models.CharField(
+        max_length=100,
+        default='Whole Life Journey',
+        help_text="Product name",
+    )
+
+    # Age Thresholds
+    student_max_age = models.PositiveIntegerField(
+        default=22,
+        help_text="Maximum age for student pricing (age X and under)",
+    )
+
+    # Student Pricing
+    student_monthly_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('4.99'),
+        help_text="Student monthly subscription price",
+    )
+    student_annual_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('49.00'),
+        help_text="Student annual subscription price",
+    )
+
+    # Adult Pricing
+    adult_monthly_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('7.99'),
+        help_text="Adult monthly subscription price",
+    )
+    adult_annual_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('79.00'),
+        help_text="Adult annual subscription price",
+    )
+
+    # Founding Member Pricing
+    founding_lifetime_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('59.00'),
+        help_text="Founding Member lifetime one-time price",
+    )
+    founding_quarterly_bonus = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('5.00'),
+        help_text="Quarterly bonus per qualified referral for Founding Members",
+    )
+
+    # Rewards
+    referral_bonus = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('5.00'),
+        help_text="Referral bonus - both referrer and referred user receive this",
+    )
+    suggestion_reward = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('5.00'),
+        help_text="Reward for implemented feature suggestions",
+    )
+    suggestions_per_month_limit = models.PositiveIntegerField(
+        default=3,
+        help_text="Maximum feature suggestions per user per month",
+    )
+    referral_qualification_days = models.PositiveIntegerField(
+        default=90,
+        help_text="Days a referred user must stay subscribed for Founding Member bonus",
+    )
+
+    # Stripe Fees (for documentation/calculations)
+    stripe_fee_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('2.9'),
+        help_text="Stripe fee percentage (e.g., 2.9 for 2.9%)",
+    )
+    stripe_fee_flat = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.30'),
+        help_text="Stripe flat fee per transaction",
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Billing Configuration"
+        verbose_name_plural = "Billing Configuration"
+
+    def __str__(self):
+        return f"Billing Configuration (Updated: {self.updated_at.strftime('%Y-%m-%d %H:%M')})"
+
+    def save(self, *args, **kwargs):
+        """Ensure only one configuration exists (singleton)."""
+        if not self.pk and BillingConfiguration.objects.exists():
+            # Update existing record instead of creating new one
+            existing = BillingConfiguration.objects.first()
+            self.pk = existing.pk
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_config(cls):
+        """
+        Get the billing configuration singleton.
+
+        Creates default configuration if none exists.
+        Uses caching to minimize database hits.
+        """
+        from django.core.cache import cache
+
+        cache_key = 'billing_configuration'
+        config = cache.get(cache_key)
+
+        if config is None:
+            config, _ = cls.objects.get_or_create(pk=1)
+            cache.set(cache_key, config, timeout=300)  # Cache for 5 minutes
+
+        return config
+
+    @classmethod
+    def invalidate_cache(cls):
+        """Invalidate the configuration cache."""
+        from django.core.cache import cache
+        cache.delete('billing_configuration')
+
+    def as_dict(self):
+        """
+        Return configuration as a dictionary.
+
+        Useful for templates and documentation generation.
+        """
+        return {
+            'business_name': self.business_name,
+            'product_name': self.product_name,
+            'student_max_age': self.student_max_age,
+            'adult_min_age': self.student_max_age + 1,
+            'student': {
+                'name': 'Student',
+                'monthly_price': self.student_monthly_price,
+                'annual_price': self.student_annual_price,
+                'annual_savings_percent': self._calculate_savings(
+                    self.student_monthly_price, self.student_annual_price
+                ),
+                'description': f'For students age {self.student_max_age} and under',
+            },
+            'adult': {
+                'name': 'Adult',
+                'monthly_price': self.adult_monthly_price,
+                'annual_price': self.adult_annual_price,
+                'annual_savings_percent': self._calculate_savings(
+                    self.adult_monthly_price, self.adult_annual_price
+                ),
+                'description': f'For adults age {self.student_max_age + 1} and over',
+            },
+            'founding': {
+                'name': 'Founding Member',
+                'lifetime_price': self.founding_lifetime_price,
+                'quarterly_bonus_per_referral': self.founding_quarterly_bonus,
+                'description': 'Lifetime access with quarterly referral bonuses',
+            },
+            'rewards': {
+                'referral_bonus': self.referral_bonus,
+                'suggestion_reward': self.suggestion_reward,
+                'suggestions_per_month_limit': self.suggestions_per_month_limit,
+                'referral_qualification_days': self.referral_qualification_days,
+            },
+            'stripe_fees': {
+                'percentage': self.stripe_fee_percentage,
+                'flat_fee': self.stripe_fee_flat,
+            },
+        }
+
+    def _calculate_savings(self, monthly_price, annual_price):
+        """Calculate annual savings percentage vs monthly billing."""
+        monthly_total = monthly_price * 12
+        if monthly_total == 0:
+            return 0
+        savings = ((monthly_total - annual_price) / monthly_total) * 100
+        return round(savings)
+
+
 def get_reward_amount(reward_type):
     """
-    Get reward amount from BILLING_CONFIG.
+    Get reward amount from database configuration.
 
     Args:
         reward_type: 'referral_bonus' or 'suggestion_reward'
@@ -49,9 +255,17 @@ def get_reward_amount(reward_type):
     Returns:
         Decimal amount (defaults to 5.00 if not configured)
     """
-    config = getattr(settings, 'BILLING_CONFIG', {})
-    rewards = config.get('rewards', {})
-    return rewards.get(reward_type, Decimal('5.00'))
+    try:
+        config = BillingConfiguration.get_config()
+        if reward_type == 'referral_bonus':
+            return config.referral_bonus
+        elif reward_type == 'suggestion_reward':
+            return config.suggestion_reward
+        else:
+            return Decimal('5.00')
+    except Exception:
+        # Fallback if database not available
+        return Decimal('5.00')
 
 
 class BillingProfile(TimeStampedModel):

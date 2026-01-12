@@ -4,12 +4,12 @@ Billing context processors.
 Provides billing configuration to all templates.
 """
 
-from django.conf import settings
+from .models import BillingConfiguration
 
 
 def billing_config(request):
     """
-    Add BILLING_CONFIG to template context.
+    Add billing configuration to template context from database.
 
     This allows templates to access pricing, rewards, and other
     billing configuration without hardcoding values.
@@ -19,7 +19,13 @@ def billing_config(request):
         {{ billing_config.rewards.referral_bonus }}
         {{ billing_config.student_max_age }}
     """
-    config = getattr(settings, 'BILLING_CONFIG', {})
-    return {
-        'billing_config': config,
-    }
+    try:
+        config = BillingConfiguration.get_config()
+        return {
+            'billing_config': config.as_dict(),
+        }
+    except Exception:
+        # Fallback to empty dict if database not available
+        return {
+            'billing_config': {},
+        }

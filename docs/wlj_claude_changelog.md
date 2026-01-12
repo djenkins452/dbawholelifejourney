@@ -16,6 +16,48 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Billing Configuration - Database-Driven Settings via Django Admin
+
+**Task:** Move billing configuration from hardcoded settings.py to database-managed configuration.
+
+**Problem:** User requested that billing configuration (pricing, rewards, age thresholds) should be managed via Django Admin instead of editing code files. This follows best practices for maintainability.
+
+**Implementation:**
+
+**New Model:**
+- `BillingConfiguration`: Singleton model storing all pricing and rewards configuration
+  - Business info (name, product)
+  - Age thresholds (student_max_age)
+  - Pricing tiers (student monthly/annual, adult monthly/annual, founding lifetime)
+  - Rewards (referral_bonus, suggestion_reward, founding_quarterly_bonus)
+  - Rate limits (suggestions_per_month_limit, referral_qualification_days)
+  - Stripe fees (for documentation/margin calculations)
+  - Caching via `get_config()` class method (5-minute TTL)
+  - `as_dict()` method for template context
+
+**Admin Interface:**
+- `BillingConfigurationAdmin` with organized fieldsets
+- Singleton pattern - redirects list view to edit form
+- Cache invalidation on save
+- Add permission only if no config exists
+- Delete permission disabled
+
+**Files Modified:**
+- `apps/billing/models.py`: Added BillingConfiguration model, updated get_reward_amount()
+- `apps/billing/admin.py`: Added BillingConfigurationAdmin
+- `apps/billing/services.py`: Updated get_billing_config() and determine_tier_by_age() to read from database
+- `apps/billing/context_processors.py`: Updated to use BillingConfiguration.get_config()
+- `apps/billing/management/commands/generate_billing_docs.py`: Updated to read from database
+- `config/settings.py`: Removed hardcoded BILLING_CONFIG, added reference comment
+
+**Migrations:**
+- `0002_add_billing_configuration.py`: Creates BillingConfiguration model
+- `0003_populate_initial_billing_config.py`: Data migration with default values
+
+**Admin URL:** `/admin/billing/billingconfiguration/`
+
+---
+
 ### Billing & Subscriptions System - Phase 11: Complete Test Suite
 
 **Task:** Create comprehensive test suite for the billing app.

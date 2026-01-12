@@ -1,19 +1,21 @@
 # ==============================================================================
 # File: apps/core/rate_limiting.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Rate limiting utilities for API endpoints
+# Description: Rate limiting and API security utilities
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-12 (CISO Security Review)
 # Last Updated: 2026-01-12
 # ==============================================================================
 """
-Rate Limiting Utilities
+Rate Limiting and API Security Utilities
 
-Provides in-memory rate limiting for API endpoints to prevent abuse.
-Uses Django's cache framework for distributed deployments.
+Provides:
+    - In-memory rate limiting for API endpoints
+    - Secure constant-time API key comparison (HMAC)
+    - IP address extraction from proxied requests
 
 Usage:
-    from apps.core.rate_limiting import rate_limit_api
+    from apps.core.rate_limiting import rate_limit_api, secure_compare_api_key
 
     @rate_limit_api(requests_per_minute=60, requests_per_hour=1000)
     def my_api_view(request):
@@ -23,9 +25,11 @@ Security:
     - Tracks requests by IP address
     - Returns 429 Too Many Requests when limits exceeded
     - Logs rate limit violations to security logger
+    - Uses constant-time comparison for API keys to prevent timing attacks
 """
 
 import functools
+import hmac
 import logging
 from typing import Optional
 
@@ -36,6 +40,40 @@ from django.utils import timezone
 from apps.core.security_logging import log_security_event
 
 logger = logging.getLogger(__name__)
+
+
+# ==============================================================================
+# Secure API Key Comparison (CISO Review 2026-01-12)
+# ==============================================================================
+
+def secure_compare_api_key(provided_key: str, expected_key: str) -> bool:
+    """
+    Securely compare an API key using constant-time comparison.
+
+    This prevents timing attacks where an attacker could measure response
+    times to determine how many characters of the key are correct.
+
+    Args:
+        provided_key: The API key provided in the request header
+        expected_key: The expected API key from settings
+
+    Returns:
+        True if keys match, False otherwise
+
+    Security Notes:
+        - Uses hmac.compare_digest for constant-time comparison
+        - Prevents timing-based side-channel attacks
+        - Always compares same-length strings (encodes to bytes)
+    """
+    if not provided_key or not expected_key:
+        return False
+
+    # Encode both keys to bytes for comparison
+    provided_bytes = provided_key.encode('utf-8')
+    expected_bytes = expected_key.encode('utf-8')
+
+    # Use constant-time comparison to prevent timing attacks
+    return hmac.compare_digest(provided_bytes, expected_bytes)
 
 
 def get_client_ip(request) -> str:

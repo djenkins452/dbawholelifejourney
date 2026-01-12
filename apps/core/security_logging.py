@@ -63,6 +63,9 @@ EVENT_TYPES = {
     'api_error': 'API integration error',
     'vulnerability_scan': 'Potential vulnerability scan detected',
     'bot_activity': 'Bot activity detected',
+    # Admin override actions (CISO Review 2026-01-12)
+    'admin_override': 'Admin override action performed',
+    'data_export': 'User data exported (GDPR)',
 }
 
 
@@ -204,6 +207,53 @@ def log_api_error(
         severity='error',
         message=f"API error with '{api_name}': {error}",
         details=context,
+    )
+
+
+def log_admin_override(
+    action: str,
+    request: Any,
+    target_type: str,
+    target_id: Any,
+    details: Optional[dict[str, Any]] = None,
+) -> None:
+    """
+    Log an admin override action for audit purposes.
+
+    CISO Review 2026-01-12: All admin override actions must be audited.
+
+    Args:
+        action: Description of the override action (e.g., 'reset_phase', 'unblock_task')
+        request: HTTP request object (for IP, user info)
+        target_type: Type of target (e.g., 'phase', 'task')
+        target_id: ID of the affected resource
+        details: Additional context
+
+    Example:
+        log_admin_override(
+            action='reset_phase',
+            request=request,
+            target_type='phase',
+            target_id=123,
+            details={'new_status': 'active'}
+        )
+    """
+    details = details or {}
+    details['action'] = action
+    details['target_type'] = target_type
+    details['target_id'] = target_id
+
+    # Get user email if available
+    user = getattr(request, 'user', None)
+
+    log_security_event(
+        event_type='admin_override',
+        severity='warning',  # All overrides logged at warning level for visibility
+        message=f"Admin override: {action} on {target_type} {target_id}",
+        details=details,
+        request=request,
+        user=user,
+        notify_immediately=True,  # Always notify admins of override actions
     )
 
 

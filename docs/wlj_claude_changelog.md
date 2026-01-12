@@ -111,6 +111,75 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Security: CISO Review - Batch 2 - Sensitive Data Encryption & API Security
+
+**Goal:** Implement critical security controls for OAuth token encryption, secure API key comparison, and admin override audit logging.
+
+**Changes Made:**
+
+#### High Priority (Batch 2)
+
+1. **OAuth Token Encryption for Google Calendar** (`apps/life/models.py`):
+   - `GoogleCalendarCredential` now stores encrypted tokens at rest
+   - Added `access_token_decrypted`, `refresh_token_decrypted`, `client_secret_decrypted` properties
+   - Added `set_access_token()`, `set_refresh_token()`, `set_client_secret()` methods
+   - Updated `get_credentials_dict()` to return decrypted values
+   - Updated `update_from_credentials()` to encrypt on save
+
+2. **OAuth Token Encryption for Dexcom** (`apps/health/models.py`):
+   - `DexcomCredential` now stores encrypted tokens at rest
+   - Added `access_token_decrypted`, `refresh_token_decrypted` properties
+   - Added `set_access_token()`, `set_refresh_token()` methods
+   - Updated `get_credentials_dict()` to return decrypted values
+   - Updated `update_from_credentials()` to encrypt on save
+
+3. **OAuth Token Encryption Service** (new file: `apps/core/encryption.py`):
+   - `encrypt_oauth_token()` - Encrypt tokens for database storage
+   - `decrypt_oauth_token()` - Decrypt tokens for use
+   - `get_oauth_fernet()` - Get Fernet instance from settings
+   - `generate_oauth_encryption_key()` - Generate new keys
+   - Complete KEY ROTATION PROCEDURE documentation
+   - Falls back to `UNENCRYPTED:` prefix in dev mode (no key configured)
+
+4. **HMAC-Based API Key Comparison** (`apps/core/rate_limiting.py`):
+   - Added `secure_compare_api_key()` function using `hmac.compare_digest`
+   - Prevents timing attacks on API key validation
+   - Used by Claude API endpoints
+
+5. **Claude API Security Updates** (`apps/admin_console/views.py`):
+   - `ReadyTasksAPIView.get()` - Now uses `secure_compare_api_key()`
+   - `UpdateTaskStatusAPIView.post()` - Now uses `secure_compare_api_key()`
+
+6. **Admin Override Audit Logging** (`apps/core/security_logging.py`):
+   - Added `admin_override` and `data_export` event types
+   - New `log_admin_override()` function for audit logging
+   - All override actions now notify admins immediately
+
+7. **Admin Override APIs Audit Logging** (`apps/admin_console/views.py`):
+   - `ResetPhaseOverrideAPIView` - Logs all phase resets
+   - `UnblockTaskOverrideAPIView` - Logs all task unblocks
+   - `RecheckPhaseOverrideAPIView` - Logs all phase rechecks
+
+**New Environment Variables:**
+- `OAUTH_TOKEN_ENCRYPTION_KEY` - Fernet key for OAuth token encryption
+  - Generate with: `from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())`
+
+**Files Modified/Created:**
+- `apps/core/encryption.py` - NEW: OAuth token encryption
+- `apps/core/rate_limiting.py` - Added secure_compare_api_key()
+- `apps/core/security_logging.py` - Added log_admin_override()
+- `apps/life/models.py` - GoogleCalendarCredential encryption
+- `apps/health/models.py` - DexcomCredential encryption
+- `apps/admin_console/views.py` - Secure API key comparison, audit logging
+- `config/settings.py` - OAUTH_TOKEN_ENCRYPTION_KEY setting
+
+**Security Controls Added:**
+- OAuth tokens: Encrypted at rest (AES-256 via Fernet)
+- API key comparison: Constant-time to prevent timing attacks
+- Admin overrides: Audited and emailed to admins
+
+---
+
 ### Feature: Add Scan Icons Throughout Nutrition Flow
 
 **Goal:** Make barcode/photo scanning accessible from multiple entry points in the nutrition flow, allowing users to quickly scan food items from anywhere in the nutrition section.

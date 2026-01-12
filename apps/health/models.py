@@ -2410,6 +2410,11 @@ class DexcomCredential(models.Model):
 
     Follows OAuth 2.0 pattern matching GoogleCalendarCredential.
     Dexcom API uses standard OAuth2 with access/refresh tokens.
+
+    Security Note (CISO Review 2026-01-12):
+        OAuth tokens are encrypted at rest using Fernet AES-256 encryption.
+        Use the property accessors (access_token_decrypted, etc.) to get
+        plaintext values. Raw database fields contain encrypted data.
     """
 
     user = models.OneToOneField(
@@ -2418,9 +2423,10 @@ class DexcomCredential(models.Model):
         related_name='dexcom_credential'
     )
 
-    # OAuth tokens
-    access_token = models.TextField()
-    refresh_token = models.TextField(blank=True)
+    # OAuth tokens (encrypted at rest)
+    # Use the _decrypted property accessors for plaintext values
+    access_token = models.TextField(help_text="Encrypted access token")
+    refresh_token = models.TextField(blank=True, help_text="Encrypted refresh token")
     token_expiry = models.DateTimeField(null=True, blank=True)
 
     # Dexcom user ID (hashed, returned by API)
@@ -2464,18 +2470,46 @@ class DexcomCredential(models.Model):
         """Check if we have valid credentials."""
         return bool(self.access_token)
 
+    # =========================================================================
+    # Encrypted Token Accessors (CISO Review 2026-01-12)
+    # =========================================================================
+
+    @property
+    def access_token_decrypted(self):
+        """Get the decrypted access token."""
+        from apps.core.encryption import decrypt_oauth_token
+        return decrypt_oauth_token(self.access_token)
+
+    @property
+    def refresh_token_decrypted(self):
+        """Get the decrypted refresh token."""
+        from apps.core.encryption import decrypt_oauth_token
+        return decrypt_oauth_token(self.refresh_token)
+
+    def set_access_token(self, plaintext):
+        """Set and encrypt the access token."""
+        from apps.core.encryption import encrypt_oauth_token
+        self.access_token = encrypt_oauth_token(plaintext)
+
+    def set_refresh_token(self, plaintext):
+        """Set and encrypt the refresh token."""
+        from apps.core.encryption import encrypt_oauth_token
+        self.refresh_token = encrypt_oauth_token(plaintext) if plaintext else ''
+
     def get_credentials_dict(self):
-        """Return credentials in format for API calls."""
+        """Return credentials in format for API calls (decrypted)."""
         return {
-            'access_token': self.access_token,
-            'refresh_token': self.refresh_token,
+            'access_token': self.access_token_decrypted,
+            'refresh_token': self.refresh_token_decrypted,
             'token_expiry': self.token_expiry.isoformat() if self.token_expiry else None,
         }
 
     def update_from_credentials(self, credentials_dict):
-        """Update model from credentials dictionary."""
-        self.access_token = credentials_dict.get('access_token', '')
-        self.refresh_token = credentials_dict.get('refresh_token', self.refresh_token)
+        """Update model from credentials dictionary (encrypts tokens)."""
+        if 'access_token' in credentials_dict:
+            self.set_access_token(credentials_dict.get('access_token', ''))
+        if 'refresh_token' in credentials_dict:
+            self.set_refresh_token(credentials_dict.get('refresh_token', ''))
 
         # Handle expiry
         expiry = credentials_dict.get('token_expiry')

@@ -1385,3 +1385,314 @@ class PageView(models.Model):
         views_to_keep = cls.objects.filter(user=user).order_by('-visit_count', '-viewed_at')[:keep_count]
         ids_to_keep = list(views_to_keep.values_list('id', flat=True))
         cls.objects.filter(user=user).exclude(id__in=ids_to_keep).delete()
+
+
+class APIRequestLog(models.Model):
+    """
+    Log of API requests for security monitoring and anomaly detection.
+
+    CISO Review 2026-01-12: Added for security requirement
+    "API request logging with anomaly detection"
+
+    Features:
+    - Records all API requests with timing and response data
+    - Tracks patterns for anomaly detection
+    - Supports IP-based and key-based analysis
+    - Auto-cleanup of old records (30 days default)
+
+    Usage:
+    - Created by APIRequestLoggingMiddleware for /api/* endpoints
+    - Queried by anomaly detection background job
+    - Displayed in admin console security dashboard
+    """
+
+    # Request identification
+    request_id = models.CharField(
+        max_length=36,
+        db_index=True,
+        help_text="UUID for correlating logs"
+    )
+
+    # Endpoint info
+    method = models.CharField(
+        max_length=10,
+        help_text="HTTP method (GET, POST, etc.)"
+    )
+    path = models.CharField(
+        max_length=500,
+        db_index=True,
+        help_text="API endpoint path"
+    )
+    query_string = models.TextField(
+        blank=True,
+        default="",
+        help_text="Query parameters (sanitized)"
+    )
+
+    # Authentication
+    api_key_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Name/identifier of API key used (not the key itself)"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Authenticated user (if any)"
+    )
+
+    # Client info
+    ip_address = models.GenericIPAddressField(
+        db_index=True,
+        help_text="Client IP address"
+    )
+    user_agent = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="User agent string"
+    )
+
+    # Response info
+    status_code = models.PositiveSmallIntegerField(
+        db_index=True,
+        help_text="HTTP response status code"
+    )
+    response_time_ms = models.PositiveIntegerField(
+        help_text="Response time in milliseconds"
+    )
+
+    # Error tracking
+    error_message = models.TextField(
+        blank=True,
+        default="",
+        help_text="Error message if request failed"
+    )
+
+    # Anomaly detection flags
+    is_anomaly = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Flagged as anomalous by detection system"
+    )
+    anomaly_reason = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Reason for anomaly flag"
+    )
+    anomaly_score = models.FloatField(
+        default=0.0,
+        help_text="Anomaly score (0-1, higher = more anomalous)"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "API Request Log"
+        verbose_name_plural = "API Request Logs"
+        indexes = [
+            models.Index(fields=['ip_address', 'created_at']),
+            models.Index(fields=['api_key_name', 'created_at']),
+            models.Index(fields=['path', 'created_at']),
+            models.Index(fields=['status_code', 'created_at']),
+            models.Index(fields=['is_anomaly', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.method} {self.path} - {self.status_code} ({self.ip_address})"
+
+    @classmethod
+    def log_request(cls, request, response, response_time_ms, error_message=""):
+        """
+        Create a log entry for an API request.
+
+        Args:
+            request: Django HttpRequest
+            response: Django HttpResponse
+            response_time_ms: Response time in milliseconds
+            error_message: Error message if request failed
+
+        Returns:
+            APIRequestLog instance
+        """
+        import uuid
+        from apps.core.rate_limiting import get_client_ip
+
+        # Get or generate request ID
+        request_id = getattr(request, 'request_id', None) or str(uuid.uuid4())
+
+        # Determine API key name (if used)
+        api_key_name = ""
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if api_key:
+            # Don't store the key, just indicate it was used
+            api_key_name = "claude-api"
+
+        # Get user if authenticated
+        user = None
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            user = request.user
+
+        # Sanitize query string (remove sensitive params)
+        query_string = request.META.get('QUERY_STRING', '')
+        sensitive_params = ['key', 'token', 'password', 'secret', 'api_key']
+        for param in sensitive_params:
+            if param in query_string.lower():
+                query_string = '[REDACTED]'
+                break
+
+        return cls.objects.create(
+            request_id=request_id,
+            method=request.method,
+            path=request.path,
+            query_string=query_string[:500],  # Limit length
+            api_key_name=api_key_name,
+            user=user,
+            ip_address=get_client_ip(request),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
+            status_code=response.status_code,
+            response_time_ms=response_time_ms,
+            error_message=error_message[:1000] if error_message else "",
+        )
+
+    @classmethod
+    def get_stats_for_ip(cls, ip_address, hours=1):
+        """
+        Get request statistics for an IP address.
+
+        Returns dict with:
+        - total_requests: Total requests in time window
+        - error_rate: Percentage of 4xx/5xx responses
+        - avg_response_time: Average response time in ms
+        - unique_endpoints: Number of unique endpoints accessed
+        """
+        from django.db.models import Avg, Count
+
+        cutoff = timezone.now() - timezone.timedelta(hours=hours)
+        qs = cls.objects.filter(ip_address=ip_address, created_at__gte=cutoff)
+
+        total = qs.count()
+        if total == 0:
+            return {
+                'total_requests': 0,
+                'error_rate': 0.0,
+                'avg_response_time': 0,
+                'unique_endpoints': 0,
+            }
+
+        errors = qs.filter(status_code__gte=400).count()
+        avg_time = qs.aggregate(avg=Avg('response_time_ms'))['avg'] or 0
+        unique_endpoints = qs.values('path').distinct().count()
+
+        return {
+            'total_requests': total,
+            'error_rate': (errors / total) * 100,
+            'avg_response_time': int(avg_time),
+            'unique_endpoints': unique_endpoints,
+        }
+
+    @classmethod
+    def detect_anomalies(cls, hours=1):
+        """
+        Detect anomalous API request patterns.
+
+        Checks for:
+        1. High request volume from single IP (>100/hour)
+        2. High error rate from single IP (>50% errors)
+        3. Sequential endpoint probing (many 404s)
+        4. Rapid authentication failures (many 401/403s)
+
+        Returns list of anomaly dicts with ip_address, reason, score.
+        """
+        from django.db.models import Count, Q
+
+        cutoff = timezone.now() - timezone.timedelta(hours=hours)
+        anomalies = []
+
+        # 1. High volume IPs (>100 requests/hour)
+        high_volume = cls.objects.filter(
+            created_at__gte=cutoff
+        ).values('ip_address').annotate(
+            count=Count('id')
+        ).filter(count__gt=100)
+
+        for item in high_volume:
+            anomalies.append({
+                'ip_address': item['ip_address'],
+                'reason': f"High request volume: {item['count']} requests/hour",
+                'score': min(1.0, item['count'] / 500),  # Cap at 1.0
+                'type': 'high_volume',
+            })
+
+        # 2. High error rate IPs (>50% errors with >10 requests)
+        ip_error_rates = cls.objects.filter(
+            created_at__gte=cutoff
+        ).values('ip_address').annotate(
+            total=Count('id'),
+            errors=Count('id', filter=Q(status_code__gte=400))
+        ).filter(total__gt=10)
+
+        for item in ip_error_rates:
+            error_rate = item['errors'] / item['total']
+            if error_rate > 0.5:
+                anomalies.append({
+                    'ip_address': item['ip_address'],
+                    'reason': f"High error rate: {error_rate*100:.0f}% ({item['errors']}/{item['total']})",
+                    'score': error_rate,
+                    'type': 'high_error_rate',
+                })
+
+        # 3. Sequential 404s (endpoint probing)
+        probing_ips = cls.objects.filter(
+            created_at__gte=cutoff,
+            status_code=404
+        ).values('ip_address').annotate(
+            count=Count('id')
+        ).filter(count__gt=20)
+
+        for item in probing_ips:
+            anomalies.append({
+                'ip_address': item['ip_address'],
+                'reason': f"Possible endpoint probing: {item['count']} 404 responses",
+                'score': min(1.0, item['count'] / 50),
+                'type': 'endpoint_probing',
+            })
+
+        # 4. Auth failures (many 401/403s)
+        auth_failures = cls.objects.filter(
+            created_at__gte=cutoff,
+            status_code__in=[401, 403]
+        ).values('ip_address').annotate(
+            count=Count('id')
+        ).filter(count__gt=10)
+
+        for item in auth_failures:
+            anomalies.append({
+                'ip_address': item['ip_address'],
+                'reason': f"Authentication failures: {item['count']} 401/403 responses",
+                'score': min(1.0, item['count'] / 30),
+                'type': 'auth_failures',
+            })
+
+        return anomalies
+
+    @classmethod
+    def cleanup_old_logs(cls, days=30):
+        """
+        Delete API request logs older than specified days.
+
+        Returns number of deleted records.
+        """
+        cutoff = timezone.now() - timezone.timedelta(days=days)
+        deleted, _ = cls.objects.filter(created_at__lt=cutoff).delete()
+        return deleted

@@ -245,3 +245,167 @@ class ContentSecurityPolicyMiddleware:
         response['Content-Security-Policy'] = csp_header
 
         return response
+
+
+class APIRequestLoggingMiddleware:
+    """
+    Logs API requests for security monitoring and anomaly detection.
+
+    CISO Review 2026-01-12: Added for security requirement
+    "API request logging with anomaly detection"
+
+    Features:
+    - Logs all requests to /api/* endpoints
+    - Captures timing, status codes, and error messages
+    - Performs real-time anomaly detection
+    - Triggers alerts for suspicious patterns
+
+    Configuration:
+    - WLJ_SETTINGS['API_LOGGING_ENABLED']: Enable/disable logging (default: True)
+    - WLJ_SETTINGS['API_LOGGING_PATHS']: List of path prefixes to log (default: ['/api/', '/admin-console/api/'])
+    - WLJ_SETTINGS['API_ANOMALY_DETECTION']: Enable real-time anomaly detection (default: True)
+
+    Note: This middleware should be placed after AuthenticationMiddleware
+    so that request.user is available.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.logger = logging.getLogger('wlj.security')
+
+    def __call__(self, request):
+        from django.conf import settings as django_settings
+        import time
+        import uuid
+
+        # Check if API logging is enabled
+        wlj_settings = getattr(django_settings, 'WLJ_SETTINGS', {})
+        if not wlj_settings.get('API_LOGGING_ENABLED', True):
+            return self.get_response(request)
+
+        # Check if this path should be logged
+        log_paths = wlj_settings.get('API_LOGGING_PATHS', ['/api/', '/admin-console/api/'])
+        should_log = any(request.path.startswith(prefix) for prefix in log_paths)
+
+        if not should_log:
+            return self.get_response(request)
+
+        # Generate request ID for correlation
+        request.request_id = str(uuid.uuid4())
+
+        # Record start time
+        start_time = time.time()
+
+        # Get response
+        response = self.get_response(request)
+
+        # Calculate response time
+        response_time_ms = int((time.time() - start_time) * 1000)
+
+        # Log the request (async to avoid blocking)
+        try:
+            self._log_request(request, response, response_time_ms, wlj_settings)
+        except Exception as e:
+            # Don't let logging errors break the request
+            self.logger.error(f"API logging failed: {e}")
+
+        return response
+
+    def _log_request(self, request, response, response_time_ms, wlj_settings):
+        """Log the API request and check for anomalies."""
+        from apps.core.models import APIRequestLog
+        from apps.core.security_logging import log_security_event
+
+        # Extract error message if present
+        error_message = ""
+        if response.status_code >= 400:
+            try:
+                import json
+                content = response.content.decode('utf-8')
+                data = json.loads(content)
+                error_message = data.get('error', data.get('detail', ''))
+            except Exception:
+                pass
+
+        # Create log entry
+        log_entry = APIRequestLog.log_request(
+            request=request,
+            response=response,
+            response_time_ms=response_time_ms,
+            error_message=error_message
+        )
+
+        # Real-time anomaly detection (if enabled)
+        if wlj_settings.get('API_ANOMALY_DETECTION', True):
+            self._check_realtime_anomalies(request, log_entry)
+
+    def _check_realtime_anomalies(self, request, log_entry):
+        """
+        Perform real-time anomaly checks on the current request.
+
+        This checks:
+        1. Burst detection: Too many requests from same IP in short window
+        2. Auth failure spike: Multiple auth failures in short window
+        """
+        from apps.core.models import APIRequestLog
+        from apps.core.rate_limiting import get_client_ip
+        from apps.core.security_logging import log_security_event
+        from django.utils import timezone
+        from datetime import timedelta
+
+        ip = get_client_ip(request)
+        now = timezone.now()
+        five_min_ago = now - timedelta(minutes=5)
+
+        # Check for burst (>50 requests in 5 minutes from same IP)
+        recent_count = APIRequestLog.objects.filter(
+            ip_address=ip,
+            created_at__gte=five_min_ago
+        ).count()
+
+        if recent_count > 50:
+            # Flag as anomaly
+            log_entry.is_anomaly = True
+            log_entry.anomaly_reason = f"Burst detected: {recent_count} requests in 5 minutes"
+            log_entry.anomaly_score = min(1.0, recent_count / 100)
+            log_entry.save()
+
+            # Log security event
+            log_security_event(
+                event_type='api_anomaly',
+                details={
+                    'ip_address': ip,
+                    'reason': log_entry.anomaly_reason,
+                    'score': log_entry.anomaly_score,
+                    'request_id': log_entry.request_id,
+                    'path': request.path,
+                },
+                request=request
+            )
+
+        # Check for auth failure spike (>5 auth failures in 5 minutes)
+        if log_entry.status_code in [401, 403]:
+            auth_failures = APIRequestLog.objects.filter(
+                ip_address=ip,
+                status_code__in=[401, 403],
+                created_at__gte=five_min_ago
+            ).count()
+
+            if auth_failures > 5:
+                log_entry.is_anomaly = True
+                log_entry.anomaly_reason = f"Auth failure spike: {auth_failures} failures in 5 minutes"
+                log_entry.anomaly_score = min(1.0, auth_failures / 15)
+                log_entry.save()
+
+                log_security_event(
+                    event_type='api_anomaly',
+                    details={
+                        'ip_address': ip,
+                        'reason': log_entry.anomaly_reason,
+                        'score': log_entry.anomaly_score,
+                        'request_id': log_entry.request_id,
+                        'path': request.path,
+                        'type': 'auth_failure_spike',
+                    },
+                    request=request
+                )

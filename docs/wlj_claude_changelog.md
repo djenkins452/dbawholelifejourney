@@ -16,6 +16,55 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Security: API Request Logging with Anomaly Detection (CISO Review Complete)
+
+**Summary:** Implemented comprehensive API request logging infrastructure with real-time
+anomaly detection. This completes all 12 security concerns from the CISO review.
+
+**New Components:**
+
+1. **APIRequestLog Model** (`apps/core/models.py`):
+   - Stores: request_id, method, path, api_key_name, user, ip_address, user_agent
+   - Stores: status_code, response_time_ms, error_message
+   - Anomaly fields: is_anomaly, anomaly_reason, anomaly_score
+   - Indexed on: request_id, path, api_key_name, ip_address, status_code, created_at, is_anomaly
+   - Class methods: `log_request()`, `get_stats_for_ip()`, `detect_anomalies()`, `cleanup_old_logs()`
+
+2. **APIRequestLoggingMiddleware** (`apps/core/middleware.py`):
+   - Logs all requests to `/api/*` and `/admin-console/api/*` endpoints
+   - Generates UUID request_id for correlation
+   - Captures response times and error messages
+   - Real-time anomaly detection for:
+     - **Burst detection**: >50 requests from same IP in 5 minutes
+     - **Auth failure spikes**: >5 auth failures (401/403) from same IP in 5 minutes
+
+3. **Security Event Type** (`apps/core/security_logging.py`):
+   - Added `api_anomaly` event type for anomaly alerts
+   - Anomalies trigger security event logging with details
+
+4. **Cleanup Command** (`apps/core/management/commands/cleanup_api_logs.py`):
+   - Deletes logs older than retention period (default 30 days)
+   - `--keep-anomalies` flag retains anomalies for 2x retention
+   - `--dry-run` for testing
+   - Should be scheduled daily via cron
+
+5. **Configuration** (`config/settings.py`):
+   - `WLJ_SETTINGS['API_LOGGING_ENABLED']`: Enable/disable (default: True)
+   - `WLJ_SETTINGS['API_LOGGING_PATHS']`: Paths to log (default: ['/api/', '/admin-console/api/'])
+   - `WLJ_SETTINGS['API_ANOMALY_DETECTION']`: Enable real-time detection (default: True)
+   - `WLJ_SETTINGS['API_LOG_RETENTION_DAYS']`: Log retention (default: 30)
+
+**Migration:** `apps/core/migrations/0044_apirequestlog.py`
+
+**Files Changed:**
+- `apps/core/models.py` - Added APIRequestLog model
+- `apps/core/middleware.py` - Added APIRequestLoggingMiddleware
+- `apps/core/security_logging.py` - Added api_anomaly event type
+- `config/settings.py` - Added middleware and WLJ_SETTINGS
+- `apps/core/management/commands/cleanup_api_logs.py` - New cleanup command
+
+---
+
 ### Security: CSP Nonce Implementation Complete
 
 **Summary:** Added `nonce="{{ csp_nonce }}"` to ALL inline `<script>` and `<style>` tags

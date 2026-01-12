@@ -66,6 +66,8 @@ EVENT_TYPES = {
     # Admin override actions (CISO Review 2026-01-12)
     'admin_override': 'Admin override action performed',
     'data_export': 'User data exported (GDPR)',
+    # API anomaly detection (CISO Review 2026-01-12)
+    'api_anomaly': 'API request anomaly detected',
 }
 
 

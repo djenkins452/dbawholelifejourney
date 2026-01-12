@@ -160,6 +160,7 @@ MIDDLEWARE = [
     "apps.core.middleware.PageViewTrackingMiddleware",  # Track page views for Favorites
     "apps.core.middleware.CSPNonceMiddleware",  # Generate CSP nonce (CISO Review) - must be before CSP
     "apps.core.middleware.ContentSecurityPolicyMiddleware",  # CSP headers for XSS protection
+    "apps.core.middleware.APIRequestLoggingMiddleware",  # API logging with anomaly detection (CISO Review)
     "axes.middleware.AxesMiddleware",  # Rate limiting (Security Fix H-3) - must be last
 ]
 
@@ -689,6 +690,11 @@ WLJ_SETTINGS = {
     # Finance activity timeout (minutes) - CISO Review 2026-01-12
     # Requires re-authentication for sensitive financial operations after this period
     "FINANCE_ACTIVITY_TIMEOUT_MINUTES": 15,
+    # API Request Logging with Anomaly Detection (CISO Review 2026-01-12)
+    "API_LOGGING_ENABLED": True,
+    "API_LOGGING_PATHS": ["/api/", "/admin-console/api/"],
+    "API_ANOMALY_DETECTION": True,
+    "API_LOG_RETENTION_DAYS": 30,
 }
 
 # Bible API (required for Scripture lookups in Faith module)

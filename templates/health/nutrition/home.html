@@ -17,6 +17,7 @@
             <p class="page-subtitle">{{ today|date:"l, F j, Y" }}</p>
         </div>
         <div class="page-actions">
+            <a href="{% url 'scan:home' %}?mode=barcode" class="btn btn-icon btn-secondary" title="Scan food barcode">📷</a>
             <a href="{% url 'health:food_quick_add' %}" class="btn btn-secondary btn-sm">Quick Add</a>
             <a href="{% url 'health:food_entry_create' %}" class="btn btn-primary">Log Food</a>
         </div>
@@ -82,7 +83,10 @@
         <div class="meal-group">
             <div class="meal-header">
                 <h2>Breakfast</h2>
-                <a href="{% url 'health:food_entry_create' %}?meal=breakfast" class="btn btn-text btn-sm">+ Add</a>
+                <div class="meal-actions">
+                    <a href="{% url 'scan:home' %}?mode=barcode&meal=breakfast" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
+                    <a href="{% url 'health:food_entry_create' %}?meal=breakfast" class="btn btn-text btn-sm">+ Add</a>
+                </div>
             </div>
             {% if breakfast_entries %}
             <div class="food-list">
@@ -113,7 +117,10 @@
         <div class="meal-group">
             <div class="meal-header">
                 <h2>Lunch</h2>
-                <a href="{% url 'health:food_entry_create' %}?meal=lunch" class="btn btn-text btn-sm">+ Add</a>
+                <div class="meal-actions">
+                    <a href="{% url 'scan:home' %}?mode=barcode&meal=lunch" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
+                    <a href="{% url 'health:food_entry_create' %}?meal=lunch" class="btn btn-text btn-sm">+ Add</a>
+                </div>
             </div>
             {% if lunch_entries %}
             <div class="food-list">
@@ -144,7 +151,10 @@
         <div class="meal-group">
             <div class="meal-header">
                 <h2>Dinner</h2>
-                <a href="{% url 'health:food_entry_create' %}?meal=dinner" class="btn btn-text btn-sm">+ Add</a>
+                <div class="meal-actions">
+                    <a href="{% url 'scan:home' %}?mode=barcode&meal=dinner" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
+                    <a href="{% url 'health:food_entry_create' %}?meal=dinner" class="btn btn-text btn-sm">+ Add</a>
+                </div>
             </div>
             {% if dinner_entries %}
             <div class="food-list">
@@ -175,7 +185,10 @@
         <div class="meal-group">
             <div class="meal-header">
                 <h2>Snacks</h2>
-                <a href="{% url 'health:food_entry_create' %}?meal=snack" class="btn btn-text btn-sm">+ Add</a>
+                <div class="meal-actions">
+                    <a href="{% url 'scan:home' %}?mode=barcode&meal=snack" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
+                    <a href="{% url 'health:food_entry_create' %}?meal=snack" class="btn btn-text btn-sm">+ Add</a>
+                </div>
             </div>
             {% if snack_entries %}
             <div class="food-list">
@@ -354,6 +367,43 @@
 .meal-header h2 {
     margin: 0;
     font-size: var(--font-size-lg);
+}
+
+.meal-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.btn-icon-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: var(--font-size-base);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.btn-icon-sm:hover {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+}
+
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    font-size: var(--font-size-lg);
+    border-radius: var(--radius-md);
 }
 
 .food-list {

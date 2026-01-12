@@ -12,7 +12,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import models
 from django.db.models import Avg, Max, Min, Sum, F
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import (
     CreateView,
@@ -3027,7 +3027,20 @@ class FoodEntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMi
             form.instance.entry_source = FoodEntry.SOURCE_BARCODE
         else:
             form.instance.entry_source = FoodEntry.SOURCE_MANUAL
-        if 'save_add_another' not in self.request.POST:
+
+        # Handle different submit buttons
+        if 'save_and_scan' in self.request.POST:
+            # Save the form first
+            response = super().form_valid(form)
+            messages.success(self.request, "Food logged. Scan another!")
+            # Redirect to scan page with barcode mode
+            scan_url = reverse('scan:home') + '?mode=barcode'
+            # Preserve meal type if present
+            meal_type = form.cleaned_data.get('meal_type')
+            if meal_type:
+                scan_url += f'&meal={meal_type}'
+            return redirect(scan_url)
+        elif 'save_add_another' not in self.request.POST:
             messages.success(self.request, "Food logged.")
         return super().form_valid(form)
 

@@ -16,6 +16,39 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Feature: Add Scan Icons Throughout Nutrition Flow
+
+**Goal:** Make barcode/photo scanning accessible from multiple entry points in the nutrition flow, allowing users to quickly scan food items from anywhere in the nutrition section.
+
+**Changes Made:**
+
+1. **Nutrition Home Page** (`templates/health/nutrition/home.html`):
+   - Added scan icon (📷) next to "Log Food" button in header
+   - Added scan icon next to each meal section's "+ Add" button (Breakfast, Lunch, Dinner, Snacks)
+   - Added CSS for `.meal-actions`, `.btn-icon`, and `.btn-icon-sm` classes
+
+2. **Food Entry Form** (`templates/health/nutrition/food_entry_form.html`):
+   - Added scan icon next to "What did you eat?" section title
+   - Added "Save & Scan 📷" button to form actions (saves entry then redirects to scanner)
+   - Added CSS for `.form-section-header` and `.btn-icon-sm` classes
+
+3. **Food Entry View** (`apps/health/views.py`):
+   - Added `reverse` import
+   - Modified `FoodEntryCreateView.form_valid()` to handle `save_and_scan` button
+   - When "Save & Scan" is clicked, saves the entry and redirects to `/scan/?mode=barcode&meal=<meal_type>`
+
+**User Flow:**
+- Scan icons link to `/scan/?mode=barcode&meal=<meal_type>`
+- After scanning, barcode lookup redirects to food entry form with pre-filled data
+- "Save & Scan" button on form saves current entry and immediately opens scanner for next item
+
+**Files Modified:**
+- `templates/health/nutrition/home.html`
+- `templates/health/nutrition/food_entry_form.html`
+- `apps/health/views.py`
+
+---
+
 ### Fix: Billing Templates Missing CSS (Tailwind Not Loaded)
 
 **Problem:** Billing pages (`/billing/plans/`, `/billing/settings/`, etc.) were rendering without CSS styling. The navbar was styled correctly but the page content was unstyled.

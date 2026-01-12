@@ -1,0 +1,33 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Quarterly Bonus Earned! - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Quarterly Referral Bonus</h2>
+
+<p>Hi {{ founding_member.first_name|default:founding_member.email }},</p>
+
+<p>
+    As a Founding Member, you've earned a quarterly bonus from your referrals!
+</p>
+
+<div class="highlight">
+    <strong>Quarter:</strong> {{ quarter }}<br>
+    <strong>Qualifying Referrals:</strong> {{ referral_count }}<br>
+    <strong>Bonus Earned:</strong> ${{ payout_amount }}
+</div>
+
+<p>
+    Your payout will be sent to your preferred payment method within 7 business days.
+</p>
+
+<p style="text-align: center;">
+    <a href="https://wholelifejourney.com/billing/payout-preferences/" class="button">
+        Update Payout Preferences
+    </a>
+</p>
+
+<p>
+    Thank you for being a Founding Member and helping grow our community!
+</p>
+{% endblock %}

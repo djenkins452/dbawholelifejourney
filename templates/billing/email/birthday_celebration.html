@@ -1,0 +1,35 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Happy 23rd Birthday! - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Happy 23rd Birthday! 🎉</h2>
+
+<p>Hi {{ user.first_name|default:user.email }},</p>
+
+<p>
+    <strong>Happy Birthday!</strong> We hope your day is wonderful.
+</p>
+
+<div class="highlight">
+    <strong>Your Gift:</strong> We've locked in your Student rate for one more year!
+    <br><br>
+    Your gift year ends on <strong>{{ graduation_date|date:"F d, Y" }}</strong>.
+</div>
+
+<p>
+    After your gift year, you'll transition to the Adult plan at $7.99/month
+    (or $79/year if you switch to annual).
+</p>
+
+<p>
+    Thank you for being part of Whole Life Journey. Here's to another
+    great year of growth and wellness!
+</p>
+
+<p style="text-align: center;">
+    <a href="https://wholelifejourney.com/dashboard/" class="button">
+        Go to Dashboard
+    </a>
+</p>
+{% endblock %}

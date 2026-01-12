@@ -1,0 +1,31 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Someone Joined Using Your Link! - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Great News!</h2>
+
+<p>Hi {{ referrer.first_name|default:referrer.email }},</p>
+
+<p>
+    <strong>{{ referred_user.first_name|default:"Someone" }}</strong> just signed up
+    for Whole Life Journey using your referral link!
+</p>
+
+<div class="highlight">
+    When they become a paying member, you'll both earn <strong>$5 in credit</strong>!
+</div>
+
+<p>
+    Keep sharing your link to earn more rewards. You can find it in your
+    billing settings.
+</p>
+
+<p style="text-align: center;">
+    <a href="https://wholelifejourney.com/billing/settings/" class="button">
+        View Your Referrals
+    </a>
+</p>
+
+<p>Thank you for spreading the word!</p>
+{% endblock %}

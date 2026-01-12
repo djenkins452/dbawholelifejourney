@@ -1,0 +1,33 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Your 23rd Birthday is Coming! - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Your 23rd Birthday is Coming!</h2>
+
+<p>Hi {{ user.first_name|default:user.email }},</p>
+
+<p>
+    We noticed your 23rd birthday is coming up on
+    <strong>{{ birthday|date:"F d" }}</strong> - Happy early birthday!
+</p>
+
+<div class="highlight">
+    <strong>Good News:</strong> As a gift, you'll get one more year at the
+    Student rate before transitioning to the Adult plan. No action needed!
+</div>
+
+<p>
+    Here's what this means:
+</p>
+
+<ul>
+    <li>On your birthday, we'll lock in your Student rate for one more year</li>
+    <li>After that year, you'll automatically move to the Adult plan ($7.99/month)</li>
+    <li>You can switch to annual billing anytime to save even more</li>
+</ul>
+
+<p>
+    Enjoy your special day!
+</p>
+{% endblock %}

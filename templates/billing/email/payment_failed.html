@@ -1,0 +1,31 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Payment Issue - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Payment Issue</h2>
+
+<p>Hi {{ user.first_name|default:user.email }},</p>
+
+<p>We were unable to process your payment for Whole Life Journey.</p>
+
+<p>
+    This can happen if your card has expired, been declined, or if there's
+    a temporary issue with your payment method.
+</p>
+
+<p style="text-align: center;">
+    <a href="https://wholelifejourney.com/billing/portal/" class="button">
+        Update Payment Method
+    </a>
+</p>
+
+<p>
+    If you've already updated your payment information, no action is needed -
+    we'll automatically retry in a few days.
+</p>
+
+<p>
+    Need help? Just reply to this email and we'll assist you.
+</p>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Welcome to the Adult Plan! - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Welcome to the Adult Plan!</h2>
+
+<p>Hi {{ user.first_name|default:user.email }},</p>
+
+<p>
+    Your transition to the Adult plan is complete. Thank you for continuing
+    your journey with us!
+</p>
+
+<div class="highlight">
+    <strong>Your New Plan:</strong> Adult<br>
+    <strong>Rate:</strong> $7.99/month<br>
+    <strong>Features:</strong> All features included (same as before!)
+</div>
+
+<p>
+    Nothing else changes - you still have access to all the same features.
+    The only difference is the billing rate.
+</p>
+
+<p>
+    <strong>Tip:</strong> Switch to annual billing ($79/year) to save 17%!
+</p>
+
+<p style="text-align: center;">
+    <a href="https://wholelifejourney.com/billing/settings/" class="button">
+        Manage Subscription
+    </a>
+</p>
+
+<p>
+    Thank you for being part of Whole Life Journey!
+</p>
+{% endblock %}

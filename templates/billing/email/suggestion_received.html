@@ -1,0 +1,29 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Thanks for Your Suggestion! - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Thanks for Your Suggestion!</h2>
+
+<p>Hi {{ user.first_name|default:user.email }},</p>
+
+<p>
+    We received your feature suggestion and really appreciate you taking
+    the time to share your ideas!
+</p>
+
+<div class="highlight">
+    <strong>Your Suggestion:</strong><br>
+    "{{ suggestion_text|truncatewords:50 }}"
+</div>
+
+<p>
+    We review all suggestions and consider them when planning new features.
+    If we implement your idea, you'll earn <strong>$5 in account credit</strong>
+    and we'll send you another email to let you know!
+</p>
+
+<p>
+    Thank you for helping make Whole Life Journey better for everyone.
+</p>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Your Student Rate Ends Soon - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Your Student Rate Ends Soon</h2>
+
+<p>Hi {{ user.first_name|default:user.email }},</p>
+
+<p>
+    Just a friendly reminder that your Student rate gift year is ending on
+    <strong>{{ graduation_date|date:"F d, Y" }}</strong>.
+</p>
+
+<div class="highlight">
+    <strong>What's Changing:</strong><br>
+    After {{ graduation_date|date:"F d" }}, you'll move to the Adult plan:<br>
+    • Monthly: $7.99/month<br>
+    • Annual: $79/year (save 17%)
+</div>
+
+<p>
+    <strong>Want to save?</strong> Switch to annual billing before your transition
+    date to lock in the best rate.
+</p>
+
+<p style="text-align: center;">
+    <a href="https://wholelifejourney.com/billing/settings/" class="button">
+        View Billing Settings
+    </a>
+</p>
+
+<p>
+    Thank you for being part of Whole Life Journey!
+</p>
+{% endblock %}

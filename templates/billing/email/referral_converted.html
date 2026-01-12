@@ -1,0 +1,31 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}You Earned $5! - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>You Earned $5!</h2>
+
+<p>Hi {{ referrer.first_name|default:referrer.email }},</p>
+
+<p>
+    <strong>{{ referred_user.first_name|default:"Your referral" }}</strong> just became
+    a paying member of Whole Life Journey!
+</p>
+
+<div class="highlight">
+    <strong>$5</strong> has been added to your account credit.<br>
+    Your new balance: <strong>${{ new_balance }}</strong>
+</div>
+
+<p>
+    Your credit will be automatically applied to your next invoice.
+</p>
+
+<p style="text-align: center;">
+    <a href="https://wholelifejourney.com/billing/credits/" class="button">
+        View Credit History
+    </a>
+</p>
+
+<p>Keep sharing your referral link to earn more!</p>
+{% endblock %}

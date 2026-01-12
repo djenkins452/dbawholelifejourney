@@ -1,0 +1,30 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Payment Confirmed - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Payment Received</h2>
+
+<p>Hi {{ user.first_name|default:user.email }},</p>
+
+<p>Thank you for your payment! Here are the details:</p>
+
+<div class="highlight">
+    <strong>Plan:</strong> {{ profile.get_pricing_tier_display }}<br>
+    <strong>Amount:</strong> ${{ amount }}<br>
+    <strong>Billing Cycle:</strong> {{ profile.get_billing_cycle_display }}<br>
+    {% if next_billing_date %}
+    <strong>Next Billing Date:</strong> {{ next_billing_date|date:"F d, Y" }}
+    {% endif %}
+</div>
+
+<p>You can manage your subscription anytime from your account settings.</p>
+
+<p style="text-align: center;">
+    <a href="https://wholelifejourney.com/billing/settings/" class="button">
+        View Billing Settings
+    </a>
+</p>
+
+<p>Thank you for being part of the Whole Life Journey community!</p>
+{% endblock %}

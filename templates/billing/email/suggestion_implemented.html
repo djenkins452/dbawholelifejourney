@@ -1,0 +1,35 @@
+{% extends "billing/email/base_email.html" %}
+
+{% block title %}Your Feature Idea is Live! - Whole Life Journey{% endblock %}
+
+{% block content %}
+<h2>Your Feature Idea is Live! 🎉</h2>
+
+<p>Hi {{ user.first_name|default:user.email }},</p>
+
+<p>
+    Great news - we implemented your feature suggestion!
+</p>
+
+<div class="highlight">
+    <strong>Your Suggestion:</strong><br>
+    "{{ suggestion_text|truncatewords:50 }}"
+    <br><br>
+    <strong>Reward:</strong> ${{ reward_amount }} credit added to your account!
+</div>
+
+<p>
+    Thank you for taking the time to share your idea. Your feedback helps
+    make Whole Life Journey better for everyone.
+</p>
+
+<p style="text-align: center;">
+    <a href="https://wholelifejourney.com/dashboard/" class="button">
+        Try It Now
+    </a>
+</p>
+
+<p>
+    Keep the ideas coming - we love hearing from our community!
+</p>
+{% endblock %}

@@ -16,6 +16,51 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Security: CISO Review - CSP Nonce-Based XSS Protection
+
+**Goal:** Implement nonce-based Content Security Policy for stricter XSS protection.
+
+**Changes Made:**
+
+1. **CSP Nonce Middleware** (`apps/core/middleware.py`):
+   - Added `generate_csp_nonce()` function using `os.urandom(16)` with base64 encoding
+   - New `CSPNonceMiddleware` class generates per-request nonces
+   - Nonce stored on `request.csp_nonce` for template access
+   - Must run before `ContentSecurityPolicyMiddleware`
+
+2. **Updated CSP Headers** (`apps/core/middleware.py`):
+   - `ContentSecurityPolicyMiddleware` now includes `'nonce-{nonce}'` in script-src
+   - Also includes nonce in style-src for inline styles
+   - `'unsafe-inline'` kept as fallback for legacy compatibility
+   - Nonce allows specific inline scripts while blocking injected ones
+
+3. **Context Processor** (`apps/core/context_processors.py`):
+   - New `csp_nonce()` context processor
+   - Makes `{{ csp_nonce }}` available in all templates
+   - Usage: `<script nonce="{{ csp_nonce }}">...</script>`
+
+4. **Settings Configuration** (`config/settings.py`):
+   - Added `CSPNonceMiddleware` to MIDDLEWARE (before ContentSecurityPolicyMiddleware)
+   - Added `apps.core.context_processors.csp_nonce` to TEMPLATES context_processors
+
+**How It Works:**
+- Each request gets a unique 16-byte nonce
+- CSP header includes `'nonce-{base64_nonce}'`
+- Only `<script>` tags with matching `nonce` attribute execute
+- Injected scripts (XSS) won't have valid nonce and are blocked
+
+**Template Migration Notes:**
+- Add `nonce="{{ csp_nonce }}"` to inline `<script>` tags
+- External scripts from allowed CDNs don't need nonce
+- `'unsafe-inline'` fallback ensures gradual migration
+
+**Files Modified:**
+- `apps/core/middleware.py` - CSPNonceMiddleware, updated ContentSecurityPolicyMiddleware
+- `apps/core/context_processors.py` - csp_nonce context processor
+- `config/settings.py` - MIDDLEWARE and TEMPLATES updates
+
+---
+
 ### Security: CISO Review - Batch 3 - Policy & Documentation
 
 **Goal:** Complete security hardening with privacy policy updates, activity-based timeout, and security audit documentation.
@@ -79,7 +124,6 @@ For active development context, see `CLAUDE.md` (project root).
 - `docs/security_audit_schedule.md` - NEW: Audit schedule
 
 **Remaining Items (Future Work):**
-- CSP nonce-based migration (requires template changes)
 - MFA for admin functions (requires additional auth flow)
 - API request logging with anomaly detection (requires monitoring infrastructure)
 

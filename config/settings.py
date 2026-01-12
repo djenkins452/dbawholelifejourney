@@ -158,6 +158,7 @@ MIDDLEWARE = [
     "apps.users.middleware.TermsAcceptanceMiddleware",
     "apps.users.middleware.TimezoneMiddleware",  # Convert UTC to user's timezone
     "apps.core.middleware.PageViewTrackingMiddleware",  # Track page views for Favorites
+    "apps.core.middleware.CSPNonceMiddleware",  # Generate CSP nonce (CISO Review) - must be before CSP
     "apps.core.middleware.ContentSecurityPolicyMiddleware",  # CSP headers for XSS protection
     "axes.middleware.AxesMiddleware",  # Rate limiting (Security Fix H-3) - must be last
 ]
@@ -178,6 +179,7 @@ TEMPLATES = [
                 "apps.core.context_processors.theme_context",
                 "apps.core.context_processors.site_context",
                 "apps.core.context_processors.favorites_context",
+                "apps.core.context_processors.csp_nonce",  # CSP nonce for inline scripts (CISO Review)
                 "apps.billing.context_processors.billing_config",
             ],
         },

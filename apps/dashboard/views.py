@@ -536,10 +536,10 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             completed_at__date=today
         ).count()
 
-        # Upcoming events
+        # Upcoming events (excludes today - those are current, not upcoming)
         upcoming_events = LifeEvent.objects.filter(
             user=user,
-            start_date__gte=today,
+            start_date__gt=today,
             start_date__lte=week_ahead
         ).order_by('start_date')[:5]
 
@@ -549,12 +549,12 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             status='active'
         )
 
-        # Calculate next occurrence for each and filter to upcoming
+        # Calculate next occurrence for each and filter to upcoming (excludes today)
         upcoming_significant = []
         for event in significant_events:
             next_date = event.get_next_occurrence(today)
             days_until = (next_date - today).days
-            if days_until <= 30:
+            if 0 < days_until <= 30:
                 event.next_occurrence = next_date
                 event.days_until = days_until
                 event.years_display = event.get_years_display()

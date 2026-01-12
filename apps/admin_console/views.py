@@ -130,13 +130,112 @@ def validate_image_file(uploaded_file, max_size_mb=5):
 
 class AdminRequiredMixin(UserPassesTestMixin):
     """Mixin to ensure user is staff/admin."""
-    
+
     def test_func(self):
         return self.request.user.is_staff
-    
+
     def handle_no_permission(self):
         messages.error(self.request, "You don't have permission to access the admin area.")
         return redirect('dashboard:home')
+
+
+class AdminOverrideConfirmationMixin:
+    """
+    Mixin for admin override operations requiring password confirmation.
+
+    CISO Review 2026-01-12: Sensitive admin operations require re-authentication.
+
+    This mixin provides an extra layer of security for destructive admin operations
+    by requiring the admin to re-enter their password if they haven't recently
+    confirmed their identity.
+
+    IMPORTANT: This does NOT block normal admin console viewing - only specific
+    destructive operations (reset phase, unblock task, etc.).
+
+    Configuration:
+        - Timeout period: settings.WLJ_SETTINGS.get('ADMIN_OVERRIDE_TIMEOUT_MINUTES', 30)
+        - Session key: 'admin_override_confirmed_at'
+        - Can be disabled: settings.WLJ_SETTINGS.get('ADMIN_OVERRIDE_REQUIRE_CONFIRMATION', True)
+
+    Safety Features:
+        - Superusers can disable confirmation via settings
+        - Normal admin viewing is NOT affected
+        - Django's built-in /admin/ always works
+        - If locked out: Use manage.py shell to clear session or disable setting
+
+    Usage for API views:
+        Call self._require_admin_confirmation(request) at the start of POST/DELETE methods.
+        Returns (proceed: bool, response: JsonResponse or None)
+
+        Example:
+            proceed, error_response = self._require_admin_confirmation(request)
+            if not proceed:
+                return error_response
+    """
+
+    # Override in subclass to describe the operation
+    admin_operation_name = 'admin_override'
+
+    def _require_admin_confirmation(self, request):
+        """
+        Check if admin has confirmed their password recently.
+
+        For API endpoints, returns a JSON response if confirmation is needed.
+
+        Returns:
+            tuple: (can_proceed: bool, error_response: JsonResponse or None)
+
+        If can_proceed is False, return the error_response to the client.
+        """
+        from django.conf import settings
+        from django.utils import timezone
+
+        # Check if confirmation is disabled in settings
+        wlj_settings = getattr(settings, 'WLJ_SETTINGS', {})
+        require_confirmation = wlj_settings.get('ADMIN_OVERRIDE_REQUIRE_CONFIRMATION', True)
+
+        if not require_confirmation:
+            # Confirmation disabled - allow all operations
+            return True, None
+
+        # Check if user recently confirmed their password
+        timeout_minutes = wlj_settings.get('ADMIN_OVERRIDE_TIMEOUT_MINUTES', 30)
+        last_confirmed = request.session.get('admin_override_confirmed_at')
+
+        if last_confirmed:
+            from datetime import datetime
+            try:
+                last_confirmed_dt = datetime.fromisoformat(last_confirmed)
+                elapsed = (timezone.now() - timezone.make_aware(last_confirmed_dt)).total_seconds() / 60
+
+                if elapsed < timeout_minutes:
+                    # Recently confirmed - allow operation
+                    return True, None
+            except (ValueError, TypeError):
+                pass
+
+        # Need confirmation - return appropriate response
+        logger.info(
+            f"Admin override confirmation required for {self.admin_operation_name} "
+            f"by {request.user.email}"
+        )
+
+        return False, JsonResponse({
+            'error': 'Password confirmation required',
+            'confirmation_required': True,
+            'message': (
+                'For security, please confirm your password to perform this admin override. '
+                'Visit /user/confirm-password/ and then retry this operation.'
+            ),
+            'confirm_url': '/user/confirm-password/',
+        }, status=403)
+
+    def _mark_admin_confirmed(self, request):
+        """Mark the session as having confirmed admin identity."""
+        from django.utils import timezone
+        request.session['admin_override_confirmed_at'] = timezone.now().isoformat()
+        # Also update finance confirmation since they share the same password
+        request.session['finance_last_activity'] = timezone.now().isoformat()
 
 
 class AdminDashboardView(HelpContextMixin, AdminRequiredMixin, TemplateView):
@@ -1771,7 +1870,7 @@ class SystemIssuesAPIView(APIRateLimitMixin, View):
         return JsonResponse(result)
 
 
-class ResetPhaseOverrideAPIView(APIRateLimitMixin, View):
+class ResetPhaseOverrideAPIView(AdminOverrideConfirmationMixin, APIRateLimitMixin, View):
     """
     API endpoint to reset the active phase (admin override).
 
@@ -1785,17 +1884,22 @@ class ResetPhaseOverrideAPIView(APIRateLimitMixin, View):
     Returns:
     - 200: Success with phase info
     - 400: Validation error
-    - 403: Permission denied
+    - 403: Permission denied (or password confirmation required)
     - 404: Phase not found
 
     Rate Limiting (CISO Review 2026-01-12):
         - 30 requests per minute
         - 200 requests per hour
+
+    Security (CISO Review 2026-01-12):
+        - Requires password confirmation within timeout period
+        - Disable via WLJ_SETTINGS['ADMIN_OVERRIDE_REQUIRE_CONFIRMATION'] = False
     """
 
     rate_limit_requests_per_minute = 30
     rate_limit_requests_per_hour = 200
     rate_limit_key_prefix = 'admin_api_override'
+    admin_operation_name = 'reset_phase'
 
     def post(self, request):
         import json
@@ -1809,6 +1913,11 @@ class ResetPhaseOverrideAPIView(APIRateLimitMixin, View):
                 {'error': 'Permission denied'},
                 status=403
             )
+
+        # CISO Review 2026-01-12: Require password confirmation for override
+        proceed, error_response = self._require_admin_confirmation(request)
+        if not proceed:
+            return error_response
 
         # Parse request body
         try:
@@ -1859,7 +1968,7 @@ class ResetPhaseOverrideAPIView(APIRateLimitMixin, View):
         })
 
 
-class UnblockTaskOverrideAPIView(APIRateLimitMixin, View):
+class UnblockTaskOverrideAPIView(AdminOverrideConfirmationMixin, APIRateLimitMixin, View):
     """
     API endpoint to force-unblock a task (admin override).
 
@@ -1874,17 +1983,22 @@ class UnblockTaskOverrideAPIView(APIRateLimitMixin, View):
     Returns:
     - 200: Success with task info
     - 400: Validation error (missing reason, task not blocked)
-    - 403: Permission denied
+    - 403: Permission denied (or password confirmation required)
     - 404: Task not found
 
     Rate Limiting (CISO Review 2026-01-12):
         - 30 requests per minute
         - 200 requests per hour
+
+    Security (CISO Review 2026-01-12):
+        - Requires password confirmation within timeout period
+        - Disable via WLJ_SETTINGS['ADMIN_OVERRIDE_REQUIRE_CONFIRMATION'] = False
     """
 
     rate_limit_requests_per_minute = 30
     rate_limit_requests_per_hour = 200
     rate_limit_key_prefix = 'admin_api_override'
+    admin_operation_name = 'unblock_task'
 
     def post(self, request):
         import json
@@ -1898,6 +2012,11 @@ class UnblockTaskOverrideAPIView(APIRateLimitMixin, View):
                 {'error': 'Permission denied'},
                 status=403
             )
+
+        # CISO Review 2026-01-12: Require password confirmation for override
+        proceed, error_response = self._require_admin_confirmation(request)
+        if not proceed:
+            return error_response
 
         # Parse request body
         try:
@@ -1965,7 +2084,7 @@ class UnblockTaskOverrideAPIView(APIRateLimitMixin, View):
         })
 
 
-class RecheckPhaseOverrideAPIView(APIRateLimitMixin, View):
+class RecheckPhaseOverrideAPIView(AdminOverrideConfirmationMixin, APIRateLimitMixin, View):
     """
     API endpoint to re-run phase completion check (admin override).
 
@@ -1979,17 +2098,22 @@ class RecheckPhaseOverrideAPIView(APIRateLimitMixin, View):
     Returns:
     - 200: Success with completion status
     - 400: Validation error
-    - 403: Permission denied
+    - 403: Permission denied (or password confirmation required)
     - 404: Phase not found
 
     Rate Limiting (CISO Review 2026-01-12):
         - 30 requests per minute
         - 200 requests per hour
+
+    Security (CISO Review 2026-01-12):
+        - Requires password confirmation within timeout period
+        - Disable via WLJ_SETTINGS['ADMIN_OVERRIDE_REQUIRE_CONFIRMATION'] = False
     """
 
     rate_limit_requests_per_minute = 30
     rate_limit_requests_per_hour = 200
     rate_limit_key_prefix = 'admin_api_override'
+    admin_operation_name = 'recheck_phase'
 
     def post(self, request):
         import json
@@ -2003,6 +2127,11 @@ class RecheckPhaseOverrideAPIView(APIRateLimitMixin, View):
                 {'error': 'Permission denied'},
                 status=403
             )
+
+        # CISO Review 2026-01-12: Require password confirmation for override
+        proceed, error_response = self._require_admin_confirmation(request)
+        if not proceed:
+            return error_response
 
         # Parse request body
         try:

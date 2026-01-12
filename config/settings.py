@@ -689,6 +689,11 @@ WLJ_SETTINGS = {
     # Finance activity timeout (minutes) - CISO Review 2026-01-12
     # Requires re-authentication for sensitive financial operations after this period
     "FINANCE_ACTIVITY_TIMEOUT_MINUTES": 15,
+    # Admin override timeout (minutes) - CISO Review 2026-01-12
+    # Requires re-authentication for destructive admin operations after this period
+    "ADMIN_OVERRIDE_TIMEOUT_MINUTES": 30,
+    # Set to False to disable admin override confirmation entirely (emergency bypass)
+    "ADMIN_OVERRIDE_REQUIRE_CONFIRMATION": True,
 }
 
 # Bible API (required for Scripture lookups in Faith module)

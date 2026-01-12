@@ -16,20 +16,48 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
-### Fix: CSP Blocking External CDN Scripts (HTMX, Tailwind, Plaid)
+### Security: CISO Review - Admin Override Confirmation (MFA-lite)
 
-**Issue:** The CSP nonce implementation (deployed earlier today) was missing several
-external CDN domains, causing critical scripts to be blocked:
-- `unpkg.com` - HTMX library (core interactivity)
-- `cdn.tailwindcss.com` - Tailwind CSS for billing pages
-- `cdn.plaid.com` - Plaid banking integration
+**Goal:** Add password confirmation for destructive admin operations to prevent accidental or unauthorized changes.
 
-**Files Changed:**
-- `apps/core/middleware.py` - Added missing CDN domains to CSP script-src and style-src
+**Safety First:**
+- Normal admin console VIEWING is NOT affected
+- Only destructive override operations require confirmation
+- Can be disabled via `WLJ_SETTINGS['ADMIN_OVERRIDE_REQUIRE_CONFIRMATION'] = False`
+- Django's built-in /admin/ always works
+- 30-minute confirmation window (configurable)
 
-**CSP Now Allows:**
-- Scripts: jsdelivr, unpkg, tailwindcss, plaid, google, gstatic
-- Styles: self, fonts.googleapis, tailwindcss
+**Changes Made:**
+
+1. **AdminOverrideConfirmationMixin** (`apps/admin_console/views.py`):
+   - New mixin for admin override operations
+   - Checks `admin_override_confirmed_at` session key
+   - Returns 403 with `confirmation_required: true` if not confirmed
+   - Timeout configurable via `WLJ_SETTINGS['ADMIN_OVERRIDE_TIMEOUT_MINUTES']`
+
+2. **Protected Admin Override APIs**:
+   - `ResetPhaseOverrideAPIView` - Now requires confirmation
+   - `UnblockTaskOverrideAPIView` - Now requires confirmation
+   - `RecheckPhaseOverrideAPIView` - Now requires confirmation
+
+3. **ConfirmPasswordView Update** (`apps/users/views.py`):
+   - Now sets both `finance_last_activity` AND `admin_override_confirmed_at`
+   - One password confirmation works for both finance and admin operations
+   - Smart redirect: staff users go to admin console, others to finance
+
+4. **Configuration Settings** (`config/settings.py`):
+   - `ADMIN_OVERRIDE_TIMEOUT_MINUTES`: 30 (default)
+   - `ADMIN_OVERRIDE_REQUIRE_CONFIRMATION`: True (set False to disable)
+
+**Recovery If Locked Out:**
+1. Django's /admin/ is unaffected
+2. Set `ADMIN_OVERRIDE_REQUIRE_CONFIRMATION = False` in settings
+3. Or via manage.py shell: clear session data
+
+**Files Modified:**
+- `apps/admin_console/views.py` - AdminOverrideConfirmationMixin, updated override views
+- `apps/users/views.py` - Updated ConfirmPasswordView
+- `config/settings.py` - New WLJ_SETTINGS entries
 
 ---
 
@@ -141,7 +169,6 @@ external CDN domains, causing critical scripts to be blocked:
 - `docs/security_audit_schedule.md` - NEW: Audit schedule
 
 **Remaining Items (Future Work):**
-- MFA for admin functions (requires additional auth flow)
 - API request logging with anomaly detection (requires monitoring infrastructure)
 
 ---

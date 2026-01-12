@@ -135,9 +135,11 @@
                         <p class="entry-preview">{{ entry.body_preview }}</p>
 
                         <div class="entry-meta">
-                            {% if entry.mood %}
-                                <span class="mood-badge mood-badge-{{ entry.mood }}">
-                                    {{ entry.mood_emoji }} {{ entry.get_mood_display }}
+                            {% if entry.emotions.exists %}
+                                <span class="emotions-display">
+                                    {% for emotion in entry.emotions.all %}
+                                        <span class="emotion-badge" title="{{ emotion.name }}">{{ emotion.emoji }}</span>
+                                    {% endfor %}
                                 </span>
                             {% endif %}
 
@@ -398,6 +400,16 @@
     background: var(--color-surface);
     border-radius: var(--radius-sm);
     color: var(--color-text-muted);
+}
+
+.emotions-display {
+    display: inline-flex;
+    gap: var(--space-1);
+}
+
+.emotion-badge {
+    font-size: 1rem;
+    cursor: default;
 }
 
 .pagination {

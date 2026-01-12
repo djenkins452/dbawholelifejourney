@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Fix: Admin Console Test Failures Due to Terms Version and Email Verification
+
+**Issue:** Admin console tests were failing with 302 redirects instead of 200 because:
+1. The `AdminTestMixin._accept_terms()` was creating `TermsAcceptance` with version `'1.0'` but `settings.WLJ_SETTINGS['TERMS_VERSION']` is `'1.1'`
+2. The tests weren't creating verified `EmailAddress` records required by `ACCOUNT_EMAIL_VERIFICATION = "mandatory"`
+3. The project creation tests were missing the `priority` field required by the form
+
+**Files Modified:**
+- `apps/admin_console/tests/test_admin_console.py`:
+  - Updated `_accept_terms()` to use the current terms version from settings
+  - Added `_verify_email()` method to create verified `EmailAddress` records for test users
+  - Updated `create_user()` to call `_verify_email()`
+  - Added `priority` field to project creation test POST data
+
+**Root Cause:** The terms version was bumped from `'1.0'` to `'1.1'` in settings, but test fixtures weren't updated. Additionally, email verification became mandatory, breaking test user logins.
+
+---
+
 ### Feature: Add Scan Icons Throughout Nutrition Flow
 
 **Goal:** Make barcode/photo scanning accessible from multiple entry points in the nutrition flow, allowing users to quickly scan food items from anywhere in the nutrition section.

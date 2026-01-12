@@ -33,7 +33,7 @@ class AdminTestMixin:
 
     def create_user(self, email='user@example.com', password='testpass123',
                     is_staff=False, is_superuser=False):
-        """Create a test user with terms accepted and onboarding completed."""
+        """Create a test user with terms accepted, onboarding completed, and email verified."""
         user = User.objects.create_user(
             email=email,
             password=password,
@@ -42,6 +42,7 @@ class AdminTestMixin:
         )
         self._accept_terms(user)
         self._complete_onboarding(user)
+        self._verify_email(user)
         return user
 
     def create_admin(self, email='admin@example.com', password='adminpass123'):
@@ -62,13 +63,29 @@ class AdminTestMixin:
         )
 
     def _accept_terms(self, user):
+        from django.conf import settings
         from apps.users.models import TermsAcceptance
-        TermsAcceptance.objects.create(user=user, terms_version='1.0')
+        current_version = settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0")
+        TermsAcceptance.objects.create(user=user, terms_version=current_version)
 
     def _complete_onboarding(self, user):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
+
+    def _verify_email(self, user):
+        """Create verified EmailAddress for user (required when ACCOUNT_EMAIL_VERIFICATION is mandatory)."""
+        from allauth.account.models import EmailAddress
+        email_addr, created = EmailAddress.objects.get_or_create(
+            user=user,
+            email=user.email,
+            defaults={'verified': True, 'primary': True}
+        )
+        if not created:
+            # If it already exists (e.g., from a signal), ensure it's verified
+            email_addr.verified = True
+            email_addr.primary = True
+            email_addr.save()
 
     def get_or_create_default_project(self):
         """Get or create a default project for tests."""
@@ -3723,7 +3740,8 @@ class AdminProjectCreateViewTest(AdminTestMixin, TestCase):
             '/admin-console/projects/new/',
             {
                 'name': 'Test New Project',
-                'description': 'A test project description'
+                'description': 'A test project description',
+                'priority': 5
             }
         )
 
@@ -3746,7 +3764,8 @@ class AdminProjectCreateViewTest(AdminTestMixin, TestCase):
             '/admin-console/projects/new/?popup=1',
             {
                 'name': 'Popup Test Project',
-                'description': 'Created from popup'
+                'description': 'Created from popup',
+                'priority': 5
             }
         )
 
@@ -3779,7 +3798,8 @@ class AdminProjectCreateViewTest(AdminTestMixin, TestCase):
             '/admin-console/projects/new/?from=intake',
             {
                 'name': 'Project From Intake',
-                'description': 'Created from task intake form'
+                'description': 'Created from task intake form',
+                'priority': 5
             }
         )
 

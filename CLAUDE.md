@@ -5,6 +5,18 @@
 
 ---
 
+## ⚠️ CRITICAL: ALWAYS DEPLOY AFTER CODE CHANGES
+
+**After ANY code changes, you MUST:**
+1. Update changelog (`docs/wlj_claude_changelog.md`)
+2. Commit changes
+3. Push worktree branch to GitHub
+4. Merge to main and push to deploy (see "On Task Completion" section)
+
+**A task is NOT complete until it is deployed to production.**
+
+---
+
 ## Quick Reference
 
 | Item | Value |

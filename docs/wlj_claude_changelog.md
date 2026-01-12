@@ -4,13 +4,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-11 (Reading Plans List 500 Error Fix)
+# Last Updated: 2026-01-12 (Reading Plans Missing Status Field Fix)
 # ==============================================================================
 
 # WLJ Change History
 
 This file contains the historical record of all fixes, migrations, and significant changes.
 For active development context, see `CLAUDE.md` (project root).
+
+---
+
+## 2026-01-12 Changes
+
+### Fix Reading Plans 500 Error (Missing SoftDelete Status Field)
+
+**Issue:** Navigating to `/faith/reading-plans/` caused a 500 error with `psycopg2.errors.UndefinedColumn: column faith_userreadingplan.status does not exist`.
+
+**Root Cause:** The original migration `0006_bible_reading_plans_and_study_tools.py` created `UserReadingPlan` with a `status` field meant for plan progress tracking (active/completed/paused/abandoned). However, `UserReadingPlan` inherits from `UserOwnedModel` → `SoftDeleteModel`, which also expects a `status` field for soft-delete functionality (active/archived/deleted).
+
+Migration `0007_rename_status_to_plan_status.py` renamed the field to avoid the naming conflict, but this left the table with NO `status` column at all. The `SoftDeleteManager.get_queryset()` filters by `status="active"`, causing the error.
+
+**Solution:** Created migration `0008_fix_status_field_restore.py` that adds the soft-delete `status` field back to `UserReadingPlan` with proper choices (active/archived/deleted) and default='active'.
+
+**Files Created:**
+- `apps/faith/migrations/0008_fix_status_field_restore.py`: Adds missing status field
+
+**Migration:** `0008_fix_status_field_restore.py` - AddField for status column
+
+**Result:** Reading plans page loads correctly. Both fields now exist: `status` (for soft-delete) and `plan_status` (for reading plan progress).
 
 ---
 

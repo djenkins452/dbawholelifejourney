@@ -1026,45 +1026,41 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
     help_context_id = "FAITH_READING_PLANS"
 
     def get_context_data(self, **kwargs):
-        try:
-            context = super().get_context_data(**kwargs)
-            user = self.request.user
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
 
-            # Available reading plan templates
-            context["featured_plans"] = ReadingPlanTemplate.objects.filter(
-                is_active=True, is_featured=True
-            )
-            context["all_plans"] = ReadingPlanTemplate.objects.filter(
-                is_active=True
-            )
+        # Available reading plan templates
+        context["featured_plans"] = ReadingPlanTemplate.objects.filter(
+            is_active=True, is_featured=True
+        )
+        context["all_plans"] = ReadingPlanTemplate.objects.filter(
+            is_active=True
+        )
 
-            # User's active plans
-            context["active_plans"] = UserReadingPlan.objects.filter(
-                user=user, plan_status="active"
-            ).select_related("template")
+        # User's active plans
+        context["active_plans"] = UserReadingPlan.objects.filter(
+            user=user, plan_status="active"
+        ).select_related("template")
 
-            # User's completed plans
-            context["completed_plans"] = UserReadingPlan.objects.filter(
-                user=user, plan_status="completed"
-            ).select_related("template")[:5]
+        # User's completed plans
+        context["completed_plans"] = UserReadingPlan.objects.filter(
+            user=user, plan_status="completed"
+        ).select_related("template")[:5]
 
-            # Filter by topic if requested
-            topic = self.request.GET.get("topic")
-            if topic:
-                context["all_plans"] = context["all_plans"].filter(topics__icontains=topic)
-                context["selected_topic"] = topic
+        # Filter by topic if requested
+        topic = self.request.GET.get("topic")
+        if topic:
+            context["all_plans"] = context["all_plans"].filter(topics__icontains=topic)
+            context["selected_topic"] = topic
 
-            # Get all unique topics for filtering
-            topics = set()
-            for plan in ReadingPlanTemplate.objects.filter(is_active=True):
-                if plan.topics:
-                    topics.update(plan.topics)
-            context["available_topics"] = sorted(topics)
+        # Get all unique topics for filtering
+        topics = set()
+        for plan in ReadingPlanTemplate.objects.filter(is_active=True):
+            if plan.topics:
+                topics.update(plan.topics)
+        context["available_topics"] = sorted(topics)
 
-            return context
-        except Exception as e:
-            logger.exception(f"Error in ReadingPlanListView.get_context_data: {e}")
-            raise
+        return context
 
 
 class ReadingPlanDetailView(LoginRequiredMixin, FaithRequiredMixin, DetailView):

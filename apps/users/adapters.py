@@ -142,10 +142,11 @@ class WLJAccountAdapter(DefaultAccountAdapter):
 
     def save_user(self, request, user, form, commit=True):
         """
-        Save user, verify reCAPTCHA, and log signup attempt.
+        Save user, verify reCAPTCHA, log signup attempt, and process referral.
 
         Verifies the reCAPTCHA token and logs the score to SignupAttempt.
         For TIER 1: Logs score only, does not block based on score.
+        Also captures referral code from session if present.
         """
         self.request = request
 
@@ -158,7 +159,74 @@ class WLJAccountAdapter(DefaultAccountAdapter):
         # Log successful signup attempt with captcha score
         self._log_signup_attempt(request, user.email, captcha_score)
 
+        # Process referral code from session
+        self._process_referral(request, user)
+
         return user
+
+    def _process_referral(self, request, user):
+        """
+        Process referral code from session after signup.
+
+        Links the new user to their referrer if a valid referral code
+        was captured during registration.
+        """
+        try:
+            referral_code = request.session.get('referral_code')
+            if not referral_code:
+                return
+
+            from apps.billing.models import BillingProfile, ReferralReward, ReferralQualification
+            from datetime import timedelta
+            from django.utils import timezone
+
+            # Find the referrer
+            try:
+                referrer_profile = BillingProfile.objects.get(referral_code=referral_code)
+                referrer = referrer_profile.user
+            except BillingProfile.DoesNotExist:
+                logger.warning(f"Invalid referral code at signup: {referral_code}")
+                return
+
+            # Get the new user's billing profile
+            try:
+                user_profile = user.billing_profile
+            except BillingProfile.DoesNotExist:
+                # Profile should be created by signal, but handle edge case
+                user_profile = BillingProfile.objects.create(user=user)
+
+            # Link the referral
+            user_profile.referred_by = referrer
+            user_profile.save(update_fields=['referred_by', 'updated_at'])
+
+            # Create ReferralReward record
+            ReferralReward.objects.get_or_create(
+                referrer=referrer,
+                referred_user=user,
+                defaults={
+                    'signup_date': timezone.now().date(),
+                }
+            )
+
+            # If referrer is Founding Member, create qualification tracking
+            if referrer_profile.is_founding_member:
+                ReferralQualification.objects.get_or_create(
+                    referrer=referrer,
+                    referred_user=user,
+                    defaults={
+                        'signup_date': timezone.now().date(),
+                        'qualified_date': timezone.now().date() + timedelta(days=90),
+                    }
+                )
+
+            logger.info(f"Referral recorded at signup: {referrer.email} referred {user.email}")
+
+            # Clear the referral code from session
+            del request.session['referral_code']
+
+        except Exception as e:
+            # Don't let referral processing break signup
+            logger.error(f"Error processing referral at signup: {e}")
 
     def _verify_recaptcha(self, request):
         """

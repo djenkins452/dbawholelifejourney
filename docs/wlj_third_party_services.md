@@ -4,7 +4,7 @@
 # Description: Comprehensive inventory of all third-party services and APIs
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-03
+# Last Updated: 2026-01-12
 # ==============================================================================
 # IMPORTANT: This file must be updated whenever a new third-party service is
 # added, removed, or modified. See CLAUDE.md for maintenance instructions.
@@ -755,13 +755,88 @@ Railway automatically starts the worker process alongside the web process.
 
 ---
 
+## Payment Processing
+
+### 28. Stripe
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | Stripe |
+| **Type** | REST API, Webhooks, Checkout Sessions |
+| **Pricing** | 2.9% + $0.30 per transaction |
+| **Status** | Active |
+
+**Purpose:**
+- Subscription billing for Student, Adult, and Founding Member plans
+- Stripe Checkout for secure payment collection
+- Customer Portal for self-service subscription management
+- Webhooks for real-time subscription status updates
+
+**Configuration (Environment Variables):**
+- `STRIPE_PUBLIC_KEY` - Publishable key (pk_live_... or pk_test_...)
+- `STRIPE_SECRET_KEY` - Secret key (sk_live_... or sk_test_...)
+- `STRIPE_WEBHOOK_SECRET` - Webhook signing secret (whsec_...)
+- `STRIPE_PRICE_STUDENT_MONTHLY` - Price ID for student monthly plan
+- `STRIPE_PRICE_STUDENT_ANNUAL` - Price ID for student annual plan
+- `STRIPE_PRICE_ADULT_MONTHLY` - Price ID for adult monthly plan
+- `STRIPE_PRICE_ADULT_ANNUAL` - Price ID for adult annual plan
+- `STRIPE_PRICE_FOUNDING` - Price ID for founding member lifetime plan
+
+**Stripe Products:**
+- **Student Subscription:** $4.99/month or $49.00/year (age 22 and under)
+- **Adult Subscription:** $7.99/month or $79.00/year (age 23 and over)
+- **Founding Member Lifetime:** $59.00 one-time (with quarterly referral bonuses)
+
+**Webhook Events (configured at https://dashboard.stripe.com/webhooks):**
+- `checkout.session.completed` - Payment successful, activate subscription
+- `invoice.paid` - Recurring payment successful
+- `invoice.payment_failed` - Payment failed, handle grace period
+- `customer.subscription.updated` - Plan change or renewal
+- `customer.subscription.deleted` - Subscription canceled
+
+**Webhook URL:** `https://wholelifejourney.com/billing/webhook/stripe/`
+
+**Key Files:**
+- `config/settings.py` - Stripe configuration settings
+- `apps/billing/models.py` - BillingProfile, BillingConfiguration, payment audit models
+- `apps/billing/services.py` - StripeService class for Checkout, Portal, subscription handling
+- `apps/billing/webhooks.py` - Webhook endpoint and event handlers
+- `apps/billing/views.py` - Plan selection, checkout flow, billing settings
+- `apps/billing/admin.py` - Django Admin for billing configuration and profiles
+- `requirements.txt` (stripe>=10.0.0)
+
+**Billing Models:**
+- `BillingConfiguration` - Singleton for pricing/rewards (managed via Django Admin)
+- `BillingProfile` - User subscription status, Stripe customer/subscription IDs
+- `CreditTransaction` - Account credit history for referral bonuses
+- `ReferralReward` - Referral tracking between users
+- `FoundingMemberPayout` - Quarterly payout records for founding members
+- `FeatureSuggestion` - User suggestions with rewards
+- `PaymentAuditLog` - Complete audit trail of all payment events
+
+**Key URLs:**
+| URL | Purpose |
+|-----|---------|
+| `/billing/plans/` | Plan selection page |
+| `/billing/checkout/` | Create Stripe Checkout session |
+| `/billing/success/` | Post-payment success page |
+| `/billing/settings/` | Billing settings and subscription management |
+| `/billing/portal/` | Redirect to Stripe Customer Portal |
+| `/billing/webhook/stripe/` | Stripe webhook endpoint |
+| `/join?ref=CODE` | Referral code capture |
+
+**Admin Access:**
+- `/admin/billing/billingconfiguration/` - Manage pricing and rewards
+- `/admin/billing/billingprofile/` - View user subscription status
+- `/admin/billing/paymentauditlog/` - Review payment history
+
+---
+
 ## Services NOT Currently Used
 
 The following services are NOT integrated but may be considered for future use:
 
 | Service | Purpose | Status |
 |---------|---------|--------|
-| Stripe | Payment processing | Not integrated |
 | Sentry | Error tracking | Not integrated (uses local logging) |
 | Google Analytics | User analytics | Not integrated |
 | Mixpanel | Product analytics | Not integrated |
@@ -800,6 +875,7 @@ The following services are NOT integrated but may be considered for future use:
 | 24 | RxNav (NIH) | Drug Lookup API | Free | Active |
 | 25 | FDA OpenData | NDC Lookup API | Free | Active |
 | 26 | Dexcom | CGM Data API | Free | Active |
+| 27 | Stripe | Payment API | 2.9% + $0.30 | Active |
 
 ---
 
@@ -820,4 +896,4 @@ The following services are NOT integrated but may be considered for future use:
 
 ---
 
-*Last Updated: 2025-12-31*
+*Last Updated: 2026-01-12*

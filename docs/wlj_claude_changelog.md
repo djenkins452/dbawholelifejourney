@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-12 (Journal Emotions Multi-Select Feature)
+# Last Updated: 2026-01-12 (Fix AI save_verse intent recognition)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,29 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-12 Changes
+
+### Fix AI Assistant save_verse Intent Not Recognized
+
+**Issue:** When users asked the AI assistant to save a Bible verse (e.g., "save John 3:17"), the AI would respond as if it had saved the verse, but the verse never actually appeared in the saved verses list.
+
+**Root Cause:** The intent recognition system's `_build_intent_system_prompt()` method in `intent_service.py` only contained examples for health-related intents (heart rate, blood pressure, weight, etc.). Faith intents like `save_verse`, `log_prayer`, and other non-health actions were not mentioned in the system prompt.
+
+As a result, when OpenAI's function calling received a message like "save John 3:17", it didn't recognize it as a `save_verse` intent because:
+1. The system prompt only described health logging scenarios
+2. Without clear guidance, the model didn't call the `save_verse` function
+3. The system fell back to generating a conversational response (line 1577 in `personal_assistant.py`)
+4. The AI generated text that sounded like it had saved the verse, but no function was actually called
+
+**Solution:** Expanded the intent recognition system prompt to include all action categories:
+- Faith actions: save_verse, log_prayer, mark_prayer_answered
+- Journal actions: create_journal_entry, add_gratitude
+- Life/task actions: create_task, complete_task, create_event
+- Added explicit examples for each category
+
+**Files Modified:**
+- `apps/ai/intent_service.py`: Expanded `_build_intent_system_prompt()` with comprehensive examples for all intent types
+
+---
 
 ### Add Journal Emotions Multi-Select Feature
 

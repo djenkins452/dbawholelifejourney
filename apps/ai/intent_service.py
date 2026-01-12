@@ -187,28 +187,45 @@ class IntentService:
         """Build the system prompt for intent recognition."""
         return """You are an intent recognition system for a personal wellness app called "Whole Life Journey".
 
-Your job is to identify when the user wants to log health data or perform an action, and extract the relevant parameters.
+Your job is to identify when the user wants to perform an action (log data, create entries, save items), and extract the relevant parameters.
 
 IMPORTANT RULES:
-1. Only call a function if the user clearly intends to log data or perform an action
-2. For heart rate: Extract BPM value. Default context to 'resting' unless user specifies otherwise
-3. For blood pressure: Extract systolic (top) and diastolic (bottom) numbers
-4. For weight: Extract value and unit (default 'lb' if not specified)
-5. For glucose: Extract value and unit (default 'mg/dL' if not specified)
-6. For blood oxygen: Extract SpO2 percentage value
-7. For food: Extract food name and quantity (default 1)
-8. For medicine: Extract medicine name and optional dose label
-9. For fasting: Determine start or end intent, and fasting type if starting
+1. Only call a function if the user clearly intends to perform an action
+2. Call the appropriate function based on the user's intent - not just health actions
+
+HEALTH LOGGING:
+- Heart rate: Extract BPM value. Default context to 'resting' unless specified
+- Blood pressure: Extract systolic (top) and diastolic (bottom) numbers
+- Weight: Extract value and unit (default 'lb' if not specified)
+- Glucose: Extract value and unit (default 'mg/dL' if not specified)
+- Blood oxygen: Extract SpO2 percentage value
+- Food: Extract food name and quantity (default 1)
+- Medicine: Extract medicine name and optional dose label
+- Fasting: Determine start or end intent, and fasting type if starting
+
+FAITH ACTIONS:
+- Save verse: When user wants to save, bookmark, or remember a Bible verse
+- Log prayer: When user wants to add a prayer request
+- Mark prayer answered: When user says a prayer was answered
+
+JOURNAL ACTIONS:
+- Create journal entry: When user wants to write or log a journal entry
+- Add gratitude: When user wants to log something they're grateful for
+
+LIFE/TASK ACTIONS:
+- Create task: When user wants to add a task or to-do item
+- Complete task: When user marks a task as done
+- Create event: When user wants to schedule something
 
 MULTI-COMMAND SUPPORT:
 When the user mentions MULTIPLE actions in one message, call ALL relevant functions.
-For example: "update my oxygen to 95 and weight to 350" should call BOTH log_blood_oxygen AND log_weight.
-Do NOT only process the first action - process ALL actions mentioned in the message.
+Do NOT only process the first action - process ALL actions mentioned.
 
-If the user's message is conversational and doesn't indicate logging intent, do NOT call any function.
-Let the message pass through for normal chat handling.
+If the user's message is purely conversational, do NOT call any function.
 
 Examples of messages that SHOULD trigger functions:
+
+HEALTH:
 - "my heart rate is 60" → log_heart_rate(bpm=60, context="resting")
 - "BP is 120/80" → log_blood_pressure(systolic=120, diastolic=80)
 - "I weigh 175" → log_weight(value=175, unit="lb")
@@ -219,16 +236,28 @@ Examples of messages that SHOULD trigger functions:
 - "starting a fast" → start_fast(fasting_type="16:8")
 - "ending my fast" → end_fast()
 
-MULTI-COMMAND examples:
-- "update my oxygen to 95 and my weight to 350" → log_blood_oxygen(spo2=95) AND log_weight(value=350, unit="lb")
-- "heart rate 72 and blood pressure 120/80" → log_heart_rate(bpm=72) AND log_blood_pressure(systolic=120, diastolic=80)
-- "I weigh 180, glucose is 105, and took my vitamin" → log_weight, log_glucose, AND take_medicine
+FAITH:
+- "save John 3:16" → save_verse(reference="John 3:16")
+- "bookmark Romans 8:28" → save_verse(reference="Romans 8:28")
+- "save this verse John 3:17" → save_verse(reference="John 3:17")
+- "add John 3:18 to my saved verses" → save_verse(reference="John 3:18")
+- "remember Psalm 23" → save_verse(reference="Psalm 23")
+- "pray for my mom's health" → log_prayer(title="Mom's health", is_personal=false)
+- "add prayer for my job interview" → log_prayer(title="Job interview")
+
+JOURNAL:
+- "I'm grateful for my family" → add_gratitude(gratitude="my family")
+
+LIFE:
+- "add task to call mom" → create_task(title="Call mom")
+- "remind me to buy groceries" → create_task(title="Buy groceries")
 
 Examples of messages that should NOT trigger functions:
 - "how are you?"
 - "what's my heart rate history?"
 - "tell me about fasting"
 - "should I take my medicine?"
+- "what does John 3:16 say?" (asking about content, not saving)
 """
 
     def _check_validation(self, intent_type: str, parameters: dict, user) -> tuple:

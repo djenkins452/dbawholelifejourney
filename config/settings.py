@@ -606,6 +606,10 @@ else:
 SESSION_COOKIE_SAMESITE = 'Lax'  # 'Lax' allows normal navigation, 'Strict' blocks all cross-site
 CSRF_COOKIE_SAMESITE = 'Lax'
 
+# Session timeout (Security Fix - CISO Review 2026-01-12)
+# Sessions expire after 24 hours of inactivity
+SESSION_COOKIE_AGE = 60 * 60 * 24  # 24 hours in seconds
+
 # Custom Admin URL Path (Security Fix H-4)
 # Moving admin to a non-default path reduces brute force attack surface
 ADMIN_URL_PATH = env("ADMIN_URL_PATH", default="wlj-admin")

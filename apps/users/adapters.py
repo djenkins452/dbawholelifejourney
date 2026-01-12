@@ -145,13 +145,34 @@ class WLJAccountAdapter(DefaultAccountAdapter):
         Save user, verify reCAPTCHA, log signup attempt, and process referral.
 
         Verifies the reCAPTCHA token and logs the score to SignupAttempt.
-        For TIER 1: Logs score only, does not block based on score.
+        TIER 2 (CISO Review 2026-01-12): Blocks signups with score below threshold.
         Also captures referral code from session if present.
         """
+        from django.conf import settings
+
         self.request = request
 
         # Verify reCAPTCHA token and get score
         captcha_score = self._verify_recaptcha(request)
+
+        # TIER 2: Block signups with low reCAPTCHA score (CISO Review 2026-01-12)
+        # Check if score is below threshold (default 0.5)
+        threshold = getattr(settings, 'RECAPTCHA_SCORE_THRESHOLD', 0.5)
+        if captcha_score is not None and captcha_score < threshold:
+            # Log the blocked attempt
+            self._log_blocked_signup(request, form.cleaned_data.get('email'), captcha_score, 'low_recaptcha_score')
+
+            # Log security event
+            log_security_event(
+                event_type='bot_activity',
+                severity='warning',
+                message=f'Signup blocked due to low reCAPTCHA score: {captcha_score:.2f} (threshold: {threshold})',
+                request=request,
+                details={'score': captcha_score, 'threshold': threshold},
+            )
+
+            # Raise generic error to not reveal reCAPTCHA detection
+            raise ValidationError("Unable to create account. Please try again later.")
 
         # Save user via parent
         user = super().save_user(request, user, form, commit)
@@ -326,3 +347,35 @@ class WLJAccountAdapter(DefaultAccountAdapter):
         except Exception as e:
             # Don't let logging failures break signup
             logger.error("Failed to log honeypot block: %s", e)
+
+    def _log_blocked_signup(self, request, email, captcha_score, block_reason):
+        """
+        Log a blocked signup attempt to SignupAttempt model.
+
+        Args:
+            request: The HTTP request
+            email: Email address (may be None)
+            captcha_score: The reCAPTCHA score that triggered the block
+            block_reason: Reason for blocking (e.g., 'low_recaptcha_score')
+        """
+        try:
+            ip = get_client_ip(request)
+            user_agent = request.META.get("HTTP_USER_AGENT", "")[:500]
+
+            SignupAttempt.objects.create(
+                email_hash=hash_email(email) if email else "",
+                ip_hash=hash_ip(ip),
+                user_agent=user_agent,
+                status="blocked",
+                block_reason=block_reason,
+                risk_level="high",
+                captcha_score=captcha_score,
+            )
+            logger.warning(
+                "Signup blocked - reason: %s, captcha_score: %s",
+                block_reason,
+                captcha_score,
+            )
+        except Exception as e:
+            # Don't let logging failures break signup
+            logger.error("Failed to log blocked signup: %s", e)

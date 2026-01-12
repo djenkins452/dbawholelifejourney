@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Fix: FOUC (Flash of Unstyled Content) from CSP nonce on styles
+
+**Summary:** Reverted style-src CSP directive to use `'unsafe-inline'` instead of nonces
+to fix the flash of unstyled content on page navigation.
+
+**Problem:** The nonce-based style-src directive caused browsers to block inline styles
+until the nonce was validated, resulting in a visible flash of unstyled content on
+every page load.
+
+**Fix:** Keep nonces for script-src (important for XSS protection) but use `'unsafe-inline'`
+for style-src. This is standard practice because:
+- Inline styles are lower XSS risk than inline scripts
+- Nonce validation on styles causes rendering delays
+- The security benefit of nonced styles doesn't justify the UX degradation
+
+**Files Modified:**
+- `apps/core/middleware.py` - Changed style-src to use 'unsafe-inline'
+
+---
+
 ### Hotfix: Missing logging import in middleware
 
 **Summary:** Fixed deployment crash caused by missing `import logging` statement in

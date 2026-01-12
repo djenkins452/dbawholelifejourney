@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Fix: BillingProfile Not Found for Existing Users
+
+**Problem:** Users created before the billing system was added did not have BillingProfile records, causing a 500 error when accessing `/billing/plans/`.
+
+**Error:** `User has no billing_profile. RelatedObjectDoesNotExist`
+
+**Fix:** Added `get_or_create_billing_profile()` helper function that creates a BillingProfile on-demand if one doesn't exist for the user. Updated all billing views to use this helper instead of directly accessing `user.billing_profile`.
+
+**Files Modified:**
+- `apps/billing/views.py`: Added get_or_create_billing_profile() helper, updated select_plan, checkout_success, billing_settings, payout_preferences, and credit_history views
+
+---
+
 ### Billing Configuration - Database-Driven Settings via Django Admin
 
 **Task:** Move billing configuration from hardcoded settings.py to database-managed configuration.

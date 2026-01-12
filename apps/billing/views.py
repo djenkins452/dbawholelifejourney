@@ -20,6 +20,16 @@ from .services import StripeService, determine_tier_by_age, get_stripe
 logger = logging.getLogger(__name__)
 
 
+def get_or_create_billing_profile(user):
+    """Get or create a billing profile for a user."""
+    profile, created = BillingProfile.objects.get_or_create(user=user)
+    if created:
+        # Set the tier based on user's age
+        profile.pricing_tier = determine_tier_by_age(user.date_of_birth)
+        profile.save(update_fields=['pricing_tier'])
+    return profile
+
+
 @login_required
 def select_plan(request):
     """
@@ -28,7 +38,7 @@ def select_plan(request):
     Shows appropriate plans based on user's age (student vs adult).
     """
     user = request.user
-    profile = user.billing_profile
+    profile = get_or_create_billing_profile(user)
 
     # Determine which tier the user qualifies for
     eligible_tier = determine_tier_by_age(user.date_of_birth)
@@ -121,7 +131,7 @@ def checkout_success(request):
     messages.success(request, 'Welcome to Whole Life Journey! Your subscription is now active.')
 
     return render(request, 'billing/checkout_success.html', {
-        'profile': request.user.billing_profile,
+        'profile': get_or_create_billing_profile(request.user),
     })
 
 
@@ -164,7 +174,7 @@ def billing_settings(request):
 
     Shows current plan, next billing date, referral stats, and credits.
     """
-    profile = request.user.billing_profile
+    profile = get_or_create_billing_profile(request.user)
 
     # Get referral stats
     referral_count = profile.user.referrals_made.count() if hasattr(profile.user, 'referrals_made') else 0
@@ -278,7 +288,7 @@ def payout_preferences(request):
     """
     from .forms import PayoutPreferencesForm
 
-    profile = request.user.billing_profile
+    profile = get_or_create_billing_profile(request.user)
 
     # Only Founding Members can access this
     if not profile.is_founding_member:
@@ -325,5 +335,5 @@ def credit_history(request):
 
     return render(request, 'billing/credit_history.html', {
         'transactions': transactions,
-        'profile': request.user.billing_profile,
+        'profile': get_or_create_billing_profile(request.user),
     })

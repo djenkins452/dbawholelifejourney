@@ -26,6 +26,36 @@ from django.utils import timezone
 from apps.core.models import UserOwnedModel
 
 
+# =============================================================================
+# BIBLE TRANSLATION CHOICES
+# =============================================================================
+# Common choices used across all models that reference Bible translations.
+# This list includes major English translations available through Bible APIs.
+
+BIBLE_TRANSLATION_CHOICES = [
+    ("ESV", "English Standard Version"),
+    ("NIV", "New International Version"),
+    ("KJV", "King James Version"),
+    ("NKJV", "New King James Version"),
+    ("NLT", "New Living Translation"),
+    ("NASB", "New American Standard Bible"),
+    ("CSB", "Christian Standard Bible"),
+    ("BSB", "Berean Standard Bible"),
+    ("AMP", "Amplified Bible"),
+    ("MSG", "The Message"),
+    ("NET", "New English Translation"),
+    ("RSV", "Revised Standard Version"),
+    ("NRSV", "New Revised Standard Version"),
+    ("CEV", "Contemporary English Version"),
+    ("GNT", "Good News Translation"),
+    ("HCSB", "Holman Christian Standard Bible"),
+    ("WEB", "World English Bible"),
+    ("YLT", "Young's Literal Translation"),
+    ("ASV", "American Standard Version"),
+    ("DRA", "Douay-Rheims Bible"),
+]
+
+
 class ScriptureVerse(models.Model):
     """
     Curated Scripture verses for daily encouragement and prompts.
@@ -569,6 +599,7 @@ class BibleHighlight(UserOwnedModel):
     )
     translation = models.CharField(
         max_length=10,
+        choices=BIBLE_TRANSLATION_CHOICES,
         default="ESV",
     )
 
@@ -612,6 +643,7 @@ class BibleBookmark(UserOwnedModel):
     )
     translation = models.CharField(
         max_length=10,
+        choices=BIBLE_TRANSLATION_CHOICES,
         default="ESV",
     )
 
@@ -664,6 +696,7 @@ class BibleStudyNote(UserOwnedModel):
     )
     translation = models.CharField(
         max_length=10,
+        choices=BIBLE_TRANSLATION_CHOICES,
         default="ESV",
     )
 

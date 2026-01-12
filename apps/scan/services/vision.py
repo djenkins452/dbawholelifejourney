@@ -484,7 +484,7 @@ class VisionService:
             sat_fat = details.get('saturated_fat_g') or details.get('estimated_saturated_fat_g', '')
             serving_size = details.get('serving_size', 1)
             serving_unit = details.get('serving_unit', 'serving')
-            meal_type = details.get('meal_type', 'snack')
+            meal_type = details.get('meal_type') or self._get_meal_type_from_time()
             description = details.get('description', '')
 
             # Use product_name if available, otherwise use label
@@ -957,6 +957,39 @@ class VisionService:
             }],
             error=error_message
         )
+
+    def _get_meal_type_from_time(self) -> str:
+        """
+        Determine meal type based on current time.
+
+        Typical meal schedule:
+        - Breakfast: 5:00 AM - 10:30 AM
+        - Lunch: 10:30 AM - 2:30 PM
+        - Snack: 2:30 PM - 5:00 PM
+        - Dinner: 5:00 PM - 9:00 PM
+        - Snack: 9:00 PM - 5:00 AM (late night)
+
+        Returns meal type string (breakfast, lunch, dinner, snack).
+        """
+        from django.utils import timezone
+
+        # Get current local time
+        now = timezone.localtime(timezone.now())
+        hour = now.hour
+        minute = now.minute
+        time_decimal = hour + minute / 60.0
+
+        # Determine meal type based on time
+        if 5.0 <= time_decimal < 10.5:  # 5:00 AM - 10:30 AM
+            return 'breakfast'
+        elif 10.5 <= time_decimal < 14.5:  # 10:30 AM - 2:30 PM
+            return 'lunch'
+        elif 14.5 <= time_decimal < 17.0:  # 2:30 PM - 5:00 PM
+            return 'snack'
+        elif 17.0 <= time_decimal < 21.0:  # 5:00 PM - 9:00 PM
+            return 'dinner'
+        else:  # 9:00 PM - 5:00 AM (late night snacking)
+            return 'snack'
 
 
 # Singleton instance

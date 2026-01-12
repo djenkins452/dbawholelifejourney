@@ -49,6 +49,42 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Feature: Auto-Populate Meal Type Based on Scan Time
+
+**Goal:** Automatically determine meal type (breakfast, lunch, dinner, snack) based on the time of day when scanning food, improving the user experience by pre-selecting the correct meal.
+
+**Meal Schedule Logic:**
+- Breakfast: 5:00 AM - 10:30 AM
+- Lunch: 10:30 AM - 2:30 PM
+- Snack: 2:30 PM - 5:00 PM
+- Dinner: 5:00 PM - 9:00 PM
+- Late Night Snack: 9:00 PM - 5:00 AM
+
+**Changes Made:**
+
+1. **Barcode Lookup** (`apps/scan/views.py`):
+   - Added `_get_meal_type_from_time()` helper method to `BarcodeLookupView`
+   - If meal type is passed via query param (from meal-specific scan buttons), use that
+   - Otherwise, auto-determine meal type based on current time
+   - Users can still change the meal type on the food entry form
+
+2. **Vision Scan** (`apps/scan/services/vision.py`):
+   - Added `_get_meal_type_from_time()` helper method to `VisionService`
+   - If AI doesn't provide a meal type, fall back to time-based determination
+   - Previously defaulted to "snack" for all scans
+
+**User Experience:**
+- User scans barcode at 7:30 AM → meal type auto-set to "breakfast"
+- User scans barcode at 12:00 PM → meal type auto-set to "lunch"
+- User clicks scan icon next to "Dinner" section → meal=dinner passed, used instead of time
+- User can always change the meal type if the auto-selection is wrong
+
+**Files Modified:**
+- `apps/scan/views.py`
+- `apps/scan/services/vision.py`
+
+---
+
 ### Fix: Billing Templates Missing CSS (Tailwind Not Loaded)
 
 **Problem:** Billing pages (`/billing/plans/`, `/billing/settings/`, etc.) were rendering without CSS styling. The navbar was styled correctly but the page content was unstyled.

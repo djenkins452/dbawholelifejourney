@@ -508,6 +508,17 @@ class BarcodeLookupView(LoginRequiredMixin, View):
             url_params.append('entry_source=barcode')
             url_params.append(f'barcode={quote(barcode)}')
 
+            # Auto-determine meal type based on current time (user's local time)
+            # Check if meal was passed as query param first
+            meal_from_query = request.GET.get('meal', '')
+            if meal_from_query:
+                url_params.append(f'meal={quote(meal_from_query)}')
+            else:
+                # Determine meal type from time of day
+                meal_type = self._get_meal_type_from_time(user)
+                if meal_type:
+                    url_params.append(f'meal={meal_type}')
+
             # Build the food entry URL
             food_entry_url = reverse('health:food_entry_create')
             if url_params:
@@ -567,6 +578,39 @@ class BarcodeLookupView(LoginRequiredMixin, View):
             return False
         prefs = user.preferences
         return prefs.ai_enabled and prefs.ai_data_consent
+
+    def _get_meal_type_from_time(self, user) -> str:
+        """
+        Determine meal type based on current time.
+
+        Typical meal schedule:
+        - Breakfast: 5:00 AM - 10:30 AM
+        - Lunch: 10:30 AM - 2:30 PM
+        - Snack: 2:30 PM - 5:00 PM
+        - Dinner: 5:00 PM - 9:00 PM
+        - Snack: 9:00 PM - 5:00 AM (late night)
+
+        Returns meal type string (breakfast, lunch, dinner, snack).
+        """
+        from django.utils import timezone
+
+        # Get user's current local time
+        now = timezone.localtime(timezone.now())
+        hour = now.hour
+        minute = now.minute
+        time_decimal = hour + minute / 60.0
+
+        # Determine meal type based on time
+        if 5.0 <= time_decimal < 10.5:  # 5:00 AM - 10:30 AM
+            return 'breakfast'
+        elif 10.5 <= time_decimal < 14.5:  # 10:30 AM - 2:30 PM
+            return 'lunch'
+        elif 14.5 <= time_decimal < 17.0:  # 2:30 PM - 5:00 PM
+            return 'snack'
+        elif 17.0 <= time_decimal < 21.0:  # 5:00 PM - 9:00 PM
+            return 'dinner'
+        else:  # 9:00 PM - 5:00 AM (late night snacking)
+            return 'snack'
 
 
 class ProductLookupView(LoginRequiredMixin, View):

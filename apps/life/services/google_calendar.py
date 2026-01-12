@@ -125,7 +125,41 @@ class GoogleCalendarService:
         )
         
         return build('calendar', 'v3', credentials=credentials)
-    
+
+    def refresh_credentials(self, credentials_dict):
+        """
+        Refresh an expired access token using the refresh token.
+
+        Returns updated credentials dict or None if refresh fails.
+        """
+        try:
+            from google.auth.transport.requests import Request
+
+            credentials = Credentials(
+                token=credentials_dict['token'],
+                refresh_token=credentials_dict.get('refresh_token'),
+                token_uri=credentials_dict.get('token_uri', 'https://oauth2.googleapis.com/token'),
+                client_id=credentials_dict.get('client_id', self.client_id),
+                client_secret=credentials_dict.get('client_secret', self.client_secret),
+                scopes=credentials_dict.get('scopes', self.SCOPES),
+            )
+
+            # Refresh the token
+            credentials.refresh(Request())
+
+            return {
+                'token': credentials.token,
+                'refresh_token': credentials.refresh_token or credentials_dict.get('refresh_token'),
+                'token_uri': credentials.token_uri,
+                'client_id': credentials.client_id,
+                'client_secret': credentials.client_secret,
+                'scopes': list(credentials.scopes) if credentials.scopes else credentials_dict.get('scopes', []),
+                'expiry': credentials.expiry.isoformat() if credentials.expiry else None,
+            }
+        except Exception as e:
+            logger.error(f"Error refreshing credentials: {e}")
+            return None
+
     def list_calendars(self, credentials_dict):
         """List user's calendars."""
         service = self.get_calendar_service(credentials_dict)

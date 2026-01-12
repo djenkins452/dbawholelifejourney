@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-12 (COPPA Age Verification)
+# Last Updated: 2026-01-12 (Google Calendar Auto-Sync on Dashboard)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,41 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-12 Changes
+
+### Google Calendar Auto-Sync on Dashboard Load
+
+**Task:** Automatically sync Google Calendar events when dashboard loads so "Coming Up" section shows latest events.
+
+**Implementation:** Added `_sync_google_calendar_if_needed()` method to DashboardView that:
+- Checks if user has Google Calendar connected with `auto_sync_enabled=True`
+- Refreshes expired OAuth tokens if needed
+- Imports events from Google Calendar to LifeEvent table
+- Records sync status for debugging
+- Fails silently (logs warning) to not break dashboard
+
+Also added missing `refresh_credentials()` method to GoogleCalendarService.
+
+**Files Modified:**
+- `apps/dashboard/views.py`: Added `_sync_google_calendar_if_needed()` method, called from `_get_life_data()`
+- `apps/life/services/google_calendar.py`: Added `refresh_credentials()` method
+- `templates/life/google_calendar_settings.html`: Fixed "Life events" → "events" text
+
+**Result:** Users with Google Calendar connected and auto-sync enabled will see their latest calendar events in the dashboard "Coming Up" section automatically.
+
+---
+
+### What's New Release Note for AI Assistant Improvements
+
+**Task:** Add What's New entry for AI assistant improvements made earlier today.
+
+**Implementation:** Created data migration to add release note for:
+- Auto-fetch verse text when saving via assistant (uses Bible API with user's preferred translation)
+- Improved intent recognition for faith, journal, and life actions
+
+**Files Created:**
+- `apps/core/migrations/0042_ai_assistant_improvements_release_note.py`: Adds "AI Assistant: Smarter Scripture & Action Recognition" release note
+
+---
 
 ### COPPA Age Verification Implementation
 

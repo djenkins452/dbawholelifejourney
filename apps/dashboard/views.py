@@ -513,9 +513,82 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "ai_camera_workouts": ai_camera_workouts,
         }
 
+    def _sync_google_calendar_if_needed(self, user):
+        """
+        Auto-sync Google Calendar events if user has it connected and enabled.
+
+        This runs on dashboard load to ensure upcoming events are fresh.
+        Failures are logged but don't break the dashboard.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            from apps.life.models import GoogleCalendarCredential
+
+            # Check if user has Google Calendar connected
+            try:
+                credential = user.google_calendar_credential
+            except GoogleCalendarCredential.DoesNotExist:
+                return  # No Google Calendar connected
+
+            if not credential.is_connected:
+                return
+
+            # Check if auto-sync is enabled
+            if not credential.auto_sync_enabled:
+                return
+
+            # Only sync if direction includes import
+            if credential.sync_direction not in ('import', 'both'):
+                return
+
+            # Refresh token if expired
+            if credential.is_token_expired and credential.refresh_token:
+                try:
+                    from apps.life.services.google_calendar import GoogleCalendarService
+                    service = GoogleCalendarService()
+                    new_creds = service.refresh_credentials(credential.get_credentials_dict())
+                    if new_creds:
+                        credential.update_from_credentials(new_creds)
+                except Exception as e:
+                    logger.warning(f"Could not refresh Google Calendar token: {e}")
+                    return
+
+            # Perform the sync
+            from apps.life.services.google_calendar import CalendarSyncService
+            sync_service = CalendarSyncService(user)
+
+            created, updated = sync_service.sync_from_google(
+                credential.get_credentials_dict(),
+                calendar_id=credential.selected_calendar_id,
+                days_past=credential.days_past,
+                days_ahead=credential.days_future
+            )
+
+            # Record sync result
+            msg_parts = []
+            if created:
+                msg_parts.append(f"{created} imported")
+            if updated:
+                msg_parts.append(f"{updated} updated")
+            credential.record_sync(
+                success=True,
+                message=', '.join(msg_parts) if msg_parts else 'No changes'
+            )
+
+            logger.debug(f"Google Calendar auto-sync for {user.email}: {msg_parts}")
+
+        except Exception as e:
+            logger.warning(f"Google Calendar auto-sync failed for {user.email}: {e}")
+            # Don't break dashboard - just log the error
+
     def _get_life_data(self, user, today):
-        """Get life-related data."""
+        """Get organize-related data (tasks, events, projects)."""
         from apps.life.models import Project, Task, LifeEvent, SignificantEvent
+
+        # Auto-sync Google Calendar before fetching events
+        self._sync_google_calendar_if_needed(user)
 
         week_ahead = today + timedelta(days=7)
         month_ahead = today + timedelta(days=30)

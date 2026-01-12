@@ -16,6 +16,13 @@
                 <time datetime="{{ entry.entry_date|date:'Y-m-d' }}">
                     {{ entry.entry_date|date:"l, F j, Y" }}
                 </time>
+                {% if entry.emotions.exists %}
+                    <span class="emotions-display">
+                        {% for emotion in entry.emotions.all %}
+                            <span class="emotion-badge" title="{{ emotion.name }}">{{ emotion.emoji }}</span>
+                        {% endfor %}
+                    </span>
+                {% endif %}
                 {% if entry.mood %}
                     <span class="mood-badge mood-badge-{{ entry.mood }}">
                         {{ entry.mood_emoji }} {{ entry.get_mood_display }}
@@ -133,6 +140,16 @@
     margin-bottom: var(--space-3);
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+}
+
+.emotions-display {
+    display: inline-flex;
+    gap: var(--space-1);
+}
+
+.emotion-badge {
+    font-size: 1.2rem;
+    cursor: default;
 }
 
 .entry-detail-title {

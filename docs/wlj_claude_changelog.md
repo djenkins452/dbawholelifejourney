@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-12 (Reading Plans Missing Status Field Fix)
+# Last Updated: 2026-01-12 (Journal Emotions Multi-Select Feature)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,38 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-12 Changes
+
+### Add Journal Emotions Multi-Select Feature
+
+**Task:** Journal emojis options Angry, Sad, Excited, Anxious (can choose more than 1)
+
+**Implementation:** Added a new `Emotion` model that allows users to select multiple emotions per journal entry (instead of the single-select mood dropdown).
+
+**Features:**
+- New `Emotion` model with name, slug, emoji, order, and is_active fields
+- ManyToMany relationship between `JournalEntry` and `Emotion` for multi-select
+- Checkbox-based emotion selector in journal entry form (allows multiple selections)
+- Default emotions populated via data migration:
+  - Great 😊, Good 🙂, Okay 😐, Low 😔, Difficult 😢
+  - Angry 😠, Sad 😢, Excited 🤩, Anxious 😰
+  - Grateful 🙏, Hopeful 🌟, Calm 😌, Tired 😴, Energetic ⚡
+- Emotions displayed in entry detail view with emoji badges
+- Admin interface for managing emotions
+
+**Files Modified:**
+- `apps/journal/models.py`: Added `Emotion` model and `emotions` ManyToMany field to `JournalEntry`, added `emotions_display` property
+- `apps/journal/forms.py`: Added `emotions` field to `JournalEntryForm` with CheckboxSelectMultiple widget
+- `apps/journal/admin.py`: Added `EmotionAdmin` and updated `JournalEntryAdmin` with emotions filter_horizontal
+- `templates/journal/entry_form.html`: Added emotion selector UI with checkbox inputs and styling
+- `templates/journal/entry_detail.html`: Added emotions display in entry meta section
+
+**Migrations Created:**
+- `0005_add_emotions.py`: Creates Emotion model and adds emotions field to JournalEntry
+- `0006_populate_emotions.py`: Populates default emotions including Angry, Sad, Excited, Anxious
+
+**Note:** The existing `mood` field is preserved for backward compatibility. Users can now track both overall mood (single-select) and specific emotions (multi-select).
+
+---
 
 ### Fix Reading Plans 500 Error (Missing SoftDelete Status Field)
 

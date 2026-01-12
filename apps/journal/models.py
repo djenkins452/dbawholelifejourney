@@ -34,6 +34,27 @@ from django.utils import timezone
 from apps.core.models import Category, Tag, UserOwnedModel
 
 
+class Emotion(models.Model):
+    """
+    Predefined emotions for journal entries with emoji representation.
+
+    Users can select multiple emotions per entry. System-wide, not user-specific.
+    """
+
+    name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(max_length=50, unique=True)
+    emoji = models.CharField(max_length=10, help_text="Emoji representation")
+    description = models.CharField(max_length=200, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self):
+        return f"{self.emoji} {self.name}"
+
+
 class JournalPrompt(models.Model):
     """
     Curated prompts to inspire journal entries.
@@ -116,7 +137,15 @@ class JournalEntry(UserOwnedModel):
         blank=True,
         related_name="journal_entries",
     )
-    
+
+    # Emotions (multi-select)
+    emotions = models.ManyToManyField(
+        Emotion,
+        blank=True,
+        related_name="journal_entries",
+        help_text="How you're feeling (select multiple)",
+    )
+
     # Prompt that inspired this entry (optional)
     prompt = models.ForeignKey(
         JournalPrompt,
@@ -169,6 +198,11 @@ class JournalEntry(UserOwnedModel):
             "difficult": "😢",
         }
         return mood_emojis.get(self.mood, "")
+
+    @property
+    def emotions_display(self):
+        """Return a string of all selected emotion emojis."""
+        return " ".join(e.emoji for e in self.emotions.all())
 
 
 class EntryLink(models.Model):

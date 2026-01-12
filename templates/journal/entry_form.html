@@ -89,14 +89,36 @@
         </div>
         
         <div class="form-group">
+            <label class="form-label">How are you feeling? (optional, select multiple)</label>
+            <div class="emotion-selector">
+                {% for emotion in form.fields.emotions.queryset %}
+                    <label class="emotion-option">
+                        <input
+                            type="checkbox"
+                            name="emotions"
+                            value="{{ emotion.pk }}"
+                            {% if emotion.pk in form.emotions.value %}checked{% endif %}
+                        >
+                        <span class="emotion-button">
+                            <span class="emotion-emoji">{{ emotion.emoji }}</span>
+                            <span class="emotion-name">{{ emotion.name }}</span>
+                        </span>
+                    </label>
+                {% empty %}
+                    <p class="text-muted text-sm">No emotions configured.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
             <label class="form-label">Mood (optional)</label>
             <div class="mood-selector">
                 {% for value, label in form.fields.mood.choices %}
                     {% if value %}
                         <label class="mood-option">
-                            <input 
-                                type="radio" 
-                                name="mood" 
+                            <input
+                                type="radio"
+                                name="mood"
                                 value="{{ value }}"
                                 {% if form.mood.value == value %}checked{% endif %}
                             >
@@ -108,9 +130,9 @@
                     {% endif %}
                 {% endfor %}
                 <label class="mood-option">
-                    <input 
-                        type="radio" 
-                        name="mood" 
+                    <input
+                        type="radio"
+                        name="mood"
                         value=""
                         {% if not form.mood.value %}checked{% endif %}
                     >
@@ -229,6 +251,50 @@
     display: flex;
     justify-content: flex-end;
     margin-top: var(--space-2);
+}
+
+.emotion-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.emotion-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.emotion-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    min-width: 70px;
+    text-align: center;
+}
+
+.emotion-emoji {
+    font-size: 1.5rem;
+}
+
+.emotion-name {
+    font-size: var(--font-size-xs);
+}
+
+.emotion-option input:checked + .emotion-button {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.emotion-option input:focus + .emotion-button {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
 }
 
 .mood-selector {

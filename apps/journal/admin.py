@@ -4,7 +4,7 @@ Journal Admin Configuration
 
 from django.contrib import admin
 
-from .models import EntryLink, JournalEntry, JournalPrompt
+from .models import Emotion, EntryLink, JournalEntry, JournalPrompt
 
 
 @admin.register(JournalEntry)
@@ -22,7 +22,7 @@ class JournalEntryAdmin(admin.ModelAdmin):
     search_fields = ["title", "body", "user__email"]
     date_hierarchy = "entry_date"
     raw_id_fields = ["user", "prompt"]
-    filter_horizontal = ["categories", "tags"]
+    filter_horizontal = ["categories", "tags", "emotions"]
     readonly_fields = ["word_count", "created_at", "updated_at", "deleted_at"]
 
     def get_queryset(self, request):
@@ -52,3 +52,13 @@ class EntryLinkAdmin(admin.ModelAdmin):
     list_display = ["source", "target_type", "target_id", "link_type", "created_at"]
     list_filter = ["link_type", "target_type"]
     raw_id_fields = ["source"]
+
+
+@admin.register(Emotion)
+class EmotionAdmin(admin.ModelAdmin):
+    list_display = ["emoji", "name", "slug", "order", "is_active"]
+    list_filter = ["is_active"]
+    list_editable = ["order", "is_active"]
+    search_fields = ["name", "slug"]
+    ordering = ["order", "name"]
+    prepopulated_fields = {"slug": ["name"]}

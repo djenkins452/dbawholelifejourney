@@ -15,7 +15,7 @@ from django import forms
 from apps.core.models import Category, Tag
 from apps.core.utils import get_user_today
 
-from .models import JournalEntry
+from .models import Emotion, JournalEntry
 
 
 class JournalEntryForm(forms.ModelForm):
@@ -30,6 +30,7 @@ class JournalEntryForm(forms.ModelForm):
             "body",
             "entry_date",
             "mood",
+            "emotions",
             "categories",
             "tags",
         ]
@@ -49,6 +50,9 @@ class JournalEntryForm(forms.ModelForm):
             }),
             "mood": forms.Select(attrs={
                 "class": "form-select",
+            }),
+            "emotions": forms.CheckboxSelectMultiple(attrs={
+                "class": "form-checkbox-group",
             }),
             "categories": forms.CheckboxSelectMultiple(attrs={
                 "class": "form-checkbox-group",
@@ -75,9 +79,13 @@ class JournalEntryForm(forms.ModelForm):
         if user:
             self.fields["tags"].queryset = Tag.objects.filter(user=user)
 
-        # Make categories and tags optional
+        # Make categories, tags, and emotions optional
         self.fields["categories"].required = False
         self.fields["tags"].required = False
+        self.fields["emotions"].required = False
+
+        # Filter emotions to only show active ones
+        self.fields["emotions"].queryset = Emotion.objects.filter(is_active=True)
 
         # Set default entry_date to user's local date for new entries
         if not self.instance.pk and user:

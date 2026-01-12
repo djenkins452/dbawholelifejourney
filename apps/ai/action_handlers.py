@@ -913,15 +913,39 @@ class ActionHandler:
             themes: List of themes/topics
         """
         from apps.faith.models import SavedVerse
+        from apps.faith.views import ScriptureSaveView
+        import re
 
         try:
+            # Parse reference to extract book, chapter, verse info
+            book_name = "Unknown"
+            book_order = 1
+            chapter = 1
+            verse_start = 1
+            verse_end = None
+
+            # Match patterns like "1 John 3:16-17" or "John 3:17" or "Genesis 1:1"
+            match = re.match(r"^(\d?\s?[A-Za-z]+)\s+(\d+):(\d+)(?:-(\d+))?", reference)
+            if match:
+                book_name = match.group(1).strip()
+                book_order = ScriptureSaveView.BOOK_ORDER.get(book_name, 1)
+                chapter = int(match.group(2))
+                verse_start = int(match.group(3))
+                if match.group(4):
+                    verse_end = int(match.group(4))
+
             verse = SavedVerse.objects.create(
                 user=self.user,
                 reference=reference,
                 text=text or "",
+                book_name=book_name,
+                book_order=book_order,
+                chapter=chapter,
+                verse_start=verse_start,
+                verse_end=verse_end,
                 notes=notes or "",
                 is_memory_verse=is_memory_verse,
-                themes=",".join(themes) if themes else ""
+                themes=themes if themes else []
             )
 
             memory_str = " (marked for memorization)" if is_memory_verse else ""

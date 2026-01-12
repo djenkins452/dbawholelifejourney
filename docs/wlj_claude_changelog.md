@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Fix: Billing Templates Missing CSS (Tailwind Not Loaded)
+
+**Problem:** Billing pages (`/billing/plans/`, `/billing/settings/`, etc.) were rendering without CSS styling. The navbar was styled correctly but the page content was unstyled.
+
+**Root Cause:** Billing templates were written using Tailwind CSS utility classes (`max-w-4xl`, `grid`, `md:grid-cols-2`, `rounded-xl`, `shadow-lg`, etc.), but the project uses a custom CSS system (`main.css`, `themes.css`) without Tailwind. The Tailwind classes had no effect.
+
+**Fix:** Added Tailwind CDN script to all billing templates via the `{% block extra_css %}` block. This allows the billing pages to use Tailwind classes while the rest of the app continues using the custom CSS system.
+
+**Files Modified:**
+- `templates/billing/select_plan.html`
+- `templates/billing/billing_settings.html`
+- `templates/billing/checkout_success.html`
+- `templates/billing/credit_history.html`
+- `templates/billing/payout_preferences.html`
+- `templates/billing/submit_suggestion.html`
+
+---
+
 ### Fix: BillingProfile Not Found for Existing Users
 
 **Problem:** Users created before the billing system was added did not have BillingProfile records, causing a 500 error when accessing `/billing/plans/`.

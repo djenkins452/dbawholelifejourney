@@ -47,6 +47,10 @@ For active development context, see `CLAUDE.md` (project root).
 - `templates/health/nutrition/food_entry_form.html`
 - `apps/health/views.py`
 
+**What's New Entry:**
+- Migration: `apps/core/migrations/0043_nutrition_scan_icons_release_note.py`
+- Title: "Quick Scan: Log Food Faster with Barcode Scanning"
+
 ---
 
 ### Feature: Auto-Populate Meal Type Based on Scan Time

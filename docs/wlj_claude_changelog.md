@@ -127,6 +127,13 @@ For active development context, see `CLAUDE.md` (project root).
 
 **Root Cause:** The terms version was bumped from `'1.0'` to `'1.1'` in settings, but test fixtures weren't updated. Additionally, email verification became mandatory, breaking test user logins.
 
+### Fix: GitHub Actions CI to Use Test Settings
+
+**Issue:** CI tests were failing because GitHub Actions workflow was not using `config.settings_test`, causing static files manifest errors.
+
+**Files Modified:**
+- `.github/workflows/test.yml`: Updated test command to use `--settings=config.settings_test`
+
 ---
 
 ### Feature: Add Scan Icons Throughout Nutrition Flow

@@ -184,7 +184,9 @@ class ContentSecurityPolicyMiddleware:
     Policy:
     - default-src 'self': Only allow resources from same origin by default
     - script-src: Allow scripts with matching nonce, self, and CDNs
+      (jsdelivr, unpkg for HTMX, tailwindcss, plaid, google)
     - style-src: Allow inline styles (still uses unsafe-inline for CSS)
+      (includes tailwindcss for billing pages)
     - img-src: Allow self, data URIs, and common image hosts
     - font-src: Allow self and Google Fonts
     - connect-src: Allow self and API endpoints
@@ -216,12 +218,12 @@ class ContentSecurityPolicyMiddleware:
         # Scripts with matching nonce will execute; 'strict-dynamic' allows
         # those scripts to load additional scripts dynamically
         if nonce:
-            script_src = f"script-src 'self' 'nonce-{nonce}' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.google.com https://www.gstatic.com"
-            style_src = f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline' https://fonts.googleapis.com"
+            script_src = f"script-src 'self' 'nonce-{nonce}' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
+            style_src = f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com"
         else:
             # Fallback if nonce not available
-            script_src = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.google.com https://www.gstatic.com"
-            style_src = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com"
+            script_src = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
+            style_src = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com"
 
         csp_directives = [
             "default-src 'self'",

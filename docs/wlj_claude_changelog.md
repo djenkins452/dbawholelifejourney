@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Fix: CSP Blocking External CDN Scripts (HTMX, Tailwind, Plaid)
+
+**Issue:** The CSP nonce implementation (deployed earlier today) was missing several
+external CDN domains, causing critical scripts to be blocked:
+- `unpkg.com` - HTMX library (core interactivity)
+- `cdn.tailwindcss.com` - Tailwind CSS for billing pages
+- `cdn.plaid.com` - Plaid banking integration
+
+**Files Changed:**
+- `apps/core/middleware.py` - Added missing CDN domains to CSP script-src and style-src
+
+**CSP Now Allows:**
+- Scripts: jsdelivr, unpkg, tailwindcss, plaid, google, gstatic
+- Styles: self, fonts.googleapis, tailwindcss
+
+---
+
 ### Security: CISO Review - CSP Nonce-Based XSS Protection
 
 **Goal:** Implement nonce-based Content Security Policy for stricter XSS protection.

@@ -23,11 +23,6 @@
                         {% endfor %}
                     </span>
                 {% endif %}
-                {% if entry.mood %}
-                    <span class="mood-badge mood-badge-{{ entry.mood }}">
-                        {{ entry.mood_emoji }} {{ entry.get_mood_display }}
-                    </span>
-                {% endif %}
             </div>
             
             <h1 class="entry-detail-title">{{ entry.title }}</h1>

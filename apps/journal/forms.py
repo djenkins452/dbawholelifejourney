@@ -29,7 +29,6 @@ class JournalEntryForm(forms.ModelForm):
             "title",
             "body",
             "entry_date",
-            "mood",
             "emotions",
             "categories",
             "tags",
@@ -48,9 +47,6 @@ class JournalEntryForm(forms.ModelForm):
                 "class": "form-input",
                 "type": "date",
             }),
-            "mood": forms.Select(attrs={
-                "class": "form-select",
-            }),
             "emotions": forms.CheckboxSelectMultiple(attrs={
                 "class": "form-checkbox-group",
             }),
@@ -68,12 +64,6 @@ class JournalEntryForm(forms.ModelForm):
 
         # Make title optional - will default to date if empty
         self.fields["title"].required = False
-
-        # Add empty choice for mood
-        self.fields["mood"].choices = [("", "Select mood (optional)")] + list(
-            JournalEntry.MOOD_CHOICES
-        )
-        self.fields["mood"].required = False
 
         # Filter tags to only show user's tags
         if user:

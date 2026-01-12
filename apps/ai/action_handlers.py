@@ -13,16 +13,44 @@ Handlers validate data and return ActionResult with success status and created o
 """
 
 import logging
+import re
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 
+import requests
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
 from .intent_service import ActionResult
 
 logger = logging.getLogger(__name__)
+
+# Bible API constants
+BIBLE_API_BASE = "https://rest.api.bible/v1"
+
+# Book name to API abbreviation mapping
+BOOK_ABBREVIATIONS = {
+    'Genesis': 'GEN', 'Exodus': 'EXO', 'Leviticus': 'LEV', 'Numbers': 'NUM',
+    'Deuteronomy': 'DEU', 'Joshua': 'JOS', 'Judges': 'JDG', 'Ruth': 'RUT',
+    '1 Samuel': '1SA', '2 Samuel': '2SA', '1 Kings': '1KI', '2 Kings': '2KI',
+    '1 Chronicles': '1CH', '2 Chronicles': '2CH', 'Ezra': 'EZR', 'Nehemiah': 'NEH',
+    'Esther': 'EST', 'Job': 'JOB', 'Psalms': 'PSA', 'Psalm': 'PSA',
+    'Proverbs': 'PRO', 'Ecclesiastes': 'ECC', 'Song of Solomon': 'SNG',
+    'Isaiah': 'ISA', 'Jeremiah': 'JER', 'Lamentations': 'LAM', 'Ezekiel': 'EZK',
+    'Daniel': 'DAN', 'Hosea': 'HOS', 'Joel': 'JOL', 'Amos': 'AMO',
+    'Obadiah': 'OBA', 'Jonah': 'JON', 'Micah': 'MIC', 'Nahum': 'NAM',
+    'Habakkuk': 'HAB', 'Zephaniah': 'ZEP', 'Haggai': 'HAG', 'Zechariah': 'ZEC',
+    'Malachi': 'MAL', 'Matthew': 'MAT', 'Mark': 'MRK', 'Luke': 'LUK',
+    'John': 'JHN', 'Acts': 'ACT', 'Romans': 'ROM', '1 Corinthians': '1CO',
+    '2 Corinthians': '2CO', 'Galatians': 'GAL', 'Ephesians': 'EPH',
+    'Philippians': 'PHP', 'Colossians': 'COL', '1 Thessalonians': '1TH',
+    '2 Thessalonians': '2TH', '1 Timothy': '1TI', '2 Timothy': '2TI',
+    'Titus': 'TIT', 'Philemon': 'PHM', 'Hebrews': 'HEB', 'James': 'JAS',
+    '1 Peter': '1PE', '2 Peter': '2PE', '1 John': '1JN', '2 John': '2JN',
+    '3 John': '3JN', 'Jude': 'JUD', 'Revelation': 'REV',
+}
 
 
 class ActionHandler:
@@ -46,6 +74,77 @@ class ActionHandler:
         """Get current date in user's timezone."""
         from apps.core.utils import get_user_today
         return get_user_today(self.user)
+
+    def _fetch_verse_text(self, book_name: str, chapter: int, verse_start: int,
+                          verse_end: int = None, translation: str = "KJV") -> str:
+        """
+        Fetch verse text from the Bible API.
+
+        Args:
+            book_name: Full book name (e.g., 'John', 'Genesis')
+            chapter: Chapter number
+            verse_start: Starting verse number
+            verse_end: Ending verse number (optional, for ranges)
+            translation: Bible translation abbreviation
+
+        Returns:
+            Verse text or empty string if lookup fails
+        """
+        api_key = getattr(settings, 'BIBLE_API_KEY', '')
+        if not api_key:
+            logger.warning("Bible API key not configured, cannot fetch verse text")
+            return ""
+
+        # Get the book abbreviation
+        book_abbrev = BOOK_ABBREVIATIONS.get(book_name)
+        if not book_abbrev:
+            logger.warning(f"Unknown book name: {book_name}")
+            return ""
+
+        # Map common translation abbreviations to API.Bible IDs
+        # Default to KJV (de4e12af7f28f599-02)
+        translation_map = {
+            'KJV': 'de4e12af7f28f599-02',
+            'ESV': '9879dbb7cfe39e4d-04',  # ESV
+            'NIV': '78a9f6124f344018-01',  # NIV 2011
+            'NLT': '65eec8e0b60e656b-01',  # NLT
+            'NKJV': 'a5e6ca36e62d6e34-01',  # NKJV (if available)
+            'BSB': 'bba9f40183526463-01',  # Berean Standard Bible
+        }
+        bible_id = translation_map.get(translation, translation_map['KJV'])
+
+        # Build the passage ID (e.g., "JHN.3.16" or "JHN.3.16-JHN.3.18")
+        if verse_end and verse_end != verse_start:
+            passage_id = f"{book_abbrev}.{chapter}.{verse_start}-{book_abbrev}.{chapter}.{verse_end}"
+        else:
+            passage_id = f"{book_abbrev}.{chapter}.{verse_start}"
+
+        try:
+            url = f"{BIBLE_API_BASE}/bibles/{bible_id}/passages/{passage_id}"
+            headers = {"api-key": api_key}
+            params = {
+                "content-type": "text",
+                "include-verse-numbers": "true",
+                "include-titles": "false",
+                "include-chapter-numbers": "false",
+            }
+
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            # Extract the verse text from the response
+            if data.get('data') and data['data'].get('content'):
+                text = data['data']['content'].strip()
+                # Clean up any extra whitespace
+                text = ' '.join(text.split())
+                return text
+
+            return ""
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching verse from Bible API: {e}")
+            return ""
 
     # =========================================================================
     # HEALTH HANDLERS
@@ -903,18 +1002,18 @@ class ActionHandler:
                           notes: str = "", is_memory_verse: bool = False,
                           themes: list = None, **kwargs) -> ActionResult:
         """
-        Save a scripture verse.
+        Save a scripture verse. Automatically fetches verse text from Bible API
+        if not provided.
 
         Args:
             reference: Scripture reference (e.g., 'John 3:16')
-            text: The verse text
+            text: The verse text (fetched from API if not provided)
             notes: Personal notes
             is_memory_verse: Whether to memorize this verse
             themes: List of themes/topics
         """
         from apps.faith.models import SavedVerse
         from apps.faith.views import ScriptureSaveView
-        import re
 
         try:
             # Parse reference to extract book, chapter, verse info
@@ -934,10 +1033,23 @@ class ActionHandler:
                 if match.group(4):
                     verse_end = int(match.group(4))
 
+            # If no text provided, fetch from Bible API
+            verse_text = text
+            if not verse_text and book_name != "Unknown":
+                # Get user's preferred translation, default to KJV
+                translation = getattr(self.user.preferences, 'default_bible_translation', 'KJV')
+                verse_text = self._fetch_verse_text(
+                    book_name=book_name,
+                    chapter=chapter,
+                    verse_start=verse_start,
+                    verse_end=verse_end,
+                    translation=translation
+                )
+
             verse = SavedVerse.objects.create(
                 user=self.user,
                 reference=reference,
-                text=text or "",
+                text=verse_text or "",
                 book_name=book_name,
                 book_order=book_order,
                 chapter=chapter,
@@ -949,10 +1061,11 @@ class ActionHandler:
             )
 
             memory_str = " (marked for memorization)" if is_memory_verse else ""
+            text_preview = f": \"{verse_text[:50]}...\"" if verse_text and len(verse_text) > 50 else (f": \"{verse_text}\"" if verse_text else "")
 
             return ActionResult(
                 success=True,
-                message=f"✓ Saved {reference}{memory_str}",
+                message=f"✓ Saved {reference}{memory_str}{text_preview}",
                 created_object={
                     'model': 'SavedVerse',
                     'id': verse.id,

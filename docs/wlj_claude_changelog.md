@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-12 (Fix AI save_verse intent recognition)
+# Last Updated: 2026-01-12 (AI save_verse now auto-fetches verse text)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,24 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-12 Changes
+
+### AI save_verse Now Auto-Fetches Verse Text from Bible API
+
+**Issue:** When saving a verse via AI assistant, the verse was saved with an empty text field. Users would see the reference (e.g., "John 3:20") but no actual verse content.
+
+**Solution:** Updated `handle_save_verse()` in `action_handlers.py` to automatically fetch the verse text from the Bible API when text is not provided.
+
+**Implementation:**
+- Added `_fetch_verse_text()` helper method to ActionHandler class
+- Added `BOOK_ABBREVIATIONS` mapping (66 books) to convert book names to API.Bible format
+- Translation mapping for KJV, ESV, NIV, NLT, NKJV, BSB
+- Uses user's preferred Bible translation setting
+- Response message now includes a preview of the verse text
+
+**Files Modified:**
+- `apps/ai/action_handlers.py`: Added verse text fetching from Bible API
+
+---
 
 ### Fix AI Assistant save_verse Intent Not Recognized
 

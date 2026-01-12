@@ -72,4 +72,7 @@ urlpatterns = [
     # GDPR Data Export (CISO Review 2026-01-12)
     path("data-export/", views.DataExportView.as_view(), name="data_export"),
     path("data-export/download/", views.DataExportDownloadView.as_view(), name="data_export_download"),
+
+    # Password confirmation for sensitive operations (CISO Review 2026-01-12)
+    path("confirm-password/", views.ConfirmPasswordView.as_view(), name="confirm_password"),
 ]

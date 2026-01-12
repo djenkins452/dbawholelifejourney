@@ -16,6 +16,75 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Security: CISO Review - Batch 3 - Policy & Documentation
+
+**Goal:** Complete security hardening with privacy policy updates, activity-based timeout, and security audit documentation.
+
+**Changes Made:**
+
+1. **Activity-Based Timeout for Financial Operations** (`apps/finance/views.py`):
+   - New `FinanceSensitiveOperationMixin` class for sensitive financial views
+   - Requires re-authentication after 15 minutes of inactivity (configurable)
+   - Uses session-based activity tracking
+   - Logs timeout events for security monitoring
+
+2. **Password Confirmation View** (`apps/users/views.py`):
+   - New `ConfirmPasswordView` for re-authentication flow
+   - Secure password verification before sensitive operations
+   - Returns user to intended destination after confirmation
+
+3. **GDPR Compliance in Privacy Policy** (`templates/core/privacy.html`):
+   - Added "European Users (GDPR)" section
+   - Legal basis for processing (contract, consent, legitimate interest, legal obligation)
+   - All GDPR rights documented (access, rectification, erasure, restrict, portability, object, withdraw consent)
+   - Data transfer safeguards (Standard Contractual Clauses)
+   - Supervisory authority rights
+
+4. **CCPA/CPRA Compliance in Privacy Policy** (`templates/core/privacy.html`):
+   - Added "California Residents (CCPA/CPRA)" section
+   - Categories of personal information collected
+   - All CCPA/CPRA rights documented (know, delete, correct, opt-out, limit use, non-discrimination)
+   - "Do Not Sell" declaration
+   - Sensitive personal information handling
+   - Authorized agent provisions
+   - Shine the Light compliance
+
+5. **Key Rotation Schedule Documentation** (`docs/key_rotation_schedule.md`):
+   - Complete inventory of encryption keys
+   - Annual rotation schedule (January)
+   - Emergency rotation triggers
+   - Step-by-step rotation procedures for each key
+   - Verification checklist
+   - Audit log template
+
+6. **Annual Security Audit Schedule** (`docs/security_audit_schedule.md`):
+   - Quarterly audit calendar
+   - Continuous monitoring activities
+   - OWASP Top 10 checklist
+   - Third-party service audit template
+   - GDPR/CCPA/COPPA compliance checklists
+   - Incident response procedures
+
+**New Configuration:**
+- `WLJ_SETTINGS['FINANCE_ACTIVITY_TIMEOUT_MINUTES']` - Default 15 minutes
+
+**Files Modified/Created:**
+- `apps/finance/views.py` - FinanceSensitiveOperationMixin
+- `apps/users/views.py` - ConfirmPasswordView
+- `apps/users/urls.py` - confirm_password URL
+- `templates/users/confirm_password.html` - NEW: Confirmation form
+- `templates/core/privacy.html` - GDPR/CCPA sections
+- `config/settings.py` - FINANCE_ACTIVITY_TIMEOUT_MINUTES
+- `docs/key_rotation_schedule.md` - NEW: Key rotation procedures
+- `docs/security_audit_schedule.md` - NEW: Audit schedule
+
+**Remaining Items (Future Work):**
+- CSP nonce-based migration (requires template changes)
+- MFA for admin functions (requires additional auth flow)
+- API request logging with anomaly detection (requires monitoring infrastructure)
+
+---
+
 ### Security: CISO Review - Comprehensive Security Hardening
 
 **Goal:** Address all security gaps identified during CISO review to ensure the application meets enterprise security standards.

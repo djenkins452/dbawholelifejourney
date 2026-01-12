@@ -1,17 +1,17 @@
 # ==============================================================================
-# File: services.py
+# File: apps/users/services/recaptcha.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Service classes for user-related operations including reCAPTCHA
-#              verification for bot detection during signup
+# Description: reCAPTCHA v3 verification service for bot detection during signup
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
-# Last Updated: 2026-01-03
+# Last Updated: 2026-01-12
 # ==============================================================================
 
 """
-User Services Module
+reCAPTCHA Service Module
 
-Contains service classes for:
+Contains:
+- RecaptchaResult: Dataclass for verification results
 - RecaptchaService: Verifies reCAPTCHA v3 tokens with Google's API
 """
 

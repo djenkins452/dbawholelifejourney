@@ -6,6 +6,8 @@
 # Created: 2026-01-12 (CISO Security Review)
 # Last Updated: 2026-01-12
 # ==============================================================================
+from __future__ import annotations
+
 """
 GDPR Data Export Service
 

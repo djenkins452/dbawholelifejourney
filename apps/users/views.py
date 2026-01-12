@@ -1450,16 +1450,21 @@ class ConfirmPasswordView(LoginRequiredMixin, TemplateView):
         )
 
         if user is not None:
-            # Password is correct - update activity timestamp and redirect
+            # Password is correct - update activity timestamps for both contexts
             from django.utils import timezone
-            request.session['finance_last_activity'] = timezone.now().isoformat()
+            now = timezone.now().isoformat()
+            request.session['finance_last_activity'] = now
+            # CISO Review 2026-01-12: Also confirm for admin override operations
+            request.session['admin_override_confirmed_at'] = now
 
             # Get return URL and redirect
             return_url = request.session.pop('finance_return_url', None)
             if return_url:
                 return redirect(return_url)
             else:
-                # Default fallback
+                # Default fallback - check if coming from admin console
+                if request.user.is_staff:
+                    return redirect('admin_console:dashboard')
                 return redirect('finance:dashboard')
         else:
             # Password is incorrect

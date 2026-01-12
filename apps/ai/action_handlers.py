@@ -398,16 +398,21 @@ class ActionHandler:
                         meal_type: str = None, calories: int = None,
                         notes: str = "", **kwargs) -> ActionResult:
         """
-        Log a food entry.
+        Log a food entry with smart nutrition lookup.
+
+        Uses 3-tier food search:
+        1. Local database (CustomFood + FoodItem)
+        2. FatSecret API (1.9M+ foods including restaurants)
+        3. AI estimation (handles misspellings, generic foods)
 
         Args:
-            food_name: Name of the food
+            food_name: Name of the food (can be misspelled, AI will correct)
             quantity: Number of servings
             meal_type: Type of meal (breakfast, lunch, dinner, snack)
-            calories: Estimated calories if known
+            calories: Estimated calories if known (overrides search)
             notes: Optional notes
         """
-        from apps.health.models import FoodEntry
+        from apps.health.models import FoodEntry, FoodItem
 
         try:
             # Determine meal type from time if not specified
@@ -425,14 +430,87 @@ class ActionHandler:
             today = self._get_user_today()
             now = self._get_user_now()
 
-            # Create a quick-add food entry (no FoodItem lookup for now)
+            # Smart food lookup with 3-tier search
+            food_match = None
+            matched_name = food_name
+            nutrition_data = {
+                'total_calories': Decimal(str(calories)) if calories else Decimal('0'),
+                'total_protein_g': Decimal('0'),
+                'total_carbohydrates_g': Decimal('0'),
+                'total_fat_g': Decimal('0'),
+                'total_fiber_g': Decimal('0'),
+                'total_sugar_g': Decimal('0'),
+                'serving_size': Decimal('1'),
+                'serving_unit': 'serving',
+            }
+            source_note = ""
+
+            try:
+                from apps.health.services.food_search import food_search_service
+
+                # Search for the food (includes misspelling correction via AI)
+                results = food_search_service.search(
+                    query=food_name,
+                    user=self.user,
+                    limit=1,
+                    use_fatsecret=True,
+                    use_ai=True  # AI can correct misspellings
+                )
+
+                if results:
+                    best_match = results[0]
+                    matched_name = best_match.name
+                    food_match = best_match
+
+                    # Use nutrition data from the match (unless calories explicitly provided)
+                    if not calories and best_match.calories:
+                        nutrition_data['total_calories'] = Decimal(str(best_match.calories))
+                    if best_match.protein_g:
+                        nutrition_data['total_protein_g'] = Decimal(str(best_match.protein_g))
+                    if best_match.carbohydrates_g:
+                        nutrition_data['total_carbohydrates_g'] = Decimal(str(best_match.carbohydrates_g))
+                    if best_match.fat_g:
+                        nutrition_data['total_fat_g'] = Decimal(str(best_match.fat_g))
+                    if best_match.fiber_g:
+                        nutrition_data['total_fiber_g'] = Decimal(str(best_match.fiber_g))
+                    if best_match.sugar_g:
+                        nutrition_data['total_sugar_g'] = Decimal(str(best_match.sugar_g))
+                    if best_match.serving_size:
+                        nutrition_data['serving_size'] = Decimal(str(best_match.serving_size))
+                    if best_match.serving_unit:
+                        nutrition_data['serving_unit'] = best_match.serving_unit
+
+                    # Track source for user feedback
+                    if best_match.source == 'ai':
+                        source_note = " (AI estimate)"
+                    elif best_match.source == 'fatsecret':
+                        source_note = " (FatSecret)"
+
+            except Exception as e:
+                logger.warning(f"Food search failed, using basic entry: {e}")
+
+            # Get food_item for linking if available
+            food_item = None
+            if food_match and food_match.food_item_id:
+                try:
+                    food_item = FoodItem.objects.get(id=food_match.food_item_id)
+                except FoodItem.DoesNotExist:
+                    pass
+
+            # Create the food entry with full nutrition data
             entry = FoodEntry.objects.create(
                 user=self.user,
-                food_name=food_name,
+                food_name=matched_name,
+                food_item=food_item,
                 quantity=Decimal(str(quantity)),
-                serving_size=Decimal('1'),
-                serving_unit='serving',
-                total_calories=Decimal(str(calories)) if calories else Decimal('0'),
+                serving_size=nutrition_data['serving_size'],
+                serving_unit=nutrition_data['serving_unit'],
+                total_calories=nutrition_data['total_calories'],
+                total_protein_g=nutrition_data['total_protein_g'],
+                total_carbohydrates_g=nutrition_data['total_carbohydrates_g'],
+                total_fat_g=nutrition_data['total_fat_g'],
+                total_fiber_g=nutrition_data['total_fiber_g'],
+                total_sugar_g=nutrition_data['total_sugar_g'],
                 logged_date=today,
                 logged_time=now.time(),
                 meal_type=meal_type,
@@ -440,11 +518,18 @@ class ActionHandler:
                 notes=notes or ""
             )
 
-            cal_str = f" ({calories} cal)" if calories else ""
+            # Build response message
+            cal_val = float(nutrition_data['total_calories'])
+            cal_str = f" ({int(cal_val)} cal)" if cal_val > 0 else ""
+
+            # Note if name was corrected (e.g., misspelling fixed)
+            name_note = ""
+            if matched_name.lower() != food_name.lower():
+                name_note = f" (matched: {matched_name})"
 
             return ActionResult(
                 success=True,
-                message=f"✓ Logged {quantity} {food_name}{cal_str} for {meal_type}",
+                message=f"✓ Logged {quantity} {matched_name}{cal_str} for {meal_type}{source_note}{name_note}",
                 created_object={
                     'model': 'FoodEntry',
                     'id': entry.id,
@@ -452,7 +537,11 @@ class ActionHandler:
                     'quantity': float(entry.quantity),
                     'meal_type': entry.meal_type,
                     'total_calories': float(entry.total_calories),
-                    'logged_date': entry.logged_date.isoformat()
+                    'total_protein_g': float(entry.total_protein_g),
+                    'total_carbohydrates_g': float(entry.total_carbohydrates_g),
+                    'total_fat_g': float(entry.total_fat_g),
+                    'logged_date': entry.logged_date.isoformat(),
+                    'source': food_match.source if food_match else 'manual',
                 },
                 action_type='log_food'
             )

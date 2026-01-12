@@ -26,6 +26,7 @@
             <div class="form-group">
                 <label for="{{ form.food_name.id_for_label }}">Food Name *</label>
                 {{ form.food_name }}
+                <span class="form-hint">Start typing to search foods...</span>
                 {% if form.food_name.errors %}
                 <span class="form-error">{{ form.food_name.errors.0 }}</span>
                 {% endif %}
@@ -265,5 +266,139 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Food Autocomplete Styles */
+.food-autocomplete-wrapper {
+    position: relative;
+}
+
+.food-autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 50;
+    margin-top: 4px;
+}
+
+.food-autocomplete-item {
+    padding: var(--space-3);
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.food-autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.food-autocomplete-item:hover,
+.food-autocomplete-item.selected {
+    background: var(--color-accent);
+    color: white;
+}
+
+.food-autocomplete-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.food-autocomplete-name {
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.food-autocomplete-brand {
+    font-weight: normal;
+    color: var(--color-text-muted);
+}
+
+.food-autocomplete-item.selected .food-autocomplete-brand,
+.food-autocomplete-item:hover .food-autocomplete-brand {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.food-autocomplete-source {
+    font-size: var(--font-size-xs);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+}
+
+.food-autocomplete-source-local,
+.food-autocomplete-source-custom {
+    background: var(--color-success-bg, #dcfce7);
+    color: var(--color-success, #16a34a);
+}
+
+.food-autocomplete-source-fatsecret {
+    background: var(--color-info-bg, #dbeafe);
+    color: var(--color-info, #2563eb);
+}
+
+.food-autocomplete-source-ai {
+    background: var(--color-warning-bg, #fef3c7);
+    color: var(--color-warning, #d97706);
+}
+
+.food-autocomplete-item.selected .food-autocomplete-source,
+.food-autocomplete-item:hover .food-autocomplete-source {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.food-autocomplete-nutrition {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+
+.food-autocomplete-item.selected .food-autocomplete-nutrition,
+.food-autocomplete-item:hover .food-autocomplete-nutrition {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.food-autocomplete-empty,
+.food-autocomplete-loading {
+    padding: var(--space-4);
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.food-autocomplete-loading .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: var(--space-2);
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Auto-fill highlight animation */
+.field-auto-filled {
+    animation: field-highlight 0.5s ease;
+}
+
+@keyframes field-highlight {
+    0% { background-color: var(--color-success-bg, #dcfce7); }
+    100% { background-color: transparent; }
+}
 </style>
+
+<script src="{% static 'js/food-autocomplete.js' %}"></script>
 {% endblock %}

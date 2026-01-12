@@ -843,7 +843,8 @@ class FoodEntryForm(forms.ModelForm):
         widgets = {
             "food_name": forms.TextInput(attrs={
                 "class": "form-input",
-                "placeholder": "What did you eat?",
+                "placeholder": "Start typing to search foods...",
+                "autocomplete": "off",
             }),
             "food_brand": forms.TextInput(attrs={
                 "class": "form-input",

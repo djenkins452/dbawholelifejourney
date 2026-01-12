@@ -1565,11 +1565,13 @@ class FoodItem(models.Model):
     SOURCE_USDA = 'usda'
     SOURCE_BARCODE = 'barcode'
     SOURCE_AI = 'ai'
+    SOURCE_FATSECRET = 'fatsecret'
     SOURCE_CHOICES = [
         (SOURCE_MANUAL, 'Manual Entry'),
         (SOURCE_USDA, 'USDA Database'),
         (SOURCE_BARCODE, 'Barcode Scan'),
         (SOURCE_AI, 'AI Recognition'),
+        (SOURCE_FATSECRET, 'FatSecret API'),
     ]
 
     # Basic info
@@ -1577,6 +1579,13 @@ class FoodItem(models.Model):
     brand = models.CharField(max_length=200, blank=True)
     description = models.TextField(blank=True)
     barcode = models.CharField(max_length=50, blank=True, db_index=True)
+    fatsecret_id = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="FatSecret API food ID for re-verification",
+    )
 
     # Source & verification
     data_source = models.CharField(
@@ -1640,6 +1649,11 @@ class FoodItem(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    last_verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When external API data was last verified/refreshed",
+    )
 
     class Meta:
         ordering = ['name']
@@ -1648,6 +1662,7 @@ class FoodItem(models.Model):
         indexes = [
             models.Index(fields=['barcode']),
             models.Index(fields=['name']),
+            models.Index(fields=['fatsecret_id']),
         ]
 
     def __str__(self):

@@ -3370,6 +3370,68 @@ class CustomFoodDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 
 
 # =============================================================================
+# Food Search API
+# =============================================================================
+
+
+class FoodSearchAPIView(LoginRequiredMixin, View):
+    """
+    API endpoint for food autocomplete search.
+
+    Searches across multiple sources:
+    1. User's CustomFood items
+    2. Global FoodItem database
+    3. FatSecret API (if insufficient local results)
+    4. AI estimation (if nothing found)
+
+    GET /health/nutrition/api/search/?q=query&limit=10
+
+    Returns JSON:
+    {
+        "results": [
+            {
+                "id": "local_123",
+                "name": "Food Name",
+                "brand": "Brand",
+                "source": "local|custom|fatsecret|ai",
+                "calories": 250,
+                "protein_g": 12,
+                ...
+            }
+        ]
+    }
+    """
+
+    def get(self, request):
+        query = request.GET.get('q', '').strip()
+        limit = min(int(request.GET.get('limit', 10)), 20)
+
+        if len(query) < 2:
+            return JsonResponse({'results': []})
+
+        try:
+            from .services.food_search import food_search_service
+
+            results = food_search_service.search(
+                query=query,
+                user=request.user,
+                limit=limit,
+                use_fatsecret=True,
+                use_ai=True
+            )
+
+            return JsonResponse({
+                'results': [r.to_dict() for r in results]
+            })
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Food search error: {e}")
+            return JsonResponse({'results': [], 'error': str(e)}, status=500)
+
+
+# =============================================================================
 # Blood Pressure Views
 # =============================================================================
 

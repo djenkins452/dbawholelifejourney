@@ -8,5 +8,17 @@
 # ==============================================================================
 
 from .dexcom import DexcomService, DexcomSyncService
+from .fatsecret import FatSecretService, fatsecret_service
+from .ai_nutrition import AINutritionService, ai_nutrition_service
+from .food_search import FoodSearchService, food_search_service
 
-__all__ = ['DexcomService', 'DexcomSyncService']
+__all__ = [
+    'DexcomService',
+    'DexcomSyncService',
+    'FatSecretService',
+    'fatsecret_service',
+    'AINutritionService',
+    'ai_nutrition_service',
+    'FoodSearchService',
+    'food_search_service',
+]

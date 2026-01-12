@@ -146,6 +146,9 @@ urlpatterns = [
     path("nutrition/foods/<int:pk>/edit/", views.CustomFoodUpdateView.as_view(), name="custom_food_edit"),
     path("nutrition/foods/<int:pk>/delete/", views.CustomFoodDeleteView.as_view(), name="custom_food_delete"),
 
+    # Nutrition API
+    path("nutrition/api/search/", views.FoodSearchAPIView.as_view(), name="food_search_api"),
+
     # Medical Providers
     path("providers/", views.MedicalProviderListView.as_view(), name="provider_list"),
     path("providers/add/", views.MedicalProviderCreateView.as_view(), name="provider_create"),

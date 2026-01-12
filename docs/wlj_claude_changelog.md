@@ -16,6 +16,48 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Smart Food Autocomplete with 3-Tier Search
+
+**Task:** Implement intelligent food autocomplete for the nutrition log food form that recognizes partial text, pulls branded items, and auto-fills all nutrition fields.
+
+**Implementation:** Created a 3-tier cascading food search system:
+1. **Local Database** - Search user's custom foods and cached FoodItem records
+2. **FatSecret API** - External API for restaurant/brand food coverage (5K free calls/day)
+3. **AI Estimation** - OpenAI fallback for misspellings and generic foods
+
+**Features:**
+- Typeahead autocomplete with 300ms debounce
+- Source badges showing where data comes from (Local/FatSecret/AI)
+- Keyboard navigation (arrows, enter, escape)
+- Auto-fills all nutrition fields on selection (calories, protein, carbs, fat, fiber, sugar, saturated fat)
+- AI chat integration - `handle_log_food()` uses same 3-tier search with misspelling correction
+- Results cached to local database for future searches
+- Data freshness tracking with `last_verified_at` timestamps
+
+**Files Created:**
+- `apps/health/services/fatsecret.py`: FatSecret API client with OAuth 2.0 auth and 24hr token caching
+- `apps/health/services/ai_nutrition.py`: AI nutrition estimation service with confidence scoring
+- `apps/health/services/food_search.py`: 3-tier search orchestrator combining all sources
+- `static/js/food-autocomplete.js`: Frontend autocomplete with dropdown and keyboard navigation
+- `apps/health/migrations/0020_add_fatsecret_fields_to_fooditem.py`: Adds fatsecret_id and last_verified_at fields
+
+**Files Modified:**
+- `apps/health/models.py`: Added `SOURCE_FATSECRET` choice, `fatsecret_id` field (indexed), `last_verified_at` timestamp
+- `apps/health/views.py`: Added `FoodSearchAPIView` for autocomplete API endpoint
+- `apps/health/urls.py`: Added route `nutrition/api/search/`
+- `apps/health/forms.py`: Updated food_name widget with autocomplete attributes
+- `templates/health/nutrition/food_entry_form.html`: Added autocomplete CSS and script include
+- `apps/ai/action_handlers.py`: Enhanced `handle_log_food()` to use food_search_service with full nutrition data
+- `apps/health/tests/test_nutrition.py`: Added `FoodSearchAPITest` class with 12 test cases
+
+**Environment Variables Required:**
+- `FATSECRET_CLIENT_ID`: FatSecret API client ID
+- `FATSECRET_CLIENT_SECRET`: FatSecret API client secret
+
+**API Endpoint:** `GET /health/nutrition/api/search/?q=<query>&limit=10`
+
+---
+
 ### Google Calendar Auto-Sync on Dashboard Load
 
 **Task:** Automatically sync Google Calendar events when dashboard loads so "Coming Up" section shows latest events.

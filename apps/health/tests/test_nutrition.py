@@ -55,7 +55,9 @@ class NutritionTestMixin:
 
     def _accept_terms(self, user):
         from apps.users.models import TermsAcceptance
-        TermsAcceptance.objects.create(user=user, terms_version='1.0')
+        from django.conf import settings
+        terms_version = settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+        TermsAcceptance.objects.create(user=user, terms_version=terms_version)
 
     def _complete_onboarding(self, user):
         """Mark user onboarding as complete."""
@@ -1090,3 +1092,146 @@ class NutritionGoalsViewTest(NutritionTestMixin, TestCase):
             self.assertTrue(
                 NutritionGoals.objects.filter(user=self.user).exists()
             )
+
+
+# =============================================================================
+# FOOD SEARCH API TESTS
+# =============================================================================
+
+
+class FoodSearchAPITest(NutritionTestMixin, TestCase):
+    """Tests for food search autocomplete API."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.client = Client()
+        self.client.force_login(self.user)
+        self.url = reverse('health:food_search_api')
+
+    def test_search_requires_authentication(self):
+        """Anonymous users cannot access search API."""
+        self.client.logout()
+        response = self.client.get(self.url, {'q': 'apple'})
+        self.assertEqual(response.status_code, 302)  # Redirect to login
+
+    def test_search_minimum_query_length(self):
+        """Search requires at least 2 characters."""
+        response = self.client.get(self.url, {'q': 'a'})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['results'], [])
+
+    def test_search_returns_local_food_items(self):
+        """Search returns matching FoodItem entries."""
+        self.create_food_item(name='Green Apple')
+        self.create_food_item(name='Red Apple')
+        self.create_food_item(name='Banana')
+
+        response = self.client.get(self.url, {'q': 'apple'})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertEqual(len(data['results']), 2)
+        names = [r['name'] for r in data['results']]
+        self.assertIn('Green Apple', names)
+        self.assertIn('Red Apple', names)
+
+    def test_search_returns_custom_foods(self):
+        """Search returns user's CustomFood entries."""
+        self.create_custom_food(user=self.user, name='My Apple Pie')
+
+        response = self.client.get(self.url, {'q': 'apple'})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertEqual(len(data['results']), 1)
+        self.assertEqual(data['results'][0]['name'], 'My Apple Pie')
+        self.assertEqual(data['results'][0]['source'], 'custom')
+
+    def test_custom_foods_prioritized_over_local(self):
+        """Custom foods appear before global food items."""
+        self.create_food_item(name='Apple Generic')
+        self.create_custom_food(user=self.user, name='Apple Custom')
+
+        response = self.client.get(self.url, {'q': 'apple'})
+        data = response.json()
+
+        self.assertEqual(len(data['results']), 2)
+        self.assertEqual(data['results'][0]['source'], 'custom')
+        self.assertEqual(data['results'][1]['source'], 'local')
+
+    def test_search_includes_nutrition_data(self):
+        """Search results include all nutrition fields."""
+        self.create_food_item(
+            name='Test Food',
+            calories=Decimal('100'),
+            protein_g=Decimal('5'),
+            carbohydrates_g=Decimal('10'),
+            fat_g=Decimal('3'),
+        )
+
+        response = self.client.get(self.url, {'q': 'test'})
+        data = response.json()
+
+        result = data['results'][0]
+        self.assertEqual(result['calories'], 100)
+        self.assertEqual(result['protein_g'], 5)
+        self.assertEqual(result['carbohydrates_g'], 10)
+        self.assertEqual(result['fat_g'], 3)
+
+    def test_search_by_brand(self):
+        """Search matches brand name as well as food name."""
+        self.create_food_item(name='Big Mac', brand="McDonald's")
+
+        response = self.client.get(self.url, {'q': 'mcdon'})
+        data = response.json()
+
+        self.assertEqual(len(data['results']), 1)
+        self.assertEqual(data['results'][0]['name'], 'Big Mac')
+
+    def test_search_respects_limit(self):
+        """Search respects the limit parameter."""
+        for i in range(15):
+            self.create_food_item(name=f'Apple {i}')
+
+        response = self.client.get(self.url, {'q': 'apple', 'limit': '5'})
+        data = response.json()
+
+        self.assertEqual(len(data['results']), 5)
+
+    def test_search_limit_capped_at_20(self):
+        """Search limit is capped at 20."""
+        for i in range(25):
+            self.create_food_item(name=f'Apple {i}')
+
+        response = self.client.get(self.url, {'q': 'apple', 'limit': '50'})
+        data = response.json()
+
+        self.assertLessEqual(len(data['results']), 20)
+
+    def test_other_user_custom_foods_not_visible(self):
+        """Cannot see other user's custom foods."""
+        other_user = self.create_user(email='other@example.com')
+        self.create_custom_food(user=other_user, name='Other User Apple Pie')
+
+        response = self.client.get(self.url, {'q': 'apple'})
+        data = response.json()
+
+        self.assertEqual(len(data['results']), 0)
+
+    def test_search_includes_source_field(self):
+        """Search results include source field."""
+        self.create_food_item(name='Test Food')
+
+        response = self.client.get(self.url, {'q': 'test'})
+        data = response.json()
+
+        self.assertIn('source', data['results'][0])
+        self.assertEqual(data['results'][0]['source'], 'local')
+
+    def test_empty_query_returns_empty_results(self):
+        """Empty query returns empty results."""
+        response = self.client.get(self.url, {'q': ''})
+        data = response.json()
+
+        self.assertEqual(data['results'], [])

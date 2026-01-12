@@ -123,7 +123,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .form-page {
     max-width: 600px;
 }
@@ -200,7 +200,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const smsToggle = document.getElementById('id_sms_reminder_enabled');
     const reminderOptions = document.getElementById('reminder-options');

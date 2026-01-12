@@ -72,7 +72,7 @@
     </form>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .breadcrumb {
     display: flex;
     align-items: center;
@@ -135,7 +135,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 // Sync color inputs
 const colorInput = document.getElementById('id_color');
 const hexInput = document.querySelector('.color-hex');

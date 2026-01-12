@@ -27,7 +27,7 @@
 {% block extrastyle %}
 {{ block.super }}
 <link rel="stylesheet" href="{% static 'css/help.css' %}">
-<style>
+<style nonce="{{ csp_nonce }}">
 /* Admin header help button - inline with branding */
 .admin-header-help-btn {
     display: inline-flex;
@@ -113,7 +113,7 @@
 </dialog>
 
 <script src="{% static 'js/help.js' %}"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 // Determine admin help context from URL
 // Uses app-specific paths to work with configurable admin URL prefix
 function getAdminHelpContext() {

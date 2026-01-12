@@ -134,7 +134,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .stats-bar {
     display: flex;
     flex-wrap: wrap;
@@ -280,7 +280,7 @@
 
 {% if chart_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('stepsChart').getContext('2d');
     const labels = {{ chart_labels|safe }};

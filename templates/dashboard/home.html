@@ -744,7 +744,7 @@
     </div>
 </dialog>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 /* Quick Scan Modal Styles */
 .quick-scan-modal {
     border: none;
@@ -1010,7 +1010,7 @@ button.quick-action-card {
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
 
@@ -1279,7 +1279,7 @@ button.quick-action-card {
 {% endif %}
 
 {% if health_enabled and user_data.active_fast %}
-<script>
+<script nonce="{{ csp_nonce }}">
 // ==============================================================================
 // File: dashboard fast timer (inline)
 // Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
@@ -1541,7 +1541,7 @@ button.quick-action-card {
     </div>
 </dialog>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 /* AI Profile Nudge Card */
 .ai-profile-nudge-section {
     margin-bottom: 1.5rem;
@@ -1807,7 +1807,7 @@ button.quick-action-card {
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
 

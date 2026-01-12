@@ -1622,7 +1622,7 @@ Examples:
     </form>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 /* Page header actions */
 .page-header-actions {
     display: flex;
@@ -2428,7 +2428,7 @@ Examples:
 
 <script src="{% static 'js/accordion.js' %}"></script>
 <script src="{% static 'js/timezone-lookup.js' %}"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 // Update modules count badge
 function updateModulesCount() {
     const moduleCheckboxes = document.querySelectorAll('input[name="journal_enabled"], input[name="faith_enabled"], input[name="health_enabled"], input[name="life_enabled"], input[name="purpose_enabled"], input[name="finances_enabled"]');

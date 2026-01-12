@@ -106,7 +106,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function applyFilters() {
     const color = document.getElementById('color-filter').value;
     const book = document.getElementById('book-filter').value;
@@ -117,7 +117,7 @@ function applyFilters() {
 }
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .filters {
     display: flex;
     gap: var(--space-4);

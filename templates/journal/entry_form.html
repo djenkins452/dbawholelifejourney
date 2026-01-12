@@ -180,7 +180,7 @@
     </form>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .prompt-suggestion {
     background: var(--color-surface);
     padding: var(--space-4);
@@ -325,7 +325,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const titleInput = document.getElementById('id_title');
     const dateInput = document.getElementById('id_entry_date');

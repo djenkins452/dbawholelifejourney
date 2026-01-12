@@ -107,7 +107,7 @@
 
 {% block extra_js %}
 {% if recaptcha_site_key %}
-<script>
+<script nonce="{{ csp_nonce }}">
 document.getElementById('signup-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var form = this;

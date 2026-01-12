@@ -59,7 +59,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function previewImage(input) {
     const preview = document.getElementById('preview-image');
     const container = document.getElementById('preview-container');
@@ -75,7 +75,7 @@ function previewImage(input) {
 }
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .breadcrumb {
     display: flex;
     align-items: center;

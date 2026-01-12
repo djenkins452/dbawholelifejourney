@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Security: CSP Nonce Implementation Complete
+
+**Summary:** Added `nonce="{{ csp_nonce }}"` to ALL inline `<script>` and `<style>` tags
+across the entire codebase, then re-enabled nonce-based CSP.
+
+**Changes Made:**
+- 60 inline `<script>` tags updated with nonce attribute
+- 248 inline `<style>` tags updated with nonce attribute
+- Re-enabled nonce-based CSP in middleware
+
+**How It Works:**
+- Each request gets a unique cryptographic nonce
+- CSP header includes `'nonce-{value}'` in script-src and style-src
+- Only inline scripts/styles with matching nonce attribute execute
+- Injected XSS scripts won't have the nonce and are blocked
+
+**Rollback:** If issues occur, the `csp-nonce-backup` branch contains the
+pre-nonce state. Alternatively, set nonce to None in middleware to fall back
+to unsafe-inline.
+
+**Files Changed:**
+- `apps/core/middleware.py` - Re-enabled nonce-based CSP
+- All 200+ template files - Added nonce attributes to inline scripts/styles
+
+---
+
 ### CRITICAL Fix: CSP Nonces Breaking Site (Inline Scripts/Styles Blocked)
 
 **Root Cause:** When a CSP nonce is present in the policy, browsers **completely ignore
@@ -29,16 +55,9 @@ For active development context, see `CLAUDE.md` (project root).
 
 **The site was completely broken** - CSS wasn't applying, JS wasn't running.
 
-**Fix:** Disabled nonce-based CSP until all inline scripts/styles have nonce attributes.
-The site now uses `'unsafe-inline'` without nonces.
+**Temporary Fix:** Disabled nonce-based CSP until all inline scripts/styles had nonce attributes.
 
-**TODO:** To properly implement nonce-based CSP:
-1. Add `nonce="{{ csp_nonce }}"` to ALL inline `<script>` tags
-2. Add `nonce="{{ csp_nonce }}"` to ALL inline `<style>` tags
-3. Re-enable nonces in ContentSecurityPolicyMiddleware
-
-**Files Changed:**
-- `apps/core/middleware.py` - Removed nonces from CSP, kept unsafe-inline
+**Permanent Fix:** Added nonce attributes to ALL templates (see above).
 
 ---
 

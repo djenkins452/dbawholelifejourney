@@ -96,7 +96,7 @@
     {% endif %}
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .container-sm { max-width: 600px; }
 
 .page-subtitle {
@@ -298,7 +298,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 // Drag and drop functionality
 const dropzone = document.getElementById('dropzone');
 const fileInput = dropzone.querySelector('input[type="file"]');

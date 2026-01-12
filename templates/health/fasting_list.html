@@ -119,7 +119,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .active-fast-card {
     background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, var(--color-background) 100%);
     border: 2px solid var(--color-accent);
@@ -288,7 +288,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (function() {
     const countdownEl = document.querySelector('.countdown-value');
     if (!countdownEl) return;

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Improvement Analytics - WLJ Assistant</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <style>
+    <style nonce="{{ csp_nonce }}">
         * {
             box-sizing: border-box;
         }
@@ -407,7 +407,7 @@
 
     {{ pie_chart_data|json_script:"pie-chart-data" }}
     {{ line_chart_data|json_script:"line-chart-data" }}
-    <script>
+    <script nonce="{{ csp_nonce }}">
         // Pie Chart - Tasks by Status
         const pieCtx = document.getElementById('statusPieChart').getContext('2d');
         const pieData = JSON.parse(document.getElementById('pie-chart-data').textContent);

@@ -213,21 +213,17 @@ class ContentSecurityPolicyMiddleware:
         nonce = getattr(request, 'csp_nonce', None)
 
         # Build CSP policy
-        # CISO Review 2026-01-12: Added nonce support for stricter XSS protection
-        # 'unsafe-inline' kept for backward compatibility with legacy code
-        # Scripts with matching nonce will execute; 'strict-dynamic' allows
-        # those scripts to load additional scripts dynamically
-        # NOTE: Nonce support disabled 2026-01-12
-        # When nonce is present in CSP, browsers IGNORE 'unsafe-inline' entirely.
-        # This broke all inline scripts/styles in templates.
-        # To properly use nonces, ALL inline <script> and <style> tags need
-        # nonce="{{ csp_nonce }}" attributes added. Until that work is done,
-        # we use unsafe-inline without nonces.
-        #
-        # TODO: Add nonce attributes to all inline scripts/styles, then re-enable:
-        # script_src = f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net ..."
-        script_src = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
-        style_src = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com"
+        # CISO Review 2026-01-12: Nonce-based CSP for XSS protection
+        # All inline <script> and <style> tags have nonce="{{ csp_nonce }}" attributes.
+        # When nonce is present, browsers ignore 'unsafe-inline' - this is by design.
+        # External CDNs are explicitly allowed so they don't need nonces.
+        if nonce:
+            script_src = f"script-src 'self' 'nonce-{nonce}' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
+            style_src = f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com https://cdn.tailwindcss.com"
+        else:
+            # Fallback if nonce middleware didn't run (shouldn't happen in normal operation)
+            script_src = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
+            style_src = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com"
 
         csp_directives = [
             "default-src 'self'",

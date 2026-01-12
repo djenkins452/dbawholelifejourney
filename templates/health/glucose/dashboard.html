@@ -232,7 +232,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .period-selector {
     display: flex;
     gap: var(--space-2);
@@ -513,7 +513,7 @@
 {% if chart_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {{ chart_data|json_script:"chart-data" }}
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('glucoseChart').getContext('2d');
     const chartData = JSON.parse(document.getElementById('chart-data').textContent);

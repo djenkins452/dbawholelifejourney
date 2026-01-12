@@ -67,7 +67,7 @@ Loaded via HTMX into the entry form page.
     </div>
 </dialog>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (function() {
     const modal = document.getElementById('tag-create-modal');
     const colorInput = document.getElementById('modal_tag_color');
@@ -106,7 +106,7 @@ Loaded via HTMX into the entry form page.
 })();
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .tag-modal {
     position: fixed;
     top: 0;

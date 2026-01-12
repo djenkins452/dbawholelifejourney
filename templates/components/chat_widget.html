@@ -92,7 +92,7 @@
 </div>
 
 <!-- Assistant Drawer Styles -->
-<style>
+<style nonce="{{ csp_nonce }}">
 /* Floating Button */
 .assistant-toggle-btn {
     position: fixed;
@@ -485,7 +485,7 @@
 </style>
 
 <!-- Assistant Drawer JavaScript -->
-<script>
+<script nonce="{{ csp_nonce }}">
 (function() {
     const toggleBtn = document.getElementById('assistant-toggle-btn');
     const overlay = document.getElementById('assistant-overlay');

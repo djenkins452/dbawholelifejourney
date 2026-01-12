@@ -37,7 +37,7 @@ Returned after creating a new tag to update the selector in place.
 >Create a tag</button>
 {% endif %}
 
-<script>
+<script nonce="{{ csp_nonce }}">
 // Close the modal after successful tag creation
 (function() {
     const modal = document.getElementById('tag-create-modal');

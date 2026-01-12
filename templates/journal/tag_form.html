@@ -63,7 +63,7 @@
     </form>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .color-picker-wrapper {
     display: flex;
     align-items: center;
@@ -112,7 +112,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const colorInput = document.getElementById('id_color');
     const nameInput = document.getElementById('id_name');

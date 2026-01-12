@@ -114,7 +114,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .prn-notice {
     padding: var(--space-4);
     background: color-mix(in srgb, var(--color-info, #3b82f6) 15%, transparent);
@@ -305,7 +305,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const dailyBtn = document.getElementById('selectDaily');
     const dayCheckboxes = document.querySelectorAll('.days-selector input[type="checkbox"]');

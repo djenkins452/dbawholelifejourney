@@ -278,7 +278,7 @@
     </div>
 </template>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .workout-form {
     max-width: 800px;
 }
@@ -727,7 +727,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 // Workout state
 let workoutId = {% if workout %}{{ workout.pk }}{% else %}null{% endif %};
 let workoutStarted = {% if workout %}true{% else %}false{% endif %};

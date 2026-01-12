@@ -227,7 +227,7 @@
 </div>
 
 <!-- JavaScript for New Project popup -->
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const addProjectBtn = document.getElementById('add-project-btn');
     if (addProjectBtn) {
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .breadcrumb {
     display: flex;
     align-items: center;

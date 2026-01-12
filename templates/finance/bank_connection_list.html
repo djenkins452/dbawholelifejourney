@@ -127,7 +127,7 @@
 <!-- Plaid Link Script -->
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 let plaidHandler = null;
 
 async function connectBank() {
@@ -281,7 +281,7 @@ async function disconnectBank(connectionId, institutionName) {
 }
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .connections-card {
     background: var(--color-background);
     border: 1px solid var(--color-border);

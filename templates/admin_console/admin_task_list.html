@@ -362,7 +362,7 @@
     {% endif %}
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';
 
@@ -760,7 +760,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .breadcrumb {
     display: flex;
     align-items: center;

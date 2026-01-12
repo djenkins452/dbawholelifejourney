@@ -135,7 +135,7 @@
     </form>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .template-form {
     max-width: 700px;
 }
@@ -341,7 +341,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function generateSetRows(exerciseId, count) {
     let html = '';
     for (let i = 1; i <= count; i++) {

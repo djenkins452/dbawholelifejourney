@@ -103,7 +103,7 @@
     </form>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .fasting-description-box {
     background: linear-gradient(135deg,
         color-mix(in srgb, #10b981 10%, var(--color-surface)) 0%,
@@ -199,7 +199,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 // Fasting type descriptions from server
 const fastingDescriptions = {
     {% for type_code, description in fasting_descriptions.items %}

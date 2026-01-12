@@ -4,7 +4,7 @@
 {% block title %}Scan - Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce }}">
     .scan-container {
         max-width: 600px;
         margin: 0 auto;
@@ -846,7 +846,7 @@
 {% block extra_js %}
 <!-- ZXing-js library for reliable cross-browser barcode detection -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
 

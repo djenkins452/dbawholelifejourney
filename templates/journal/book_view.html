@@ -74,7 +74,7 @@
     {% endif %}
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .book-view-container {
     min-height: 100vh;
     padding: var(--space-6);
@@ -269,7 +269,7 @@
 </style>
 
 {{ entries_data|json_script:"entries-data" }}
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const entries = JSON.parse(document.getElementById('entries-data').textContent);
     let currentPage = 0;

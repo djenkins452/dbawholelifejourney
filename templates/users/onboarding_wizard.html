@@ -391,7 +391,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 /* Wizard Container */
 .wizard-container {
     min-height: calc(100vh - 120px);
@@ -1140,7 +1140,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 // AI Toggle visibility
 document.addEventListener('DOMContentLoaded', function() {
     const aiToggle = document.getElementById('ai_enabled');

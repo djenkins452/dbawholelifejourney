@@ -315,7 +315,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 /* AI Insight Card */
 .ai-insight-card {
     background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent), color-mix(in srgb, var(--color-primary) 5%, transparent));
@@ -775,7 +775,7 @@
         <polyline points="8 12 11 15 16 9"/>
     </svg>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 (function() {
     const popup = document.getElementById('task-completion-popup');
     if (popup) {

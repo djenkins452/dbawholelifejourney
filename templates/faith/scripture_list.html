@@ -255,7 +255,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .lookup-section {
     padding: var(--space-6);
 }
@@ -590,7 +590,7 @@
 </style>
 
 <script src="{% static 'js/bulk-actions.js' %}"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 // Bible API is now accessed via server-side proxy for security
 // The API key is kept server-side and never exposed to the frontend
 const API_PROXY_BASE = '/faith/api/bible';

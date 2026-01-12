@@ -88,7 +88,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .prayer-detail {
     padding: var(--space-6);
 }
@@ -191,7 +191,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function showAnswerModal() {
     document.getElementById('answer-modal').hidden = false;
 }

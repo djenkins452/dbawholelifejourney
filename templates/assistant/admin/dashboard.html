@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Improvement Tasks Dashboard - WLJ Assistant</title>
-    <style>
+    <style nonce="{{ csp_nonce }}">
         * {
             box-sizing: border-box;
         }
@@ -529,7 +529,7 @@
         </div>
     </div>
 
-    <script>
+    <script nonce="{{ csp_nonce }}">
         let currentRejectTaskId = null;
         let currentRollbackTaskId = null;
 

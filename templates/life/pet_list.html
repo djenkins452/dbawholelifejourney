@@ -72,7 +72,7 @@
     {% endif %}
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .pet-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));

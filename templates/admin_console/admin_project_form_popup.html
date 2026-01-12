@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>New Project</title>
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-    <style>
+    <style nonce="{{ csp_nonce }}">
         body { padding: var(--space-4); background: var(--color-background); }
         .popup-container { max-width: 100%; }
         .form-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-4); }
@@ -54,7 +54,7 @@
     </div>
 
     {% if created_project %}
-    <script>
+    <script nonce="{{ csp_nonce }}">
         // Project was created - notify opener and close
         if (window.opener) {
             window.opener.postMessage({

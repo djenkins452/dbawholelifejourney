@@ -32,7 +32,7 @@ Requirements:
     </button>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .intro-banner {
     display: flex;
     align-items: center;
@@ -118,7 +118,7 @@ Requirements:
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function dismissIntroBanner(module) {
     const banner = document.querySelector(`[data-intro-module="${module}"]`);
     if (!banner) return;

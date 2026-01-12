@@ -100,7 +100,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .stats-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -230,7 +230,7 @@
 {% if selected_exercise and progress_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {{ progress_data|json_script:"progress-data" }}
-<script>
+<script nonce="{{ csp_nonce }}">
 const ctx = document.getElementById('progressChart').getContext('2d');
 const data = JSON.parse(document.getElementById('progress-data').textContent);
 

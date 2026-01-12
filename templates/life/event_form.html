@@ -125,7 +125,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function toggleTimeFields() {
     const isAllDay = document.getElementById('id_is_all_day').checked;
     const timeFields = document.querySelectorAll('.time-field');
@@ -137,7 +137,7 @@ function toggleTimeFields() {
 toggleTimeFields();
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .breadcrumb {
     display: flex;
     align-items: center;

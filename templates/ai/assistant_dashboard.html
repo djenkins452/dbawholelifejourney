@@ -4,7 +4,7 @@
 {% block title %}My Assistant - Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce }}">
 /* Assistant Dashboard Layout */
 .assistant-container {
     max-width: 1200px;
@@ -680,7 +680,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function() {
     const aiEnabled = {{ ai_enabled|yesno:"true,false" }};
     const aiConsent = {{ ai_consent|yesno:"true,false" }};

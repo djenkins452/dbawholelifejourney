@@ -113,7 +113,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .page-header {
     display: flex;
     justify-content: space-between;
@@ -304,7 +304,7 @@
     {% csrf_token %}
 </form>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     // Handle delete button clicks using event delegation
     document.addEventListener('click', function(e) {

@@ -234,7 +234,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .breadcrumb {
     display: flex;
     align-items: center;
@@ -489,7 +489,7 @@
 {% if not object %}
 <!-- ZXing library for cross-browser barcode detection (Safari/iOS compatible) -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const startBtn = document.getElementById('startBarcodeScanner');
     const modal = document.getElementById('barcodeScannerModal');

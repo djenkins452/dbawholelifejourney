@@ -152,7 +152,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function toggleTaskType() {
     const isRecurring = document.getElementById('id_is_recurring').checked;
     const oneTimeDates = document.getElementById('one-time-dates');
@@ -183,7 +183,7 @@ function toggleTaskType() {
 document.addEventListener('DOMContentLoaded', toggleTaskType);
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .form-page {
     max-width: 600px;
 }

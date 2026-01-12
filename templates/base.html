@@ -22,7 +22,7 @@
     
     <!-- Custom accent color override - must come AFTER theme styles -->
     {% if accent_color %}
-    <style>
+    <style nonce="{{ csp_nonce }}">
         :root,
         [data-theme],
         .theme-light,

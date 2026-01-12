@@ -190,7 +190,7 @@
     {% endif %}
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 /* Search Bar Styles */
 .search-bar {
     width: 100%;
@@ -647,7 +647,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 // Show task completed popup if URL has task_completed param
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -678,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 @keyframes fadeOut {
     from { opacity: 1; }
     to { opacity: 0; }

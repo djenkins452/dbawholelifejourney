@@ -64,7 +64,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .help-search-container {
     position: relative;
     max-width: 600px;
@@ -233,7 +233,7 @@
 }
 </style>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('help-search');
     const resultsContainer = document.getElementById('help-search-results');

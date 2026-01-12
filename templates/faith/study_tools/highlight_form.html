@@ -63,7 +63,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 document.getElementById('{{ form.color.id_for_label }}').addEventListener('change', function() {
     const preview = document.getElementById('color-preview');
     preview.className = 'color-preview color-' + this.value;
@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .form-container {
     max-width: 600px;
 }

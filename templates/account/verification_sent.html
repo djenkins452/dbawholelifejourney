@@ -22,7 +22,7 @@
     <a href="{% url 'account_login' %}">Back to sign in</a>
 </p>
 
-<style>
+<style nonce="{{ csp_nonce }}">
 .verification-info {
     text-align: center;
     padding: var(--space-6) 0;

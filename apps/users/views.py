@@ -1419,3 +1419,54 @@ class DataExportDownloadView(LoginRequiredMixin, View):
                 {'error': 'Export failed. Please try again later.'},
                 status=500
             )
+
+
+class ConfirmPasswordView(LoginRequiredMixin, TemplateView):
+    """
+    Password confirmation view for sensitive operations.
+
+    CISO Review 2026-01-12: Activity-based timeout for financial operations.
+
+    When a user's session has been inactive for the configured timeout period,
+    they must re-enter their password before performing sensitive operations
+    like bank connections or large transactions.
+
+    GET: Display password confirmation form
+    POST: Validate password and redirect to intended destination
+    """
+
+    template_name = 'users/confirm_password.html'
+
+    def post(self, request, *args, **kwargs):
+        from django.contrib.auth import authenticate
+
+        password = request.POST.get('password', '')
+
+        # Authenticate the user with the provided password
+        user = authenticate(
+            request,
+            username=request.user.email,
+            password=password
+        )
+
+        if user is not None:
+            # Password is correct - update activity timestamp and redirect
+            from django.utils import timezone
+            request.session['finance_last_activity'] = timezone.now().isoformat()
+
+            # Get return URL and redirect
+            return_url = request.session.pop('finance_return_url', None)
+            if return_url:
+                return redirect(return_url)
+            else:
+                # Default fallback
+                return redirect('finance:dashboard')
+        else:
+            # Password is incorrect
+            messages.error(request, "Incorrect password. Please try again.")
+            return self.get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['return_url'] = self.request.session.get('finance_return_url', '')
+        return context

@@ -64,6 +64,117 @@ class FinanceUserMixin(LoginRequiredMixin):
         return super().get_queryset().filter(user=self.request.user, status='active')
 
 
+class FinanceSensitiveOperationMixin:
+    """
+    Mixin for views that perform sensitive financial operations.
+
+    CISO Review 2026-01-12: Activity-based timeout for financial operations.
+
+    If the user hasn't performed a financial action within the timeout period,
+    they must re-authenticate (re-enter password) before proceeding.
+
+    Configuration:
+        - Timeout period: Configured via settings.WLJ_SETTINGS['FINANCE_ACTIVITY_TIMEOUT_MINUTES']
+        - Default: 15 minutes
+        - Session key: 'finance_last_activity' stores the last activity timestamp
+
+    Usage:
+        Add this mixin to views that perform sensitive operations like:
+        - Bank account connections
+        - Large transactions
+        - Account deletions
+        - Bulk operations
+
+    Example:
+        class BankConnectView(FinanceSensitiveOperationMixin, LoginRequiredMixin, View):
+            finance_operation_name = 'bank_connection'
+            ...
+    """
+
+    # Override in subclass to describe the operation for logging
+    finance_operation_name = 'sensitive_operation'
+
+    def dispatch(self, request, *args, **kwargs):
+        """Check activity timeout before processing the request."""
+        if not self._check_finance_activity_timeout(request):
+            # Redirect to password confirmation
+            from django.urls import reverse
+            from django.contrib import messages
+
+            messages.warning(
+                request,
+                "For your security, please confirm your password to continue with this financial operation."
+            )
+            # Store the intended destination
+            request.session['finance_return_url'] = request.get_full_path()
+            return redirect(reverse('users:confirm_password'))
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def _check_finance_activity_timeout(self, request) -> bool:
+        """
+        Check if the user has been active within the timeout period.
+
+        Returns True if the user can proceed, False if re-authentication is needed.
+        """
+        from django.conf import settings
+        from django.utils import timezone
+
+        # Get timeout from settings (default 15 minutes)
+        timeout_minutes = settings.WLJ_SETTINGS.get('FINANCE_ACTIVITY_TIMEOUT_MINUTES', 15)
+
+        # Get last activity timestamp from session
+        last_activity = request.session.get('finance_last_activity')
+
+        if last_activity is None:
+            # No previous activity, require authentication
+            return False
+
+        # Parse the timestamp
+        try:
+            last_activity_time = timezone.datetime.fromisoformat(last_activity)
+            if timezone.is_naive(last_activity_time):
+                last_activity_time = timezone.make_aware(last_activity_time)
+        except (ValueError, TypeError):
+            return False
+
+        # Check if within timeout period
+        now = timezone.now()
+        elapsed_minutes = (now - last_activity_time).total_seconds() / 60
+
+        if elapsed_minutes > timeout_minutes:
+            # Timeout exceeded
+            self._log_finance_timeout(request)
+            return False
+
+        return True
+
+    def _update_finance_activity(self, request):
+        """Update the last activity timestamp in the session."""
+        from django.utils import timezone
+        request.session['finance_last_activity'] = timezone.now().isoformat()
+
+    def _log_finance_timeout(self, request):
+        """Log when a timeout occurs for security monitoring."""
+        from apps.core.security_logging import log_security_event
+        log_security_event(
+            event_type='permission_denied',
+            severity='info',
+            message=f'Finance activity timeout for {self.finance_operation_name}',
+            request=request,
+            user=request.user,
+            details={
+                'operation': self.finance_operation_name,
+                'path': request.path,
+            }
+        )
+
+    def form_valid(self, form):
+        """Update activity timestamp on successful form submission."""
+        self._update_finance_activity(self.request)
+        return super().form_valid(form)
+
+
 class FinanceAuditMixin:
     """
     Mixin to add audit logging to finance views.

@@ -684,6 +684,9 @@ WLJ_SETTINGS = {
     "SOFT_DELETE_RETENTION_DAYS": 30,
     # Terms of Service version (increment when terms change)
     "TERMS_VERSION": "1.1",
+    # Finance activity timeout (minutes) - CISO Review 2026-01-12
+    # Requires re-authentication for sensitive financial operations after this period
+    "FINANCE_ACTIVITY_TIMEOUT_MINUTES": 15,
 }
 
 # Bible API (required for Scripture lookups in Faith module)

@@ -100,6 +100,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         null=True,
         help_text="Profile picture (optional)",
     )
+
+    # Date of birth for age verification (COPPA compliance)
+    date_of_birth = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date of birth for age verification (must be 13+ to use service)",
+    )
     
     is_staff = models.BooleanField(
         default=False,

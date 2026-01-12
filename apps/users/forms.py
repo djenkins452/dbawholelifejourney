@@ -24,12 +24,65 @@ Copyright:
     without explicit permission.
 """
 
+from datetime import date
+
+from allauth.account.forms import SignupForm
 from django import forms
 from django.contrib.auth import get_user_model
 
 from .models import UserPreferences
 
 User = get_user_model()
+
+
+class CustomSignupForm(SignupForm):
+    """
+    Custom signup form that adds date of birth for COPPA compliance.
+    Users must be 13 years or older to create an account.
+    """
+
+    date_of_birth = forms.DateField(
+        label="Date of Birth",
+        required=True,
+        widget=forms.DateInput(attrs={
+            "class": "form-input",
+            "type": "date",
+            "max": date.today().isoformat(),
+        }),
+        help_text="You must be 13 years or older to use this service.",
+    )
+
+    def clean_date_of_birth(self):
+        """Validate that user is at least 13 years old."""
+        dob = self.cleaned_data.get("date_of_birth")
+        if dob:
+            today = date.today()
+            # Calculate age
+            age = today.year - dob.year
+            # Adjust if birthday hasn't occurred yet this year
+            if (today.month, today.day) < (dob.month, dob.day):
+                age -= 1
+
+            if age < 13:
+                raise forms.ValidationError(
+                    "You must be 13 years or older to create an account. "
+                    "If you are under 13, please ask a parent or guardian for assistance."
+                )
+
+            # Sanity check - reject obviously invalid dates (e.g., claiming to be 150 years old)
+            if age > 120:
+                raise forms.ValidationError(
+                    "Please enter a valid date of birth."
+                )
+
+        return dob
+
+    def save(self, request):
+        """Save the user with the date of birth."""
+        user = super().save(request)
+        user.date_of_birth = self.cleaned_data.get("date_of_birth")
+        user.save()
+        return user
 
 
 class ProfileForm(forms.ModelForm):

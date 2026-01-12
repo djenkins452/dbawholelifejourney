@@ -216,18 +216,61 @@
             </p>
         </section>
         
-        <section class="legal-section">
-            <h2>Children's Privacy</h2>
+        <section class="legal-section important-section">
+            <h2>Children's Privacy (COPPA Compliance)</h2>
             <p>
-                The Service is not intended for children under 13. We do not knowingly 
-                collect information from children under 13. If you believe a child has 
-                provided us with personal information, please contact us and we will 
-                delete it.
+                <strong>The Service is not intended for children under 13 years of age.</strong>
+                In compliance with the Children's Online Privacy Protection Act (COPPA),
+                we do not knowingly collect, use, or disclose personal information from
+                children under 13.
             </p>
+
+            <h3>Age Verification</h3>
             <p>
-                Users between 13 and 18 must have parental or guardian consent to use 
-                the Service.
+                We require all users to provide their date of birth during account
+                registration. If a user indicates they are under 13 years old, we will:
             </p>
+            <ul>
+                <li>Prevent account creation</li>
+                <li>Not collect or store any personal information</li>
+                <li>Display an age-appropriate message explaining the requirement</li>
+            </ul>
+
+            <h3>Discovery of Underage Users</h3>
+            <p>
+                If we discover that we have inadvertently collected personal information
+                from a child under 13, we will:
+            </p>
+            <ul>
+                <li>Immediately terminate the account</li>
+                <li>Delete all personal information associated with that account</li>
+                <li>Take reasonable steps to prevent future unauthorized access</li>
+            </ul>
+
+            <h3>Parental Rights</h3>
+            <p>
+                If you are a parent or guardian and believe your child under 13 has
+                created an account or provided personal information to us, please
+                contact us immediately at privacy@wholelifejourney.com. You have the
+                right to:
+            </p>
+            <ul>
+                <li>Request information about data collected from your child</li>
+                <li>Request deletion of your child's data</li>
+                <li>Refuse further collection of your child's information</li>
+            </ul>
+
+            <h3>Users Aged 13-17</h3>
+            <p>
+                Users between 13 and 17 years of age may use the Service, but we
+                recommend they do so with the awareness and consent of a parent or
+                guardian. Parents are encouraged to:
+            </p>
+            <ul>
+                <li>Review the Service and its features with their teen</li>
+                <li>Discuss appropriate use of personal journaling and health tracking</li>
+                <li>Monitor their teen's use of the Service as appropriate</li>
+            </ul>
         </section>
         
         <section class="legal-section">
@@ -311,6 +354,13 @@
 .legal-section address {
     font-style: normal;
     color: var(--color-text-muted);
+}
+
+.important-section {
+    background-color: var(--color-surface);
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    border-left: 4px solid var(--color-warning);
 }
 </style>
 {% endblock %}

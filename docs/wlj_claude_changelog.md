@@ -16,6 +16,44 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### CRITICAL Fix: CSP Nonces Breaking Site (Inline Scripts/Styles Blocked)
+
+**Root Cause:** When a CSP nonce is present in the policy, browsers **completely ignore
+`'unsafe-inline'`**. This is by design - nonces and unsafe-inline are mutually exclusive.
+
+**Impact:** ALL inline `<script>` and `<style>` tags were blocked, including:
+- Navigation component inline styles
+- Chat widget inline scripts
+- Theme accent color overrides
+- Dashboard JavaScript
+
+**The site was completely broken** - CSS wasn't applying, JS wasn't running.
+
+**Fix:** Disabled nonce-based CSP until all inline scripts/styles have nonce attributes.
+The site now uses `'unsafe-inline'` without nonces.
+
+**TODO:** To properly implement nonce-based CSP:
+1. Add `nonce="{{ csp_nonce }}"` to ALL inline `<script>` tags
+2. Add `nonce="{{ csp_nonce }}"` to ALL inline `<style>` tags
+3. Re-enable nonces in ContentSecurityPolicyMiddleware
+
+**Files Changed:**
+- `apps/core/middleware.py` - Removed nonces from CSP, kept unsafe-inline
+
+---
+
+### Fix: CSP Blocking External CDN Scripts (HTMX, Tailwind, Plaid)
+
+**Issue:** The CSP nonce implementation was missing several external CDN domains:
+- `unpkg.com` - HTMX library (core interactivity)
+- `cdn.tailwindcss.com` - Tailwind CSS for billing pages
+- `cdn.plaid.com` - Plaid banking integration
+
+**Files Changed:**
+- `apps/core/middleware.py` - Added missing CDN domains to CSP
+
+---
+
 ### Security: CISO Review - Admin Override Confirmation (MFA-lite)
 
 **Goal:** Add password confirmation for destructive admin operations to prevent accidental or unauthorized changes.
@@ -61,7 +99,7 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
-### Security: CISO Review - CSP Nonce-Based XSS Protection
+### Security: CISO Review - CSP Nonce-Based XSS Protection (REVERTED)
 
 **Goal:** Implement nonce-based Content Security Policy for stricter XSS protection.
 

@@ -217,13 +217,17 @@ class ContentSecurityPolicyMiddleware:
         # 'unsafe-inline' kept for backward compatibility with legacy code
         # Scripts with matching nonce will execute; 'strict-dynamic' allows
         # those scripts to load additional scripts dynamically
-        if nonce:
-            script_src = f"script-src 'self' 'nonce-{nonce}' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
-            style_src = f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com"
-        else:
-            # Fallback if nonce not available
-            script_src = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
-            style_src = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com"
+        # NOTE: Nonce support disabled 2026-01-12
+        # When nonce is present in CSP, browsers IGNORE 'unsafe-inline' entirely.
+        # This broke all inline scripts/styles in templates.
+        # To properly use nonces, ALL inline <script> and <style> tags need
+        # nonce="{{ csp_nonce }}" attributes added. Until that work is done,
+        # we use unsafe-inline without nonces.
+        #
+        # TODO: Add nonce attributes to all inline scripts/styles, then re-enable:
+        # script_src = f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net ..."
+        script_src = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
+        style_src = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com"
 
         csp_directives = [
             "default-src 'self'",

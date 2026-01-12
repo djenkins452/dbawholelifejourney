@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-12 Changes
 
+### Fix: RecaptchaService Import Error - Module Restructure
+
+**Issue:** Production deployment failing with `ImportError: cannot import name 'RecaptchaService' from 'apps.users.services'` because both `services.py` file and `services/` directory existed, causing Python to import the directory (package) which didn't export `RecaptchaService`.
+
+**Root Cause:** A `services/` directory was added for `DataExportService` while `services.py` (containing `RecaptchaService`) already existed. Python imports directories over files when both exist.
+
+**Files Modified:**
+- `apps/users/services.py` → `apps/users/services/recaptcha.py`: Moved file into package
+- `apps/users/services/__init__.py`: Added exports for `RecaptchaService` and `RecaptchaResult`
+- `apps/users/services/data_export.py`: Added `from __future__ import annotations` for Python 3.9 compatibility
+
+---
+
 ### Security: CISO Review - Comprehensive Security Hardening
 
 **Goal:** Address all security gaps identified during CISO review to ensure the application meets enterprise security standards.

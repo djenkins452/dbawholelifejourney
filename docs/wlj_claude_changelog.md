@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-12 (Journal Emotions Multi-Select Feature)
+# Last Updated: 2026-01-12 (COPPA Age Verification)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,35 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-12 Changes
+
+### COPPA Age Verification Implementation
+
+**Task:** Implement age verification (13+) during registration for COPPA compliance.
+
+**Implementation:** Added date of birth field to User model and custom signup form that blocks registration for users under 13. Updated Terms of Service and Privacy Policy with comprehensive COPPA compliance language.
+
+**Features:**
+- `date_of_birth` field added to User model (nullable for existing users)
+- Custom `CustomSignupForm` extends django-allauth's SignupForm with age validation
+- Blocks registration if user is under 13 years old with clear error message
+- Edge case handling: exactly 13 years old today is allowed
+- Sanity check: rejects dates claiming age > 120 years
+- Clear messaging on signup form: "You must be 13 years or older to use this service"
+
+**Files Modified:**
+- `apps/users/models.py`: Added `date_of_birth` DateField to User model
+- `apps/users/forms.py`: Added `CustomSignupForm` class with age validation
+- `config/settings.py`: Added `ACCOUNT_FORMS` config, bumped `TERMS_VERSION` to 1.1
+- `templates/account/signup.html`: Added date of birth input field with messaging
+- `templates/core/terms.html`: Added "Age Requirements (COPPA Compliance)" section (Section 4), renumbered subsequent sections, updated to 19 total sections
+- `templates/core/privacy.html`: Expanded "Children's Privacy (COPPA Compliance)" section with Age Verification, Discovery of Underage Users, Parental Rights, and Users Aged 13-17 subsections
+
+**Migrations Created:**
+- `0034_add_date_of_birth.py`: Adds date_of_birth field to User model
+
+**Terms Version:** Updated from 1.0 to 1.1 (will trigger re-acceptance for existing users)
+
+---
 
 ### Add Journal Emotions Multi-Select Feature
 

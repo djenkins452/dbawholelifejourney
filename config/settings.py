@@ -520,6 +520,11 @@ ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]  # Replaces ACCOU
 # Custom account adapter for security features (honeypot, signup logging)
 ACCOUNT_ADAPTER = "apps.users.adapters.WLJAccountAdapter"
 
+# Custom signup form for age verification (COPPA compliance)
+ACCOUNT_FORMS = {
+    "signup": "apps.users.forms.CustomSignupForm",
+}
+
 LOGIN_REDIRECT_URL = "dashboard:home"
 LOGOUT_REDIRECT_URL = "core:landing"
 LOGIN_URL = "account_login"
@@ -671,7 +676,7 @@ WLJ_SETTINGS = {
     # Soft delete retention period (days)
     "SOFT_DELETE_RETENTION_DAYS": 30,
     # Terms of Service version (increment when terms change)
-    "TERMS_VERSION": "1.0",
+    "TERMS_VERSION": "1.1",
 }
 
 # Bible API (required for Scripture lookups in Faith module)

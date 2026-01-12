@@ -68,4 +68,8 @@ urlpatterns = [
     path("biometric/login/begin/", views.BiometricLoginBeginView.as_view(), name="biometric_login_begin"),
     path("biometric/login/complete/", views.BiometricLoginCompleteView.as_view(), name="biometric_login_complete"),
     path("biometric/delete/<int:credential_id>/", views.BiometricDeleteCredentialView.as_view(), name="biometric_delete"),
+
+    # GDPR Data Export (CISO Review 2026-01-12)
+    path("data-export/", views.DataExportView.as_view(), name="data_export"),
+    path("data-export/download/", views.DataExportDownloadView.as_view(), name="data_export_download"),
 ]

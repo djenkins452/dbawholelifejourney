@@ -32,6 +32,7 @@ from django.views.generic import (
 
 from apps.core.models import Category, SiteConfiguration, Theme
 from apps.core.models import ChoiceCategory, ChoiceOption
+from apps.core.rate_limiting import APIRateLimitMixin
 from apps.help.mixins import HelpContextMixin
 
 import logging
@@ -43,9 +44,11 @@ def validate_image_file(uploaded_file, max_size_mb=5):
     """
     Validate that an uploaded file is a legitimate image.
 
-    Checks:
+    Security (CISO Review 2026-01-12):
     - File extension is an allowed image type
-    - File content is actually a valid image (not a renamed malicious file)
+    - Content-Type header matches allowed types
+    - Magic bytes verification for file type
+    - File content is actually a valid image (PIL verification)
     - File size is within limits
 
     Args:
@@ -55,14 +58,25 @@ def validate_image_file(uploaded_file, max_size_mb=5):
     Returns:
         tuple: (is_valid: bool, error_message: str or None)
     """
+    import os
+
     ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.svg'}
     ALLOWED_CONTENT_TYPES = {
         'image/png', 'image/jpeg', 'image/gif', 'image/x-icon',
         'image/vnd.microsoft.icon', 'image/webp', 'image/svg+xml'
     }
 
+    # Magic bytes for file type verification (CISO Review 2026-01-12)
+    MAGIC_BYTES = {
+        b'\xff\xd8\xff': 'jpeg',           # JPEG
+        b'\x89PNG\r\n\x1a\n': 'png',       # PNG
+        b'GIF87a': 'gif',                  # GIF87a
+        b'GIF89a': 'gif',                  # GIF89a
+        b'\x00\x00\x01\x00': 'ico',        # ICO
+        b'RIFF': 'webp',                   # WebP (RIFF....WEBP)
+    }
+
     # Check file extension
-    import os
     ext = os.path.splitext(uploaded_file.name)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         return False, f"Invalid file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
@@ -77,14 +91,36 @@ def validate_image_file(uploaded_file, max_size_mb=5):
     if content_type not in ALLOWED_CONTENT_TYPES:
         return False, f"Invalid content type '{content_type}'"
 
-    # For non-SVG images, verify actual image content using PIL
+    # For non-SVG images, verify magic bytes and actual image content
     if ext != '.svg':
         try:
+            # Read first bytes for magic byte check
+            uploaded_file.seek(0)
+            header = uploaded_file.read(16)
+            uploaded_file.seek(0)
+
+            # Verify magic bytes
+            detected_format = None
+            for magic, fmt in MAGIC_BYTES.items():
+                if header[:len(magic)] == magic:
+                    detected_format = fmt
+                    break
+
+            # Special check for WebP (RIFF....WEBP)
+            if not detected_format and header[:4] == b'RIFF' and header[8:12] == b'WEBP':
+                detected_format = 'webp'
+
+            if not detected_format:
+                logger.warning(f"Magic byte validation failed for {uploaded_file.name}")
+                return False, "File content does not match a valid image format"
+
+            # Verify actual image content using PIL
             from PIL import Image
             uploaded_file.seek(0)
             img = Image.open(uploaded_file)
             img.verify()  # Verify it's a valid image
             uploaded_file.seek(0)  # Reset for later use
+
         except Exception as e:
             logger.warning(f"Image validation failed for {uploaded_file.name}: {e}")
             return False, "File is not a valid image"
@@ -1290,7 +1326,7 @@ class ActivityLogDeleteView(AdminRequiredMixin, DeleteView):
 # Project Task API Views
 # ============================================================
 
-class NextTasksAPIView(View):
+class NextTasksAPIView(APIRateLimitMixin, View):
     """
     API endpoint to get next tasks from the active phase.
 
@@ -1300,7 +1336,15 @@ class NextTasksAPIView(View):
 
     Returns JSON array of task objects.
     Returns 403 if user is not admin.
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 60 requests per minute
+        - 500 requests per hour
     """
+
+    rate_limit_requests_per_minute = 60
+    rate_limit_requests_per_hour = 500
+    rate_limit_key_prefix = 'admin_api'
 
     def get(self, request):
         # Check admin permission
@@ -1488,7 +1532,7 @@ class TaskStatusUpdateAPIView(View):
         return JsonResponse(result)
 
 
-class ProjectMetricsAPIView(View):
+class ProjectMetricsAPIView(APIRateLimitMixin, View):
     """
     API endpoint to get project status metrics.
 
@@ -1502,7 +1546,15 @@ class ProjectMetricsAPIView(View):
     - high_priority_remaining_tasks: High priority tasks not done
 
     Returns 403 if user is not admin.
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 60 requests per minute
+        - 500 requests per hour
     """
+
+    rate_limit_requests_per_minute = 60
+    rate_limit_requests_per_hour = 500
+    rate_limit_key_prefix = 'admin_api'
 
     def get(self, request):
         # Check admin permission
@@ -1519,7 +1571,7 @@ class ProjectMetricsAPIView(View):
         return JsonResponse(metrics)
 
 
-class SystemStateAPIView(View):
+class SystemStateAPIView(APIRateLimitMixin, View):
     """
     API endpoint to get system state snapshot for session bootstrapping.
 
@@ -1538,7 +1590,15 @@ class SystemStateAPIView(View):
     - Trigger phase completion
     - Trigger task updates
     - Modify any data
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 60 requests per minute
+        - 500 requests per hour
     """
+
+    rate_limit_requests_per_minute = 60
+    rate_limit_requests_per_hour = 500
+    rate_limit_key_prefix = 'admin_api'
 
     def get(self, request):
         # Check admin permission
@@ -1659,7 +1719,7 @@ class CodebaseMetricsView(HelpContextMixin, AdminRequiredMixin, TemplateView):
 # Phase 10 - Hardening & Fail-Safes API Views
 # ============================================================
 
-class SystemIssuesAPIView(View):
+class SystemIssuesAPIView(APIRateLimitMixin, View):
     """
     API endpoint to detect system issues.
 
@@ -1675,7 +1735,15 @@ class SystemIssuesAPIView(View):
     Returns 403 if user is not admin.
 
     This endpoint is read-only and does NOT mutate data.
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 60 requests per minute
+        - 500 requests per hour
     """
+
+    rate_limit_requests_per_minute = 60
+    rate_limit_requests_per_hour = 500
+    rate_limit_key_prefix = 'admin_api'
 
     def get(self, request):
         # Check admin permission
@@ -1703,7 +1771,7 @@ class SystemIssuesAPIView(View):
         return JsonResponse(result)
 
 
-class ResetPhaseOverrideAPIView(View):
+class ResetPhaseOverrideAPIView(APIRateLimitMixin, View):
     """
     API endpoint to reset the active phase (admin override).
 
@@ -1719,7 +1787,15 @@ class ResetPhaseOverrideAPIView(View):
     - 400: Validation error
     - 403: Permission denied
     - 404: Phase not found
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 30 requests per minute
+        - 200 requests per hour
     """
+
+    rate_limit_requests_per_minute = 30
+    rate_limit_requests_per_hour = 200
+    rate_limit_key_prefix = 'admin_api_override'
 
     def post(self, request):
         import json
@@ -1769,7 +1845,7 @@ class ResetPhaseOverrideAPIView(View):
         })
 
 
-class UnblockTaskOverrideAPIView(View):
+class UnblockTaskOverrideAPIView(APIRateLimitMixin, View):
     """
     API endpoint to force-unblock a task (admin override).
 
@@ -1786,7 +1862,15 @@ class UnblockTaskOverrideAPIView(View):
     - 400: Validation error (missing reason, task not blocked)
     - 403: Permission denied
     - 404: Task not found
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 30 requests per minute
+        - 200 requests per hour
     """
+
+    rate_limit_requests_per_minute = 30
+    rate_limit_requests_per_hour = 200
+    rate_limit_key_prefix = 'admin_api_override'
 
     def post(self, request):
         import json
@@ -1853,7 +1937,7 @@ class UnblockTaskOverrideAPIView(View):
         })
 
 
-class RecheckPhaseOverrideAPIView(View):
+class RecheckPhaseOverrideAPIView(APIRateLimitMixin, View):
     """
     API endpoint to re-run phase completion check (admin override).
 
@@ -1869,7 +1953,15 @@ class RecheckPhaseOverrideAPIView(View):
     - 400: Validation error
     - 403: Permission denied
     - 404: Phase not found
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 30 requests per minute
+        - 200 requests per hour
     """
+
+    rate_limit_requests_per_minute = 30
+    rate_limit_requests_per_hour = 200
+    rate_limit_key_prefix = 'admin_api_override'
 
     def post(self, request):
         import json
@@ -1944,7 +2036,7 @@ class RecheckPhaseOverrideAPIView(View):
 # Phase 11.1 - Preflight Guard API Views
 # ============================================================
 
-class PreflightCheckAPIView(View):
+class PreflightCheckAPIView(APIRateLimitMixin, View):
     """
     API endpoint to run preflight execution check.
 
@@ -1965,7 +2057,15 @@ class PreflightCheckAPIView(View):
     Returns 403 if user is not admin.
 
     This endpoint is read-only and does NOT mutate data.
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 60 requests per minute
+        - 500 requests per hour
     """
+
+    rate_limit_requests_per_minute = 60
+    rate_limit_requests_per_hour = 500
+    rate_limit_key_prefix = 'admin_api'
 
     def get(self, request):
         # Check admin permission
@@ -1984,7 +2084,7 @@ class PreflightCheckAPIView(View):
         })
 
 
-class SeedPhasesAPIView(View):
+class SeedPhasesAPIView(APIRateLimitMixin, View):
     """
     API endpoint to seed AdminProjectPhase data.
 
@@ -1999,7 +2099,15 @@ class SeedPhasesAPIView(View):
     - message: str - Description of what happened
 
     Returns 403 if user is not admin.
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 10 requests per minute
+        - 50 requests per hour
     """
+
+    rate_limit_requests_per_minute = 10
+    rate_limit_requests_per_hour = 50
+    rate_limit_key_prefix = 'admin_api_seed'
 
     def post(self, request):
         # Check admin permission
@@ -2874,7 +2982,7 @@ class EffortConfigDeleteView(AdminRequiredMixin, DeleteView):
 # Claude Code API - Ready Tasks Endpoint
 # ==============================================================================
 
-class ReadyTasksAPIView(View):
+class ReadyTasksAPIView(APIRateLimitMixin, View):
     """
     API endpoint for Claude Code to fetch tasks with 'ready' status.
 
@@ -2883,6 +2991,10 @@ class ReadyTasksAPIView(View):
 
     Authentication:
         Requires CLAUDE_API_KEY header matching settings.CLAUDE_API_KEY
+
+    Rate Limiting (CISO Review 2026-01-12):
+        - 60 requests per minute
+        - 500 requests per hour
 
     GET /admin-console/api/claude/ready-tasks/
     Query params:
@@ -2912,6 +3024,11 @@ class ReadyTasksAPIView(View):
             }]
         }
     """
+
+    # Rate limiting configuration (CISO Review 2026-01-12)
+    rate_limit_requests_per_minute = 60
+    rate_limit_requests_per_hour = 500
+    rate_limit_key_prefix = 'admin_api_claude'
 
     def get(self, request):
         from django.conf import settings
@@ -3001,7 +3118,7 @@ from django.utils.decorators import method_decorator
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-class UpdateTaskStatusAPIView(View):
+class UpdateTaskStatusAPIView(APIRateLimitMixin, View):
     """
     API endpoint for Claude Code to update task status.
 
@@ -3011,6 +3128,10 @@ class UpdateTaskStatusAPIView(View):
     Authentication:
         Requires CLAUDE_API_KEY header matching settings.CLAUDE_API_KEY
 
+    Rate Limiting (CISO Review 2026-01-12):
+        - 60 requests per minute
+        - 500 requests per hour
+
     POST /admin-console/api/claude/tasks/<id>/status/
     Body (JSON):
         - status: New status value (e.g., 'done', 'in_progress', 'blocked')
@@ -3019,6 +3140,11 @@ class UpdateTaskStatusAPIView(View):
     Returns:
         JSON object with success status and updated task info
     """
+
+    # Rate limiting configuration (CISO Review 2026-01-12)
+    rate_limit_requests_per_minute = 60
+    rate_limit_requests_per_hour = 500
+    rate_limit_key_prefix = 'admin_api_claude'
 
     def post(self, request, pk):
         import json

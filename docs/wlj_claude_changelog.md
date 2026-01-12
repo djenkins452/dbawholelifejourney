@@ -4,7 +4,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-01-12 (Billing & Subscriptions - All Phases)
+# Last Updated: 2026-01-12 (CISO Security Review - Comprehensive Security Hardening)
 # ==============================================================================
 
 # WLJ Change History
@@ -15,6 +15,101 @@ For active development context, see `CLAUDE.md` (project root).
 ---
 
 ## 2026-01-12 Changes
+
+### Security: CISO Review - Comprehensive Security Hardening
+
+**Goal:** Address all security gaps identified during CISO review to ensure the application meets enterprise security standards.
+
+**Changes Made:**
+
+#### High Priority
+
+1. **Session Timeout Configuration** (`config/settings.py`):
+   - Added `SESSION_COOKIE_AGE = 86400` (24 hours)
+   - Sessions now expire after 24 hours of inactivity
+
+2. **CSP Enforcement Mode** (`apps/core/middleware.py`):
+   - Changed from `Content-Security-Policy-Report-Only` to `Content-Security-Policy`
+   - CSP is now actively enforced, not just reporting
+
+3. **Admin API Rate Limiting** (new file: `apps/core/rate_limiting.py`):
+   - Created `APIRateLimitMixin` for class-based views
+   - Created `rate_limit_api` decorator for function-based views
+   - Rate limiting: 60 requests/minute, 500 requests/hour for read APIs
+   - Rate limiting: 30 requests/minute, 200 requests/hour for write/override APIs
+   - Applied to all admin console API views:
+     - `ReadyTasksAPIView`, `UpdateTaskStatusAPIView`
+     - `NextTasksAPIView`, `ProjectMetricsAPIView`, `SystemStateAPIView`
+     - `SystemIssuesAPIView`, `ResetPhaseOverrideAPIView`
+     - `UnblockTaskOverrideAPIView`, `RecheckPhaseOverrideAPIView`
+     - `PreflightCheckAPIView`, `SeedPhasesAPIView`
+
+#### Medium Priority
+
+4. **reCAPTCHA Score Enforcement** (`apps/users/adapters.py`):
+   - Upgraded from TIER 1 (logging only) to TIER 2 (blocking)
+   - Signups with reCAPTCHA score < 0.5 are now blocked
+   - Added `_log_blocked_signup()` method for audit logging
+   - Security events logged via `log_security_event()`
+
+5. **Bank Token Key Rotation Documentation** (`apps/finance/services/encryption.py`):
+   - Added comprehensive KEY ROTATION PROCEDURE in docstring
+   - Includes step-by-step rotation instructions
+   - Includes rollback procedure
+   - Documents when to rotate (compromise, employee departure, annual)
+
+6. **Soft-Delete Cleanup Automation**:
+   - New management command: `apps/core/management/commands/cleanup_soft_deletes.py`
+   - New background job: `apps/core/jobs.py` - `cleanup_soft_deletes()`
+   - Scheduled weekly on Sunday at 3:00 AM UTC via APScheduler
+   - Updated `config/wsgi.py` to include the new job
+   - Permanently deletes records soft-deleted > 30 days ago
+   - Full audit logging of all deletions
+
+#### Low Priority
+
+7. **GDPR Data Export Feature**:
+   - New service: `apps/users/services/data_export.py`
+   - New views: `DataExportView`, `DataExportDownloadView` (`apps/users/views.py`)
+   - New template: `templates/users/data_export.html`
+   - New URLs: `/user/data-export/`, `/user/data-export/download/`
+   - Supports JSON and CSV (ZIP) export formats
+   - Rate limited: 5 exports per hour per user
+   - Exports all user-owned data across all modules
+   - Excludes sensitive fields (passwords, tokens, keys)
+
+8. **Image Upload MIME Validation** (`apps/admin_console/views.py`):
+   - Enhanced `validate_image_file()` function
+   - Added magic bytes verification for JPEG, PNG, GIF, ICO, WebP
+   - Three-layer validation: extension, Content-Type header, magic bytes
+   - PIL verification for actual image content
+
+**Files Modified:**
+- `config/settings.py` - Session timeout
+- `config/wsgi.py` - Soft-delete cleanup job
+- `apps/core/middleware.py` - CSP enforcement
+- `apps/core/rate_limiting.py` - NEW: Rate limiting utilities
+- `apps/core/jobs.py` - NEW: Background job functions
+- `apps/core/management/commands/cleanup_soft_deletes.py` - NEW: Cleanup command
+- `apps/users/adapters.py` - reCAPTCHA enforcement
+- `apps/users/views.py` - Data export views
+- `apps/users/urls.py` - Data export URLs
+- `apps/users/services/__init__.py` - NEW: Services module
+- `apps/users/services/data_export.py` - NEW: Export service
+- `apps/admin_console/views.py` - Rate limiting mixin, image validation
+- `apps/finance/services/encryption.py` - Key rotation documentation
+- `templates/users/data_export.html` - NEW: Export UI
+
+**Security Controls Added:**
+- Session timeout: 24 hours
+- CSP: Enforced (no longer report-only)
+- API rate limiting: 60/min, 500/hr (standard), 30/min, 200/hr (overrides)
+- reCAPTCHA: Score < 0.5 blocks signup
+- Soft-delete: Auto-cleanup after 30 days
+- GDPR: User data export capability
+- Image uploads: Magic bytes + PIL verification
+
+---
 
 ### Feature: Add Scan Icons Throughout Nutrition Flow
 

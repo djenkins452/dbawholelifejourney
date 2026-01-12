@@ -42,18 +42,23 @@ Copyright:
     without explicit permission.
 """
 
+import logging
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import TemplateView, UpdateView, View
 
 from apps.help.mixins import HelpContextMixin
 
 from .forms import ProfileForm, PreferencesForm
 from .models import TermsAcceptance, UserPreferences
+
+logger = logging.getLogger(__name__)
 
 
 # Onboarding Wizard Configuration
@@ -1328,3 +1333,89 @@ class BiometricDeleteCredentialView(LoginRequiredMixin, View):
 
         except WebAuthnCredential.DoesNotExist:
             return JsonResponse({'error': 'Credential not found'}, status=404)
+
+
+# ==============================================================================
+# GDPR Data Export Views (CISO Review 2026-01-12)
+# ==============================================================================
+
+class DataExportView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """
+    Page for users to request export of their personal data.
+
+    GDPR Article 20 - Right to data portability.
+    Users can download all their data in JSON or CSV format.
+    """
+
+    template_name = "users/data_export.html"
+    help_context_id = "SETTINGS_DATA_EXPORT"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['export_formats'] = [
+            {
+                'id': 'json',
+                'name': 'JSON',
+                'description': 'Machine-readable format, single file. Best for importing into other systems.',
+            },
+            {
+                'id': 'csv',
+                'name': 'CSV (ZIP)',
+                'description': 'Spreadsheet-compatible files in a ZIP archive. One file per data type.',
+            },
+        ]
+        return context
+
+
+class DataExportDownloadView(LoginRequiredMixin, View):
+    """
+    Download user data export.
+
+    GET /user/data-export/download/?format=json|csv
+
+    Returns the exported data file for download.
+
+    Rate Limited: 5 exports per hour per user.
+    """
+
+    def get(self, request, *args, **kwargs):
+        from django.http import HttpResponse
+        from django.core.cache import cache
+        from apps.users.services import export_user_data
+
+        # Rate limiting: 5 exports per hour
+        cache_key = f'data_export:{request.user.id}:{timezone.now().strftime("%Y%m%d%H")}'
+        export_count = cache.get(cache_key, 0)
+
+        if export_count >= 5:
+            return JsonResponse(
+                {'error': 'Export limit reached. Please try again later.'},
+                status=429
+            )
+
+        # Get export format
+        export_format = request.GET.get('format', 'json').lower()
+        if export_format not in ['json', 'csv']:
+            export_format = 'json'
+
+        # Perform export
+        try:
+            content, content_type, filename = export_user_data(request.user, export_format)
+
+            # Increment rate limit counter
+            cache.set(cache_key, export_count + 1, timeout=3600)
+
+            # Log the export for audit
+            logger.info(f"Data export completed for user {request.user.id} in {export_format} format")
+
+            # Return file download
+            response = HttpResponse(content, content_type=content_type)
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+
+        except Exception as e:
+            logger.exception(f"Data export failed for user {request.user.id}: {e}")
+            return JsonResponse(
+                {'error': 'Export failed. Please try again later.'},
+                status=500
+            )

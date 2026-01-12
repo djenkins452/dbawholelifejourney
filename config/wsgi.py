@@ -119,13 +119,28 @@ def start_scheduler():
             replace_existing=True,
         )
 
+        # =====================================================================
+        # Core Jobs (CISO Review 2026-01-12)
+        # =====================================================================
+
+        # Job 5: Soft-delete cleanup weekly on Sunday at 3:00 AM UTC
+        # Permanently deletes records that have been soft-deleted past retention period
+        scheduler.add_job(
+            'apps.core.jobs:cleanup_soft_deletes',
+            trigger=CronTrigger(day_of_week='sun', hour=3, minute=0),
+            id="cleanup_soft_deletes",
+            max_instances=1,
+            replace_existing=True,
+        )
+
         scheduler.start()
         logger.info("=" * 60)
-        logger.info("APScheduler STARTED successfully with 4 jobs:")
+        logger.info("APScheduler STARTED successfully with 5 jobs:")
         logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC)")
         logger.info("  - SMS: send_pending_sms (every 5 minutes)")
         logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
         logger.info("  - Life: process_recurring_tasks (daily at 06:05 UTC / 01:05 EST)")
+        logger.info("  - Core: cleanup_soft_deletes (weekly on Sunday at 03:00 UTC)")
         logger.info("=" * 60)
 
         # Ensure scheduler shuts down on exit

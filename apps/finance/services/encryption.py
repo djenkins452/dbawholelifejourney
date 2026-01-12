@@ -4,7 +4,7 @@
 # Description: Token encryption utilities for secure bank credential storage
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-03
-# Last Updated: 2026-01-03
+# Last Updated: 2026-01-12 (CISO Review - Key Rotation Documentation)
 # ==============================================================================
 """
 Token Encryption Service
@@ -23,6 +23,75 @@ Environment Variables:
 Generate a new key:
     from cryptography.fernet import Fernet
     print(Fernet.generate_key().decode())
+
+================================================================================
+KEY ROTATION PROCEDURE (CISO Review 2026-01-12)
+================================================================================
+
+When to rotate the encryption key:
+    1. Suspected key compromise
+    2. After employee with access leaves the company
+    3. Regularly (recommended: annually)
+    4. After a security audit requires it
+
+Key Rotation Steps:
+
+    1. PREPARATION (scheduled maintenance window):
+       - Generate a new Fernet key:
+         >>> from cryptography.fernet import Fernet
+         >>> new_key = Fernet.generate_key().decode()
+         >>> print(new_key)
+
+       - Store the new key securely (password manager, secrets vault)
+       - Back up the current key (needed for step 2)
+
+    2. RE-ENCRYPT ALL TOKENS (run in Django shell):
+
+       ```python
+       from cryptography.fernet import Fernet
+       from apps.finance.models import BankConnection
+
+       # Old and new keys
+       OLD_KEY = 'your-old-key-here'
+       NEW_KEY = 'your-new-key-here'
+
+       old_fernet = Fernet(OLD_KEY.encode())
+       new_fernet = Fernet(NEW_KEY.encode())
+
+       # Re-encrypt each token
+       connections = BankConnection.objects.all()
+       for conn in connections:
+           if conn.access_token and not conn.access_token.startswith('UNENCRYPTED:'):
+               try:
+                   # Decrypt with old key
+                   decrypted = old_fernet.decrypt(conn.access_token.encode()).decode()
+                   # Re-encrypt with new key
+                   conn.access_token = new_fernet.encrypt(decrypted.encode()).decode()
+                   conn.save(update_fields=['access_token'])
+                   print(f"Re-encrypted token for BankConnection {conn.id}")
+               except Exception as e:
+                   print(f"ERROR: Failed to re-encrypt BankConnection {conn.id}: {e}")
+       ```
+
+    3. UPDATE ENVIRONMENT VARIABLE:
+       - In Railway dashboard: Update BANK_TOKEN_ENCRYPTION_KEY to new key
+       - Redeploy the application
+
+    4. VERIFY:
+       - Test that existing bank connections still work
+       - Check logs for any decryption errors
+
+    5. CLEANUP:
+       - Delete the old key from your records after 30 days
+       - Document the rotation in changelog
+
+ROLLBACK PROCEDURE:
+    If issues occur after updating the environment variable:
+    1. Immediately revert BANK_TOKEN_ENCRYPTION_KEY to the old key
+    2. Redeploy
+    3. Investigate the issue before attempting rotation again
+
+================================================================================
 """
 
 import logging

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Export Your Data - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'users:preferences' %}">Settings</a>
+        <span>/</span>
+        <span>Export Data</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Export Your Data</h1>
+            <p class="page-subtitle">Download a copy of all your personal data</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="mb-6">
+                <h3 class="text-lg font-medium mb-2">Data Portability</h3>
+                <p class="text-muted">
+                    You have the right to receive a copy of your personal data in a commonly used,
+                    machine-readable format. This allows you to transfer your data to another service
+                    or keep it for your records.
+                </p>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="text-lg font-medium mb-4">What's Included</h3>
+                <ul class="list-disc list-inside text-muted space-y-1">
+                    <li>Your profile information</li>
+                    <li>Preferences and settings</li>
+                    <li>Journal entries</li>
+                    <li>Health records (weight, fasting, nutrition, exercise, sleep)</li>
+                    <li>Faith records (prayers, reflections, milestones)</li>
+                    <li>Tasks, projects, and goals</li>
+                    <li>Financial records (budgets, transactions)</li>
+                </ul>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="text-lg font-medium mb-4">Choose Export Format</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% for format in export_formats %}
+                    <div class="border rounded-lg p-4 hover:border-accent cursor-pointer export-format-card"
+                         data-format="{{ format.id }}"
+                         onclick="selectFormat('{{ format.id }}')">
+                        <div class="flex items-start gap-3">
+                            <input type="radio"
+                                   name="export_format"
+                                   id="format_{{ format.id }}"
+                                   value="{{ format.id }}"
+                                   class="mt-1"
+                                   {% if format.id == 'csv' %}checked{% endif %}>
+                            <div>
+                                <label for="format_{{ format.id }}" class="font-medium cursor-pointer">
+                                    {{ format.name }}
+                                </label>
+                                <p class="text-sm text-muted mt-1">{{ format.description }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="bg-surface rounded-lg p-4 mb-6">
+                <div class="flex items-start gap-3">
+                    <span class="text-xl">ℹ️</span>
+                    <div>
+                        <p class="font-medium">Note</p>
+                        <p class="text-sm text-muted">
+                            The export may take a few moments depending on how much data you have.
+                            You can request up to 5 exports per hour. Sensitive data like passwords
+                            and API tokens are never included in exports.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <button type="button"
+                        class="btn btn-primary"
+                        id="export-btn"
+                        onclick="downloadExport()">
+                    Download My Data
+                </button>
+                <a href="{% url 'users:preferences' %}" class="btn btn-ghost">
+                    Back to Settings
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function selectFormat(formatId) {
+    // Update radio button
+    document.getElementById('format_' + formatId).checked = true;
+
+    // Update card styling
+    document.querySelectorAll('.export-format-card').forEach(card => {
+        card.classList.remove('border-accent', 'bg-surface');
+    });
+    document.querySelector('[data-format="' + formatId + '"]').classList.add('border-accent', 'bg-surface');
+}
+
+function downloadExport() {
+    const format = document.querySelector('input[name="export_format"]:checked').value;
+    const btn = document.getElementById('export-btn');
+
+    // Show loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Preparing...';
+
+    // Redirect to download URL
+    window.location.href = '{% url "users:data_export_download" %}?format=' + format;
+
+    // Reset button after a delay (in case user stays on page)
+    setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = 'Download My Data';
+    }, 5000);
+}
+
+// Initialize default selection
+document.addEventListener('DOMContentLoaded', function() {
+    selectFormat('csv');
+});
+</script>
+{% endblock %}

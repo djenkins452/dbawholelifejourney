@@ -277,9 +277,17 @@ class DexcomSyncService:
             logger.warning(f"No refresh token for user {self.user.email}")
             return False
 
+        # Check for decryption errors
+        if credential.has_decryption_error():
+            logger.error(
+                f"Dexcom credentials for {self.user.email} have decryption errors. "
+                "User needs to re-authorize."
+            )
+            return False
+
         try:
             new_creds = self.dexcom_service.refresh_access_token(
-                credential.refresh_token
+                credential.refresh_token_decrypted
             )
             credential.update_from_credentials(new_creds)
             return True
@@ -362,7 +370,7 @@ class DexcomSyncService:
 
         try:
             records = self.dexcom_service.get_glucose_readings(
-                credential.access_token,
+                credential.access_token_decrypted,
                 start_date,
                 end_date
             )
@@ -431,7 +439,7 @@ class DexcomSyncService:
 
         try:
             return self.dexcom_service.get_glucose_readings(
-                credential.access_token,
+                credential.access_token_decrypted,
                 start_date,
                 end_date
             )

@@ -1092,20 +1092,50 @@ class GoogleCalendarCredential(models.Model):
     @property
     def access_token_decrypted(self):
         """Get the decrypted access token."""
-        from apps.core.encryption import decrypt_oauth_token
-        return decrypt_oauth_token(self.access_token)
+        from apps.core.encryption import decrypt_oauth_token_safe
+        value, success = decrypt_oauth_token_safe(self.access_token)
+        if not success:
+            self._decryption_failed = True
+        return value
 
     @property
     def refresh_token_decrypted(self):
         """Get the decrypted refresh token."""
-        from apps.core.encryption import decrypt_oauth_token
-        return decrypt_oauth_token(self.refresh_token)
+        from apps.core.encryption import decrypt_oauth_token_safe
+        value, success = decrypt_oauth_token_safe(self.refresh_token)
+        if not success:
+            self._decryption_failed = True
+        return value
 
     @property
     def client_secret_decrypted(self):
         """Get the decrypted client secret."""
-        from apps.core.encryption import decrypt_oauth_token
-        return decrypt_oauth_token(self.client_secret)
+        from apps.core.encryption import decrypt_oauth_token_safe
+        value, success = decrypt_oauth_token_safe(self.client_secret)
+        if not success:
+            self._decryption_failed = True
+        return value
+
+    def has_decryption_error(self):
+        """
+        Check if any token decryption has failed.
+
+        This should be called after accessing decrypted properties to determine
+        if the credentials need to be re-authenticated.
+
+        Returns:
+            bool: True if decryption failed, False otherwise
+        """
+        # Reset flag and test all tokens
+        self._decryption_failed = False
+        from apps.core.encryption import decrypt_oauth_token_safe
+
+        for field in [self.access_token, self.refresh_token, self.client_secret]:
+            if field:
+                _, success = decrypt_oauth_token_safe(field)
+                if not success:
+                    return True
+        return False
 
     def set_access_token(self, plaintext):
         """Set and encrypt the access token."""

@@ -35,6 +35,32 @@ import os
 import re
 
 
+class NoCacheHTMLMiddleware:
+    """
+    Prevents caching of HTML responses to avoid FOUC on navigation.
+
+    Sets Cache-Control headers on HTML responses to prevent CDN/browser
+    from caching HTML pages, which can cause Flash of Unstyled Content
+    when navigating between pages.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        # Only affect HTML responses
+        content_type = response.get('Content-Type', '')
+        if 'text/html' in content_type:
+            # Prevent caching of HTML pages
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
+
+        return response
+
+
 class PageViewTrackingMiddleware:
     """
     Middleware to track page views for the Favorites/Recent feature.

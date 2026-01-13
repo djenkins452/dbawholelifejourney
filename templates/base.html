@@ -6,10 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Whole Life Journey - A calm space for reflection, growth, and faithful living.">
 
-    <!-- CSS - No FOUC prevention wrapper, just ensure CSS loads first -->
-    <link rel="stylesheet" href="{% static 'css/main.css' %}?v=20260114c">
-    <link rel="stylesheet" href="{% static 'css/themes.css' %}?v=20260114c">
-    <link rel="stylesheet" href="{% static 'css/help.css' %}?v=20260114c">
+    <!-- CSS with blocking=render to prevent FOUC -->
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v=20260114d" blocking="render">
+    <link rel="stylesheet" href="{% static 'css/themes.css' %}?v=20260114d" blocking="render">
+    <link rel="stylesheet" href="{% static 'css/help.css' %}?v=20260114d" blocking="render">
     {% block extra_css %}{% endblock %}
 
     <title>{% block title %}Whole Life Journey{% endblock %}</title>

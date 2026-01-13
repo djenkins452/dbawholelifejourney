@@ -4,9 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Critical CSS inlined to prevent FOUC -->
+    <style>
+    :root{--color-primary:#6b7280;--color-secondary:#f9fafb;--color-accent:#6366f1;--color-text:#374151;--color-text-muted:#6b7280;--color-background:#fff;--color-surface:#f9fafb;--color-border:#e5e7eb;--font-family-base:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;--font-size-base:1rem;--line-height-base:1.5}
+    *,*::before,*::after{box-sizing:border-box}*{margin:0}
+    body{font-family:var(--font-family-base);font-size:var(--font-size-base);line-height:var(--line-height-base);color:var(--color-text);background-color:var(--color-background);min-height:100vh}
+    </style>
     <title>{% block title %}Whole Life Journey{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/main.css' %}?v=20260114d" blocking="render">
-    <link rel="stylesheet" href="{% static 'css/themes.css' %}?v=20260114d" blocking="render">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v=20260114e">
+    <link rel="stylesheet" href="{% static 'css/themes.css' %}?v=20260114e">
     <link rel="icon" type="image/png" href="{% static 'images/wlj-logo.png' %}">
     {% block extra_head %}{% endblock %}
 </head>

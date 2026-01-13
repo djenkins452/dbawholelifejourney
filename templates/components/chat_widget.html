@@ -154,8 +154,13 @@
     display: flex;
     flex-direction: column;
     transform: translateX(100%);
-    transition: transform 0.3s ease-out;
+    /* No transition initially - prevents animation on page load */
     z-index: 10000;
+}
+
+/* Transition only enabled after first user interaction */
+.assistant-drawer.animate {
+    transition: transform 0.3s ease-out;
 }
 
 .assistant-drawer.open {
@@ -880,6 +885,8 @@
     // Open drawer
     function openDrawer(skipSave = false) {
         isOpen = true;
+        // Enable transition animation on first open (not on page load)
+        drawer.classList.add('animate');
         drawer.classList.add('open');
         overlay.classList.add('visible');
         document.body.style.overflow = 'hidden';

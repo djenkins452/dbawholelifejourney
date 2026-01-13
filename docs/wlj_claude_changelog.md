@@ -92,10 +92,12 @@ asking them to disconnect and reconnect their account, instead of experiencing c
 
 **Root Cause:** The `checkSavedState()` function in `chat_widget.html` was reading localStorage and calling `openDrawer()` on page load, but something was causing it to close immediately after, creating the visual glitch.
 
-**Solution:** Removed the auto-open feature entirely. Users must now click the chat button to open the drawer on each page.
+**Solution:**
+1. Removed the auto-open feature entirely. Users must now click the chat button to open the drawer on each page.
+2. Disabled CSS transition on initial page load by removing the `transition` property from the base `.assistant-drawer` class and only adding it via an `.animate` class when the user first clicks the button.
 
 **Files Modified:**
-- `templates/components/chat_widget.html` - Removed `checkSavedState()` function and initialization call
+- `templates/components/chat_widget.html` - Removed `checkSavedState()` function; moved transition to `.animate` class; added animate class on first user interaction
 
 **Also in this session (Critical CSS improvements):**
 - `templates/base.html` - Added inline critical CSS for nav/logo sizing

@@ -1,0 +1,492 @@
+{
+    "project": {
+        "name": "WLJ Transcribe Recordings",
+        "description": "Audio transcription and summary module (Capture) - Record or upload audio, transcribe via Whisper, summarize with AI, export to PDF"
+    },
+    "tasks": [
+        {
+            "phase": "Phase 1",
+            "name": "Create capture Django app structure",
+            "description": {
+                "objective": "Set up the capture app with proper Django app structure and register it in settings",
+                "inputs": ["CLAUDE.md for project conventions", "Existing app structures for reference"],
+                "actions": [
+                    "Create apps/capture/ directory with __init__.py, apps.py, models.py, views.py, urls.py, admin.py, forms.py",
+                    "Create apps/capture/tests/ directory with __init__.py",
+                    "Configure CaptureConfig in apps.py",
+                    "Register 'apps.capture' in INSTALLED_APPS in settings.py",
+                    "Run python manage.py check to verify app loads correctly"
+                ],
+                "output": "New capture app registered and passing Django checks"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Small"
+        },
+        {
+            "phase": "Phase 1",
+            "name": "Create CaptureEntry model",
+            "description": {
+                "objective": "Define the CaptureEntry model with all required fields for storing audio recordings, transcripts, and summaries",
+                "inputs": ["Data model spec from feature plan", "Existing model patterns in codebase"],
+                "actions": [
+                    "Create CaptureEntry model in apps/capture/models.py with fields: id (UUID), user (FK), title, created_at, duration_seconds, audio_file_url, audio_expires_at, transcript, summary, category, subcategory, status, error_message",
+                    "Add STATUS_CHOICES: uploading, transcribing, summarizing, ready, failed",
+                    "Add CATEGORY_CHOICES: faith, organize",
+                    "Add SUBCATEGORY_CHOICES: sermon, bible_study, devotional, meeting, notes, personal",
+                    "Add __str__ and Meta class with ordering",
+                    "Run makemigrations and migrate",
+                    "Register model in admin.py"
+                ],
+                "output": "CaptureEntry model created with migration applied and visible in admin"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 1",
+            "name": "Configure S3 storage for audio files",
+            "description": {
+                "objective": "Set up S3-compatible storage configuration for temporary audio file storage with lifecycle policies",
+                "inputs": ["Existing S3/storage configuration in settings", "AWS S3 or DigitalOcean Spaces docs"],
+                "actions": [
+                    "Add CAPTURE_AUDIO_BUCKET setting in settings.py (separate from main media storage)",
+                    "Add CAPTURE_AUDIO_RETENTION_DAYS setting (default 7)",
+                    "Create utility function in apps/capture/storage.py for generating presigned upload URLs",
+                    "Create utility function for generating presigned download URLs",
+                    "Document required S3 lifecycle policy in docs/wlj_third_party_services.md",
+                    "Add tests for URL generation functions"
+                ],
+                "output": "S3 storage utilities ready for audio file handling with documented lifecycle policy"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 2",
+            "name": "Create capture list view and URL routing",
+            "description": {
+                "objective": "Set up the main capture section with list view showing user's capture entries",
+                "inputs": ["Existing list view patterns (journal, health)", "URL routing conventions"],
+                "actions": [
+                    "Create CaptureListView in apps/capture/views.py (ListView, LoginRequiredMixin)",
+                    "Filter by request.user, order by -created_at",
+                    "Create apps/capture/urls.py with app_name='capture' and list view at ''",
+                    "Include capture.urls in main urls.py at path 'capture/'",
+                    "Create capture/templates/capture/capture_list.html with base template inheritance",
+                    "Show empty state for first-time users",
+                    "Add tests for list view"
+                ],
+                "output": "Capture list page accessible at /capture/ showing user's entries"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 2",
+            "name": "Build browser audio recording UI",
+            "description": {
+                "objective": "Create mobile-first UI for recording audio directly in the browser using MediaRecorder API",
+                "inputs": ["MediaRecorder API documentation", "Mobile-first design requirements"],
+                "actions": [
+                    "Create capture/templates/capture/capture_record.html with record interface",
+                    "Create static/capture/js/recorder.js with MediaRecorder implementation",
+                    "Check for browser support, show fallback message if unsupported",
+                    "Request microphone permission with clear denial handling",
+                    "Show recording timer (max 60 minutes), visual pulse indicator",
+                    "Implement Stop button and preview playback before submit",
+                    "Record as webm format for best browser compatibility",
+                    "Create CaptureRecordView in views.py",
+                    "Add tests for view rendering"
+                ],
+                "output": "Functional browser recording interface with microphone access and preview playback"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Large"
+        },
+        {
+            "phase": "Phase 2",
+            "name": "Build file upload UI",
+            "description": {
+                "objective": "Create file upload interface with validation for accepted formats and size limits",
+                "inputs": ["Accepted formats: mp3, m4a, wav, webm", "Max size: 60MB, max duration: 60 min"],
+                "actions": [
+                    "Create capture/templates/capture/capture_upload.html with upload form",
+                    "Create static/capture/js/uploader.js for client-side validation",
+                    "Filter file picker to accepted formats (.mp3, .m4a, .wav, .webm)",
+                    "Validate file size (60MB max) before upload with clear error message",
+                    "Show upload progress indicator",
+                    "Implement chunked upload for large files",
+                    "Create CaptureUploadView in views.py with server-side validation",
+                    "Add tests for upload validation"
+                ],
+                "output": "File upload interface with client and server-side validation"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 2",
+            "name": "Add capture navigation to main nav and dashboard",
+            "description": {
+                "objective": "Add speaker icon to dashboard for quick access to Capture feature and update main navigation",
+                "inputs": ["Dashboard template structure", "Navigation patterns in base templates"],
+                "actions": [
+                    "Add 'Capture' link to main navigation menu with microphone icon",
+                    "Add speaker/microphone icon card to dashboard for quick capture access",
+                    "Style icon to match existing dashboard card patterns",
+                    "Link icon to capture list view (/capture/)",
+                    "Ensure mobile-responsive layout",
+                    "Add tests for navigation presence"
+                ],
+                "output": "Speaker icon on dashboard and Capture in main nav for quick access"
+            },
+            "priority": "Medium",
+            "status": "New",
+            "effort": "Small"
+        },
+        {
+            "phase": "Phase 3",
+            "name": "Implement audio upload to S3",
+            "description": {
+                "objective": "Create backend endpoint and logic to upload recorded/uploaded audio to S3 and create CaptureEntry",
+                "inputs": ["S3 storage utilities from Phase 1", "CaptureEntry model"],
+                "actions": [
+                    "Create CaptureSubmitView to handle POST from record/upload pages",
+                    "Generate presigned S3 upload URL for frontend direct upload",
+                    "Create CaptureEntry with status='uploading', set audio_expires_at to now + 7 days",
+                    "After successful S3 upload, update entry with audio_file_url",
+                    "Update status to 'transcribing'",
+                    "Return entry ID for status polling",
+                    "Add tests for submission flow"
+                ],
+                "output": "Audio files successfully uploading to S3 with CaptureEntry created"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 3",
+            "name": "Integrate OpenAI Whisper for transcription",
+            "description": {
+                "objective": "Implement transcription using OpenAI Whisper API with support for large files",
+                "inputs": ["OpenAI Whisper API documentation", "Existing OpenAI integration in apps/ai"],
+                "actions": [
+                    "Add OPENAI_WHISPER_API_KEY to settings (may reuse existing OPENAI_API_KEY)",
+                    "Create apps/capture/services/transcription.py",
+                    "Implement transcribe_audio(audio_url) function using Whisper API",
+                    "Handle Whisper's 25MB limit: chunk larger files or compress",
+                    "Store transcript in CaptureEntry.transcript field",
+                    "Update status to 'summarizing' on success, 'failed' on error",
+                    "Add comprehensive error handling with user-friendly messages",
+                    "Add tests with mocked API responses"
+                ],
+                "output": "Transcription service calling Whisper API and storing results"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Large"
+        },
+        {
+            "phase": "Phase 3",
+            "name": "Implement AI summarization with Claude",
+            "description": {
+                "objective": "Send transcript to Claude API for structured summarization using BLUF format",
+                "inputs": ["AI summarization prompt from feature spec", "Existing Claude/AI integration patterns"],
+                "actions": [
+                    "Create apps/capture/services/summarization.py",
+                    "Implement summarize_transcript(transcript) function",
+                    "Use specified BLUF prompt template with sections: BLUF, Key Points, Scripture References, Action Items, Notable Quotes, Detailed Notes",
+                    "Store structured summary in CaptureEntry.summary as markdown",
+                    "Update status to 'ready' on success, 'failed' on error",
+                    "Handle API errors gracefully",
+                    "Add tests with mocked API responses"
+                ],
+                "output": "AI summarization service producing BLUF-format summaries"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 3",
+            "name": "Set up Celery task for async processing",
+            "description": {
+                "objective": "Create Celery task to process capture entries asynchronously (upload → transcribe → summarize)",
+                "inputs": ["Existing Celery configuration", "Transcription and summarization services"],
+                "actions": [
+                    "Create apps/capture/tasks.py with Celery app import",
+                    "Implement process_capture_entry(entry_id) task",
+                    "Chain: download audio from S3 → transcribe → summarize → update status",
+                    "Add error handling that sets status='failed' and stores error_message",
+                    "Implement retry logic for transient failures (max 3 retries)",
+                    "Trigger task from CaptureSubmitView after S3 upload",
+                    "Add tests for task execution"
+                ],
+                "output": "Celery task processing capture entries asynchronously with error handling"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Large"
+        },
+        {
+            "phase": "Phase 3",
+            "name": "Add processing status endpoint",
+            "description": {
+                "objective": "Create API endpoint for frontend to poll processing status",
+                "inputs": ["CaptureEntry status field", "Frontend polling requirements"],
+                "actions": [
+                    "Create CaptureStatusView (API endpoint) returning JSON status",
+                    "Include fields: status, error_message, progress indicator",
+                    "Map status to user-friendly messages: Uploading → Transcribing → Summarizing → Ready",
+                    "Add URL at capture/<uuid:pk>/status/",
+                    "Implement frontend polling in recorder.js and uploader.js",
+                    "Show status progress to user during processing",
+                    "Redirect to detail view when status='ready'",
+                    "Add tests for status endpoint"
+                ],
+                "output": "Status polling working with frontend showing processing progress"
+            },
+            "priority": "Medium",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 4",
+            "name": "Create capture detail view with summary display",
+            "description": {
+                "objective": "Build detail view showing the structured summary with all sections",
+                "inputs": ["BLUF summary format", "Existing detail view patterns"],
+                "actions": [
+                    "Create CaptureDetailView in views.py (DetailView, LoginRequiredMixin)",
+                    "Ensure queryset filters by user for security",
+                    "Create capture/templates/capture/capture_detail.html",
+                    "Render summary markdown with proper section styling",
+                    "Show title, date, duration, category at top",
+                    "Display audio player with download link and '7 days remaining' notice",
+                    "Add URL at capture/<uuid:pk>/",
+                    "Add tests for detail view"
+                ],
+                "output": "Detail page displaying structured summary with audio playback"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 4",
+            "name": "Implement title editing",
+            "description": {
+                "objective": "Allow users to edit the capture entry title inline or via form",
+                "inputs": ["CaptureEntry.title field", "Existing inline edit patterns"],
+                "actions": [
+                    "Add edit title button/link on detail page",
+                    "Create CaptureEditView or add AJAX endpoint for title update",
+                    "Implement inline editing with save/cancel buttons",
+                    "Validate title length (max 200 chars)",
+                    "Show success feedback on save",
+                    "Add tests for title editing"
+                ],
+                "output": "Users can edit capture entry titles from detail view"
+            },
+            "priority": "Medium",
+            "status": "New",
+            "effort": "Small"
+        },
+        {
+            "phase": "Phase 4",
+            "name": "Build category selection UI",
+            "description": {
+                "objective": "Create category/subcategory selection interface for organizing captures",
+                "inputs": ["Category choices: faith, organize", "Subcategory choices from model"],
+                "actions": [
+                    "Add category selection to post-processing flow (after summary ready)",
+                    "Create modal or bottom sheet for category selection (mobile-friendly)",
+                    "Show Faith subcategories: Sermons, Bible Studies, Devotionals",
+                    "Show Organize subcategories: Meetings, Notes, Personal",
+                    "Save category and subcategory on selection",
+                    "Display category badge on list and detail views",
+                    "Add tests for category selection"
+                ],
+                "output": "Category selection working with visual category indicators"
+            },
+            "priority": "Medium",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 5",
+            "name": "Implement PDF generation",
+            "description": {
+                "objective": "Generate clean PDF of capture summary matching WLJ branding",
+                "inputs": ["WeasyPrint or ReportLab library", "WLJ branding/styling"],
+                "actions": [
+                    "Add weasyprint to requirements.txt (or reportlab)",
+                    "Create apps/capture/services/pdf.py",
+                    "Create capture/templates/capture/pdf_template.html",
+                    "Include: Title, Date, Duration, Category, Full structured summary",
+                    "Style PDF to match WLJ branding (colors, fonts)",
+                    "Implement generate_pdf(capture_entry) function returning PDF bytes",
+                    "Create CaptureDownloadPDFView at capture/<uuid:pk>/pdf/",
+                    "Add tests for PDF generation"
+                ],
+                "output": "PDF download working with branded template"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Large"
+        },
+        {
+            "phase": "Phase 5",
+            "name": "Implement email sharing",
+            "description": {
+                "objective": "Allow users to email capture summary PDF to others",
+                "inputs": ["Existing email infrastructure", "PDF generation service"],
+                "actions": [
+                    "Create CaptureEmailForm with recipient email field",
+                    "Create CaptureEmailView handling form submission",
+                    "Add email modal/form on detail page",
+                    "Generate PDF and attach to email",
+                    "Email subject: 'Summary from [User]'s WLJ Capture: [Title]'",
+                    "Email body: Simple message with PDF attachment",
+                    "Show success/error feedback",
+                    "Add tests for email sending"
+                ],
+                "output": "Email sharing working with PDF attachment"
+            },
+            "priority": "Medium",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 6",
+            "name": "Create audio purge Celery beat task",
+            "description": {
+                "objective": "Set up daily scheduled task to delete expired audio files from S3",
+                "inputs": ["Celery beat configuration", "S3 storage utilities"],
+                "actions": [
+                    "Create purge_expired_audio task in apps/capture/tasks.py",
+                    "Query CaptureEntry where audio_expires_at < now and audio_file_url is not null",
+                    "Delete audio file from S3 for each expired entry",
+                    "Set audio_file_url to null after deletion",
+                    "Log purge activity",
+                    "Add task to Celery beat schedule (run daily at 2 AM)",
+                    "Add tests for purge task"
+                ],
+                "output": "Daily purge task running and cleaning up expired audio files"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 6",
+            "name": "Implement audio expiration reminder emails",
+            "description": {
+                "objective": "Send reminder email 2 days before audio file deletion",
+                "inputs": ["Email infrastructure", "CaptureEntry.audio_expires_at field"],
+                "actions": [
+                    "Create send_expiration_reminders task in apps/capture/tasks.py",
+                    "Query entries where audio_expires_at is 2 days from now",
+                    "Send email: 'Your audio from [title] will be deleted in 2 days - download now'",
+                    "Include direct download link in email",
+                    "Add 'reminder_sent' field to CaptureEntry to prevent duplicate emails",
+                    "Add task to Celery beat schedule (run daily at 9 AM)",
+                    "Add tests for reminder task"
+                ],
+                "output": "Reminder emails sent 2 days before audio expiration"
+            },
+            "priority": "Medium",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 6",
+            "name": "Handle expired audio in UI",
+            "description": {
+                "objective": "Update UI to gracefully handle entries where audio has been purged",
+                "inputs": ["CaptureEntry.audio_file_url nullable state", "Detail and list views"],
+                "actions": [
+                    "Update detail view to check if audio_file_url is null",
+                    "Show 'Audio no longer available' message instead of player",
+                    "Remove download audio button when expired",
+                    "Keep transcript and summary always visible",
+                    "Update list view to show 'Audio expired' indicator",
+                    "Add tests for expired audio display"
+                ],
+                "output": "UI handles expired audio gracefully without errors"
+            },
+            "priority": "Medium",
+            "status": "New",
+            "effort": "Small"
+        },
+        {
+            "phase": "Phase 7",
+            "name": "Add error handling and retry UI",
+            "description": {
+                "objective": "Implement user-friendly error states and retry functionality",
+                "inputs": ["Error states from processing pipeline", "UI/UX error spec"],
+                "actions": [
+                    "Create error state display on detail page for failed entries",
+                    "Show specific error messages: mic denied, upload failed, transcription failed, processing timeout",
+                    "Add 'Retry' button that re-triggers process_capture_entry task",
+                    "For transcription failures: 'Audio quality may be too low - try uploading a clearer recording'",
+                    "For timeout: 'We will email you when ready'",
+                    "Implement email notification when delayed processing completes",
+                    "Add tests for error states and retry"
+                ],
+                "output": "Error handling complete with retry functionality"
+            },
+            "priority": "Medium",
+            "status": "New",
+            "effort": "Medium"
+        },
+        {
+            "phase": "Phase 7",
+            "name": "Add filtering and search to capture list",
+            "description": {
+                "objective": "Allow users to filter captures by category and search by title",
+                "inputs": ["CaptureEntry.category and title fields", "Existing filter patterns"],
+                "actions": [
+                    "Add category filter dropdown to list view",
+                    "Add search box for title search",
+                    "Implement filtering in CaptureListView.get_queryset()",
+                    "Update template to show active filters",
+                    "Maintain filters in URL params for bookmarking",
+                    "Add tests for filtering and search"
+                ],
+                "output": "List view with working category filter and title search"
+            },
+            "priority": "Low",
+            "status": "New",
+            "effort": "Small"
+        },
+        {
+            "phase": "Phase 7",
+            "name": "Comprehensive testing and documentation",
+            "description": {
+                "objective": "Ensure full test coverage and document the Capture feature",
+                "inputs": ["All capture app code", "Testing patterns in codebase"],
+                "actions": [
+                    "Review and add missing unit tests for models, views, services",
+                    "Add integration tests for full upload → process → display flow",
+                    "Add edge case tests: max duration, max file size, invalid formats",
+                    "Test S3 operations with mocked boto3",
+                    "Update docs/wlj_claude_features.md with Capture feature documentation",
+                    "Document API keys and third-party services in wlj_third_party_services.md",
+                    "Run full test suite and fix any failures"
+                ],
+                "output": "Full test coverage and feature documentation complete"
+            },
+            "priority": "High",
+            "status": "New",
+            "effort": "Large"
+        }
+    ]
+}

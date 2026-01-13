@@ -14,6 +14,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-12 Changes
+
+### New: WLJ Transcribe Recordings Project Plan
+
+**Summary:** Created comprehensive project plan for audio transcription and summary feature ("Capture").
+
+**Feature:** Users can record audio in browser or upload audio files, which are transcribed via OpenAI Whisper and summarized by Claude AI into a structured BLUF-format document. Users can save, export to PDF, and email summaries.
+
+**Project Structure:**
+- Phase 1: Foundation (3 tasks) - App structure, CaptureEntry model, S3 storage
+- Phase 2: Recording UI (4 tasks) - List view, browser recording, file upload, navigation
+- Phase 3: Processing Pipeline (5 tasks) - S3 upload, Whisper, AI summarization, Celery
+- Phase 4: Review & Save (3 tasks) - Detail view, title editing, category selection
+- Phase 5: Export & Sharing (2 tasks) - PDF generation, email sharing
+- Phase 6: Retention & Cleanup (3 tasks) - Auto-purge, reminder emails, expired UI
+- Phase 7: Polish (4 tasks) - Error handling, filtering, comprehensive testing
+
+**Files Created:**
+- `apps/admin_console/fixtures/capture_project.json` - 24 executable tasks in JSON format
+
+**To Load:** `python manage.py load_project_from_json apps/admin_console/fixtures/capture_project.json`
+
+---
+
 ## 2026-01-13 Changes
 
 ### Fix: OAuth Token Decryption Error - Graceful Error Handling

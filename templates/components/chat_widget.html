@@ -1165,21 +1165,9 @@
         }
     }
 
-    // Check if drawer should be open on page load (persisted state)
-    function checkSavedState() {
-        try {
-            const savedState = localStorage.getItem(DRAWER_STATE_KEY);
-            if (savedState === 'true') {
-                // Use skipSave=true to avoid re-saving the same state
-                openDrawer(true);
-            }
-        } catch (e) {
-            // localStorage not available
-        }
-    }
-
-    // Initialize - check if drawer was open before navigation
-    checkSavedState();
+    // Note: Auto-open on page load was removed because it caused a visual
+    // glitch (drawer sliding open then closed) on every navigation.
+    // Users must click the button to open the drawer on each page.
 
 })();
 </script>

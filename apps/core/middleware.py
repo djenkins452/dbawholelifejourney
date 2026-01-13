@@ -53,10 +53,12 @@ class NoCacheHTMLMiddleware:
         # Only affect HTML responses
         content_type = response.get('Content-Type', '')
         if 'text/html' in content_type:
-            # Prevent caching of HTML pages
-            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            # Prevent caching of HTML pages and disable bfcache
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
             response['Pragma'] = 'no-cache'
             response['Expires'] = '0'
+            # Vary header helps prevent incorrect cache hits
+            response['Vary'] = 'Accept-Encoding, Cookie'
 
         return response
 

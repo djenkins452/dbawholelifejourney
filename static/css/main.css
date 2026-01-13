@@ -38,16 +38,6 @@
  */
 
 /* ==========================================================================
-   FOUC Prevention
-   Remove the fouc-guard class that hides the body until CSS is loaded.
-   The inline style sets .fouc-guard { opacity: 0 }, this overrides it.
-   ========================================================================== */
-
-body.fouc-guard {
-    opacity: 1 !important;
-}
-
-/* ==========================================================================
    CSS Custom Properties (Default - Minimal Theme)
    ========================================================================== */
 

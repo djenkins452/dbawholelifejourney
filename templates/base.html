@@ -17,9 +17,6 @@
     <link rel="stylesheet" href="{% static 'css/help.css' %}?v=20260113">
     {% block extra_css %}{% endblock %}
     
-    <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    
     <!-- Custom accent color override - must come AFTER theme styles -->
     {% if accent_color %}
     <style>
@@ -100,6 +97,9 @@
     {% endif %}
     {% endblock %}
     
+    <!-- HTMX (moved to body to prevent render blocking) -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
     <!-- Scripts -->
     <script src="{% static 'js/main.js' %}?v=3"></script>
     <script src="{% static 'js/help.js' %}?v=3"></script>

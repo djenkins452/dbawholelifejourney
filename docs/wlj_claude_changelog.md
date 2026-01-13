@@ -14,6 +14,49 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-13 Changes
+
+### Fix: OAuth Token Decryption Error - Graceful Error Handling
+
+**Summary:** Fixed crash caused by OAuth token decryption failures by adding safe
+decryption functions and graceful error handling in views.
+
+**Problem:** When OAuth tokens (Google Calendar, Dexcom) fail to decrypt (due to key
+rotation, corruption, or configuration changes), the application would crash with
+"OAuth token decryption failed" error instead of gracefully handling the situation.
+
+**Root Cause:** The `decrypt_oauth_token()` function raises `ValueError` on decryption
+failure, and this exception was not being caught in the model properties or views that
+use the decrypted tokens.
+
+**Fix:**
+1. Added `decrypt_oauth_token_safe()` function that returns `(value, success)` tuple
+   instead of raising exceptions
+2. Updated `GoogleCalendarCredential` and `DexcomCredential` model properties to use
+   safe decryption
+3. Added `has_decryption_error()` method to both credential models to check validity
+4. Added decryption error checks in all views that use OAuth credentials:
+   - `GoogleCalendarSettingsView` - Shows error message, prompts re-authorization
+   - `GoogleCalendarSaveSettingsView` - Redirects with error message
+   - `GoogleCalendarSyncView` - Redirects with error message
+   - `GoogleCalendarPushEventView` - Redirects with error message
+   - `_sync_google_calendar_if_needed` in DashboardView - Logs warning, skips sync
+5. Fixed Dexcom service to use decrypted token properties instead of raw fields
+6. Added decryption error check in Dexcom sync service
+
+**Files Modified:**
+- `apps/core/encryption.py` - Added `decrypt_oauth_token_safe()` function
+- `apps/life/models.py` - Updated GoogleCalendarCredential with safe decryption
+- `apps/health/models.py` - Updated DexcomCredential with safe decryption
+- `apps/life/views.py` - Added decryption error checks in 4 views
+- `apps/dashboard/views.py` - Added decryption error check in auto-sync
+- `apps/health/services/dexcom.py` - Use decrypted tokens, add error check
+
+**User Impact:** Users with invalid OAuth tokens will now see a clear error message
+asking them to disconnect and reconnect their account, instead of experiencing crashes.
+
+---
+
 ## 2026-01-12 Changes
 
 ### Fix: FOUC (Flash of Unstyled Content) from CSP nonce on styles

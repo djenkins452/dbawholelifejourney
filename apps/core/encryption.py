@@ -210,6 +210,43 @@ def decrypt_oauth_token(ciphertext: str) -> str:
         raise ValueError("OAuth token decryption failed. Key may have changed.")
 
 
+def decrypt_oauth_token_safe(ciphertext: str) -> tuple[str, bool]:
+    """
+    Safely decrypt an OAuth token, returning status instead of raising.
+
+    This is used by model properties to gracefully handle decryption failures
+    without crashing the application.
+
+    Args:
+        ciphertext: The encrypted token string
+
+    Returns:
+        Tuple of (decrypted_value, success_bool)
+        - On success: (plaintext, True)
+        - On failure: ('', False)
+    """
+    if not ciphertext:
+        return ('', True)
+
+    # Handle unencrypted development tokens
+    if ciphertext.startswith('UNENCRYPTED:'):
+        logger.warning("Reading unencrypted OAuth token (dev mode only)")
+        return (ciphertext[12:], True)
+
+    fernet = get_oauth_fernet()
+
+    if fernet is None:
+        logger.error("Cannot decrypt token: OAUTH_TOKEN_ENCRYPTION_KEY not configured")
+        return ('', False)
+
+    try:
+        decrypted = fernet.decrypt(ciphertext.encode())
+        return (decrypted.decode(), True)
+    except Exception as e:
+        logger.error(f"OAuth token decryption failed: {e}")
+        return ('', False)
+
+
 def generate_oauth_encryption_key() -> str:
     """
     Generate a new Fernet encryption key for OAuth tokens.

@@ -543,6 +543,14 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if credential.sync_direction not in ('import', 'both'):
                 return
 
+            # Check for decryption errors (key rotation, etc.)
+            if credential.has_decryption_error():
+                logger.warning(
+                    f"Google Calendar credentials for {user.email} have decryption errors. "
+                    "User needs to re-authorize."
+                )
+                return
+
             # Refresh token if expired
             if credential.is_token_expired and credential.refresh_token:
                 try:

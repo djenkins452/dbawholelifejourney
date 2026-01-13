@@ -1641,21 +1641,31 @@ class GoogleCalendarSettingsView(LifeAccessMixin, TemplateView):
         context['is_connected'] = credential is not None and credential.is_connected
         
         if context['is_connected'] and context['is_configured']:
-            # Check if token needs refresh
-            if credential.is_token_expired and credential.refresh_token:
-                try:
-                    self._refresh_token(credential)
-                except Exception as e:
-                    messages.warning(self.request, f"Could not refresh token: {str(e)}")
-            
-            # Get user's calendars
-            try:
-                from apps.life.services.google_calendar import GoogleCalendarService
-                service = GoogleCalendarService()
-                context['calendars'] = service.list_calendars(credential.get_credentials_dict())
-            except Exception as e:
+            # Check for decryption errors (key rotation, etc.)
+            if credential.has_decryption_error():
+                messages.error(
+                    self.request,
+                    "Your Google Calendar connection needs to be re-authorized. "
+                    "Please disconnect and reconnect your account."
+                )
+                context['has_decryption_error'] = True
                 context['calendars'] = []
-                messages.warning(self.request, f"Could not load calendars: {str(e)}")
+            else:
+                # Check if token needs refresh
+                if credential.is_token_expired and credential.refresh_token:
+                    try:
+                        self._refresh_token(credential)
+                    except Exception as e:
+                        messages.warning(self.request, f"Could not refresh token: {str(e)}")
+
+                # Get user's calendars
+                try:
+                    from apps.life.services.google_calendar import GoogleCalendarService
+                    service = GoogleCalendarService()
+                    context['calendars'] = service.list_calendars(credential.get_credentials_dict())
+                except Exception as e:
+                    context['calendars'] = []
+                    messages.warning(self.request, f"Could not load calendars: {str(e)}")
             
             # Get sync settings from database
             context['selected_calendar'] = credential.selected_calendar_id
@@ -1701,7 +1711,16 @@ class GoogleCalendarSaveSettingsView(LifeAccessMixin, View):
         if not credential:
             messages.error(request, "Please connect Google Calendar first.")
             return redirect('life:google_calendar_settings')
-        
+
+        # Check for decryption errors (key rotation, etc.)
+        if credential.has_decryption_error():
+            messages.error(
+                request,
+                "Your Google Calendar connection needs to be re-authorized. "
+                "Please disconnect and reconnect your account."
+            )
+            return redirect('life:google_calendar_settings')
+
         # Update settings in database
         credential.selected_calendar_id = request.POST.get('calendar_id', 'primary')
         credential.sync_direction = request.POST.get('sync_direction', 'import')
@@ -1838,7 +1857,16 @@ class GoogleCalendarSyncView(LifeAccessMixin, View):
         if not credential or not credential.is_connected:
             messages.error(request, "Please connect Google Calendar first.")
             return redirect('life:google_calendar_settings')
-        
+
+        # Check for decryption errors (key rotation, etc.)
+        if credential.has_decryption_error():
+            messages.error(
+                request,
+                "Your Google Calendar connection needs to be re-authorized. "
+                "Please disconnect and reconnect your account."
+            )
+            return redirect('life:google_calendar_settings')
+
         # Refresh token if needed
         if credential.is_token_expired and credential.refresh_token:
             try:
@@ -1922,14 +1950,23 @@ class GoogleCalendarPushEventView(LifeAccessMixin, View):
         if not credential or not credential.is_connected:
             messages.error(request, "Please connect Google Calendar first.")
             return redirect('life:event_update', pk=pk)
-        
+
+        # Check for decryption errors (key rotation, etc.)
+        if credential.has_decryption_error():
+            messages.error(
+                request,
+                "Your Google Calendar connection needs to be re-authorized. "
+                "Please disconnect and reconnect your account."
+            )
+            return redirect('life:google_calendar_settings')
+
         calendar_id = credential.selected_calendar_id
-        
+
         try:
             event = LifeEvent.objects.get(pk=pk, user=request.user)
-            
+
             from apps.life.services.google_calendar import CalendarSyncService
-            
+
             sync_service = CalendarSyncService(request.user)
             result = sync_service.sync_to_google(event, credential.get_credentials_dict(), calendar_id)
             

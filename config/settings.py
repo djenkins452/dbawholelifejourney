@@ -129,8 +129,10 @@ INSTALLED_APPS = [
     'apps.scan',
     'apps.sms',
     'apps.finance',
+    'apps.billing',
     'assistant',
     'django_apscheduler',
+    'djstripe',
 ]
 
 # Development-only: Add django-watchfiles for efficient autoreload (fixes Python 3.14 StatReloader issue)
@@ -145,6 +147,7 @@ if DEBUG:
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "apps.core.middleware.NoCacheHTMLMiddleware",  # Prevent FOUC by disabling HTML caching
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -156,7 +159,10 @@ MIDDLEWARE = [
     "apps.users.middleware.TermsAcceptanceMiddleware",
     "apps.users.middleware.TimezoneMiddleware",  # Convert UTC to user's timezone
     "apps.core.middleware.PageViewTrackingMiddleware",  # Track page views for Favorites
-    "apps.core.middleware.ContentSecurityPolicyMiddleware",  # CSP headers for XSS protection
+    # CSP disabled temporarily - causing FOUC issues
+    # "apps.core.middleware.CSPNonceMiddleware",  # Generate CSP nonce (CISO Review) - must be before CSP
+    # "apps.core.middleware.ContentSecurityPolicyMiddleware",  # CSP headers for XSS protection
+    "apps.core.middleware.APIRequestLoggingMiddleware",  # API logging with anomaly detection (CISO Review)
     "axes.middleware.AxesMiddleware",  # Rate limiting (Security Fix H-3) - must be last
 ]
 
@@ -176,6 +182,8 @@ TEMPLATES = [
                 "apps.core.context_processors.theme_context",
                 "apps.core.context_processors.site_context",
                 "apps.core.context_processors.favorites_context",
+                "apps.core.context_processors.csp_nonce",  # CSP nonce for inline scripts (CISO Review)
+                "apps.billing.context_processors.billing_config",
             ],
         },
     },
@@ -603,6 +611,10 @@ else:
 SESSION_COOKIE_SAMESITE = 'Lax'  # 'Lax' allows normal navigation, 'Strict' blocks all cross-site
 CSRF_COOKIE_SAMESITE = 'Lax'
 
+# Session timeout (Security Fix - CISO Review 2026-01-12)
+# Sessions expire after 24 hours of inactivity
+SESSION_COOKIE_AGE = 60 * 60 * 24  # 24 hours in seconds
+
 # Custom Admin URL Path (Security Fix H-4)
 # Moving admin to a non-default path reduces brute force attack surface
 ADMIN_URL_PATH = env("ADMIN_URL_PATH", default="wlj-admin")
@@ -677,6 +689,19 @@ WLJ_SETTINGS = {
     "SOFT_DELETE_RETENTION_DAYS": 30,
     # Terms of Service version (increment when terms change)
     "TERMS_VERSION": "1.1",
+    # Finance activity timeout (minutes) - CISO Review 2026-01-12
+    # Requires re-authentication for sensitive financial operations after this period
+    "FINANCE_ACTIVITY_TIMEOUT_MINUTES": 15,
+    # Admin override timeout (minutes) - CISO Review 2026-01-12
+    # Requires re-authentication for destructive admin operations after this period
+    "ADMIN_OVERRIDE_TIMEOUT_MINUTES": 30,
+    # Set to False to disable admin override confirmation entirely (emergency bypass)
+    "ADMIN_OVERRIDE_REQUIRE_CONFIRMATION": True,
+    # API Request Logging with Anomaly Detection (CISO Review 2026-01-12)
+    "API_LOGGING_ENABLED": True,
+    "API_LOGGING_PATHS": ["/api/", "/admin-console/api/"],
+    "API_ANOMALY_DETECTION": True,
+    "API_LOG_RETENTION_DAYS": 30,
 }
 
 # Bible API (required for Scripture lookups in Faith module)
@@ -717,6 +742,13 @@ PLAID_ENV = env('PLAID_ENV', default='sandbox')  # sandbox, development, product
 
 # Token encryption key - generate with: Fernet.generate_key()
 BANK_TOKEN_ENCRYPTION_KEY = env('BANK_TOKEN_ENCRYPTION_KEY', default='')
+
+# ==============================================================================
+# OAuth Token Encryption (CISO Review 2026-01-12)
+# ==============================================================================
+# Encryption key for OAuth tokens (Google Calendar, Dexcom, etc.)
+# Generate with: from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())
+OAUTH_TOKEN_ENCRYPTION_KEY = env('OAUTH_TOKEN_ENCRYPTION_KEY', default='')
 
 # Webhook URL for real-time transaction updates
 if DEBUG:
@@ -821,6 +853,40 @@ GITHUB_API_TOKEN = env('GITHUB_API_TOKEN', default=None)  # Optional, for higher
 # Sentry provides real-time error tracking, performance monitoring, and alerting
 
 SENTRY_DSN = env('SENTRY_DSN', default='')
+
+
+# ==============================================================================
+# Stripe Payment Configuration
+# ==============================================================================
+# Get your keys at: https://dashboard.stripe.com/apikeys
+# Webhook signing secret: https://dashboard.stripe.com/webhooks
+
+STRIPE_PUBLIC_KEY = env('STRIPE_PUBLIC_KEY', default='')
+STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', default='')
+STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', default='')
+
+# Stripe Price IDs - create products in Stripe Dashboard first
+# These should be set in environment variables for each environment
+STRIPE_PRICE_STUDENT_MONTHLY = env('STRIPE_PRICE_STUDENT_MONTHLY', default='')
+STRIPE_PRICE_STUDENT_ANNUAL = env('STRIPE_PRICE_STUDENT_ANNUAL', default='')
+STRIPE_PRICE_ADULT_MONTHLY = env('STRIPE_PRICE_ADULT_MONTHLY', default='')
+STRIPE_PRICE_ADULT_ANNUAL = env('STRIPE_PRICE_ADULT_ANNUAL', default='')
+STRIPE_PRICE_FOUNDING = env('STRIPE_PRICE_FOUNDING', default='')
+
+# dj-stripe configuration
+STRIPE_LIVE_MODE = not DEBUG  # Use live mode in production
+DJSTRIPE_WEBHOOK_SECRET = STRIPE_WEBHOOK_SECRET
+DJSTRIPE_FOREIGN_KEY_TO_FIELD = 'id'
+DJSTRIPE_USE_NATIVE_JSONFIELD = True
+
+# ==============================================================================
+# Billing Configuration
+# ==============================================================================
+# Billing configuration (pricing, rewards, age thresholds) is stored in the database
+# via the BillingConfiguration model and managed via Django Admin.
+# See: /admin/billing/billingconfiguration/
+# Docs: docs/billing_go_live_checklist.md
+
 
 if SENTRY_DSN and not DEBUG and SENTRY_AVAILABLE:
     sentry_sdk.init(

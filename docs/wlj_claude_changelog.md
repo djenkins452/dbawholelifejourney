@@ -81,23 +81,25 @@ asking them to disconnect and reconnect their account, instead of experiencing c
 
 ---
 
-### Fix: FOUC with CSS Opacity Guard Technique
+### Fix: Visual Glitch on Page Navigation (Chat Drawer Auto-Open)
 
-**Summary:** Fixed Flash of Unstyled Content (FOUC) issue by hiding body until CSS loads via inline style that gets overridden by main.css.
+**Summary:** Fixed "slide to right" visual glitch on every page navigation caused by chat drawer auto-opening then closing.
 
-**Problem:** Pages briefly show unstyled content during navigation (not on hard refresh), causing a jarring visual flash before CSS applies.
+**Problem:** Users reported a PowerPoint-like slide transition on every page navigation. Initially thought to be FOUC (Flash of Unstyled Content), but investigation revealed the chat drawer was:
+1. Persisting its open state in localStorage
+2. Auto-opening on every page load via `checkSavedState()`
+3. Then immediately closing, causing the slide animation
 
-**Solution:** Implemented a CSS opacity guard technique:
-1. Added inline `<style>` in `<head>` that sets `.fouc-guard { opacity: 0; }`
-2. Added `fouc-guard` class to `<body>` element
-3. In `main.css`, override with `body.fouc-guard { opacity: 1 !important; }`
+**Root Cause:** The `checkSavedState()` function in `chat_widget.html` was reading localStorage and calling `openDrawer()` on page load, but something was causing it to close immediately after, creating the visual glitch.
 
-This ensures the body is invisible until `main.css` is fully parsed and applied, even when the browser restores pages from bfcache.
+**Solution:** Removed the auto-open feature entirely. Users must now click the chat button to open the drawer on each page.
 
 **Files Modified:**
-- `templates/base.html` - Added inline FOUC guard style and class
-- `templates/account/base.html` - Added inline FOUC guard style and class
-- `static/css/main.css` - Added opacity override rule
+- `templates/components/chat_widget.html` - Removed `checkSavedState()` function and initialization call
+
+**Also in this session (Critical CSS improvements):**
+- `templates/base.html` - Added inline critical CSS for nav/logo sizing
+- `templates/account/base.html` - Added inline critical CSS
 
 ---
 

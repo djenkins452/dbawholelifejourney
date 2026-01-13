@@ -4,13 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- FOUC Prevention: Hide body until CSS loads -->
+    <style>.fouc-guard { opacity: 0; }</style>
     <title>{% block title %}Whole Life Journey{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'css/main.css' %}">
-    <link rel="stylesheet" href="{% static 'css/themes.css' %}">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}?v=20260114">
+    <link rel="stylesheet" href="{% static 'css/themes.css' %}?v=20260114">
     <link rel="icon" type="image/png" href="{% static 'images/wlj-logo.png' %}">
     {% block extra_head %}{% endblock %}
 </head>
-<body class="theme-minimal">
+<body class="theme-minimal fouc-guard">
     <div class="auth-page">
         <div class="auth-container">
             <div class="auth-header">

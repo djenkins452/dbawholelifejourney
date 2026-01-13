@@ -81,6 +81,26 @@ asking them to disconnect and reconnect their account, instead of experiencing c
 
 ---
 
+### Fix: FOUC with CSS Opacity Guard Technique
+
+**Summary:** Fixed Flash of Unstyled Content (FOUC) issue by hiding body until CSS loads via inline style that gets overridden by main.css.
+
+**Problem:** Pages briefly show unstyled content during navigation (not on hard refresh), causing a jarring visual flash before CSS applies.
+
+**Solution:** Implemented a CSS opacity guard technique:
+1. Added inline `<style>` in `<head>` that sets `.fouc-guard { opacity: 0; }`
+2. Added `fouc-guard` class to `<body>` element
+3. In `main.css`, override with `body.fouc-guard { opacity: 1 !important; }`
+
+This ensures the body is invisible until `main.css` is fully parsed and applied, even when the browser restores pages from bfcache.
+
+**Files Modified:**
+- `templates/base.html` - Added inline FOUC guard style and class
+- `templates/account/base.html` - Added inline FOUC guard style and class
+- `static/css/main.css` - Added opacity override rule
+
+---
+
 ## 2026-01-12 Changes
 
 ### Documentation: FOUC Troubleshooting Guide

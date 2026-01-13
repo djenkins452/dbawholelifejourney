@@ -59,6 +59,25 @@ asking them to disconnect and reconnect their account, instead of experiencing c
 
 ## 2026-01-12 Changes
 
+### Documentation: FOUC Troubleshooting Guide
+
+**Summary:** Documented the Flash of Unstyled Content (FOUC) issue in troubleshooting guide.
+
+**Background:** After extensive testing, confirmed FOUC is an external infrastructure issue
+(Railway/Cloudflare), NOT caused by any code changes. Reverted to pre-CISO code and FOUC
+still occurred, proving it's unrelated to today's security changes.
+
+**Documented:**
+- Symptoms and how to reproduce
+- Root cause analysis
+- What was already tried (to prevent re-attempting)
+- Infrastructure-level suggestions for future investigation
+
+**Files Modified:**
+- `docs/wlj_claude_troubleshoot.md` - Added section #9 for FOUC issue
+
+---
+
 ### Fix: FOUC (Flash of Unstyled Content) from CSP nonce on styles
 
 **Summary:** Reverted style-src CSP directive to use `'unsafe-inline'` instead of nonces

@@ -4,7 +4,7 @@
 # Description: Known issues and solutions for common development problems
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-04
-# Last Updated: 2026-01-05
+# Last Updated: 2026-01-12
 # ==============================================================================
 
 # WLJ Troubleshooting Guide
@@ -241,3 +241,47 @@ python manage.py makemigrations --check
 - `apps/core/models.py` - SoftDeleteManager and SoftDeleteModel (soft delete pattern)
 - `assistant/data_service.py` - Personal Data Query System (uses soft delete pattern)
 - `CLAUDE.md` - Main project reference
+
+---
+
+## 9. Flash of Unstyled Content (FOUC) on Navigation
+
+**Problem:** Pages briefly show unstyled content (large logo, wrong layout) before CSS applies during navigation. Does NOT happen on hard refresh (Cmd+Shift+R).
+
+**Symptoms:**
+- Occurs on page navigation (clicking links)
+- Does NOT occur on hard refresh
+- Affects all browsers (Chrome, Safari)
+- Page appears unstyled for a fraction of a second, then snaps into place
+
+**Root Cause:** External infrastructure issue (Railway/Cloudflare), NOT application code.
+
+**How We Confirmed This:**
+- Reverted all code changes to pre-CISO state (Jan 11, 2026)
+- FOUC still occurred with old code
+- Confirmed the issue is NOT caused by:
+  - CSP nonce implementation
+  - Any middleware changes
+  - CSS file changes
+  - Template structure changes
+
+**Attempted Fixes (Did NOT solve - do not retry):**
+- Moving CSS links to first position in `<head>` (already done, good practice)
+- Adding CSS preload hints
+- Moving HTMX to end of body (already done, good practice)
+- Adding `NoCacheHTMLMiddleware` to prevent HTML caching
+- Cache-busting CSS with version query strings
+- Various CSP style-src configurations
+
+**What To Try (Infrastructure Level):**
+1. Check Cloudflare caching settings for HTML pages
+2. Verify Railway static file serving configuration
+3. Consider adding `Vary: Accept` header for proper cache differentiation
+4. Check if WhiteNoise compression settings affect CSS delivery
+
+**Current Workarounds in Place:**
+- CSS links are first in `<head>` (before title, meta tags)
+- HTMX script moved to end of body
+- `NoCacheHTMLMiddleware` adds `Cache-Control: no-cache` to HTML responses
+
+**Note:** This is a cosmetic issue. The site is fully functional and CSS does apply correctly after the brief flash.

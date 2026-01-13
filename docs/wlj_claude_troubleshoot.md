@@ -244,44 +244,57 @@ python manage.py makemigrations --check
 
 ---
 
-## 9. Flash of Unstyled Content (FOUC) on Navigation
+## 9. "Slide to Right" Visual Glitch on Page Navigation (SOLVED)
 
-**Problem:** Pages briefly show unstyled content (large logo, wrong layout) before CSS applies during navigation. Does NOT happen on hard refresh (Cmd+Shift+R).
+**Problem:** Pages show a "PowerPoint-like" slide transition on every navigation. Initially misdiagnosed as FOUC (Flash of Unstyled Content).
 
 **Symptoms:**
 - Occurs on page navigation (clicking links)
 - Does NOT occur on hard refresh
-- Affects all browsers (Chrome, Safari)
-- Page appears unstyled for a fraction of a second, then snaps into place
+- Described as "something sliding right off screen" or "PowerPoint transition"
+- Visible for ~0.3 seconds on every page load
 
-**Root Cause:** External infrastructure issue (Railway/Cloudflare), NOT application code.
+**Root Cause:** Chat drawer widget (`templates/components/chat_widget.html`) was:
+1. Persisting open state in localStorage via `DRAWER_STATE_KEY`
+2. Auto-opening on page load via `checkSavedState()` function
+3. Immediately closing (for unknown reason), causing visible slide animation
+4. CSS transition `transform 0.3s ease-out` made the close visible
 
-**How We Confirmed This:**
-- Reverted all code changes to pre-CISO state (Jan 11, 2026)
-- FOUC still occurred with old code
-- Confirmed the issue is NOT caused by:
-  - CSP nonce implementation
-  - Any middleware changes
-  - CSS file changes
-  - Template structure changes
+**Key Diagnostic Clue:** User described "slides to the right" - this pointed to `translateX` animation, NOT CSS loading issues. Searching for `translateX` led directly to the chat drawer.
 
-**Attempted Fixes (Did NOT solve - do not retry):**
-- Moving CSS links to first position in `<head>` (already done, good practice)
-- Adding CSS preload hints
-- Moving HTMX to end of body (already done, good practice)
-- Adding `NoCacheHTMLMiddleware` to prevent HTML caching
-- Cache-busting CSS with version query strings
-- Various CSP style-src configurations
+**Solution (2026-01-13):**
+1. Removed `checkSavedState()` function - drawer no longer auto-opens from localStorage
+2. Removed CSS transition from base `.assistant-drawer` class
+3. Added `.animate` class that contains the transition
+4. JavaScript adds `.animate` class only on first user click
 
-**What To Try (Infrastructure Level):**
-1. Check Cloudflare caching settings for HTML pages
-2. Verify Railway static file serving configuration
-3. Consider adding `Vary: Accept` header for proper cache differentiation
-4. Check if WhiteNoise compression settings affect CSS delivery
+**Files Modified:**
+- `templates/components/chat_widget.html`
 
-**Current Workarounds in Place:**
-- CSS links are first in `<head>` (before title, meta tags)
-- HTMX script moved to end of body
-- `NoCacheHTMLMiddleware` adds `Cache-Control: no-cache` to HTML responses
+**Code Pattern (Preventing Animation on Initial Render):**
+```css
+/* Base class - NO transition */
+.assistant-drawer {
+    transform: translateX(100%);
+    /* No transition property here */
+}
 
-**Note:** This is a cosmetic issue. The site is fully functional and CSS does apply correctly after the brief flash.
+/* Transition only after user interaction */
+.assistant-drawer.animate {
+    transition: transform 0.3s ease-out;
+}
+```
+
+```javascript
+function openDrawer() {
+    drawer.classList.add('animate');  // Enable transition on first click
+    drawer.classList.add('open');
+}
+```
+
+**Lesson Learned:** When user describes something "sliding" or "transitioning", search for CSS animations (`transition`, `transform`, `@keyframes`) before assuming it's a loading/caching issue. The word "slide" should trigger a search for `translateX` or `translateY`.
+
+**Also Added (Preventive Measures):**
+- Critical inline CSS in `base.html` and `account/base.html` for nav/logo sizing
+- Strengthened cache headers in `NoCacheHTMLMiddleware`
+- bfcache handler for pageshow event

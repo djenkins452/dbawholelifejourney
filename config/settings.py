@@ -147,7 +147,6 @@ if DEBUG:
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "apps.core.middleware.NoCacheHTMLMiddleware",  # Prevent FOUC by disabling HTML caching
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -159,10 +158,6 @@ MIDDLEWARE = [
     "apps.users.middleware.TermsAcceptanceMiddleware",
     "apps.users.middleware.TimezoneMiddleware",  # Convert UTC to user's timezone
     "apps.core.middleware.PageViewTrackingMiddleware",  # Track page views for Favorites
-    # CSP disabled temporarily - causing FOUC issues
-    # "apps.core.middleware.CSPNonceMiddleware",  # Generate CSP nonce (CISO Review) - must be before CSP
-    # "apps.core.middleware.ContentSecurityPolicyMiddleware",  # CSP headers for XSS protection
-    "apps.core.middleware.APIRequestLoggingMiddleware",  # API logging with anomaly detection (CISO Review)
     "axes.middleware.AxesMiddleware",  # Rate limiting (Security Fix H-3) - must be last
 ]
 

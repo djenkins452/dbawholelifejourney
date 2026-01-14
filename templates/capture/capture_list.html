@@ -36,7 +36,7 @@
                     <th>Duration</th>
                     <th>Status</th>
                     <th>Created</th>
-                    <th style="width: 60px;"></th>
+                    <th style="width: 120px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -106,9 +106,19 @@
                         <div style="font-size: 0.75rem; color: var(--color-text-secondary);">{{ entry.created_at|time:"g:i A" }}</div>
                     </td>
                     <td onclick="event.stopPropagation();">
-                        <button type="button" class="btn-icon delete-btn" data-entry-id="{{ entry.pk }}" data-entry-title="{{ entry.title|default:'Untitled Recording' }}" title="Delete recording" style="background: none; border: none; cursor: pointer; padding: 0.5rem; color: var(--color-text-secondary); font-size: 1rem;">
-                            &#128465;
-                        </button>
+                        <div style="display: flex; gap: 0.25rem; justify-content: flex-end;">
+                            {% if entry.audio_file_url and entry.status == 'ready' %}
+                            <button type="button" class="btn-icon play-btn" data-audio-url="{{ entry.audio_file_url }}" data-entry-title="{{ entry.title|default:'Untitled Recording' }}" title="Play audio" style="background: none; border: none; cursor: pointer; padding: 0.5rem; color: var(--color-text-secondary); font-size: 1rem;">
+                                &#9654;
+                            </button>
+                            <a href="{{ entry.audio_file_url }}" download class="btn-icon" title="Download audio" style="background: none; border: none; cursor: pointer; padding: 0.5rem; color: var(--color-text-secondary); font-size: 1rem; text-decoration: none;">
+                                &#8681;
+                            </a>
+                            {% endif %}
+                            <button type="button" class="btn-icon delete-btn" data-entry-id="{{ entry.pk }}" data-entry-title="{{ entry.title|default:'Untitled Recording' }}" title="Delete recording" style="background: none; border: none; cursor: pointer; padding: 0.5rem; color: var(--color-text-secondary); font-size: 1rem;">
+                                &#128465;
+                            </button>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -134,6 +144,22 @@
         {% endif %}
     </div>
     {% endif %}
+
+    <!-- Audio Player Modal -->
+    <div id="audio-modal" class="modal" style="display: none;">
+        <div class="modal-backdrop" id="audio-modal-backdrop"></div>
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600;" id="audio-modal-title">Playing Audio</h3>
+                <button type="button" id="audio-modal-close" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <audio id="audio-player" controls style="width: 100%;">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        </div>
+    </div>
 
     <!-- Delete Confirmation Modal -->
     <div id="delete-modal" class="modal" style="display: none;">
@@ -210,6 +236,14 @@
 
     .delete-btn:hover {
         color: #ef4444;
+    }
+
+    .play-btn:hover {
+        color: #22c55e;
+    }
+
+    a.btn-icon:hover {
+        color: #3b82f6;
     }
 
     /* Modal Styles */
@@ -403,7 +437,49 @@
             if (e.key === 'Escape' && deleteModal && deleteModal.style.display === 'flex') {
                 closeDeleteModal();
             }
+            if (e.key === 'Escape' && audioModal && audioModal.style.display === 'flex') {
+                closeAudioModal();
+            }
         });
+
+        // Audio Player Modal
+        const audioModal = document.getElementById('audio-modal');
+        const audioModalBackdrop = document.getElementById('audio-modal-backdrop');
+        const audioModalClose = document.getElementById('audio-modal-close');
+        const audioModalTitle = document.getElementById('audio-modal-title');
+        const audioPlayer = document.getElementById('audio-player');
+
+        function openAudioModal(audioUrl, title) {
+            audioModalTitle.textContent = title;
+            audioPlayer.src = audioUrl;
+            audioModal.style.display = 'flex';
+            audioPlayer.play();
+        }
+
+        function closeAudioModal() {
+            audioPlayer.pause();
+            audioPlayer.src = '';
+            audioModal.style.display = 'none';
+        }
+
+        // Attach click handlers to play buttons
+        document.querySelectorAll('.play-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const audioUrl = this.dataset.audioUrl;
+                const entryTitle = this.dataset.entryTitle;
+                openAudioModal(audioUrl, entryTitle);
+            });
+        });
+
+        // Audio modal close handlers
+        if (audioModalBackdrop) {
+            audioModalBackdrop.addEventListener('click', closeAudioModal);
+        }
+        if (audioModalClose) {
+            audioModalClose.addEventListener('click', closeAudioModal);
+        }
     });
 </script>
 {% endblock %}

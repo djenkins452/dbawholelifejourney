@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Add Play/Download Actions to Capture List
+
+**Summary:** Added action buttons to the Audio Capture list view so users can play and download audio directly without navigating to the detail page.
+
+**Changes:**
+- Added play button (opens modal with audio player)
+- Added download button (direct download link)
+- Existing delete button remains
+- Actions only show for entries with audio files (ready status)
+- Audio modal auto-plays on open, pauses on close
+
+**Files Modified:**
+- `templates/capture/capture_list.html` - Added action buttons, audio modal, and JavaScript
+
+---
+
 ### Fix Audio Expiration Display Bug
 
 **Summary:** Fixed bug where audio recordings showed "Audio expired" immediately after creation because the template was checking for empty `audio_file_url` instead of the actual `audio_expires_at` date. This affected recordings created in mock mode (when S3 is not configured) where the audio file URL is not populated.

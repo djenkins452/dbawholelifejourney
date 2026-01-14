@@ -850,3 +850,45 @@ class CaptureEmailView(LoginRequiredMixin, View):
                 'success': False,
                 'error': result.get('error', 'Failed to send email')
             }, status=400)
+
+
+class CaptureDeleteView(LoginRequiredMixin, View):
+    """
+    Delete a capture entry.
+
+    Accepts POST requests and deletes the entry permanently.
+    For AJAX requests, returns JSON response.
+    For regular requests, redirects to the list page.
+    """
+
+    def post(self, request, pk):
+        """Delete capture entry."""
+        # Get the capture entry
+        try:
+            entry = CaptureEntry.objects.get(id=pk, user=request.user)
+        except CaptureEntry.DoesNotExist:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'error': 'Entry not found'}, status=404)
+            from django.shortcuts import get_object_or_404
+            get_object_or_404(CaptureEntry, id=pk, user=request.user)
+
+        entry_title = entry.title or 'Untitled Recording'
+        entry_id = entry.id
+
+        # Delete the entry (hard delete since CaptureEntry doesn't use soft delete)
+        entry.delete()
+
+        logger.info(f"Capture entry {entry_id} deleted by user {request.user.email}")
+
+        # For AJAX requests, return JSON
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'message': f'"{entry_title}" deleted'
+            })
+
+        # For regular requests, redirect
+        from django.contrib import messages
+        from django.shortcuts import redirect
+        messages.success(request, f'"{entry_title}" deleted.')
+        return redirect('capture:list')

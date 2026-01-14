@@ -1439,8 +1439,8 @@ class CaptureUpdateTitleViewTests(TestCase):
         self.assertIn('JSON', data['error'])
 
 
-class CaptureUpdateCategoryViewTests(TestCase):
-    """Tests for CaptureUpdateCategoryView."""
+class CaptureDeleteViewTests(TestCase):
+    """Tests for CaptureDeleteView."""
 
     def setUp(self):
         """Set up test user and client."""
@@ -1471,8 +1471,8 @@ class CaptureUpdateCategoryViewTests(TestCase):
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
 
-    def test_update_category_requires_login(self):
-        """Update category endpoint requires authentication."""
+    def test_delete_requires_login(self):
+        """Delete endpoint requires authentication."""
         self.client.logout()
         entry = CaptureEntry.objects.create(
             user=self.user,
@@ -1480,25 +1480,22 @@ class CaptureUpdateCategoryViewTests(TestCase):
             status=CaptureEntry.STATUS_READY
         )
         response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'faith'}),
-            content_type='application/json'
+            reverse('capture:delete', kwargs={'pk': entry.pk})
         )
         self.assertEqual(response.status_code, 302)
         self.assertIn('/accounts/login/', response.url)
 
-    def test_update_category_returns_404_for_nonexistent_entry(self):
-        """Update category returns 404 for non-existent entry."""
+    def test_delete_returns_404_for_nonexistent_entry(self):
+        """Delete returns 404 for non-existent entry."""
         import uuid
         response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': uuid.uuid4()}),
-            data=json.dumps({'category': 'faith'}),
-            content_type='application/json'
+            reverse('capture:delete', kwargs={'pk': uuid.uuid4()}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
         )
         self.assertEqual(response.status_code, 404)
 
-    def test_update_category_returns_404_for_other_users_entry(self):
-        """Update category returns 404 for another user's entry."""
+    def test_delete_returns_404_for_other_users_entry(self):
+        """Delete returns 404 for another user's entry."""
         other_user = self._create_user(email='other@example.com')
         entry = CaptureEntry.objects.create(
             user=other_user,
@@ -1507,271 +1504,112 @@ class CaptureUpdateCategoryViewTests(TestCase):
         )
 
         response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'faith'}),
-            content_type='application/json'
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
         )
         self.assertEqual(response.status_code, 404)
 
-        # Verify category wasn't changed
-        entry.refresh_from_db()
-        self.assertEqual(entry.category, '')
+        # Verify entry still exists
+        self.assertTrue(CaptureEntry.objects.filter(pk=entry.pk).exists())
 
-    def test_update_category_success_faith(self):
-        """Update category successfully sets faith category."""
+    def test_delete_success_ajax(self):
+        """Delete successfully removes entry via AJAX."""
         entry = CaptureEntry.objects.create(
             user=self.user,
-            title='Test Entry',
+            title='Entry to Delete',
             status=CaptureEntry.STATUS_READY
         )
+        entry_id = entry.pk
 
         response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'faith'}),
-            content_type='application/json'
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data.get('success'))
-        self.assertEqual(data.get('category'), 'faith')
-        self.assertEqual(data.get('category_display'), 'Faith')
-        self.assertEqual(data.get('message'), 'Category updated successfully')
+        self.assertIn('Entry to Delete', data.get('message', ''))
 
-        # Verify database was updated
-        entry.refresh_from_db()
-        self.assertEqual(entry.category, 'faith')
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())
 
-    def test_update_category_success_organize(self):
-        """Update category successfully sets organize category."""
+    def test_delete_success_regular_request(self):
+        """Delete successfully removes entry via regular request."""
         entry = CaptureEntry.objects.create(
             user=self.user,
-            title='Test Entry',
+            title='Entry to Delete',
             status=CaptureEntry.STATUS_READY
         )
+        entry_id = entry.pk
 
         response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'organize'}),
-            content_type='application/json'
+            reverse('capture:delete', kwargs={'pk': entry.pk})
+        )
+        # Should redirect to list page
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('capture:list'))
+
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())
+
+    def test_delete_untitled_entry(self):
+        """Delete works for entries without title."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='',
+            status=CaptureEntry.STATUS_READY
+        )
+        entry_id = entry.pk
+
+        response = self.client.post(
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data.get('success'))
-        self.assertEqual(data.get('category'), 'organize')
-        self.assertEqual(data.get('category_display'), 'Organize')
+        self.assertIn('Untitled Recording', data.get('message', ''))
 
-        entry.refresh_from_db()
-        self.assertEqual(entry.category, 'organize')
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())
 
-    def test_update_category_with_subcategory_faith_sermon(self):
-        """Update category with faith/sermon subcategory."""
+    def test_delete_processing_entry(self):
+        """Delete works for entries still being processed."""
         entry = CaptureEntry.objects.create(
             user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY
+            title='Processing Entry',
+            status=CaptureEntry.STATUS_TRANSCRIBING
         )
+        entry_id = entry.pk
 
         response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'faith', 'subcategory': 'sermon'}),
-            content_type='application/json'
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data.get('success'))
-        self.assertEqual(data.get('category'), 'faith')
-        self.assertEqual(data.get('subcategory'), 'sermon')
-        self.assertEqual(data.get('subcategory_display'), 'Sermon')
 
-        entry.refresh_from_db()
-        self.assertEqual(entry.category, 'faith')
-        self.assertEqual(entry.subcategory, 'sermon')
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())
 
-    def test_update_category_with_subcategory_faith_bible_study(self):
-        """Update category with faith/bible_study subcategory."""
+    def test_delete_failed_entry(self):
+        """Delete works for failed entries."""
         entry = CaptureEntry.objects.create(
             user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY
+            title='Failed Entry',
+            status=CaptureEntry.STATUS_FAILED,
+            error_message='Some error'
         )
+        entry_id = entry.pk
 
         response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'faith', 'subcategory': 'bible_study'}),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data.get('subcategory'), 'bible_study')
-        self.assertEqual(data.get('subcategory_display'), 'Bible Study')
-
-    def test_update_category_with_subcategory_organize_meeting(self):
-        """Update category with organize/meeting subcategory."""
-        entry = CaptureEntry.objects.create(
-            user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY
-        )
-
-        response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'organize', 'subcategory': 'meeting'}),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data.get('category'), 'organize')
-        self.assertEqual(data.get('subcategory'), 'meeting')
-        self.assertEqual(data.get('subcategory_display'), 'Meeting')
-
-        entry.refresh_from_db()
-        self.assertEqual(entry.category, 'organize')
-        self.assertEqual(entry.subcategory, 'meeting')
-
-    def test_update_category_rejects_invalid_category(self):
-        """Update category rejects invalid category value."""
-        entry = CaptureEntry.objects.create(
-            user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY
-        )
-
-        response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'invalid_category'}),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertIn('error', data)
-        self.assertIn('Invalid category', data['error'])
-
-        # Verify category wasn't changed
-        entry.refresh_from_db()
-        self.assertEqual(entry.category, '')
-
-    def test_update_category_rejects_subcategory_without_category(self):
-        """Update category rejects subcategory without a category."""
-        entry = CaptureEntry.objects.create(
-            user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY
-        )
-
-        response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'subcategory': 'sermon'}),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertIn('error', data)
-        self.assertIn('Cannot set subcategory without a category', data['error'])
-
-    def test_update_category_rejects_mismatched_subcategory(self):
-        """Update category rejects subcategory that doesn't match category."""
-        entry = CaptureEntry.objects.create(
-            user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY
-        )
-
-        # Try to set faith category with organize subcategory
-        response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'faith', 'subcategory': 'meeting'}),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertIn('error', data)
-        self.assertIn('Invalid subcategory', data['error'])
-
-    def test_update_category_clears_category(self):
-        """Update category clears category when empty string."""
-        entry = CaptureEntry.objects.create(
-            user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY,
-            category='faith',
-            subcategory='sermon'
-        )
-
-        response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': ''}),
-            content_type='application/json'
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data.get('success'))
-        self.assertEqual(data.get('category'), '')
-        self.assertEqual(data.get('subcategory'), '')
 
-        entry.refresh_from_db()
-        self.assertEqual(entry.category, '')
-        self.assertEqual(entry.subcategory, '')
-
-    def test_update_category_clears_subcategory_when_category_changes(self):
-        """Update category clears subcategory when category changes without new subcategory."""
-        entry = CaptureEntry.objects.create(
-            user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY,
-            category='faith',
-            subcategory='sermon'
-        )
-
-        response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': 'organize'}),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data.get('category'), 'organize')
-        self.assertEqual(data.get('subcategory'), '')
-
-        entry.refresh_from_db()
-        self.assertEqual(entry.category, 'organize')
-        self.assertEqual(entry.subcategory, '')
-
-    def test_update_category_rejects_invalid_json(self):
-        """Update category rejects invalid JSON body."""
-        entry = CaptureEntry.objects.create(
-            user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY
-        )
-
-        response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data='not valid json',
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 400)
-        data = response.json()
-        self.assertIn('error', data)
-        self.assertIn('JSON', data['error'])
-
-    def test_update_category_strips_whitespace(self):
-        """Update category strips leading/trailing whitespace."""
-        entry = CaptureEntry.objects.create(
-            user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY
-        )
-
-        response = self.client.post(
-            reverse('capture:update_category', kwargs={'pk': entry.pk}),
-            data=json.dumps({'category': '  faith  ', 'subcategory': '  sermon  '}),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data.get('category'), 'faith')
-        self.assertEqual(data.get('subcategory'), 'sermon')
-
-        entry.refresh_from_db()
-        self.assertEqual(entry.category, 'faith')
-        self.assertEqual(entry.subcategory, 'sermon')
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())

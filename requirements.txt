@@ -82,4 +82,4 @@ weasyprint>=62.0
 stripe>=7.0.0
 dj-stripe>=2.8.0
 
-# Force rebuild: 2026-01-11-v1 (fix corrupted Django cache)
+# Force rebuild: 2026-01-14-v1 (WeasyPrint apt packages via Railpack)

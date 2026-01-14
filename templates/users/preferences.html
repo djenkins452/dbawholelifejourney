@@ -233,6 +233,23 @@
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
+
+                        <div class="toggle-option">
+                            <div class="toggle-info">
+                                <div class="module-header">
+                                    <span class="module-icon">🎙️</span>
+                                    <h4>Capture</h4>
+                                    <span class="module-status status-active" data-module-status="capture_enabled">Active</span>
+                                </div>
+                                <p class="text-muted text-sm">
+                                    Record audio, transcribe sermons and meetings, and generate AI summaries from your recordings.
+                                </p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" name="capture_enabled" {% if form.capture_enabled.value %}checked{% endif %}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
                     </div>
 
                     <!-- Coming Soon Modules -->
@@ -2431,7 +2448,7 @@ Examples:
 <script nonce="{{ csp_nonce }}">
 // Update modules count badge
 function updateModulesCount() {
-    const moduleCheckboxes = document.querySelectorAll('input[name="journal_enabled"], input[name="faith_enabled"], input[name="health_enabled"], input[name="life_enabled"], input[name="purpose_enabled"], input[name="finances_enabled"]');
+    const moduleCheckboxes = document.querySelectorAll('input[name="journal_enabled"], input[name="faith_enabled"], input[name="health_enabled"], input[name="life_enabled"], input[name="purpose_enabled"], input[name="finances_enabled"], input[name="capture_enabled"]');
     let count = 0;
     moduleCheckboxes.forEach(cb => { if (cb.checked) count++; });
     const countEl = document.getElementById('modules-enabled-count');
@@ -2441,7 +2458,7 @@ function updateModulesCount() {
 // Initialize and bind module count updates
 document.addEventListener('DOMContentLoaded', function() {
     updateModulesCount();
-    document.querySelectorAll('input[name="journal_enabled"], input[name="faith_enabled"], input[name="health_enabled"], input[name="life_enabled"], input[name="purpose_enabled"], input[name="finances_enabled"]').forEach(cb => {
+    document.querySelectorAll('input[name="journal_enabled"], input[name="faith_enabled"], input[name="health_enabled"], input[name="life_enabled"], input[name="purpose_enabled"], input[name="finances_enabled"], input[name="capture_enabled"]').forEach(cb => {
         cb.addEventListener('change', updateModulesCount);
     });
 });

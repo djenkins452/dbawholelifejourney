@@ -184,6 +184,7 @@ class PreferencesForm(forms.ModelForm):
             "purpose_enabled",
             "goals_enabled",
             "finances_enabled",
+            "capture_enabled",
             "relationships_enabled",
             "habits_enabled",
             # AI
@@ -258,6 +259,9 @@ class PreferencesForm(forms.ModelForm):
                 "class": "form-checkbox",
             }),
             "finances_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "capture_enabled": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
             "relationships_enabled": forms.CheckboxInput(attrs={

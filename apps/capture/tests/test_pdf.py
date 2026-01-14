@@ -164,7 +164,7 @@ class PDFGenerationServiceTests(TestCase):
         mock_weasyprint = MagicMock()
         captured_html = None
 
-        def capture_html(string):
+        def capture_html(string, base_url=None):
             nonlocal captured_html
             captured_html = string
             mock_instance = MagicMock()

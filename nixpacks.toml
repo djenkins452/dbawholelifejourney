@@ -4,7 +4,8 @@
 [phases.setup]
 # WeasyPrint dependencies - use aptPkgs for Debian package names
 # The "..." extends default packages instead of overriding them
-aptPkgs = ["...", "libgobject-2.0-0", "libcairo2", "libpango-1.0-0", "libgdk-pixbuf2.0-0", "libffi-dev"]
+# Full WeasyPrint dependency chain: cairo, pango, pangocairo, gdk-pixbuf, gobject
+aptPkgs = ["...", "libgobject-2.0-0", "libcairo2", "libpango-1.0-0", "libpangocairo-1.0-0", "libgdk-pixbuf2.0-0", "libffi-dev", "fonts-liberation"]
 
 [start]
 cmd = "python manage.py migrate --noinput && python manage.py load_initial_data && python manage.py sync_workout_to_templates && python manage.py recalculate_task_priorities && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file -"

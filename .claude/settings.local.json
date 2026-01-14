@@ -196,7 +196,8 @@
       "Bash(pip install:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix: Add Tailwind CDN to billing templates for proper CSS styling\n\nBilling pages were rendering without CSS because templates used Tailwind\nclasses but the project uses custom CSS \\(main.css\\). Added Tailwind CDN\nto all 6 billing templates via extra_css block.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFeature: Auto-populate meal type based on scan time\n\n- Add time-based meal detection to barcode lookup view\n- Add time-based meal detection to vision service\n- Breakfast: 5:00 AM - 10:30 AM\n- Lunch: 10:30 AM - 2:30 PM\n- Snack: 2:30 PM - 5:00 PM\n- Dinner: 5:00 PM - 9:00 PM\n- Late night snack: 9:00 PM - 5:00 AM\n- Query param meal type takes precedence over auto-detection\n- User can always change meal type on the form\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(identify:*)"
+      "Bash(identify:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix WeasyPrint PDF generation for audio recordings\n\n- Add missing libpangocairo-1.0-0 and fonts-liberation to nixpacks.toml\n- Add base_url parameter to WeasyPrint HTML\\(\\) call for proper resource resolution\n- Improve error logging with specific exception details for easier debugging\n- Update test mock to accept base_url keyword argument\n\nRoot cause: Missing pangocairo library for text rendering and no base_url for \nresolving fonts/resources in the generated HTML string.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

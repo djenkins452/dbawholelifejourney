@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Add Pending Model Migrations
+
+**Summary:** Created migrations for model field changes that were detected by CI checks.
+
+**Migrations Added:**
+- `apps/health/migrations/0021_alter_dexcomcredential_access_token_and_more.py` - Updated Dexcom credential token fields with encrypted storage help text
+- `apps/life/migrations/0008_alter_googlecalendarcredential_access_token_and_more.py` - Updated Google Calendar credential fields with encrypted storage help text
+- `apps/finance/migrations/0014_alter_financialaccount_account_type.py` - Updated account_type field with grouped choices (Assets/Liabilities)
+
+**Reason:** CI was failing on `makemigrations --check` because model field definitions had changed but migrations were not committed.
+
+---
+
 ### Move Capture to Module System
 
 **Summary:** Moved Capture from a permanent menu item to a toggleable module like other features (Health, Journal, etc.). Users can now enable/disable Capture in their preferences.

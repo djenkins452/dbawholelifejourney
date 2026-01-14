@@ -16,6 +16,34 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Polish AI Summary Rendering
+
+**Summary:** Fixed AI-generated summaries to display with professional formatting instead of raw markdown syntax. Summaries now render with proper headers, bold text, and bullet lists in the web view, Word document exports, and emails.
+
+**Problem:** AI summaries were displaying raw markdown (e.g., `## BLUF`, `**bold**`, `- bullet`) as literal text instead of being properly formatted, making them look unprofessional and unsuitable for email sharing.
+
+**Solution:**
+- Created `render_summary` template filter to convert markdown to styled HTML
+- Updated DOCX generator to properly parse markdown and apply Word formatting
+- Added comprehensive CSS styling for summary sections
+
+**Files Added:**
+- `apps/capture/templatetags/__init__.py` - Package init
+- `apps/capture/templatetags/capture_filters.py` - Template filters for summary rendering
+- `apps/capture/tests/test_templatetags.py` - 11 tests for template filters
+
+**Files Modified:**
+- `templates/capture/capture_detail.html` - Use `render_summary` filter, improved CSS
+- `apps/capture/services/docx_generator.py` - Added `_parse_markdown_to_docx()` function
+
+**Rendering Features:**
+- `## Section Headers` become styled blue headers with underlines
+- `**Bold text**` becomes proper bold formatting
+- `- Bullet lists` become proper HTML/Word lists
+- Paragraphs properly spaced and styled
+
+---
+
 ### Add Capture to Help System
 
 **Summary:** Added comprehensive help system support for the Capture module, including Teaching Tool destinations and a full help topic.

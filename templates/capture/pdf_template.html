@@ -1,3 +1,4 @@
+{% load capture_filters %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -179,17 +180,37 @@
             margin-bottom: 0;
         }
 
-        /* BLUF Section Headers (bold text in summary) */
-        .summary-content strong {
-            display: block;
-            margin-top: 16pt;
-            margin-bottom: 6pt;
+        /* Section headers from markdown */
+        .summary-content h3,
+        .summary-content .summary-section-header {
             font-size: 11pt;
+            font-weight: 600;
+            color: #6366f1;
+            margin-top: 16pt;
+            margin-bottom: 8pt;
+            padding-bottom: 4pt;
+            border-bottom: 1pt solid #e5e7eb;
+        }
+
+        .summary-content h3:first-child,
+        .summary-content .summary-section-header:first-child {
+            margin-top: 0;
+        }
+
+        /* Bold text in summary */
+        .summary-content strong {
+            font-weight: 600;
             color: #374151;
         }
 
-        .summary-content strong:first-child {
-            margin-top: 0;
+        /* Lists */
+        .summary-content ul {
+            margin: 8pt 0 12pt;
+            padding-left: 16pt;
+        }
+
+        .summary-content li {
+            margin-bottom: 4pt;
         }
 
         /* Transcript Section */
@@ -296,7 +317,7 @@
         </div>
         <div class="section-content">
             <div class="summary-content">
-                {{ entry.summary|linebreaks }}
+                {{ entry.summary|render_summary }}
             </div>
         </div>
     </div>

@@ -53,6 +53,50 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: AI Summarization with BLUF Format (Task #248)
+
+**Summary:** Implemented AI summarization service using OpenAI API for structured BLUF-format summaries.
+
+**Files Created:**
+- `apps/capture/services/summarization.py` - SummarizationService class with BLUF prompt template
+- `apps/capture/tests/test_summarization.py` - 18 comprehensive tests for summarization service
+
+**Files Modified:**
+- `apps/capture/services/__init__.py` - Added summarization_service export
+
+**BLUF Summary Sections:**
+1. BLUF (Bottom Line Up Front) - 2-3 sentence executive summary
+2. Key Points - 3-5 bullet points of important ideas
+3. Scripture References - Bible verses mentioned (or "None found")
+4. Action Items - Specific actions the listener could take
+5. Notable Quotes - 2-3 memorable quotes
+6. Detailed Notes - 3-5 paragraph comprehensive summary
+
+**Implementation Details:**
+- `SummarizationService` class following existing AI service patterns
+- `summarize_transcript(capture_entry)` method calls OpenAI, updates CaptureEntry
+- Long transcripts (>100k chars) automatically truncated with indicator
+- Temperature 0.3 for consistent, reliable output
+- Max 4000 tokens for comprehensive summaries
+- Automatic status transitions: summarizing -> ready (success) or failed (error)
+
+**Error Handling:**
+- SummarizationError with separate technical/user messages
+- Empty transcript detection
+- API rate limit handling
+- Authentication error detection
+- Context length exceeded handling
+- Generic error fallback with user-friendly message
+
+**Testing:**
+- Service initialization tests (API key, model configuration)
+- Success flow with mocked API response
+- Error scenarios (no transcript, empty response, API errors)
+- Truncation tests for long transcripts
+- BLUF prompt validation tests
+
+---
+
 ### New: OpenAI Whisper Transcription Service (Task #247)
 
 **Summary:** Implemented transcription service using OpenAI Whisper API with support for large files.

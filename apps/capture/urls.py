@@ -14,4 +14,5 @@ urlpatterns = [
     path('status/<uuid:entry_id>/', views.CaptureStatusView.as_view(), name='status'),
     path('<uuid:pk>/', views.CaptureDetailView.as_view(), name='detail'),
     path('<uuid:pk>/update-title/', views.CaptureUpdateTitleView.as_view(), name='update_title'),
+    path('<uuid:pk>/update-category/', views.CaptureUpdateCategoryView.as_view(), name='update_category'),
 ]

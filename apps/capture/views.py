@@ -585,6 +585,80 @@ class CaptureUpdateTitleView(LoginRequiredMixin, View):
         })
 
 
+class CaptureUpdateCategoryView(LoginRequiredMixin, View):
+    """
+    AJAX endpoint for updating capture entry category and subcategory.
+
+    Accepts POST with JSON body containing 'category' and optional 'subcategory' fields.
+    Validates that category/subcategory are valid choices and subcategory matches category.
+    """
+
+    # Map categories to their valid subcategories
+    CATEGORY_SUBCATEGORIES = {
+        CaptureEntry.CATEGORY_FAITH: [
+            CaptureEntry.SUBCATEGORY_SERMON,
+            CaptureEntry.SUBCATEGORY_BIBLE_STUDY,
+            CaptureEntry.SUBCATEGORY_DEVOTIONAL,
+        ],
+        CaptureEntry.CATEGORY_ORGANIZE: [
+            CaptureEntry.SUBCATEGORY_MEETING,
+            CaptureEntry.SUBCATEGORY_NOTES,
+            CaptureEntry.SUBCATEGORY_PERSONAL,
+        ],
+    }
+
+    def post(self, request, pk):
+        """Update the entry category and subcategory."""
+        try:
+            entry = CaptureEntry.objects.get(id=pk, user=request.user)
+        except CaptureEntry.DoesNotExist:
+            return JsonResponse({'error': 'Entry not found'}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        category = data.get('category', '').strip()
+        subcategory = data.get('subcategory', '').strip()
+
+        # Validate category (can be empty to clear)
+        valid_categories = [c[0] for c in CaptureEntry.CATEGORY_CHOICES]
+        if category and category not in valid_categories:
+            return JsonResponse({
+                'error': f'Invalid category. Valid options: {", ".join(valid_categories)}'
+            }, status=400)
+
+        # Validate subcategory matches category
+        if subcategory:
+            if not category:
+                return JsonResponse({
+                    'error': 'Cannot set subcategory without a category'
+                }, status=400)
+
+            valid_subcategories = self.CATEGORY_SUBCATEGORIES.get(category, [])
+            if subcategory not in valid_subcategories:
+                return JsonResponse({
+                    'error': f'Invalid subcategory for {category}. Valid options: {", ".join(valid_subcategories)}'
+                }, status=400)
+
+        # Update category and subcategory
+        entry.category = category
+        entry.subcategory = subcategory if category else ''  # Clear subcategory if no category
+        entry.save(update_fields=['category', 'subcategory', 'updated_at'])
+
+        logger.info(f"Updated category for entry {entry.id} to: {category}/{subcategory}")
+
+        return JsonResponse({
+            'success': True,
+            'category': entry.category,
+            'category_display': entry.get_category_display() if entry.category else '',
+            'subcategory': entry.subcategory,
+            'subcategory_display': entry.get_subcategory_display() if entry.subcategory else '',
+            'message': 'Category updated successfully'
+        })
+
+
 class CaptureStatusView(LoginRequiredMixin, View):
     """
     Get the status of a capture entry for polling.

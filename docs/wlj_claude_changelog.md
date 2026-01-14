@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: Category selection UI for capture entries (Task #253)
+
+**Summary:** Added category and subcategory selection interface to capture detail view, allowing users to organize recordings.
+
+**Features:**
+- Mobile-friendly button-based category selection (Faith, Organize)
+- Dynamic subcategory options based on selected category:
+  - Faith: Sermon, Bible Study, Devotional
+  - Organize: Meeting, Notes, Personal
+- AJAX endpoint for updating category/subcategory
+- Real-time badge updates showing selected category
+- Validation ensuring subcategories match their parent category
+- Clear category option to remove categorization
+- Category already displayed in list view (existing)
+
+**Files Modified:**
+- `apps/capture/views.py` - Added `CaptureUpdateCategoryView` with validation logic
+- `apps/capture/urls.py` - Added `update_category` URL pattern
+- `templates/capture/capture_detail.html` - Added category selection UI section with JavaScript
+- `apps/capture/tests/test_views.py` - Added 15 tests for category update functionality
+
+**URL:** `capture/<uuid:pk>/update-category/` (POST with JSON body)
+
+---
+
 ### New: Processing status endpoint with frontend polling
 
 **Summary:** Added status polling endpoint for capture entries with user-friendly progress messages and frontend integration for both recording and file upload interfaces.

@@ -166,6 +166,254 @@ class CaptureListViewTests(TestCase):
         self.assertContains(response, 'Faith')
         self.assertContains(response, 'Sermon')
 
+    # Filtering and Search Tests
+
+    def test_filter_by_category(self):
+        """List view filters entries by category."""
+        faith_entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Faith Recording',
+            category=CaptureEntry.CATEGORY_FAITH,
+            status=CaptureEntry.STATUS_READY,
+        )
+        organize_entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Organize Recording',
+            category=CaptureEntry.CATEGORY_ORGANIZE,
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        # Filter by faith category
+        response = self.client.get(reverse('capture:list') + '?category=faith')
+        self.assertEqual(response.status_code, 200)
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].id, faith_entry.id)
+
+    def test_filter_by_subcategory(self):
+        """List view filters entries by subcategory."""
+        sermon_entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Sermon Recording',
+            category=CaptureEntry.CATEGORY_FAITH,
+            subcategory=CaptureEntry.SUBCATEGORY_SERMON,
+            status=CaptureEntry.STATUS_READY,
+        )
+        devotional_entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Devotional Recording',
+            category=CaptureEntry.CATEGORY_FAITH,
+            subcategory=CaptureEntry.SUBCATEGORY_DEVOTIONAL,
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        # Filter by sermon subcategory
+        response = self.client.get(reverse('capture:list') + '?subcategory=sermon')
+        self.assertEqual(response.status_code, 200)
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].id, sermon_entry.id)
+
+    def test_filter_by_category_and_subcategory(self):
+        """List view filters entries by both category and subcategory."""
+        faith_sermon = CaptureEntry.objects.create(
+            user=self.user,
+            title='Faith Sermon',
+            category=CaptureEntry.CATEGORY_FAITH,
+            subcategory=CaptureEntry.SUBCATEGORY_SERMON,
+            status=CaptureEntry.STATUS_READY,
+        )
+        faith_devotional = CaptureEntry.objects.create(
+            user=self.user,
+            title='Faith Devotional',
+            category=CaptureEntry.CATEGORY_FAITH,
+            subcategory=CaptureEntry.SUBCATEGORY_DEVOTIONAL,
+            status=CaptureEntry.STATUS_READY,
+        )
+        organize_meeting = CaptureEntry.objects.create(
+            user=self.user,
+            title='Organize Meeting',
+            category=CaptureEntry.CATEGORY_ORGANIZE,
+            subcategory=CaptureEntry.SUBCATEGORY_MEETING,
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        # Filter by faith category and sermon subcategory
+        response = self.client.get(reverse('capture:list') + '?category=faith&subcategory=sermon')
+        self.assertEqual(response.status_code, 200)
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].id, faith_sermon.id)
+
+    def test_search_by_title(self):
+        """List view searches entries by title."""
+        entry1 = CaptureEntry.objects.create(
+            user=self.user,
+            title='Sunday Morning Sermon',
+            status=CaptureEntry.STATUS_READY,
+        )
+        entry2 = CaptureEntry.objects.create(
+            user=self.user,
+            title='Team Meeting Notes',
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        # Search for "sermon"
+        response = self.client.get(reverse('capture:list') + '?q=sermon')
+        self.assertEqual(response.status_code, 200)
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].id, entry1.id)
+
+    def test_search_by_summary(self):
+        """List view searches entries by summary content."""
+        entry1 = CaptureEntry.objects.create(
+            user=self.user,
+            title='Recording 1',
+            summary='Sermon about faith and perseverance',
+            status=CaptureEntry.STATUS_READY,
+        )
+        entry2 = CaptureEntry.objects.create(
+            user=self.user,
+            title='Recording 2',
+            summary='Team quarterly planning discussion',
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        # Search for "faith"
+        response = self.client.get(reverse('capture:list') + '?q=faith')
+        self.assertEqual(response.status_code, 200)
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].id, entry1.id)
+
+    def test_search_case_insensitive(self):
+        """List view search is case-insensitive."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Sunday SERMON',
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        # Search with different cases
+        response = self.client.get(reverse('capture:list') + '?q=sermon')
+        self.assertEqual(response.status_code, 200)
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 1)
+
+        response = self.client.get(reverse('capture:list') + '?q=SERMON')
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 1)
+
+    def test_filter_and_search_combined(self):
+        """List view supports combined filtering and search."""
+        faith_sermon_good = CaptureEntry.objects.create(
+            user=self.user,
+            title='Easter Sermon',
+            category=CaptureEntry.CATEGORY_FAITH,
+            status=CaptureEntry.STATUS_READY,
+        )
+        faith_sermon_other = CaptureEntry.objects.create(
+            user=self.user,
+            title='Christmas Sermon',
+            category=CaptureEntry.CATEGORY_FAITH,
+            status=CaptureEntry.STATUS_READY,
+        )
+        organize_entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Easter Planning Meeting',
+            category=CaptureEntry.CATEGORY_ORGANIZE,
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        # Filter by faith category and search for "Easter"
+        response = self.client.get(reverse('capture:list') + '?category=faith&q=Easter')
+        self.assertEqual(response.status_code, 200)
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].id, faith_sermon_good.id)
+
+    def test_empty_search_returns_all(self):
+        """Empty search query returns all entries."""
+        entry1 = CaptureEntry.objects.create(
+            user=self.user,
+            title='Entry 1',
+            status=CaptureEntry.STATUS_READY,
+        )
+        entry2 = CaptureEntry.objects.create(
+            user=self.user,
+            title='Entry 2',
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        response = self.client.get(reverse('capture:list') + '?q=')
+        self.assertEqual(response.status_code, 200)
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 2)
+
+    def test_no_results_shows_message(self):
+        """List view shows appropriate message when no results match filter."""
+        CaptureEntry.objects.create(
+            user=self.user,
+            title='Faith Recording',
+            category=CaptureEntry.CATEGORY_FAITH,
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        # Search for something that doesn't exist
+        response = self.client.get(reverse('capture:list') + '?q=nonexistent')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No matching recordings')
+        self.assertContains(response, 'Clear Filters')
+
+    def test_filter_context_variables(self):
+        """List view context includes filter-related variables."""
+        response = self.client.get(reverse('capture:list') + '?category=faith&q=test')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['active_category'], 'faith')
+        self.assertEqual(response.context['search_query'], 'test')
+        self.assertIn('categories', response.context)
+        self.assertIn('filtered_count', response.context)
+
+    def test_filter_categories_available(self):
+        """List view context includes category choices for dropdown."""
+        response = self.client.get(reverse('capture:list'))
+        self.assertEqual(response.status_code, 200)
+        categories = response.context['categories']
+        self.assertIn((CaptureEntry.CATEGORY_FAITH, 'Faith'), categories)
+        self.assertIn((CaptureEntry.CATEGORY_ORGANIZE, 'Organize'), categories)
+
+    def test_filter_invalid_category_ignored(self):
+        """Invalid category filter is effectively ignored (returns no results for that category)."""
+        CaptureEntry.objects.create(
+            user=self.user,
+            title='Valid Entry',
+            category=CaptureEntry.CATEGORY_FAITH,
+            status=CaptureEntry.STATUS_READY,
+        )
+
+        response = self.client.get(reverse('capture:list') + '?category=invalid')
+        self.assertEqual(response.status_code, 200)
+        entries = list(response.context['entries'])
+        self.assertEqual(len(entries), 0)
+
+    def test_filters_preserved_in_pagination(self):
+        """Filter parameters preserved in pagination context."""
+        # Create enough entries for pagination
+        for i in range(25):
+            CaptureEntry.objects.create(
+                user=self.user,
+                title=f'Faith Entry {i}',
+                category=CaptureEntry.CATEGORY_FAITH,
+                status=CaptureEntry.STATUS_READY,
+            )
+
+        response = self.client.get(reverse('capture:list') + '?category=faith&q=Entry')
+        self.assertEqual(response.status_code, 200)
+        # Verify filter values are in context for pagination links
+        self.assertEqual(response.context['active_category'], 'faith')
+        self.assertEqual(response.context['search_query'], 'Entry')
+
 
 class CaptureRecordViewTests(TestCase):
     """Tests for CaptureRecordView."""

@@ -8,6 +8,7 @@ import uuid
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
 from django.http import JsonResponse
 from django.urls import reverse
 from django.utils import timezone
@@ -272,6 +273,7 @@ class CaptureListView(LoginRequiredMixin, ListView):
     List all capture entries for the current user.
 
     Shows recordings, transcripts, and summaries ordered by most recent first.
+    Supports filtering by category and searching by title.
     """
 
     model = CaptureEntry
@@ -280,10 +282,30 @@ class CaptureListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        """Filter entries to current user, ordered by creation date."""
-        return CaptureEntry.objects.filter(
+        """Filter entries to current user with optional category and search filters."""
+        queryset = CaptureEntry.objects.filter(
             user=self.request.user
-        ).order_by('-created_at')
+        )
+
+        # Filter by category
+        category = self.request.GET.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+
+        # Filter by subcategory
+        subcategory = self.request.GET.get('subcategory')
+        if subcategory:
+            queryset = queryset.filter(subcategory=subcategory)
+
+        # Search by title and summary
+        search = self.request.GET.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search) |
+                Q(summary__icontains=search)
+            )
+
+        return queryset.order_by('-created_at')
 
     def get_context_data(self, **kwargs):
         """Add additional context for the template."""
@@ -294,6 +316,33 @@ class CaptureListView(LoginRequiredMixin, ListView):
             status=CaptureEntry.STATUS_READY
         ).count()
         context['now'] = timezone.now()
+
+        # Category choices for filter dropdown
+        context['categories'] = CaptureEntry.CATEGORY_CHOICES
+        context['subcategories'] = CaptureEntry.SUBCATEGORY_CHOICES
+
+        # Map of category to valid subcategories (for JavaScript)
+        context['category_subcategories'] = {
+            CaptureEntry.CATEGORY_FAITH: [
+                (CaptureEntry.SUBCATEGORY_SERMON, 'Sermon'),
+                (CaptureEntry.SUBCATEGORY_BIBLE_STUDY, 'Bible Study'),
+                (CaptureEntry.SUBCATEGORY_DEVOTIONAL, 'Devotional'),
+            ],
+            CaptureEntry.CATEGORY_ORGANIZE: [
+                (CaptureEntry.SUBCATEGORY_MEETING, 'Meeting'),
+                (CaptureEntry.SUBCATEGORY_NOTES, 'Notes'),
+                (CaptureEntry.SUBCATEGORY_PERSONAL, 'Personal'),
+            ],
+        }
+
+        # Current filter values for showing active state
+        context['active_category'] = self.request.GET.get('category', '')
+        context['active_subcategory'] = self.request.GET.get('subcategory', '')
+        context['search_query'] = self.request.GET.get('q', '')
+
+        # Count of filtered results
+        context['filtered_count'] = self.get_queryset().count()
+
         return context
 
 

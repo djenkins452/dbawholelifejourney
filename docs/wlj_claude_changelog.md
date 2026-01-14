@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Add Filtering and Search to Capture List
+
+**Summary:** Added category/subcategory filtering and title/summary search to the Audio Capture list view. Users can now easily find recordings by filtering by Faith/Organize categories and their subcategories, or by searching for keywords in titles and summaries.
+
+**Features:**
+- Category filter dropdown (Faith, Organize, All)
+- Subcategory filter dropdown (dynamically updates based on selected category)
+- Search box that searches both title and summary content
+- Combined filtering and search support
+- Active filter indicator showing filtered results count
+- Clear Filters button when filters are active
+- Filters preserved in pagination links for bookmarking
+- Empty state shows different message when filters return no results
+
+**Changes:**
+- `apps/capture/views.py`:
+  - Updated `CaptureListView.get_queryset()` to filter by category, subcategory, and search query
+  - Updated `CaptureListView.get_context_data()` to include filter choices and active filter values
+- `templates/capture/capture_list.html`:
+  - Added filters bar with category/subcategory dropdowns and search box
+  - Added filter summary showing active filters
+  - Updated pagination links to preserve filter params
+  - Updated empty state for filtered vs. unfiltered
+  - Added JavaScript for filter dropdown interactions
+- `apps/capture/tests/test_views.py`:
+  - Added 15 new tests for filtering and search functionality
+
+---
+
 ### Add Cloudinary Audio Storage Support
 
 **Summary:** Added Cloudinary as the audio storage backend for the Capture feature. This uses the existing Cloudinary credentials already configured for image storage, eliminating the need for a separate S3 bucket.

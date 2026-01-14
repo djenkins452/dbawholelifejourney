@@ -25,6 +25,48 @@
         </div>
     </div>
 
+    <!-- Filters -->
+    <div class="filters-bar mb-4" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+        <select id="category-filter" class="form-select form-select-sm" style="min-width: 150px;">
+            <option value="">All Categories</option>
+            {% for value, label in categories %}
+            <option value="{{ value }}" {% if active_category == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select id="subcategory-filter" class="form-select form-select-sm" style="min-width: 150px;">
+            <option value="">All Subcategories</option>
+            {% for value, label in subcategories %}
+            <option value="{{ value }}" {% if active_subcategory == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <form method="get" id="search-form" class="search-form" style="flex: 1; min-width: 200px; max-width: 300px;">
+            <!-- Preserve category and subcategory filters when searching -->
+            <input type="hidden" name="category" id="search-category-hidden" value="{{ active_category }}">
+            <input type="hidden" name="subcategory" id="search-subcategory-hidden" value="{{ active_subcategory }}">
+            <input type="text" name="q" value="{{ search_query }}"
+                   placeholder="Search title or summary..."
+                   class="form-input form-input-sm"
+                   style="width: 100%;">
+        </form>
+
+        {% if active_category or active_subcategory or search_query %}
+        <a href="{% url 'capture:list' %}" class="btn btn-ghost btn-sm" style="color: var(--color-text-secondary);">
+            Clear Filters
+        </a>
+        {% endif %}
+    </div>
+
+    {% if active_category or active_subcategory or search_query %}
+    <div class="filter-summary mb-4" style="font-size: 0.875rem; color: var(--color-text-secondary);">
+        Showing {{ filtered_count }} result{{ filtered_count|pluralize }}
+        {% if search_query %}for "{{ search_query }}"{% endif %}
+        {% if active_category %}in {{ active_category|title }}{% endif %}
+        {% if active_subcategory %}({{ active_subcategory|title }}){% endif %}
+    </div>
+    {% endif %}
+
     {% if entries %}
     <!-- Entries List -->
     <div class="card" style="overflow-x: auto;">
@@ -130,8 +172,8 @@
     {% if is_paginated %}
     <div class="pagination-container" style="display: flex; justify-content: center; margin-top: 2rem; gap: 0.5rem;">
         {% if page_obj.has_previous %}
-        <a href="?page=1" class="btn btn-ghost btn-sm">&laquo; First</a>
-        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">Previous</a>
+        <a href="?page=1{% if active_category %}&category={{ active_category }}{% endif %}{% if active_subcategory %}&subcategory={{ active_subcategory }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn btn-ghost btn-sm">&laquo; First</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if active_subcategory %}&subcategory={{ active_subcategory }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn btn-ghost btn-sm">Previous</a>
         {% endif %}
 
         <span class="btn btn-secondary btn-sm" style="cursor: default;">
@@ -139,8 +181,8 @@
         </span>
 
         {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}" class="btn btn-ghost btn-sm">Last &raquo;</a>
+        <a href="?page={{ page_obj.next_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if active_subcategory %}&subcategory={{ active_subcategory }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn btn-ghost btn-sm">Next</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if active_category %}&category={{ active_category }}{% endif %}{% if active_subcategory %}&subcategory={{ active_subcategory }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn btn-ghost btn-sm">Last &raquo;</a>
         {% endif %}
     </div>
     {% endif %}
@@ -186,6 +228,18 @@
     {% else %}
     <!-- Empty State -->
     <div class="card" style="text-align: center; padding: 4rem 2rem;">
+        {% if active_category or active_subcategory or search_query %}
+        <!-- No results with filters -->
+        <div style="font-size: 4rem; margin-bottom: 1.5rem;">&#128269;</div>
+        <h2 style="margin-bottom: 0.75rem; font-size: 1.5rem;">No matching recordings</h2>
+        <p style="color: var(--color-text-secondary); margin-bottom: 2rem; max-width: 400px; margin-left: auto; margin-right: auto;">
+            No recordings match your current filters. Try adjusting your search or category filter.
+        </p>
+        <a href="{% url 'capture:list' %}" class="btn btn-secondary">
+            Clear Filters
+        </a>
+        {% else %}
+        <!-- No recordings at all -->
         <div style="font-size: 4rem; margin-bottom: 1.5rem;">&#127908;</div>
         <h2 style="margin-bottom: 0.75rem; font-size: 1.5rem;">No recordings yet</h2>
         <p style="color: var(--color-text-secondary); margin-bottom: 2rem; max-width: 400px; margin-left: auto; margin-right: auto;">
@@ -199,6 +253,7 @@
                 Record Audio
             </a>
         </div>
+        {% endif %}
     </div>
     {% endif %}
 </div>
@@ -508,6 +563,91 @@
         }
         if (audioModalClose) {
             audioModalClose.addEventListener('click', closeAudioModal);
+        }
+
+        // Category/Subcategory filter dropdowns
+        const categoryFilter = document.getElementById('category-filter');
+        const subcategoryFilter = document.getElementById('subcategory-filter');
+        const searchCategoryHidden = document.getElementById('search-category-hidden');
+        const searchSubcategoryHidden = document.getElementById('search-subcategory-hidden');
+
+        // Subcategory mapping
+        const categorySubcategories = {
+            'faith': [
+                { value: 'sermon', label: 'Sermon' },
+                { value: 'bible_study', label: 'Bible Study' },
+                { value: 'devotional', label: 'Devotional' }
+            ],
+            'organize': [
+                { value: 'meeting', label: 'Meeting' },
+                { value: 'notes', label: 'Notes' },
+                { value: 'personal', label: 'Personal' }
+            ]
+        };
+
+        function buildFilterUrl(category, subcategory, search) {
+            const params = new URLSearchParams();
+            if (category) params.set('category', category);
+            if (subcategory) params.set('subcategory', subcategory);
+            if (search) params.set('q', search);
+            const queryString = params.toString();
+            return queryString ? '?' + queryString : '{% url "capture:list" %}';
+        }
+
+        function updateSubcategoryOptions(category) {
+            const currentSubcategory = subcategoryFilter.value;
+            subcategoryFilter.innerHTML = '<option value="">All Subcategories</option>';
+
+            if (category && categorySubcategories[category]) {
+                categorySubcategories[category].forEach(function(sub) {
+                    const option = document.createElement('option');
+                    option.value = sub.value;
+                    option.textContent = sub.label;
+                    if (sub.value === currentSubcategory) {
+                        option.selected = true;
+                    }
+                    subcategoryFilter.appendChild(option);
+                });
+            }
+        }
+
+        if (categoryFilter) {
+            categoryFilter.addEventListener('change', function() {
+                const category = this.value;
+                const search = '{{ search_query|escapejs }}';
+
+                // Update subcategory options
+                updateSubcategoryOptions(category);
+
+                // Clear subcategory if category changed
+                const newUrl = buildFilterUrl(category, '', search);
+                location.href = newUrl;
+            });
+        }
+
+        if (subcategoryFilter) {
+            subcategoryFilter.addEventListener('change', function() {
+                const category = categoryFilter ? categoryFilter.value : '';
+                const subcategory = this.value;
+                const search = '{{ search_query|escapejs }}';
+                const newUrl = buildFilterUrl(category, subcategory, search);
+                location.href = newUrl;
+            });
+
+            // Initialize subcategory options based on current category
+            const currentCategory = '{{ active_category|escapejs }}';
+            if (currentCategory) {
+                updateSubcategoryOptions(currentCategory);
+                subcategoryFilter.value = '{{ active_subcategory|escapejs }}';
+            }
+        }
+
+        // Update hidden fields in search form when filters change
+        if (searchCategoryHidden && categoryFilter) {
+            searchCategoryHidden.value = categoryFilter.value;
+        }
+        if (searchSubcategoryHidden && subcategoryFilter) {
+            searchSubcategoryHidden.value = subcategoryFilter.value;
         }
     });
 </script>

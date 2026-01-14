@@ -96,6 +96,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["health_enabled"] = prefs.health_enabled
             context["life_enabled"] = prefs.life_enabled
             context["purpose_enabled"] = prefs.purpose_enabled
+            context["capture_enabled"] = prefs.capture_enabled
 
             # AI Profile nudge - shown when AI is enabled but profile is empty/short
             context["show_ai_profile_nudge"] = self._should_show_ai_profile_nudge(prefs)
@@ -178,6 +179,10 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         # Scan data (if AI enabled - scan requires AI)
         if prefs.ai_enabled:
             data.update(self._get_scan_data(user, today, week_ago))
+
+        # Capture data
+        if prefs.capture_enabled:
+            data.update(self._get_capture_data(user))
 
         return data
     
@@ -511,6 +516,18 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "ai_camera_entries": ai_camera_entries,
             "ai_camera_medicines": ai_camera_medicines,
             "ai_camera_workouts": ai_camera_workouts,
+        }
+
+    def _get_capture_data(self, user):
+        """Get capture-related data."""
+        from apps.capture.models import CaptureEntry
+
+        entries = CaptureEntry.objects.filter(user=user)
+        ready_entries = entries.filter(status=CaptureEntry.STATUS_READY)
+
+        return {
+            "capture_count": entries.count(),
+            "capture_ready_count": ready_entries.count(),
         }
 
     def _sync_google_calendar_if_needed(self, user):

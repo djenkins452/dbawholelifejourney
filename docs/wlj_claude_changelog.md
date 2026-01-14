@@ -40,6 +40,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: Capture Navigation Integration (Task #245)
+
+**Summary:** Added Capture module to main navigation and dashboard with microphone icon.
+
+**Files Modified:**
+- `templates/components/navigation.html` - Added Capture link with microphone SVG icon
+- `templates/dashboard/home.html` - Added "Record Audio" quick action and Capture module card
+- `apps/core/context_processors.py` - Added `capture_enabled` context variable
+- `apps/dashboard/views.py` - Added `capture_enabled` flag and `_get_capture_data()` method
+- `apps/users/models.py` - Added `capture_enabled` BooleanField (default=True)
+- `apps/capture/tests/test_views.py` - Added 5 navigation tests (44 total)
+
+**Files Created:**
+- `apps/users/migrations/0035_capture_enabled.py` - Migration for capture_enabled field
+
+**Features:**
+- Capture navigation link with microphone icon (conditionally shown when capture_enabled)
+- "Record Audio" quick action card on dashboard
+- Capture module card in "Your Modules" section showing recording count
+- Context processor provides `capture_enabled` flag from user preferences
+- Mobile-responsive layout (follows existing navigation patterns)
+
+**Verification:** 44 capture tests pass, 12 dashboard tests pass.
+
+---
+
 ### New: File Upload UI with Validation (Task #244)
 
 **Summary:** Created file upload interface with client and server-side validation for audio files.

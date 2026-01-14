@@ -282,6 +282,12 @@ class UserPreferences(models.Model):
         help_text="Enable Habits module for building and tracking daily habits",
     )
 
+    # Capture Module
+    capture_enabled = models.BooleanField(
+        default=True,
+        help_text="Enable Capture module for audio recording and transcription",
+    )
+
     # ===================
     # SUB-FEATURE TOGGLES
     # ===================

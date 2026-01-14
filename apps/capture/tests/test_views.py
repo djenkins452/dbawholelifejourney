@@ -523,3 +523,79 @@ class CaptureUploadViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn('too large', response.json().get('error', ''))
+
+
+class CaptureNavigationTests(TestCase):
+    """Tests for Capture navigation presence in nav and dashboard."""
+
+    def setUp(self):
+        """Set up test user and client."""
+        self.client = Client()
+        self.user = self._create_user()
+        self.client.login(email='testuser@example.com', password='testpass123')
+
+    def _create_user(self, email='testuser@example.com', password='testpass123'):
+        """Create a test user with terms accepted and onboarding completed."""
+        user = User.objects.create_user(email=email, password=password)
+        self._accept_terms(user)
+        self._complete_onboarding(user)
+        return user
+
+    def _accept_terms(self, user):
+        """Accept terms of service for user."""
+        try:
+            from apps.users.models import TermsAcceptance
+            TermsAcceptance.objects.create(
+                user=user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+            )
+        except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
+    def test_capture_in_navigation_when_enabled(self):
+        """Capture link appears in navigation when capture is enabled."""
+        self.user.preferences.capture_enabled = True
+        self.user.preferences.save()
+
+        response = self.client.get(reverse('dashboard:home'))
+        self.assertContains(response, 'Capture')
+        self.assertContains(response, reverse('capture:list'))
+
+    def test_capture_not_in_navigation_when_disabled(self):
+        """Capture link not in navigation when capture is disabled."""
+        self.user.preferences.capture_enabled = False
+        self.user.preferences.save()
+
+        response = self.client.get(reverse('dashboard:home'))
+        self.assertNotContains(response, reverse('capture:list'))
+
+    def test_capture_quick_action_when_enabled(self):
+        """Record Audio quick action appears on dashboard when capture is enabled."""
+        self.user.preferences.capture_enabled = True
+        self.user.preferences.save()
+
+        response = self.client.get(reverse('dashboard:home'))
+        self.assertContains(response, 'Record Audio')
+        self.assertContains(response, reverse('capture:record'))
+
+    def test_capture_quick_action_not_when_disabled(self):
+        """Record Audio quick action not shown when capture is disabled."""
+        self.user.preferences.capture_enabled = False
+        self.user.preferences.save()
+
+        response = self.client.get(reverse('dashboard:home'))
+        self.assertNotContains(response, reverse('capture:record'))
+
+    def test_capture_module_card_when_enabled(self):
+        """Capture module card appears on dashboard when capture is enabled."""
+        self.user.preferences.capture_enabled = True
+        self.user.preferences.save()
+
+        response = self.client.get(reverse('dashboard:home'))
+        # Check for the module card with recording count
+        self.assertContains(response, '0 recordings')

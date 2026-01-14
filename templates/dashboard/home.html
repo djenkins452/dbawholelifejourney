@@ -369,6 +369,13 @@
                 <span class="action-label">Scan Item</span>
             </button>
             {% endif %}
+
+            {% if capture_enabled %}
+            <a href="{% url 'capture:record' %}" class="quick-action-card">
+                <span class="action-icon">🎙️</span>
+                <span class="action-label">Record Audio</span>
+            </a>
+            {% endif %}
         </div>
     </section>
     
@@ -450,6 +457,19 @@
                 <div class="module-info">
                     <h3>Goals</h3>
                     <p>{% if user_data.annual_direction %}{{ user_data.word_of_year|default:"Direction set" }}{% else %}Set your direction{% endif %}</p>
+                </div>
+                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </a>
+            {% endif %}
+
+            {% if capture_enabled %}
+            <a href="{% url 'capture:list' %}" class="module-nav-card">
+                <div class="module-icon">🎙️</div>
+                <div class="module-info">
+                    <h3>Capture</h3>
+                    <p>{{ user_data.capture_count|default:0 }} recording{{ user_data.capture_count|default:0|pluralize }}</p>
                 </div>
                 <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 18l6-6-6-6"/>

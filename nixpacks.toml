@@ -1,6 +1,10 @@
 # Nixpacks configuration for Railway deployment
-# WeasyPrint system dependencies are handled via NIXPACKS_PKGS env var in Railway
-# See: https://station.railway.com/questions/cant-install-weasyprint-dependencies-d742101d
+# See: https://nixpacks.com/docs/guides/configuring-builds
+
+[phases.setup]
+# WeasyPrint dependencies - use aptPkgs for Debian package names
+# The "..." extends default packages instead of overriding them
+aptPkgs = ["...", "libgobject-2.0-0", "libcairo2", "libpango-1.0-0", "libgdk-pixbuf2.0-0", "libffi-dev"]
 
 [start]
 cmd = "python manage.py migrate --noinput && python manage.py load_initial_data && python manage.py sync_workout_to_templates && python manage.py recalculate_task_priorities && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file -"

@@ -44,8 +44,8 @@ class RenderSummaryFilterTests(TestCase):
         self.assertIn('<p class="summary-paragraph">', result)
 
     def test_real_summary_format(self):
-        """Test with realistic BLUF summary format."""
-        markdown = """## BLUF (Bottom Line Up Front)
+        """Test with realistic summary format."""
+        markdown = """## Overview
 The speaker discusses workforce strategy alignment.
 
 ## Key Points
@@ -59,7 +59,7 @@ No specific action items identified."""
         result = render_summary(markdown)
 
         # Check headers
-        self.assertIn('BLUF (Bottom Line Up Front)', result)
+        self.assertIn('Overview', result)
         self.assertIn('Key Points', result)
         self.assertIn('Action Items', result)
 

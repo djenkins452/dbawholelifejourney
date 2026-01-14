@@ -1,9 +1,10 @@
 """
-Summarization service using OpenAI API for BLUF-format summaries.
+Summarization service using OpenAI API for structured summaries.
 
 This service handles transcript summarization for the Capture feature, creating
-structured summaries with the following sections:
-- BLUF (Bottom Line Up Front)
+structured summaries using BLUF methodology (bottom line up front) with the
+following sections:
+- Overview (executive summary)
 - Key Points
 - Scripture References (if applicable)
 - Action Items
@@ -29,7 +30,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# BLUF summarization prompt template
+# Summarization prompt template (uses BLUF methodology with clean output headers)
 BLUF_SYSTEM_PROMPT = """You are an expert summarizer that creates structured, actionable summaries from transcripts.
 
 Your task is to analyze the provided transcript and create a well-organized summary in markdown format.
@@ -38,8 +39,8 @@ Your task is to analyze the provided transcript and create a well-organized summ
 
 Create a summary with the following sections (use ## for section headers):
 
-## BLUF (Bottom Line Up Front)
-A 2-3 sentence executive summary capturing the core message or main takeaway.
+## Overview
+A 2-3 sentence executive summary capturing the core message or main takeaway. Put the most important conclusion first.
 
 ## Key Points
 - 3-5 bullet points highlighting the most important ideas
@@ -75,7 +76,7 @@ A more comprehensive summary (3-5 paragraphs) covering:
 - Do not add information not present in the transcript
 """
 
-BLUF_USER_PROMPT_TEMPLATE = """Please summarize the following transcript into a structured BLUF-format summary:
+BLUF_USER_PROMPT_TEMPLATE = """Please summarize the following transcript into a structured summary:
 
 ---
 TRANSCRIPT:

@@ -331,12 +331,12 @@ class SummarizationServiceNotAvailableTests(TestCase):
 
 
 class BLUFPromptTests(TestCase):
-    """Tests for BLUF prompt configuration."""
+    """Tests for prompt configuration (uses BLUF methodology)."""
 
     def test_bluf_system_prompt_has_required_sections(self):
-        """Test that BLUF system prompt includes all required sections."""
+        """Test that system prompt includes all required sections."""
         required_sections = [
-            'BLUF',
+            'Overview',  # Executive summary (BLUF methodology)
             'Key Points',
             'Scripture References',
             'Action Items',

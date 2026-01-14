@@ -16,108 +16,53 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
-### Add Filtering and Search to Capture List
+### Error Handling and Retry UI for Capture (Task 262)
 
-**Summary:** Added category/subcategory filtering and title/summary search to the Audio Capture list view. Users can now easily find recordings by filtering by Faith/Organize categories and their subcategories, or by searching for keywords in titles and summaries.
+**Summary:** Implemented user-friendly error states and retry functionality for the Capture feature.
 
-**Features:**
-- Category filter dropdown (Faith, Organize, All)
-- Subcategory filter dropdown (dynamically updates based on selected category)
-- Search box that searches both title and summary content
-- Combined filtering and search support
-- Active filter indicator showing filtered results count
-- Clear Filters button when filters are active
-- Filters preserved in pagination links for bookmarking
-- Empty state shows different message when filters return no results
+**Error Handling:**
+- Added error type detection on CaptureEntry model (mic denied, upload failed, transcription failed, summarization failed, timeout, unknown)
+- Created user-friendly error messages with helpful suggestions for each error type
+- Updated detail page to show specific error titles and suggestions instead of generic "Processing Failed"
+- Added error styling with distinct visual treatment for failed entries
 
-**Changes:**
-- `apps/capture/views.py`:
-  - Updated `CaptureListView.get_queryset()` to filter by category, subcategory, and search query
-  - Updated `CaptureListView.get_context_data()` to include filter choices and active filter values
-- `templates/capture/capture_list.html`:
-  - Added filters bar with category/subcategory dropdowns and search box
-  - Added filter summary showing active filters
-  - Updated pagination links to preserve filter params
-  - Updated empty state for filtered vs. unfiltered
-  - Added JavaScript for filter dropdown interactions
-- `apps/capture/tests/test_views.py`:
-  - Added 15 new tests for filtering and search functionality
+**Retry Functionality:**
+- Added `CaptureRetryView` endpoint to re-trigger processing for failed entries
+- Retry button only shown for retryable errors (upload, transcription, summarization failures)
+- Non-retryable errors (mic denied, timeout) show appropriate messaging
+- JavaScript handles retry polling and page reload on success
 
----
+**Email Notification:**
+- Added `send_processing_complete_email` function for delayed processing completion
+- Created email template `templates/capture/email/processing_complete.html`
+- Added `completion_email_sent_at` field to track notification status
+- Email automatically sent when retried processing completes
 
-### Add Cloudinary Audio Storage Support
-
-**Summary:** Added Cloudinary as the audio storage backend for the Capture feature. This uses the existing Cloudinary credentials already configured for image storage, eliminating the need for a separate S3 bucket.
-
-**How it works:**
-1. When recording/uploading audio, the frontend sends audio to the server
-2. Server uploads to Cloudinary using the video resource type (handles audio)
-3. Cloudinary returns a permanent URL for playback
-4. Audio files are tagged for 7-day retention tracking
-
-**Changes:**
-- Created `apps/capture/cloudinary_storage.py` - Cloudinary upload/delete functions
-- Updated `apps/capture/views.py` - Added `CaptureCloudinaryUploadView`, modified submit flow to detect Cloudinary
-- Updated `apps/capture/urls.py` - Added cloudinary-upload endpoint
-- Updated `templates/capture/capture_record.html` - Handle Cloudinary upload mode
-- Updated `templates/capture/capture_upload.html` - Handle Cloudinary upload mode
-
-**Storage Priority:**
-1. Cloudinary (if configured) - uses existing credentials
-2. S3 (if configured) - requires separate bucket setup
-3. Mock mode (no storage) - for development only
-
----
-
-### Add Play/Download Actions to Capture List
-
-**Summary:** Added action buttons to the Audio Capture list view so users can play and download audio directly without navigating to the detail page.
-
-**Changes:**
-- Added play button (opens modal with audio player)
-- Added download button (direct download link)
-- Existing delete button remains
-
----
-
-### Fix Action Icons Layout in Capture List
-
-**Summary:** Made the action icons (play, download, delete) more compact and visually appealing in the capture list table.
-
-**Changes:**
-- Reduced column width from 120px to 80px
-- Made icons smaller (0.875rem font-size) with tighter padding
-- Added subtle hover backgrounds with appropriate colors per action type
-- Icons now fit cleanly in a single row within the table cell
-
-**File modified:** `templates/capture/capture_list.html`
-- Actions only show for entries with audio files (ready status)
-- Audio modal auto-plays on open, pauses on close
+**Tests Added:**
+- `test_error_handling.py` - 29 tests covering:
+  - Error type detection (7 tests)
+  - User-friendly error messages (4 tests)
+  - Retry eligibility (4 tests)
+  - Retry view functionality (6 tests)
+  - Detail page error display (4 tests)
+  - Processing complete email (3 tests)
+  - Status API error response (1 test)
 
 **Files Modified:**
-- `templates/capture/capture_list.html` - Added action buttons, audio modal, and JavaScript
+- `apps/capture/models.py` - Added error type constants, methods, and completion_email_sent_at field
+- `apps/capture/views.py` - Added CaptureRetryView, error_info in context
+- `apps/capture/urls.py` - Added retry endpoint
+- `apps/capture/tasks.py` - Integrated completion email notification
+- `apps/capture/services/email.py` - Added send_processing_complete_email
+- `templates/capture/capture_detail.html` - Enhanced error UI and retry button
+- `apps/capture/tests/test_email.py` - Updated tests for docx (was PDF)
+- `apps/capture/tests/test_integration.py` - Updated expected error messages
+- `apps/capture/tests/test_pdf.py` - Updated tests for docx (was PDF)
 
----
-
-### Fix Audio Expiration Display Bug
-
-**Summary:** Fixed bug where audio recordings showed "Audio expired" immediately after creation because the template was checking for empty `audio_file_url` instead of the actual `audio_expires_at` date. This affected recordings created in mock mode (when S3 is not configured) where the audio file URL is not populated.
-
-**Root Cause:**
-- Templates checked `{% if not entry.audio_file_url %}` to show "Audio expired"
-- In mock mode, `audio_file_url` is never set even though `audio_expires_at` is correctly set to 7 days in the future
-- Result: All mock mode entries showed "Audio expired" immediately
-
-**Fix:**
-- `capture_list.html`: Changed to check `{% if entry.audio_expires_at and entry.audio_expires_at < now %}`
-- `capture_detail.html`: Changed to check `days_remaining` (can be negative for expired)
-- `views.py` (CaptureListView): Added `now` to context for date comparison
-- `views.py` (CaptureDetailView): Removed `max(0, days_remaining)` so negative values indicate expiration
-
-**Files Modified:**
-- `templates/capture/capture_list.html` - Use date comparison instead of URL check
-- `templates/capture/capture_detail.html` - Use days_remaining < 0 for expiration
-- `apps/capture/views.py` - Add `now` context, allow negative days_remaining
+**Files Created:**
+- `apps/capture/migrations/0003_add_completion_email_sent_at.py`
+- `apps/capture/tests/test_error_handling.py`
+- `templates/capture/email/processing_complete.html`
 
 ---
 

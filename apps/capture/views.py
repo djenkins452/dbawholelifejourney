@@ -384,6 +384,10 @@ class CaptureDetailView(LoginRequiredMixin, DetailView):
         else:
             context['formatted_duration'] = None
 
+        # Add error info for failed entries
+        if entry.status == CaptureEntry.STATUS_FAILED:
+            context['error_info'] = entry.get_user_friendly_error()
+
         return context
 
 
@@ -1037,6 +1041,67 @@ class CaptureEmailView(LoginRequiredMixin, View):
                 'success': False,
                 'error': result.get('error', 'Failed to send email')
             }, status=400)
+
+
+class CaptureRetryView(LoginRequiredMixin, View):
+    """
+    Retry processing a failed capture entry.
+
+    Re-triggers the process_capture_entry task for entries that failed
+    during transcription or summarization. Only works for failed entries
+    that have retryable errors.
+    """
+
+    def post(self, request, pk):
+        """Retry processing the capture entry."""
+        from .tasks import process_capture_entry
+
+        try:
+            entry = CaptureEntry.objects.get(id=pk, user=request.user)
+        except CaptureEntry.DoesNotExist:
+            return JsonResponse({'error': 'Entry not found'}, status=404)
+
+        # Verify entry is failed and can be retried
+        if entry.status != CaptureEntry.STATUS_FAILED:
+            return JsonResponse({
+                'error': 'Only failed entries can be retried'
+            }, status=400)
+
+        if not entry.can_retry():
+            return JsonResponse({
+                'error': 'This entry cannot be retried. Please try uploading a new recording.'
+            }, status=400)
+
+        # Reset status to transcribing for retry
+        entry.status = CaptureEntry.STATUS_TRANSCRIBING
+        entry.error_message = ''
+        entry.save(update_fields=['status', 'error_message', 'updated_at'])
+
+        logger.info(f"Retrying capture entry {entry.id} for user {request.user.email}")
+
+        # Trigger async processing in a background thread
+        import threading
+
+        def run_processing():
+            try:
+                result = process_capture_entry(str(entry.id))
+                if result['success']:
+                    logger.info(f"Retry for entry {entry.id} completed successfully")
+                else:
+                    logger.warning(f"Retry for entry {entry.id} failed: {result.get('message')}")
+            except Exception as e:
+                logger.exception(f"Retry thread error for entry {entry.id}: {e}")
+
+        thread = threading.Thread(target=run_processing, daemon=True)
+        thread.start()
+
+        return JsonResponse({
+            'success': True,
+            'entry_id': str(entry.id),
+            'status': entry.status,
+            'message': 'Processing started. Please wait...',
+            'poll_url': reverse('capture:status', kwargs={'entry_id': entry.id}),
+        })
 
 
 class CaptureDeleteView(LoginRequiredMixin, View):

@@ -300,8 +300,10 @@ class CaptureFailureFlowTests(TestCase):
             reverse('capture:detail', kwargs={'pk': entry.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Processing Failed')
-        self.assertContains(response, 'Summarization service unavailable')
+        # Now shows user-friendly error title instead of generic "Processing Failed"
+        self.assertContains(response, 'Summary Generation Failed')
+        # Error message contains helpful suggestion
+        self.assertContains(response, 'Please try again')
 
     def test_failed_entry_can_be_deleted(self):
         """Test that failed entries can be deleted."""
@@ -666,9 +668,9 @@ class CaptureProcessingSimulationTests(TestCase):
         entry.error_message = 'Summarization service timeout'
         entry.save()
 
-        # Verify through detail view
+        # Verify through detail view - now shows user-friendly error title
         response = self.client.get(
             reverse('capture:detail', kwargs={'pk': entry.pk})
         )
-        self.assertContains(response, 'Processing Failed')
-        self.assertContains(response, 'Summarization service timeout')
+        self.assertContains(response, 'Summary Generation Failed')
+        self.assertContains(response, 'Please try again')

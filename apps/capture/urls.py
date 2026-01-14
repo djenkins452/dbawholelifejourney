@@ -12,4 +12,5 @@ urlpatterns = [
     path('upload/', views.CaptureUploadView.as_view(), name='upload'),
     path('submit/', views.CaptureSubmitView.as_view(), name='submit'),
     path('status/<uuid:entry_id>/', views.CaptureStatusView.as_view(), name='status'),
+    path('<uuid:pk>/', views.CaptureDetailView.as_view(), name='detail'),
 ]

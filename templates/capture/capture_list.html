@@ -40,20 +40,22 @@
             </thead>
             <tbody>
                 {% for entry in entries %}
-                <tr>
+                <tr style="cursor: pointer;" onclick="window.location='{% url 'capture:detail' entry.pk %}'">
                     <td>
-                        <div style="font-weight: 500;">
-                            {% if entry.title %}
-                                {{ entry.title }}
-                            {% else %}
-                                <span style="color: var(--color-text-secondary);">Untitled Recording</span>
+                        <a href="{% url 'capture:detail' entry.pk %}" style="text-decoration: none; color: inherit;">
+                            <div style="font-weight: 500;">
+                                {% if entry.title %}
+                                    {{ entry.title }}
+                                {% else %}
+                                    <span style="color: var(--color-text-secondary);">Untitled Recording</span>
+                                {% endif %}
+                            </div>
+                            {% if entry.summary %}
+                            <div style="font-size: 0.75rem; color: var(--color-text-secondary); margin-top: 0.25rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                {{ entry.summary|truncatewords:15 }}
+                            </div>
                             {% endif %}
-                        </div>
-                        {% if entry.summary %}
-                        <div style="font-size: 0.75rem; color: var(--color-text-secondary); margin-top: 0.25rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                            {{ entry.summary|truncatewords:15 }}
-                        </div>
-                        {% endif %}
+                        </a>
                     </td>
                     <td>
                         {% if entry.category %}

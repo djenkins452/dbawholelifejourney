@@ -40,6 +40,41 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: OpenAI Whisper Transcription Service (Task #247)
+
+**Summary:** Implemented transcription service using OpenAI Whisper API with support for large files.
+
+**Files Created:**
+- `apps/capture/services/__init__.py` - Package exports for transcription_service
+- `apps/capture/services/transcription.py` - TranscriptionService class with Whisper integration
+- `apps/capture/tests/test_transcription.py` - 24 comprehensive tests for transcription service
+
+**Implementation Details:**
+- `TranscriptionService` class follows existing AIService pattern (singleton, availability check)
+- `transcribe_audio(capture_entry)` method downloads audio, calls Whisper, updates CaptureEntry
+- Handles Whisper's 25MB file size limit with ffmpeg compression fallback
+- User-friendly error messages for all failure scenarios (timeout, auth, rate limit, etc.)
+- Automatic status transitions: transcribing -> summarizing (on success) or failed (on error)
+- Supports all Whisper audio formats: mp3, wav, webm, m4a, ogg, flac, etc.
+
+**Error Handling:**
+- TranscriptionError exception with separate technical and user-friendly messages
+- Download timeout handling (120s limit)
+- API authentication error detection
+- Rate limit error detection with retry guidance
+- Empty transcript handling (no speech detected)
+- Invalid audio format handling
+
+**Testing:**
+- Service initialization tests (API key present/absent)
+- Successful transcription flow tests
+- Error scenario tests (no URL, timeout, download error, empty transcript)
+- API error tests (rate limit, authentication)
+- Compression tests (large files trigger compression, small files skip)
+- Filename detection from content type and URL
+
+---
+
 ### New: Audio Upload to S3 Implementation (Task #246)
 
 **Summary:** Created backend endpoint and logic to upload recorded/uploaded audio to S3 and create CaptureEntry with proper status workflow.

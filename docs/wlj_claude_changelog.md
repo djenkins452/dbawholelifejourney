@@ -16,6 +16,42 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: Audio Expiration Reminder Emails (Task 257)
+
+**Summary:** Implemented automated email reminders sent 2 days before audio files expire. Users receive a reminder email with a link to download their audio before it's automatically deleted.
+
+**Features:**
+- Daily APScheduler job runs at 08:00 UTC (3:00 AM EST)
+- Queries entries expiring in 1-2 days that haven't received reminders
+- Sends branded HTML email with:
+  - Warning about expiration date
+  - Entry details (title, duration, created date, expires date)
+  - Direct link to download audio
+- Tracks reminder_sent_at to prevent duplicate emails
+- 13 comprehensive tests
+
+**Files Created:**
+- `apps/capture/jobs.py` - APScheduler job function
+- `apps/capture/services/expiration_reminder.py` - Email sending service
+- `templates/capture/email/expiration_reminder.html` - Email template
+- `apps/capture/tests/test_expiration_reminder.py` - Test suite
+- `apps/capture/migrations/0002_add_reminder_sent_at.py` - New field migration
+
+**Files Modified:**
+- `apps/capture/models.py` - Added reminder_sent_at DateTimeField
+- `config/wsgi.py` - Added send_expiration_reminders job to APScheduler
+
+---
+
+### Fix: WeasyPrint PDF Generation on Railway
+
+**Summary:** Added required system dependencies for WeasyPrint PDF generation in nixpacks.toml.
+
+**Files Modified:**
+- `nixpacks.toml` - Added cairo, pango, gdk-pixbuf, fontconfig, freetype nix packages
+
+---
+
 ### New: Delete Recordings from Capture List
 
 **Summary:** Added ability to delete capture recordings directly from the list page with a confirmation modal.

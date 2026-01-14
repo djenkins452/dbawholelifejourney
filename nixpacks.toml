@@ -1,5 +1,10 @@
 # Nixpacks configuration for Railway deployment
 # This file explicitly sets the start command to override any cached values
 
+# System packages required for WeasyPrint PDF generation
+# WeasyPrint needs Cairo, Pango, GDK-PixBuf, and fontconfig for rendering PDFs
+[phases.setup]
+nixPkgs = ["cairo", "pango", "gdk-pixbuf", "fontconfig", "freetype"]
+
 [start]
 cmd = "python manage.py migrate --noinput && python manage.py load_initial_data && python manage.py sync_workout_to_templates && python manage.py recalculate_task_priorities && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file -"

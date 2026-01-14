@@ -127,6 +127,7 @@ INSTALLED_APPS = [
     'apps.ai',
     'apps.help',
     'apps.scan',
+    'apps.capture',
     'apps.sms',
     'apps.finance',
     'apps.billing',

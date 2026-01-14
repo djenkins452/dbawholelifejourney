@@ -1,0 +1,1 @@
+"""Capture app tests."""

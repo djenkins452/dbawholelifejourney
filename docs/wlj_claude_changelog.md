@@ -40,6 +40,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-13 Changes
 
+### New: Capture App Structure (Task #239)
+
+**Summary:** Created the capture Django app with proper app structure for the WLJ Transcribe Recordings feature.
+
+**Files Created:**
+- `apps/capture/__init__.py` - App module init
+- `apps/capture/apps.py` - CaptureConfig app configuration
+- `apps/capture/models.py` - Empty models file (CaptureEntry will be added in next task)
+- `apps/capture/views.py` - Empty views file
+- `apps/capture/urls.py` - URL configuration with app_name='capture'
+- `apps/capture/admin.py` - Admin configuration
+- `apps/capture/forms.py` - Forms module
+- `apps/capture/tests/__init__.py` - Test package
+
+**Files Modified:**
+- `config/settings.py` - Added 'apps.capture' to INSTALLED_APPS
+
+**Verification:** `python manage.py check` passes successfully.
+
+---
+
 ### Fix: OAuth Token Decryption Error - Graceful Error Handling
 
 **Summary:** Fixed crash caused by OAuth token decryption failures by adding safe

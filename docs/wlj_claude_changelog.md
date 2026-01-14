@@ -16,6 +16,34 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: Email Sharing for Capture Entries (Task 255)
+
+**Summary:** Implemented email sharing functionality allowing users to send capture entry summaries as PDF attachments via email. Includes a modal interface on the detail page for entering recipient email and optional personal message.
+
+**Features:**
+- Email service with PDF attachment generation
+- Subject format: "Summary from [User]'s WLJ Capture: [Title]"
+- HTML email template with branded styling
+- Reply-to set to sender's email
+- Modal UI for sharing on capture detail page
+- Recipient email validation
+- Success/error feedback with animations
+- 15 comprehensive tests
+
+**Files Created:**
+- `apps/capture/services/email.py` - Email service with `send_capture_email()` function
+- `templates/capture/email/share_capture.html` - Branded email template
+- `apps/capture/tests/test_email.py` - 15 tests for email service and view
+
+**Files Modified:**
+- `apps/capture/views.py` - Added CaptureEmailView class
+- `apps/capture/urls.py` - Added URL route for email sending
+- `templates/capture/capture_detail.html` - Added Share section with PDF download and Email buttons, modal UI
+
+**URL:** `capture/<uuid:pk>/email/` (POST with JSON body)
+
+---
+
 ### New: PDF Generation for Capture Entries (Task 254)
 
 **Summary:** Implemented PDF download functionality for capture entry summaries with branded WLJ styling, allowing users to download a professional PDF document containing the title, metadata, summary, and full transcript.

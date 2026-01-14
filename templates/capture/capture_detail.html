@@ -150,6 +150,65 @@
     </div>
     {% endif %}
 
+    {% if entry.status == 'ready' %}
+    <!-- Share Actions -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h2 style="margin: 0; font-size: 1rem; font-weight: 600;">Share</h2>
+        </div>
+        <div class="card-body" style="padding: 1rem 1.5rem;">
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <a href="{% url 'capture:download_pdf' entry.pk %}" class="btn btn-secondary">
+                    <span style="margin-right: 0.5rem;">&#128196;</span>
+                    Download PDF
+                </a>
+                <button type="button" id="share-email-btn" class="btn btn-primary">
+                    <span style="margin-right: 0.5rem;">&#9993;</span>
+                    Email Summary
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Email Modal -->
+    <div id="email-modal" class="modal" style="display: none;">
+        <div class="modal-backdrop" id="email-modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600;">Email Summary</h3>
+                <button type="button" id="email-modal-close" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 1rem; color: var(--color-text-secondary); font-size: 0.875rem;">
+                    Send a PDF summary of "{{ entry.title|default:"this recording" }}" to someone via email.
+                </p>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="recipient-email" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                        Recipient Email <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="email" id="recipient-email" placeholder="recipient@example.com" required
+                           style="width: 100%; padding: 0.625rem; border: 1px solid var(--color-border); border-radius: 4px; font-size: 1rem;">
+                </div>
+                <div class="form-group">
+                    <label for="email-message" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                        Personal Message <span style="color: var(--color-text-secondary);">(optional)</span>
+                    </label>
+                    <textarea id="email-message" rows="3" placeholder="Add a personal message..."
+                              style="width: 100%; padding: 0.625rem; border: 1px solid var(--color-border); border-radius: 4px; font-size: 1rem; resize: vertical;"></textarea>
+                </div>
+                <div id="email-feedback" style="display: none; margin-top: 1rem; padding: 0.75rem; border-radius: 4px; font-size: 0.875rem;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="email-cancel-btn" class="btn btn-secondary">Cancel</button>
+                <button type="button" id="email-send-btn" class="btn btn-primary">
+                    <span id="email-send-text">Send Email</span>
+                    <span id="email-send-loading" style="display: none;">Sending...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer with metadata -->
     <div style="padding: 1rem 0; border-top: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: 0.875rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -242,6 +301,86 @@
     }
 
     #title-message.error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fca5a5;
+    }
+
+    /* Modal Styles */
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-backdrop {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-content {
+        position: relative;
+        background: var(--color-bg-primary, #ffffff);
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        width: 90%;
+        max-width: 480px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--color-text-secondary);
+        padding: 0;
+        line-height: 1;
+    }
+
+    .modal-close:hover {
+        color: var(--color-text-primary);
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--color-border);
+        background: var(--color-bg-secondary, #f9fafb);
+    }
+
+    #email-feedback.success {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #86efac;
+    }
+
+    #email-feedback.error {
         background: #fee2e2;
         color: #991b1b;
         border: 1px solid #fca5a5;
@@ -359,6 +498,133 @@
 
         // Initialize character count
         updateCharCount();
+
+        // Email Modal Functionality
+        const shareEmailBtn = document.getElementById('share-email-btn');
+        const emailModal = document.getElementById('email-modal');
+        const emailModalBackdrop = document.getElementById('email-modal-backdrop');
+        const emailModalClose = document.getElementById('email-modal-close');
+        const emailCancelBtn = document.getElementById('email-cancel-btn');
+        const emailSendBtn = document.getElementById('email-send-btn');
+        const recipientEmail = document.getElementById('recipient-email');
+        const emailMessageInput = document.getElementById('email-message');
+        const emailFeedback = document.getElementById('email-feedback');
+        const emailSendText = document.getElementById('email-send-text');
+        const emailSendLoading = document.getElementById('email-send-loading');
+
+        function openEmailModal() {
+            if (emailModal) {
+                emailModal.style.display = 'flex';
+                recipientEmail.focus();
+            }
+        }
+
+        function closeEmailModal() {
+            if (emailModal) {
+                emailModal.style.display = 'none';
+                recipientEmail.value = '';
+                emailMessageInput.value = '';
+                emailFeedback.style.display = 'none';
+            }
+        }
+
+        function showEmailFeedback(message, isSuccess) {
+            emailFeedback.textContent = message;
+            emailFeedback.className = isSuccess ? 'success' : 'error';
+            emailFeedback.style.display = 'block';
+        }
+
+        async function sendEmail() {
+            const email = recipientEmail.value.trim();
+            const message = emailMessageInput.value.trim();
+
+            if (!email) {
+                showEmailFeedback('Please enter a recipient email address.', false);
+                recipientEmail.focus();
+                return;
+            }
+
+            // Basic email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                showEmailFeedback('Please enter a valid email address.', false);
+                recipientEmail.focus();
+                return;
+            }
+
+            // Show loading state
+            emailSendBtn.disabled = true;
+            emailSendText.style.display = 'none';
+            emailSendLoading.style.display = 'inline';
+            emailFeedback.style.display = 'none';
+
+            try {
+                const response = await fetch("{% url 'capture:send_email' entry.pk %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        recipient_email: email,
+                        message: message || null
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showEmailFeedback(data.message || 'Email sent successfully!', true);
+                    // Close modal after success with delay
+                    setTimeout(function() {
+                        closeEmailModal();
+                    }, 2000);
+                } else {
+                    showEmailFeedback(data.error || 'Failed to send email. Please try again.', false);
+                }
+            } catch (error) {
+                console.error('Failed to send email:', error);
+                showEmailFeedback('Failed to send email. Please try again.', false);
+            } finally {
+                emailSendBtn.disabled = false;
+                emailSendText.style.display = 'inline';
+                emailSendLoading.style.display = 'none';
+            }
+        }
+
+        // Event listeners for email modal
+        if (shareEmailBtn) {
+            shareEmailBtn.addEventListener('click', openEmailModal);
+        }
+        if (emailModalBackdrop) {
+            emailModalBackdrop.addEventListener('click', closeEmailModal);
+        }
+        if (emailModalClose) {
+            emailModalClose.addEventListener('click', closeEmailModal);
+        }
+        if (emailCancelBtn) {
+            emailCancelBtn.addEventListener('click', closeEmailModal);
+        }
+        if (emailSendBtn) {
+            emailSendBtn.addEventListener('click', sendEmail);
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && emailModal && emailModal.style.display === 'flex') {
+                closeEmailModal();
+            }
+        });
+
+        // Send on Enter in email field
+        if (recipientEmail) {
+            recipientEmail.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendEmail();
+                }
+            });
+        }
     });
 </script>
 {% endblock %}

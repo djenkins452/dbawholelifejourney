@@ -463,20 +463,16 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    // Remove the row from the table
+                    // Fade out the row then reload to ensure proper layout
                     if (currentRow) {
-                        currentRow.style.transition = 'opacity 0.3s';
+                        currentRow.style.transition = 'opacity 0.2s';
                         currentRow.style.opacity = '0';
-                        setTimeout(function() {
-                            currentRow.remove();
-                            // Check if table is now empty
-                            const tbody = document.querySelector('.data-table tbody');
-                            if (tbody && tbody.children.length === 0) {
-                                window.location.reload();
-                            }
-                        }, 300);
                     }
                     closeDeleteModal();
+                    // Reload the page after a brief delay to show the fade effect
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 200);
                 } else {
                     alert(data.error || 'Failed to delete recording. Please try again.');
                 }

@@ -4,7 +4,9 @@
 # System packages required for WeasyPrint PDF generation
 # WeasyPrint needs Cairo, Pango, GDK-PixBuf, GLib (gobject), and fontconfig for rendering PDFs
 [phases.setup]
-nixPkgs = ["python312", "cairo", "pango", "gdk-pixbuf", "glib", "fontconfig", "freetype", "harfbuzz"]
+# WeasyPrint requires gobject-introspection for libgobject-2.0-0
+# See: https://station.railway.com/questions/error-installing-weasy-print-a30df387
+nixPkgs = ["python312", "cairo", "pango", "gdk-pixbuf", "glib", "gobject-introspection", "fontconfig", "freetype", "harfbuzz", "libffi", "pkg-config", "shared-mime-info"]
 
 [start]
 cmd = "python manage.py migrate --noinput && python manage.py load_initial_data && python manage.py sync_workout_to_templates && python manage.py recalculate_task_priorities && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file -"

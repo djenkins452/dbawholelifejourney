@@ -93,11 +93,10 @@
     {% endif %}
 
     <!-- Audio Player Section -->
-    {% if entry.audio_file_url %}
     <div class="card" style="margin-bottom: 1.5rem;">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <h2 style="margin: 0; font-size: 1rem; font-weight: 600;">Audio Recording</h2>
-            {% if days_remaining is not None %}
+            {% if entry.audio_file_url and days_remaining is not None %}
             <span style="font-size: 0.75rem; color: var(--color-warning, #f59e0b); background: var(--color-warning-bg, #fef3c7); padding: 0.25rem 0.5rem; border-radius: 4px;">
                 {% if days_remaining == 0 %}
                 Expires today
@@ -107,9 +106,14 @@
                 {{ days_remaining }} days remaining
                 {% endif %}
             </span>
+            {% elif not entry.audio_file_url %}
+            <span style="font-size: 0.75rem; color: var(--color-text-secondary); background: var(--color-bg-tertiary, #e5e7eb); padding: 0.25rem 0.5rem; border-radius: 4px;">
+                Audio expired
+            </span>
             {% endif %}
         </div>
         <div class="card-body" style="padding: 1rem 1.5rem;">
+            {% if entry.audio_file_url %}
             <audio controls style="width: 100%; margin-bottom: 1rem;">
                 <source src="{{ entry.audio_file_url }}" type="audio/mpeg">
                 Your browser does not support the audio element.
@@ -119,9 +123,15 @@
                     Download Audio
                 </a>
             </div>
+            {% else %}
+            <div style="text-align: center; padding: 2rem 1rem; color: var(--color-text-secondary);">
+                <div style="font-size: 2rem; margin-bottom: 0.75rem;">&#128266;</div>
+                <p style="margin: 0; font-size: 0.9375rem;">Audio no longer available</p>
+                <p style="margin: 0.5rem 0 0; font-size: 0.8125rem;">Audio files are retained for 7 days after upload.</p>
+            </div>
+            {% endif %}
         </div>
     </div>
-    {% endif %}
 
     <!-- Summary Section -->
     {% if entry.summary %}

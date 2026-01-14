@@ -44,15 +44,15 @@ class CaptureEmailServiceTests(TestCase):
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
 
-    @patch('apps.capture.services.email.generate_pdf')
-    @patch('apps.capture.services.email.get_pdf_filename')
+    @patch('apps.capture.services.email.generate_docx')
+    @patch('apps.capture.services.email.get_docx_filename')
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
-    def test_send_capture_email_success(self, mock_filename, mock_pdf):
-        """send_capture_email successfully sends email with PDF attachment."""
+    def test_send_capture_email_success(self, mock_filename, mock_docx):
+        """send_capture_email successfully sends email with DOCX attachment."""
         from apps.capture.services.email import send_capture_email
 
-        mock_pdf.return_value = b'%PDF-1.4 mock pdf content'
-        mock_filename.return_value = 'Test Entry - WLJ Capture - 2026-01-14.pdf'
+        mock_docx.return_value = b'PK mock docx content'
+        mock_filename.return_value = 'Test Entry - WLJ Capture - 2026-01-14.docx'
 
         entry = CaptureEntry.objects.create(
             user=self.user,
@@ -75,7 +75,7 @@ class CaptureEmailServiceTests(TestCase):
         self.assertIn('Test Entry', sent_email.subject)
         self.assertEqual(sent_email.to, ['recipient@example.com'])
         self.assertEqual(len(sent_email.attachments), 1)
-        self.assertEqual(sent_email.attachments[0][0], 'Test Entry - WLJ Capture - 2026-01-14.pdf')
+        self.assertEqual(sent_email.attachments[0][0], 'Test Entry - WLJ Capture - 2026-01-14.docx')
 
     def test_send_capture_email_invalid_email(self):
         """send_capture_email rejects invalid email addresses."""
@@ -96,12 +96,12 @@ class CaptureEmailServiceTests(TestCase):
         self.assertFalse(result['success'])
         self.assertIn('Invalid email', result['error'])
 
-    @patch('apps.capture.services.email.generate_pdf')
-    def test_send_capture_email_pdf_generation_fails(self, mock_pdf):
-        """send_capture_email handles PDF generation failure."""
+    @patch('apps.capture.services.email.generate_docx')
+    def test_send_capture_email_docx_generation_fails(self, mock_docx):
+        """send_capture_email handles DOCX generation failure."""
         from apps.capture.services.email import send_capture_email
 
-        mock_pdf.side_effect = ImportError('WeasyPrint not installed')
+        mock_docx.side_effect = Exception('Document generation failed')
 
         entry = CaptureEntry.objects.create(
             user=self.user,
@@ -116,17 +116,17 @@ class CaptureEmailServiceTests(TestCase):
         )
 
         self.assertFalse(result['success'])
-        self.assertIn('not available', result['error'])
+        self.assertIn('generate document', result['error'])
 
-    @patch('apps.capture.services.email.generate_pdf')
-    @patch('apps.capture.services.email.get_pdf_filename')
+    @patch('apps.capture.services.email.generate_docx')
+    @patch('apps.capture.services.email.get_docx_filename')
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
-    def test_send_capture_email_without_message(self, mock_filename, mock_pdf):
+    def test_send_capture_email_without_message(self, mock_filename, mock_docx):
         """send_capture_email works without optional message."""
         from apps.capture.services.email import send_capture_email
 
-        mock_pdf.return_value = b'mock pdf'
-        mock_filename.return_value = 'test.pdf'
+        mock_docx.return_value = b'mock docx'
+        mock_filename.return_value = 'test.docx'
 
         entry = CaptureEntry.objects.create(
             user=self.user,
@@ -144,15 +144,15 @@ class CaptureEmailServiceTests(TestCase):
         self.assertTrue(result['success'])
         self.assertEqual(len(mail.outbox), 1)
 
-    @patch('apps.capture.services.email.generate_pdf')
-    @patch('apps.capture.services.email.get_pdf_filename')
+    @patch('apps.capture.services.email.generate_docx')
+    @patch('apps.capture.services.email.get_docx_filename')
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
-    def test_send_capture_email_subject_format(self, mock_filename, mock_pdf):
+    def test_send_capture_email_subject_format(self, mock_filename, mock_docx):
         """send_capture_email uses correct subject format."""
         from apps.capture.services.email import send_capture_email
 
-        mock_pdf.return_value = b'mock pdf'
-        mock_filename.return_value = 'test.pdf'
+        mock_docx.return_value = b'mock docx'
+        mock_filename.return_value = 'test.docx'
 
         # Set user name for testing
         self.user.first_name = 'John'

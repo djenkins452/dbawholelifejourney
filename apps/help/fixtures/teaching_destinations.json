@@ -338,5 +338,56 @@
             "created_at": "2026-01-13T00:00:00Z",
             "updated_at": "2026-01-13T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 21,
+        "fields": {
+            "destination_id": "capture-list",
+            "name": "Audio Capture",
+            "path_description": "Capture",
+            "explanation": "View your audio recordings, transcripts, and AI-generated summaries.",
+            "url": "/capture/",
+            "keywords": "capture, audio, recordings, transcripts, summaries, voice notes, sermon notes, meeting notes",
+            "module": "capture",
+            "sort_order": 21,
+            "is_active": true,
+            "created_at": "2026-01-14T00:00:00Z",
+            "updated_at": "2026-01-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 22,
+        "fields": {
+            "destination_id": "capture-record",
+            "name": "Record Audio",
+            "path_description": "Capture - Record",
+            "explanation": "Record audio directly in the app for transcription and AI summarization.",
+            "url": "/capture/record/",
+            "keywords": "record, record audio, voice recording, microphone, record sermon, record meeting, voice memo",
+            "module": "capture",
+            "sort_order": 22,
+            "is_active": true,
+            "created_at": "2026-01-14T00:00:00Z",
+            "updated_at": "2026-01-14T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 23,
+        "fields": {
+            "destination_id": "capture-upload",
+            "name": "Upload Audio",
+            "path_description": "Capture - Upload",
+            "explanation": "Upload existing audio files for transcription and AI summarization.",
+            "url": "/capture/upload/",
+            "keywords": "upload, upload audio, audio file, mp3, wav, upload recording, import audio",
+            "module": "capture",
+            "sort_order": 23,
+            "is_active": true,
+            "created_at": "2026-01-14T00:00:00Z",
+            "updated_at": "2026-01-14T00:00:00Z"
+        }
     }
 ]

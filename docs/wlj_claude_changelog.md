@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Add Capture to Help System
+
+**Summary:** Added comprehensive help system support for the Capture module, including Teaching Tool destinations and a full help topic.
+
+**Teaching Tool Destinations Added (3):**
+- `capture-list` (pk 21): Audio Capture list view - keywords: capture, audio, recordings, transcripts, summaries, voice notes, sermon notes, meeting notes
+- `capture-record` (pk 22): Record Audio page - keywords: record, record audio, voice recording, microphone, record sermon, record meeting, voice memo
+- `capture-upload` (pk 23): Upload Audio page - keywords: upload, upload audio, audio file, mp3, wav, upload recording, import audio
+
+**Help Topic Added:**
+- `capture-overview` (pk 22): "Capture: Record, Transcribe, and Summarize Audio" - comprehensive help covering:
+  - Recording and uploading audio
+  - Categories and subcategories (Faith: Sermon, Bible Study, etc. | Organize: Meeting, Lecture, etc.)
+  - What users get (transcript, summary, playback)
+  - Filtering and searching recordings
+  - Processing status and retry functionality
+  - Audio storage and retention
+  - Tips for best results
+  - How to enable/disable the module
+
+**Files Modified:**
+- `apps/help/fixtures/teaching_destinations.json` - Added 3 new destinations
+- `apps/help/fixtures/help_topics.json` - Added Capture help topic
+
+---
+
 ### Move Capture to Module System
 
 **Summary:** Moved Capture from a permanent menu item to a toggleable module like other features (Health, Journal, etc.). Users can now enable/disable Capture in their preferences.

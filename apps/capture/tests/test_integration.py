@@ -393,18 +393,23 @@ class CaptureAudioExpirationFlowTests(TestCase):
 
     def test_list_shows_expired_indicator(self):
         """Test list view shows expired indicator for expired audio."""
+        from django.utils import timezone
+        from datetime import timedelta
+
         # Create one active and one expired entry
         CaptureEntry.objects.create(
             user=self.user,
             title='Active Entry',
             status=CaptureEntry.STATUS_READY,
-            audio_file_url='https://s3.example.com/audio.mp3'
+            audio_file_url='https://s3.example.com/audio.mp3',
+            audio_expires_at=timezone.now() + timedelta(days=7)
         )
         CaptureEntry.objects.create(
             user=self.user,
             title='Expired Entry',
             status=CaptureEntry.STATUS_READY,
-            audio_file_url=''
+            audio_file_url='',
+            audio_expires_at=timezone.now() - timedelta(days=1)  # Expired yesterday
         )
 
         response = self.client.get(reverse('capture:list'))

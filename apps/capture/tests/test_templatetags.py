@@ -2,7 +2,7 @@
 
 from django.test import TestCase
 
-from apps.capture.templatetags.capture_filters import render_summary, summary_plain_text
+from apps.capture.templatetags.capture_filters import render_summary, summary_plain_text, format_duration
 
 
 class RenderSummaryFilterTests(TestCase):
@@ -98,3 +98,35 @@ class SummaryPlainTextFilterTests(TestCase):
         result = summary_plain_text(markdown)
         self.assertNotIn('- ', result)
         self.assertIn('First item', result)
+
+
+class FormatDurationFilterTests(TestCase):
+    """Tests for the format_duration template filter."""
+
+    def test_zero_seconds(self):
+        """Zero seconds returns 0:00."""
+        self.assertEqual(format_duration(0), "0:00")
+
+    def test_none_returns_zero(self):
+        """None returns 0:00."""
+        self.assertEqual(format_duration(None), "0:00")
+
+    def test_seconds_only(self):
+        """Under a minute shows 0:SS."""
+        self.assertEqual(format_duration(45), "0:45")
+
+    def test_minutes_and_seconds(self):
+        """Minutes and seconds format correctly."""
+        self.assertEqual(format_duration(65), "1:05")
+        self.assertEqual(format_duration(125), "2:05")
+        self.assertEqual(format_duration(600), "10:00")
+
+    def test_hours_minutes_seconds(self):
+        """Hours format as H:MM:SS."""
+        self.assertEqual(format_duration(3661), "1:01:01")
+        self.assertEqual(format_duration(7200), "2:00:00")
+
+    def test_invalid_value(self):
+        """Invalid values return 0:00."""
+        self.assertEqual(format_duration("invalid"), "0:00")
+        self.assertEqual(format_duration([]), "0:00")

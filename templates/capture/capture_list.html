@@ -36,7 +36,7 @@
                     <th>Duration</th>
                     <th>Status</th>
                     <th>Created</th>
-                    <th style="width: 120px;"></th>
+                    <th style="width: 80px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -106,16 +106,16 @@
                         <div style="font-size: 0.75rem; color: var(--color-text-secondary);">{{ entry.created_at|time:"g:i A" }}</div>
                     </td>
                     <td onclick="event.stopPropagation();">
-                        <div style="display: flex; gap: 0.25rem; justify-content: flex-end;">
+                        <div class="action-icons">
                             {% if entry.audio_file_url and entry.status == 'ready' %}
-                            <button type="button" class="btn-icon play-btn" data-audio-url="{{ entry.audio_file_url }}" data-entry-title="{{ entry.title|default:'Untitled Recording' }}" title="Play audio" style="background: none; border: none; cursor: pointer; padding: 0.5rem; color: var(--color-text-secondary); font-size: 1rem;">
+                            <button type="button" class="btn-icon play-btn" data-audio-url="{{ entry.audio_file_url }}" data-entry-title="{{ entry.title|default:'Untitled Recording' }}" title="Play audio">
                                 &#9654;
                             </button>
-                            <a href="{{ entry.audio_file_url }}" download class="btn-icon" title="Download audio" style="background: none; border: none; cursor: pointer; padding: 0.5rem; color: var(--color-text-secondary); font-size: 1rem; text-decoration: none;">
+                            <a href="{{ entry.audio_file_url }}" download class="btn-icon download-btn" title="Download audio">
                                 &#8681;
                             </a>
                             {% endif %}
-                            <button type="button" class="btn-icon delete-btn" data-entry-id="{{ entry.pk }}" data-entry-title="{{ entry.title|default:'Untitled Recording' }}" title="Delete recording" style="background: none; border: none; cursor: pointer; padding: 0.5rem; color: var(--color-text-secondary); font-size: 1rem;">
+                            <button type="button" class="btn-icon delete-btn" data-entry-id="{{ entry.pk }}" data-entry-title="{{ entry.title|default:'Untitled Recording' }}" title="Delete recording">
                                 &#128465;
                             </button>
                         </div>
@@ -230,19 +230,46 @@
         background: var(--color-surface-hover, rgba(0,0,0,0.02));
     }
 
+    .action-icons {
+        display: flex;
+        gap: 0.125rem;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .btn-icon {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.25rem 0.375rem;
+        color: var(--color-text-secondary);
+        font-size: 0.875rem;
+        line-height: 1;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: background-color 0.15s, color 0.15s;
+    }
+
     .btn-icon:hover {
+        background: var(--color-bg-tertiary, rgba(0,0,0,0.05));
         color: var(--color-text-primary);
     }
 
     .delete-btn:hover {
+        background: rgba(239, 68, 68, 0.1);
         color: #ef4444;
     }
 
     .play-btn:hover {
+        background: rgba(34, 197, 94, 0.1);
         color: #22c55e;
     }
 
-    a.btn-icon:hover {
+    .download-btn:hover {
+        background: rgba(59, 130, 246, 0.1);
         color: #3b82f6;
     }
 

@@ -63,11 +63,16 @@ For active development context, see `CLAUDE.md` (project root).
 
 **Note:** The URL endpoint remains `/pdf/` for backwards compatibility but serves Word documents.
 
-**Railway Cache Fix (2026-01-14):**
-- Railway was caching old WeasyPrint build despite code changes
-- Removed aptPkgs from nixpacks.toml (no longer needed)
-- Updated force rebuild comment to invalidate pip cache
-- Commit `b35c50c` pushed to force fresh deployment
+**UI Updates:**
+- Download button text changed from "Download PDF" to "Download Word Doc"
+- Email modal text updated to reference Word documents
+- Email template attachment note updated
+
+**Railway Deployment Fixes:**
+- Removed aptPkgs from nixpacks.toml (WeasyPrint dependencies no longer needed)
+- Deleted Dockerfile (was causing PORT binding issues)
+- Removed RAILWAY_DOCKERFILE_PATH environment variable
+- Final working configuration uses nixpacks builder with no special apt packages
 
 ---
 

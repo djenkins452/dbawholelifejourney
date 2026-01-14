@@ -40,6 +40,40 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: File Upload UI with Validation (Task #244)
+
+**Summary:** Created file upload interface with client and server-side validation for audio files.
+
+**Files Created:**
+- `templates/capture/capture_upload.html` - Upload interface with drag-and-drop
+- `static/capture/js/uploader.js` - Reusable AudioUploader class module
+
+**Files Modified:**
+- `apps/capture/views.py` - Added CaptureUploadView with validation
+- `apps/capture/urls.py` - Added 'upload/' route
+- `apps/capture/tests/test_views.py` - Added 19 tests for upload view (39 total)
+- `templates/capture/capture_list.html` - Added "Upload File" button in header and empty state
+
+**Features:**
+- Drag-and-drop file upload zone
+- File picker filtered to accepted formats (.mp3, .m4a, .wav, .webm)
+- Client-side validation: file type and 60MB max size
+- Server-side validation: file type, MIME type, and size
+- Upload progress indicator
+- Chunked upload support for large files (5MB chunks)
+- File preview before upload (name, size)
+- Error state with clear messaging and retry option
+- Creates CaptureEntry on successful upload
+
+**Validation:**
+- Accepted formats: MP3, M4A, WAV, WebM
+- Maximum file size: 60MB
+- Server validates both file extension and MIME type
+
+**Verification:** 39 tests pass, `python manage.py check` passes.
+
+---
+
 ### New: Browser Audio Recording UI (Task #243)
 
 **Summary:** Created mobile-first UI for recording audio directly in the browser using MediaRecorder API.

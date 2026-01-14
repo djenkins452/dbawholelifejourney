@@ -15,7 +15,10 @@
             <h1 class="page-title">Audio Capture {% include "components/favorite_toggle.html" with page_title="Audio Capture" %}</h1>
             <p class="page-subtitle">{{ total_count }} recording{{ total_count|pluralize }} · {{ ready_count }} ready</p>
         </div>
-        <div class="header-actions">
+        <div class="header-actions" style="display: flex; gap: 0.5rem;">
+            <a href="{% url 'capture:upload' %}" class="btn btn-secondary">
+                Upload File
+            </a>
             <a href="{% url 'capture:record' %}" class="btn btn-primary">
                 Record Audio
             </a>
@@ -127,9 +130,14 @@
         <p style="color: var(--color-text-secondary); margin-bottom: 2rem; max-width: 400px; margin-left: auto; margin-right: auto;">
             Capture audio recordings to transcribe sermons, meetings, notes, and more. Your AI assistant will transcribe and summarize them for you.
         </p>
-        <a href="{% url 'capture:record' %}" class="btn btn-primary">
-            Record Your First Audio
-        </a>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <a href="{% url 'capture:upload' %}" class="btn btn-secondary">
+                Upload Audio File
+            </a>
+            <a href="{% url 'capture:record' %}" class="btn btn-primary">
+                Record Audio
+            </a>
+        </div>
     </div>
     {% endif %}
 </div>

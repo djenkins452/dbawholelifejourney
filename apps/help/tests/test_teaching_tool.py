@@ -224,6 +224,52 @@ class TeachingToolServiceTest(TestCase):
         self.assertIn('Health > Weight', result['message'])
 
 
+class TeachingToolChatIntegrationTest(BaseTeachingToolTest):
+    """Tests for teaching tool integration with the help chat service."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.user = User.objects.create_user(
+            email='chat-test@example.com',
+            password='testpassword123',
+        )
+        self._accept_terms(self.user)
+        self._complete_onboarding(self.user)
+
+        # Create test destination
+        TeachingDestination.objects.create(
+            destination_id='test-weight',
+            name='Weight Tracking',
+            path_description='Health - Weight',
+            explanation='Log your daily weight.',
+            url='/health/weight/',
+            keywords='weight, log weight, track weight',
+            module='health',
+        )
+
+    def test_chat_service_handles_navigation_query(self):
+        """Test that HelpChatService answers navigation questions."""
+        from apps.help.services import HelpChatService
+
+        service = HelpChatService(self.user)
+        response = service.generate_response("Where do I log my weight?")
+
+        self.assertIn('message', response)
+        self.assertIn('Weight', response['message'])
+        self.assertIn('/health/weight/', response['message'])
+
+    def test_chat_service_non_navigation_query_skips_teaching(self):
+        """Test that non-navigation queries don't trigger teaching tool."""
+        from apps.help.services import HelpChatService
+
+        service = HelpChatService(self.user)
+        # This should NOT be detected as navigation - it's a "how to" question
+        response = service.generate_response("What is weight tracking?")
+
+        # Should not contain the navigation format
+        self.assertNotIn('**[Go to', response.get('message', ''))
+
+
 class TeachingToolViewTest(BaseTeachingToolTest):
     """Tests for the teaching tool API views."""
 

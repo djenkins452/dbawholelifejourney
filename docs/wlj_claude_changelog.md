@@ -16,6 +16,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-13 Changes
 
+### Enhancement: Teaching Tool integrated into WLJ Assistant Chat Bot
+
+**Summary:** The Teaching Tool navigation responses are now integrated into the WLJ Assistant chat bot. When users ask navigation questions like "Where do I log my weight?" in the chat, the bot answers internally using the teaching destinations data without needing to call OpenAI.
+
+**How it works:**
+1. User asks "Where do I log my weight?" in the chat
+2. Chat service detects this as a navigation query
+3. TeachingToolService searches the destinations
+4. Returns friendly response with clickable link: "You can log your daily weight under **Health - Weight**. **[Go to Weight Tracking](/health/weight/)**"
+
+**Query routing priority:**
+1. Navigation queries ("where do i...", "how do i get to...") → Teaching Tool (internal, no AI)
+2. Personal data queries ("what was my weight last week?") → AI with user data context
+3. Help questions ("how do i use the journal?") → Help article search
+
+**Files Modified:**
+- `apps/help/services.py` - Added `_try_navigation_response()` method to `HelpChatService`, added help question skip logic to `_try_personal_data_response()`
+- `apps/help/tests/test_teaching_tool.py` - Added `TeachingToolChatIntegrationTest` class (2 new tests, total now 19)
+
+---
+
 ### New: Teaching Tool - Contextual Navigation Helper
 
 **Summary:** Implemented a Teaching Tool feature that helps users find where to perform actions in the app. When users ask questions like "Where do I log my weight?", the system responds with a direct answer and clickable link.

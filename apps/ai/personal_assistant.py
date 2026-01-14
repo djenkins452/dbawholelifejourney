@@ -1574,7 +1574,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         response = " ".join(response_parts)
                 else:
                     # No action intent - check for navigation query first
-                    navigation_response = self._try_navigation_response(message)
+                    navigation_response = self._try_navigation_response(message, conversation)
                     if navigation_response:
                         response = navigation_response
                     else:
@@ -1732,15 +1732,19 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
         return True
 
-    def _try_navigation_response(self, message: str) -> str:
+    def _try_navigation_response(self, message: str, conversation: AssistantConversation = None) -> str:
         """
         Check if the message is a navigation query and return a helpful response.
 
         Uses the Teaching Tool to answer questions like "where do I log my weight?"
         with a direct link, without calling the AI.
 
+        For ambiguous queries like "how do I log it", uses conversation context
+        to infer what the user is referring to.
+
         Args:
             message: User's message
+            conversation: Optional conversation for context on ambiguous queries
 
         Returns:
             Response string with navigation info, or None if not a navigation query
@@ -1778,7 +1782,53 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             from apps.help.services import TeachingToolService
 
             teaching_service = TeachingToolService()
-            result = teaching_service.search(message)
+
+            # Check if query is ambiguous (uses pronouns like "it", "that", "this")
+            # and try to get context from conversation
+            search_query = message
+            ambiguous_words = ['it', 'that', 'this', 'them', 'those']
+            query_words = query_lower.split()
+            is_ambiguous = any(word in ambiguous_words for word in query_words)
+
+            if is_ambiguous and conversation:
+                # Get recent messages from conversation for context
+                recent_messages = conversation.messages.filter(
+                    role='user'
+                ).order_by('-created_at')[:5]
+
+                # Look for topic keywords in recent messages
+                topic_keywords = {
+                    'weight': ['weight', 'weigh', 'pounds', 'lbs', 'kg'],
+                    'food': ['food', 'eat', 'meal', 'calories', 'nutrition', 'ate'],
+                    'journal': ['journal', 'write', 'diary', 'entry'],
+                    'workout': ['workout', 'exercise', 'gym', 'fitness'],
+                    'medication': ['medication', 'medicine', 'meds', 'pills'],
+                    'fasting': ['fasting', 'fast', 'intermittent'],
+                    'glucose': ['glucose', 'blood sugar', 'sugar'],
+                    'prayer': ['prayer', 'pray', 'prayers'],
+                    'goals': ['goal', 'goals', 'objective'],
+                    'habits': ['habit', 'habits', 'routine'],
+                    'task': ['task', 'tasks', 'todo', 'to-do'],
+                }
+
+                # Search recent messages for topic context
+                detected_topic = None
+                for msg in recent_messages:
+                    msg_lower = msg.content.lower()
+                    for topic, keywords in topic_keywords.items():
+                        if any(kw in msg_lower for kw in keywords):
+                            detected_topic = topic
+                            break
+                    if detected_topic:
+                        break
+
+                # If we found a topic, enhance the search query
+                if detected_topic:
+                    # Replace "it" with the detected topic
+                    search_query = f"how do I log my {detected_topic}"
+                    logger.debug(f"Enhanced ambiguous query '{message}' to '{search_query}' based on conversation context")
+
+            result = teaching_service.search(search_query)
 
             if result['found'] and result['destination']:
                 dest = result['destination']

@@ -34,6 +34,7 @@ For core project context, see `CLAUDE.md` (project root).
 16. [Memory Verse](#memory-verse)
 17. [Significant Events](#significant-events)
 18. [Bible Reading Plans & Study Tools](#bible-reading-plans--study-tools)
+19. [Capture (Audio Recording & Transcription)](#capture-audio-recording--transcription)
 
 ---
 
@@ -1702,4 +1703,220 @@ Loads initial reading plan templates. Idempotent - safe to run multiple times.
 
 ---
 
-*Last updated: 2026-01-09*
+## Capture (Audio Recording & Transcription)
+
+### Overview
+The Capture feature allows users to record or upload audio recordings, which are then automatically transcribed using OpenAI Whisper and summarized using GPT. Recordings are stored temporarily in AWS S3 with a 7-day retention policy, while transcripts and summaries are preserved permanently.
+
+### Key Features
+- **Audio Recording** - Browser-based recording using MediaRecorder API (up to 60 minutes)
+- **Audio Upload** - Upload existing audio files (MP3, M4A, WAV, WebM up to 60MB)
+- **Speech-to-Text** - Automatic transcription via OpenAI Whisper API
+- **AI Summarization** - BLUF-style summary with category detection
+- **Category Classification** - Auto-detection of Faith/Organize categories with subcategories
+- **PDF/DOCX Export** - Download summary and transcript as formatted documents
+- **Audio Expiration** - 7-day retention with email reminders before expiration
+- **Status Polling** - Real-time progress updates during processing
+
+### Processing Pipeline
+1. **Upload** (`STATUS_UPLOADING`) - User records/uploads audio, file sent to S3
+2. **Transcription** (`STATUS_TRANSCRIBING`) - Audio transcribed via Whisper API
+3. **Summarization** (`STATUS_SUMMARIZING`) - Transcript summarized with category detection
+4. **Ready** (`STATUS_READY`) - Entry complete, available for viewing/export
+5. **Failed** (`STATUS_FAILED`) - Error occurred, message stored for user
+
+### Categories & Subcategories
+| Category | Subcategories |
+|----------|---------------|
+| Faith | Sermon, Bible Study, Devotional |
+| Organize | Meeting, Notes, Personal |
+
+### Models (`apps/capture/models.py`)
+**CaptureEntry** - Main model for audio recordings
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUIDField | Unique identifier (primary key) |
+| `user` | ForeignKey | Owner of the recording |
+| `title` | CharField(255) | Recording title (can be auto-generated) |
+| `duration_seconds` | PositiveIntegerField | Recording duration in seconds |
+| `audio_file_url` | URLField(500) | S3 presigned URL for audio |
+| `audio_expires_at` | DateTimeField | When S3 URL expires (7 days) |
+| `transcript` | TextField | Full Whisper transcription |
+| `summary` | TextField | AI-generated BLUF summary |
+| `category` | CharField(20) | faith, organize |
+| `subcategory` | CharField(20) | sermon, bible_study, meeting, etc. |
+| `status` | CharField(20) | uploading, transcribing, summarizing, ready, failed |
+| `error_message` | TextField | Error details if processing failed |
+| `reminder_sent_at` | DateTimeField | When expiration reminder was sent |
+
+### URL Routes (`/capture/`)
+| Route | View | Description |
+|-------|------|-------------|
+| `/capture/` | `CaptureListView` | List all user's recordings |
+| `/capture/record/` | `CaptureRecordView` | Browser-based recording interface |
+| `/capture/upload/` | `CaptureUploadView` | File upload interface |
+| `/capture/submit/` | `CaptureSubmitView` | API for presigned URLs & upload confirmation |
+| `/capture/<pk>/` | `CaptureDetailView` | View recording details |
+| `/capture/<pk>/status/` | `CaptureStatusView` | Poll processing status (JSON) |
+| `/capture/<pk>/update-title/` | `CaptureUpdateTitleView` | Update entry title (AJAX) |
+| `/capture/<pk>/delete/` | `CaptureDeleteView` | Delete recording |
+| `/capture/<pk>/download/pdf/` | `CaptureDownloadPDFView` | Download as PDF |
+| `/capture/<pk>/download/docx/` | `CaptureDownloadDocxView` | Download as Word Document |
+
+### Submit API Actions
+The `/capture/submit/` endpoint handles multiple actions via JSON POST:
+
+| Action | Parameters | Response |
+|--------|------------|----------|
+| `get_upload_url` | content_type, title, duration_seconds | upload_url, entry_id, mock_mode |
+| `confirm_upload` | entry_id | success, status (triggers transcription) |
+
+### Status Polling Response
+```json
+{
+    "status": "transcribing",
+    "status_message": "Transcribing",
+    "status_description": "Converting speech to text...",
+    "progress": 50,
+    "title": "My Recording"
+}
+```
+
+When status is `ready`:
+```json
+{
+    "status": "ready",
+    "status_message": "Ready",
+    "status_description": "Your recording is ready!",
+    "progress": 100,
+    "redirect_url": "/capture/<uuid>/",
+    "summary": "BLUF: Key points...",
+    "category": "faith",
+    "subcategory": "sermon"
+}
+```
+
+### Services
+
+#### Transcription (`apps/capture/services/transcription.py`)
+Uses OpenAI Whisper API for speech-to-text conversion.
+- Supports multiple audio formats
+- Returns full transcript text
+- Handles API errors with retry logic
+
+#### Summarization (`apps/capture/services/summarization.py`)
+Uses OpenAI GPT for BLUF-style summarization.
+- Generates concise summary from transcript
+- Auto-detects category and subcategory
+- Returns JSON with summary, category, subcategory
+
+#### PDF Generation (`apps/capture/services/pdf.py`)
+Uses WeasyPrint to generate PDF documents.
+- `generate_pdf(entry)` - Renders entry to PDF bytes
+- `get_pdf_filename(entry)` - Generates safe filename
+
+#### DOCX Generation (`apps/capture/services/docx_generator.py`)
+Uses python-docx to generate Word documents.
+- `generate_docx(entry)` - Renders entry to DOCX bytes
+- `get_docx_filename(entry)` - Generates safe filename
+
+#### Email Notification (`apps/capture/services/email.py`)
+Sends email when recording is ready.
+- Includes summary preview
+- Link to view full recording
+
+#### Expiration Reminder (`apps/capture/services/expiration_reminder.py`)
+Sends email reminder before audio expires.
+- Triggered 2 days before expiration
+- Only for entries with audio still available
+
+### Storage (`apps/capture/storage.py`)
+AWS S3 integration for audio file storage.
+
+| Function | Description |
+|----------|-------------|
+| `is_storage_configured()` | Check if S3 credentials are set |
+| `generate_upload_presigned_url(user_id, content_type, filename)` | Generate S3 upload URL |
+| `generate_download_presigned_url(key, expiration_seconds)` | Generate S3 download URL |
+
+**S3 Key Format:** `captures/{user_id}/{uuid}.{extension}`
+
+### Background Jobs (`apps/capture/jobs.py`)
+| Job | Description |
+|-----|-------------|
+| `send_expiration_reminders` | Find entries expiring in 1-2 days, send reminder emails |
+
+### Configuration (Environment Variables)
+```bash
+# AWS S3 Storage
+CAPTURE_AUDIO_BUCKET=your-bucket-name
+CAPTURE_AWS_ACCESS_KEY_ID=your-access-key
+CAPTURE_AWS_SECRET_ACCESS_KEY=your-secret-key
+CAPTURE_AWS_REGION=us-east-1
+CAPTURE_S3_ENDPOINT_URL=  # Optional, for S3-compatible services
+
+# Retention
+CAPTURE_AUDIO_RETENTION_DAYS=7
+CAPTURE_PRESIGNED_URL_EXPIRATION=3600
+
+# OpenAI (shared with other AI features)
+OPENAI_API_KEY=your-openai-key
+```
+
+### User Preferences
+| Field | Type | Description |
+|-------|------|-------------|
+| `capture_enabled` | BooleanField | Enable Capture module for user |
+
+### Dashboard Integration
+When `capture_enabled = True`:
+- "Capture" link appears in navigation menu
+- "Record Audio" quick action on dashboard
+- Capture module card shows recording count
+
+### Accepted Audio Formats
+| Extension | MIME Type | Notes |
+|-----------|-----------|-------|
+| .mp3 | audio/mpeg, audio/mp3 | Most common format |
+| .m4a | audio/mp4 | iOS recordings |
+| .wav | audio/wav | Uncompressed |
+| .webm | audio/webm | Browser recordings |
+
+### Limits
+| Limit | Value |
+|-------|-------|
+| Max Duration | 60 minutes |
+| Max File Size | 60 MB |
+| Audio Retention | 7 days |
+| Title Length | 200 characters (update), 255 (model) |
+
+### Key Files
+- `apps/capture/models.py` - CaptureEntry model
+- `apps/capture/views.py` - All capture views
+- `apps/capture/storage.py` - S3 presigned URL utilities
+- `apps/capture/services/transcription.py` - OpenAI Whisper integration
+- `apps/capture/services/summarization.py` - OpenAI GPT summarization
+- `apps/capture/services/pdf.py` - PDF generation
+- `apps/capture/services/docx_generator.py` - DOCX generation
+- `apps/capture/services/email.py` - Email notifications
+- `apps/capture/services/expiration_reminder.py` - Expiration reminders
+- `apps/capture/jobs.py` - Background jobs
+- `apps/capture/tasks.py` - Celery tasks (if using Celery)
+- `templates/capture/` - All capture templates
+
+### Tests
+- `apps/capture/tests/test_models.py` - Model unit tests
+- `apps/capture/tests/test_views.py` - View tests (extensive)
+- `apps/capture/tests/test_storage.py` - S3 storage tests with mocked boto3
+- `apps/capture/tests/test_transcription.py` - Transcription service tests
+- `apps/capture/tests/test_summarization.py` - Summarization service tests
+- `apps/capture/tests/test_email.py` - Email service tests
+- `apps/capture/tests/test_pdf.py` - PDF generation tests
+- `apps/capture/tests/test_tasks.py` - Background task tests
+- `apps/capture/tests/test_expiration_reminder.py` - Expiration reminder tests
+- `apps/capture/tests/test_integration.py` - End-to-end flow tests
+- `apps/capture/tests/test_edge_cases.py` - Edge case and limit tests
+
+---
+
+*Last updated: 2026-01-14*

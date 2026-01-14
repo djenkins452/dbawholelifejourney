@@ -40,6 +40,47 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: Async Processing Pipeline with Background Tasks (Task #249)
+
+**Summary:** Implemented background task processing for capture entries using threading (django-apscheduler was already in project).
+
+**Files Created:**
+- `apps/capture/tasks.py` - Task definitions for processing captures
+- `apps/capture/tests/test_tasks.py` - 23 comprehensive tests for task execution
+
+**Files Modified:**
+- `apps/capture/views.py` - Updated `_confirm_upload` to trigger async processing
+
+**Implementation Details:**
+- `process_capture_entry(entry_id, retry_count)` - Main task function orchestrating pipeline:
+  1. Transcription via Whisper API (transcription service)
+  2. Summarization via OpenAI API (summarization service)
+  3. Status updates (transcribing -> ready or failed)
+- `process_pending_captures()` - Periodic task for processing stuck entries
+- `_is_retryable_error(error_msg)` - Identifies transient failures worth retrying
+- `_retry_with_backoff(entry_id, retry_count)` - Exponential backoff (2, 4, 8 seconds, max 30s)
+- `get_processing_queue_status()` - Queue statistics for monitoring
+
+**Task Triggering:**
+- CaptureSubmitView._confirm_upload() spawns background thread on upload confirmation
+- Thread calls process_capture_entry() asynchronously
+- HTTP response returns immediately with status='transcribing'
+
+**Error Handling:**
+- MAX_RETRIES = 3 for transient failures
+- Retryable errors: rate_limit, timeout, connection, 503, 502, 429
+- Non-retryable errors: invalid format, auth errors
+- Unexpected exceptions caught and logged, entry marked as failed
+
+**Testing:**
+- ProcessCaptureEntryTests: Entry not found, wrong status, success, failures
+- ProcessPendingCapturesTests: No pending, processes entries, status filtering
+- IsRetryableErrorTests: Rate limit, timeout, connection, 503, etc.
+- GetProcessingQueueStatusTests: Empty queue, counts by status
+- ConfirmUploadTaskTriggerTests: Task triggering from view
+
+---
+
 ### New: AI Summarization with BLUF Format (Task #248)
 
 **Summary:** Implemented AI summarization service using OpenAI API for structured BLUF-format summaries.

@@ -402,7 +402,8 @@ class CaptureSubmitView(LoginRequiredMixin, View):
         """
         Confirm that the S3 upload completed successfully.
 
-        Updates the entry status to 'transcribing' and stores the final audio URL.
+        Updates the entry status to 'transcribing' and triggers async processing.
+        The processing pipeline (transcription -> summarization) runs in a background thread.
         """
         entry_id = data.get('entry_id')
 
@@ -425,6 +426,24 @@ class CaptureSubmitView(LoginRequiredMixin, View):
         entry.save()
 
         logger.info(f"Confirmed upload for entry {entry.id}, status now: transcribing")
+
+        # Trigger async processing in a background thread
+        # This prevents blocking the HTTP response while processing occurs
+        import threading
+        from apps.capture.tasks import process_capture_entry
+
+        def run_processing():
+            try:
+                result = process_capture_entry(str(entry.id))
+                if result['success']:
+                    logger.info(f"Entry {entry.id} processing completed successfully")
+                else:
+                    logger.warning(f"Entry {entry.id} processing failed: {result.get('message')}")
+            except Exception as e:
+                logger.exception(f"Entry {entry.id} processing thread error: {e}")
+
+        thread = threading.Thread(target=run_processing, daemon=True)
+        thread.start()
 
         return JsonResponse({
             'success': True,

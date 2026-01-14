@@ -599,3 +599,335 @@ class CaptureNavigationTests(TestCase):
         response = self.client.get(reverse('dashboard:home'))
         # Check for the module card with recording count
         self.assertContains(response, '0 recordings')
+
+
+class CaptureSubmitViewTests(TestCase):
+    """Tests for CaptureSubmitView (S3 presigned URL generation)."""
+
+    def setUp(self):
+        """Set up test user and client."""
+        self.client = Client()
+        self.user = self._create_user()
+        self.client.login(email='testuser@example.com', password='testpass123')
+
+    def _create_user(self, email='testuser@example.com', password='testpass123'):
+        """Create a test user with terms accepted and onboarding completed."""
+        user = User.objects.create_user(email=email, password=password)
+        self._accept_terms(user)
+        self._complete_onboarding(user)
+        return user
+
+    def _accept_terms(self, user):
+        """Accept terms of service for user."""
+        try:
+            from apps.users.models import TermsAcceptance
+            TermsAcceptance.objects.create(
+                user=user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+            )
+        except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
+    def test_submit_requires_login(self):
+        """Submit view requires authentication."""
+        self.client.logout()
+        response = self.client.post(
+            reverse('capture:submit'),
+            data='{"action": "get_upload_url"}',
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+
+    def test_submit_requires_json(self):
+        """Submit view requires JSON content type."""
+        response = self.client.post(
+            reverse('capture:submit'),
+            data='not json',
+            content_type='text/plain'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_submit_requires_valid_action(self):
+        """Submit view requires a valid action."""
+        import json
+        response = self.client.post(
+            reverse('capture:submit'),
+            data=json.dumps({'action': 'invalid'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Invalid action', response.json().get('error', ''))
+
+    def test_get_upload_url_invalid_content_type(self):
+        """get_upload_url rejects invalid content types."""
+        import json
+        response = self.client.post(
+            reverse('capture:submit'),
+            data=json.dumps({
+                'action': 'get_upload_url',
+                'content_type': 'text/plain'
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Invalid content type', response.json().get('error', ''))
+
+    def test_get_upload_url_mock_mode(self):
+        """get_upload_url returns mock response when S3 not configured."""
+        import json
+        response = self.client.post(
+            reverse('capture:submit'),
+            data=json.dumps({
+                'action': 'get_upload_url',
+                'content_type': 'audio/webm',
+                'filename': 'test_recording.webm',
+                'title': 'Test Recording',
+                'duration_seconds': 120
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+        self.assertIn('entry_id', data)
+        # In mock mode, upload_url is None
+        self.assertTrue(data.get('mock_mode') or data.get('upload_url'))
+
+    def test_get_upload_url_creates_entry(self):
+        """get_upload_url creates a CaptureEntry."""
+        import json
+        initial_count = CaptureEntry.objects.filter(user=self.user).count()
+
+        response = self.client.post(
+            reverse('capture:submit'),
+            data=json.dumps({
+                'action': 'get_upload_url',
+                'content_type': 'audio/webm',
+                'title': 'My Recording'
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        new_count = CaptureEntry.objects.filter(user=self.user).count()
+        self.assertEqual(new_count, initial_count + 1)
+
+        entry = CaptureEntry.objects.filter(user=self.user).first()
+        self.assertEqual(entry.title, 'My Recording')
+
+    def test_confirm_upload_requires_entry_id(self):
+        """confirm_upload requires entry_id."""
+        import json
+        response = self.client.post(
+            reverse('capture:submit'),
+            data=json.dumps({'action': 'confirm_upload'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Missing entry_id', response.json().get('error', ''))
+
+    def test_confirm_upload_validates_entry_exists(self):
+        """confirm_upload returns 404 for non-existent entry."""
+        import json
+        import uuid
+        response = self.client.post(
+            reverse('capture:submit'),
+            data=json.dumps({
+                'action': 'confirm_upload',
+                'entry_id': str(uuid.uuid4())
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_confirm_upload_validates_ownership(self):
+        """confirm_upload only allows user to confirm their own entries."""
+        import json
+        # Create entry for another user
+        other_user = self._create_user(email='other@example.com')
+        entry = CaptureEntry.objects.create(
+            user=other_user,
+            title='Other User Entry',
+            status=CaptureEntry.STATUS_UPLOADING
+        )
+
+        response = self.client.post(
+            reverse('capture:submit'),
+            data=json.dumps({
+                'action': 'confirm_upload',
+                'entry_id': str(entry.id)
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_confirm_upload_validates_status(self):
+        """confirm_upload only works on entries with uploading status."""
+        import json
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Already Ready Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.post(
+            reverse('capture:submit'),
+            data=json.dumps({
+                'action': 'confirm_upload',
+                'entry_id': str(entry.id)
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('not in uploading status', response.json().get('error', ''))
+
+    def test_confirm_upload_success(self):
+        """confirm_upload updates status to transcribing."""
+        import json
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Uploading Entry',
+            status=CaptureEntry.STATUS_UPLOADING
+        )
+
+        response = self.client.post(
+            reverse('capture:submit'),
+            data=json.dumps({
+                'action': 'confirm_upload',
+                'entry_id': str(entry.id)
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+        self.assertEqual(data.get('status'), CaptureEntry.STATUS_TRANSCRIBING)
+
+        # Verify entry status updated
+        entry.refresh_from_db()
+        self.assertEqual(entry.status, CaptureEntry.STATUS_TRANSCRIBING)
+
+
+class CaptureStatusViewTests(TestCase):
+    """Tests for CaptureStatusView (status polling)."""
+
+    def setUp(self):
+        """Set up test user and client."""
+        self.client = Client()
+        self.user = self._create_user()
+        self.client.login(email='testuser@example.com', password='testpass123')
+
+    def _create_user(self, email='testuser@example.com', password='testpass123'):
+        """Create a test user with terms accepted and onboarding completed."""
+        user = User.objects.create_user(email=email, password=password)
+        self._accept_terms(user)
+        self._complete_onboarding(user)
+        return user
+
+    def _accept_terms(self, user):
+        """Accept terms of service for user."""
+        try:
+            from apps.users.models import TermsAcceptance
+            TermsAcceptance.objects.create(
+                user=user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+            )
+        except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
+    def test_status_requires_login(self):
+        """Status view requires authentication."""
+        import uuid
+        self.client.logout()
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': uuid.uuid4()})
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_status_returns_404_for_nonexistent_entry(self):
+        """Status view returns 404 for non-existent entry."""
+        import uuid
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': uuid.uuid4()})
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_status_returns_404_for_other_users_entry(self):
+        """Status view returns 404 for another user's entry."""
+        other_user = self._create_user(email='other@example.com')
+        entry = CaptureEntry.objects.create(
+            user=other_user,
+            title='Other User Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_status_returns_entry_status(self):
+        """Status view returns current entry status."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='My Entry',
+            status=CaptureEntry.STATUS_TRANSCRIBING
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('status'), CaptureEntry.STATUS_TRANSCRIBING)
+        self.assertEqual(data.get('title'), 'My Entry')
+
+    def test_status_includes_error_for_failed_entries(self):
+        """Status view includes error message for failed entries."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Failed Entry',
+            status=CaptureEntry.STATUS_FAILED,
+            error_message='Transcription failed due to audio quality'
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('status'), CaptureEntry.STATUS_FAILED)
+        self.assertIn('audio quality', data.get('error_message', ''))
+
+    def test_status_includes_summary_for_ready_entries(self):
+        """Status view includes summary for ready entries."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Ready Entry',
+            status=CaptureEntry.STATUS_READY,
+            summary='This is the summary',
+            transcript='This is the full transcript',
+            category='faith',
+            subcategory='sermon'
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('status'), CaptureEntry.STATUS_READY)
+        self.assertEqual(data.get('summary'), 'This is the summary')
+        self.assertEqual(data.get('category'), 'faith')
+        self.assertEqual(data.get('subcategory'), 'sermon')

@@ -1,6 +1,7 @@
 """Capture views - Handle audio capture and transcription requests."""
 
 import json
+import logging
 import os
 import tempfile
 import uuid
@@ -9,10 +10,19 @@ from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.urls import reverse
+from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, TemplateView
 
 from .models import CaptureEntry
+from .storage import (
+    generate_upload_presigned_url,
+    is_storage_configured,
+    CaptureStorageError,
+    CaptureStorageNotConfiguredError,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class CaptureRecordView(LoginRequiredMixin, TemplateView):
@@ -279,3 +289,218 @@ class CaptureListView(LoginRequiredMixin, ListView):
             status=CaptureEntry.STATUS_READY
         ).count()
         return context
+
+
+class CaptureSubmitView(LoginRequiredMixin, View):
+    """
+    Handle audio submission with S3 presigned URL generation.
+
+    This view supports two actions:
+    1. 'get_upload_url': Generate a presigned S3 URL for direct browser upload
+    2. 'confirm_upload': Confirm that upload completed and advance to transcribing
+
+    Frontend workflow:
+    1. POST with action='get_upload_url' -> returns presigned URL + entry_id
+    2. Frontend uploads directly to S3 using presigned URL
+    3. POST with action='confirm_upload' + entry_id -> status changes to 'transcribing'
+    """
+
+    ACCEPTED_CONTENT_TYPES = [
+        'audio/mpeg',
+        'audio/mp4',
+        'audio/wav',
+        'audio/webm',
+        'audio/x-m4a',
+        'audio/ogg',
+    ]
+
+    def post(self, request):
+        """Handle submission actions."""
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        action = data.get('action')
+
+        if action == 'get_upload_url':
+            return self._get_upload_url(request, data)
+        elif action == 'confirm_upload':
+            return self._confirm_upload(request, data)
+        else:
+            return JsonResponse({'error': 'Invalid action'}, status=400)
+
+    def _get_upload_url(self, request, data):
+        """
+        Generate a presigned S3 URL for uploading audio.
+
+        Creates a CaptureEntry with status='uploading' and returns:
+        - upload_url: Presigned S3 PUT URL
+        - entry_id: UUID of the created entry for status polling
+        - audio_expires_at: When the audio will be auto-deleted
+        """
+        # Validate inputs
+        content_type = data.get('content_type', 'audio/webm')
+        filename = data.get('filename', '')
+        title = data.get('title', '')
+        duration_seconds = data.get('duration_seconds')
+
+        if content_type not in self.ACCEPTED_CONTENT_TYPES:
+            return JsonResponse({
+                'error': 'Invalid content type. Accepted: MP3, M4A, WAV, WebM, OGG.'
+            }, status=400)
+
+        # Check if S3 storage is configured
+        if not is_storage_configured():
+            logger.warning("S3 storage not configured, falling back to mock mode")
+            return self._mock_upload_response(request, data)
+
+        try:
+            # Generate presigned upload URL
+            upload_data = generate_upload_presigned_url(
+                user_id=str(request.user.id),
+                content_type=content_type,
+                filename=filename,
+            )
+
+            # Create CaptureEntry with uploading status
+            entry = CaptureEntry.objects.create(
+                user=request.user,
+                title=title or os.path.splitext(filename)[0] if filename else '',
+                status=CaptureEntry.STATUS_UPLOADING,
+                audio_expires_at=upload_data['audio_expires_at'],
+                duration_seconds=duration_seconds,
+            )
+
+            # Store the S3 key in audio_file_url temporarily (will be updated on confirm)
+            # We'll construct the full URL after confirmation
+            entry.audio_file_url = upload_data['key']
+            entry.save()
+
+            logger.info(f"Created capture entry {entry.id} for user {request.user.email}")
+
+            return JsonResponse({
+                'success': True,
+                'entry_id': str(entry.id),
+                'upload_url': upload_data['url'],
+                'upload_key': upload_data['key'],
+                'audio_expires_at': upload_data['audio_expires_at'].isoformat(),
+            })
+
+        except CaptureStorageNotConfiguredError as e:
+            logger.error(f"S3 storage not configured: {e}")
+            return JsonResponse({
+                'error': 'Storage not configured. Please contact support.'
+            }, status=503)
+        except CaptureStorageError as e:
+            logger.error(f"S3 storage error: {e}")
+            return JsonResponse({
+                'error': 'Failed to generate upload URL. Please try again.'
+            }, status=500)
+
+    def _confirm_upload(self, request, data):
+        """
+        Confirm that the S3 upload completed successfully.
+
+        Updates the entry status to 'transcribing' and stores the final audio URL.
+        """
+        entry_id = data.get('entry_id')
+
+        if not entry_id:
+            return JsonResponse({'error': 'Missing entry_id'}, status=400)
+
+        try:
+            entry = CaptureEntry.objects.get(id=entry_id, user=request.user)
+        except CaptureEntry.DoesNotExist:
+            return JsonResponse({'error': 'Entry not found'}, status=404)
+
+        # Verify entry is in uploading status
+        if entry.status != CaptureEntry.STATUS_UPLOADING:
+            return JsonResponse({
+                'error': f'Entry is not in uploading status (current: {entry.status})'
+            }, status=400)
+
+        # Update status to transcribing
+        entry.status = CaptureEntry.STATUS_TRANSCRIBING
+        entry.save()
+
+        logger.info(f"Confirmed upload for entry {entry.id}, status now: transcribing")
+
+        return JsonResponse({
+            'success': True,
+            'entry_id': str(entry.id),
+            'status': entry.status,
+            'redirect_url': reverse('capture:list'),
+        })
+
+    def _mock_upload_response(self, request, data):
+        """
+        Provide a mock response when S3 is not configured.
+
+        This allows development/testing without S3.
+        Creates an entry that goes directly to 'ready' status.
+        """
+        from datetime import timedelta
+
+        filename = data.get('filename', '')
+        title = data.get('title', '')
+        duration_seconds = data.get('duration_seconds')
+
+        # Determine title: use provided title, or extract from filename, or default
+        if title:
+            entry_title = title
+        elif filename:
+            entry_title = os.path.splitext(filename)[0]
+        else:
+            entry_title = 'Recording'
+
+        # Create entry that's immediately ready (no real upload)
+        entry = CaptureEntry.objects.create(
+            user=request.user,
+            title=entry_title,
+            status=CaptureEntry.STATUS_READY,
+            audio_expires_at=timezone.now() + timedelta(days=7),
+            duration_seconds=duration_seconds,
+        )
+
+        logger.info(f"Created mock capture entry {entry.id} (S3 not configured)")
+
+        return JsonResponse({
+            'success': True,
+            'entry_id': str(entry.id),
+            'upload_url': None,  # No upload needed in mock mode
+            'mock_mode': True,
+            'redirect_url': reverse('capture:list'),
+        })
+
+
+class CaptureStatusView(LoginRequiredMixin, View):
+    """
+    Get the status of a capture entry for polling.
+
+    Returns the current status and any relevant data (transcript, summary, etc.)
+    """
+
+    def get(self, request, entry_id):
+        """Get entry status."""
+        try:
+            entry = CaptureEntry.objects.get(id=entry_id, user=request.user)
+        except CaptureEntry.DoesNotExist:
+            return JsonResponse({'error': 'Entry not found'}, status=404)
+
+        response_data = {
+            'entry_id': str(entry.id),
+            'status': entry.status,
+            'title': entry.title,
+        }
+
+        # Add status-specific data
+        if entry.status == CaptureEntry.STATUS_FAILED:
+            response_data['error_message'] = entry.error_message
+        elif entry.status == CaptureEntry.STATUS_READY:
+            response_data['summary'] = entry.summary
+            response_data['transcript'] = entry.transcript[:500] if entry.transcript else ''
+            response_data['category'] = entry.category
+            response_data['subcategory'] = entry.subcategory
+
+        return JsonResponse(response_data)

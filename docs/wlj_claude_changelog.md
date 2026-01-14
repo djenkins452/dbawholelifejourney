@@ -40,6 +40,36 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: Audio Upload to S3 Implementation (Task #246)
+
+**Summary:** Created backend endpoint and logic to upload recorded/uploaded audio to S3 and create CaptureEntry with proper status workflow.
+
+**Files Modified:**
+- `apps/capture/views.py` - Added CaptureSubmitView and CaptureStatusView
+- `apps/capture/urls.py` - Added 'submit/' and 'status/<uuid:entry_id>/' routes
+- `apps/capture/tests/test_views.py` - Added 17 tests for submission flow (61 total)
+
+**New Views:**
+- `CaptureSubmitView` - Handles two actions:
+  - `get_upload_url`: Generates presigned S3 URL for direct browser upload, creates CaptureEntry with status='uploading' and audio_expires_at set to 7 days
+  - `confirm_upload`: Confirms upload completed, updates status to 'transcribing'
+  - Mock mode fallback when S3 not configured (for development/testing)
+- `CaptureStatusView` - Returns entry status for frontend polling (supports status, error_message, summary, transcript)
+
+**API Endpoints:**
+- `POST /capture/submit/` - JSON body with action='get_upload_url' or 'confirm_upload'
+- `GET /capture/status/<entry_id>/` - Returns current entry status for polling
+
+**Workflow:**
+1. Frontend calls `get_upload_url` -> receives presigned S3 URL + entry_id
+2. Frontend uploads directly to S3 using presigned URL
+3. Frontend calls `confirm_upload` with entry_id -> status changes to 'transcribing'
+4. Frontend polls `status/<entry_id>/` until processing complete
+
+**Verification:** 61 capture tests pass.
+
+---
+
 ### Enhancement: Nutrition Meal Subtotals
 
 **Summary:** Added subtotals (calories, protein, carbs, fat) for each meal type on the nutrition home page.

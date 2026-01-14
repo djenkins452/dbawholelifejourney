@@ -86,6 +86,11 @@ FIXTURE_LOADERS = [
         'display': 'Help Articles',
         'description': 'Full help documentation articles',
     },
+    {
+        'name': 'teaching_destinations',
+        'display': 'Teaching Tool Destinations',
+        'description': 'Navigation destinations for teaching tool (where do I...)',
+    },
 ]
 
 COMMAND_LOADERS = [

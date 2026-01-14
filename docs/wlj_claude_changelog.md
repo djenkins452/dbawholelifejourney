@@ -40,6 +40,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-13 Changes
 
+### New: Capture List View and URL Routing (Task #242)
+
+**Summary:** Set up the main capture section with list view showing user's capture entries at `/capture/`.
+
+**Files Created:**
+- `apps/capture/views.py` - CaptureListView (ListView with LoginRequiredMixin)
+- `apps/capture/tests/test_views.py` - 12 tests for list view
+- `templates/capture/capture_list.html` - List template with empty state
+
+**Files Modified:**
+- `apps/capture/urls.py` - Added list view route at ''
+- `config/urls.py` - Included capture.urls at path 'capture/'
+
+**Features:**
+- List view filtered by current user, ordered by -created_at
+- Pagination (20 entries per page)
+- Empty state with helpful message for first-time users
+- Shows entry title, category, subcategory, duration, status, created date
+- Status indicators (Ready, Failed, Uploading, Transcribing, Summarizing)
+- Context includes total_count and ready_count
+
+**Verification:** 12 tests pass, accessible at `/capture/`.
+
+---
+
 ### New: S3 Storage Configuration for Capture Audio (Task #241)
 
 **Summary:** Configured S3-compatible storage for temporary audio file storage with 7-day retention lifecycle policy.

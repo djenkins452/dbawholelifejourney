@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: PDF Generation for Capture Entries (Task 254)
+
+**Summary:** Implemented PDF download functionality for capture entry summaries with branded WLJ styling, allowing users to download a professional PDF document containing the title, metadata, summary, and full transcript.
+
+**Features:**
+- WeasyPrint-based PDF generation with styled HTML template
+- WLJ branding (logo, colors, typography) matching the design system
+- Includes: title, date, duration, category/subcategory, summary, and full transcript
+- Clean URL at `capture/<uuid:pk>/pdf/` for direct download
+- Proper error handling for missing WeasyPrint library
+- Sanitized filenames with format: `Title - WLJ Capture - YYYY-MM-DD.pdf`
+
+**Files Created:**
+- `apps/capture/services/pdf.py` - PDF generation service with `generate_pdf()` and `get_pdf_filename()` functions
+- `templates/capture/pdf_template.html` - Branded HTML template for PDF rendering
+- `apps/capture/tests/test_pdf.py` - 15 tests for PDF service and view
+
+**Files Modified:**
+- `requirements.txt` - Added weasyprint>=62.0
+- `apps/capture/views.py` - Added CaptureDownloadPDFView class
+- `apps/capture/urls.py` - Added URL route for PDF download
+
+**URL:** `capture/<uuid:pk>/pdf/`
+
+---
+
 ### New: Category selection UI for capture entries (Task #253)
 
 **Summary:** Added category and subcategory selection interface to capture detail view, allowing users to organize recordings.
@@ -38,6 +64,18 @@ For active development context, see `CLAUDE.md` (project root).
 - `apps/capture/tests/test_views.py` - Added 15 tests for category update functionality
 
 **URL:** `capture/<uuid:pk>/update-category/` (POST with JSON body)
+
+---
+
+### New: Processing status endpoint with frontend polling
+
+**Files Modified:**
+- `requirements.txt` - Added weasyprint>=62.0
+- `apps/capture/views.py` - Added CaptureDownloadPDFView class
+- `apps/capture/urls.py` - Added URL route for PDF download
+
+**URL:** `capture/<uuid:pk>/pdf/`
+>>>>>>> origin/vibrant-chaplygin
 
 ---
 

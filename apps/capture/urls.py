@@ -15,4 +15,5 @@ urlpatterns = [
     path('<uuid:pk>/', views.CaptureDetailView.as_view(), name='detail'),
     path('<uuid:pk>/update-title/', views.CaptureUpdateTitleView.as_view(), name='update_title'),
     path('<uuid:pk>/update-category/', views.CaptureUpdateCategoryView.as_view(), name='update_category'),
+    path('<uuid:pk>/pdf/', views.CaptureDownloadPDFView.as_view(), name='download_pdf'),
 ]

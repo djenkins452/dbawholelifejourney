@@ -47,20 +47,20 @@ A 2-3 sentence executive summary capturing the core message or main takeaway. Pu
 - Each point should be concise (1-2 sentences)
 - Focus on actionable insights
 
-## Scripture References
+## Scripture References (ONLY if scripture is mentioned)
 - List any Bible verses or religious texts mentioned
 - Include the reference and brief context
-- If no scripture is mentioned, write "No scripture references found in this recording."
+- **IMPORTANT: Omit this entire section if no scripture is mentioned**
 
-## Action Items
+## Action Items (ONLY if action items exist)
 - Specific actions the listener could take
 - Practical next steps mentioned or implied
-- If no clear action items, write "No specific action items identified."
+- **IMPORTANT: Omit this entire section if no clear action items**
 
-## Notable Quotes
+## Notable Quotes (ONLY if memorable quotes exist)
 - 2-3 memorable or impactful quotes from the speaker
 - Use quotation marks and keep them brief
-- If no notable quotes, write "No notable quotes identified."
+- **IMPORTANT: Omit this entire section if no notable quotes**
 
 ## Detailed Notes
 A more comprehensive summary (3-5 paragraphs) covering:

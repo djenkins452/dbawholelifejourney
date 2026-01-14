@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Move Capture to Module System
+
+**Summary:** Moved Capture from a permanent menu item to a toggleable module like other features (Health, Journal, etc.). Users can now enable/disable Capture in their preferences.
+
+**Changes:**
+- `templates/components/navigation.html`: Moved Capture menu item from between Assistant and Favorites to between Favorites and Journal
+- `templates/users/preferences.html`: Added Capture toggle to Active Modules section
+- `apps/users/forms.py`: Added `capture_enabled` to UserPreferencesForm fields and widgets
+- JavaScript updated to include capture_enabled in module count
+
+**Behavior:**
+- When enabled: Shows in menu (between Favorites and Journal), shows on dashboard (microphone quick action + module tile)
+- When disabled: Hidden from menu and dashboard
+- Default: Enabled (True)
+
+---
+
 ### Add Filtering and Search to Capture List
 
 **Summary:** Added category/subcategory filtering and title/summary search to the Audio Capture list view. Users can now easily find recordings by filtering by Faith/Organize categories and their subcategories, or by searching for keywords in titles and summaries.

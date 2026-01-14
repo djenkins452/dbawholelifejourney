@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load capture_filters %}
 
 {% block title %}Capture - Whole Life Journey{% endblock %}
 
@@ -116,9 +117,7 @@
                     </td>
                     <td>
                         {% if entry.duration_seconds %}
-                        {% widthratio entry.duration_seconds 60 1 as minutes %}
-                        {% widthratio entry.duration_seconds|divisibleby:60 1 1 as remaining_seconds %}
-                        {{ minutes }}:{{ entry.duration_seconds|divisibleby:60|stringformat:"02d" }}
+                        {{ entry.duration_seconds|format_duration }}
                         {% else %}
                         <span style="color: var(--color-text-secondary);">-</span>
                         {% endif %}

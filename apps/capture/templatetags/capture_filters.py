@@ -110,3 +110,34 @@ def summary_plain_text(value):
     text = text.strip()
 
     return text
+
+
+@register.filter(name='format_duration')
+def format_duration(seconds):
+    """
+    Format duration in seconds to MM:SS or H:MM:SS format.
+
+    Usage:
+        {{ entry.duration_seconds|format_duration }}
+
+    Examples:
+        65 -> "1:05"
+        3661 -> "1:01:01"
+        0 -> "0:00"
+    """
+    if not seconds:
+        return "0:00"
+
+    try:
+        seconds = int(seconds)
+    except (ValueError, TypeError):
+        return "0:00"
+
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    else:
+        return f"{minutes}:{secs:02d}"

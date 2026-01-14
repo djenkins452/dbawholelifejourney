@@ -145,6 +145,13 @@ class CaptureEntry(TimeStampedModel):
         help_text="Error message if processing failed"
     )
 
+    # Reminder tracking
+    reminder_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the audio expiration reminder email was sent"
+    )
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Capture Entry'

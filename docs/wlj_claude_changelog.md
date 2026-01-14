@@ -63,6 +63,12 @@ For active development context, see `CLAUDE.md` (project root).
 
 **Note:** The URL endpoint remains `/pdf/` for backwards compatibility but serves Word documents.
 
+**Railway Cache Fix (2026-01-14):**
+- Railway was caching old WeasyPrint build despite code changes
+- Removed aptPkgs from nixpacks.toml (no longer needed)
+- Updated force rebuild comment to invalidate pip cache
+- Commit `b35c50c` pushed to force fresh deployment
+
 ---
 
 ### New: Delete Recordings from Capture List

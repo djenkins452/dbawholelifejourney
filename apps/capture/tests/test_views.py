@@ -931,3 +931,120 @@ class CaptureStatusViewTests(TestCase):
         self.assertEqual(data.get('summary'), 'This is the summary')
         self.assertEqual(data.get('category'), 'faith')
         self.assertEqual(data.get('subcategory'), 'sermon')
+
+    def test_status_includes_user_friendly_message_uploading(self):
+        """Status view includes user-friendly message for uploading status."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Uploading Entry',
+            status=CaptureEntry.STATUS_UPLOADING
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('status_message'), 'Uploading')
+        self.assertEqual(data.get('status_description'), 'Uploading your recording...')
+        self.assertEqual(data.get('progress'), 25)
+
+    def test_status_includes_user_friendly_message_transcribing(self):
+        """Status view includes user-friendly message for transcribing status."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Transcribing Entry',
+            status=CaptureEntry.STATUS_TRANSCRIBING
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('status_message'), 'Transcribing')
+        self.assertEqual(data.get('status_description'), 'Converting speech to text...')
+        self.assertEqual(data.get('progress'), 50)
+
+    def test_status_includes_user_friendly_message_summarizing(self):
+        """Status view includes user-friendly message for summarizing status."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Summarizing Entry',
+            status=CaptureEntry.STATUS_SUMMARIZING
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('status_message'), 'Summarizing')
+        self.assertEqual(data.get('status_description'), 'Generating AI summary...')
+        self.assertEqual(data.get('progress'), 75)
+
+    def test_status_includes_user_friendly_message_ready(self):
+        """Status view includes user-friendly message for ready status."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Ready Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('status_message'), 'Ready')
+        self.assertEqual(data.get('status_description'), 'Your recording is ready!')
+        self.assertEqual(data.get('progress'), 100)
+
+    def test_status_includes_user_friendly_message_failed(self):
+        """Status view includes user-friendly message for failed status."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Failed Entry',
+            status=CaptureEntry.STATUS_FAILED,
+            error_message='Something went wrong'
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('status_message'), 'Failed')
+        self.assertEqual(data.get('status_description'), 'Processing failed')
+        self.assertEqual(data.get('progress'), 0)
+        self.assertEqual(data.get('error_message'), 'Something went wrong')
+
+    def test_status_includes_redirect_url_for_ready_entries(self):
+        """Status view includes redirect URL for ready entries."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Ready Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('redirect_url'), reverse('capture:list'))
+
+    def test_status_no_redirect_url_for_non_ready_entries(self):
+        """Status view does not include redirect URL for non-ready entries."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Processing Entry',
+            status=CaptureEntry.STATUS_TRANSCRIBING
+        )
+
+        response = self.client.get(
+            reverse('capture:status', kwargs={'entry_id': entry.id})
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertNotIn('redirect_url', data)

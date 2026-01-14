@@ -65,12 +65,30 @@
         <div id="upload-progress" style="display: none;">
             <div style="text-align: center; padding: 2rem 0;">
                 <div class="spinner" style="margin: 0 auto 1.5rem;"></div>
-                <h2 style="margin-bottom: 0.5rem;">Uploading...</h2>
+                <h2 id="upload-status-message" style="margin-bottom: 0.5rem;">Uploading...</h2>
                 <p id="progress-file-name" style="color: var(--color-text-secondary); margin-bottom: 1.5rem;"></p>
                 <div style="background: var(--color-border); border-radius: 4px; height: 8px; overflow: hidden; max-width: 400px; margin: 0 auto;">
                     <div id="progress-bar" style="background: var(--color-primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
                 </div>
                 <p id="progress-text" style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--color-text-secondary);">0%</p>
+            </div>
+        </div>
+
+        <!-- Processing State (after upload) -->
+        <div id="processing-state" style="display: none;">
+            <div style="text-align: center; padding: 2rem 0;">
+                <div class="processing-pulse">
+                    <div class="pulse-circle"></div>
+                    <div class="pulse-icon">&#9881;</div>
+                </div>
+                <h2 id="processing-status-message" style="margin-bottom: 0.5rem;">Processing...</h2>
+                <p id="processing-status-description" style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
+                    Converting speech to text...
+                </p>
+                <div style="background: var(--color-border); border-radius: 4px; height: 8px; overflow: hidden; max-width: 400px; margin: 0 auto;">
+                    <div id="processing-progress-bar" style="background: var(--color-primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <p id="processing-progress-text" style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--color-text-secondary);">0%</p>
             </div>
         </div>
 
@@ -135,6 +153,45 @@
         padding: 0.5rem 1rem;
         font-size: 0.875rem;
     }
+
+    .processing-pulse {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .pulse-circle {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: rgba(59, 130, 246, 0.2);
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .pulse-icon {
+        font-size: 2rem;
+        z-index: 1;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(0.8);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.2);
+            opacity: 0.5;
+        }
+        100% {
+            transform: scale(0.8);
+            opacity: 1;
+        }
+    }
 </style>
 
 <script nonce="{{ csp_nonce }}">
@@ -144,6 +201,7 @@
         const ACCEPTED_TYPES = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm', 'audio/x-m4a'];
         const ACCEPTED_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.webm'];
         const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+        const POLLING_INTERVAL_MS = 2000; // Poll every 2 seconds
 
         // Elements
         const dropZone = document.getElementById('drop-zone');
@@ -162,8 +220,10 @@
         const uploadError = document.getElementById('upload-error');
         const errorMessage = document.getElementById('error-message');
         const tryAgain = document.getElementById('try-again');
+        const processingState = document.getElementById('processing-state');
 
         let selectedFile = null;
+        let pollingInterval = null;
 
         // Format file size
         function formatFileSize(bytes) {
@@ -195,6 +255,58 @@
             fileSelected.style.display = state === 'selected' ? 'block' : 'none';
             uploadProgress.style.display = state === 'progress' ? 'block' : 'none';
             uploadError.style.display = state === 'error' ? 'block' : 'none';
+            processingState.style.display = state === 'processing' ? 'block' : 'none';
+        }
+
+        // Update processing UI
+        function updateProcessingUI(statusData) {
+            document.getElementById('processing-status-message').textContent = statusData.status_message || 'Processing...';
+            document.getElementById('processing-status-description').textContent = statusData.status_description || 'Please wait...';
+            document.getElementById('processing-progress-bar').style.width = (statusData.progress || 0) + '%';
+            document.getElementById('processing-progress-text').textContent = (statusData.progress || 0) + '%';
+        }
+
+        // Poll for status updates
+        function startPolling(entryId) {
+            // Stop any existing polling
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+
+            async function checkStatus() {
+                try {
+                    const response = await fetch('/capture/status/' + entryId + '/');
+                    if (!response.ok) {
+                        throw new Error('Failed to check status');
+                    }
+
+                    const data = await response.json();
+
+                    if (data.status === 'ready') {
+                        // Processing complete - redirect
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        window.location.href = data.redirect_url || "{% url 'capture:list' %}";
+                    } else if (data.status === 'failed') {
+                        // Processing failed - show error
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        showError(data.error_message || 'Processing failed. Please try again.');
+                    } else {
+                        // Still processing - update UI
+                        updateProcessingUI(data);
+                    }
+                } catch (error) {
+                    console.error('Status check failed:', error);
+                    // Don't stop polling on transient errors
+                }
+            }
+
+            // Initial check
+            checkStatus();
+
+            // Start polling
+            pollingInterval = setInterval(checkStatus, POLLING_INTERVAL_MS);
         }
 
         // Handle file selection
@@ -226,138 +338,110 @@
             showState('drop');
         }
 
-        // Upload file with chunked upload for large files
+        // Upload file with S3 presigned URL and status polling
         async function uploadFile() {
             if (!selectedFile) return;
 
             showState('progress');
             progressFileName.textContent = selectedFile.name;
+            const statusMessage = document.getElementById('upload-status-message');
 
             try {
-                // For files smaller than chunk size, upload directly
-                if (selectedFile.size <= CHUNK_SIZE) {
-                    await uploadDirect(selectedFile);
-                } else {
-                    await uploadChunked(selectedFile);
-                }
-            } catch (error) {
-                showError(error.message || 'Upload failed. Please try again.');
-            }
-        }
+                // Step 1: Get presigned upload URL from server
+                statusMessage.textContent = 'Preparing...';
+                progressBar.style.width = '10%';
+                progressText.textContent = '10%';
 
-        // Direct upload for small files
-        async function uploadDirect(file) {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                const mimeType = selectedFile.type || 'audio/mpeg';
+                const title = selectedFile.name.replace(/\.[^/.]+$/, ''); // Remove extension
 
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '{% url "capture:upload" %}');
-
-            xhr.upload.onprogress = function(e) {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    progressBar.style.width = percent + '%';
-                    progressText.textContent = percent + '%';
-                }
-            };
-
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    const response = JSON.parse(xhr.responseText);
-                    if (response.success) {
-                        window.location.href = response.redirect_url || '{% url "capture:list" %}';
-                    } else {
-                        showError(response.error || 'Upload failed.');
-                    }
-                } else {
-                    showError('Upload failed. Server returned status ' + xhr.status);
-                }
-            };
-
-            xhr.onerror = function() {
-                showError('Network error. Please check your connection and try again.');
-            };
-
-            xhr.send(formData);
-        }
-
-        // Chunked upload for large files
-        async function uploadChunked(file) {
-            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-            let uploadedChunks = 0;
-
-            // Get upload session ID first
-            const initResponse = await fetch('{% url "capture:upload" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({
-                    action: 'init_chunked',
-                    filename: file.name,
-                    filesize: file.size,
-                    total_chunks: totalChunks
-                })
-            });
-
-            if (!initResponse.ok) {
-                throw new Error('Failed to initialize upload');
-            }
-
-            const initData = await initResponse.json();
-            const sessionId = initData.session_id;
-
-            // Upload chunks
-            for (let i = 0; i < totalChunks; i++) {
-                const start = i * CHUNK_SIZE;
-                const end = Math.min(start + CHUNK_SIZE, file.size);
-                const chunk = file.slice(start, end);
-
-                const formData = new FormData();
-                formData.append('chunk', chunk);
-                formData.append('chunk_index', i);
-                formData.append('session_id', sessionId);
-                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-
-                const chunkResponse = await fetch('{% url "capture:upload" %}', {
+                const getUrlResponse = await fetch("{% url 'capture:submit' %}", {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        action: 'get_upload_url',
+                        content_type: mimeType,
+                        filename: selectedFile.name,
+                        title: title
+                    })
                 });
 
-                if (!chunkResponse.ok) {
-                    throw new Error('Failed to upload chunk ' + (i + 1));
+                if (!getUrlResponse.ok) {
+                    const errorData = await getUrlResponse.json();
+                    throw new Error(errorData.error || 'Failed to get upload URL');
                 }
 
-                uploadedChunks++;
-                const percent = Math.round((uploadedChunks / totalChunks) * 100);
-                progressBar.style.width = percent + '%';
-                progressText.textContent = percent + '%';
-            }
+                const urlData = await getUrlResponse.json();
+                const entryId = urlData.entry_id;
 
-            // Complete upload
-            const completeResponse = await fetch('{% url "capture:upload" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({
-                    action: 'complete_chunked',
-                    session_id: sessionId
-                })
-            });
+                // Check for mock mode (S3 not configured)
+                if (urlData.mock_mode) {
+                    // In mock mode, entry is already ready - redirect
+                    window.location.href = urlData.redirect_url || "{% url 'capture:list' %}";
+                    return;
+                }
 
-            if (!completeResponse.ok) {
-                throw new Error('Failed to complete upload');
-            }
+                // Step 2: Upload directly to S3
+                statusMessage.textContent = 'Uploading...';
 
-            const completeData = await completeResponse.json();
-            if (completeData.success) {
-                window.location.href = completeData.redirect_url || '{% url "capture:list" %}';
-            } else {
-                throw new Error(completeData.error || 'Upload failed');
+                await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PUT', urlData.upload_url);
+                    xhr.setRequestHeader('Content-Type', mimeType);
+
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) {
+                            // Scale progress from 10% to 60% during upload
+                            const uploadProgress = 10 + Math.round((e.loaded / e.total) * 50);
+                            progressBar.style.width = uploadProgress + '%';
+                            progressText.textContent = uploadProgress + '%';
+                        }
+                    };
+
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve();
+                        } else {
+                            reject(new Error('Upload failed: ' + xhr.status));
+                        }
+                    };
+
+                    xhr.onerror = () => reject(new Error('Network error during upload'));
+                    xhr.send(selectedFile);
+                });
+
+                // Step 3: Confirm upload and trigger processing
+                statusMessage.textContent = 'Processing...';
+                progressBar.style.width = '65%';
+                progressText.textContent = '65%';
+
+                const confirmResponse = await fetch("{% url 'capture:submit' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        action: 'confirm_upload',
+                        entry_id: entryId
+                    })
+                });
+
+                if (!confirmResponse.ok) {
+                    const errorData = await confirmResponse.json();
+                    throw new Error(errorData.error || 'Failed to confirm upload');
+                }
+
+                // Step 4: Switch to processing state and start polling
+                showState('processing');
+                startPolling(entryId);
+
+            } catch (error) {
+                console.error('Upload failed:', error);
+                showError(error.message || 'Upload failed. Please try again.');
             }
         }
 

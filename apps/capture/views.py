@@ -497,19 +497,59 @@ class CaptureStatusView(LoginRequiredMixin, View):
     """
     Get the status of a capture entry for polling.
 
-    Returns the current status and any relevant data (transcript, summary, etc.)
+    Returns the current status, user-friendly messages, and progress indicators.
+    Used by frontend to show processing status during upload/transcription/summarization.
     """
 
+    # Map status to user-friendly messages and progress percentage
+    STATUS_INFO = {
+        CaptureEntry.STATUS_UPLOADING: {
+            'message': 'Uploading',
+            'description': 'Uploading your recording...',
+            'progress': 25,
+        },
+        CaptureEntry.STATUS_TRANSCRIBING: {
+            'message': 'Transcribing',
+            'description': 'Converting speech to text...',
+            'progress': 50,
+        },
+        CaptureEntry.STATUS_SUMMARIZING: {
+            'message': 'Summarizing',
+            'description': 'Generating AI summary...',
+            'progress': 75,
+        },
+        CaptureEntry.STATUS_READY: {
+            'message': 'Ready',
+            'description': 'Your recording is ready!',
+            'progress': 100,
+        },
+        CaptureEntry.STATUS_FAILED: {
+            'message': 'Failed',
+            'description': 'Processing failed',
+            'progress': 0,
+        },
+    }
+
     def get(self, request, entry_id):
-        """Get entry status."""
+        """Get entry status with user-friendly messages and progress."""
         try:
             entry = CaptureEntry.objects.get(id=entry_id, user=request.user)
         except CaptureEntry.DoesNotExist:
             return JsonResponse({'error': 'Entry not found'}, status=404)
 
+        # Get status info
+        status_info = self.STATUS_INFO.get(entry.status, {
+            'message': entry.status.title(),
+            'description': 'Processing...',
+            'progress': 0,
+        })
+
         response_data = {
             'entry_id': str(entry.id),
             'status': entry.status,
+            'status_message': status_info['message'],
+            'status_description': status_info['description'],
+            'progress': status_info['progress'],
             'title': entry.title,
         }
 
@@ -521,5 +561,7 @@ class CaptureStatusView(LoginRequiredMixin, View):
             response_data['transcript'] = entry.transcript[:500] if entry.transcript else ''
             response_data['category'] = entry.category
             response_data['subcategory'] = entry.subcategory
+            # Include redirect URL for frontend to navigate to list after ready
+            response_data['redirect_url'] = reverse('capture:list')
 
         return JsonResponse(response_data)

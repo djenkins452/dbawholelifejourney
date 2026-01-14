@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-13 Changes
 
+### Fix: Teaching Tool Integration into PersonalAssistant (Main Chat Widget)
+
+**Summary:** Fixed the Teaching Tool to work with the main WLJ Assistant chat widget. The integration was previously only in HelpChatService, but the main chat widget uses PersonalAssistant. Navigation questions now return properly formatted responses with **clickable links**.
+
+**Response Format:**
+When users ask "Where do I log my weight?", they now get:
+```
+You can log your daily weight and view trends by going to **Health > Weight**.
+
+To get there quickly, click here: [Weight Tracking](/health/weight/)
+```
+
+The markdown link `[text](url)` is rendered as a clickable `<a>` tag by the chat widget's `formatInlineMarkdown()` function.
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Added `_try_navigation_response()` method, integrated into `send_message()` before AI response generation
+- `apps/help/tests/test_teaching_tool.py` - Added 2 tests for PersonalAssistant integration (total now 21 tests)
+
+---
+
 ### Enhancement: Teaching Tool integrated into WLJ Assistant Chat Bot
 
 **Summary:** The Teaching Tool navigation responses are now integrated into the WLJ Assistant chat bot. When users ask navigation questions like "Where do I log my weight?" in the chat, the bot answers internally using the teaching destinations data without needing to call OpenAI.

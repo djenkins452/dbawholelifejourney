@@ -359,13 +359,24 @@
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-                // Prefer webm, fallback to other formats
-                const mimeType = MediaRecorder.isTypeSupported('audio/webm')
-                    ? 'audio/webm'
-                    : MediaRecorder.isTypeSupported('audio/mp4')
-                        ? 'audio/mp4'
-                        : '';
+                // Try formats in order of preference
+                // Safari/iOS typically supports mp4, Chrome/Firefox support webm
+                const supportedTypes = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/mp4',
+                    'audio/ogg;codecs=opus',
+                    'audio/wav'
+                ];
+                let mimeType = '';
+                for (const type of supportedTypes) {
+                    if (MediaRecorder.isTypeSupported(type)) {
+                        mimeType = type;
+                        break;
+                    }
+                }
 
+                console.log('Selected MIME type:', mimeType || 'browser default');
                 mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
                 audioChunks = [];
 
@@ -379,8 +390,10 @@
                     // Stop all tracks
                     stream.getTracks().forEach(track => track.stop());
 
-                    // Create blob
-                    const mimeTypeUsed = mediaRecorder.mimeType || 'audio/webm';
+                    // Create blob - use the actual mimeType from MediaRecorder
+                    // Fallback to audio/mp4 which is widely supported
+                    const mimeTypeUsed = mediaRecorder.mimeType || 'audio/mp4';
+                    console.log('Recording completed with MIME type:', mimeTypeUsed);
                     audioBlob = new Blob(audioChunks, { type: mimeTypeUsed });
 
                     // Set up preview

@@ -8388,3 +8388,34 @@ Created a detail view for capture entries that displays the structured BLUF summ
 - Status polling now redirects to detail view instead of list for seamless UX
 
 **Test Results:** All status view tests pass (13 tests)
+
+---
+
+### Task 252: Implement Title Editing for Capture Entries
+
+Added inline title editing functionality to the capture detail view.
+
+**Files Created:**
+- None
+
+**Files Modified:**
+- `apps/capture/views.py` - Added `CaptureUpdateTitleView` AJAX endpoint, expanded `ACCEPTED_CONTENT_TYPES` to include more audio formats (aac, caf, 3gpp, video/mp4), added codec parameter stripping for content type validation
+- `apps/capture/urls.py` - Added URL route at `capture/<uuid:pk>/update-title/`
+- `templates/capture/capture_detail.html` - Added inline editing UI with edit button, input field, save/cancel buttons, character counter, and success/error feedback
+- `templates/capture/capture_record.html` - Improved MIME type detection for Safari/iOS compatibility
+- `apps/capture/tests/test_views.py` - Added 9 tests for title update functionality
+
+**Features:**
+- Click pencil icon to edit title inline
+- 200 character limit with live character counter
+- Save with Enter key, cancel with Escape
+- Success/error feedback messages that auto-dismiss after 3 seconds
+- Server-side validation of title length
+- User security: only entry owner can update title
+
+**Bug Fix:**
+- Fixed "Invalid content type" error on iOS Safari when recording audio
+- Added support for codec parameters in content types (e.g., `audio/webm;codecs=opus`)
+- Added more accepted content types for broader browser compatibility
+
+**Test Results:** All 9 title update tests pass, 13 status view tests pass

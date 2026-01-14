@@ -352,6 +352,11 @@ class CaptureSubmitView(LoginRequiredMixin, View):
         'audio/webm',
         'audio/x-m4a',
         'audio/ogg',
+        'audio/aac',
+        'audio/x-caf',
+        'audio/3gpp',
+        'audio/3gpp2',
+        'video/mp4',  # Some browsers report audio as video/mp4
     ]
 
     def post(self, request):
@@ -385,7 +390,11 @@ class CaptureSubmitView(LoginRequiredMixin, View):
         title = data.get('title', '')
         duration_seconds = data.get('duration_seconds')
 
-        if content_type not in self.ACCEPTED_CONTENT_TYPES:
+        # Extract base content type (strip codec parameters like "audio/webm;codecs=opus")
+        base_content_type = content_type.split(';')[0].strip()
+
+        if base_content_type not in self.ACCEPTED_CONTENT_TYPES:
+            logger.warning(f"Rejected content type: {content_type} (base: {base_content_type})")
             return JsonResponse({
                 'error': 'Invalid content type. Accepted: MP3, M4A, WAV, WebM, OGG.'
             }, status=400)
@@ -530,6 +539,49 @@ class CaptureSubmitView(LoginRequiredMixin, View):
             'upload_url': None,  # No upload needed in mock mode
             'mock_mode': True,
             'redirect_url': reverse('capture:list'),
+        })
+
+
+class CaptureUpdateTitleView(LoginRequiredMixin, View):
+    """
+    AJAX endpoint for updating capture entry title.
+
+    Accepts POST with JSON body containing 'title' field.
+    Validates title length (max 200 chars) and returns success/error response.
+    """
+
+    MAX_TITLE_LENGTH = 200
+
+    def post(self, request, pk):
+        """Update the entry title."""
+        try:
+            entry = CaptureEntry.objects.get(id=pk, user=request.user)
+        except CaptureEntry.DoesNotExist:
+            return JsonResponse({'error': 'Entry not found'}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        title = data.get('title', '').strip()
+
+        # Validate title length
+        if len(title) > self.MAX_TITLE_LENGTH:
+            return JsonResponse({
+                'error': f'Title too long. Maximum {self.MAX_TITLE_LENGTH} characters allowed.'
+            }, status=400)
+
+        # Update title
+        entry.title = title
+        entry.save(update_fields=['title', 'updated_at'])
+
+        logger.info(f"Updated title for entry {entry.id} to: {title[:50]}...")
+
+        return JsonResponse({
+            'success': True,
+            'title': entry.title,
+            'message': 'Title updated successfully'
         })
 
 

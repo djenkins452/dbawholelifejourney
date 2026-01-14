@@ -1913,13 +1913,17 @@ class CaptureExpiredAudioTests(TestCase):
         self.assertContains(response, 'Audio no longer available')
         self.assertContains(response, 'Audio files are retained for 7 days')
 
-    def test_detail_view_shows_audio_expired_badge_when_no_url(self):
-        """Detail view shows 'Audio expired' badge when audio_file_url is empty."""
+    def test_detail_view_shows_audio_expired_badge_when_expired(self):
+        """Detail view shows 'Audio expired' badge when audio has expired."""
+        from django.utils import timezone
+        from datetime import timedelta
+
         entry = CaptureEntry.objects.create(
             user=self.user,
             title='Expired Audio Entry',
             status=CaptureEntry.STATUS_READY,
             audio_file_url='',
+            audio_expires_at=timezone.now() - timedelta(days=1),  # Expired yesterday
             summary='Summary'
         )
 
@@ -1980,12 +1984,16 @@ class CaptureExpiredAudioTests(TestCase):
         self.assertContains(response, 'This is the full transcript text')
 
     def test_list_view_shows_audio_expired_indicator(self):
-        """List view shows 'Audio expired' indicator for entries with no audio URL."""
+        """List view shows 'Audio expired' indicator for entries with expired audio."""
+        from django.utils import timezone
+        from datetime import timedelta
+
         entry = CaptureEntry.objects.create(
             user=self.user,
             title='Expired Audio Entry',
             status=CaptureEntry.STATUS_READY,
             audio_file_url='',
+            audio_expires_at=timezone.now() - timedelta(days=1),  # Expired yesterday
             summary='Summary'
         )
 

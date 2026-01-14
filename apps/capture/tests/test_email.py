@@ -48,10 +48,10 @@ class CaptureEmailServiceTests(TestCase):
     @patch('apps.capture.services.email.get_docx_filename')
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_send_capture_email_success(self, mock_filename, mock_docx):
-        """send_capture_email successfully sends email with Word document attachment."""
+        """send_capture_email successfully sends email with DOCX attachment."""
         from apps.capture.services.email import send_capture_email
 
-        mock_docx.return_value = b'mock docx content'
+        mock_docx.return_value = b'PK mock docx content'
         mock_filename.return_value = 'Test Entry - WLJ Capture - 2026-01-14.docx'
 
         entry = CaptureEntry.objects.create(
@@ -98,7 +98,7 @@ class CaptureEmailServiceTests(TestCase):
 
     @patch('apps.capture.services.email.generate_docx')
     def test_send_capture_email_docx_generation_fails(self, mock_docx):
-        """send_capture_email handles document generation failure."""
+        """send_capture_email handles DOCX generation failure."""
         from apps.capture.services.email import send_capture_email
 
         mock_docx.side_effect = Exception('Document generation failed')
@@ -116,7 +116,7 @@ class CaptureEmailServiceTests(TestCase):
         )
 
         self.assertFalse(result['success'])
-        self.assertIn('document', result['error'].lower())
+        self.assertIn('generate document', result['error'])
 
     @patch('apps.capture.services.email.generate_docx')
     @patch('apps.capture.services.email.get_docx_filename')

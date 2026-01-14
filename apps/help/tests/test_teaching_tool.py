@@ -292,6 +292,19 @@ class TeachingToolChatIntegrationTest(BaseTeachingToolTest):
         # Should return None - not a navigation query
         self.assertIsNone(response)
 
+    def test_personal_assistant_how_do_i_log_pattern(self):
+        """Test that 'how do i log' questions trigger navigation response."""
+        from apps.ai.personal_assistant import PersonalAssistant
+
+        assistant = PersonalAssistant(self.user)
+        response = assistant._try_navigation_response("how do I log my weight?")
+
+        # Should return a response with the link
+        self.assertIsNotNone(response)
+        self.assertIn('Weight', response)
+        self.assertIn('/health/weight/', response)
+        self.assertIn('click here', response.lower())
+
 
 class TeachingToolViewTest(BaseTeachingToolTest):
     """Tests for the teaching tool API views."""

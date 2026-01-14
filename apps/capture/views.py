@@ -781,8 +781,10 @@ class CaptureDownloadPDFView(LoginRequiredMixin, View):
             )
         except Exception as e:
             logger.exception(f"PDF generation failed for entry {pk}: {e}")
+            # Include error details in response for debugging
+            error_msg = str(e) if str(e) else type(e).__name__
             return JsonResponse(
-                {'error': 'Failed to generate PDF'},
+                {'error': f'Failed to generate PDF: {error_msg}'},
                 status=500
             )
 

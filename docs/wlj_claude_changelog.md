@@ -14,6 +14,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-14 Changes
+
+### New: Processing status endpoint with frontend polling
+
+**Summary:** Added status polling endpoint for capture entries with user-friendly progress messages and frontend integration for both recording and file upload interfaces.
+
+**Features:**
+- Enhanced `CaptureStatusView` with user-friendly status messages (Uploading, Transcribing, Summarizing, Ready, Failed)
+- Progress indicators (25%, 50%, 75%, 100%) for each processing stage
+- Frontend polling in `capture_record.html` and `capture_upload.html` templates
+- Processing state UI with animated progress bars and status descriptions
+- Error state handling with retry option
+- Automatic redirect to capture list when processing completes
+
+**Files Modified:**
+- `apps/capture/views.py` - Enhanced CaptureStatusView with STATUS_INFO mapping, progress percentages, and redirect_url
+- `templates/capture/capture_record.html` - Added processing/error states, polling logic, S3 upload flow
+- `templates/capture/capture_upload.html` - Added processing state, polling logic, switched to submit endpoint with S3
+- `apps/capture/tests/test_views.py` - Added 8 new tests for status endpoint enhancements
+
+**URL:** Status endpoint already existed at `capture/<uuid:entry_id>/status/`
+
+---
+
 ## 2026-01-13 Changes
 
 ### Fix: Keyboard shortcut `?` interfering with chat input

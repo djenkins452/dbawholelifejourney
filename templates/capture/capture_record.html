@@ -97,8 +97,8 @@
         <!-- Uploading State -->
         <div id="state-uploading" style="display: none;">
             <div class="spinner" style="margin: 0 auto 1.5rem;"></div>
-            <h2 style="margin-bottom: 0.75rem;">Uploading...</h2>
-            <p style="color: var(--color-text-secondary);">
+            <h2 id="upload-status-message" style="margin-bottom: 0.75rem;">Uploading...</h2>
+            <p id="upload-status-description" style="color: var(--color-text-secondary);">
                 Please wait while your recording is being uploaded.
             </p>
             <div id="upload-progress" style="margin-top: 1.5rem;">
@@ -106,6 +106,35 @@
                     <div id="upload-progress-bar" style="background: var(--color-primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
                 </div>
                 <p id="upload-progress-text" style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--color-text-secondary);">0%</p>
+            </div>
+        </div>
+
+        <!-- Processing State (after upload) -->
+        <div id="state-processing" style="display: none;">
+            <div class="processing-pulse">
+                <div class="pulse-circle" style="background: rgba(59, 130, 246, 0.2);"></div>
+                <div class="pulse-icon" style="font-size: 2rem;">&#9881;</div>
+            </div>
+            <h2 id="processing-status-message" style="margin-bottom: 0.5rem;">Processing...</h2>
+            <p id="processing-status-description" style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
+                Converting speech to text...
+            </p>
+            <div style="margin-top: 1.5rem; max-width: 300px; margin-left: auto; margin-right: auto;">
+                <div style="background: var(--color-border); border-radius: 4px; height: 8px; overflow: hidden;">
+                    <div id="processing-progress-bar" style="background: var(--color-primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <p id="processing-progress-text" style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--color-text-secondary);">0%</p>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="state-error" style="display: none;">
+            <div style="font-size: 3rem; margin-bottom: 1rem; color: #ef4444;">&#9888;</div>
+            <h2 style="margin-bottom: 0.5rem; color: #ef4444;">Processing Failed</h2>
+            <p id="error-message" style="color: var(--color-text-secondary); margin-bottom: 1.5rem;"></p>
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                <a href="{% url 'capture:list' %}" class="btn btn-secondary">Back to Capture List</a>
+                <button id="retry-recording" class="btn btn-primary">Try Again</button>
             </div>
         </div>
     </div>
@@ -179,6 +208,16 @@
     .btn-danger:hover {
         background: #dc2626;
     }
+
+    .processing-pulse {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 </style>
 
 <script nonce="{{ csp_nonce }}">
@@ -196,6 +235,8 @@
         const stateRecording = document.getElementById('state-recording');
         const statePreview = document.getElementById('state-preview');
         const stateUploading = document.getElementById('state-uploading');
+        const stateProcessing = document.getElementById('state-processing');
+        const stateError = document.getElementById('state-error');
         const recordingTimer = document.getElementById('recording-timer');
         const audioPreview = document.getElementById('audio-preview');
         const previewDuration = document.getElementById('preview-duration');
@@ -206,8 +247,11 @@
         let recordingStartTime = null;
         let timerInterval = null;
         let audioBlob = null;
+        let currentEntryId = null;
+        let pollingInterval = null;
 
         const MAX_DURATION_MS = 60 * 60 * 1000; // 60 minutes
+        const POLLING_INTERVAL_MS = 2000; // Poll every 2 seconds
 
         // Format time as MM:SS
         function formatTime(ms) {
@@ -223,6 +267,75 @@
             stateRecording.style.display = state === 'recording' ? 'block' : 'none';
             statePreview.style.display = state === 'preview' ? 'block' : 'none';
             stateUploading.style.display = state === 'uploading' ? 'block' : 'none';
+            stateProcessing.style.display = state === 'processing' ? 'block' : 'none';
+            stateError.style.display = state === 'error' ? 'block' : 'none';
+        }
+
+        // Show error state
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            showState('error');
+        }
+
+        // Update processing UI
+        function updateProcessingUI(statusData) {
+            document.getElementById('processing-status-message').textContent = statusData.status_message || 'Processing...';
+            document.getElementById('processing-status-description').textContent = statusData.status_description || 'Please wait...';
+            document.getElementById('processing-progress-bar').style.width = (statusData.progress || 0) + '%';
+            document.getElementById('processing-progress-text').textContent = (statusData.progress || 0) + '%';
+        }
+
+        // Poll for status updates
+        function startPolling(entryId) {
+            currentEntryId = entryId;
+
+            // Stop any existing polling
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+
+            async function checkStatus() {
+                try {
+                    const response = await fetch('/capture/status/' + entryId + '/');
+                    if (!response.ok) {
+                        throw new Error('Failed to check status');
+                    }
+
+                    const data = await response.json();
+
+                    if (data.status === 'ready') {
+                        // Processing complete - redirect
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        window.location.href = data.redirect_url || "{% url 'capture:list' %}";
+                    } else if (data.status === 'failed') {
+                        // Processing failed - show error
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        showError(data.error_message || 'Processing failed. Please try again.');
+                    } else {
+                        // Still processing - update UI
+                        updateProcessingUI(data);
+                    }
+                } catch (error) {
+                    console.error('Status check failed:', error);
+                    // Don't stop polling on transient errors
+                }
+            }
+
+            // Initial check
+            checkStatus();
+
+            // Start polling
+            pollingInterval = setInterval(checkStatus, POLLING_INTERVAL_MS);
+        }
+
+        // Stop polling
+        function stopPolling() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
         }
 
         // Request microphone permission
@@ -326,26 +439,127 @@
             showState('idle');
         }
 
-        // Submit recording (placeholder - will be implemented in future task)
-        function submitRecording() {
+        // Submit recording with S3 upload and status polling
+        async function submitRecording() {
+            if (!audioBlob) {
+                showError('No recording to submit');
+                return;
+            }
+
             showState('uploading');
-            // TODO: Implement actual upload in future task
-            // For now, simulate progress
-            let progress = 0;
             const progressBar = document.getElementById('upload-progress-bar');
             const progressText = document.getElementById('upload-progress-text');
+            const statusMessage = document.getElementById('upload-status-message');
+            const statusDescription = document.getElementById('upload-status-description');
 
-            const interval = setInterval(() => {
-                progress += 10;
-                progressBar.style.width = progress + '%';
-                progressText.textContent = progress + '%';
+            try {
+                // Step 1: Get presigned upload URL from server
+                statusMessage.textContent = 'Preparing...';
+                statusDescription.textContent = 'Getting upload URL...';
+                progressBar.style.width = '10%';
+                progressText.textContent = '10%';
 
-                if (progress >= 100) {
-                    clearInterval(interval);
-                    // Redirect back to list
-                    window.location.href = "{% url 'capture:list' %}";
+                const duration = recordingStartTime ? Math.floor((Date.now() - recordingStartTime) / 1000) : null;
+                const mimeType = audioBlob.type || 'audio/webm';
+
+                const getUrlResponse = await fetch("{% url 'capture:submit' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        action: 'get_upload_url',
+                        content_type: mimeType,
+                        filename: 'recording.' + (mimeType.split('/')[1] || 'webm'),
+                        duration_seconds: duration
+                    })
+                });
+
+                if (!getUrlResponse.ok) {
+                    const errorData = await getUrlResponse.json();
+                    throw new Error(errorData.error || 'Failed to get upload URL');
                 }
-            }, 200);
+
+                const urlData = await getUrlResponse.json();
+                const entryId = urlData.entry_id;
+
+                // Check for mock mode (S3 not configured)
+                if (urlData.mock_mode) {
+                    // In mock mode, entry is already ready - redirect
+                    window.location.href = urlData.redirect_url || "{% url 'capture:list' %}";
+                    return;
+                }
+
+                // Step 2: Upload directly to S3
+                statusMessage.textContent = 'Uploading...';
+                statusDescription.textContent = 'Uploading your recording...';
+
+                const uploadPromise = new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PUT', urlData.upload_url);
+                    xhr.setRequestHeader('Content-Type', mimeType);
+
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) {
+                            // Scale progress from 10% to 60% during upload
+                            const uploadProgress = 10 + Math.round((e.loaded / e.total) * 50);
+                            progressBar.style.width = uploadProgress + '%';
+                            progressText.textContent = uploadProgress + '%';
+                        }
+                    };
+
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve();
+                        } else {
+                            reject(new Error('Upload failed: ' + xhr.status));
+                        }
+                    };
+
+                    xhr.onerror = () => reject(new Error('Network error during upload'));
+                    xhr.send(audioBlob);
+                });
+
+                await uploadPromise;
+
+                // Step 3: Confirm upload and trigger processing
+                statusMessage.textContent = 'Processing...';
+                statusDescription.textContent = 'Starting transcription...';
+                progressBar.style.width = '65%';
+                progressText.textContent = '65%';
+
+                const confirmResponse = await fetch("{% url 'capture:submit' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        action: 'confirm_upload',
+                        entry_id: entryId
+                    })
+                });
+
+                if (!confirmResponse.ok) {
+                    const errorData = await confirmResponse.json();
+                    throw new Error(errorData.error || 'Failed to confirm upload');
+                }
+
+                // Step 4: Switch to processing state and start polling
+                showState('processing');
+                startPolling(entryId);
+
+            } catch (error) {
+                console.error('Submit failed:', error);
+                showError(error.message || 'Upload failed. Please try again.');
+            }
+        }
+
+        // Reset to try again
+        function resetForRetry() {
+            stopPolling();
+            discardRecording();
         }
 
         // Event listeners
@@ -354,6 +568,7 @@
         document.getElementById('discard-recording').addEventListener('click', discardRecording);
         document.getElementById('submit-recording').addEventListener('click', submitRecording);
         document.getElementById('retry-permission').addEventListener('click', requestMicrophoneAccess);
+        document.getElementById('retry-recording').addEventListener('click', resetForRetry);
 
         // Initialize
         requestMicrophoneAccess();

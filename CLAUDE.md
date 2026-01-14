@@ -142,6 +142,32 @@ Common issues: property shadowing fields, migration state, Nixpacks caching, tes
 
 ---
 
+## Teaching Tool Navigation Destinations
+
+When adding new features or pages to the application, **review and update the Teaching Tool destinations** to ensure users can find the new functionality.
+
+**Fixture file:** `apps/help/fixtures/teaching_destinations.json`
+
+Each destination entry includes:
+- `destination_id`: Unique slug identifier
+- `name`: Display name shown to users
+- `path_description`: Navigation breadcrumb (e.g., "Health - Weight")
+- `explanation`: Brief description of what users can do there
+- `url`: Direct URL path to the destination
+- `keywords`: Comma-separated search terms for intent matching
+- `module`: App module name (health, journal, life, purpose, ai, etc.)
+- `sort_order`: Display priority for suggestions
+
+**To add a new destination:**
+1. Add an entry to `teaching_destinations.json`
+2. Run `python manage.py loaddata teaching_destinations` in production
+
+**API endpoints:**
+- `GET /help/api/teaching/search/?q=<query>` - Search for destinations
+- `GET /help/api/teaching/suggestions/` - Get popular destinations
+
+---
+
 ## On Task Completion
 
 After ANY code changes:
@@ -174,4 +200,4 @@ Use `/next` slash command or say "What's Next?"
 
 ---
 
-*Last updated: 2026-01-08*
+*Last updated: 2026-01-13*

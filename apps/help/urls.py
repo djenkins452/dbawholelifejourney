@@ -28,4 +28,10 @@ urlpatterns = [
     path('api/chat/end/', views.ChatEndView.as_view(), name='chat_end'),
     path('api/chat/search/', views.ChatSearchView.as_view(), name='chat_search'),
     path('api/chat/suggestions/', views.ChatSuggestionsView.as_view(), name='chat_suggestions'),
+
+    # ==========================================================================
+    # TEACHING TOOL API
+    # ==========================================================================
+    path('api/teaching/search/', views.TeachingToolSearchView.as_view(), name='teaching_search'),
+    path('api/teaching/suggestions/', views.TeachingToolSuggestionsView.as_view(), name='teaching_suggestions'),
 ]

@@ -18,8 +18,8 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.contrib.auth.decorators import login_required
 
-from .models import HelpTopic, AdminHelpTopic, HelpArticle, HelpCategory, HelpConversation, HelpMessage
-from .services import HelpChatService
+from .models import HelpTopic, AdminHelpTopic, HelpArticle, HelpCategory, HelpConversation, HelpMessage, TeachingDestination
+from .services import HelpChatService, TeachingToolService
 
 
 @method_decorator(login_required, name='dispatch')
@@ -472,3 +472,42 @@ class ChatSuggestionsView(LoginRequiredMixin, View):
         ]
 
         return JsonResponse({'suggestions': suggestions})
+
+
+# =============================================================================
+# Teaching Tool API Endpoints
+# =============================================================================
+
+
+class TeachingToolSearchView(LoginRequiredMixin, View):
+    """
+    API endpoint for the Teaching Tool.
+
+    GET /help/api/teaching/search/?q=<query>
+    Returns a destination and suggestions for navigation questions.
+    """
+
+    def get(self, request):
+        query = request.GET.get('q', '').strip()
+
+        service = TeachingToolService()
+        result = service.search(query)
+
+        return JsonResponse(result)
+
+
+class TeachingToolSuggestionsView(LoginRequiredMixin, View):
+    """
+    API endpoint for popular destination suggestions.
+
+    GET /help/api/teaching/suggestions/
+    Returns a list of popular destinations for display.
+    """
+
+    def get(self, request):
+        limit = int(request.GET.get('limit', 5))
+
+        service = TeachingToolService()
+        destinations = service.get_popular_destinations(limit=limit)
+
+        return JsonResponse({'destinations': destinations})

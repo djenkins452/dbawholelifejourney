@@ -516,3 +516,99 @@ class HelpMessage(models.Model):
         sender = "User" if self.is_user else "Assistant"
         preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
         return f"{sender}: {preview}"
+
+
+# =============================================================================
+# TEACHING TOOL (Navigation Intent Matching)
+# =============================================================================
+
+
+class TeachingDestination(models.Model):
+    """
+    Mapping of natural language intents to app destinations.
+
+    Used by the Teaching Tool to answer questions like
+    "Where do I log my weight?" with a direct link to that feature.
+    """
+
+    # Identification
+    destination_id = models.SlugField(
+        max_length=100,
+        unique=True,
+        help_text="Unique identifier (e.g., 'weight-tracking', 'journal-new')"
+    )
+
+    # Display info
+    name = models.CharField(
+        max_length=100,
+        help_text="Friendly name shown to user (e.g., 'Weight Tracking')"
+    )
+    path_description = models.CharField(
+        max_length=200,
+        help_text="Navigation path (e.g., 'Health → Weight')"
+    )
+    explanation = models.TextField(
+        blank=True,
+        help_text="Brief description of what user can do there"
+    )
+
+    # URL configuration
+    url = models.CharField(
+        max_length=300,
+        help_text="Direct URL path (e.g., '/health/weight/')"
+    )
+
+    # Intent matching
+    keywords = models.TextField(
+        help_text="Comma-separated keywords/phrases for matching (e.g., 'weight, log weight, track weight, weigh myself')"
+    )
+
+    # Organization
+    module = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="App module (health, journal, life, purpose, ai, etc.)"
+    )
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order for fallback suggestions"
+    )
+
+    # Status
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Include in teaching tool responses"
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['module', 'sort_order', 'name']
+        verbose_name = "Teaching Destination"
+        verbose_name_plural = "Teaching Destinations"
+
+    def __str__(self):
+        return f"{self.name} ({self.destination_id})"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        cache.delete('teaching_destinations_all')
+
+    @property
+    def keywords_list(self):
+        """Return keywords as a normalized list."""
+        if not self.keywords:
+            return []
+        return [k.strip().lower() for k in self.keywords.split(',') if k.strip()]
+
+    @classmethod
+    def get_all_active(cls):
+        """Get all active destinations, cached."""
+        cache_key = 'teaching_destinations_all'
+        destinations = cache.get(cache_key)
+        if destinations is None:
+            destinations = list(cls.objects.filter(is_active=True))
+            cache.set(cache_key, destinations, 3600)  # 1 hour cache
+        return destinations

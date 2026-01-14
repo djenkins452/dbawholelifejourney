@@ -16,6 +16,42 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-13 Changes
 
+### New: Teaching Tool - Contextual Navigation Helper
+
+**Summary:** Implemented a Teaching Tool feature that helps users find where to perform actions in the app. When users ask questions like "Where do I log my weight?", the system responds with a direct answer and clickable link.
+
+**Features:**
+- Natural language intent matching using keyword/phrase scoring
+- Floating search widget (Ctrl/Cmd+K shortcut)
+- Direct navigation links to app destinations
+- Fallback suggestions when no match is found
+- JSON-based configuration for easy maintenance
+
+**Technical Implementation:**
+- `TeachingDestination` model for storing destination mappings
+- `TeachingToolService` for intent matching and scoring
+- API endpoints: `/help/api/teaching/search/` and `/help/api/teaching/suggestions/`
+- Widget integrated into base template (visible to authenticated users)
+
+**Files Created:**
+- `apps/help/models.py` - Added `TeachingDestination` model
+- `apps/help/services.py` - Added `TeachingToolService` class
+- `apps/help/views.py` - Added `TeachingToolSearchView`, `TeachingToolSuggestionsView`
+- `apps/help/urls.py` - Added teaching tool API routes
+- `apps/help/admin.py` - Added `TeachingDestinationAdmin`
+- `apps/help/fixtures/teaching_destinations.json` - 20 initial destinations
+- `apps/help/migrations/0003_teaching_destination.py` - Database migration
+- `templates/components/teaching_tool.html` - Widget UI with inline CSS/JS
+- `apps/help/tests/test_teaching_tool.py` - 17 unit tests
+
+**Files Modified:**
+- `templates/base.html` - Added teaching tool widget include
+- `CLAUDE.md` - Added documentation for maintaining destinations
+
+**Initial Destinations (20):** Weight Tracking, Journal Entry, Tasks, AI Assistant, Goals, Workouts, Medicine, Nutrition, Fasting, Prayer, Habits, Calendar, Dashboard, Settings, Recipes, Help Center, Reading Plans, Glucose, Projects, Journal Entries
+
+---
+
 ### Fix: Keyboard shortcut `?` interfering with chat input
 
 **Summary:** Fixed bug where pressing `?` while typing in an input field (INPUT, TEXTAREA, or contentEditable) would trigger the keyboard shortcuts help modal instead of typing a question mark.

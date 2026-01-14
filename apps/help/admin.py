@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     HelpTopic, AdminHelpTopic,
-    HelpCategory, HelpArticle, HelpConversation, HelpMessage
+    HelpCategory, HelpArticle, HelpConversation, HelpMessage,
+    TeachingDestination
 )
 
 
@@ -174,3 +175,46 @@ class HelpMessageAdmin(admin.ModelAdmin):
     def content_preview(self, obj):
         return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
     content_preview.short_description = 'Content'
+
+
+# =============================================================================
+# TEACHING TOOL ADMIN
+# =============================================================================
+
+
+@admin.register(TeachingDestination)
+class TeachingDestinationAdmin(admin.ModelAdmin):
+    """Admin interface for teaching tool navigation destinations."""
+
+    list_display = ['destination_id', 'name', 'path_description', 'module', 'sort_order', 'is_active']
+    list_filter = ['module', 'is_active']
+    search_fields = ['destination_id', 'name', 'path_description', 'keywords', 'explanation']
+    ordering = ['module', 'sort_order', 'name']
+
+    fieldsets = (
+        ('Identification', {
+            'fields': ('destination_id', 'name'),
+            'description': 'Unique identifier and display name for the destination.'
+        }),
+        ('Display', {
+            'fields': ('path_description', 'explanation'),
+            'description': 'Path shows navigation breadcrumb. Explanation describes what user can do there.'
+        }),
+        ('Navigation', {
+            'fields': ('url',),
+            'description': 'Direct URL path to the destination (e.g., /health/weight/).'
+        }),
+        ('Intent Matching', {
+            'fields': ('keywords',),
+            'description': 'Comma-separated keywords/phrases for matching user questions.',
+        }),
+        ('Organization', {
+            'fields': ('module', 'sort_order', 'is_active'),
+        }),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj:
+            # Can't change destination_id after creation
+            return ['destination_id']
+        return []

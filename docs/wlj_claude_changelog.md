@@ -40,6 +40,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-13 Changes
 
+### New: CaptureEntry Model (Task #240)
+
+**Summary:** Created the CaptureEntry model with all required fields for storing audio recordings, transcripts, and AI-generated summaries.
+
+**Model Fields:**
+- `id` (UUID) - Primary key
+- `user` (FK) - User who created the capture
+- `title` - Optional title for the capture
+- `duration_seconds` - Audio recording duration
+- `audio_file_url` - S3 signed URL for audio file
+- `audio_expires_at` - URL expiration timestamp
+- `transcript` - Full Whisper transcription
+- `summary` - AI-generated BLUF summary
+- `category` - Primary category (faith, organize)
+- `subcategory` - Subcategory (sermon, bible_study, devotional, meeting, notes, personal)
+- `status` - Processing status (uploading, transcribing, summarizing, ready, failed)
+- `error_message` - Error details if processing failed
+
+**Files Created:**
+- `apps/capture/migrations/0001_initial.py` - Initial migration
+
+**Files Modified:**
+- `apps/capture/models.py` - Added CaptureEntry model
+- `apps/capture/admin.py` - Registered CaptureEntryAdmin
+
+**Verification:** Migration applied, `python manage.py check` passes.
+
+---
+
 ### New: Capture App Structure (Task #239)
 
 **Summary:** Created the capture Django app with proper app structure for the WLJ Transcribe Recordings feature.

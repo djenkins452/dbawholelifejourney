@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}{{ entry.title|default:"Capture Recording" }} - Capture - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'dashboard:home' %}">Dashboard</a>
+        <span>/</span>
+        <a href="{% url 'capture:list' %}">Capture</a>
+        <span>/</span>
+        <span>{{ entry.title|default:"Recording"|truncatewords:5 }}</span>
+    </nav>
+
+    <!-- Header with metadata -->
+    <div class="page-header" style="margin-bottom: 1.5rem;">
+        <div>
+            <h1 class="page-title">{{ entry.title|default:"Untitled Recording" }}</h1>
+            <div class="page-subtitle" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+                <span>{{ entry.created_at|date:"l, F j, Y" }}</span>
+                {% if formatted_duration %}
+                <span style="color: var(--color-text-tertiary);">&#183;</span>
+                <span>{{ formatted_duration }}</span>
+                {% endif %}
+                {% if entry.category %}
+                <span style="color: var(--color-text-tertiary);">&#183;</span>
+                <span class="badge" style="background: var(--color-accent); color: white; padding: 0.125rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
+                    {{ entry.get_category_display }}
+                </span>
+                {% if entry.subcategory %}
+                <span style="font-size: 0.875rem; color: var(--color-text-secondary);">
+                    {{ entry.get_subcategory_display }}
+                </span>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'capture:list' %}" class="btn btn-secondary">
+                Back to List
+            </a>
+        </div>
+    </div>
+
+    {% if entry.status != 'ready' %}
+    <!-- Processing Status Banner -->
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; background: var(--color-warning-bg, #fef3c7); border-left: 4px solid var(--color-warning, #f59e0b);">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            {% if entry.status == 'failed' %}
+            <span style="font-size: 1.25rem;">&#9888;</span>
+            <div>
+                <strong style="color: #ef4444;">Processing Failed</strong>
+                {% if entry.error_message %}
+                <p style="margin: 0.25rem 0 0; color: var(--color-text-secondary); font-size: 0.875rem;">{{ entry.error_message }}</p>
+                {% endif %}
+            </div>
+            {% else %}
+            <span style="font-size: 1.25rem;">&#9881;</span>
+            <div>
+                <strong>{{ entry.get_status_display }}</strong>
+                <p style="margin: 0.25rem 0 0; color: var(--color-text-secondary); font-size: 0.875rem;">
+                    {% if entry.status == 'uploading' %}
+                    Your recording is being uploaded...
+                    {% elif entry.status == 'transcribing' %}
+                    Converting speech to text...
+                    {% elif entry.status == 'summarizing' %}
+                    Generating AI summary...
+                    {% endif %}
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Audio Player Section -->
+    {% if entry.audio_file_url %}
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; font-size: 1rem; font-weight: 600;">Audio Recording</h2>
+            {% if days_remaining is not None %}
+            <span style="font-size: 0.75rem; color: var(--color-warning, #f59e0b); background: var(--color-warning-bg, #fef3c7); padding: 0.25rem 0.5rem; border-radius: 4px;">
+                {% if days_remaining == 0 %}
+                Expires today
+                {% elif days_remaining == 1 %}
+                1 day remaining
+                {% else %}
+                {{ days_remaining }} days remaining
+                {% endif %}
+            </span>
+            {% endif %}
+        </div>
+        <div class="card-body" style="padding: 1rem 1.5rem;">
+            <audio controls style="width: 100%; margin-bottom: 1rem;">
+                <source src="{{ entry.audio_file_url }}" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <a href="{{ entry.audio_file_url }}" download class="btn btn-secondary btn-sm">
+                    Download Audio
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Summary Section -->
+    {% if entry.summary %}
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h2 style="margin: 0; font-size: 1rem; font-weight: 600;">Summary</h2>
+        </div>
+        <div class="card-body capture-summary" style="padding: 1.5rem;">
+            {{ entry.summary|linebreaks }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Transcript Section (collapsible) -->
+    {% if entry.transcript %}
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <details>
+            <summary class="card-header" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; font-size: 1rem; font-weight: 600;">Full Transcript</h2>
+                <span style="font-size: 0.75rem; color: var(--color-text-secondary);">Click to expand</span>
+            </summary>
+            <div class="card-body" style="padding: 1.5rem; max-height: 400px; overflow-y: auto;">
+                <div style="white-space: pre-wrap; font-family: inherit; line-height: 1.6; color: var(--color-text-secondary);">{{ entry.transcript }}</div>
+            </div>
+        </details>
+    </div>
+    {% endif %}
+
+    <!-- Footer with metadata -->
+    <div style="padding: 1rem 0; border-top: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: 0.875rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                Created {{ entry.created_at|date:"M j, Y" }} at {{ entry.created_at|time:"g:i A" }}
+                {% if entry.updated_at != entry.created_at %}
+                &#183; Updated {{ entry.updated_at|date:"M j, Y" }}
+                {% endif %}
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="{% url 'capture:list' %}" class="btn btn-secondary btn-sm">Back to List</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+    .capture-summary {
+        line-height: 1.8;
+    }
+
+    .capture-summary p {
+        margin-bottom: 1rem;
+    }
+
+    .capture-summary p:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Style BLUF sections if using markdown-style headers */
+    .capture-summary strong {
+        display: block;
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+        color: var(--color-text-primary);
+    }
+
+    .capture-summary strong:first-child {
+        margin-top: 0;
+    }
+
+    /* Style for bullet points */
+    .capture-summary ul, .capture-summary ol {
+        margin: 0.5rem 0 1rem;
+        padding-left: 1.5rem;
+    }
+
+    .capture-summary li {
+        margin-bottom: 0.25rem;
+    }
+
+    .card-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--color-border);
+        background: var(--color-bg-secondary, #f9fafb);
+    }
+
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    details summary::-webkit-details-marker {
+        display: none;
+    }
+
+    details summary::after {
+        content: '+';
+        font-weight: bold;
+        margin-left: auto;
+    }
+
+    details[open] summary::after {
+        content: '-';
+    }
+
+    .btn-sm {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}

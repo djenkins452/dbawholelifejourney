@@ -12,7 +12,7 @@ from django.http import JsonResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.views import View
-from django.views.generic import ListView, TemplateView
+from django.views.generic import DetailView, ListView, TemplateView
 
 from .models import CaptureEntry
 from .storage import (
@@ -291,6 +291,46 @@ class CaptureListView(LoginRequiredMixin, ListView):
         return context
 
 
+class CaptureDetailView(LoginRequiredMixin, DetailView):
+    """
+    Display a single capture entry with its summary and audio player.
+
+    Shows the structured BLUF summary with proper section styling,
+    audio playback controls, and metadata (title, date, duration, category).
+    Only entries belonging to the current user can be accessed.
+    """
+
+    model = CaptureEntry
+    template_name = "capture/capture_detail.html"
+    context_object_name = "entry"
+
+    def get_queryset(self):
+        """Filter entries to current user for security."""
+        return CaptureEntry.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        """Add additional context for the template."""
+        context = super().get_context_data(**kwargs)
+        entry = self.object
+
+        # Calculate days remaining for audio file (7 day retention)
+        if entry.audio_expires_at:
+            days_remaining = (entry.audio_expires_at - timezone.now()).days
+            context['days_remaining'] = max(0, days_remaining)
+        else:
+            context['days_remaining'] = None
+
+        # Format duration as MM:SS
+        if entry.duration_seconds:
+            minutes = entry.duration_seconds // 60
+            seconds = entry.duration_seconds % 60
+            context['formatted_duration'] = f"{minutes}:{seconds:02d}"
+        else:
+            context['formatted_duration'] = None
+
+        return context
+
+
 class CaptureSubmitView(LoginRequiredMixin, View):
     """
     Handle audio submission with S3 presigned URL generation.
@@ -561,7 +601,7 @@ class CaptureStatusView(LoginRequiredMixin, View):
             response_data['transcript'] = entry.transcript[:500] if entry.transcript else ''
             response_data['category'] = entry.category
             response_data['subcategory'] = entry.subcategory
-            # Include redirect URL for frontend to navigate to list after ready
-            response_data['redirect_url'] = reverse('capture:list')
+            # Include redirect URL for frontend to navigate to detail view after ready
+            response_data['redirect_url'] = reverse('capture:detail', kwargs={'pk': entry.id})
 
         return JsonResponse(response_data)

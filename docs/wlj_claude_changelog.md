@@ -8436,3 +8436,32 @@ Reorganized all project documentation files into a clean, consistent structure i
 ---
 
 *Last updated: 2026-01-01*
+
+---
+
+## 2026-01-13
+
+### Task 251: Create Capture Detail View with Summary Display
+
+Created a detail view for capture entries that displays the structured BLUF summary, audio player, and full transcript.
+
+**Files Created:**
+- `templates/capture/capture_detail.html` - New detail page template
+
+**Files Modified:**
+- `apps/capture/views.py` - Added `CaptureDetailView` class with user-scoped queryset, formatted duration, and days remaining calculation
+- `apps/capture/urls.py` - Added detail URL pattern at `capture/<uuid:pk>/`
+- `templates/capture/capture_list.html` - Made table rows clickable to navigate to detail view
+- `apps/capture/tests/test_views.py` - Added 10 tests for detail view, updated redirect URL test
+
+**Features:**
+- Header with title, date, duration, and category badges
+- Audio player with download link and "days remaining" notice (7-day retention)
+- Summary section with proper styling for BLUF format
+- Collapsible transcript section
+- Processing status banner for non-ready entries
+- Error display for failed entries
+- User security: queryset filters to current user only
+- Status polling now redirects to detail view instead of list for seamless UX
+
+**Test Results:** All status view tests pass (13 tests)

@@ -1032,7 +1032,7 @@ class CaptureStatusViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data.get('redirect_url'), reverse('capture:list'))
+        self.assertEqual(data.get('redirect_url'), reverse('capture:detail', kwargs={'pk': entry.id}))
 
     def test_status_no_redirect_url_for_non_ready_entries(self):
         """Status view does not include redirect URL for non-ready entries."""
@@ -1048,3 +1048,182 @@ class CaptureStatusViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertNotIn('redirect_url', data)
+
+
+class CaptureDetailViewTests(TestCase):
+    """Tests for CaptureDetailView."""
+
+    def setUp(self):
+        """Set up test user and client."""
+        self.client = Client()
+        self.user = self._create_user()
+        self.client.login(email='testuser@example.com', password='testpass123')
+
+    def _create_user(self, email='testuser@example.com', password='testpass123'):
+        """Create a test user with terms accepted and onboarding completed."""
+        user = User.objects.create_user(email=email, password=password)
+        self._accept_terms(user)
+        self._complete_onboarding(user)
+        return user
+
+    def _accept_terms(self, user):
+        """Accept terms of service for user."""
+        try:
+            from apps.users.models import TermsAcceptance
+            TermsAcceptance.objects.create(
+                user=user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+            )
+        except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
+    def test_detail_view_requires_login(self):
+        """Detail view requires authentication."""
+        import uuid
+        self.client.logout()
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Test Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+
+    def test_detail_view_returns_404_for_nonexistent_entry(self):
+        """Detail view returns 404 for non-existent entry."""
+        import uuid
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': uuid.uuid4()})
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_detail_view_returns_404_for_other_users_entry(self):
+        """Detail view returns 404 for another user's entry."""
+        other_user = self._create_user(email='other@example.com')
+        entry = CaptureEntry.objects.create(
+            user=other_user,
+            title='Other User Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_detail_view_displays_entry(self):
+        """Detail view displays entry for authenticated owner."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='My Test Entry',
+            status=CaptureEntry.STATUS_READY,
+            summary='This is the test summary.',
+            category='faith',
+            subcategory='sermon'
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'My Test Entry')
+        self.assertContains(response, 'This is the test summary.')
+        self.assertContains(response, 'Faith')
+        self.assertContains(response, 'Sermon')
+
+    def test_detail_view_uses_correct_template(self):
+        """Detail view uses the correct template."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Template Test Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertTemplateUsed(response, 'capture/capture_detail.html')
+
+    def test_detail_view_shows_formatted_duration(self):
+        """Detail view shows formatted duration."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Duration Test',
+            status=CaptureEntry.STATUS_READY,
+            duration_seconds=125  # 2 minutes 5 seconds
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['formatted_duration'], '2:05')
+
+    def test_detail_view_shows_transcript_section(self):
+        """Detail view shows transcript section when transcript exists."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Transcript Test',
+            status=CaptureEntry.STATUS_READY,
+            transcript='This is the full transcript of the recording.'
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertContains(response, 'Full Transcript')
+        self.assertContains(response, 'This is the full transcript')
+
+    def test_detail_view_shows_processing_status_for_non_ready(self):
+        """Detail view shows processing status for entries not yet ready."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Processing Entry',
+            status=CaptureEntry.STATUS_TRANSCRIBING
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Transcribing')
+
+    def test_detail_view_shows_error_for_failed_entry(self):
+        """Detail view shows error message for failed entries."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Failed Entry',
+            status=CaptureEntry.STATUS_FAILED,
+            error_message='Transcription failed due to audio quality'
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Processing Failed')
+        self.assertContains(response, 'audio quality')
+
+    def test_detail_view_shows_audio_player_when_url_exists(self):
+        """Detail view shows audio player when audio URL exists."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Audio Test',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='https://example.com/audio.mp3'
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertContains(response, 'Audio Recording')
+        self.assertContains(response, 'https://example.com/audio.mp3')
+        self.assertContains(response, 'Download Audio')

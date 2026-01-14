@@ -38,6 +38,38 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-14 Changes
+
+### New: Browser Audio Recording UI (Task #243)
+
+**Summary:** Created mobile-first UI for recording audio directly in the browser using MediaRecorder API.
+
+**Files Created:**
+- `templates/capture/capture_record.html` - Recording interface template
+- `static/capture/js/recorder.js` - Reusable AudioRecorder class module
+
+**Files Modified:**
+- `apps/capture/views.py` - Added CaptureRecordView (TemplateView with LoginRequiredMixin)
+- `apps/capture/urls.py` - Added 'record/' route
+- `apps/capture/tests/test_views.py` - Added 8 tests for record view (20 total)
+- `templates/capture/capture_list.html` - Added "Record Audio" button in header and empty state
+
+**Features:**
+- Browser support detection (MediaRecorder API)
+- Microphone permission handling with clear denial message and retry
+- Recording states: Idle, Recording, Preview, Uploading
+- Visual pulse indicator during recording
+- Live timer display (MM:SS format)
+- Maximum 60-minute recording limit with auto-stop
+- Records in webm format for best browser compatibility
+- Audio preview with playback controls before saving
+- Discard and re-record option
+- Placeholder upload progress UI (actual upload in future task)
+
+**Verification:** 20 tests pass, `python manage.py check` passes.
+
+---
+
 ## 2026-01-13 Changes
 
 ### New: Capture List View and URL Routing (Task #242)

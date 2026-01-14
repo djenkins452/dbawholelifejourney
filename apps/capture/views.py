@@ -1,9 +1,20 @@
 """Capture views - Handle audio capture and transcription requests."""
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView
+from django.views.generic import ListView, TemplateView
 
 from .models import CaptureEntry
+
+
+class CaptureRecordView(LoginRequiredMixin, TemplateView):
+    """
+    Browser-based audio recording interface.
+
+    Provides a mobile-first UI for recording audio directly in the browser
+    using the MediaRecorder API. Records in webm format for best compatibility.
+    """
+
+    template_name = "capture/capture_record.html"
 
 
 class CaptureListView(LoginRequiredMixin, ListView):

@@ -16,7 +16,9 @@
             <p class="page-subtitle">{{ total_count }} recording{{ total_count|pluralize }} · {{ ready_count }} ready</p>
         </div>
         <div class="header-actions">
-            <!-- New capture button will be added in future task -->
+            <a href="{% url 'capture:record' %}" class="btn btn-primary">
+                Record Audio
+            </a>
         </div>
     </div>
 
@@ -125,10 +127,9 @@
         <p style="color: var(--color-text-secondary); margin-bottom: 2rem; max-width: 400px; margin-left: auto; margin-right: auto;">
             Capture audio recordings to transcribe sermons, meetings, notes, and more. Your AI assistant will transcribe and summarize them for you.
         </p>
-        <!-- New capture button will be added in future task -->
-        <p style="color: var(--color-text-secondary); font-size: 0.875rem;">
-            Recording feature coming soon...
-        </p>
+        <a href="{% url 'capture:record' %}" class="btn btn-primary">
+            Record Your First Audio
+        </a>
     </div>
     {% endif %}
 </div>

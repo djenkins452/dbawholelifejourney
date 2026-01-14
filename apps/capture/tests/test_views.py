@@ -163,3 +163,84 @@ class CaptureListViewTests(TestCase):
         response = self.client.get(reverse('capture:list'))
         self.assertContains(response, 'Faith')
         self.assertContains(response, 'Sermon')
+
+
+class CaptureRecordViewTests(TestCase):
+    """Tests for CaptureRecordView."""
+
+    def setUp(self):
+        """Set up test user and client."""
+        self.client = Client()
+        self.user = self._create_user()
+        self.client.login(email='testuser@example.com', password='testpass123')
+
+    def _create_user(self, email='testuser@example.com', password='testpass123'):
+        """Create a test user with terms accepted and onboarding completed."""
+        user = User.objects.create_user(email=email, password=password)
+        self._accept_terms(user)
+        self._complete_onboarding(user)
+        return user
+
+    def _accept_terms(self, user):
+        """Accept terms of service for user."""
+        try:
+            from apps.users.models import TermsAcceptance
+            TermsAcceptance.objects.create(
+                user=user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+            )
+        except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
+    def test_record_view_requires_login(self):
+        """Record view requires authentication."""
+        self.client.logout()
+        response = self.client.get(reverse('capture:record'))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+
+    def test_record_view_loads(self):
+        """Record view loads for authenticated user."""
+        response = self.client.get(reverse('capture:record'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_record_view_uses_correct_template(self):
+        """Record view uses the correct template."""
+        response = self.client.get(reverse('capture:record'))
+        self.assertTemplateUsed(response, 'capture/capture_record.html')
+
+    def test_record_view_contains_recording_interface(self):
+        """Record view contains the recording interface elements."""
+        response = self.client.get(reverse('capture:record'))
+        self.assertContains(response, 'recording-interface')
+        self.assertContains(response, 'start-recording')
+        self.assertContains(response, 'stop-recording')
+
+    def test_record_view_contains_browser_support_check(self):
+        """Record view contains browser support check elements."""
+        response = self.client.get(reverse('capture:record'))
+        self.assertContains(response, 'unsupported-browser')
+        self.assertContains(response, 'MediaRecorder')
+
+    def test_record_view_contains_permission_handling(self):
+        """Record view contains permission handling elements."""
+        response = self.client.get(reverse('capture:record'))
+        self.assertContains(response, 'permission-denied')
+        self.assertContains(response, 'Microphone Access Denied')
+
+    def test_record_view_contains_preview_controls(self):
+        """Record view contains preview controls."""
+        response = self.client.get(reverse('capture:record'))
+        self.assertContains(response, 'audio-preview')
+        self.assertContains(response, 'discard-recording')
+        self.assertContains(response, 'submit-recording')
+
+    def test_record_view_has_max_duration_info(self):
+        """Record view displays maximum duration information."""
+        response = self.client.get(reverse('capture:record'))
+        self.assertContains(response, '60 minutes')

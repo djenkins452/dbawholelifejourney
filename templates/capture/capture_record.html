@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block title %}Record Audio - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'dashboard:home' %}">Dashboard</a>
+        <span>/</span>
+        <a href="{% url 'capture:list' %}">Capture</a>
+        <span>/</span>
+        <span>Record</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Record Audio</h1>
+            <p class="page-subtitle">Record up to 60 minutes of audio</p>
+        </div>
+    </div>
+
+    <!-- Browser Support Check -->
+    <div id="unsupported-browser" class="card" style="display: none; text-align: center; padding: 3rem 2rem;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">&#9888;</div>
+        <h2 style="margin-bottom: 0.75rem;">Browser Not Supported</h2>
+        <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
+            Your browser doesn't support audio recording. Please use a modern browser like Chrome, Firefox, Safari, or Edge.
+        </p>
+        <a href="{% url 'capture:list' %}" class="btn btn-secondary">Back to Capture List</a>
+    </div>
+
+    <!-- Permission Denied -->
+    <div id="permission-denied" class="card" style="display: none; text-align: center; padding: 3rem 2rem;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">&#128274;</div>
+        <h2 style="margin-bottom: 0.75rem;">Microphone Access Denied</h2>
+        <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
+            To record audio, you need to allow microphone access. Please check your browser settings and try again.
+        </p>
+        <button id="retry-permission" class="btn btn-primary">Try Again</button>
+        <a href="{% url 'capture:list' %}" class="btn btn-secondary" style="margin-left: 0.5rem;">Back to Capture List</a>
+    </div>
+
+    <!-- Recording Interface -->
+    <div id="recording-interface" class="card" style="display: none; text-align: center; padding: 3rem 2rem;">
+        <!-- Idle State -->
+        <div id="state-idle">
+            <div style="font-size: 4rem; margin-bottom: 1.5rem;">&#127908;</div>
+            <h2 style="margin-bottom: 0.75rem;">Ready to Record</h2>
+            <p style="color: var(--color-text-secondary); margin-bottom: 2rem;">
+                Click the button below to start recording. You can record up to 60 minutes.
+            </p>
+            <button id="start-recording" class="btn btn-primary btn-lg">
+                Start Recording
+            </button>
+        </div>
+
+        <!-- Recording State -->
+        <div id="state-recording" style="display: none;">
+            <div id="recording-indicator" class="recording-pulse">
+                <div class="pulse-circle"></div>
+                <div class="pulse-icon">&#128308;</div>
+            </div>
+            <h2 style="margin-bottom: 0.5rem;">Recording...</h2>
+            <div id="recording-timer" style="font-size: 2.5rem; font-weight: 600; margin-bottom: 1.5rem; font-family: monospace;">
+                00:00
+            </div>
+            <p style="color: var(--color-text-secondary); margin-bottom: 2rem; font-size: 0.875rem;">
+                Maximum: 60 minutes
+            </p>
+            <button id="stop-recording" class="btn btn-danger btn-lg">
+                Stop Recording
+            </button>
+        </div>
+
+        <!-- Preview State -->
+        <div id="state-preview" style="display: none;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">&#9989;</div>
+            <h2 style="margin-bottom: 0.75rem;">Recording Complete</h2>
+            <p id="preview-duration" style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
+                Duration: --:--
+            </p>
+
+            <div style="margin-bottom: 2rem;">
+                <audio id="audio-preview" controls style="width: 100%; max-width: 400px;"></audio>
+            </div>
+
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                <button id="discard-recording" class="btn btn-ghost">
+                    Discard & Re-record
+                </button>
+                <button id="submit-recording" class="btn btn-primary">
+                    Save Recording
+                </button>
+            </div>
+        </div>
+
+        <!-- Uploading State -->
+        <div id="state-uploading" style="display: none;">
+            <div class="spinner" style="margin: 0 auto 1.5rem;"></div>
+            <h2 style="margin-bottom: 0.75rem;">Uploading...</h2>
+            <p style="color: var(--color-text-secondary);">
+                Please wait while your recording is being uploaded.
+            </p>
+            <div id="upload-progress" style="margin-top: 1.5rem;">
+                <div style="background: var(--color-border); border-radius: 4px; height: 8px; overflow: hidden;">
+                    <div id="upload-progress-bar" style="background: var(--color-primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <p id="upload-progress-text" style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--color-text-secondary);">0%</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+    .recording-pulse {
+        position: relative;
+        width: 100px;
+        height: 100px;
+        margin: 0 auto 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .pulse-circle {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: rgba(239, 68, 68, 0.2);
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .pulse-icon {
+        font-size: 3rem;
+        z-index: 1;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(0.8);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.2);
+            opacity: 0.5;
+        }
+        100% {
+            transform: scale(0.8);
+            opacity: 1;
+        }
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--color-border);
+        border-top-color: var(--color-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .btn-lg {
+        padding: 1rem 2rem;
+        font-size: 1.125rem;
+    }
+
+    .btn-danger {
+        background: #ef4444;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: #dc2626;
+    }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check browser support
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+            document.getElementById('unsupported-browser').style.display = 'block';
+            return;
+        }
+
+        // Elements
+        const recordingInterface = document.getElementById('recording-interface');
+        const permissionDenied = document.getElementById('permission-denied');
+        const stateIdle = document.getElementById('state-idle');
+        const stateRecording = document.getElementById('state-recording');
+        const statePreview = document.getElementById('state-preview');
+        const stateUploading = document.getElementById('state-uploading');
+        const recordingTimer = document.getElementById('recording-timer');
+        const audioPreview = document.getElementById('audio-preview');
+        const previewDuration = document.getElementById('preview-duration');
+
+        // State
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recordingStartTime = null;
+        let timerInterval = null;
+        let audioBlob = null;
+
+        const MAX_DURATION_MS = 60 * 60 * 1000; // 60 minutes
+
+        // Format time as MM:SS
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+        }
+
+        // Show state
+        function showState(state) {
+            stateIdle.style.display = state === 'idle' ? 'block' : 'none';
+            stateRecording.style.display = state === 'recording' ? 'block' : 'none';
+            statePreview.style.display = state === 'preview' ? 'block' : 'none';
+            stateUploading.style.display = state === 'uploading' ? 'block' : 'none';
+        }
+
+        // Request microphone permission
+        async function requestMicrophoneAccess() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // Stop the stream immediately - we just needed to check permission
+                stream.getTracks().forEach(track => track.stop());
+                recordingInterface.style.display = 'block';
+                permissionDenied.style.display = 'none';
+                showState('idle');
+            } catch (err) {
+                console.error('Microphone access denied:', err);
+                permissionDenied.style.display = 'block';
+                recordingInterface.style.display = 'none';
+            }
+        }
+
+        // Start recording
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Prefer webm, fallback to other formats
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+                    ? 'audio/webm'
+                    : MediaRecorder.isTypeSupported('audio/mp4')
+                        ? 'audio/mp4'
+                        : '';
+
+                mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+
+                    // Create blob
+                    const mimeTypeUsed = mediaRecorder.mimeType || 'audio/webm';
+                    audioBlob = new Blob(audioChunks, { type: mimeTypeUsed });
+
+                    // Set up preview
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    audioPreview.src = audioUrl;
+
+                    // Calculate duration
+                    const duration = Date.now() - recordingStartTime;
+                    previewDuration.textContent = 'Duration: ' + formatTime(duration);
+
+                    showState('preview');
+                };
+
+                // Start recording
+                mediaRecorder.start(1000); // Collect data every second
+                recordingStartTime = Date.now();
+                showState('recording');
+
+                // Start timer
+                timerInterval = setInterval(() => {
+                    const elapsed = Date.now() - recordingStartTime;
+                    recordingTimer.textContent = formatTime(elapsed);
+
+                    // Auto-stop at max duration
+                    if (elapsed >= MAX_DURATION_MS) {
+                        stopRecording();
+                    }
+                }, 100);
+
+            } catch (err) {
+                console.error('Failed to start recording:', err);
+                permissionDenied.style.display = 'block';
+                recordingInterface.style.display = 'none';
+            }
+        }
+
+        // Stop recording
+        function stopRecording() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+
+        // Discard recording
+        function discardRecording() {
+            audioBlob = null;
+            audioChunks = [];
+            if (audioPreview.src) {
+                URL.revokeObjectURL(audioPreview.src);
+                audioPreview.src = '';
+            }
+            showState('idle');
+        }
+
+        // Submit recording (placeholder - will be implemented in future task)
+        function submitRecording() {
+            showState('uploading');
+            // TODO: Implement actual upload in future task
+            // For now, simulate progress
+            let progress = 0;
+            const progressBar = document.getElementById('upload-progress-bar');
+            const progressText = document.getElementById('upload-progress-text');
+
+            const interval = setInterval(() => {
+                progress += 10;
+                progressBar.style.width = progress + '%';
+                progressText.textContent = progress + '%';
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    // Redirect back to list
+                    window.location.href = "{% url 'capture:list' %}";
+                }
+            }, 200);
+        }
+
+        // Event listeners
+        document.getElementById('start-recording').addEventListener('click', startRecording);
+        document.getElementById('stop-recording').addEventListener('click', stopRecording);
+        document.getElementById('discard-recording').addEventListener('click', discardRecording);
+        document.getElementById('submit-recording').addEventListener('click', submitRecording);
+        document.getElementById('retry-permission').addEventListener('click', requestMicrophoneAccess);
+
+        // Initialize
+        requestMicrophoneAccess();
+    });
+</script>
+{% endblock %}

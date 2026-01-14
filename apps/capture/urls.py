@@ -8,4 +8,5 @@ app_name = 'capture'
 
 urlpatterns = [
     path('', views.CaptureListView.as_view(), name='list'),
+    path('record/', views.CaptureRecordView.as_view(), name='record'),
 ]

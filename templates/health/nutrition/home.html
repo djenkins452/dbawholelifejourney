@@ -82,7 +82,12 @@
         <!-- Breakfast -->
         <div class="meal-group">
             <div class="meal-header">
-                <h2>Breakfast</h2>
+                <div class="meal-title-row">
+                    <h2>Breakfast</h2>
+                    {% if breakfast_entries %}
+                    <span class="meal-subtotal">{{ breakfast_totals.calories|floatformat:0 }} cal | P: {{ breakfast_totals.protein|floatformat:0 }}g | C: {{ breakfast_totals.carbs|floatformat:0 }}g | F: {{ breakfast_totals.fat|floatformat:0 }}g</span>
+                    {% endif %}
+                </div>
                 <div class="meal-actions">
                     <a href="{% url 'scan:home' %}?mode=barcode&meal=breakfast" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
                     <a href="{% url 'health:food_entry_create' %}?meal=breakfast" class="btn btn-text btn-sm">+ Add</a>
@@ -116,7 +121,12 @@
         <!-- Lunch -->
         <div class="meal-group">
             <div class="meal-header">
-                <h2>Lunch</h2>
+                <div class="meal-title-row">
+                    <h2>Lunch</h2>
+                    {% if lunch_entries %}
+                    <span class="meal-subtotal">{{ lunch_totals.calories|floatformat:0 }} cal | P: {{ lunch_totals.protein|floatformat:0 }}g | C: {{ lunch_totals.carbs|floatformat:0 }}g | F: {{ lunch_totals.fat|floatformat:0 }}g</span>
+                    {% endif %}
+                </div>
                 <div class="meal-actions">
                     <a href="{% url 'scan:home' %}?mode=barcode&meal=lunch" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
                     <a href="{% url 'health:food_entry_create' %}?meal=lunch" class="btn btn-text btn-sm">+ Add</a>
@@ -150,7 +160,12 @@
         <!-- Dinner -->
         <div class="meal-group">
             <div class="meal-header">
-                <h2>Dinner</h2>
+                <div class="meal-title-row">
+                    <h2>Dinner</h2>
+                    {% if dinner_entries %}
+                    <span class="meal-subtotal">{{ dinner_totals.calories|floatformat:0 }} cal | P: {{ dinner_totals.protein|floatformat:0 }}g | C: {{ dinner_totals.carbs|floatformat:0 }}g | F: {{ dinner_totals.fat|floatformat:0 }}g</span>
+                    {% endif %}
+                </div>
                 <div class="meal-actions">
                     <a href="{% url 'scan:home' %}?mode=barcode&meal=dinner" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
                     <a href="{% url 'health:food_entry_create' %}?meal=dinner" class="btn btn-text btn-sm">+ Add</a>
@@ -184,7 +199,12 @@
         <!-- Snacks -->
         <div class="meal-group">
             <div class="meal-header">
-                <h2>Snacks</h2>
+                <div class="meal-title-row">
+                    <h2>Snacks</h2>
+                    {% if snack_entries %}
+                    <span class="meal-subtotal">{{ snack_totals.calories|floatformat:0 }} cal | P: {{ snack_totals.protein|floatformat:0 }}g | C: {{ snack_totals.carbs|floatformat:0 }}g | F: {{ snack_totals.fat|floatformat:0 }}g</span>
+                    {% endif %}
+                </div>
                 <div class="meal-actions">
                     <a href="{% url 'scan:home' %}?mode=barcode&meal=snack" class="btn btn-icon-sm" title="Scan food barcode">📷</a>
                     <a href="{% url 'health:food_entry_create' %}?meal=snack" class="btn btn-text btn-sm">+ Add</a>
@@ -360,13 +380,26 @@
 .meal-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: var(--space-3);
+    gap: var(--space-3);
+}
+
+.meal-title-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
 }
 
 .meal-header h2 {
     margin: 0;
     font-size: var(--font-size-lg);
+}
+
+.meal-subtotal {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-weight: 400;
 }
 
 .meal-actions {

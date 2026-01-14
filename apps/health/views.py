@@ -2899,13 +2899,39 @@ class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["today_entries"] = today_entries
 
         # Group entries by meal type
-        context["breakfast_entries"] = today_entries.filter(meal_type=FoodEntry.MEAL_BREAKFAST)
-        context["lunch_entries"] = today_entries.filter(meal_type=FoodEntry.MEAL_LUNCH)
-        context["dinner_entries"] = today_entries.filter(meal_type=FoodEntry.MEAL_DINNER)
-        context["snack_entries"] = today_entries.filter(meal_type=FoodEntry.MEAL_SNACK)
+        breakfast_entries = today_entries.filter(meal_type=FoodEntry.MEAL_BREAKFAST)
+        lunch_entries = today_entries.filter(meal_type=FoodEntry.MEAL_LUNCH)
+        dinner_entries = today_entries.filter(meal_type=FoodEntry.MEAL_DINNER)
+        snack_entries = today_entries.filter(meal_type=FoodEntry.MEAL_SNACK)
+
+        context["breakfast_entries"] = breakfast_entries
+        context["lunch_entries"] = lunch_entries
+        context["dinner_entries"] = dinner_entries
+        context["snack_entries"] = snack_entries
+
+        # Calculate subtotals for each meal type
+        from django.db.models import Sum
+
+        def get_meal_subtotals(entries):
+            totals = entries.aggregate(
+                calories=Sum('total_calories'),
+                protein=Sum('total_protein_g'),
+                carbs=Sum('total_carbohydrates_g'),
+                fat=Sum('total_fat_g'),
+            )
+            return {
+                'calories': totals['calories'] or 0,
+                'protein': totals['protein'] or 0,
+                'carbs': totals['carbs'] or 0,
+                'fat': totals['fat'] or 0,
+            }
+
+        context["breakfast_totals"] = get_meal_subtotals(breakfast_entries)
+        context["lunch_totals"] = get_meal_subtotals(lunch_entries)
+        context["dinner_totals"] = get_meal_subtotals(dinner_entries)
+        context["snack_totals"] = get_meal_subtotals(snack_entries)
 
         # Calculate today's totals
-        from django.db.models import Sum
         totals = today_entries.aggregate(
             calories=Sum('total_calories'),
             protein=Sum('total_protein_g'),

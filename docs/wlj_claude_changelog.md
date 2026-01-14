@@ -40,6 +40,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Enhancement: Nutrition Meal Subtotals
+
+**Summary:** Added subtotals (calories, protein, carbs, fat) for each meal type on the nutrition home page.
+
+**Files Modified:**
+- `apps/health/views.py` - Added meal subtotal calculations in NutritionHomeView
+- `templates/health/nutrition/home.html` - Added subtotal display in meal headers with styling
+
+**Features:**
+- Each meal section (Breakfast, Lunch, Dinner, Snacks) now shows a subtotal line
+- Format: "X cal | P: Xg | C: Xg | F: Xg"
+- Subtotals only display when the meal has entries
+- Styled in muted text, smaller than the meal title
+
+**Verification:** 94 nutrition tests pass, `python manage.py check` passes.
+
+---
+
 ### New: File Upload UI with Validation (Task #244)
 
 **Summary:** Created file upload interface with client and server-side validation for audio files.

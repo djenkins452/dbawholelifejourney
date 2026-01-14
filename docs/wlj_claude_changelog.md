@@ -16,6 +16,73 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Comprehensive Capture Testing and Documentation (Task 261)
+
+**Summary:** Added comprehensive test coverage and documentation for the Capture feature (audio recording, transcription, and summarization).
+
+**Tests Added:**
+- `test_models.py` - 53 unit tests for CaptureEntry model
+  - Model creation and UUID handling
+  - Status transitions and choices
+  - Category and subcategory handling
+  - User relationship and cascade delete
+  - Duration, expiration, and reminder field tests
+  - Transcript/summary field tests
+  - Title handling and database indexes
+  - Model Meta options verification
+
+- `test_integration.py` - 21 integration tests for complete capture flow
+  - Upload to process to display flow
+  - Presigned URL upload flow (with mock mode support)
+  - Status polling during processing
+  - Ready entry display in list and detail views
+  - Failure handling and error display
+  - Audio expiration flow
+  - Multi-user isolation tests
+  - Processing pipeline simulation
+
+- `test_edge_cases.py` - 40 edge case tests
+  - Max duration (60 minutes) handling
+  - Max file size (60MB) handling
+  - Invalid file format rejection
+  - Valid audio format acceptance
+  - Title edge cases (empty, whitespace, HTML characters, unicode)
+  - Transcript/summary edge cases (long content, line breaks)
+  - Audio expiration edge cases
+  - Status transition edge cases
+  - Concurrent access tests
+
+**Documentation Added:**
+- Updated `docs/wlj_claude_features.md`:
+  - Complete Capture feature section with 300+ lines of documentation
+  - Processing pipeline overview
+  - Models and fields documentation
+  - URL routes and API endpoints
+  - Submit API actions and status polling response format
+  - Services documentation (transcription, summarization, PDF, DOCX, email)
+  - Storage integration with S3
+  - Background jobs
+  - Configuration environment variables
+  - Accepted audio formats and limits
+  - Key files and test file listings
+  - Added to Table of Contents
+
+- Verified `docs/wlj_third_party_services.md`:
+  - AWS S3 for Capture audio storage already documented (Service #29)
+  - OpenAI for transcription already documented (Service #1)
+
+**Total New Tests:** 114 tests (all passing)
+
+**Files Created:**
+- `apps/capture/tests/test_models.py`
+- `apps/capture/tests/test_integration.py`
+- `apps/capture/tests/test_edge_cases.py`
+
+**Files Modified:**
+- `docs/wlj_claude_features.md` - Added Capture documentation section
+
+---
+
 ### Handle Expired Audio in UI (Task 258)
 
 **Summary:** Updated the capture detail and list views to gracefully handle entries where audio has been purged after the 7-day retention period.

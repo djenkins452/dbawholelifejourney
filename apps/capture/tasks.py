@@ -161,6 +161,11 @@ def process_capture_entry(
 
         # Success! Entry status already set to 'ready' by summarization service
         logger.info(f"Entry {entry_id}: Processing complete")
+
+        # Send completion email if this was a delayed processing (retry)
+        if retry_count > 0:
+            _send_completion_notification(entry)
+
         return {
             'success': True,
             'message': 'Processing complete',
@@ -281,6 +286,24 @@ def _is_retryable_error(error_msg: str) -> bool:
             return True
 
     return False
+
+
+def _send_completion_notification(entry) -> None:
+    """
+    Send email notification when delayed processing completes.
+
+    Args:
+        entry: CaptureEntry instance that completed processing
+    """
+    try:
+        from apps.capture.services.email import send_processing_complete_email
+        result = send_processing_complete_email(entry)
+        if result['success']:
+            logger.info(f"Sent completion notification for entry {entry.id}")
+        else:
+            logger.warning(f"Failed to send completion notification for entry {entry.id}: {result.get('error')}")
+    except Exception as e:
+        logger.exception(f"Error sending completion notification for entry {entry.id}: {e}")
 
 
 def _retry_with_backoff(entry_id: str, retry_count: int) -> dict:

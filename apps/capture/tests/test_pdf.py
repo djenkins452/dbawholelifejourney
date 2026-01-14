@@ -301,12 +301,16 @@ class CaptureDownloadPDFViewTests(TestCase):
         data = response.json()
         self.assertIn('not ready', data.get('error', ''))
 
-    @patch('apps.capture.services.pdf.generate_pdf')
-    @patch('apps.capture.services.pdf.get_pdf_filename')
+    @patch('apps.capture.services.docx_generator.generate_docx')
+    @patch('apps.capture.services.docx_generator.get_docx_filename')
     def test_download_pdf_success(self, mock_filename, mock_generate):
-        """PDF download returns PDF file for valid entry."""
-        mock_generate.return_value = b'%PDF-1.4 mock pdf content'
-        mock_filename.return_value = 'Test Entry - WLJ Capture - 2026-01-13.pdf'
+        """Download returns Word document for valid entry.
+
+        Note: Endpoint named 'download_pdf' for backwards compatibility
+        but now generates Word documents (DOCX format).
+        """
+        mock_generate.return_value = b'mock docx content'
+        mock_filename.return_value = 'Test Entry - WLJ Capture - 2026-01-13.docx'
 
         entry = CaptureEntry.objects.create(
             user=self.user,
@@ -320,34 +324,18 @@ class CaptureDownloadPDFViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertEqual(
+            response['Content-Type'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
         self.assertIn('attachment', response['Content-Disposition'])
         self.assertIn('Test Entry', response['Content-Disposition'])
-        self.assertEqual(response.content, b'%PDF-1.4 mock pdf content')
+        self.assertEqual(response.content, b'mock docx content')
 
-    @patch('apps.capture.services.pdf.generate_pdf')
-    def test_download_pdf_handles_weasyprint_not_installed(self, mock_generate):
-        """PDF download handles WeasyPrint not installed."""
-        mock_generate.side_effect = ImportError('WeasyPrint not installed')
-
-        entry = CaptureEntry.objects.create(
-            user=self.user,
-            title='Test Entry',
-            status=CaptureEntry.STATUS_READY
-        )
-
-        response = self.client.get(
-            reverse('capture:download_pdf', kwargs={'pk': entry.pk})
-        )
-
-        self.assertEqual(response.status_code, 503)
-        data = response.json()
-        self.assertIn('not available', data.get('error', ''))
-
-    @patch('apps.capture.services.pdf.generate_pdf')
-    def test_download_pdf_handles_generation_error(self, mock_generate):
-        """PDF download handles PDF generation errors."""
-        mock_generate.side_effect = Exception('PDF generation failed')
+    @patch('apps.capture.services.docx_generator.generate_docx')
+    def test_download_pdf_handles_docx_generation_error(self, mock_generate):
+        """Download handles document generation errors."""
+        mock_generate.side_effect = Exception('Document generation failed')
 
         entry = CaptureEntry.objects.create(
             user=self.user,

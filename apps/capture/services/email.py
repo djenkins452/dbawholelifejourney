@@ -106,3 +106,81 @@ def send_capture_email(capture_entry, recipient_email, sender_user, message=None
             'success': False,
             'error': 'Failed to send email. Please try again.'
         }
+
+
+def send_processing_complete_email(capture_entry):
+    """
+    Send an email notification when delayed processing completes.
+
+    This is sent when processing takes longer than expected (timeout scenario)
+    and the user was told "we will email you when ready".
+
+    Args:
+        capture_entry: CaptureEntry model instance that just completed processing
+
+    Returns:
+        dict with 'success' boolean and 'error' message if failed
+    """
+    from django.urls import reverse
+    from django.utils import timezone
+
+    user = capture_entry.user
+
+    # Don't send if already sent
+    if capture_entry.completion_email_sent_at:
+        logger.info(f"Completion email already sent for entry {capture_entry.id}")
+        return {'success': True, 'already_sent': True}
+
+    # Build email content
+    title = capture_entry.title or 'Your Recording'
+
+    subject = f"Your WLJ Capture is Ready: {title}"
+
+    # Build detail URL
+    try:
+        detail_url = settings.SITE_URL + reverse('capture:detail', kwargs={'pk': capture_entry.id})
+    except Exception:
+        detail_url = f"https://wholelifejourney.com/capture/{capture_entry.id}/"
+
+    # Prepare context for email template
+    context = {
+        'user': user,
+        'title': title,
+        'entry': capture_entry,
+        'detail_url': detail_url,
+    }
+
+    # Render email content
+    html_content = render_to_string('capture/email/processing_complete.html', context)
+    text_content = strip_tags(html_content)
+
+    try:
+        # Create and send email
+        email = EmailMessage(
+            subject=subject,
+            body=text_content,
+            from_email=DEFAULT_FROM_EMAIL,
+            to=[user.email],
+        )
+
+        # Attach HTML version
+        email.content_subtype = 'html'
+        email.body = html_content
+
+        # Send email
+        email.send(fail_silently=False)
+
+        # Mark as sent
+        capture_entry.completion_email_sent_at = timezone.now()
+        capture_entry.save(update_fields=['completion_email_sent_at'])
+
+        logger.info(f"Processing complete email sent for entry {capture_entry.id} to {user.email}")
+
+        return {'success': True}
+
+    except Exception as e:
+        logger.exception(f"Failed to send processing complete email for entry {capture_entry.id}: {e}")
+        return {
+            'success': False,
+            'error': 'Failed to send email notification.'
+        }

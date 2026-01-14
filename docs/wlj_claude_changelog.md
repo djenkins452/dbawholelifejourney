@@ -16,6 +16,56 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Error Handling and Retry UI for Capture (Task 262)
+
+**Summary:** Implemented user-friendly error states and retry functionality for the Capture feature.
+
+**Error Handling:**
+- Added error type detection on CaptureEntry model (mic denied, upload failed, transcription failed, summarization failed, timeout, unknown)
+- Created user-friendly error messages with helpful suggestions for each error type
+- Updated detail page to show specific error titles and suggestions instead of generic "Processing Failed"
+- Added error styling with distinct visual treatment for failed entries
+
+**Retry Functionality:**
+- Added `CaptureRetryView` endpoint to re-trigger processing for failed entries
+- Retry button only shown for retryable errors (upload, transcription, summarization failures)
+- Non-retryable errors (mic denied, timeout) show appropriate messaging
+- JavaScript handles retry polling and page reload on success
+
+**Email Notification:**
+- Added `send_processing_complete_email` function for delayed processing completion
+- Created email template `templates/capture/email/processing_complete.html`
+- Added `completion_email_sent_at` field to track notification status
+- Email automatically sent when retried processing completes
+
+**Tests Added:**
+- `test_error_handling.py` - 29 tests covering:
+  - Error type detection (7 tests)
+  - User-friendly error messages (4 tests)
+  - Retry eligibility (4 tests)
+  - Retry view functionality (6 tests)
+  - Detail page error display (4 tests)
+  - Processing complete email (3 tests)
+  - Status API error response (1 test)
+
+**Files Modified:**
+- `apps/capture/models.py` - Added error type constants, methods, and completion_email_sent_at field
+- `apps/capture/views.py` - Added CaptureRetryView, error_info in context
+- `apps/capture/urls.py` - Added retry endpoint
+- `apps/capture/tasks.py` - Integrated completion email notification
+- `apps/capture/services/email.py` - Added send_processing_complete_email
+- `templates/capture/capture_detail.html` - Enhanced error UI and retry button
+- `apps/capture/tests/test_email.py` - Updated tests for docx (was PDF)
+- `apps/capture/tests/test_integration.py` - Updated expected error messages
+- `apps/capture/tests/test_pdf.py` - Updated tests for docx (was PDF)
+
+**Files Created:**
+- `apps/capture/migrations/0003_add_completion_email_sent_at.py`
+- `apps/capture/tests/test_error_handling.py`
+- `templates/capture/email/processing_complete.html`
+
+---
+
 ### Comprehensive Capture Testing and Documentation (Task 261)
 
 **Summary:** Added comprehensive test coverage and documentation for the Capture feature (audio recording, transcription, and summarization).

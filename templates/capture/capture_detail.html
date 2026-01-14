@@ -63,19 +63,37 @@
 
     {% if entry.status != 'ready' %}
     <!-- Processing Status Banner -->
+    {% if entry.status == 'failed' %}
+    <div class="card error-card" style="margin-bottom: 1.5rem; padding: 1.5rem; background: #fef2f2; border-left: 4px solid #ef4444;">
+        <div style="display: flex; align-items: flex-start; gap: 1rem;">
+            <span style="font-size: 1.5rem; flex-shrink: 0;">&#9888;</span>
+            <div style="flex: 1;">
+                <strong style="color: #dc2626; font-size: 1.125rem; display: block; margin-bottom: 0.5rem;">
+                    {{ error_info.title }}
+                </strong>
+                <p style="margin: 0 0 0.5rem; color: #7f1d1d; font-size: 0.9375rem;">
+                    {{ error_info.message }}
+                </p>
+                <p style="margin: 0; color: #991b1b; font-size: 0.875rem; font-style: italic;">
+                    {{ error_info.suggestion }}
+                </p>
+                {% if entry.can_retry %}
+                <div style="margin-top: 1rem;">
+                    <button type="button" id="retry-btn" class="btn btn-primary">
+                        <span id="retry-text">&#8634; Try Again</span>
+                        <span id="retry-loading" style="display: none;">Processing...</span>
+                    </button>
+                </div>
+                {% endif %}
+                <div id="retry-message" style="display: none; margin-top: 0.75rem; padding: 0.5rem; border-radius: 4px; font-size: 0.875rem;"></div>
+            </div>
+        </div>
+    </div>
+    {% else %}
     <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; background: var(--color-warning-bg, #fef3c7); border-left: 4px solid var(--color-warning, #f59e0b);">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
-            {% if entry.status == 'failed' %}
-            <span style="font-size: 1.25rem;">&#9888;</span>
-            <div>
-                <strong style="color: #ef4444;">Processing Failed</strong>
-                {% if entry.error_message %}
-                <p style="margin: 0.25rem 0 0; color: var(--color-text-secondary); font-size: 0.875rem;">{{ entry.error_message }}</p>
-                {% endif %}
-            </div>
-            {% else %}
             <span style="font-size: 1.25rem;">&#9881;</span>
-            <div>
+            <div style="flex: 1;">
                 <strong>{{ entry.get_status_display }}</strong>
                 <p style="margin: 0.25rem 0 0; color: var(--color-text-secondary); font-size: 0.875rem;">
                     {% if entry.status == 'uploading' %}
@@ -87,9 +105,13 @@
                     {% endif %}
                 </p>
             </div>
-            {% endif %}
+            <!-- Processing progress indicator -->
+            <div id="processing-status" style="text-align: right;">
+                <div class="processing-spinner" style="width: 24px; height: 24px; border: 3px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            </div>
         </div>
     </div>
+    {% endif %}
     {% endif %}
 
     <!-- Audio Player Section -->
@@ -505,6 +527,30 @@
         background: #fee2e2;
         color: #991b1b;
         border: 1px solid #fca5a5;
+    }
+
+    /* Processing spinner animation */
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Retry message styles */
+    #retry-message.success {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #86efac;
+    }
+
+    #retry-message.error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fca5a5;
+    }
+
+    #retry-message.info {
+        background: #dbeafe;
+        color: #1e40af;
+        border: 1px solid #93c5fd;
     }
 </style>
 
@@ -924,6 +970,104 @@
                     sendEmail();
                 }
             });
+        }
+
+        // =====================
+        // Retry Functionality
+        // =====================
+        const retryBtn = document.getElementById('retry-btn');
+        const retryText = document.getElementById('retry-text');
+        const retryLoading = document.getElementById('retry-loading');
+        const retryMessage = document.getElementById('retry-message');
+
+        function showRetryMessage(text, type) {
+            if (!retryMessage) return;
+            retryMessage.textContent = text;
+            retryMessage.className = type;  // 'success', 'error', or 'info'
+            retryMessage.style.display = 'block';
+        }
+
+        async function retryProcessing() {
+            if (!retryBtn) return;
+
+            // Show loading state
+            retryBtn.disabled = true;
+            retryText.style.display = 'none';
+            retryLoading.style.display = 'inline';
+            if (retryMessage) retryMessage.style.display = 'none';
+
+            try {
+                const response = await fetch("{% url 'capture:retry' entry.pk %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showRetryMessage('Processing started. Please wait...', 'info');
+                    // Start polling for status
+                    pollForStatus(data.poll_url);
+                } else {
+                    showRetryMessage(data.error || 'Failed to retry. Please try again.', 'error');
+                    resetRetryButton();
+                }
+            } catch (error) {
+                console.error('Failed to retry:', error);
+                showRetryMessage('Failed to retry. Please try again.', 'error');
+                resetRetryButton();
+            }
+        }
+
+        function resetRetryButton() {
+            if (!retryBtn) return;
+            retryBtn.disabled = false;
+            retryText.style.display = 'inline';
+            retryLoading.style.display = 'none';
+        }
+
+        function pollForStatus(pollUrl) {
+            const pollInterval = setInterval(async function() {
+                try {
+                    const response = await fetch(pollUrl);
+                    const data = await response.json();
+
+                    if (data.status === 'ready') {
+                        clearInterval(pollInterval);
+                        showRetryMessage('Processing complete! Reloading...', 'success');
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1500);
+                    } else if (data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        showRetryMessage('Processing failed again. ' + (data.error_message || ''), 'error');
+                        resetRetryButton();
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        // Still processing - update message
+                        showRetryMessage(data.status_description || 'Processing...', 'info');
+                    }
+                } catch (error) {
+                    console.error('Status poll error:', error);
+                    // Continue polling despite errors
+                }
+            }, 2000);  // Poll every 2 seconds
+
+            // Stop polling after 5 minutes
+            setTimeout(function() {
+                clearInterval(pollInterval);
+                showRetryMessage('Processing is taking longer than expected. We will email you when ready.', 'info');
+                resetRetryButton();
+            }, 300000);
+        }
+
+        if (retryBtn) {
+            retryBtn.addEventListener('click', retryProcessing);
         }
     });
 </script>

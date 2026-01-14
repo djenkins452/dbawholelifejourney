@@ -91,6 +91,9 @@ For active development context, see `CLAUDE.md` (project root).
 - `apps/health/views.py` - Added meal subtotal calculations in NutritionHomeView
 - `templates/health/nutrition/home.html` - Added subtotal display in meal headers with styling
 
+**Files Created:**
+- `apps/core/migrations/0045_nutrition_meal_subtotals_release_note.py` - What's New entry
+
 **Features:**
 - Each meal section (Breakfast, Lunch, Dinner, Snacks) now shows a subtotal line
 - Format: "X cal | P: Xg | C: Xg | F: Xg"

@@ -56,6 +56,7 @@ A 2-3 sentence executive summary capturing the core message or main takeaway. Pu
 ## Action Items (ONLY if action items exist)
 - Specific actions the listener could take
 - Practical next steps mentioned or implied
+- When dates, times, or events are mentioned (e.g., "next Sunday", "this Wednesday at 7pm", "the conference in March"), include an action item to add it to calendar
 - **IMPORTANT: Omit this entire section if no clear action items**
 
 ## Notable Quotes (ONLY if memorable quotes exist)

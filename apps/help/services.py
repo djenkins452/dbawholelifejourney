@@ -478,3 +478,198 @@ class HelpChatService:
     def get_closing_message(self):
         """Get a closing message when user ends the chat."""
         return self.tone['closing']
+
+
+# =============================================================================
+# TEACHING TOOL SERVICE (Navigation Intent Matching)
+# =============================================================================
+
+
+class TeachingToolService:
+    """
+    Service for matching user questions to app destinations.
+
+    Uses keyword/phrase matching to find the best destination for
+    questions like "Where do I log my weight?" or "How do I talk to the AI coach?"
+    """
+
+    # Words to ignore when matching (common filler words)
+    STOP_WORDS = {
+        'a', 'an', 'the', 'to', 'do', 'i', 'my', 'me', 'is', 'are', 'can',
+        'how', 'where', 'what', 'when', 'why', 'which', 'who',
+        'in', 'on', 'at', 'for', 'of', 'with', 'about', 'into',
+        'go', 'get', 'find', 'see', 'view', 'open', 'access', 'use',
+    }
+
+    # Response templates
+    RESPONSE_FOUND = "You can {action} under **{path}**."
+    RESPONSE_NOT_FOUND = "I'm not sure about that, but here are some things I can help you find:"
+    RESPONSE_NO_DESTINATIONS = "I don't have any navigation suggestions yet. Please try the Help Center for more information."
+
+    def __init__(self):
+        """Initialize the service."""
+        self.destinations = None
+
+    def _load_destinations(self):
+        """Load destinations from database (cached)."""
+        if self.destinations is None:
+            from .models import TeachingDestination
+            self.destinations = TeachingDestination.get_all_active()
+        return self.destinations
+
+    def search(self, query, limit=5):
+        """
+        Search for destinations matching the user's query.
+
+        Args:
+            query: Natural language question from user
+            limit: Maximum results to return
+
+        Returns:
+            dict with:
+                - found: bool - whether a match was found
+                - message: str - response text
+                - destination: dict or None - best match
+                - suggestions: list - alternative destinations
+        """
+        if not query or len(query.strip()) < 2:
+            return self._no_match_response()
+
+        destinations = self._load_destinations()
+        if not destinations:
+            return {
+                'found': False,
+                'message': self.RESPONSE_NO_DESTINATIONS,
+                'destination': None,
+                'suggestions': [],
+            }
+
+        # Normalize and tokenize query
+        query_lower = query.strip().lower()
+        query_words = self._extract_words(query_lower)
+
+        # Score all destinations
+        scored = []
+        for dest in destinations:
+            score = self._score_destination(dest, query_lower, query_words)
+            if score > 0:
+                scored.append((score, dest))
+
+        # Sort by score descending
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        if not scored:
+            return self._no_match_response(destinations[:limit])
+
+        # Best match
+        best_score, best_dest = scored[0]
+
+        # Build response
+        if best_score >= 10:
+            # Strong match - confident response
+            action = best_dest.explanation or f"access {best_dest.name}"
+            # Make action lowercase and remove trailing period
+            action = action.rstrip('.').lower()
+            if action.startswith('you can '):
+                action = action[8:]
+
+            message = self.RESPONSE_FOUND.format(
+                action=action,
+                path=best_dest.path_description
+            )
+
+            # Get suggestions excluding the best match
+            suggestions = [
+                self._destination_to_dict(dest)
+                for score, dest in scored[1:limit]
+                if score >= 5
+            ]
+
+            return {
+                'found': True,
+                'message': message,
+                'destination': self._destination_to_dict(best_dest),
+                'suggestions': suggestions,
+            }
+        else:
+            # Weak match - show as suggestions
+            return self._no_match_response([dest for score, dest in scored[:limit]])
+
+    def _extract_words(self, text):
+        """Extract meaningful words from text, excluding stop words."""
+        # Remove punctuation and split
+        words = re.sub(r'[^\w\s]', ' ', text).split()
+        # Filter out stop words and short words
+        return [w for w in words if w not in self.STOP_WORDS and len(w) > 1]
+
+    def _score_destination(self, destination, query_lower, query_words):
+        """
+        Score how well a destination matches the query.
+
+        Args:
+            destination: TeachingDestination instance
+            query_lower: Lowercase query string
+            query_words: List of extracted query words
+
+        Returns:
+            Integer score (higher = better match)
+        """
+        score = 0
+        keywords = destination.keywords_list
+
+        # Check for exact phrase matches in keywords (highest value)
+        for keyword in keywords:
+            if keyword in query_lower:
+                # Longer phrase matches score higher
+                score += 10 + len(keyword.split())
+
+        # Check for word matches
+        for word in query_words:
+            # Word in any keyword
+            for keyword in keywords:
+                if word in keyword or keyword in word:
+                    score += 3
+
+            # Word in name
+            if word in destination.name.lower():
+                score += 5
+
+            # Word in path description
+            if word in destination.path_description.lower():
+                score += 2
+
+            # Word in explanation
+            if destination.explanation and word in destination.explanation.lower():
+                score += 1
+
+        return score
+
+    def _destination_to_dict(self, dest):
+        """Convert destination model to dict for JSON response."""
+        return {
+            'id': dest.destination_id,
+            'name': dest.name,
+            'path': dest.path_description,
+            'url': dest.url,
+            'explanation': dest.explanation,
+        }
+
+    def _no_match_response(self, suggestions=None):
+        """Build a response when no strong match is found."""
+        destinations = self._load_destinations()
+
+        if suggestions is None:
+            # Return top destinations by sort order
+            suggestions = destinations[:5]
+
+        return {
+            'found': False,
+            'message': self.RESPONSE_NOT_FOUND,
+            'destination': None,
+            'suggestions': [self._destination_to_dict(d) for d in suggestions],
+        }
+
+    def get_popular_destinations(self, limit=5):
+        """Get popular destinations for the fallback display."""
+        destinations = self._load_destinations()
+        return [self._destination_to_dict(d) for d in destinations[:limit]]

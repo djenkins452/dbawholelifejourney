@@ -1,0 +1,576 @@
+{% load static %}
+{# Teaching Tool - Quick navigation helper that answers "Where do I...?" questions #}
+
+<!-- Teaching Tool Floating Button -->
+<button id="teaching-tool-btn" class="teaching-tool-btn" aria-label="Find a feature" title="Find where to do something">
+    <span class="teaching-btn-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+    </span>
+</button>
+
+<!-- Teaching Tool Modal -->
+<div id="teaching-tool-overlay" class="teaching-tool-overlay"></div>
+
+<div id="teaching-tool-modal" class="teaching-tool-modal">
+    <div class="teaching-tool-header">
+        <h3>Where do I...?</h3>
+        <button id="teaching-tool-close" class="teaching-tool-close" aria-label="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+
+    <div class="teaching-tool-body">
+        <form id="teaching-tool-form" class="teaching-tool-form">
+            <input
+                type="text"
+                id="teaching-tool-input"
+                class="teaching-tool-input"
+                placeholder="e.g., log my weight, write in my journal..."
+                autocomplete="off"
+                maxlength="200"
+            >
+            <button type="submit" id="teaching-tool-search" class="teaching-tool-search-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+            </button>
+        </form>
+
+        <!-- Results container -->
+        <div id="teaching-tool-results" class="teaching-tool-results">
+            <!-- Initial state: popular destinations -->
+            <div id="teaching-tool-initial" class="teaching-tool-initial">
+                <p class="teaching-tool-label">Popular destinations:</p>
+                <div id="teaching-tool-popular" class="teaching-tool-suggestions">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Loading state -->
+            <div id="teaching-tool-loading" class="teaching-tool-loading" style="display: none;">
+                <div class="teaching-loading-spinner"></div>
+            </div>
+
+            <!-- Match found -->
+            <div id="teaching-tool-found" class="teaching-tool-found" style="display: none;">
+                <p id="teaching-tool-message" class="teaching-tool-message"></p>
+                <a id="teaching-tool-link" href="#" class="teaching-tool-link">
+                    <span id="teaching-tool-destination"></span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </a>
+                <div id="teaching-tool-also" class="teaching-tool-also" style="display: none;">
+                    <p class="teaching-tool-label">You might also be looking for:</p>
+                    <div id="teaching-tool-suggestions" class="teaching-tool-suggestions"></div>
+                </div>
+            </div>
+
+            <!-- No match found -->
+            <div id="teaching-tool-notfound" class="teaching-tool-notfound" style="display: none;">
+                <p id="teaching-tool-notfound-message" class="teaching-tool-message"></p>
+                <div id="teaching-tool-fallback" class="teaching-tool-suggestions"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Teaching Tool Styles -->
+<style nonce="{{ csp_nonce }}">
+/* Floating Button - positioned above the chat widget */
+.teaching-tool-btn {
+    position: fixed;
+    bottom: 84px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-surface, #f3f4f6);
+    color: var(--color-text, #374151);
+    border: 1px solid var(--color-border, #e5e7eb);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    z-index: 9997;
+}
+
+.teaching-tool-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: var(--color-background, #fff);
+}
+
+.teaching-tool-btn:active {
+    transform: scale(0.95);
+}
+
+/* Overlay */
+.teaching-tool-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    z-index: 9998;
+}
+
+.teaching-tool-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Modal */
+.teaching-tool-modal {
+    position: fixed;
+    bottom: 140px;
+    right: 20px;
+    width: 360px;
+    max-width: calc(100vw - 40px);
+    background: var(--color-background, #fff);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--color-border, #e5e7eb);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px) scale(0.95);
+    transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+    z-index: 9999;
+}
+
+.teaching-tool-modal.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+/* Header */
+.teaching-tool-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.teaching-tool-header h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text, #374151);
+    margin: 0;
+}
+
+.teaching-tool-close {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--color-text-muted, #6b7280);
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.teaching-tool-close:hover {
+    background: var(--color-surface, #f3f4f6);
+}
+
+/* Body */
+.teaching-tool-body {
+    padding: 16px;
+}
+
+/* Form */
+.teaching-tool-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.teaching-tool-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: var(--color-background, #fff);
+    color: var(--color-text, #374151);
+}
+
+.teaching-tool-input:focus {
+    border-color: var(--color-accent, #6366f1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.teaching-tool-input::placeholder {
+    color: var(--color-text-muted, #9ca3af);
+}
+
+.teaching-tool-search-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--color-accent, #6366f1);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s, transform 0.2s;
+    flex-shrink: 0;
+}
+
+.teaching-tool-search-btn:hover {
+    opacity: 0.9;
+}
+
+.teaching-tool-search-btn:active {
+    transform: scale(0.95);
+}
+
+/* Results */
+.teaching-tool-results {
+    min-height: 80px;
+}
+
+.teaching-tool-label {
+    font-size: 12px;
+    color: var(--color-text-muted, #6b7280);
+    margin: 0 0 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Loading */
+.teaching-tool-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.teaching-loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--color-border, #e5e7eb);
+    border-top-color: var(--color-accent, #6366f1);
+    border-radius: 50%;
+    animation: teaching-spin 0.8s linear infinite;
+}
+
+@keyframes teaching-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Found state */
+.teaching-tool-message {
+    font-size: 14px;
+    color: var(--color-text, #374151);
+    margin: 0 0 12px 0;
+    line-height: 1.5;
+}
+
+.teaching-tool-message strong {
+    font-weight: 600;
+}
+
+.teaching-tool-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--color-accent, #6366f1);
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: opacity 0.2s;
+}
+
+.teaching-tool-link:hover {
+    opacity: 0.9;
+}
+
+.teaching-tool-also {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border, #e5e7eb);
+}
+
+/* Suggestions */
+.teaching-tool-suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.teaching-tool-suggestion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--color-surface, #f3f4f6);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--color-text, #374151);
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+.teaching-tool-suggestion:hover {
+    background: var(--color-border, #e5e7eb);
+}
+
+.teaching-tool-suggestion-name {
+    font-weight: 500;
+}
+
+.teaching-tool-suggestion-path {
+    font-size: 11px;
+    color: var(--color-text-muted, #6b7280);
+}
+
+/* Not found state */
+.teaching-tool-notfound .teaching-tool-message {
+    margin-bottom: 16px;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+    .teaching-tool-btn {
+        bottom: 76px;
+        right: 16px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .teaching-tool-modal {
+        bottom: 124px;
+        right: 16px;
+        left: 16px;
+        width: auto;
+        max-width: none;
+    }
+}
+</style>
+
+<!-- Teaching Tool JavaScript -->
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const btn = document.getElementById('teaching-tool-btn');
+    const overlay = document.getElementById('teaching-tool-overlay');
+    const modal = document.getElementById('teaching-tool-modal');
+    const closeBtn = document.getElementById('teaching-tool-close');
+    const form = document.getElementById('teaching-tool-form');
+    const input = document.getElementById('teaching-tool-input');
+
+    // Result containers
+    const initialEl = document.getElementById('teaching-tool-initial');
+    const popularEl = document.getElementById('teaching-tool-popular');
+    const loadingEl = document.getElementById('teaching-tool-loading');
+    const foundEl = document.getElementById('teaching-tool-found');
+    const notfoundEl = document.getElementById('teaching-tool-notfound');
+
+    // Found elements
+    const messageEl = document.getElementById('teaching-tool-message');
+    const linkEl = document.getElementById('teaching-tool-link');
+    const destinationEl = document.getElementById('teaching-tool-destination');
+    const alsoEl = document.getElementById('teaching-tool-also');
+    const suggestionsEl = document.getElementById('teaching-tool-suggestions');
+
+    // Not found elements
+    const notfoundMessageEl = document.getElementById('teaching-tool-notfound-message');
+    const fallbackEl = document.getElementById('teaching-tool-fallback');
+
+    let isOpen = false;
+    let popularLoaded = false;
+
+    // Open modal
+    function openModal() {
+        isOpen = true;
+        modal.classList.add('visible');
+        overlay.classList.add('visible');
+        input.focus();
+
+        // Load popular destinations on first open
+        if (!popularLoaded) {
+            loadPopular();
+        }
+    }
+
+    // Close modal
+    function closeModal() {
+        isOpen = false;
+        modal.classList.remove('visible');
+        overlay.classList.remove('visible');
+        resetState();
+    }
+
+    // Reset to initial state
+    function resetState() {
+        input.value = '';
+        showState('initial');
+    }
+
+    // Show specific state
+    function showState(state) {
+        initialEl.style.display = state === 'initial' ? 'block' : 'none';
+        loadingEl.style.display = state === 'loading' ? 'flex' : 'none';
+        foundEl.style.display = state === 'found' ? 'block' : 'none';
+        notfoundEl.style.display = state === 'notfound' ? 'block' : 'none';
+    }
+
+    // Load popular destinations
+    async function loadPopular() {
+        try {
+            const response = await fetch('/help/api/teaching/suggestions/');
+            const data = await response.json();
+
+            if (data.destinations && data.destinations.length > 0) {
+                popularEl.innerHTML = data.destinations.map(dest =>
+                    createSuggestionHTML(dest)
+                ).join('');
+                popularLoaded = true;
+            }
+        } catch (error) {
+            console.error('Error loading popular destinations:', error);
+        }
+    }
+
+    // Create suggestion HTML
+    function createSuggestionHTML(dest) {
+        return `
+            <a href="${escapeAttr(dest.url)}" class="teaching-tool-suggestion">
+                <span class="teaching-tool-suggestion-name">${escapeHtml(dest.name)}</span>
+                <span class="teaching-tool-suggestion-path">${escapeHtml(dest.path)}</span>
+            </a>
+        `;
+    }
+
+    // Search for destination
+    async function search(query) {
+        if (!query.trim()) {
+            showState('initial');
+            return;
+        }
+
+        showState('loading');
+
+        try {
+            const response = await fetch('/help/api/teaching/search/?q=' + encodeURIComponent(query));
+            const data = await response.json();
+
+            if (data.found && data.destination) {
+                // Show found state
+                messageEl.innerHTML = formatMessage(data.message);
+                destinationEl.textContent = data.destination.name;
+                linkEl.href = data.destination.url;
+
+                // Show additional suggestions if any
+                if (data.suggestions && data.suggestions.length > 0) {
+                    suggestionsEl.innerHTML = data.suggestions.map(dest =>
+                        createSuggestionHTML(dest)
+                    ).join('');
+                    alsoEl.style.display = 'block';
+                } else {
+                    alsoEl.style.display = 'none';
+                }
+
+                showState('found');
+            } else {
+                // Show not found state
+                notfoundMessageEl.textContent = data.message;
+
+                if (data.suggestions && data.suggestions.length > 0) {
+                    fallbackEl.innerHTML = data.suggestions.map(dest =>
+                        createSuggestionHTML(dest)
+                    ).join('');
+                }
+
+                showState('notfound');
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+            notfoundMessageEl.textContent = "Sorry, something went wrong. Please try again.";
+            fallbackEl.innerHTML = '';
+            showState('notfound');
+        }
+    }
+
+    // Format message with markdown-like bold
+    function formatMessage(text) {
+        return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Escape attribute
+    function escapeAttr(text) {
+        return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Event listeners
+    btn.addEventListener('click', openModal);
+    overlay.addEventListener('click', closeModal);
+    closeBtn.addEventListener('click', closeModal);
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        search(input.value);
+    });
+
+    // Search on input with debounce
+    let debounceTimer;
+    input.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() {
+            if (input.value.trim().length >= 2) {
+                search(input.value);
+            } else if (input.value.trim().length === 0) {
+                showState('initial');
+            }
+        }, 300);
+    });
+
+    // Escape key to close
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && isOpen) {
+            closeModal();
+        }
+    });
+
+    // Keyboard shortcut: Ctrl/Cmd + K to open
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            if (isOpen) {
+                closeModal();
+            } else {
+                openModal();
+            }
+        }
+    });
+})();
+</script>

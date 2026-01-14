@@ -1,0 +1,302 @@
+[
+    {
+        "model": "help.teachingdestination",
+        "pk": 1,
+        "fields": {
+            "destination_id": "weight-tracking",
+            "name": "Weight Tracking",
+            "path_description": "Health - Weight",
+            "explanation": "Log your daily weight and view trends over time.",
+            "url": "/health/weight/",
+            "keywords": "weight, log weight, track weight, weigh myself, weigh in, weight history, weight loss, weight gain, body weight",
+            "module": "health",
+            "sort_order": 1,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 2,
+        "fields": {
+            "destination_id": "journal-new-entry",
+            "name": "New Journal Entry",
+            "path_description": "Journal - New Entry",
+            "explanation": "Write a new journal entry to capture your thoughts and reflections.",
+            "url": "/journal/new/",
+            "keywords": "journal, write journal, new entry, journal entry, write entry, diary, write in my journal, journaling, capture thoughts",
+            "module": "journal",
+            "sort_order": 2,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 3,
+        "fields": {
+            "destination_id": "task-list",
+            "name": "Task List",
+            "path_description": "Organize - Tasks",
+            "explanation": "View, create, and manage your to-do list and tasks.",
+            "url": "/life/tasks/",
+            "keywords": "tasks, task list, to do, todo, to-do list, my tasks, things to do, checklist, task management",
+            "module": "life",
+            "sort_order": 3,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 4,
+        "fields": {
+            "destination_id": "ai-assistant",
+            "name": "AI Assistant",
+            "path_description": "Assistant",
+            "explanation": "Chat with your personal AI assistant for guidance and support.",
+            "url": "/assistant/",
+            "keywords": "ai coach, ai assistant, coach, assistant, ai, talk to ai, chat, personal assistant, help me, guidance",
+            "module": "ai",
+            "sort_order": 4,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 5,
+        "fields": {
+            "destination_id": "goals",
+            "name": "My Goals",
+            "path_description": "Goals - My Goals",
+            "explanation": "Set, track, and review your personal goals.",
+            "url": "/purpose/goals/",
+            "keywords": "goals, my goals, set goals, goal setting, goal list, personal goals, track goals, objectives, targets",
+            "module": "purpose",
+            "sort_order": 5,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 6,
+        "fields": {
+            "destination_id": "workout-logging",
+            "name": "Log a Workout",
+            "path_description": "Health - Fitness - New Workout",
+            "explanation": "Log a new workout session with exercises, sets, and reps.",
+            "url": "/health/fitness/workout/new/",
+            "keywords": "workout, log workout, exercise, fitness, gym, training, strength training, cardio, workout log, exercise log",
+            "module": "health",
+            "sort_order": 6,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 7,
+        "fields": {
+            "destination_id": "medication-tracking",
+            "name": "Medication Tracker",
+            "path_description": "Health - Medicine",
+            "explanation": "Track your medications, schedules, and adherence.",
+            "url": "/health/medicine/",
+            "keywords": "medicine, medication, meds, pills, prescriptions, drug, medicine tracker, take medicine, medication schedule",
+            "module": "health",
+            "sort_order": 7,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 8,
+        "fields": {
+            "destination_id": "food-logging",
+            "name": "Log Food",
+            "path_description": "Health - Nutrition",
+            "explanation": "Track your meals, calories, and nutrition.",
+            "url": "/health/nutrition/",
+            "keywords": "food, nutrition, log food, meals, calories, diet, eating, what i ate, food diary, calorie tracking, macros",
+            "module": "health",
+            "sort_order": 8,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 9,
+        "fields": {
+            "destination_id": "fasting-tracker",
+            "name": "Fasting Tracker",
+            "path_description": "Health - Fasting",
+            "explanation": "Start, track, and manage your intermittent fasting sessions.",
+            "url": "/health/fasting/",
+            "keywords": "fasting, fast, intermittent fasting, start fast, fasting tracker, IF, time restricted eating",
+            "module": "health",
+            "sort_order": 9,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 10,
+        "fields": {
+            "destination_id": "prayer-requests",
+            "name": "Prayer Requests",
+            "path_description": "Faith - Prayers",
+            "explanation": "Add and manage your prayer requests and answered prayers.",
+            "url": "/faith/prayers/",
+            "keywords": "prayer, prayers, prayer request, pray, praying, prayer list, faith, spiritual",
+            "module": "faith",
+            "sort_order": 10,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 11,
+        "fields": {
+            "destination_id": "habits",
+            "name": "Habit Tracking",
+            "path_description": "Goals - Habits",
+            "explanation": "Track daily habits and build consistent routines.",
+            "url": "/purpose/habits/",
+            "keywords": "habits, habit tracker, daily habits, routine, streak, habit tracking, build habits",
+            "module": "purpose",
+            "sort_order": 11,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 12,
+        "fields": {
+            "destination_id": "calendar",
+            "name": "Calendar",
+            "path_description": "Organize - Calendar",
+            "explanation": "View your calendar and manage events.",
+            "url": "/life/calendar/",
+            "keywords": "calendar, events, schedule, appointments, upcoming, what's on my calendar",
+            "module": "life",
+            "sort_order": 12,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 13,
+        "fields": {
+            "destination_id": "dashboard",
+            "name": "Dashboard",
+            "path_description": "Dashboard",
+            "explanation": "Your personal dashboard with an overview of your wellness journey.",
+            "url": "/dashboard/",
+            "keywords": "dashboard, home, overview, main page, start, summary",
+            "module": "dashboard",
+            "sort_order": 13,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 14,
+        "fields": {
+            "destination_id": "settings",
+            "name": "Settings",
+            "path_description": "User - Preferences",
+            "explanation": "Customize your app settings, theme, and preferences.",
+            "url": "/user/preferences/",
+            "keywords": "settings, preferences, options, customize, theme, profile, account settings, configuration",
+            "module": "users",
+            "sort_order": 14,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 15,
+        "fields": {
+            "destination_id": "recipes",
+            "name": "Recipes",
+            "path_description": "Organize - Recipes",
+            "explanation": "Store and manage your favorite recipes.",
+            "url": "/life/recipes/",
+            "keywords": "recipes, recipe, cooking, meals, food ideas, recipe book, cookbook",
+            "module": "life",
+            "sort_order": 15,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 16,
+        "fields": {
+            "destination_id": "help-center",
+            "name": "Help Center",
+            "path_description": "Help",
+            "explanation": "Browse help articles and get answers to your questions.",
+            "url": "/help/",
+            "keywords": "help, support, help center, faq, questions, how to, documentation, guides",
+            "module": "help",
+            "sort_order": 16,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 17,
+        "fields": {
+            "destination_id": "reading-plans",
+            "name": "Bible Reading Plans",
+            "path_description": "Faith - Reading Plans",
+            "explanation": "Follow Bible reading plans and track your progress.",
+            "url": "/faith/reading-plans/",
+            "keywords": "bible, reading plan, scripture, bible study, devotional, daily reading, bible reading",
+            "module": "faith",
+            "sort_order": 17,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 18,
+        "fields": {
+            "destination_id": "glucose-tracking",
+            "name": "Glucose Tracking",
+            "path_description": "Health - Glucose",
+            "explanation": "Log and monitor your blood glucose levels.",
+            "url": "/health/glucose/",
+            "keywords": "glucose, blood sugar, sugar levels, diabetes, cgm, dexcom, blood glucose",
+            "module": "health",
+            "sort_order": 18,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 19,
+        "fields": {
+            "destination_id": "projects",
+            "name": "Projects",
+            "path_description": "Organize - Projects",
+            "explanation": "Manage your projects and organize tasks by project.",
+            "url": "/life/projects/",
+            "keywords": "projects, project list, project management, organize projects",
+            "module": "life",
+            "sort_order": 19,
+            "is_active": true
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 20,
+        "fields": {
+            "destination_id": "journal-entries",
+            "name": "Journal Entries",
+            "path_description": "Journal - Entries",
+            "explanation": "Browse and search your journal entries.",
+            "url": "/journal/entries/",
+            "keywords": "journal entries, past entries, journal history, read journal, my journals",
+            "module": "journal",
+            "sort_order": 20,
+            "is_active": true
+        }
+    }
+]

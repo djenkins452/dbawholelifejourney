@@ -231,7 +231,7 @@
             <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
                 <a href="{% url 'capture:download_pdf' entry.pk %}" class="btn btn-secondary">
                     <span style="margin-right: 0.5rem;">&#128196;</span>
-                    Download PDF
+                    Download Word Doc
                 </a>
                 <button type="button" id="share-email-btn" class="btn btn-primary">
                     <span style="margin-right: 0.5rem;">&#9993;</span>
@@ -252,7 +252,7 @@
             </div>
             <div class="modal-body">
                 <p style="margin-bottom: 1rem; color: var(--color-text-secondary); font-size: 0.875rem;">
-                    Send a PDF summary of "{{ entry.title|default:"this recording" }}" to someone via email.
+                    Send a Word document summary of "{{ entry.title|default:"this recording" }}" to someone via email.
                 </p>
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label for="recipient-email" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">

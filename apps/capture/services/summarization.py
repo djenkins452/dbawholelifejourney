@@ -49,7 +49,8 @@ A 2-3 sentence executive summary capturing the core message or main takeaway. Pu
 
 ## Scripture References (ONLY if scripture is mentioned)
 - List any Bible verses or religious texts mentioned
-- Include the reference and brief context
+- Include the reference, brief context, and the full NIV text of the verse
+- If the speaker references a verse but doesn't quote it, look up and include the NIV text (e.g., "John 3:16 (NIV): 'For God so loved the world...'")
 - **IMPORTANT: Omit this entire section if no scripture is mentioned**
 
 ## Action Items (ONLY if action items exist)

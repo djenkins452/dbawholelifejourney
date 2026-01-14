@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Handle Expired Audio in UI (Task 258)
+
+**Summary:** Updated the capture detail and list views to gracefully handle entries where audio has been purged after the 7-day retention period.
+
+**Changes:**
+- Detail view shows "Audio no longer available" message when audio_file_url is empty
+- Detail view shows "Audio expired" badge in header when audio is no longer available
+- Audio player and download button are hidden when audio has expired
+- List view shows "Audio expired" indicator under status for entries without audio
+- Transcript and summary remain visible even after audio expires
+- Added 10 comprehensive tests for expired audio display scenarios
+
+**Files Modified:**
+- `templates/capture/capture_detail.html` - Added conditional rendering for expired audio state
+- `templates/capture/capture_list.html` - Added "Audio expired" indicator in status column
+- `apps/capture/tests/test_views.py` - Added CaptureExpiredAudioTests test class (10 tests)
+
+---
+
 ### New: Delete Recordings from Capture List
 
 **Summary:** Added ability to delete capture recordings directly from the list page with a confirmation modal.

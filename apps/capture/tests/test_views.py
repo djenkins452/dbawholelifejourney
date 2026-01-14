@@ -1613,3 +1613,206 @@ class CaptureDeleteViewTests(TestCase):
 
         # Verify entry was deleted
         self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())
+
+
+class CaptureExpiredAudioTests(TestCase):
+    """Tests for handling expired audio in list and detail views."""
+
+    def setUp(self):
+        """Set up test user and client."""
+        self.client = Client()
+        self.user = self._create_user()
+        self.client.login(email='testuser@example.com', password='testpass123')
+
+    def _create_user(self, email='testuser@example.com', password='testpass123'):
+        """Create a test user with terms accepted and onboarding completed."""
+        user = User.objects.create_user(email=email, password=password)
+        self._accept_terms(user)
+        self._complete_onboarding(user)
+        return user
+
+    def _accept_terms(self, user):
+        """Accept terms of service for user."""
+        try:
+            from apps.users.models import TermsAcceptance
+            TermsAcceptance.objects.create(
+                user=user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+            )
+        except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
+    def test_detail_view_shows_audio_expired_message_when_no_url(self):
+        """Detail view shows 'Audio no longer available' when audio_file_url is empty."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Expired Audio Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='',  # Empty URL means audio has expired/been purged
+            summary='This is the summary',
+            transcript='This is the transcript'
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Audio no longer available')
+        self.assertContains(response, 'Audio files are retained for 7 days')
+
+    def test_detail_view_shows_audio_expired_badge_when_no_url(self):
+        """Detail view shows 'Audio expired' badge when audio_file_url is empty."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Expired Audio Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='',
+            summary='Summary'
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Audio expired')
+
+    def test_detail_view_hides_download_button_when_audio_expired(self):
+        """Detail view does not show download button when audio has expired."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Expired Audio Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='',
+            summary='Summary'
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Download Audio')
+
+    def test_detail_view_shows_summary_when_audio_expired(self):
+        """Detail view still shows summary when audio has expired."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Expired Audio Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='',
+            summary='This is the important summary'
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'This is the important summary')
+        self.assertContains(response, 'Summary')
+
+    def test_detail_view_shows_transcript_when_audio_expired(self):
+        """Detail view still shows transcript when audio has expired."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Expired Audio Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='',
+            transcript='This is the full transcript text'
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Full Transcript')
+        self.assertContains(response, 'This is the full transcript text')
+
+    def test_list_view_shows_audio_expired_indicator(self):
+        """List view shows 'Audio expired' indicator for entries with no audio URL."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Expired Audio Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='',
+            summary='Summary'
+        )
+
+        response = self.client.get(reverse('capture:list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Audio expired')
+
+    def test_list_view_no_expired_indicator_when_audio_exists(self):
+        """List view does not show 'Audio expired' when audio URL exists."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Active Audio Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='https://example.com/audio.mp3',
+            summary='Summary'
+        )
+
+        response = self.client.get(reverse('capture:list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Audio expired')
+
+    def test_detail_view_shows_days_remaining_when_audio_available(self):
+        """Detail view shows days remaining badge when audio URL exists."""
+        from django.utils import timezone
+        from datetime import timedelta
+
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Active Audio Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='https://example.com/audio.mp3',
+            audio_expires_at=timezone.now() + timedelta(days=3, hours=12)  # Add hours to ensure 3 full days
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '3 days remaining')
+        self.assertNotContains(response, 'Audio expired')
+
+    def test_detail_view_shows_expires_today_when_audio_expires_same_day(self):
+        """Detail view shows 'Expires today' when audio expires today."""
+        from django.utils import timezone
+        from datetime import timedelta
+
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Expiring Today Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='https://example.com/audio.mp3',
+            audio_expires_at=timezone.now() + timedelta(hours=12)  # Less than 1 day
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Expires today')
+
+    def test_detail_view_shows_1_day_remaining(self):
+        """Detail view shows '1 day remaining' singular form."""
+        from django.utils import timezone
+        from datetime import timedelta
+
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='One Day Left Entry',
+            status=CaptureEntry.STATUS_READY,
+            audio_file_url='https://example.com/audio.mp3',
+            audio_expires_at=timezone.now() + timedelta(days=1, hours=12)
+        )
+
+        response = self.client.get(
+            reverse('capture:detail', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '1 day remaining')

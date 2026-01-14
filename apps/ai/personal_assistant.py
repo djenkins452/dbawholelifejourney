@@ -1782,11 +1782,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
             if result['found'] and result['destination']:
                 dest = result['destination']
-                # Format a friendly response with clear instruction and clickable link
+                # Format a friendly response with "click here" as the link
                 response = (
                     f"You can {dest['explanation'].lower().rstrip('.')} by going to "
-                    f"**{dest['path']}**.\n\n"
-                    f"To get there quickly, click here: [{dest['name']}]({dest['url']})"
+                    f"**{dest['path']}**. For easy access, [click here]({dest['url']})."
                 )
                 return response
 

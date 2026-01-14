@@ -785,3 +785,68 @@ class CaptureDownloadPDFView(LoginRequiredMixin, View):
                 {'error': 'Failed to generate PDF'},
                 status=500
             )
+
+
+class CaptureEmailView(LoginRequiredMixin, View):
+    """
+    Send a capture entry summary via email with PDF attachment.
+
+    Accepts POST with JSON body containing:
+    - recipient_email: Email address to send to
+    - message: Optional personal message from sender
+
+    Returns JSON with success/error status.
+    """
+
+    def post(self, request, pk):
+        """Send capture entry via email."""
+        from .services.email import send_capture_email
+
+        # Get the capture entry
+        try:
+            entry = CaptureEntry.objects.get(id=pk, user=request.user)
+        except CaptureEntry.DoesNotExist:
+            return JsonResponse({'error': 'Entry not found'}, status=404)
+
+        # Only allow email for ready entries
+        if entry.status != CaptureEntry.STATUS_READY:
+            return JsonResponse(
+                {'error': 'Entry is not ready for sharing'},
+                status=400
+            )
+
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        recipient_email = data.get('recipient_email', '').strip()
+        message = data.get('message', '').strip()
+
+        # Validate recipient email
+        if not recipient_email:
+            return JsonResponse({'error': 'Recipient email is required'}, status=400)
+
+        # Send the email
+        result = send_capture_email(
+            capture_entry=entry,
+            recipient_email=recipient_email,
+            sender_user=request.user,
+            message=message if message else None,
+        )
+
+        if result['success']:
+            logger.info(
+                f"Email sent for entry {entry.id} by user {request.user.email} "
+                f"to {recipient_email}"
+            )
+            return JsonResponse({
+                'success': True,
+                'message': f'Email sent to {recipient_email}'
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result.get('error', 'Failed to send email')
+            }, status=400)

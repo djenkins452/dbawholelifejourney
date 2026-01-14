@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Shared from Whole Life Journey</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #374151;
+            background-color: #f9fafb;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .logo-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #6366f1;
+            margin-bottom: 8px;
+        }
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #374151;
+            margin: 0 0 16px 0;
+        }
+        .intro {
+            font-size: 16px;
+            color: #6b7280;
+            margin-bottom: 20px;
+        }
+        .message-box {
+            background: #f3f4f6;
+            border-left: 4px solid #6366f1;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .message-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+        .attachment-note {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 6px;
+            padding: 16px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .attachment-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .footer a {
+            color: #6366f1;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <div class="logo-text">Whole Life Journey</div>
+            </div>
+
+            <h1>{{ title }}</h1>
+
+            <p class="intro">
+                {{ sender_name }} has shared a capture summary with you.
+            </p>
+
+            {% if message %}
+            <div class="message-box">
+                <div class="message-label">Personal Message</div>
+                <p style="margin: 0; color: #374151;">{{ message }}</p>
+            </div>
+            {% endif %}
+
+            <div class="attachment-note">
+                <div class="attachment-icon">&#128206;</div>
+                <p style="margin: 0; font-weight: 500; color: #0369a1;">
+                    PDF Summary Attached
+                </p>
+                <p style="margin: 8px 0 0; font-size: 14px; color: #6b7280;">
+                    Open the attached PDF to view the full summary and transcript.
+                </p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>
+                This email was sent from <a href="https://wholelifejourney.com">Whole Life Journey</a>
+            </p>
+            <p style="margin-top: 8px;">
+                &copy; {{ current_year|default:"2026" }} Whole Life Journey. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

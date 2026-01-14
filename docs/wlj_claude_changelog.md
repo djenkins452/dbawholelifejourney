@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Add Cloudinary Audio Storage Support
+
+**Summary:** Added Cloudinary as the audio storage backend for the Capture feature. This uses the existing Cloudinary credentials already configured for image storage, eliminating the need for a separate S3 bucket.
+
+**How it works:**
+1. When recording/uploading audio, the frontend sends audio to the server
+2. Server uploads to Cloudinary using the video resource type (handles audio)
+3. Cloudinary returns a permanent URL for playback
+4. Audio files are tagged for 7-day retention tracking
+
+**Changes:**
+- Created `apps/capture/cloudinary_storage.py` - Cloudinary upload/delete functions
+- Updated `apps/capture/views.py` - Added `CaptureCloudinaryUploadView`, modified submit flow to detect Cloudinary
+- Updated `apps/capture/urls.py` - Added cloudinary-upload endpoint
+- Updated `templates/capture/capture_record.html` - Handle Cloudinary upload mode
+- Updated `templates/capture/capture_upload.html` - Handle Cloudinary upload mode
+
+**Storage Priority:**
+1. Cloudinary (if configured) - uses existing credentials
+2. S3 (if configured) - requires separate bucket setup
+3. Mock mode (no storage) - for development only
+
+---
+
 ### Add Play/Download Actions to Capture List
 
 **Summary:** Added action buttons to the Audio Capture list view so users can play and download audio directly without navigating to the detail page.

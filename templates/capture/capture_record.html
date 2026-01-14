@@ -497,69 +497,114 @@
                 const urlData = await getUrlResponse.json();
                 const entryId = urlData.entry_id;
 
-                // Check for mock mode (S3 not configured)
+                // Check for mock mode (no storage configured)
                 if (urlData.mock_mode) {
                     // In mock mode, entry is already ready - redirect
                     window.location.href = urlData.redirect_url || "{% url 'capture:list' %}";
                     return;
                 }
 
-                // Step 2: Upload directly to S3
+                // Step 2: Upload the audio file
                 statusMessage.textContent = 'Uploading...';
                 statusDescription.textContent = 'Uploading your recording...';
 
-                const uploadPromise = new Promise((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('PUT', urlData.upload_url);
-                    xhr.setRequestHeader('Content-Type', mimeType);
+                let uploadPromise;
 
-                    xhr.upload.onprogress = (e) => {
-                        if (e.lengthComputable) {
-                            // Scale progress from 10% to 60% during upload
-                            const uploadProgress = 10 + Math.round((e.loaded / e.total) * 50);
-                            progressBar.style.width = uploadProgress + '%';
-                            progressText.textContent = uploadProgress + '%';
-                        }
-                    };
+                if (urlData.upload_mode === 'cloudinary') {
+                    // Cloudinary mode: upload via server endpoint with FormData
+                    uploadPromise = new Promise((resolve, reject) => {
+                        const formData = new FormData();
+                        formData.append('audio', audioBlob, 'recording.' + (mimeType.split('/')[1] || 'webm').split(';')[0]);
 
-                    xhr.onload = () => {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            resolve();
-                        } else {
-                            reject(new Error('Upload failed: ' + xhr.status));
-                        }
-                    };
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('POST', urlData.upload_url);
+                        xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
 
-                    xhr.onerror = () => reject(new Error('Network error during upload'));
-                    xhr.send(audioBlob);
-                });
+                        xhr.upload.onprogress = (e) => {
+                            if (e.lengthComputable) {
+                                // Scale progress from 10% to 60% during upload
+                                const uploadProgress = 10 + Math.round((e.loaded / e.total) * 50);
+                                progressBar.style.width = uploadProgress + '%';
+                                progressText.textContent = uploadProgress + '%';
+                            }
+                        };
 
-                await uploadPromise;
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                resolve(JSON.parse(xhr.responseText));
+                            } else {
+                                try {
+                                    const errorData = JSON.parse(xhr.responseText);
+                                    reject(new Error(errorData.error || 'Upload failed: ' + xhr.status));
+                                } catch {
+                                    reject(new Error('Upload failed: ' + xhr.status));
+                                }
+                            }
+                        };
 
-                // Step 3: Confirm upload and trigger processing
-                statusMessage.textContent = 'Processing...';
-                statusDescription.textContent = 'Starting transcription...';
-                progressBar.style.width = '65%';
-                progressText.textContent = '65%';
+                        xhr.onerror = () => reject(new Error('Network error during upload'));
+                        xhr.send(formData);
+                    });
 
-                const confirmResponse = await fetch("{% url 'capture:submit' %}", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({
-                        action: 'confirm_upload',
-                        entry_id: entryId
-                    })
-                });
+                    // Cloudinary upload returns directly after upload completes
+                    // No need for separate confirm step
+                    await uploadPromise;
 
-                if (!confirmResponse.ok) {
-                    const errorData = await confirmResponse.json();
-                    throw new Error(errorData.error || 'Failed to confirm upload');
+                } else {
+                    // S3 mode: upload directly to presigned URL
+                    uploadPromise = new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('PUT', urlData.upload_url);
+                        xhr.setRequestHeader('Content-Type', mimeType);
+
+                        xhr.upload.onprogress = (e) => {
+                            if (e.lengthComputable) {
+                                // Scale progress from 10% to 60% during upload
+                                const uploadProgress = 10 + Math.round((e.loaded / e.total) * 50);
+                                progressBar.style.width = uploadProgress + '%';
+                                progressText.textContent = uploadProgress + '%';
+                            }
+                        };
+
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                resolve();
+                            } else {
+                                reject(new Error('Upload failed: ' + xhr.status));
+                            }
+                        };
+
+                        xhr.onerror = () => reject(new Error('Network error during upload'));
+                        xhr.send(audioBlob);
+                    });
+
+                    await uploadPromise;
+
+                    // S3 mode: Confirm upload and trigger processing
+                    statusMessage.textContent = 'Processing...';
+                    statusDescription.textContent = 'Starting transcription...';
+                    progressBar.style.width = '65%';
+                    progressText.textContent = '65%';
+
+                    const confirmResponse = await fetch("{% url 'capture:submit' %}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            action: 'confirm_upload',
+                            entry_id: entryId
+                        })
+                    });
+
+                    if (!confirmResponse.ok) {
+                        const errorData = await confirmResponse.json();
+                        throw new Error(errorData.error || 'Failed to confirm upload');
+                    }
                 }
 
-                // Step 4: Switch to processing state and start polling
+                // Switch to processing state and start polling
                 showState('processing');
                 startPolling(entryId);
 

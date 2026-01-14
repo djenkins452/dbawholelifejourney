@@ -21,6 +21,11 @@ from .storage import (
     CaptureStorageError,
     CaptureStorageNotConfiguredError,
 )
+from .cloudinary_storage import (
+    is_cloudinary_configured,
+    upload_audio as cloudinary_upload_audio,
+    CloudinaryStorageError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -401,9 +406,14 @@ class CaptureSubmitView(LoginRequiredMixin, View):
                 'error': 'Invalid content type. Accepted: MP3, M4A, WAV, WebM, OGG.'
             }, status=400)
 
+        # Check if Cloudinary is configured (preferred)
+        if is_cloudinary_configured():
+            logger.info("Using Cloudinary for audio storage")
+            return self._cloudinary_upload_response(request, data)
+
         # Check if S3 storage is configured
         if not is_storage_configured():
-            logger.warning("S3 storage not configured, falling back to mock mode")
+            logger.warning("No storage configured, falling back to mock mode")
             return self._mock_upload_response(request, data)
 
         try:
@@ -503,11 +513,51 @@ class CaptureSubmitView(LoginRequiredMixin, View):
             'redirect_url': reverse('capture:list'),
         })
 
+    def _cloudinary_upload_response(self, request, data):
+        """
+        Return response indicating Cloudinary upload mode.
+
+        In this mode, the frontend will upload the audio directly to
+        a server endpoint that handles Cloudinary upload.
+        """
+        from datetime import timedelta
+
+        filename = data.get('filename', '')
+        title = data.get('title', '')
+        duration_seconds = data.get('duration_seconds')
+        content_type = data.get('content_type', 'audio/webm')
+
+        # Determine title
+        if title:
+            entry_title = title
+        elif filename:
+            entry_title = os.path.splitext(filename)[0]
+        else:
+            entry_title = 'Recording'
+
+        # Create entry in uploading status
+        entry = CaptureEntry.objects.create(
+            user=request.user,
+            title=entry_title,
+            status=CaptureEntry.STATUS_UPLOADING,
+            audio_expires_at=timezone.now() + timedelta(days=7),
+            duration_seconds=duration_seconds,
+        )
+
+        logger.info(f"Created capture entry {entry.id} for Cloudinary upload")
+
+        return JsonResponse({
+            'success': True,
+            'entry_id': str(entry.id),
+            'upload_mode': 'cloudinary',
+            'upload_url': reverse('capture:cloudinary_upload', kwargs={'entry_id': entry.id}),
+        })
+
     def _mock_upload_response(self, request, data):
         """
-        Provide a mock response when S3 is not configured.
+        Provide a mock response when no storage is configured.
 
-        This allows development/testing without S3.
+        This allows development/testing without cloud storage.
         Creates an entry that goes directly to 'ready' status.
         """
         from datetime import timedelta
@@ -533,7 +583,7 @@ class CaptureSubmitView(LoginRequiredMixin, View):
             duration_seconds=duration_seconds,
         )
 
-        logger.info(f"Created mock capture entry {entry.id} (S3 not configured)")
+        logger.info(f"Created mock capture entry {entry.id} (no storage configured)")
 
         return JsonResponse({
             'success': True,
@@ -542,6 +592,93 @@ class CaptureSubmitView(LoginRequiredMixin, View):
             'mock_mode': True,
             'redirect_url': reverse('capture:list'),
         })
+
+
+class CaptureCloudinaryUploadView(LoginRequiredMixin, View):
+    """
+    Handle audio file upload to Cloudinary.
+
+    Accepts POST with multipart form data containing the audio file.
+    Uploads to Cloudinary and updates the CaptureEntry with the URL.
+    """
+
+    MAX_FILE_SIZE = 60 * 1024 * 1024  # 60MB
+
+    def post(self, request, entry_id):
+        """Upload audio file to Cloudinary."""
+        # Get the entry
+        try:
+            entry = CaptureEntry.objects.get(id=entry_id, user=request.user)
+        except CaptureEntry.DoesNotExist:
+            return JsonResponse({'error': 'Entry not found'}, status=404)
+
+        # Verify entry is in uploading status
+        if entry.status != CaptureEntry.STATUS_UPLOADING:
+            return JsonResponse({
+                'error': f'Entry is not in uploading status (current: {entry.status})'
+            }, status=400)
+
+        # Get the audio file
+        audio_file = request.FILES.get('audio')
+        if not audio_file:
+            return JsonResponse({'error': 'No audio file provided'}, status=400)
+
+        # Validate file size
+        if audio_file.size > self.MAX_FILE_SIZE:
+            return JsonResponse({
+                'error': 'File too large. Maximum size is 60MB.'
+            }, status=400)
+
+        try:
+            # Upload to Cloudinary
+            result = cloudinary_upload_audio(
+                file_data=audio_file,
+                user_id=str(request.user.id),
+                filename=audio_file.name,
+                content_type=audio_file.content_type,
+            )
+
+            # Update entry with Cloudinary URL
+            entry.audio_file_url = result['url']
+            entry.audio_expires_at = result['audio_expires_at']
+            if result.get('duration_seconds'):
+                entry.duration_seconds = result['duration_seconds']
+            entry.status = CaptureEntry.STATUS_TRANSCRIBING
+            entry.save()
+
+            logger.info(f"Uploaded audio to Cloudinary for entry {entry.id}")
+
+            # Trigger async processing
+            import threading
+            from apps.capture.tasks import process_capture_entry
+
+            def run_processing():
+                try:
+                    proc_result = process_capture_entry(str(entry.id))
+                    if proc_result['success']:
+                        logger.info(f"Entry {entry.id} processing completed successfully")
+                    else:
+                        logger.warning(f"Entry {entry.id} processing failed: {proc_result.get('message')}")
+                except Exception as e:
+                    logger.exception(f"Entry {entry.id} processing thread error: {e}")
+
+            thread = threading.Thread(target=run_processing, daemon=True)
+            thread.start()
+
+            return JsonResponse({
+                'success': True,
+                'entry_id': str(entry.id),
+                'status': entry.status,
+            })
+
+        except CloudinaryStorageError as e:
+            logger.error(f"Cloudinary upload failed for entry {entry.id}: {e}")
+            entry.status = CaptureEntry.STATUS_FAILED
+            entry.error_message = str(e)
+            entry.save()
+            return JsonResponse({
+                'error': 'Failed to upload audio. Please try again.'
+            }, status=500)
 
 
 class CaptureUpdateTitleView(LoginRequiredMixin, View):

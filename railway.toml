@@ -1,6 +1,7 @@
 [build]
 builder = "nixpacks"
 # System packages required for WeasyPrint PDF generation
+# Rebuild: 2026-01-14 - Force fresh nix build for glib/gobject
 nixpkgsArchive = "nixos-23.11"
 
 [build.nixPkgs]

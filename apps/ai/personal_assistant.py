@@ -1573,8 +1573,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                         response = " ".join(response_parts)
                 else:
-                    # No action intent - generate normal chat response
-                    response = self._generate_response(message, conversation, page_context=page_context)
+                    # No action intent - check for navigation query first
+                    navigation_response = self._try_navigation_response(message)
+                    if navigation_response:
+                        response = navigation_response
+                    else:
+                        # Generate normal chat response
+                        response = self._generate_response(message, conversation, page_context=page_context)
 
                     # Check for feature requests ("I wish", "I want") and notify admin
                     # This captures user needs that the system doesn't currently handle
@@ -1726,6 +1731,61 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         )
 
         return True
+
+    def _try_navigation_response(self, message: str) -> str:
+        """
+        Check if the message is a navigation query and return a helpful response.
+
+        Uses the Teaching Tool to answer questions like "where do I log my weight?"
+        with a direct link, without calling the AI.
+
+        Args:
+            message: User's message
+
+        Returns:
+            Response string with navigation info, or None if not a navigation query
+        """
+        # Check if query looks like a navigation question
+        query_lower = message.lower().strip()
+        navigation_indicators = [
+            'where do i', 'where can i', 'where is', 'where are',
+            'how do i get to', 'how do i find', 'how do i access',
+            'how do i go to', 'how do i navigate',
+            'take me to', 'go to the', 'navigate to',
+            'show me the', 'open the', 'where\'s the', 'where\'s my',
+            'link to', 'path to', 'url for',
+        ]
+
+        is_navigation_query = any(
+            query_lower.startswith(indicator) or f' {indicator}' in f' {query_lower}'
+            for indicator in navigation_indicators
+        )
+
+        if not is_navigation_query:
+            return None
+
+        try:
+            from apps.help.services import TeachingToolService
+
+            teaching_service = TeachingToolService()
+            result = teaching_service.search(message)
+
+            if result['found'] and result['destination']:
+                dest = result['destination']
+                # Format a friendly response with clear instruction and clickable link
+                response = (
+                    f"You can {dest['explanation'].lower().rstrip('.')} by going to "
+                    f"**{dest['path']}**.\n\n"
+                    f"To get there quickly, click here: [{dest['name']}]({dest['url']})"
+                )
+                return response
+
+            # No strong match - return None to fall through to AI
+            return None
+
+        except Exception as e:
+            logger.error(f"Error in navigation response: {e}")
+            return None
 
     def _generate_response(self, message: str, conversation: AssistantConversation, page_context: dict = None) -> str:
         """Generate AI response to user message using coaching style.

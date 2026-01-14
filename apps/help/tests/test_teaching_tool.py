@@ -269,6 +269,29 @@ class TeachingToolChatIntegrationTest(BaseTeachingToolTest):
         # Should not contain the navigation format
         self.assertNotIn('**[Go to', response.get('message', ''))
 
+    def test_personal_assistant_navigation_response(self):
+        """Test that PersonalAssistant answers navigation questions with clickable links."""
+        from apps.ai.personal_assistant import PersonalAssistant
+
+        assistant = PersonalAssistant(self.user)
+        response = assistant._try_navigation_response("Where do I log my weight?")
+
+        # Should return a response with the link
+        self.assertIsNotNone(response)
+        self.assertIn('Weight', response)
+        self.assertIn('/health/weight/', response)
+        self.assertIn('click here', response.lower())
+
+    def test_personal_assistant_non_navigation_returns_none(self):
+        """Test that non-navigation queries return None from _try_navigation_response."""
+        from apps.ai.personal_assistant import PersonalAssistant
+
+        assistant = PersonalAssistant(self.user)
+        response = assistant._try_navigation_response("What is the meaning of life?")
+
+        # Should return None - not a navigation query
+        self.assertIsNone(response)
+
 
 class TeachingToolViewTest(BaseTeachingToolTest):
     """Tests for the teaching tool API views."""

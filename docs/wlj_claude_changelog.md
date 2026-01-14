@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### New: Delete Recordings from Capture List
+
+**Summary:** Added ability to delete capture recordings directly from the list page with a confirmation modal.
+
+**Features:**
+- Delete button (trash icon) on each row in the capture list
+- Confirmation modal with entry title and warning
+- AJAX delete with smooth row removal animation
+- Supports both AJAX and regular form requests
+- 8 comprehensive tests
+
+**Files Created:**
+- None
+
+**Files Modified:**
+- `templates/capture/capture_list.html` - Added delete column, confirmation modal, CSS, and JavaScript
+- `apps/capture/views.py` - Added CaptureDeleteView class
+- `apps/capture/urls.py` - Added URL route for delete endpoint
+- `apps/capture/tests/test_views.py` - Added CaptureDeleteViewTests class with 8 tests
+
+**URL:** `capture/<uuid:pk>/delete/` (POST)
+
+---
+
 ### New: Email Sharing for Capture Entries (Task 255)
 
 **Summary:** Implemented email sharing functionality allowing users to send capture entry summaries as PDF attachments via email. Includes a modal interface on the detail page for entering recipient email and optional personal message.

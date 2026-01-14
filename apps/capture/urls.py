@@ -16,4 +16,5 @@ urlpatterns = [
     path('<uuid:pk>/update-title/', views.CaptureUpdateTitleView.as_view(), name='update_title'),
     path('<uuid:pk>/pdf/', views.CaptureDownloadPDFView.as_view(), name='download_pdf'),
     path('<uuid:pk>/email/', views.CaptureEmailView.as_view(), name='send_email'),
+    path('<uuid:pk>/delete/', views.CaptureDeleteView.as_view(), name='delete'),
 ]

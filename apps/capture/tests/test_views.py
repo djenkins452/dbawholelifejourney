@@ -1437,3 +1437,179 @@ class CaptureUpdateTitleViewTests(TestCase):
         data = response.json()
         self.assertIn('error', data)
         self.assertIn('JSON', data['error'])
+
+
+class CaptureDeleteViewTests(TestCase):
+    """Tests for CaptureDeleteView."""
+
+    def setUp(self):
+        """Set up test user and client."""
+        self.client = Client()
+        self.user = self._create_user()
+        self.client.login(email='testuser@example.com', password='testpass123')
+
+    def _create_user(self, email='testuser@example.com', password='testpass123'):
+        """Create a test user with terms accepted and onboarding completed."""
+        user = User.objects.create_user(email=email, password=password)
+        self._accept_terms(user)
+        self._complete_onboarding(user)
+        return user
+
+    def _accept_terms(self, user):
+        """Accept terms of service for user."""
+        try:
+            from apps.users.models import TermsAcceptance
+            TermsAcceptance.objects.create(
+                user=user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+            )
+        except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
+    def test_delete_requires_login(self):
+        """Delete endpoint requires authentication."""
+        self.client.logout()
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Test Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+        response = self.client.post(
+            reverse('capture:delete', kwargs={'pk': entry.pk})
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+
+    def test_delete_returns_404_for_nonexistent_entry(self):
+        """Delete returns 404 for non-existent entry."""
+        import uuid
+        response = self.client.post(
+            reverse('capture:delete', kwargs={'pk': uuid.uuid4()}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_delete_returns_404_for_other_users_entry(self):
+        """Delete returns 404 for another user's entry."""
+        other_user = self._create_user(email='other@example.com')
+        entry = CaptureEntry.objects.create(
+            user=other_user,
+            title='Other User Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.post(
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        self.assertEqual(response.status_code, 404)
+
+        # Verify entry still exists
+        self.assertTrue(CaptureEntry.objects.filter(pk=entry.pk).exists())
+
+    def test_delete_success_ajax(self):
+        """Delete successfully removes entry via AJAX."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Entry to Delete',
+            status=CaptureEntry.STATUS_READY
+        )
+        entry_id = entry.pk
+
+        response = self.client.post(
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+        self.assertIn('Entry to Delete', data.get('message', ''))
+
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())
+
+    def test_delete_success_regular_request(self):
+        """Delete successfully removes entry via regular request."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Entry to Delete',
+            status=CaptureEntry.STATUS_READY
+        )
+        entry_id = entry.pk
+
+        response = self.client.post(
+            reverse('capture:delete', kwargs={'pk': entry.pk})
+        )
+        # Should redirect to list page
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('capture:list'))
+
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())
+
+    def test_delete_untitled_entry(self):
+        """Delete works for entries without title."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='',
+            status=CaptureEntry.STATUS_READY
+        )
+        entry_id = entry.pk
+
+        response = self.client.post(
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+        self.assertIn('Untitled Recording', data.get('message', ''))
+
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())
+
+    def test_delete_processing_entry(self):
+        """Delete works for entries still being processed."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Processing Entry',
+            status=CaptureEntry.STATUS_TRANSCRIBING
+        )
+        entry_id = entry.pk
+
+        response = self.client.post(
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())
+
+    def test_delete_failed_entry(self):
+        """Delete works for failed entries."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Failed Entry',
+            status=CaptureEntry.STATUS_FAILED,
+            error_message='Some error'
+        )
+        entry_id = entry.pk
+
+        response = self.client.post(
+            reverse('capture:delete', kwargs={'pk': entry.pk}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+
+        # Verify entry was deleted
+        self.assertFalse(CaptureEntry.objects.filter(pk=entry_id).exists())

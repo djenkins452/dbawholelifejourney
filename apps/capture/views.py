@@ -288,6 +288,7 @@ class CaptureListView(LoginRequiredMixin, ListView):
         context['ready_count'] = user_entries.filter(
             status=CaptureEntry.STATUS_READY
         ).count()
+        context['now'] = timezone.now()
         return context
 
 
@@ -314,9 +315,10 @@ class CaptureDetailView(LoginRequiredMixin, DetailView):
         entry = self.object
 
         # Calculate days remaining for audio file (7 day retention)
+        # Negative value means expired, None means no expiration date set
         if entry.audio_expires_at:
             days_remaining = (entry.audio_expires_at - timezone.now()).days
-            context['days_remaining'] = max(0, days_remaining)
+            context['days_remaining'] = days_remaining
         else:
             context['days_remaining'] = None
 

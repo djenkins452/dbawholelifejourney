@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Fix Audio Expiration Display Bug
+
+**Summary:** Fixed bug where audio recordings showed "Audio expired" immediately after creation because the template was checking for empty `audio_file_url` instead of the actual `audio_expires_at` date. This affected recordings created in mock mode (when S3 is not configured) where the audio file URL is not populated.
+
+**Root Cause:**
+- Templates checked `{% if not entry.audio_file_url %}` to show "Audio expired"
+- In mock mode, `audio_file_url` is never set even though `audio_expires_at` is correctly set to 7 days in the future
+- Result: All mock mode entries showed "Audio expired" immediately
+
+**Fix:**
+- `capture_list.html`: Changed to check `{% if entry.audio_expires_at and entry.audio_expires_at < now %}`
+- `capture_detail.html`: Changed to check `days_remaining` (can be negative for expired)
+- `views.py` (CaptureListView): Added `now` to context for date comparison
+- `views.py` (CaptureDetailView): Removed `max(0, days_remaining)` so negative values indicate expiration
+
+**Files Modified:**
+- `templates/capture/capture_list.html` - Use date comparison instead of URL check
+- `templates/capture/capture_detail.html` - Use days_remaining < 0 for expiration
+- `apps/capture/views.py` - Add `now` context, allow negative days_remaining
+
+---
+
 ### Handle Expired Audio in UI (Task 258)
 
 **Summary:** Updated the capture detail and list views to gracefully handle entries where audio has been purged after the 7-day retention period.

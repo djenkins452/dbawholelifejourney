@@ -96,20 +96,22 @@
     <div class="card" style="margin-bottom: 1.5rem;">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <h2 style="margin: 0; font-size: 1rem; font-weight: 600;">Audio Recording</h2>
-            {% if entry.audio_file_url and days_remaining is not None %}
-            <span style="font-size: 0.75rem; color: var(--color-warning, #f59e0b); background: var(--color-warning-bg, #fef3c7); padding: 0.25rem 0.5rem; border-radius: 4px;">
-                {% if days_remaining == 0 %}
-                Expires today
-                {% elif days_remaining == 1 %}
-                1 day remaining
+            {% if entry.audio_expires_at %}
+                {% if days_remaining is not None and days_remaining >= 0 %}
+                <span style="font-size: 0.75rem; color: var(--color-warning, #f59e0b); background: var(--color-warning-bg, #fef3c7); padding: 0.25rem 0.5rem; border-radius: 4px;">
+                    {% if days_remaining == 0 %}
+                    Expires today
+                    {% elif days_remaining == 1 %}
+                    1 day remaining
+                    {% else %}
+                    {{ days_remaining }} days remaining
+                    {% endif %}
+                </span>
                 {% else %}
-                {{ days_remaining }} days remaining
+                <span style="font-size: 0.75rem; color: var(--color-text-secondary); background: var(--color-bg-tertiary, #e5e7eb); padding: 0.25rem 0.5rem; border-radius: 4px;">
+                    Audio expired
+                </span>
                 {% endif %}
-            </span>
-            {% elif not entry.audio_file_url %}
-            <span style="font-size: 0.75rem; color: var(--color-text-secondary); background: var(--color-bg-tertiary, #e5e7eb); padding: 0.25rem 0.5rem; border-radius: 4px;">
-                Audio expired
-            </span>
             {% endif %}
         </div>
         <div class="card-body" style="padding: 1rem 1.5rem;">

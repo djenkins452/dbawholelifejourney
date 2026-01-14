@@ -831,6 +831,105 @@ Railway automatically starts the worker process alongside the web process.
 
 ---
 
+## Audio File Storage
+
+### 29. AWS S3 (Capture Audio Storage)
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | Amazon Web Services (or S3-compatible) |
+| **Type** | Object Storage API |
+| **Pricing** | Paid (usage-based, ~$0.023/GB/month) |
+| **Status** | Active |
+
+**Purpose:**
+- Temporary storage for audio recordings in the Capture feature
+- Browser-based direct upload via presigned URLs
+- Automatic file deletion after 7 days via lifecycle policy
+
+**Configuration (Environment Variables):**
+- `CAPTURE_AWS_ACCESS_KEY_ID` - AWS IAM access key
+- `CAPTURE_AWS_SECRET_ACCESS_KEY` - AWS IAM secret key
+- `CAPTURE_AWS_REGION` - AWS region (default: us-east-1)
+- `CAPTURE_AUDIO_BUCKET` - S3 bucket name for audio files
+- `CAPTURE_S3_ENDPOINT_URL` - Optional custom endpoint for S3-compatible services
+- `CAPTURE_AUDIO_RETENTION_DAYS` - Days before auto-deletion (default: 7)
+- `CAPTURE_PRESIGNED_URL_EXPIRATION` - URL expiration in seconds (default: 3600)
+
+**Key Files:**
+- `config/settings.py` - S3 configuration settings
+- `apps/capture/storage.py` - Presigned URL generation utilities
+- `apps/capture/models.py` - CaptureEntry model with audio_file_url, audio_expires_at
+- `requirements.txt` (boto3>=1.34.0)
+
+**S3 Bucket Lifecycle Policy (REQUIRED):**
+Create this lifecycle rule in the S3 console to auto-delete audio files:
+```json
+{
+    "Rules": [
+        {
+            "ID": "DeleteCaptureAudioAfter7Days",
+            "Status": "Enabled",
+            "Filter": {
+                "Prefix": "captures/"
+            },
+            "Expiration": {
+                "Days": 7
+            }
+        }
+    ]
+}
+```
+
+**IAM Policy (minimum required permissions):**
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME/captures/*"
+        }
+    ]
+}
+```
+
+**CORS Configuration (required for browser uploads):**
+```json
+[
+    {
+        "AllowedHeaders": ["*"],
+        "AllowedMethods": ["PUT", "GET"],
+        "AllowedOrigins": [
+            "https://wholelifejourney.com",
+            "http://localhost:8000"
+        ],
+        "ExposeHeaders": ["ETag"]
+    }
+]
+```
+
+**S3-Compatible Alternatives:**
+The storage module supports any S3-compatible service:
+- DigitalOcean Spaces
+- MinIO
+- Backblaze B2
+- Wasabi
+
+Set `CAPTURE_S3_ENDPOINT_URL` to the service's endpoint URL.
+
+**Security:**
+- Presigned URLs expire after 1 hour (configurable)
+- Files organized by user ID: `captures/{user_id}/{uuid}.{ext}`
+- No public access - all access via presigned URLs
+- Audio files are never accessible after retention period
+
+---
+
 ## Services NOT Currently Used
 
 The following services are NOT integrated but may be considered for future use:
@@ -841,7 +940,6 @@ The following services are NOT integrated but may be considered for future use:
 | Google Analytics | User analytics | Not integrated |
 | Mixpanel | Product analytics | Not integrated |
 | Firebase | Push notifications | Not integrated |
-| AWS S3 | Alternative storage | Not integrated (uses Cloudinary) |
 
 ---
 
@@ -876,6 +974,7 @@ The following services are NOT integrated but may be considered for future use:
 | 25 | FDA OpenData | NDC Lookup API | Free | Active |
 | 26 | Dexcom | CGM Data API | Free | Active |
 | 27 | Stripe | Payment API | 2.9% + $0.30 | Active |
+| 28 | AWS S3 | Audio Storage | Paid (usage) | Active |
 
 ---
 
@@ -896,4 +995,4 @@ The following services are NOT integrated but may be considered for future use:
 
 ---
 
-*Last Updated: 2026-01-12*
+*Last Updated: 2026-01-13*

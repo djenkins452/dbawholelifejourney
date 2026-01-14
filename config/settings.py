@@ -889,6 +889,33 @@ DJSTRIPE_USE_NATIVE_JSONFIELD = True
 # Docs: docs/billing_go_live_checklist.md
 
 
+# ==============================================================================
+# Capture Audio S3 Storage Configuration
+# ==============================================================================
+# S3-compatible storage for temporary audio file storage (7-day retention)
+# Supports AWS S3 or any S3-compatible service (DigitalOcean Spaces, MinIO, etc.)
+# Get your credentials at: https://console.aws.amazon.com/s3/
+
+# AWS credentials (or S3-compatible service credentials)
+CAPTURE_AWS_ACCESS_KEY_ID = env('CAPTURE_AWS_ACCESS_KEY_ID', default='')
+CAPTURE_AWS_SECRET_ACCESS_KEY = env('CAPTURE_AWS_SECRET_ACCESS_KEY', default='')
+CAPTURE_AWS_REGION = env('CAPTURE_AWS_REGION', default='us-east-1')
+
+# S3 bucket name for audio files (separate from main media storage)
+CAPTURE_AUDIO_BUCKET = env('CAPTURE_AUDIO_BUCKET', default='')
+
+# Optional: Custom endpoint URL for S3-compatible services (e.g., DigitalOcean Spaces)
+# Leave empty for standard AWS S3
+CAPTURE_S3_ENDPOINT_URL = env('CAPTURE_S3_ENDPOINT_URL', default='')
+
+# Audio file retention period in days (default 7)
+# S3 lifecycle policy should match this setting
+CAPTURE_AUDIO_RETENTION_DAYS = env.int('CAPTURE_AUDIO_RETENTION_DAYS', default=7)
+
+# Presigned URL expiration in seconds (default 1 hour for uploads, matches retention for downloads)
+CAPTURE_PRESIGNED_URL_EXPIRATION = env.int('CAPTURE_PRESIGNED_URL_EXPIRATION', default=3600)
+
+
 if SENTRY_DSN and not DEBUG and SENTRY_AVAILABLE:
     sentry_sdk.init(
         dsn=SENTRY_DSN,

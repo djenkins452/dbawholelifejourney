@@ -40,6 +40,38 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-13 Changes
 
+### New: S3 Storage Configuration for Capture Audio (Task #241)
+
+**Summary:** Configured S3-compatible storage for temporary audio file storage with 7-day retention lifecycle policy.
+
+**Settings Added:**
+- `CAPTURE_AWS_ACCESS_KEY_ID` - AWS/S3-compatible access key
+- `CAPTURE_AWS_SECRET_ACCESS_KEY` - AWS/S3-compatible secret key
+- `CAPTURE_AWS_REGION` - AWS region (default: us-east-1)
+- `CAPTURE_AUDIO_BUCKET` - S3 bucket name for audio files
+- `CAPTURE_S3_ENDPOINT_URL` - Optional custom endpoint for S3-compatible services
+- `CAPTURE_AUDIO_RETENTION_DAYS` - Days before auto-deletion (default: 7)
+- `CAPTURE_PRESIGNED_URL_EXPIRATION` - URL expiration in seconds (default: 3600)
+
+**Files Created:**
+- `apps/capture/storage.py` - S3 presigned URL generation utilities
+- `apps/capture/tests/test_storage.py` - 19 tests for storage utilities
+
+**Files Modified:**
+- `config/settings.py` - Added S3 configuration section
+- `requirements.txt` - Added boto3>=1.34.0
+- `docs/wlj_third_party_services.md` - Documented AWS S3 integration with lifecycle policy, IAM policy, and CORS configuration
+
+**Key Functions:**
+- `generate_upload_presigned_url()` - Generate presigned URL for browser upload
+- `generate_download_presigned_url()` - Generate presigned URL for audio playback
+- `delete_audio_file()` - Manual deletion (lifecycle handles auto-cleanup)
+- `is_storage_configured()` - Check if S3 is configured
+
+**Verification:** 19 tests pass, `python manage.py check` passes.
+
+---
+
 ### New: CaptureEntry Model (Task #240)
 
 **Summary:** Created the CaptureEntry model with all required fields for storing audio recordings, transcripts, and AI-generated summaries.

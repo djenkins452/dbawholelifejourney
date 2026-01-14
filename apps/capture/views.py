@@ -735,56 +735,53 @@ class CaptureStatusView(LoginRequiredMixin, View):
 
 class CaptureDownloadPDFView(LoginRequiredMixin, View):
     """
-    Generate and download a PDF summary of a capture entry.
+    Generate and download a Word document summary of a capture entry.
 
-    Creates a branded PDF document containing the title, metadata,
+    Creates a branded DOCX document containing the title, metadata,
     summary, and transcript of the capture entry.
+
+    Note: Named "PDF" for URL compatibility but generates Word docs
+    since WeasyPrint has system dependency issues on Railway.
     """
 
     def get(self, request, pk):
-        """Generate and return PDF for the capture entry."""
+        """Generate and return Word document for the capture entry."""
         from django.http import HttpResponse
 
-        from .services.pdf import generate_pdf, get_pdf_filename
+        from .services.docx_generator import generate_docx, get_docx_filename
 
         try:
             entry = CaptureEntry.objects.get(id=pk, user=request.user)
         except CaptureEntry.DoesNotExist:
             return JsonResponse({'error': 'Entry not found'}, status=404)
 
-        # Only allow PDF generation for ready entries
+        # Only allow document generation for ready entries
         if entry.status != CaptureEntry.STATUS_READY:
             return JsonResponse(
-                {'error': 'Entry is not ready for PDF generation'},
+                {'error': 'Entry is not ready for document generation'},
                 status=400
             )
 
         try:
-            # Generate PDF
-            pdf_bytes = generate_pdf(entry)
-            filename = get_pdf_filename(entry)
+            # Generate Word document
+            docx_bytes = generate_docx(entry)
+            filename = get_docx_filename(entry)
 
-            # Create response with PDF
-            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            # Create response with DOCX
+            content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            response = HttpResponse(docx_bytes, content_type=content_type)
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
-            response['Content-Length'] = len(pdf_bytes)
+            response['Content-Length'] = len(docx_bytes)
 
-            logger.info(f"PDF downloaded for entry {entry.id} by user {request.user.email}")
+            logger.info(f"DOCX downloaded for entry {entry.id} by user {request.user.email}")
 
             return response
 
-        except ImportError as e:
-            logger.error(f"PDF generation failed - WeasyPrint not installed: {e}")
-            return JsonResponse(
-                {'error': 'PDF generation is not available'},
-                status=503
-            )
         except Exception as e:
-            logger.exception(f"PDF generation failed for entry {pk}: {e}")
-            # Include error details in response for debugging
+            logger.exception(f"Document generation failed for entry {pk}: {e}")
             error_msg = str(e) if str(e) else type(e).__name__
             return JsonResponse(
-                {'error': f'Failed to generate PDF: {error_msg}'},
+                {'error': f'Failed to generate document: {error_msg}'},
                 status=500
             )
 

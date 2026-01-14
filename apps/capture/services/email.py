@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 
-from .pdf import generate_pdf, get_pdf_filename
+from .docx_generator import generate_docx, get_docx_filename
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ DEFAULT_FROM_EMAIL = getattr(settings, 'DEFAULT_FROM_EMAIL', 'admin@wholelifejou
 
 def send_capture_email(capture_entry, recipient_email, sender_user, message=None):
     """
-    Send a capture entry summary via email with PDF attachment.
+    Send a capture entry summary via email with Word document attachment.
 
     Args:
         capture_entry: CaptureEntry model instance
@@ -41,21 +41,15 @@ def send_capture_email(capture_entry, recipient_email, sender_user, message=None
             'error': 'Invalid email address'
         }
 
-    # Generate PDF attachment
+    # Generate Word document attachment
     try:
-        pdf_bytes = generate_pdf(capture_entry)
-        pdf_filename = get_pdf_filename(capture_entry)
-    except ImportError as e:
-        logger.error(f"PDF generation failed - WeasyPrint not installed: {e}")
-        return {
-            'success': False,
-            'error': 'PDF generation is not available'
-        }
+        docx_bytes = generate_docx(capture_entry)
+        docx_filename = get_docx_filename(capture_entry)
     except Exception as e:
-        logger.exception(f"PDF generation failed for entry {capture_entry.id}: {e}")
+        logger.exception(f"Document generation failed for entry {capture_entry.id}: {e}")
         return {
             'success': False,
-            'error': 'Failed to generate PDF'
+            'error': 'Failed to generate document'
         }
 
     # Build email content
@@ -86,8 +80,9 @@ def send_capture_email(capture_entry, recipient_email, sender_user, message=None
             reply_to=[sender_user.email],
         )
 
-        # Attach PDF
-        email.attach(pdf_filename, pdf_bytes, 'application/pdf')
+        # Attach Word document
+        content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        email.attach(docx_filename, docx_bytes, content_type)
 
         # Attach HTML version
         email.content_subtype = 'html'

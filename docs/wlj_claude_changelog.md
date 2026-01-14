@@ -43,18 +43,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
-### Fix: WeasyPrint PDF Generation on Railway (Complete Fix)
+### Switch from PDF to Word Document Export
 
-**Summary:** Fixed "Failed to generate PDF" error for audio recordings by adding missing system dependency (`libpangocairo-1.0-0`) and adding `base_url` parameter to WeasyPrint HTML generation. Also improved error logging to help diagnose future issues.
+**Summary:** Replaced WeasyPrint PDF generation with python-docx Word document generation. WeasyPrint requires system libraries (libgobject, libcairo, etc.) that Railway's Nixpacks builder cannot properly install despite multiple configuration attempts.
 
-**Root Cause:**
-1. Missing `libpangocairo-1.0-0` system package required for WeasyPrint text rendering
-2. Missing `base_url` parameter in `HTML(string=...)` call, which is needed for resolving relative paths and fonts
+**Solution:**
+- Replaced `weasyprint` with `python-docx` (pure Python, no system dependencies)
+- Download button now generates `.docx` files instead of `.pdf`
+- Email attachments are now Word documents instead of PDFs
+
+**Files Created:**
+- `apps/capture/services/docx_generator.py` - Word document generation service
 
 **Files Modified:**
-- `nixpacks.toml` - Added `libpangocairo-1.0-0` and `fonts-liberation` to aptPkgs
-- `apps/capture/services/pdf.py` - Added `base_url` parameter to WeasyPrint HTML(), improved error logging with specific exception details
-- `apps/capture/tests/test_pdf.py` - Updated mock to accept `base_url` keyword argument
+- `requirements.txt` - Replaced `weasyprint` with `python-docx>=1.1.0`
+- `apps/capture/views.py` - Updated CaptureDownloadPDFView to use docx_generator
+- `apps/capture/services/email.py` - Updated to attach Word documents instead of PDFs
+- `railway.toml` - Reverted to nixpacks builder
+
+**Note:** The URL endpoint remains `/pdf/` for backwards compatibility but serves Word documents.
 
 ---
 

@@ -1,0 +1,63 @@
+# Git
+.git/
+.gitignore
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage.xml
+
+# Local development
+.env
+.env.local
+db.sqlite3
+db.sqlite3-journal
+
+# Generated files (will be regenerated in build)
+staticfiles/
+
+# Documentation (not needed at runtime)
+docs/
+*.md
+!README.md
+
+# Claude Code
+.claude/
+
+# Worktrees
+.claude-worktrees/
+
+# Temp files
+*.bak
+*.tmp
+*.temp
+*.log
+logs/
+
+# Phase 2 review folder (if present)
+_phase2_review/

@@ -1,6 +1,7 @@
 """Word document generation service for Capture entries."""
 
 import logging
+import re
 from io import BytesIO
 
 from docx import Document
@@ -9,6 +10,101 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.style import WD_STYLE_TYPE
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_markdown_to_docx(document, markdown_text):
+    """
+    Parse markdown text and add properly formatted content to a Word document.
+
+    Handles:
+    - ## Section headers
+    - **bold** text
+    - - bullet lists
+    - Regular paragraphs
+
+    Args:
+        document: python-docx Document instance
+        markdown_text: Markdown-formatted text string
+    """
+    if not markdown_text:
+        return
+
+    lines = markdown_text.split('\n')
+    current_list_items = []
+    in_list = False
+
+    def flush_list():
+        """Add accumulated list items to document."""
+        nonlocal current_list_items, in_list
+        if current_list_items:
+            for item in current_list_items:
+                p = document.add_paragraph(style='List Bullet')
+                _add_formatted_text(p, item)
+            current_list_items = []
+        in_list = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Skip empty lines (but flush lists first)
+        if not stripped:
+            flush_list()
+            continue
+
+        # Section headers (## Header)
+        if stripped.startswith('## '):
+            flush_list()
+            header_text = stripped[3:].strip()
+            heading = document.add_heading(header_text, level=3)
+            # Style the heading
+            for run in heading.runs:
+                run.font.color.rgb = RGBColor(37, 99, 235)  # Blue
+                run.font.size = Pt(12)
+
+        # Bullet list items (- item or * item)
+        elif stripped.startswith('- ') or stripped.startswith('* '):
+            in_list = True
+            item_text = stripped[2:].strip()
+            current_list_items.append(item_text)
+
+        # Regular paragraph or bold header line
+        else:
+            flush_list()
+            p = document.add_paragraph()
+            _add_formatted_text(p, stripped)
+
+    # Flush any remaining list items
+    flush_list()
+
+
+def _add_formatted_text(paragraph, text):
+    """
+    Add text to a paragraph with proper formatting for bold markers.
+
+    Handles **bold** markers within the text.
+
+    Args:
+        paragraph: python-docx Paragraph instance
+        text: Text that may contain **bold** markers
+    """
+    # Pattern to match **bold** text
+    pattern = r'\*\*([^*]+)\*\*'
+
+    last_end = 0
+    for match in re.finditer(pattern, text):
+        # Add text before the match
+        if match.start() > last_end:
+            paragraph.add_run(text[last_end:match.start()])
+
+        # Add bold text
+        bold_run = paragraph.add_run(match.group(1))
+        bold_run.bold = True
+
+        last_end = match.end()
+
+    # Add remaining text after last match
+    if last_end < len(text):
+        paragraph.add_run(text[last_end:])
 
 
 def generate_docx(capture_entry):
@@ -77,26 +173,8 @@ def generate_docx(capture_entry):
 
     # Summary section
     if capture_entry.summary:
-        summary_heading = document.add_heading('Summary', level=2)
-
-        # Split summary into paragraphs and add them
-        summary_paragraphs = capture_entry.summary.split('\n\n')
-        for para_text in summary_paragraphs:
-            if para_text.strip():
-                # Check if it's a header (starts with **)
-                if para_text.strip().startswith('**') and '**' in para_text.strip()[2:]:
-                    # Extract header text
-                    end_idx = para_text.strip().index('**', 2)
-                    header_text = para_text.strip()[2:end_idx]
-                    rest_text = para_text.strip()[end_idx+2:].strip()
-
-                    p = document.add_paragraph()
-                    p.add_run(header_text).bold = True
-                    if rest_text:
-                        p.add_run('\n' + rest_text)
-                else:
-                    document.add_paragraph(para_text.strip())
-
+        # Parse and add markdown-formatted summary
+        _parse_markdown_to_docx(document, capture_entry.summary)
         document.add_paragraph()  # Spacing
 
     # Transcript section

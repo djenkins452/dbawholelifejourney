@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load capture_filters %}
 
 {% block title %}{{ entry.title|default:"Capture Recording" }} - Capture - Whole Life Journey{% endblock %}
 
@@ -164,7 +165,7 @@
             <h2 style="margin: 0; font-size: 1rem; font-weight: 600;">Summary</h2>
         </div>
         <div class="card-body capture-summary" style="padding: 1.5rem;">
-            {{ entry.summary|linebreaks }}
+            {{ entry.summary|render_summary }}
         </div>
     </div>
     {% endif %}
@@ -332,38 +333,71 @@
 
 <style nonce="{{ csp_nonce }}">
     .capture-summary {
-        line-height: 1.8;
+        line-height: 1.7;
+        color: var(--color-text-primary);
     }
 
+    /* Section headers (converted from ## markdown) */
+    .capture-summary .summary-section-header {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--color-primary, #2563eb);
+        margin: 1.75rem 0 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--color-border, #e5e7eb);
+    }
+
+    .capture-summary .summary-section-header:first-child {
+        margin-top: 0;
+    }
+
+    /* Main header (BLUF title, converted from # markdown) */
+    .capture-summary .summary-main-header {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--color-text-primary);
+        margin: 0 0 1rem;
+    }
+
+    /* Paragraphs */
+    .capture-summary .summary-paragraph,
     .capture-summary p {
         margin-bottom: 1rem;
+        line-height: 1.7;
     }
 
     .capture-summary p:last-child {
         margin-bottom: 0;
     }
 
-    /* Style BLUF sections if using markdown-style headers */
+    /* Bold text within content */
     .capture-summary strong {
-        display: block;
-        margin-top: 1.5rem;
-        margin-bottom: 0.5rem;
-        font-size: 1rem;
+        font-weight: 600;
         color: var(--color-text-primary);
     }
 
-    .capture-summary strong:first-child {
-        margin-top: 0;
-    }
-
-    /* Style for bullet points */
-    .capture-summary ul, .capture-summary ol {
-        margin: 0.5rem 0 1rem;
+    /* Lists */
+    .capture-summary .summary-list,
+    .capture-summary ul,
+    .capture-summary ol {
+        margin: 0.75rem 0 1.25rem;
         padding-left: 1.5rem;
     }
 
     .capture-summary li {
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+    }
+
+    .capture-summary li:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Nested lists */
+    .capture-summary ul ul,
+    .capture-summary ol ol {
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
     }
 
     .card-header {

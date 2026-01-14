@@ -247,11 +247,10 @@ class HelpChatService:
         """
         Generate a response to the user's query.
 
-        First checks if the query is about personal data (weight, journal,
-        medication, food, mood). If so, generates an AI response with the
-        user's actual data as context.
-
-        Otherwise, searches help articles for relevant content.
+        Checks in order:
+        1. Navigation queries ("where do I...", "how do I get to...")
+        2. Personal data queries (weight, journal, medication, food, mood)
+        3. Help article search
 
         Args:
             query: The user's question
@@ -260,12 +259,17 @@ class HelpChatService:
         Returns:
             dict with 'message' (str) and 'articles' (list of HelpArticle)
         """
-        # Step 1: Check if this is a personal data query
+        # Step 1: Check if this is a navigation query
+        navigation_response = self._try_navigation_response(query)
+        if navigation_response:
+            return navigation_response
+
+        # Step 2: Check if this is a personal data query
         personal_data_response = self._try_personal_data_response(query)
         if personal_data_response:
             return personal_data_response
 
-        # Step 2: Fall back to help article search
+        # Step 3: Fall back to help article search
         articles = self.search_articles(query, module=context_module)
 
         if not articles:
@@ -291,6 +295,89 @@ class HelpChatService:
             'articles': articles
         }
 
+    def _try_navigation_response(self, query):
+        """
+        Try to answer a navigation query using TeachingToolService.
+
+        Handles questions like "where do I log my weight?" or
+        "how do I get to my goals?" with a direct link.
+
+        Args:
+            query: The user's question
+
+        Returns:
+            dict with 'message' and 'articles' if navigation query found,
+            None if not a navigation query
+        """
+        # Check if query looks like a navigation question
+        # Be specific - only catch "where" questions and explicit navigation requests
+        # Don't catch "how do I use X" which should go to help articles
+        query_lower = query.lower().strip()
+        navigation_indicators = [
+            'where do i', 'where can i', 'where is', 'where are',
+            'how do i get to', 'how do i find', 'how do i access',
+            'how do i go to', 'how do i navigate',
+            'take me to', 'go to the', 'navigate to',
+            'show me the', 'open the', 'where\'s the', 'where\'s my',
+            'link to', 'path to', 'url for',
+        ]
+
+        is_navigation_query = any(
+            query_lower.startswith(indicator) or f' {indicator}' in f' {query_lower}'
+            for indicator in navigation_indicators
+        )
+
+        if not is_navigation_query:
+            return None
+
+        try:
+            teaching_service = TeachingToolService()
+            result = teaching_service.search(query)
+
+            if result['found'] and result['destination']:
+                dest = result['destination']
+                # Format a friendly response with the link
+                message = (
+                    f"{result['message']}\n\n"
+                    f"**[Go to {dest['name']}]({dest['url']})**"
+                )
+
+                # Add suggestions if any
+                if result.get('suggestions'):
+                    suggestions_text = "\n".join([
+                        f"- [{s['name']}]({s['url']})"
+                        for s in result['suggestions'][:3]
+                    ])
+                    if suggestions_text:
+                        message += f"\n\nYou might also be looking for:\n{suggestions_text}"
+
+                return {
+                    'message': message,
+                    'articles': [],
+                    'navigation': dest,  # Include destination for potential UI use
+                }
+
+            # Weak match - return suggestions but don't block other handlers
+            if result.get('suggestions'):
+                suggestions_text = "\n".join([
+                    f"- [{s['name']}]({s['url']})"
+                    for s in result['suggestions'][:5]
+                ])
+                message = (
+                    f"I'm not sure exactly where that is, but here are some pages that might help:\n\n"
+                    f"{suggestions_text}"
+                )
+                return {
+                    'message': message,
+                    'articles': [],
+                }
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error in navigation response: {e}")
+            return None
+
     def _try_personal_data_response(self, query):
         """
         Try to generate a response for a personal data query.
@@ -305,6 +392,15 @@ class HelpChatService:
             dict with 'message' and 'articles' if personal data query,
             None if not a personal data query or if generation fails
         """
+        # Skip personal data check for "how to use" questions - these are help queries
+        query_lower = query.lower().strip()
+        help_question_indicators = [
+            'how do i use', 'how to use', 'how does', 'what is',
+            'explain', 'help me understand', 'tutorial', 'guide',
+        ]
+        if any(ind in query_lower for ind in help_question_indicators):
+            return None
+
         try:
             # Process the message to detect personal data intent
             result = process_assistant_message(

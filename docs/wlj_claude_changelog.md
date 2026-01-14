@@ -48,6 +48,20 @@ For active development context, see `CLAUDE.md` (project root).
 - Added play button (opens modal with audio player)
 - Added download button (direct download link)
 - Existing delete button remains
+
+---
+
+### Fix Action Icons Layout in Capture List
+
+**Summary:** Made the action icons (play, download, delete) more compact and visually appealing in the capture list table.
+
+**Changes:**
+- Reduced column width from 120px to 80px
+- Made icons smaller (0.875rem font-size) with tighter padding
+- Added subtle hover backgrounds with appropriate colors per action type
+- Icons now fit cleanly in a single row within the table cell
+
+**File modified:** `templates/capture/capture_list.html`
 - Actions only show for entries with audio files (ready status)
 - Audio modal auto-plays on open, pauses on close
 

@@ -144,11 +144,6 @@
     {% include "components/whats_new_modal.html" %}
     {% endif %}
 
-    <!-- Teaching Tool (Quick Navigation Helper) -->
-    {% if user.is_authenticated %}
-    {% include "components/teaching_tool.html" %}
-    {% endif %}
-
     <!-- WLJ Assistant Chat Widget -->
     {% if user.is_authenticated %}
     {% include "components/chat_widget.html" %}

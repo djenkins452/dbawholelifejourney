@@ -135,6 +135,77 @@
     </div>
     {% endif %}
 
+    <!-- Category Selection Section -->
+    {% if entry.status == 'ready' %}
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; font-size: 1rem; font-weight: 600;">Category</h2>
+            <span id="category-badge" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; {% if entry.category %}background: var(--color-accent); color: white;{% else %}background: var(--color-bg-tertiary, #e5e7eb); color: var(--color-text-secondary);{% endif %}">
+                {% if entry.category %}{{ entry.get_category_display }}{% if entry.subcategory %} / {{ entry.get_subcategory_display }}{% endif %}{% else %}Not categorized{% endif %}
+            </span>
+        </div>
+        <div class="card-body" style="padding: 1.5rem;">
+            <!-- Category selection buttons -->
+            <div id="category-selector">
+                <p style="margin: 0 0 1rem; color: var(--color-text-secondary); font-size: 0.875rem;">Select a category to organize this recording:</p>
+                <div class="category-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
+                    <button type="button" class="category-btn{% if entry.category == 'faith' %} selected{% endif %}" data-category="faith" style="padding: 1rem; border: 2px solid var(--color-border); border-radius: 8px; background: {% if entry.category == 'faith' %}var(--color-primary-bg, #eff6ff){% else %}var(--color-bg-primary, white){% endif %}; cursor: pointer; text-align: left; transition: all 0.15s;">
+                        <span style="font-size: 1.25rem; display: block; margin-bottom: 0.25rem;">&#128591;</span>
+                        <strong style="display: block; color: var(--color-text-primary);">Faith</strong>
+                        <span style="font-size: 0.75rem; color: var(--color-text-secondary);">Sermons, studies, devotionals</span>
+                    </button>
+                    <button type="button" class="category-btn{% if entry.category == 'organize' %} selected{% endif %}" data-category="organize" style="padding: 1rem; border: 2px solid var(--color-border); border-radius: 8px; background: {% if entry.category == 'organize' %}var(--color-primary-bg, #eff6ff){% else %}var(--color-bg-primary, white){% endif %}; cursor: pointer; text-align: left; transition: all 0.15s;">
+                        <span style="font-size: 1.25rem; display: block; margin-bottom: 0.25rem;">&#128203;</span>
+                        <strong style="display: block; color: var(--color-text-primary);">Organize</strong>
+                        <span style="font-size: 0.75rem; color: var(--color-text-secondary);">Meetings, notes, personal</span>
+                    </button>
+                </div>
+
+                <!-- Subcategory selection (shown when category selected) -->
+                <div id="subcategory-section" style="margin-top: 1.5rem; {% if not entry.category %}display: none;{% endif %}">
+                    <p style="margin: 0 0 0.75rem; color: var(--color-text-secondary); font-size: 0.875rem;">Select a subcategory:</p>
+
+                    <!-- Faith subcategories -->
+                    <div id="faith-subcategories" class="subcategory-grid" style="display: {% if entry.category == 'faith' %}grid{% else %}none{% endif %}; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem;">
+                        <button type="button" class="subcategory-btn{% if entry.subcategory == 'sermon' %} selected{% endif %}" data-subcategory="sermon" style="padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; background: {% if entry.subcategory == 'sermon' %}var(--color-primary-bg, #eff6ff){% else %}var(--color-bg-primary, white){% endif %}; cursor: pointer; font-size: 0.875rem;">
+                            Sermon
+                        </button>
+                        <button type="button" class="subcategory-btn{% if entry.subcategory == 'bible_study' %} selected{% endif %}" data-subcategory="bible_study" style="padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; background: {% if entry.subcategory == 'bible_study' %}var(--color-primary-bg, #eff6ff){% else %}var(--color-bg-primary, white){% endif %}; cursor: pointer; font-size: 0.875rem;">
+                            Bible Study
+                        </button>
+                        <button type="button" class="subcategory-btn{% if entry.subcategory == 'devotional' %} selected{% endif %}" data-subcategory="devotional" style="padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; background: {% if entry.subcategory == 'devotional' %}var(--color-primary-bg, #eff6ff){% else %}var(--color-bg-primary, white){% endif %}; cursor: pointer; font-size: 0.875rem;">
+                            Devotional
+                        </button>
+                    </div>
+
+                    <!-- Organize subcategories -->
+                    <div id="organize-subcategories" class="subcategory-grid" style="display: {% if entry.category == 'organize' %}grid{% else %}none{% endif %}; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem;">
+                        <button type="button" class="subcategory-btn{% if entry.subcategory == 'meeting' %} selected{% endif %}" data-subcategory="meeting" style="padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; background: {% if entry.subcategory == 'meeting' %}var(--color-primary-bg, #eff6ff){% else %}var(--color-bg-primary, white){% endif %}; cursor: pointer; font-size: 0.875rem;">
+                            Meeting
+                        </button>
+                        <button type="button" class="subcategory-btn{% if entry.subcategory == 'notes' %} selected{% endif %}" data-subcategory="notes" style="padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; background: {% if entry.subcategory == 'notes' %}var(--color-primary-bg, #eff6ff){% else %}var(--color-bg-primary, white){% endif %}; cursor: pointer; font-size: 0.875rem;">
+                            Notes
+                        </button>
+                        <button type="button" class="subcategory-btn{% if entry.subcategory == 'personal' %} selected{% endif %}" data-subcategory="personal" style="padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; background: {% if entry.subcategory == 'personal' %}var(--color-primary-bg, #eff6ff){% else %}var(--color-bg-primary, white){% endif %}; cursor: pointer; font-size: 0.875rem;">
+                            Personal
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Clear category button -->
+                <div id="clear-category-section" style="margin-top: 1rem; {% if not entry.category %}display: none;{% endif %}">
+                    <button type="button" id="clear-category-btn" style="padding: 0.5rem 1rem; border: 1px solid var(--color-border); border-radius: 4px; background: none; cursor: pointer; font-size: 0.75rem; color: var(--color-text-secondary);">
+                        Clear category
+                    </button>
+                </div>
+            </div>
+
+            <!-- Success/error message for category -->
+            <div id="category-message" style="display: none; margin-top: 1rem; padding: 0.5rem; border-radius: 4px; font-size: 0.875rem;"></div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Transcript Section (collapsible) -->
     {% if entry.transcript %}
     <div class="card" style="margin-bottom: 1.5rem;">
@@ -245,6 +316,46 @@
         background: #fee2e2;
         color: #991b1b;
         border: 1px solid #fca5a5;
+    }
+
+    /* Category selection styles */
+    .category-btn:hover {
+        border-color: var(--color-primary);
+        background: var(--color-primary-bg, #eff6ff);
+    }
+
+    .category-btn.selected {
+        border-color: var(--color-primary);
+        background: var(--color-primary-bg, #eff6ff);
+    }
+
+    .subcategory-btn:hover {
+        border-color: var(--color-primary);
+        background: var(--color-primary-bg, #eff6ff);
+    }
+
+    .subcategory-btn.selected {
+        border-color: var(--color-primary);
+        background: var(--color-primary-bg, #eff6ff);
+        color: var(--color-primary);
+        font-weight: 500;
+    }
+
+    #category-message.success {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #86efac;
+    }
+
+    #category-message.error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fca5a5;
+    }
+
+    #clear-category-btn:hover {
+        background: var(--color-bg-secondary, #f3f4f6);
+        color: var(--color-text-primary);
     }
 </style>
 
@@ -359,6 +470,185 @@
 
         // Initialize character count
         updateCharCount();
+
+        // =====================
+        // Category Selection
+        // =====================
+        const categoryBtns = document.querySelectorAll('.category-btn');
+        const subcategorySection = document.getElementById('subcategory-section');
+        const faithSubcategories = document.getElementById('faith-subcategories');
+        const organizeSubcategories = document.getElementById('organize-subcategories');
+        const clearCategorySection = document.getElementById('clear-category-section');
+        const clearCategoryBtn = document.getElementById('clear-category-btn');
+        const categoryBadge = document.getElementById('category-badge');
+        const categoryMessage = document.getElementById('category-message');
+
+        let currentCategory = '{{ entry.category|default:"" }}';
+        let currentSubcategory = '{{ entry.subcategory|default:"" }}';
+
+        // Show category message
+        function showCategoryMessage(text, isSuccess) {
+            if (!categoryMessage) return;
+            categoryMessage.textContent = text;
+            categoryMessage.className = isSuccess ? 'success' : 'error';
+            categoryMessage.style.display = 'block';
+            setTimeout(function() {
+                categoryMessage.style.display = 'none';
+            }, 3000);
+        }
+
+        // Update badge display
+        function updateBadge(category, categoryDisplay, subcategory, subcategoryDisplay) {
+            if (!categoryBadge) return;
+            if (category) {
+                let text = categoryDisplay;
+                if (subcategory && subcategoryDisplay) {
+                    text += ' / ' + subcategoryDisplay;
+                }
+                categoryBadge.textContent = text;
+                categoryBadge.style.background = 'var(--color-accent)';
+                categoryBadge.style.color = 'white';
+            } else {
+                categoryBadge.textContent = 'Not categorized';
+                categoryBadge.style.background = 'var(--color-bg-tertiary, #e5e7eb)';
+                categoryBadge.style.color = 'var(--color-text-secondary)';
+            }
+        }
+
+        // Save category to server
+        async function saveCategory(category, subcategory) {
+            try {
+                const response = await fetch("{% url 'capture:update_category' entry.pk %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ category: category, subcategory: subcategory })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    currentCategory = data.category;
+                    currentSubcategory = data.subcategory;
+                    updateBadge(data.category, data.category_display, data.subcategory, data.subcategory_display);
+                    showCategoryMessage('Category updated successfully', true);
+                    return true;
+                } else {
+                    showCategoryMessage(data.error || 'Failed to update category', false);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Failed to save category:', error);
+                showCategoryMessage('Failed to update category. Please try again.', false);
+                return false;
+            }
+        }
+
+        // Update UI selection state
+        function updateCategoryUI(category) {
+            // Update category buttons
+            categoryBtns.forEach(function(btn) {
+                if (btn.dataset.category === category) {
+                    btn.classList.add('selected');
+                    btn.style.background = 'var(--color-primary-bg, #eff6ff)';
+                    btn.style.borderColor = 'var(--color-primary)';
+                } else {
+                    btn.classList.remove('selected');
+                    btn.style.background = 'var(--color-bg-primary, white)';
+                    btn.style.borderColor = 'var(--color-border)';
+                }
+            });
+
+            // Show/hide subcategory section
+            if (subcategorySection) {
+                if (category) {
+                    subcategorySection.style.display = 'block';
+                    if (faithSubcategories) faithSubcategories.style.display = category === 'faith' ? 'grid' : 'none';
+                    if (organizeSubcategories) organizeSubcategories.style.display = category === 'organize' ? 'grid' : 'none';
+                } else {
+                    subcategorySection.style.display = 'none';
+                }
+            }
+
+            // Show/hide clear button
+            if (clearCategorySection) {
+                clearCategorySection.style.display = category ? 'block' : 'none';
+            }
+        }
+
+        function updateSubcategoryUI(subcategory) {
+            document.querySelectorAll('.subcategory-btn').forEach(function(btn) {
+                if (btn.dataset.subcategory === subcategory) {
+                    btn.classList.add('selected');
+                    btn.style.background = 'var(--color-primary-bg, #eff6ff)';
+                    btn.style.borderColor = 'var(--color-primary)';
+                } else {
+                    btn.classList.remove('selected');
+                    btn.style.background = 'var(--color-bg-primary, white)';
+                    btn.style.borderColor = 'var(--color-border)';
+                }
+            });
+        }
+
+        // Category button click handlers
+        if (categoryBtns) {
+            categoryBtns.forEach(function(btn) {
+                btn.addEventListener('click', async function() {
+                    const category = this.dataset.category;
+
+                    // If clicking the same category, do nothing
+                    if (category === currentCategory) return;
+
+                    // Clear subcategory when changing category
+                    updateCategoryUI(category);
+                    updateSubcategoryUI('');
+
+                    // Save to server
+                    const success = await saveCategory(category, '');
+                    if (!success) {
+                        // Revert UI on failure
+                        updateCategoryUI(currentCategory);
+                        updateSubcategoryUI(currentSubcategory);
+                    }
+                });
+            });
+        }
+
+        // Subcategory button click handlers
+        document.querySelectorAll('.subcategory-btn').forEach(function(btn) {
+            btn.addEventListener('click', async function() {
+                const subcategory = this.dataset.subcategory;
+
+                // If clicking the same subcategory, deselect it
+                const newSubcategory = subcategory === currentSubcategory ? '' : subcategory;
+
+                updateSubcategoryUI(newSubcategory);
+
+                // Save to server
+                const success = await saveCategory(currentCategory, newSubcategory);
+                if (!success) {
+                    // Revert UI on failure
+                    updateSubcategoryUI(currentSubcategory);
+                }
+            });
+        });
+
+        // Clear category button handler
+        if (clearCategoryBtn) {
+            clearCategoryBtn.addEventListener('click', async function() {
+                updateCategoryUI('');
+                updateSubcategoryUI('');
+
+                const success = await saveCategory('', '');
+                if (!success) {
+                    // Revert UI on failure
+                    updateCategoryUI(currentCategory);
+                    updateSubcategoryUI(currentSubcategory);
+                }
+            });
+        }
     });
 </script>
 {% endblock %}

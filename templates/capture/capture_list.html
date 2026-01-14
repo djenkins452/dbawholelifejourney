@@ -74,12 +74,12 @@
         <table class="data-table" style="table-layout: fixed; width: 100%;">
             <thead>
                 <tr>
-                    <th style="width: 35%;">Title</th>
-                    <th style="width: 15%;">Category</th>
-                    <th style="width: 10%;">Duration</th>
-                    <th style="width: 12%;">Status</th>
-                    <th style="width: 15%;">Created</th>
-                    <th style="width: 13%; text-align: right;"></th>
+                    <th style="width: 32%;">Title</th>
+                    <th style="width: 14%;">Category</th>
+                    <th style="width: 9%;">Duration</th>
+                    <th style="width: 14%;">Status</th>
+                    <th style="width: 14%;">Created</th>
+                    <th style="width: 17%; text-align: right;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -133,11 +133,11 @@
                         {% elif entry.status == 'failed' %}
                         <span style="color: #ef4444;">Failed</span>
                         {% elif entry.status == 'uploading' %}
-                        <span style="color: #3b82f6;">Uploading...</span>
+                        <span style="color: #3b82f6; font-size: 0.8125rem;">Uploading</span>
                         {% elif entry.status == 'transcribing' %}
-                        <span style="color: #f59e0b;">Transcribing...</span>
+                        <span style="color: #f59e0b; font-size: 0.8125rem;">Transcribing</span>
                         {% elif entry.status == 'summarizing' %}
-                        <span style="color: #f59e0b;">Summarizing...</span>
+                        <span style="color: #f59e0b; font-size: 0.8125rem;">Summarizing</span>
                         {% else %}
                         <span style="color: var(--color-text-secondary);">{{ entry.get_status_display }}</span>
                         {% endif %}

@@ -238,8 +238,8 @@
             activeElement.isContentEditable
         );
 
-        // Allow ? shortcut even when not in an input (except for shift+/)
-        if (isTyping && e.key !== '?') {
+        // Don't trigger any shortcuts (including ?) when typing in inputs
+        if (isTyping) {
             return;
         }
 

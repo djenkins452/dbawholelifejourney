@@ -14,6 +14,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-13 Changes
+
+### Fix: Keyboard shortcut `?` interfering with chat input
+
+**Summary:** Fixed bug where pressing `?` while typing in an input field (INPUT, TEXTAREA, or contentEditable) would trigger the keyboard shortcuts help modal instead of typing a question mark.
+
+**Root Cause:** Logic error on line 242 - the condition `if (isTyping && e.key !== '?')` was backwards, causing the `?` shortcut to fire even when user was typing in an input field.
+
+**Files Modified:**
+- `static/js/keyboard-shortcuts.js` - Simplified input detection logic to block ALL shortcuts (including `?`) when user is focused on any input element
+
+---
+
 ## 2026-01-12 Changes
 
 ### New: WLJ Transcribe Recordings Project Plan

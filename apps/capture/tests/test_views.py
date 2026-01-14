@@ -1,5 +1,7 @@
 """Tests for capture views."""
 
+import json
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
@@ -1227,3 +1229,211 @@ class CaptureDetailViewTests(TestCase):
         self.assertContains(response, 'Audio Recording')
         self.assertContains(response, 'https://example.com/audio.mp3')
         self.assertContains(response, 'Download Audio')
+
+
+class CaptureUpdateTitleViewTests(TestCase):
+    """Tests for CaptureUpdateTitleView."""
+
+    def setUp(self):
+        """Set up test user and client."""
+        self.client = Client()
+        self.user = self._create_user()
+        self.client.login(email='testuser@example.com', password='testpass123')
+
+    def _create_user(self, email='testuser@example.com', password='testpass123'):
+        """Create a test user with terms accepted and onboarding completed."""
+        user = User.objects.create_user(email=email, password=password)
+        self._accept_terms(user)
+        self._complete_onboarding(user)
+        return user
+
+    def _accept_terms(self, user):
+        """Accept terms of service for user."""
+        try:
+            from apps.users.models import TermsAcceptance
+            TermsAcceptance.objects.create(
+                user=user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+            )
+        except (ImportError, Exception):
+            pass
+
+    def _complete_onboarding(self, user):
+        """Mark user onboarding as complete."""
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
+    def test_update_title_requires_login(self):
+        """Update title endpoint requires authentication."""
+        self.client.logout()
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Test Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+        response = self.client.post(
+            reverse('capture:update_title', kwargs={'pk': entry.pk}),
+            data=json.dumps({'title': 'New Title'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+
+    def test_update_title_returns_404_for_nonexistent_entry(self):
+        """Update title returns 404 for non-existent entry."""
+        import uuid
+        response = self.client.post(
+            reverse('capture:update_title', kwargs={'pk': uuid.uuid4()}),
+            data=json.dumps({'title': 'New Title'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_update_title_returns_404_for_other_users_entry(self):
+        """Update title returns 404 for another user's entry."""
+        other_user = self._create_user(email='other@example.com')
+        entry = CaptureEntry.objects.create(
+            user=other_user,
+            title='Other User Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.post(
+            reverse('capture:update_title', kwargs={'pk': entry.pk}),
+            data=json.dumps({'title': 'Hacked Title'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+        # Verify title wasn't changed
+        entry.refresh_from_db()
+        self.assertEqual(entry.title, 'Other User Entry')
+
+    def test_update_title_success(self):
+        """Update title successfully updates entry title."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Original Title',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.post(
+            reverse('capture:update_title', kwargs={'pk': entry.pk}),
+            data=json.dumps({'title': 'New Title'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+        self.assertEqual(data.get('title'), 'New Title')
+        self.assertEqual(data.get('message'), 'Title updated successfully')
+
+        # Verify database was updated
+        entry.refresh_from_db()
+        self.assertEqual(entry.title, 'New Title')
+
+    def test_update_title_strips_whitespace(self):
+        """Update title strips leading/trailing whitespace."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Original Title',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.post(
+            reverse('capture:update_title', kwargs={'pk': entry.pk}),
+            data=json.dumps({'title': '  New Title  '}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data.get('title'), 'New Title')
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.title, 'New Title')
+
+    def test_update_title_allows_empty_title(self):
+        """Update title allows empty/blank title."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Original Title',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.post(
+            reverse('capture:update_title', kwargs={'pk': entry.pk}),
+            data=json.dumps({'title': ''}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+        self.assertEqual(data.get('title'), '')
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.title, '')
+
+    def test_update_title_rejects_too_long(self):
+        """Update title rejects titles over 200 characters."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Original Title',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        long_title = 'A' * 201  # 201 characters
+
+        response = self.client.post(
+            reverse('capture:update_title', kwargs={'pk': entry.pk}),
+            data=json.dumps({'title': long_title}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertIn('200', data['error'])
+
+        # Verify title wasn't changed
+        entry.refresh_from_db()
+        self.assertEqual(entry.title, 'Original Title')
+
+    def test_update_title_accepts_max_length(self):
+        """Update title accepts titles exactly 200 characters."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Original Title',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        exact_title = 'A' * 200  # Exactly 200 characters
+
+        response = self.client.post(
+            reverse('capture:update_title', kwargs={'pk': entry.pk}),
+            data=json.dumps({'title': exact_title}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+        self.assertEqual(len(data.get('title')), 200)
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.title, exact_title)
+
+    def test_update_title_rejects_invalid_json(self):
+        """Update title rejects invalid JSON body."""
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Original Title',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.post(
+            reverse('capture:update_title', kwargs={'pk': entry.pk}),
+            data='not valid json',
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertIn('JSON', data['error'])

@@ -75,6 +75,9 @@ sentry-sdk>=2.0.0
 # Test Coverage
 coverage>=7.4.0
 
+# PDF Generation
+weasyprint>=62.0
+
 # Payment Processing (Stripe)
 stripe>=7.0.0
 dj-stripe>=2.8.0

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ entry.title|default:"Capture Recording" }} - Whole Life Journey</title>
+    <style>
+        /* WLJ Brand Colors and Design System */
+        :root {
+            --color-primary: #6b7280;
+            --color-accent: #6366f1;
+            --color-text: #374151;
+            --color-text-muted: #6b7280;
+            --color-background: #ffffff;
+            --color-surface: #f9fafb;
+            --color-border: #e5e7eb;
+            --color-success: #10b981;
+        }
+
+        /* Reset and Base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #374151;
+            background-color: #ffffff;
+        }
+
+        /* Page Setup for Print */
+        @page {
+            size: letter;
+            margin: 0.75in 0.75in 1in 0.75in;
+
+            @bottom-center {
+                content: "Whole Life Journey - Page " counter(page) " of " counter(pages);
+                font-size: 9pt;
+                color: #6b7280;
+            }
+        }
+
+        /* Header with Logo */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24pt;
+            padding-bottom: 16pt;
+            border-bottom: 2pt solid #6366f1;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 8pt;
+        }
+
+        .logo {
+            width: 32pt;
+            height: 32pt;
+            color: #6366f1;
+        }
+
+        .brand-name {
+            font-size: 14pt;
+            font-weight: 600;
+            color: #374151;
+            letter-spacing: -0.02em;
+        }
+
+        .document-type {
+            font-size: 9pt;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Title Section */
+        .title-section {
+            margin-bottom: 20pt;
+        }
+
+        .title {
+            font-size: 20pt;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8pt;
+            line-height: 1.3;
+        }
+
+        /* Metadata Grid */
+        .metadata {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16pt;
+            margin-bottom: 24pt;
+            padding: 12pt 16pt;
+            background-color: #f9fafb;
+            border-radius: 6pt;
+            border: 1pt solid #e5e7eb;
+        }
+
+        .metadata-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2pt;
+        }
+
+        .metadata-label {
+            font-size: 8pt;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metadata-value {
+            font-size: 10pt;
+            color: #374151;
+        }
+
+        .category-badge {
+            display: inline-block;
+            background-color: #6366f1;
+            color: #ffffff;
+            padding: 2pt 8pt;
+            border-radius: 10pt;
+            font-size: 9pt;
+            font-weight: 500;
+        }
+
+        /* Content Sections */
+        .section {
+            margin-bottom: 24pt;
+            page-break-inside: avoid;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 8pt;
+            margin-bottom: 12pt;
+            padding-bottom: 8pt;
+            border-bottom: 1pt solid #e5e7eb;
+        }
+
+        .section-icon {
+            width: 16pt;
+            height: 16pt;
+            color: #6366f1;
+        }
+
+        .section-title {
+            font-size: 12pt;
+            font-weight: 600;
+            color: #374151;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .section-content {
+            padding-left: 24pt;
+        }
+
+        /* Summary Styling */
+        .summary-content {
+            line-height: 1.8;
+        }
+
+        .summary-content p {
+            margin-bottom: 12pt;
+        }
+
+        .summary-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* BLUF Section Headers (bold text in summary) */
+        .summary-content strong {
+            display: block;
+            margin-top: 16pt;
+            margin-bottom: 6pt;
+            font-size: 11pt;
+            color: #374151;
+        }
+
+        .summary-content strong:first-child {
+            margin-top: 0;
+        }
+
+        /* Transcript Section */
+        .transcript-content {
+            font-size: 10pt;
+            color: #6b7280;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 32pt;
+            padding-top: 16pt;
+            border-top: 1pt solid #e5e7eb;
+            font-size: 9pt;
+            color: #6b7280;
+            text-align: center;
+        }
+
+        .footer-url {
+            color: #6366f1;
+        }
+
+        /* Print Optimizations */
+        @media print {
+            .section {
+                page-break-inside: avoid;
+            }
+
+            .header {
+                position: running(header);
+            }
+        }
+
+        /* Utility Classes */
+        .text-muted {
+            color: #6b7280;
+        }
+
+        .text-small {
+            font-size: 9pt;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header with Logo -->
+    <div class="header">
+        <div class="logo-section">
+            <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="2" fill="none" opacity="0.2"/>
+                <path d="M12 28 C16 20, 20 32, 24 24 C28 16, 32 28, 36 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                <circle cx="12" cy="28" r="3" fill="currentColor" opacity="0.6"/>
+                <circle cx="36" cy="20" r="3" fill="currentColor"/>
+            </svg>
+            <div>
+                <div class="brand-name">Whole Life Journey</div>
+                <div class="document-type">Capture Summary</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Title Section -->
+    <div class="title-section">
+        <h1 class="title">{{ entry.title|default:"Untitled Recording" }}</h1>
+    </div>
+
+    <!-- Metadata -->
+    <div class="metadata">
+        <div class="metadata-item">
+            <span class="metadata-label">Date</span>
+            <span class="metadata-value">{{ entry.created_at|date:"l, F j, Y" }}</span>
+        </div>
+
+        {% if formatted_duration %}
+        <div class="metadata-item">
+            <span class="metadata-label">Duration</span>
+            <span class="metadata-value">{{ formatted_duration }}</span>
+        </div>
+        {% endif %}
+
+        {% if entry.category %}
+        <div class="metadata-item">
+            <span class="metadata-label">Category</span>
+            <span class="metadata-value">
+                <span class="category-badge">{{ entry.get_category_display }}</span>
+                {% if entry.subcategory %}
+                <span class="text-muted text-small"> / {{ entry.get_subcategory_display }}</span>
+                {% endif %}
+            </span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Summary Section -->
+    {% if entry.summary %}
+    <div class="section">
+        <div class="section-header">
+            <svg class="section-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h2 class="section-title">Summary</h2>
+        </div>
+        <div class="section-content">
+            <div class="summary-content">
+                {{ entry.summary|linebreaks }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Transcript Section -->
+    {% if entry.transcript %}
+    <div class="section">
+        <div class="section-header">
+            <svg class="section-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <h2 class="section-title">Full Transcript</h2>
+        </div>
+        <div class="section-content">
+            <div class="transcript-content">{{ entry.transcript }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>Generated from <span class="footer-url">wholelifejourney.com</span></p>
+        <p class="text-small text-muted">{{ entry.created_at|date:"F j, Y" }} at {{ entry.created_at|time:"g:i A" }}</p>
+    </div>
+</body>
+</html>

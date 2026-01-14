@@ -657,3 +657,57 @@ class CaptureStatusView(LoginRequiredMixin, View):
             response_data['redirect_url'] = reverse('capture:detail', kwargs={'pk': entry.id})
 
         return JsonResponse(response_data)
+
+
+class CaptureDownloadPDFView(LoginRequiredMixin, View):
+    """
+    Generate and download a PDF summary of a capture entry.
+
+    Creates a branded PDF document containing the title, metadata,
+    summary, and transcript of the capture entry.
+    """
+
+    def get(self, request, pk):
+        """Generate and return PDF for the capture entry."""
+        from django.http import HttpResponse
+
+        from .services.pdf import generate_pdf, get_pdf_filename
+
+        try:
+            entry = CaptureEntry.objects.get(id=pk, user=request.user)
+        except CaptureEntry.DoesNotExist:
+            return JsonResponse({'error': 'Entry not found'}, status=404)
+
+        # Only allow PDF generation for ready entries
+        if entry.status != CaptureEntry.STATUS_READY:
+            return JsonResponse(
+                {'error': 'Entry is not ready for PDF generation'},
+                status=400
+            )
+
+        try:
+            # Generate PDF
+            pdf_bytes = generate_pdf(entry)
+            filename = get_pdf_filename(entry)
+
+            # Create response with PDF
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response['Content-Length'] = len(pdf_bytes)
+
+            logger.info(f"PDF downloaded for entry {entry.id} by user {request.user.email}")
+
+            return response
+
+        except ImportError as e:
+            logger.error(f"PDF generation failed - WeasyPrint not installed: {e}")
+            return JsonResponse(
+                {'error': 'PDF generation is not available'},
+                status=503
+            )
+        except Exception as e:
+            logger.exception(f"PDF generation failed for entry {pk}: {e}")
+            return JsonResponse(
+                {'error': 'Failed to generate PDF'},
+                status=500
+            )

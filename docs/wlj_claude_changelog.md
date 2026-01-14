@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-13 Changes
 
+### Fix: Expanded Navigation Query Detection for "how do i log/track/add" Questions
+
+**Summary:** Fixed issue where questions like "how do I log my weight?" weren't triggering the Teaching Tool because the navigation indicators were too narrow. Added action-based phrases to the detection list.
+
+**New Indicators Added:**
+- `how do i log`, `how do i track`, `how do i add`
+- `how do i record`, `how do i enter`, `how do i create`
+- `how do i write`, `how do i start`, `how do i set`
+- `how can i log`, `how can i track`, `how can i add`
+- `how can i record`, `how can i enter`, `how can i create`
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Expanded navigation_indicators list in `_try_navigation_response()`
+- `apps/help/tests/test_teaching_tool.py` - Added test for "how do i log" pattern (total now 22 tests)
+
+---
+
 ### Fix: Teaching Tool Integration into PersonalAssistant (Main Chat Widget)
 
 **Summary:** Fixed the Teaching Tool to work with the main WLJ Assistant chat widget. The integration was previously only in HelpChatService, but the main chat widget uses PersonalAssistant. Navigation questions now return properly formatted responses with **clickable links**.

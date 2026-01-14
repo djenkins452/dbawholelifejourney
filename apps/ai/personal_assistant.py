@@ -1748,11 +1748,21 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         # Check if query looks like a navigation question
         query_lower = message.lower().strip()
         navigation_indicators = [
+            # Location questions
             'where do i', 'where can i', 'where is', 'where are',
+            'where\'s the', 'where\'s my',
+            # Navigation questions
             'how do i get to', 'how do i find', 'how do i access',
             'how do i go to', 'how do i navigate',
+            # Action questions that imply needing to find a feature
+            'how do i log', 'how do i track', 'how do i add',
+            'how do i record', 'how do i enter', 'how do i create',
+            'how do i write', 'how do i start', 'how do i set',
+            'how can i log', 'how can i track', 'how can i add',
+            'how can i record', 'how can i enter', 'how can i create',
+            # Direct navigation requests
             'take me to', 'go to the', 'navigate to',
-            'show me the', 'open the', 'where\'s the', 'where\'s my',
+            'show me the', 'open the',
             'link to', 'path to', 'url for',
         ]
 

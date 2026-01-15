@@ -1,0 +1,27 @@
+{% comment %}
+Period Toggle Status Fragment
+
+Returned after period toggle action for HTMX replacement.
+Shows the updated status after starting or ending period.
+
+Context:
+- is_period_day: Boolean, whether period is logged today
+- action: "start" or "end" - the action that was taken
+{% endcomment %}
+
+<div class="cycle-quick-actions" id="cycle-quick-actions">
+    {% if is_period_day %}
+    <div class="period-status period-active">
+        <span class="period-indicator"></span>
+        <span>
+            {% if action == "start" %}
+            Period started - logged for today
+            {% elif action == "end" %}
+            Period ended - marked as complete
+            {% else %}
+            Period logged today
+            {% endif %}
+        </span>
+    </div>
+    {% endif %}
+</div>

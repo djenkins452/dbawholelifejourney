@@ -206,6 +206,9 @@ urlpatterns = [
     path("cycle/api/opt-out/", views_cycle.CycleOptOutView.as_view(), name="cycle_opt_out"),
     path("cycle/api/check/", views_cycle.CycleSettingsCheckView.as_view(), name="cycle_check"),
 
+    # Period toggle (HTMX endpoint for dashboard)
+    path("cycle/api/period-toggle/", views_cycle.CyclePeriodToggleView.as_view(), name="cycle_period_toggle"),
+
     # Daily Logs - CRUD
     path("cycle/api/daily-logs/", views_cycle.CycleDailyLogViewSet.as_view(), name="cycle_daily_logs_list"),
     path("cycle/api/daily-logs/<int:log_id>/", views_cycle.CycleDailyLogViewSet.as_view(), name="cycle_daily_logs_detail"),

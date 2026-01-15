@@ -16,6 +16,40 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Cycle Section to Dashboard (Phase 7)
+
+**Summary:** Integrated cycle tracking into the main WLJ dashboard for users with cycle tracking enabled.
+
+**Features:**
+- Conditional cycle widget on dashboard (only shows if user has cycle_tracking_enabled=True)
+- Displays current cycle day and phase name with color indicator
+- Quick period toggle buttons ("Period started" / "Period ended")
+- HTMX-powered toggle that updates without page reload
+- "Log Details" link to cycle dashboard for full logging
+- Period status indicator when logged
+
+**Backend Changes:**
+- `apps/dashboard/views.py`: Added cycle tracking data to `_get_health_data()`
+  - Imports CycleSettings, Cycle, CycleDailyLog
+  - Gathers phase info, current cycle, today's log
+  - Returns `cycle_tracking_enabled` and `cycle_data` context
+- `apps/health/views_cycle.py`: Added `CyclePeriodToggleView` for HTMX toggle
+  - Handles "start" action: creates daily log with flow level, starts new cycle if needed
+  - Handles "end" action: marks period as ended, updates cycle period_end_date
+  - Returns HTML fragment for HTMX replacement
+
+**Files Created:**
+- `templates/health/cycle/includes/period_toggle_status.html`
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Added cycle tracking section
+- `apps/dashboard/views.py` - Added cycle data gathering
+- `apps/health/views_cycle.py` - Added CyclePeriodToggleView
+- `apps/health/urls.py` - Added cycle_period_toggle URL
+- `static/css/dashboard.css` - Added cycle widget styles
+
+---
+
 ### Create Symptom/Mood Trend Charts Component (Phase 6)
 
 **Summary:** Created interactive chart components for visualizing symptom and mood patterns across menstrual cycles.

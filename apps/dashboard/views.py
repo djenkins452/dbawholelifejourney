@@ -277,7 +277,8 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         from apps.health.models import (
             WeightEntry, FastingWindow, GlucoseEntry,
             Medicine, MedicineLog, MedicineSchedule,
-            WorkoutSession, PersonalRecord
+            WorkoutSession, PersonalRecord,
+            CycleSettings, Cycle, CycleDailyLog
         )
         from datetime import datetime, timedelta as dt_timedelta
 
@@ -398,6 +399,48 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         weight_progress = user.preferences.get_weight_progress()
         nutrition_progress = user.preferences.get_nutrition_progress(today)
 
+        # =====================
+        # Cycle Tracking
+        # =====================
+        cycle_tracking_enabled = False
+        cycle_data = None
+
+        try:
+            cycle_settings = CycleSettings.objects.get(user=user)
+            if cycle_settings.is_enabled:
+                cycle_tracking_enabled = True
+                from apps.health.services.cycle_phase import get_current_phase
+
+                # Get current phase info
+                phase = get_current_phase(user, today)
+
+                # Get current active cycle
+                current_cycle = Cycle.objects.filter(
+                    user=user,
+                    end_date__isnull=True,
+                    start_date__lte=today
+                ).first()
+
+                # Get today's log if exists
+                todays_log = CycleDailyLog.objects.filter(
+                    user=user,
+                    log_date=today
+                ).first()
+
+                # Check if period is active today (flow level not none/empty)
+                is_period_day = todays_log and todays_log.flow_level and todays_log.flow_level not in ['', 'none']
+
+                cycle_data = {
+                    'settings': cycle_settings,
+                    'phase': phase,
+                    'current_cycle': current_cycle,
+                    'todays_log': todays_log,
+                    'is_period_day': is_period_day,
+                    'cycle_day': phase['cycle_day'] if phase else None,
+                }
+        except CycleSettings.DoesNotExist:
+            pass
+
         return {
             "latest_weight": latest_weight,
             "weight_change": weight_change,
@@ -429,6 +472,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "nutrition_progress": nutrition_progress,
             "has_weight_goal": user.preferences.has_weight_goal,
             "has_nutrition_goals": user.preferences.has_nutrition_goals,
+            # Cycle Tracking
+            "cycle_tracking_enabled": cycle_tracking_enabled,
+            "cycle_data": cycle_data,
         }
 
     def _calculate_workout_streak(self, user, today):

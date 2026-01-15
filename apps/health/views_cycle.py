@@ -1142,3 +1142,85 @@ class CycleDashboardView(LoginRequiredMixin, TemplateView):
         context["recent_logs"] = logs_with_today
 
         return context
+
+
+class CyclePeriodToggleView(LoginRequiredMixin, CycleTrackingEnabledMixin, View):
+    """
+    Quick toggle for period start/end from dashboard.
+
+    POST with action: "start" or "end"
+    Returns an HTML fragment for HTMX replacement.
+    """
+
+    def post(self, request):
+        action = request.POST.get("action")
+        today = timezone.now().date()
+        user = request.user
+
+        if action == "start":
+            # Create or update today's log with flow level
+            log, created = CycleDailyLog.objects.get_or_create(
+                user=user,
+                log_date=today,
+                defaults={"flow_level": "medium"}
+            )
+            if not created and not log.flow_level:
+                log.flow_level = "medium"
+                log.save()
+
+            # Start a new cycle if needed
+            current_cycle = Cycle.objects.filter(
+                user=user,
+                end_date__isnull=True
+            ).first()
+
+            if not current_cycle:
+                # Create new cycle
+                Cycle.objects.create(
+                    user=user,
+                    start_date=today,
+                )
+
+            is_period_day = True
+
+        elif action == "end":
+            # Update today's log to mark period ended (set flow to none/spotting)
+            log, created = CycleDailyLog.objects.get_or_create(
+                user=user,
+                log_date=today,
+                defaults={"flow_level": "spotting"}
+            )
+            if not created:
+                # Mark as spotting or none to indicate end
+                log.flow_level = "spotting"
+                log.save()
+
+            # Update current cycle's period_end_date
+            current_cycle = Cycle.objects.filter(
+                user=user,
+                end_date__isnull=True
+            ).first()
+
+            if current_cycle and not current_cycle.period_end_date:
+                current_cycle.period_end_date = today
+                current_cycle.save()
+
+            is_period_day = True  # Still showing something logged
+
+        else:
+            return JsonResponse({"error": "Invalid action"}, status=400)
+
+        # Return HTML fragment for HTMX
+        from django.template.loader import render_to_string
+
+        html = render_to_string(
+            "health/cycle/includes/period_toggle_status.html",
+            {
+                "is_period_day": is_period_day,
+                "action": action,
+            },
+            request=request
+        )
+
+        from django.http import HttpResponse
+        return HttpResponse(html)

@@ -170,6 +170,133 @@ FLOW_LEVEL_EMOJIS = {
     "heavy": "🩸🩸🩸",
 }
 
+# Cervical mucus types for fertility tracking
+CERVICAL_MUCUS_CHOICES = [
+    ("dry", "Dry"),
+    ("sticky", "Sticky"),
+    ("creamy", "Creamy"),
+    ("watery", "Watery"),
+    ("egg_white", "Egg White (Fertile)"),
+]
+
+
+class CycleDailyLog(UserOwnedModel):
+    """
+    Daily cycle tracking entry.
+
+    Records daily health data related to menstrual cycle including
+    flow level, symptoms, mood, and optional fertility indicators.
+
+    One entry per user per day (unique constraint).
+    """
+
+    # The date this log entry is for
+    log_date = models.DateField(
+        default=timezone.now,
+        help_text="Date of this cycle log entry",
+    )
+
+    # Flow tracking
+    flow_level = models.CharField(
+        max_length=10,
+        choices=FLOW_LEVEL_CHOICES,
+        default="none",
+        help_text="Menstrual flow intensity for this day",
+    )
+
+    # Symptoms (multi-select stored as JSON list)
+    # Example: ["cramps", "headache", "fatigue"]
+    symptoms = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of symptom keys from CYCLE_SYMPTOM_CHOICES",
+    )
+
+    # Mood tracking
+    mood = models.CharField(
+        max_length=20,
+        choices=CYCLE_MOOD_CHOICES,
+        blank=True,
+        help_text="Primary emotional state for this day",
+    )
+
+    # Energy level (1-5 scale)
+    energy_level = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Energy level from 1 (very low) to 5 (very high)",
+    )
+
+    # Optional fertility tracking fields
+    cervical_mucus = models.CharField(
+        max_length=20,
+        choices=CERVICAL_MUCUS_CHOICES,
+        blank=True,
+        help_text="Cervical mucus type (optional, for fertility tracking)",
+    )
+
+    basal_temp = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Basal body temperature in Fahrenheit (e.g., 97.80)",
+    )
+
+    # General notes
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes or observations for this day",
+    )
+
+    class Meta:
+        verbose_name = "cycle daily log"
+        verbose_name_plural = "cycle daily logs"
+        ordering = ["-log_date"]
+        # One entry per user per day
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "log_date"],
+                name="unique_cycle_log_per_user_per_day",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "log_date"]),
+            models.Index(fields=["user", "flow_level"]),
+        ]
+
+    def __str__(self):
+        return f"Cycle log for {self.user.email} on {self.log_date}"
+
+    @property
+    def is_period_day(self):
+        """
+        Check if this is a period day (any flow level other than 'none').
+
+        Returns True if flow_level is spotting, light, medium, or heavy.
+        """
+        return self.flow_level != "none"
+
+    @property
+    def symptom_display_list(self):
+        """
+        Get human-readable symptom names.
+
+        Returns list of display labels for the symptoms stored in JSON.
+        """
+        symptom_map = dict(CYCLE_SYMPTOM_CHOICES)
+        return [symptom_map.get(s, s) for s in self.symptoms]
+
+    @property
+    def flow_emoji(self):
+        """Get emoji representation of flow level."""
+        return FLOW_LEVEL_EMOJIS.get(self.flow_level, "")
+
+    @property
+    def mood_emoji(self):
+        """Get emoji representation of mood."""
+        return CYCLE_MOOD_EMOJIS.get(self.mood, "")
+
 
 class WeightEntry(UserOwnedModel):
     """

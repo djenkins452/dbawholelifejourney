@@ -79,6 +79,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Add File Replacement Option in Document Edit Mode
+
+**Summary:** Added ability to replace the attached file when editing a document without having to delete the entire entry and start over.
+
+**Problem:** Users could only view the current file when editing a document, with no way to replace it. If a wrong file was uploaded, the only option was to delete the entire document and recreate it.
+
+**Solution:**
+1. Added "Replace File" button in document edit form that reveals a file upload area
+2. Updated `DocumentUpdateView` to include `file` field (optional) and handle file replacement
+3. Old files are automatically deleted from storage when replaced
+
+**Files Modified:**
+- `templates/life/document_form.html` - Added replace file UI with toggle button and upload area
+- `apps/life/views.py` - Updated `DocumentUpdateView` to handle optional file replacement
+
+**UI Features:**
+- Current file info displayed with "Replace File" button
+- Clicking "Replace File" shows the file upload area
+- "Cancel" button to abort replacement and keep current file
+- Old file is automatically cleaned up from storage when replaced
+
+---
+
 ### Add Pending Model Migrations
 
 **Summary:** Created migrations for model field changes that were detected by CI checks.

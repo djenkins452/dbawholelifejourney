@@ -71,16 +71,46 @@
                     <p id="selected-file" class="form-help"></p>
                 </div>
                 {% else %}
-                <div class="current-file">
+                <div class="form-group">
                     <p class="form-label">Current File</p>
-                    <div class="file-info">
-                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                            <polyline points="14 2 14 8 20 8"/>
-                        </svg>
-                        <span>{{ object.file.name|slice:"20:" }}</span>
-                        <span class="file-size">{{ object.file_size_display }}</span>
+                    <div class="current-file-container">
+                        <div class="file-info">
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                            <span>{{ object.file.name|slice:"20:" }}</span>
+                            <span class="file-size">{{ object.file_size_display }}</span>
+                        </div>
+                        <button type="button" id="replace-file-btn" class="btn btn-ghost btn-sm">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            Replace File
+                        </button>
                     </div>
+                </div>
+
+                <!-- Hidden file upload area for replacing -->
+                <div class="form-group replace-file-section" id="replace-file-section" style="display: none;">
+                    <label for="id_file" class="form-label">New File</label>
+                    <div class="file-upload-area">
+                        <input type="file" name="file" id="id_file" class="file-input"
+                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+                        <div class="file-upload-content">
+                            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <p>Drag and drop or <span class="text-accent">browse</span></p>
+                            <p class="file-types">PDF, JPG, PNG, DOC, XLS</p>
+                        </div>
+                    </div>
+                    <p id="selected-file" class="form-help"></p>
+                    <button type="button" id="cancel-replace-btn" class="btn btn-ghost btn-sm mt-2">Cancel</button>
                 </div>
                 {% endif %}
             </div>
@@ -167,6 +197,32 @@ document.getElementById('id_file')?.addEventListener('change', function(e) {
         document.getElementById('selected-file').textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
     }
 });
+
+// Replace file toggle (edit mode only)
+const replaceBtn = document.getElementById('replace-file-btn');
+const cancelReplaceBtn = document.getElementById('cancel-replace-btn');
+const replaceSection = document.getElementById('replace-file-section');
+const currentFileContainer = document.querySelector('.current-file-container');
+
+if (replaceBtn && replaceSection) {
+    replaceBtn.addEventListener('click', function() {
+        currentFileContainer.style.display = 'none';
+        replaceSection.style.display = 'block';
+    });
+}
+
+if (cancelReplaceBtn && replaceSection) {
+    cancelReplaceBtn.addEventListener('click', function() {
+        replaceSection.style.display = 'none';
+        currentFileContainer.style.display = 'flex';
+        // Clear the file input
+        const fileInput = document.getElementById('id_file');
+        if (fileInput) {
+            fileInput.value = '';
+            document.getElementById('selected-file').textContent = '';
+        }
+    });
+}
 </script>
 
 <style nonce="{{ csp_nonce }}">
@@ -255,8 +311,11 @@ document.getElementById('id_file')?.addEventListener('change', function(e) {
     margin-top: var(--space-2);
 }
 
-.current-file {
-    margin-top: var(--space-4);
+.current-file-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
 }
 
 .file-info {
@@ -266,16 +325,34 @@ document.getElementById('id_file')?.addEventListener('change', function(e) {
     padding: var(--space-3);
     background: var(--color-surface);
     border-radius: var(--radius-md);
+    flex: 1;
+    min-width: 200px;
 }
 
 .file-info svg {
     color: var(--color-accent);
+    flex-shrink: 0;
 }
 
 .file-size {
     margin-left: auto;
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+}
+
+.btn-sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+}
+
+.replace-file-section {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.mt-2 {
+    margin-top: var(--space-2);
 }
 
 .checkbox-label {

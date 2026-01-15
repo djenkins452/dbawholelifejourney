@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Gender Field to UserPreferences Model
+
+**Summary:** Added a gender field to the UserPreferences model to support personalized health features like cycle tracking.
+
+**Changes:**
+- Added `GENDER_CHOICES` constant with three options: male, female, prefer_not_to_say
+- Added `gender` CharField to UserPreferences with:
+  - `blank=True, null=True` for existing users
+  - `help_text` explaining usage for personalized health features
+
+**Files Modified:**
+- `apps/users/models.py`: Added GENDER_CHOICES and gender field
+- `apps/users/migrations/0036_add_gender_to_userpreferences.py`: New migration
+
+**Purpose:** Enables conditional enabling of cycle tracking features for users who identify as female (part of WLJ Cycle Tracking Module).
+
+---
+
 ### Fix Audio Email - Optional Message Field Causing Error
 
 **Summary:** Fixed bug where sending an audio capture email with a blank message body would fail with an AttributeError.

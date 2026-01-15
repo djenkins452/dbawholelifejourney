@@ -1,0 +1,617 @@
+{% comment %}
+Cycle Trend Charts Component
+
+Displays interactive charts for visualizing symptom and mood patterns:
+- Symptom frequency bar chart by cycle phase
+- Mood distribution chart by cycle phase
+- Configurable date range selection (1, 3, 6 months)
+
+Context variables:
+- symptom_data: List from CycleStatisticsService.get_symptom_frequency()
+- mood_data: Dict from CycleStatisticsService.get_mood_by_cycle_phase()
+- selected_months: Integer (1, 3, or 6)
+
+This component uses Chart.js for rendering.
+Uses colorblind-accessible palette (Wong palette variant).
+
+Usage:
+{% include "health/cycle/includes/trend_charts.html" with symptom_data=symptoms mood_data=moods %}
+{% endcomment %}
+
+<div class="trend-charts-container" id="trend-charts">
+    <!-- Date Range Selector -->
+    <div class="chart-controls">
+        <label class="control-label">Time Range:</label>
+        <div class="range-buttons">
+            <button type="button"
+                    class="range-btn {% if selected_months == 1 %}active{% endif %}"
+                    data-months="1"
+                    hx-get="{% url 'health:cycle_statistics' %}?months=1&format=html"
+                    hx-target="#trend-charts"
+                    hx-swap="outerHTML">
+                1 Month
+            </button>
+            <button type="button"
+                    class="range-btn {% if selected_months == 3 or not selected_months %}active{% endif %}"
+                    data-months="3"
+                    hx-get="{% url 'health:cycle_statistics' %}?months=3&format=html"
+                    hx-target="#trend-charts"
+                    hx-swap="outerHTML">
+                3 Months
+            </button>
+            <button type="button"
+                    class="range-btn {% if selected_months == 6 %}active{% endif %}"
+                    data-months="6"
+                    hx-get="{% url 'health:cycle_statistics' %}?months=6&format=html"
+                    hx-target="#trend-charts"
+                    hx-swap="outerHTML">
+                6 Months
+            </button>
+        </div>
+    </div>
+
+    <!-- Symptom Frequency Chart -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3 class="chart-title">Symptom Frequency</h3>
+            <p class="chart-description">Most commonly logged symptoms</p>
+        </div>
+        <div class="chart-wrapper">
+            {% if symptom_data %}
+            <canvas id="symptom-chart" role="img" aria-label="Bar chart showing symptom frequency"></canvas>
+            {% else %}
+            <div class="chart-empty">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M3 3v18h18"/>
+                    <path d="M18 17V9"/>
+                    <path d="M13 17V5"/>
+                    <path d="M8 17v-3"/>
+                </svg>
+                <p>No symptom data yet</p>
+                <span class="chart-empty-hint">Log symptoms in your daily entries to see patterns</span>
+            </div>
+            {% endif %}
+        </div>
+        {% if symptom_data %}
+        <!-- Accessible text alternative -->
+        <details class="chart-data-table">
+            <summary>View data as table</summary>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symptom</th>
+                        <th>Count</th>
+                        <th>Percentage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in symptom_data %}
+                    <tr>
+                        <td>{{ item.display_name }}</td>
+                        <td>{{ item.count }}</td>
+                        <td>{{ item.percentage }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+        {% endif %}
+    </div>
+
+    <!-- Mood by Phase Chart -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3 class="chart-title">Mood by Cycle Phase</h3>
+            <p class="chart-description">How your mood varies across your cycle</p>
+        </div>
+        <div class="chart-wrapper">
+            {% if mood_data.menstrual.moods or mood_data.follicular.moods or mood_data.ovulation.moods or mood_data.luteal.moods %}
+            <canvas id="mood-chart" role="img" aria-label="Stacked bar chart showing mood distribution by cycle phase"></canvas>
+            {% else %}
+            <div class="chart-empty">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                    <line x1="9" y1="9" x2="9.01" y2="9"/>
+                    <line x1="15" y1="9" x2="15.01" y2="9"/>
+                </svg>
+                <p>No mood data yet</p>
+                <span class="chart-empty-hint">Log your mood daily to discover patterns</span>
+            </div>
+            {% endif %}
+        </div>
+        {% if mood_data %}
+        <!-- Accessible text alternative -->
+        <details class="chart-data-table">
+            <summary>View data as table</summary>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Phase</th>
+                        <th>Dominant Mood</th>
+                        <th>Total Entries</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Menstrual</td>
+                        <td>{{ mood_data.menstrual.dominant_mood|default:"-" }}</td>
+                        <td>{{ mood_data.menstrual.total_entries|default:"0" }}</td>
+                    </tr>
+                    <tr>
+                        <td>Follicular</td>
+                        <td>{{ mood_data.follicular.dominant_mood|default:"-" }}</td>
+                        <td>{{ mood_data.follicular.total_entries|default:"0" }}</td>
+                    </tr>
+                    <tr>
+                        <td>Ovulation</td>
+                        <td>{{ mood_data.ovulation.dominant_mood|default:"-" }}</td>
+                        <td>{{ mood_data.ovulation.total_entries|default:"0" }}</td>
+                    </tr>
+                    <tr>
+                        <td>Luteal</td>
+                        <td>{{ mood_data.luteal.dominant_mood|default:"-" }}</td>
+                        <td>{{ mood_data.luteal.total_entries|default:"0" }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </details>
+        {% endif %}
+    </div>
+
+    <!-- No JavaScript Fallback -->
+    <noscript>
+        <div class="chart-noscript">
+            <p>Charts require JavaScript to display. Here's a summary of your data:</p>
+            {% if symptom_data %}
+            <h4>Top Symptoms</h4>
+            <ul>
+                {% for item in symptom_data|slice:":5" %}
+                <li>{{ item.display_name }}: {{ item.count }} times ({{ item.percentage }}%)</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% if mood_data %}
+            <h4>Mood by Phase</h4>
+            <ul>
+                <li>Menstrual: {{ mood_data.menstrual.dominant_mood|default:"No data" }}</li>
+                <li>Follicular: {{ mood_data.follicular.dominant_mood|default:"No data" }}</li>
+                <li>Ovulation: {{ mood_data.ovulation.dominant_mood|default:"No data" }}</li>
+                <li>Luteal: {{ mood_data.luteal.dominant_mood|default:"No data" }}</li>
+            </ul>
+            {% endif %}
+        </div>
+    </noscript>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.trend-charts-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+/* Chart Controls */
+.chart-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.control-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.range-buttons {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.range-btn {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 36px;
+    min-width: 44px;
+}
+
+.range-btn:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text);
+}
+
+.range-btn.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+}
+
+/* Chart Card */
+.chart-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.chart-header {
+    margin-bottom: var(--space-4);
+}
+
+.chart-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0 0 var(--space-1) 0;
+}
+
+.chart-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.chart-wrapper {
+    position: relative;
+    min-height: 200px;
+    max-height: 300px;
+}
+
+.chart-wrapper canvas {
+    width: 100% !important;
+    max-height: 280px;
+}
+
+/* Empty State */
+.chart-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+}
+
+.chart-empty svg {
+    margin-bottom: var(--space-3);
+    opacity: 0.5;
+}
+
+.chart-empty p {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    margin: 0 0 var(--space-2) 0;
+}
+
+.chart-empty-hint {
+    font-size: var(--font-size-sm);
+    opacity: 0.8;
+}
+
+/* Accessible Data Table */
+.chart-data-table {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.chart-data-table summary {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    cursor: pointer;
+    padding: var(--space-2);
+}
+
+.chart-data-table summary:hover {
+    text-decoration: underline;
+}
+
+.chart-data-table table {
+    width: 100%;
+    margin-top: var(--space-3);
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.chart-data-table th,
+.chart-data-table td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.chart-data-table th {
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+/* No JavaScript Fallback */
+.chart-noscript {
+    background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin: var(--space-4) 0;
+}
+
+.chart-noscript h4 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: var(--space-3) 0 var(--space-2) 0;
+}
+
+.chart-noscript ul {
+    margin: 0;
+    padding-left: var(--space-5);
+}
+
+.chart-noscript li {
+    margin-bottom: var(--space-1);
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+    .chart-card {
+        padding: var(--space-4);
+    }
+
+    .chart-controls {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .range-buttons {
+        width: 100%;
+    }
+
+    .range-btn {
+        flex: 1;
+        text-align: center;
+    }
+
+    .chart-wrapper {
+        min-height: 180px;
+        max-height: 250px;
+    }
+
+    .chart-data-table th,
+    .chart-data-table td {
+        padding: var(--space-2);
+    }
+}
+
+/* Tablet */
+@media (min-width: 481px) and (max-width: 768px) {
+    .chart-wrapper {
+        max-height: 280px;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    // Wait for Chart.js to load or load it dynamically
+    function initCharts() {
+        if (typeof Chart === 'undefined') {
+            // Chart.js not loaded yet, load it
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+            script.onload = renderCharts;
+            document.head.appendChild(script);
+        } else {
+            renderCharts();
+        }
+    }
+
+    function renderCharts() {
+        // Colorblind-accessible palette (Wong palette variant)
+        // High contrast, distinguishable for most forms of color blindness
+        const accessibleColors = {
+            blue: '#0072B2',      // Blue
+            orange: '#E69F00',    // Orange
+            green: '#009E73',     // Bluish Green
+            yellow: '#F0E442',    // Yellow
+            skyBlue: '#56B4E9',   // Sky Blue
+            vermillion: '#D55E00', // Vermillion
+            purple: '#CC79A7',    // Reddish Purple
+            black: '#000000'      // Black
+        };
+
+        // Phase colors (matching the cycle phase indicator colors but accessible)
+        const phaseColors = {
+            menstrual: '#D55E00',  // Vermillion (instead of red)
+            follicular: '#E69F00', // Orange
+            ovulation: '#009E73',  // Bluish Green
+            luteal: '#0072B2'      // Blue
+        };
+
+        // Mood colors - using accessible palette
+        const moodColors = {
+            happy: '#E69F00',      // Orange
+            sad: '#0072B2',        // Blue
+            irritable: '#D55E00',  // Vermillion
+            anxious: '#CC79A7',    // Reddish Purple
+            calm: '#009E73',       // Bluish Green
+            energetic: '#F0E442',  // Yellow
+            tired: '#56B4E9',      // Sky Blue
+            emotional: '#CC79A7'   // Reddish Purple
+        };
+
+        // Symptom Frequency Chart
+        const symptomCanvas = document.getElementById('symptom-chart');
+        if (symptomCanvas) {
+            const symptomData = {{ symptom_data|safe|default:"[]" }};
+
+            if (symptomData.length > 0) {
+                // Take top 8 symptoms for readability
+                const topSymptoms = symptomData.slice(0, 8);
+
+                new Chart(symptomCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: topSymptoms.map(s => s.display_name),
+                        datasets: [{
+                            label: 'Times logged',
+                            data: topSymptoms.map(s => s.count),
+                            backgroundColor: Object.values(accessibleColors).slice(0, topSymptoms.length),
+                            borderColor: Object.values(accessibleColors).slice(0, topSymptoms.length),
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const item = topSymptoms[context.dataIndex];
+                                        return `${item.count} times (${item.percentage}% of days)`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                },
+                                grid: {
+                                    display: true,
+                                    color: 'rgba(0, 0, 0, 0.1)'
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Mood by Phase Chart
+        const moodCanvas = document.getElementById('mood-chart');
+        if (moodCanvas) {
+            const moodData = {{ mood_data|safe|default:"{}" }};
+            const phases = ['menstrual', 'follicular', 'ovulation', 'luteal'];
+            const phaseLabels = ['Menstrual', 'Follicular', 'Ovulation', 'Luteal'];
+
+            // Get all unique moods across all phases
+            const allMoods = new Set();
+            phases.forEach(phase => {
+                if (moodData[phase] && moodData[phase].moods) {
+                    moodData[phase].moods.forEach(m => allMoods.add(m.mood));
+                }
+            });
+
+            if (allMoods.size > 0) {
+                const moodList = Array.from(allMoods);
+
+                // Build datasets for each mood
+                const datasets = moodList.map((mood, index) => {
+                    const data = phases.map(phase => {
+                        if (moodData[phase] && moodData[phase].moods) {
+                            const moodEntry = moodData[phase].moods.find(m => m.mood === mood);
+                            return moodEntry ? moodEntry.count : 0;
+                        }
+                        return 0;
+                    });
+
+                    return {
+                        label: mood.charAt(0).toUpperCase() + mood.slice(1),
+                        data: data,
+                        backgroundColor: moodColors[mood] || Object.values(accessibleColors)[index % 8],
+                        borderColor: moodColors[mood] || Object.values(accessibleColors)[index % 8],
+                        borderWidth: 1
+                    };
+                });
+
+                new Chart(moodCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: phaseLabels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 12,
+                                    padding: 8,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false
+                            }
+                        },
+                        scales: {
+                            x: {
+                                stacked: true,
+                                grid: {
+                                    display: false
+                                }
+                            },
+                            y: {
+                                stacked: true,
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                },
+                                grid: {
+                                    display: true,
+                                    color: 'rgba(0, 0, 0, 0.1)'
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Number of entries',
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            }
+                        },
+                        interaction: {
+                            mode: 'nearest',
+                            axis: 'x',
+                            intersect: false
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCharts);
+    } else {
+        initCharts();
+    }
+})();
+</script>

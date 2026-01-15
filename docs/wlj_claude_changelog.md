@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Symptom/Mood Trend Charts Component (Phase 6)
+
+**Summary:** Created interactive chart components for visualizing symptom and mood patterns across menstrual cycles.
+
+**Template:** `templates/health/cycle/includes/trend_charts.html`
+
+**Features:**
+- Symptom frequency horizontal bar chart showing top 8 symptoms
+- Mood distribution stacked bar chart by cycle phase (menstrual, follicular, ovulation, luteal)
+- Configurable date range selection (1, 3, 6 months) with HTMX refresh
+- Chart.js integration with dynamic loading
+- Colorblind-accessible Wong palette variant colors
+- Mobile-responsive chart sizing (max-height constraints)
+- Accessible data tables as `<details>` elements for screen readers
+- Graceful degradation with `<noscript>` fallback showing text summary
+- Empty states with helpful messages when no data available
+
+**Technical Notes:**
+- Uses CDN-loaded Chart.js 4.4.1
+- Data passed via Django template context and rendered as JSON
+- Wong palette colors for colorblind accessibility:
+  - Blue: #0072B2, Orange: #E69F00, Green: #009E73
+  - Yellow: #F0E442, Sky Blue: #56B4E9, Vermillion: #D55E00
+  - Purple: #CC79A7
+
+**Files Created:** `templates/health/cycle/includes/trend_charts.html`
+
+---
+
 ### Update Cycle Tracking Opt-In Status Display (Phase 6)
 
 **Summary:** Updated the cycle tracking opt-in page to show status when already enabled and provide disable functionality.

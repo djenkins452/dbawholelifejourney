@@ -16,6 +16,34 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle Tracking Opt-In Page (Phase 6)
+
+**Summary:** Created the opt-in template for cycle tracking with privacy-focused messaging.
+
+**Template:** `templates/health/cycle/opt_in.html`
+
+**Features:**
+- Gentle, non-clinical language explaining feature benefits
+- Clear explanation of data collected:
+  - Period days (flow level, start/end dates)
+  - Mood and energy tracking
+  - Physical symptoms (cramps, headache, fatigue, etc.)
+  - Predictions (after enough cycles logged)
+- Privacy assurances section:
+  - Data never shared with anyone
+  - Stored securely with encryption
+  - Easy one-click deletion
+  - No advertising or third-party data sales
+- Link to privacy policy
+- Mobile-responsive design with 44px+ touch targets
+- Single "Enable Cycle Tracking" button
+- JavaScript handles API call to /health/cycle/api/opt-in/
+- Redirects to health home on success
+
+**Files Created:** `templates/health/cycle/opt_in.html`
+
+---
+
 ### Create CycleStatisticsService (Phase 5)
 
 **Summary:** Created service for calculating cycle statistics and correlations.

@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Cycle Tracking Choice Definitions (Phase 2)
+
+**Summary:** Defined standard choice constants for cycle tracking symptoms, moods, and flow levels.
+
+**Constants Added:**
+- `CYCLE_SYMPTOM_CHOICES`: 10 physical symptoms (cramps, headache, fatigue, bloating, breast_tenderness, acne, backache, nausea, food_cravings, insomnia)
+- `CYCLE_MOOD_CHOICES`: 8 emotional states (happy, sad, irritable, anxious, calm, energetic, tired, emotional)
+- `FLOW_LEVEL_CHOICES`: 5 flow intensities (none, spotting, light, medium, heavy)
+- Emoji mappings for all choices (CYCLE_SYMPTOM_EMOJIS, CYCLE_MOOD_EMOJIS, FLOW_LEVEL_EMOJIS)
+
+**Files Modified:**
+- `apps/health/models.py`: Added choice constants after CycleSettings model
+
+**Note:** These choices differ from journal MOOD_CHOICES (great/good/okay/low/difficult) as they're designed for physical/emotional tracking during menstrual cycles.
+
+---
+
 ### Create CycleSettings Model (Phase 2)
 
 **Summary:** Created CycleSettings model for menstrual cycle tracking preferences.

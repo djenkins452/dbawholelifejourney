@@ -16,6 +16,33 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle Summary Card Component (Phase 6)
+
+**Summary:** Created component showing current cycle status at a glance.
+
+**Template:** `templates/health/cycle/includes/summary_card.html`
+
+**Features:**
+- Large prominent cycle day display (2.5rem font, gradient background)
+- Color-coded phase indicator with dot matching phase:
+  - Menstrual (red #E53935)
+  - Follicular (orange #FFB300)
+  - Ovulation (green #43A047)
+  - Luteal (blue #1E88E5)
+- Prediction countdown with multiple states:
+  - Period late: warning message with reassurance
+  - Period expected today: alert styling
+  - Period coming soon (1-3 days): warning styling
+  - Period upcoming (4+ days): standard countdown with date
+  - No prediction: encouraging message to log more cycles
+- Empty state for no active cycle with helpful message
+- HTMX refresh: `hx-trigger="daily-log-saved from:body"`
+- Mobile-responsive: stacks vertically on mobile, side-by-side on desktop
+
+**Files Created:** `templates/health/cycle/includes/summary_card.html`
+
+---
+
 ### Create Daily Log Form Component (Phase 6)
 
 **Summary:** Created reusable form component for daily cycle logging with mobile-first design.

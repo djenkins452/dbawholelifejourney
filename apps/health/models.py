@@ -96,6 +96,81 @@ class CycleSettings(SoftDeleteModel):
         return self.is_active and self.cycle_tracking_enabled
 
 
+# =============================================================================
+# Cycle Tracking Choice Definitions
+# =============================================================================
+# These choices are used by cycle-related models (CycleDay, etc.)
+# Defined here for consistency and easy reference.
+
+# Physical symptoms commonly experienced during menstrual cycle
+CYCLE_SYMPTOM_CHOICES = [
+    ("cramps", "Cramps"),
+    ("headache", "Headache"),
+    ("fatigue", "Fatigue"),
+    ("bloating", "Bloating"),
+    ("breast_tenderness", "Breast Tenderness"),
+    ("acne", "Acne"),
+    ("backache", "Backache"),
+    ("nausea", "Nausea"),
+    ("food_cravings", "Food Cravings"),
+    ("insomnia", "Insomnia"),
+]
+
+# Emotional states for cycle tracking (more granular than journal moods)
+CYCLE_MOOD_CHOICES = [
+    ("happy", "Happy"),
+    ("sad", "Sad"),
+    ("irritable", "Irritable"),
+    ("anxious", "Anxious"),
+    ("calm", "Calm"),
+    ("energetic", "Energetic"),
+    ("tired", "Tired"),
+    ("emotional", "Emotional"),
+]
+
+# Menstrual flow intensity levels
+FLOW_LEVEL_CHOICES = [
+    ("none", "None"),
+    ("spotting", "Spotting"),
+    ("light", "Light"),
+    ("medium", "Medium"),
+    ("heavy", "Heavy"),
+]
+
+# Emoji mappings for display (optional UI enhancement)
+CYCLE_SYMPTOM_EMOJIS = {
+    "cramps": "🔴",
+    "headache": "🤕",
+    "fatigue": "😴",
+    "bloating": "🎈",
+    "breast_tenderness": "💢",
+    "acne": "😣",
+    "backache": "🔙",
+    "nausea": "🤢",
+    "food_cravings": "🍫",
+    "insomnia": "😵",
+}
+
+CYCLE_MOOD_EMOJIS = {
+    "happy": "😊",
+    "sad": "😢",
+    "irritable": "😤",
+    "anxious": "😰",
+    "calm": "😌",
+    "energetic": "⚡",
+    "tired": "😩",
+    "emotional": "🥺",
+}
+
+FLOW_LEVEL_EMOJIS = {
+    "none": "⚪",
+    "spotting": "🔸",
+    "light": "🩸",
+    "medium": "🩸🩸",
+    "heavy": "🩸🩸🩸",
+}
+
+
 class WeightEntry(UserOwnedModel):
     """
     Weight tracking entry.

@@ -16,6 +16,33 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Calendar Day Detail Modal (Phase 8)
+
+**Summary:** Added interactive day detail modal for viewing and editing cycle logs from the calendar view.
+
+**Features:**
+- Click any calendar day to open a modal with day details
+- Displays existing log data (flow level, mood, energy, symptoms, notes)
+- Quick-add form for days without logged data
+- Edit toggle to switch between view and edit modes
+- Mobile-friendly bottom drawer (slides up from bottom)
+- Desktop-centered modal with scale-in animation
+- Close via X button, Cancel button, backdrop click, or Escape key
+- HTMX integration for saving changes without page reload
+
+**Files Created:**
+- `templates/health/cycle/includes/day_modal.html` - Modal component with view/edit modes
+- `templates/health/cycle/includes/day_form_fields.html` - Reusable form fields
+
+**Files Modified:**
+- `apps/health/views_cycle.py` - Added CycleDayModalView
+- `apps/health/urls.py` - Added cycle_day_modal URL
+- `templates/health/cycle/calendar.html` - Updated to fetch modal via HTMX/fetch
+
+**URL:** `/health/cycle/api/day-modal/?date=YYYY-MM-DD` (name: `cycle_day_modal`)
+
+---
+
 ### Create Cycle Calendar View (Phase 8)
 
 **Summary:** Created a full-featured calendar view for cycle tracking with color-coded days and predictions.

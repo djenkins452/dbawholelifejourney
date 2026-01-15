@@ -86,24 +86,12 @@
         </div>
     </div>
 
-    <!-- Selected Day Details -->
-    <div class="day-details" id="day-details" style="display: none;">
-        <div class="day-details-header">
-            <h3 id="details-date">January 1, 2026</h3>
-            <button type="button" class="close-details" id="close-details">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-        <div class="day-details-content" id="details-content">
-            <!-- Will be populated by JavaScript -->
-        </div>
-        <div class="day-details-actions">
-            <a href="#" id="log-link" class="btn btn-primary">Log This Day</a>
-        </div>
-    </div>
+    <!-- Modal Container - Loaded via HTMX -->
+    <div id="day-modal-container"></div>
 </div>
+
+<!-- Modal Backdrop -->
+<div class="modal-backdrop" id="modal-backdrop" style="display: none;"></div>
 
 <style nonce="{{ csp_nonce }}">
 .cycle-calendar-container {
@@ -397,95 +385,27 @@
     background: #42A5F5;
 }
 
-/* Day Details Panel */
-.day-details {
+/* Modal Backdrop */
+.modal-backdrop {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--color-surface);
-    border-top: 1px solid var(--color-border);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    padding: var(--space-5);
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
-    z-index: 100;
-    max-height: 60vh;
-    overflow-y: auto;
-    animation: slideUp 0.2s ease-out;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
 }
 
-@keyframes slideUp {
-    from {
-        transform: translateY(100%);
-    }
-    to {
-        transform: translateY(0);
-    }
+.modal-backdrop.active {
+    opacity: 1;
 }
 
-.day-details-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-4);
-}
-
-.day-details-header h3 {
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    margin: 0;
-}
-
-.close-details {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    border-radius: var(--radius-md);
-    color: var(--color-text-muted);
-    cursor: pointer;
-}
-
-.close-details:hover {
-    background: var(--color-bg-hover);
-}
-
-.day-details-content {
-    margin-bottom: var(--space-4);
-}
-
-.detail-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) 0;
-    font-size: var(--font-size-sm);
-    border-bottom: 1px solid var(--color-border);
-}
-
-.detail-item:last-child {
-    border-bottom: none;
-}
-
-.detail-label {
-    color: var(--color-text-muted);
-    min-width: 80px;
-}
-
-.detail-value {
-    font-weight: 500;
-}
-
-.day-details-actions {
-    display: flex;
-    gap: var(--space-3);
-}
-
-.day-details-actions .btn {
-    flex: 1;
+/* Modal loading state */
+#day-modal-container .loading-spinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
 }
 
 /* Mobile Responsive */
@@ -522,31 +442,6 @@
     }
 }
 
-/* Desktop - side panel instead of bottom sheet */
-@media (min-width: 769px) {
-    .day-details {
-        position: fixed;
-        bottom: auto;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 400px;
-        max-height: 80vh;
-        border-radius: var(--radius-xl);
-        animation: fadeIn 0.2s ease-out;
-    }
-
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translate(-50%, -45%);
-        }
-        to {
-            opacity: 1;
-            transform: translate(-50%, -50%);
-        }
-    }
-}
 </style>
 
 <script nonce="{{ csp_nonce }}">
@@ -570,11 +465,8 @@
     const nextBtn = document.getElementById('next-month');
     const showFertileToggle = document.getElementById('show-fertile');
     const fertileLegend = document.getElementById('fertile-legend');
-    const dayDetails = document.getElementById('day-details');
-    const detailsDate = document.getElementById('details-date');
-    const detailsContent = document.getElementById('details-content');
-    const closeDetails = document.getElementById('close-details');
-    const logLink = document.getElementById('log-link');
+    const modalContainer = document.getElementById('day-modal-container');
+    const modalBackdrop = document.getElementById('modal-backdrop');
 
     // Month names
     const monthNames = [
@@ -728,65 +620,61 @@
         });
     }
 
-    // Show day details panel
+    // Show day modal - fetches from server
     function showDayDetails(date, logData) {
-        detailsDate.textContent = formatDateDisplay(date);
-
-        let content = '';
-
-        if (logData) {
-            if (logData.flow_level && logData.flow_level !== 'none') {
-                content += `<div class="detail-item">
-                    <span class="detail-label">Flow</span>
-                    <span class="detail-value">${flowLabels[logData.flow_level] || logData.flow_level}</span>
-                </div>`;
-            }
-
-            if (logData.mood) {
-                content += `<div class="detail-item">
-                    <span class="detail-label">Mood</span>
-                    <span class="detail-value" style="text-transform: capitalize;">${logData.mood}</span>
-                </div>`;
-            }
-
-            if (logData.energy_level) {
-                content += `<div class="detail-item">
-                    <span class="detail-label">Energy</span>
-                    <span class="detail-value">${logData.energy_level}/5</span>
-                </div>`;
-            }
-
-            if (logData.symptoms && logData.symptoms.length > 0) {
-                content += `<div class="detail-item">
-                    <span class="detail-label">Symptoms</span>
-                    <span class="detail-value">${logData.symptoms.join(', ')}</span>
-                </div>`;
-            }
-
-            if (logData.notes) {
-                content += `<div class="detail-item">
-                    <span class="detail-label">Notes</span>
-                    <span class="detail-value">${logData.notes}</span>
-                </div>`;
-            }
-        }
-
-        if (!content) {
-            content = '<p style="color: var(--color-text-muted);">No data logged for this day.</p>';
-        }
-
-        detailsContent.innerHTML = content;
-
-        // Update log link
         const dateStr = formatDate(date);
-        logLink.href = `{% url 'health:cycle_dashboard' %}?log_date=${dateStr}`;
 
-        dayDetails.style.display = 'block';
+        // Show loading state and backdrop
+        modalBackdrop.style.display = 'block';
+        requestAnimationFrame(() => modalBackdrop.classList.add('active'));
+        modalContainer.innerHTML = '<div class="loading-spinner">Loading...</div>';
+
+        // Fetch modal from server
+        fetch(`{% url 'health:cycle_day_modal' %}?date=${dateStr}`)
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to load');
+                return response.text();
+            })
+            .then(html => {
+                modalContainer.innerHTML = html;
+
+                // Set up close handlers for the loaded modal
+                setupModalCloseHandlers();
+
+                // Process HTMX if available
+                if (typeof htmx !== 'undefined') {
+                    htmx.process(modalContainer);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading day modal:', error);
+                modalContainer.innerHTML = '';
+                closeModal();
+            });
     }
 
-    // Close details panel
-    function closeDayDetails() {
-        dayDetails.style.display = 'none';
+    // Set up close handlers for the modal content
+    function setupModalCloseHandlers() {
+        // Close button
+        const closeBtn = modalContainer.querySelector('.modal-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeModal);
+        }
+
+        // Cancel button
+        const cancelBtn = modalContainer.querySelector('[data-action="cancel"]');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', closeModal);
+        }
+    }
+
+    // Close modal
+    function closeModal() {
+        modalBackdrop.classList.remove('active');
+        setTimeout(() => {
+            modalBackdrop.style.display = 'none';
+            modalContainer.innerHTML = '';
+        }, 200);
     }
 
     // Navigation handlers
@@ -815,11 +703,11 @@
         renderCalendar();
     });
 
-    // Close details handlers
-    closeDetails.addEventListener('click', closeDayDetails);
+    // Global close handlers
+    modalBackdrop.addEventListener('click', closeModal);
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeDayDetails();
+        if (e.key === 'Escape' && modalContainer.innerHTML) {
+            closeModal();
         }
     });
 

@@ -1,0 +1,338 @@
+{% comment %}
+Cycle Day Form Fields Component
+
+Reusable form fields for editing cycle daily logs.
+Used in both the day modal and the daily log form.
+
+Expected context:
+- log: CycleDailyLog instance (optional, for pre-filling values)
+{% endcomment %}
+
+<!-- Flow Level -->
+<div class="form-group">
+    <label class="form-label">Flow Level</label>
+    <div class="flow-selector">
+        <label class="flow-option">
+            <input type="radio" name="flow_level" value="none" {% if not log or log.flow_level == 'none' %}checked{% endif %}>
+            <span class="flow-btn">None</span>
+        </label>
+        <label class="flow-option">
+            <input type="radio" name="flow_level" value="spotting" {% if log and log.flow_level == 'spotting' %}checked{% endif %}>
+            <span class="flow-btn flow-spotting">Spotting</span>
+        </label>
+        <label class="flow-option">
+            <input type="radio" name="flow_level" value="light" {% if log and log.flow_level == 'light' %}checked{% endif %}>
+            <span class="flow-btn flow-light">Light</span>
+        </label>
+        <label class="flow-option">
+            <input type="radio" name="flow_level" value="medium" {% if log and log.flow_level == 'medium' %}checked{% endif %}>
+            <span class="flow-btn flow-medium">Medium</span>
+        </label>
+        <label class="flow-option">
+            <input type="radio" name="flow_level" value="heavy" {% if log and log.flow_level == 'heavy' %}checked{% endif %}>
+            <span class="flow-btn flow-heavy">Heavy</span>
+        </label>
+    </div>
+</div>
+
+<!-- Mood -->
+<div class="form-group">
+    <label class="form-label">Mood</label>
+    <div class="mood-selector">
+        {% for value, label in mood_choices %}
+        <label class="mood-option">
+            <input type="radio" name="mood" value="{{ value }}" {% if log and log.mood == value %}checked{% endif %}>
+            <span class="mood-btn">{{ label }}</span>
+        </label>
+        {% empty %}
+        <label class="mood-option">
+            <input type="radio" name="mood" value="happy" {% if log and log.mood == 'happy' %}checked{% endif %}>
+            <span class="mood-btn">Happy</span>
+        </label>
+        <label class="mood-option">
+            <input type="radio" name="mood" value="calm" {% if log and log.mood == 'calm' %}checked{% endif %}>
+            <span class="mood-btn">Calm</span>
+        </label>
+        <label class="mood-option">
+            <input type="radio" name="mood" value="sad" {% if log and log.mood == 'sad' %}checked{% endif %}>
+            <span class="mood-btn">Sad</span>
+        </label>
+        <label class="mood-option">
+            <input type="radio" name="mood" value="anxious" {% if log and log.mood == 'anxious' %}checked{% endif %}>
+            <span class="mood-btn">Anxious</span>
+        </label>
+        <label class="mood-option">
+            <input type="radio" name="mood" value="irritable" {% if log and log.mood == 'irritable' %}checked{% endif %}>
+            <span class="mood-btn">Irritable</span>
+        </label>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Energy Level -->
+<div class="form-group">
+    <label class="form-label">Energy Level</label>
+    <div class="energy-selector">
+        {% for i in "12345" %}
+        <label class="energy-option">
+            <input type="radio" name="energy_level" value="{{ forloop.counter }}" {% if log and log.energy_level == forloop.counter %}checked{% endif %}>
+            <span class="energy-btn">{{ forloop.counter }}</span>
+        </label>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Symptoms (multi-select) -->
+<div class="form-group">
+    <label class="form-label">Symptoms</label>
+    <div class="symptoms-selector">
+        {% for value, label in symptom_choices %}
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="{{ value }}" {% if log and value in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">{{ label }}</span>
+        </label>
+        {% empty %}
+        {% with common_symptoms="cramps,headache,bloating,fatigue,backache,breast_tenderness,acne,nausea,mood_swings,insomnia" %}
+        {% for symptom in common_symptoms|make_list %}
+        {% endfor %}
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="cramps" {% if log and 'cramps' in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">Cramps</span>
+        </label>
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="headache" {% if log and 'headache' in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">Headache</span>
+        </label>
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="bloating" {% if log and 'bloating' in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">Bloating</span>
+        </label>
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="fatigue" {% if log and 'fatigue' in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">Fatigue</span>
+        </label>
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="backache" {% if log and 'backache' in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">Backache</span>
+        </label>
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="breast_tenderness" {% if log and 'breast_tenderness' in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">Breast Tenderness</span>
+        </label>
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="acne" {% if log and 'acne' in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">Acne</span>
+        </label>
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="nausea" {% if log and 'nausea' in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">Nausea</span>
+        </label>
+        <label class="symptom-option">
+            <input type="checkbox" name="symptoms" value="mood_swings" {% if log and 'mood_swings' in log.symptoms %}checked{% endif %}>
+            <span class="symptom-btn">Mood Swings</span>
+        </label>
+        {% endwith %}
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Notes -->
+<div class="form-group">
+    <label class="form-label" for="notes-input">Notes</label>
+    <textarea id="notes-input" name="notes" class="form-textarea" rows="3" placeholder="Any additional notes...">{% if log %}{{ log.notes }}{% endif %}</textarea>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+/* Form Groups */
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+/* Flow Selector */
+.flow-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.flow-option {
+    cursor: pointer;
+}
+
+.flow-option input {
+    display: none;
+}
+
+.flow-btn {
+    display: inline-block;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: all 0.2s;
+    min-height: 40px;
+    line-height: 1.5;
+}
+
+.flow-option input:checked + .flow-btn {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.flow-btn.flow-spotting { border-left: 3px solid #FCE4EC; }
+.flow-btn.flow-light { border-left: 3px solid #FFCDD2; }
+.flow-btn.flow-medium { border-left: 3px solid #E57373; }
+.flow-btn.flow-heavy { border-left: 3px solid #D32F2F; }
+
+.flow-option input:checked + .flow-btn.flow-spotting { background: #FCE4EC; color: #880E4F; }
+.flow-option input:checked + .flow-btn.flow-light { background: #FFCDD2; color: #B71C1C; }
+.flow-option input:checked + .flow-btn.flow-medium { background: #E57373; color: white; }
+.flow-option input:checked + .flow-btn.flow-heavy { background: #D32F2F; color: white; }
+
+/* Mood Selector */
+.mood-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.mood-option {
+    cursor: pointer;
+}
+
+.mood-option input {
+    display: none;
+}
+
+.mood-btn {
+    display: inline-block;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    transition: all 0.2s;
+    min-height: 36px;
+}
+
+.mood-option input:checked + .mood-btn {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: white;
+}
+
+/* Energy Selector */
+.energy-selector {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.energy-option {
+    cursor: pointer;
+}
+
+.energy-option input {
+    display: none;
+}
+
+.energy-btn {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-full);
+    transition: all 0.2s;
+}
+
+.energy-option input:checked + .energy-btn {
+    border-color: #FFA726;
+    background: #FFA726;
+    color: white;
+}
+
+/* Symptoms Selector */
+.symptoms-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.symptom-option {
+    cursor: pointer;
+}
+
+.symptom-option input {
+    display: none;
+}
+
+.symptom-btn {
+    display: inline-block;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    transition: all 0.2s;
+}
+
+.symptom-option input:checked + .symptom-btn {
+    border-color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+/* Notes Textarea */
+.form-textarea {
+    width: 100%;
+    padding: var(--space-3);
+    font-size: var(--font-size-base);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+}
+
+.form-textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .flow-selector,
+    .mood-selector,
+    .symptoms-selector {
+        gap: var(--space-1);
+    }
+
+    .flow-btn,
+    .mood-btn,
+    .symptom-btn {
+        padding: var(--space-2);
+        font-size: var(--font-size-xs);
+    }
+
+    .energy-btn {
+        width: 40px;
+        height: 40px;
+    }
+}
+</style>

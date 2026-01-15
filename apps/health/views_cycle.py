@@ -1324,3 +1324,57 @@ class CycleCalendarView(LoginRequiredMixin, TemplateView):
         context["cycles_json"] = json.dumps(cycles_list)
 
         return context
+
+
+class CycleDayModalView(LoginRequiredMixin, CycleTrackingEnabledMixin, View):
+    """
+    Returns the day detail modal HTML for a specific date.
+
+    Used by the calendar view to load modal content when a day is clicked.
+    GET /health/cycle/api/day-modal/?date=YYYY-MM-DD
+    """
+
+    def get(self, request):
+        from django.template.loader import render_to_string
+        from django.http import HttpResponse
+
+        date_str = request.GET.get("date")
+        if not date_str:
+            return HttpResponse("Missing date parameter", status=400)
+
+        try:
+            log_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return HttpResponse("Invalid date format", status=400)
+
+        user = request.user
+        today = timezone.now().date()
+
+        # Get existing log for this date
+        try:
+            log = CycleDailyLog.objects.get(user=user, log_date=log_date)
+        except CycleDailyLog.DoesNotExist:
+            log = None
+
+        # Determine if this day is editable (not in the future)
+        is_editable = log_date <= today
+
+        # Get choices for form
+        from .models import CYCLE_MOOD_CHOICES, CYCLE_SYMPTOM_CHOICES
+
+        context = {
+            "log": log,
+            "log_date": log_date,
+            "is_today": log_date == today,
+            "is_editable": is_editable,
+            "mood_choices": CYCLE_MOOD_CHOICES,
+            "symptom_choices": CYCLE_SYMPTOM_CHOICES,
+        }
+
+        html = render_to_string(
+            "health/cycle/includes/day_modal.html",
+            context,
+            request=request
+        )
+
+        return HttpResponse(html)

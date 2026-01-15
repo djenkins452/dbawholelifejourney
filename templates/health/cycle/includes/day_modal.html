@@ -1,0 +1,438 @@
+{% comment %}
+Cycle Day Detail Modal Component
+
+A modal/drawer for viewing and editing a specific day's cycle log.
+Used from the cycle calendar view.
+
+Context variables:
+- log: CycleDailyLog instance or None
+- log_date: date object for the selected day
+- is_today: Boolean if this is today's date
+- is_editable: Boolean if this day can be edited (not in future)
+
+Displays existing data if present, shows quick-add form for empty days.
+Supports inline HTMX editing and saving.
+{% endcomment %}
+
+<div class="day-modal" role="dialog" aria-labelledby="modal-title" aria-modal="true">
+        <!-- Header -->
+        <div class="day-modal-header">
+            <div class="modal-date-info">
+                <h2 id="modal-title" class="modal-date">
+                    {{ log_date|date:"l, F j, Y" }}
+                </h2>
+                {% if is_today %}
+                <span class="today-badge">Today</span>
+                {% endif %}
+            </div>
+            <button type="button" class="modal-close-btn" id="close-day-modal" aria-label="Close">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Content -->
+        <div class="day-modal-content" id="day-modal-content">
+            {% if log %}
+            <!-- Existing Log View -->
+            <div class="log-display" id="log-display">
+                {% if log.flow_level and log.flow_level != 'none' %}
+                <div class="log-item">
+                    <span class="log-label">Flow</span>
+                    <span class="log-value flow-{{ log.flow_level }}">
+                        {{ log.flow_emoji }} {{ log.get_flow_level_display }}
+                    </span>
+                </div>
+                {% endif %}
+
+                {% if log.mood %}
+                <div class="log-item">
+                    <span class="log-label">Mood</span>
+                    <span class="log-value">
+                        {{ log.mood_emoji }} {{ log.get_mood_display }}
+                    </span>
+                </div>
+                {% endif %}
+
+                {% if log.energy_level %}
+                <div class="log-item">
+                    <span class="log-label">Energy</span>
+                    <span class="log-value energy-display">
+                        {% for i in "12345" %}
+                        <span class="energy-dot {% if forloop.counter <= log.energy_level %}filled{% endif %}"></span>
+                        {% endfor %}
+                        <span class="energy-text">{{ log.energy_level }}/5</span>
+                    </span>
+                </div>
+                {% endif %}
+
+                {% if log.symptoms %}
+                <div class="log-item log-item-vertical">
+                    <span class="log-label">Symptoms</span>
+                    <div class="symptom-chips">
+                        {% for symptom in log.symptom_display_list %}
+                        <span class="symptom-chip">{{ symptom }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if log.notes %}
+                <div class="log-item log-item-vertical">
+                    <span class="log-label">Notes</span>
+                    <p class="log-notes">{{ log.notes }}</p>
+                </div>
+                {% endif %}
+
+                {% if not log.flow_level or log.flow_level == 'none' %}
+                {% if not log.mood and not log.energy_level and not log.symptoms %}
+                <p class="log-empty">No details logged for this day.</p>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            <!-- Edit Form (hidden by default) -->
+            <form class="log-edit-form" id="log-edit-form" style="display: none;"
+                  hx-post="{% url 'health:cycle_daily_logs_list' %}"
+                  hx-target="#day-modal-content"
+                  hx-swap="innerHTML">
+                <input type="hidden" name="log_date" value="{{ log_date|date:'Y-m-d' }}">
+                <input type="hidden" name="log_id" value="{{ log.id }}">
+                {% include "health/cycle/includes/day_form_fields.html" %}
+            </form>
+
+            {% else %}
+            <!-- New Log Form -->
+            <form class="log-edit-form" id="log-edit-form"
+                  hx-post="{% url 'health:cycle_daily_logs_list' %}"
+                  hx-target="#day-modal-content"
+                  hx-swap="innerHTML">
+                <input type="hidden" name="log_date" value="{{ log_date|date:'Y-m-d' }}">
+                <p class="form-intro">No data for this day yet. Add your first entry:</p>
+                {% include "health/cycle/includes/day_form_fields.html" %}
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- Footer -->
+        <div class="day-modal-footer">
+            {% if log and is_editable %}
+            <button type="button" class="btn btn-ghost" id="toggle-edit-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Edit
+            </button>
+            <button type="submit" form="log-edit-form" class="btn btn-primary" id="save-btn" style="display: none;">
+                Save Changes
+            </button>
+            {% elif is_editable %}
+            <button type="submit" form="log-edit-form" class="btn btn-primary" id="save-btn">
+                Save Entry
+            </button>
+            {% endif %}
+            <button type="button" class="btn btn-ghost" id="cancel-modal-btn" data-action="cancel">
+                {% if log %}Close{% else %}Cancel{% endif %}
+            </button>
+        </div>
+    </div>
+
+<style nonce="{{ csp_nonce }}">
+/* Modal Container - Bottom drawer on mobile */
+.day-modal {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-surface);
+    width: 100%;
+    max-height: 90vh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    display: flex;
+    flex-direction: column;
+    animation: modalSlideUp 0.3s ease-out;
+    overflow: hidden;
+    z-index: 1000;
+}
+
+@keyframes modalSlideUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+/* Header */
+.day-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.modal-date-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.modal-date {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+.today-badge {
+    background: var(--color-accent);
+    color: white;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+}
+
+.modal-close-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.modal-close-btn:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text);
+}
+
+/* Content */
+.day-modal-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-5);
+}
+
+/* Log Display */
+.log-display {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.log-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3);
+    background: var(--color-bg);
+    border-radius: var(--radius-md);
+}
+
+.log-item-vertical {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.log-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.log-value {
+    font-weight: 500;
+}
+
+/* Flow level colors */
+.flow-heavy { color: #D32F2F; }
+.flow-medium { color: #E57373; }
+.flow-light { color: #F8BBD9; }
+.flow-spotting { color: #FCE4EC; }
+
+/* Energy display */
+.energy-display {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.energy-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+}
+
+.energy-dot.filled {
+    background: #FFA726;
+}
+
+.energy-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-left: var(--space-2);
+}
+
+/* Symptom chips */
+.symptom-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.symptom-chip {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+}
+
+/* Notes */
+.log-notes {
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    color: var(--color-text);
+    margin: 0;
+}
+
+.log-empty {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: var(--space-6);
+}
+
+/* Form styling */
+.log-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.form-intro {
+    text-align: center;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+/* Footer */
+.day-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+/* Desktop - centered modal */
+@media (min-width: 769px) {
+    .day-modal {
+        bottom: auto;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        max-width: 500px;
+        max-height: 80vh;
+        border-radius: var(--radius-xl);
+        animation: modalScaleIn 0.2s ease-out;
+    }
+
+    @keyframes modalScaleIn {
+        from {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+    }
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+    .day-modal-header,
+    .day-modal-content,
+    .day-modal-footer {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+    }
+
+    .modal-date {
+        font-size: var(--font-size-base);
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const editBtn = document.getElementById('toggle-edit-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const logDisplay = document.getElementById('log-display');
+    const editForm = document.getElementById('log-edit-form');
+
+    // Toggle edit mode
+    editBtn?.addEventListener('click', () => {
+        if (logDisplay && editForm) {
+            const isEditing = editForm.style.display !== 'none';
+            if (isEditing) {
+                // Switch to view mode
+                logDisplay.style.display = 'flex';
+                editForm.style.display = 'none';
+                editBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Edit
+                `;
+                saveBtn.style.display = 'none';
+            } else {
+                // Switch to edit mode
+                logDisplay.style.display = 'none';
+                editForm.style.display = 'flex';
+                editBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                    Cancel
+                `;
+                saveBtn.style.display = 'block';
+            }
+        }
+    });
+
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+
+    // Handle HTMX responses
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+        if (e.detail.target.id === 'day-modal-content') {
+            // Content was updated, modal stays open
+        }
+    });
+})();
+</script>

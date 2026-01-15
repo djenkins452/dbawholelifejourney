@@ -210,6 +210,9 @@ urlpatterns = [
     # Period toggle (HTMX endpoint for dashboard)
     path("cycle/api/period-toggle/", views_cycle.CyclePeriodToggleView.as_view(), name="cycle_period_toggle"),
 
+    # Day modal (HTMX endpoint for calendar)
+    path("cycle/api/day-modal/", views_cycle.CycleDayModalView.as_view(), name="cycle_day_modal"),
+
     # Daily Logs - CRUD
     path("cycle/api/daily-logs/", views_cycle.CycleDailyLogViewSet.as_view(), name="cycle_daily_logs_list"),
     path("cycle/api/daily-logs/<int:log_id>/", views_cycle.CycleDailyLogViewSet.as_view(), name="cycle_daily_logs_detail"),

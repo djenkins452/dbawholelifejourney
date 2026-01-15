@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CyclePrediction Model (Phase 2)
+
+**Summary:** Created CyclePrediction model for storing AI-generated cycle predictions.
+
+**Model Fields:**
+- `predicted_period_start`, `predicted_period_end`: Expected period dates
+- `predicted_fertile_window_start`, `predicted_fertile_window_end`: Expected fertile window (nullable)
+- `prediction_confidence`: DecimalField (0.00 to 1.00)
+- `prediction_algorithm_version`: Version string for traceability
+- `generated_at`: When prediction was created
+- `actual_period_start`: Filled when period actually starts (for accuracy tracking)
+
+**Class Methods:**
+- `get_active_prediction(user)`: Returns most recent unverified prediction
+
+**Properties:**
+- `accuracy`: Days difference between predicted and actual (+ = late, - = early)
+- `is_verified`: True if actual_period_start is set
+- `accuracy_percentage`: 100% minus 10% per day off
+
+**Migration:** `0025_add_cycleprediction_model.py`
+
+---
+
 ### Auto-enable Cycle Tracking for Female Users (Phase 2)
 
 **Summary:** Created signal handler to auto-enable cycle tracking when a user sets their gender to female.

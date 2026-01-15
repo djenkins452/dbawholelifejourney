@@ -399,10 +399,127 @@ class Cycle(UserOwnedModel):
         return self.end_date is None
 
 
+class CyclePrediction(UserOwnedModel):
+    """
+    Predicted cycle dates and fertility window.
+
+    Stores AI-generated predictions for upcoming periods and fertile windows.
+    Predictions are generated based on historical cycle data and can be
+    verified against actual dates when they occur.
+
+    Fields:
+    - predicted_period_start/end: Expected period dates
+    - predicted_fertile_window_start/end: Expected fertile window dates
+    - prediction_confidence: Algorithm's confidence (0.0 to 1.0)
+    - prediction_algorithm_version: Version string for traceability
+    - generated_at: When this prediction was created
+    - actual_period_start: Filled when period actually starts (for accuracy tracking)
+    """
+
+    predicted_period_start = models.DateField(
+        help_text="Predicted first day of period",
+    )
+
+    predicted_period_end = models.DateField(
+        help_text="Predicted last day of period",
+    )
+
+    predicted_fertile_window_start = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Predicted start of fertile window (ovulation window)",
+    )
+
+    predicted_fertile_window_end = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Predicted end of fertile window",
+    )
+
+    prediction_confidence = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        help_text="Algorithm confidence score (0.00 to 1.00)",
+    )
+
+    prediction_algorithm_version = models.CharField(
+        max_length=50,
+        help_text="Version of the prediction algorithm used (e.g., 'v1.0', 'v2.1-ml')",
+    )
+
+    generated_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When this prediction was generated",
+    )
+
+    actual_period_start = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Actual period start date (filled when verified for accuracy tracking)",
+    )
+
+    class Meta:
+        verbose_name = "cycle prediction"
+        verbose_name_plural = "cycle predictions"
+        ordering = ["-generated_at"]
+        indexes = [
+            models.Index(fields=["user", "predicted_period_start"]),
+            models.Index(fields=["user", "-generated_at"]),
+        ]
+
+    def __str__(self):
+        return f"Prediction for {self.user.email}: period {self.predicted_period_start}"
+
+    @classmethod
+    def get_active_prediction(cls, user):
+        """
+        Get the most recent prediction for a user.
+
+        Returns the latest prediction that hasn't been verified yet,
+        or None if no active predictions exist.
+        """
+        return cls.objects.filter(
+            user=user,
+            actual_period_start__isnull=True,
+        ).order_by("-generated_at").first()
+
+    @property
+    def accuracy(self):
+        """
+        Calculate prediction accuracy in days.
+
+        Returns the difference (in days) between predicted and actual period start.
+        Positive value means period came later than predicted.
+        Negative value means period came earlier than predicted.
+        Returns None if actual_period_start is not set.
+        """
+        if self.actual_period_start is None:
+            return None
+        return (self.actual_period_start - self.predicted_period_start).days
+
+    @property
+    def is_verified(self):
+        """Check if this prediction has been verified with actual data."""
+        return self.actual_period_start is not None
+
+    @property
+    def accuracy_percentage(self):
+        """
+        Calculate accuracy as a percentage based on how close the prediction was.
+
+        Returns 100% if exact match, decreasing by 10% for each day off.
+        Returns None if not verified.
+        """
+        if self.accuracy is None:
+            return None
+        days_off = abs(self.accuracy)
+        return max(0, 100 - (days_off * 10))
+
+
 class WeightEntry(UserOwnedModel):
     """
     Weight tracking entry.
-    
+
     Supports both pounds and kilograms.
     """
 

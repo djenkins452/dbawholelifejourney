@@ -16,6 +16,33 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CycleStatisticsService (Phase 5)
+
+**Summary:** Created service for calculating cycle statistics and correlations.
+
+**Service:** `CycleStatisticsService` in `apps/health/services/cycle_statistics.py`
+
+**Methods:**
+- `get_average_cycle_length(num_cycles, months)`: Average with min/max/std_dev
+- `get_average_period_length(num_cycles, months)`: Average with min/max
+- `get_symptom_frequency(months)`: Symptom occurrence counts and percentages
+- `get_mood_by_cycle_phase(months)`: Correlate moods with phases
+- `get_cycle_regularity_score(num_cycles)`: 0-100 score based on std deviation
+- `get_trends(num_cycles)`: Detect cycle lengthening/shortening using linear regression
+- `get_summary()`: Comprehensive summary of all statistics
+
+**Features:**
+- Configurable analysis period (by cycle count or months)
+- Regularity ratings: excellent (std<=2), good (std<=4), fair (std<=6), irregular
+- Trend detection using linear regression slope
+- Mood-by-phase correlation with dominant mood identification
+- Symptom frequency with display names and percentages
+
+**Files Created:** `apps/health/services/cycle_statistics.py`
+**Files Modified:** `apps/health/services/__init__.py`
+
+---
+
 ### Create CyclePredictionService (Phase 5)
 
 **Summary:** Created service for predicting next period and fertile window using weighted moving averages.

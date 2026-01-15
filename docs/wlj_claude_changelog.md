@@ -16,6 +16,73 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle API Endpoint Tests (Phase 12)
+
+**Summary:** Created comprehensive API endpoint tests for all cycle tracking endpoints.
+
+**Test File:** `apps/health/tests/test_cycle_api.py` (77 tests, 2 skipped)
+
+**Test Categories:**
+
+1. **Authentication Tests** (12 tests)
+   - All cycle API endpoints require authentication
+   - Tests for daily logs, cycles, predictions, settings, opt-in/out, check endpoints
+
+2. **Opt-In Requirement Tests** (9 tests)
+   - Data endpoints return 403 when cycle tracking not set up
+   - Disabled cycle tracking returns appropriate error
+   - Check and settings endpoints work without opt-in (return status)
+
+3. **User Data Isolation Tests** (6 tests)
+   - Users can only list/retrieve their own data
+   - Cannot access, update, or delete other users' data
+   - Tests for daily logs and cycles
+
+4. **DailyLog CRUD Tests** (18 tests)
+   - List empty, with data, pagination, date filtering
+   - Create with defaults, custom values, success
+   - Retrieve existing and nonexistent
+   - Update with PUT and PATCH
+   - Delete (soft delete)
+
+5. **Error Handling Tests** (10 tests)
+   - Invalid JSON, future dates, invalid date formats
+   - Duplicate dates, invalid values
+   - Missing parameters
+
+6. **CycleViewSet Tests** (8 tests)
+   - List cycles, retrieve, current cycle
+   - Statistics with and without completed cycles
+
+7. **PredictionViewSet Tests** (6 tests)
+   - List predictions (with/without cycles)
+   - Retrieve, current prediction
+   - Regenerate with insufficient/sufficient data
+
+8. **Settings Tests** (4 tests)
+   - Get/update settings, not opted in handling
+
+9. **Opt-In/Opt-Out Tests** (4 tests, 2 skipped)
+   - Opt-in creates settings, with custom values
+   - Opt-out disables tracking
+   - Skipped: reactivate soft-deleted (view bug - is_active property)
+   - Skipped: opt-out with delete (view bug - is_active field doesn't exist)
+
+10. **Check Endpoint Tests** (2 tests)
+    - Returns enabled/disabled status correctly
+
+**Files Created:**
+- `apps/health/tests/test_cycle_api.py` - 77 API endpoint tests
+
+**Notes:**
+- 2 tests skipped due to production view bugs in `views_cycle.py`:
+  - Line 160: `settings.is_active = True` - `is_active` is a property, not settable
+  - Line 226: `.update(is_active=False)` - field is `status`, not `is_active`
+- Test patterns documented for avoiding signal-triggered cycle creation (use `flow_level="none"`)
+- Valid mood choices: happy, sad, irritable, anxious, calm, energetic, tired, emotional
+
+---
+
 ### Create Cycle Service Layer Tests (Phase 11)
 
 **Summary:** Created comprehensive unit tests for all cycle tracking service classes.

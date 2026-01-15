@@ -17,6 +17,8 @@ from .models import (
     PromoCodeUsage,
     ReferralQualification,
     ReferralReward,
+    VIPPromoCode,
+    VIPPromoCodeUsage,
 )
 
 
@@ -347,3 +349,87 @@ class PaymentAuditLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False  # Audit logs are immutable
+
+
+@admin.register(VIPPromoCode)
+class VIPPromoCodeAdmin(admin.ModelAdmin):
+    """Admin interface for managing VIP promo codes."""
+
+    list_display = [
+        'code',
+        'description',
+        'usage_display',
+        'is_active',
+        'is_valid_display',
+        'expires_at',
+        'created_at',
+    ]
+    list_filter = ['is_active', 'created_at', 'expires_at']
+    search_fields = ['code', 'description']
+    readonly_fields = ['current_uses', 'created_at', 'updated_at']
+    fieldsets = (
+        (None, {
+            'fields': ('code', 'description'),
+        }),
+        ('Usage Limits', {
+            'fields': ('max_uses', 'current_uses', 'is_active', 'expires_at'),
+        }),
+        ('Audit', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+    actions = ['activate_codes', 'deactivate_codes']
+
+    def usage_display(self, obj):
+        if obj.max_uses == 0:
+            return f"{obj.current_uses}/unlimited"
+        return f"{obj.current_uses}/{obj.max_uses}"
+    usage_display.short_description = 'Usage'
+
+    def is_valid_display(self, obj):
+        if obj.is_valid:
+            return format_html('<span style="color: green;">Valid</span>')
+        return format_html('<span style="color: red;">Invalid</span>')
+    is_valid_display.short_description = 'Status'
+
+    def save_model(self, request, obj, form, change):
+        if not change:  # New object
+            obj.created_by = request.user
+        # Code is auto-uppercased in model.save()
+        super().save_model(request, obj, form, change)
+
+    @admin.action(description='Activate selected codes')
+    def activate_codes(self, request, queryset):
+        updated = queryset.update(is_active=True)
+        self.message_user(request, f'{updated} code(s) activated.')
+
+    @admin.action(description='Deactivate selected codes')
+    def deactivate_codes(self, request, queryset):
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f'{updated} code(s) deactivated.')
+
+
+@admin.register(VIPPromoCodeUsage)
+class VIPPromoCodeUsageAdmin(admin.ModelAdmin):
+    """Admin interface for viewing VIP code redemptions (read-only)."""
+
+    list_display = ['user_email', 'code', 'redeemed_at', 'ip_address']
+    list_filter = ['vip_code', 'redeemed_at']
+    search_fields = ['user__email', 'vip_code__code']
+    readonly_fields = ['user', 'vip_code', 'redeemed_at', 'ip_address']
+    date_hierarchy = 'redeemed_at'
+
+    def user_email(self, obj):
+        return obj.user.email
+    user_email.short_description = 'User'
+
+    def code(self, obj):
+        return obj.vip_code.code
+    code.short_description = 'VIP Code'
+
+    def has_add_permission(self, request):
+        return False  # Usages are created programmatically
+
+    def has_change_permission(self, request, obj=None):
+        return False  # Usages are immutable

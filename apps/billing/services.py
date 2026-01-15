@@ -602,3 +602,94 @@ def get_current_quarter():
     today = date.today()
     quarter = (today.month - 1) // 3 + 1
     return f"{today.year}-Q{quarter}"
+
+
+# VIP Promo Code Functions
+
+def validate_vip_code(code):
+    """
+    Validate a VIP promo code.
+
+    Args:
+        code: The VIP code string
+
+    Returns:
+        VIPPromoCode instance if valid, None if not found or invalid
+    """
+    from .models import VIPPromoCode
+
+    if not code:
+        return None
+
+    code = code.upper().strip()
+
+    try:
+        vip_code = VIPPromoCode.objects.get(code=code)
+        if vip_code.is_valid:
+            return vip_code
+        return None
+    except VIPPromoCode.DoesNotExist:
+        return None
+
+
+def redeem_vip_code(user, code, ip_address=None):
+    """
+    Redeem a VIP promo code for a user.
+
+    Args:
+        user: User instance
+        code: The VIP code string
+        ip_address: Optional client IP for audit
+
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    from .models import VIPPromoCode, VIPPromoCodeUsage
+
+    if not code:
+        return False, "No VIP code provided."
+
+    code = code.upper().strip()
+
+    try:
+        vip_code = VIPPromoCode.objects.get(code=code)
+    except VIPPromoCode.DoesNotExist:
+        return False, "Invalid VIP code."
+
+    try:
+        vip_code.redeem(user)
+
+        # Update usage record with IP if provided
+        if ip_address:
+            usage = VIPPromoCodeUsage.objects.get(user=user, vip_code=vip_code)
+            usage.ip_address = ip_address
+            usage.save(update_fields=['ip_address'])
+
+        # Log the redemption
+        PaymentAuditLog.log(
+            action='vip_code_redeemed',
+            user=user,
+            details={
+                'vip_code': code,
+                'vip_code_id': vip_code.id,
+            },
+            ip_address=ip_address,
+        )
+
+        logger.info(f"VIP code {code} redeemed by {user.email}")
+        return True, "VIP code redeemed! You now have lifetime access."
+
+    except ValueError as e:
+        return False, str(e)
+
+
+def has_vip_access(user):
+    """
+    Check if a user has VIP/lifetime access.
+
+    Returns True if user has STATUS_LIFETIME subscription.
+    """
+    try:
+        return user.billing_profile.subscription_status == BillingProfile.STATUS_LIFETIME
+    except Exception:
+        return False

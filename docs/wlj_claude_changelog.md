@@ -16,6 +16,44 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add VIP Promo Code Feature for Lifetime Free Access
+
+**Summary:** Added a VIP promo code system that allows select users to bypass payment and receive lifetime free access by entering a special code during signup.
+
+**Features:**
+- Create VIP promo codes via Django Admin
+- Codes can be single-use or multi-use (configurable `max_uses`)
+- Codes can have expiration dates
+- Case-insensitive code entry (auto-uppercased)
+- Users enter code during onboarding (Welcome step)
+- Valid codes grant STATUS_LIFETIME subscription status
+- Usage tracking with IP address audit trail
+- Admin bulk actions to activate/deactivate codes
+
+**New Models:**
+- `VIPPromoCode` - Stores VIP codes with usage limits, expiration, and created_by
+- `VIPPromoCodeUsage` - Tracks who redeemed which code and when
+
+**New Service Functions:**
+- `validate_vip_code(code)` - Returns VIPPromoCode if valid, None otherwise
+- `redeem_vip_code(user, code, ip_address)` - Redeems code, grants lifetime access
+- `has_vip_access(user)` - Checks if user has STATUS_LIFETIME
+
+**Files Modified:**
+- `apps/billing/models.py` - Added VIPPromoCode and VIPPromoCodeUsage models
+- `apps/billing/admin.py` - Added admin classes for VIP code management
+- `apps/billing/services.py` - Added validate_vip_code, redeem_vip_code, has_vip_access
+- `apps/users/views.py` - Updated OnboardingWizardView to handle VIP code entry
+- `templates/users/onboarding_wizard.html` - Added VIP code input field and styling
+
+**Migration:**
+- `apps/billing/migrations/0004_add_vip_promo_code_models.py`
+
+**Tests:**
+- `apps/billing/tests/test_vip_promo_codes.py` - 39 comprehensive tests
+
+---
+
 ### Create Cycle Data Export API Endpoint (Phase 10)
 
 **Summary:** Created REST API endpoint for downloading cycle data with rate limiting.

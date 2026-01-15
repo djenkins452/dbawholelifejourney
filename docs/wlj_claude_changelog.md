@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle Model (Phase 2)
+
+**Summary:** Created Cycle model for tracking complete menstrual cycles.
+
+**Model Fields:**
+- `cycle_number`: Auto-incremented per user ("Cycle #5")
+- `start_date`: First day of period
+- `end_date`: Day before next period (nullable)
+- `period_end_date`: Last day of bleeding (nullable)
+- `is_predicted`: True if AI-predicted
+- `notes`: User observations
+
+**Properties:**
+- `cycle_length`: Days in full cycle
+- `period_length`: Days of period
+- `is_complete`, `is_ongoing`: Status checks
+
+**Auto-numbering:** cycle_number auto-assigned on save, incrementing per user.
+
+**Files Modified:**
+- `apps/health/models.py`: Added Cycle model
+- `apps/health/migrations/0024_add_cycle_model.py`: New migration
+
+---
+
 ### Create CycleDailyLog Model (Phase 2)
 
 **Summary:** Created CycleDailyLog model for recording daily menstrual cycle data.

@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Serializers for Cycle Models (Phase 4)
+
+**Summary:** Created serializers module for all cycle tracking models.
+
+**Serializers:**
+- `CycleSettingsSerializer`: User preferences with cycle/period length validation
+- `CycleDailyLogSerializer`: Daily logs with symptom list and mood choice validation
+- `CycleSerializer`: Cycles with nested daily logs support (read-only)
+- `CyclePredictionSerializer`: Predictions with confidence formatting
+
+**Features:**
+- DRF-like interface (`.data`, `.is_valid()`, `.save()`)
+- Consistent date format (YYYY-MM-DD)
+- Validation messages for invalid symptom/mood choices
+- Computed properties included in serialization
+
+**Note:** Uses Django core (no DRF dependency) but follows DRF patterns for easy migration.
+
+**Files Created:** `apps/health/serializers.py`
+
+---
+
 ### Admin Filters and Actions for Cycle Tracking (Phase 3)
 
 **Summary:** Added custom admin filters and bulk export action for cycle data management.

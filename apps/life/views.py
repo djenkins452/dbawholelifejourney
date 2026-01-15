@@ -1432,20 +1432,22 @@ class DocumentCreateView(LifeAccessMixin, CreateView):
 
 
 class DocumentUpdateView(LifeAccessMixin, UpdateView):
-    """Edit document metadata."""
+    """Edit document metadata and optionally replace file."""
     model = Document
     template_name = "life/document_form.html"
     fields = [
-        'title', 'description', 'category',
+        'title', 'description', 'category', 'file',
         'document_date', 'expiration_date',
         'related_inventory_item', 'related_pet', 'notes', 'is_archived'
     ]
-    
+
     def get_queryset(self):
         return Document.objects.filter(user=self.request.user)
-    
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
+        # File is optional when editing (only required for new documents)
+        form.fields['file'].required = False
         form.fields['related_inventory_item'].queryset = InventoryItem.objects.filter(
             user=self.request.user
         )
@@ -1453,7 +1455,18 @@ class DocumentUpdateView(LifeAccessMixin, UpdateView):
             user=self.request.user
         )
         return form
-    
+
+    def form_valid(self, form):
+        # If a new file was uploaded, delete the old one from storage
+        if 'file' in form.changed_data and self.object.file:
+            old_file = Document.objects.get(pk=self.object.pk).file
+            if old_file:
+                try:
+                    old_file.delete(save=False)
+                except Exception:
+                    pass  # Don't fail if old file can't be deleted
+        return super().form_valid(form)
+
     def get_success_url(self):
         return reverse('life:document_detail', kwargs={'pk': self.object.pk})
 

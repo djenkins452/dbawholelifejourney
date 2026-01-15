@@ -230,7 +230,8 @@ class TranscriptionService:
             except (subprocess.CalledProcessError, FileNotFoundError):
                 raise TranscriptionError(
                     "ffmpeg not available for audio compression",
-                    "Your audio file is too large. Please record a shorter message (under 30 minutes)."
+                    "Your audio file needs compression but the server is not configured for it. "
+                    "Please download your recording and try uploading a smaller file, or contact support."
                 )
 
             # Write original audio to temp file
@@ -279,7 +280,8 @@ class TranscriptionService:
                 if len(compressed_data) > WHISPER_MAX_FILE_SIZE_BYTES:
                     raise TranscriptionError(
                         f"Compressed audio still too large: {len(compressed_data) / 1024 / 1024:.1f}MB",
-                        "Your audio file is too long to process. Please record a shorter message (under 2 hours)."
+                        "Even after compression, your audio file exceeds the 25MB transcription limit. "
+                        "Please try splitting into shorter recordings."
                     )
 
                 logger.info(

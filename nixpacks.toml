@@ -1,7 +1,10 @@
 # Nixpacks configuration for Railway deployment
 # See: https://nixpacks.com/docs/guides/configuring-builds
 
-# No special apt packages needed - using python-docx (pure Python) instead of WeasyPrint
+# ffmpeg is required for compressing large audio files (>25MB) for Whisper API transcription
+# This enables 60-minute audio recordings in the Capture feature
+[phases.setup]
+nixPkgs = ["ffmpeg"]
 
 [start]
 cmd = "python manage.py migrate --noinput && python manage.py load_initial_data && python manage.py sync_workout_to_templates && python manage.py recalculate_task_priorities && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file -"

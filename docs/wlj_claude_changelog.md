@@ -38,6 +38,46 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Comprehensive Mobile Responsiveness Fixes
+
+**Summary:** Added @media queries to 18 templates across all modules to improve mobile responsiveness on phones.
+
+**Problem:** Audit revealed ~67 user-facing templates had inline CSS styles but lacked mobile breakpoints, causing layout issues on narrow screens.
+
+**Solution:** Added mobile CSS (max-width: 640px) breakpoints to high-priority templates:
+
+**Journal (5 files):**
+- `entry_form.html`: Stack form actions, adjust emotion buttons
+- `prompt_list.html`: Single column grid, scrollable filters
+- `tag_list.html`: Stack tag items vertically
+- `tag_form.html`: Stack color picker and form actions
+- `partials/tag_create_modal.html`: Responsive modal for mobile
+
+**Faith (5 files):**
+- `home.html`: Single column faith grid, stack card headers
+- `prayer_list.html`: Stack page header and prayer actions
+- `reflections.html`: Stack entry headers
+- `milestone_list.html`: Adjust timeline for mobile
+- `todays_verse.html`: Scale down text and stack buttons
+
+**Health (4 files):**
+- `medicine/medicine_list.html`: Stack headers, scrollable tabs
+- `nutrition/quick_add.html`: Single column form, full-width buttons
+- `providers/provider_list.html`: Stack provider cards
+- `fitness/progress.html`: Single column stats, scrollable tables
+
+**Life (2 files):**
+- `home.html`: Single column grid, stack stats, 2-col quick links
+- `project_list.html`: Single column grid, stack filters
+
+**Users (2 files):**
+- `theme_selection.html`: Single column theme cards
+- `onboarding.html`: Scaled down icons and text for mobile
+
+**Also Added:** Responsive Design requirements section to CLAUDE.md for future development.
+
+---
+
 ### Add ffmpeg for 60-Minute Audio Support & Download Button
 
 **Summary:** Added ffmpeg to Railway deployment to enable compression of large audio files, and added a download button to the error state so users can save their recording locally when processing fails.

@@ -1,0 +1,416 @@
+{% comment %}
+Cycle Summary Card Component
+
+Displays current cycle status at a glance including:
+- Current cycle day (large prominent number)
+- Color-coded phase indicator
+- Countdown to next predicted period
+- No-cycle/no-prediction helpful states
+
+Context variables:
+- phase: Phase info dict from get_current_phase() (optional)
+- cycle: Current Cycle instance (optional)
+- prediction: Current CyclePrediction instance (optional)
+- days_until_period: Integer days until predicted period (optional)
+
+This component uses HTMX to refresh when a daily log is saved.
+
+Usage:
+{% include "health/cycle/includes/summary_card.html" with phase=phase cycle=cycle prediction=prediction %}
+{% endcomment %}
+
+<div
+    class="cycle-summary-card"
+    id="cycle-summary-card"
+    hx-get="{% url 'health:cycle_cycles_current' %}"
+    hx-trigger="daily-log-saved from:body"
+    hx-swap="none"
+>
+    {% if cycle and phase %}
+    <!-- Active Cycle State -->
+    <div class="summary-main">
+        <!-- Cycle Day (Large Number) -->
+        <div class="cycle-day-display">
+            <span class="cycle-day-number">{{ phase.cycle_day }}</span>
+            <span class="cycle-day-label">Day</span>
+        </div>
+
+        <!-- Phase Indicator -->
+        <div class="phase-indicator phase-{{ phase.color_name }}">
+            <div class="phase-dot" style="background-color: {{ phase.color }};"></div>
+            <div class="phase-info">
+                <span class="phase-name">{{ phase.display_name }}</span>
+                <span class="phase-description">{{ phase.description }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prediction Section -->
+    <div class="summary-prediction">
+        {% if prediction and days_until_period is not None %}
+            {% if days_until_period < 0 %}
+            <!-- Period is late -->
+            <div class="prediction-status prediction-late">
+                <div class="status-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                </div>
+                <div class="status-text">
+                    <span class="status-main">Period expected {{ days_until_period|slice:"1:" }} day{% if days_until_period < -1 %}s{% endif %} ago</span>
+                    <span class="status-hint">Every body is different - this is just an estimate</span>
+                </div>
+            </div>
+            {% elif days_until_period == 0 %}
+            <!-- Period expected today -->
+            <div class="prediction-status prediction-today">
+                <div class="status-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                </div>
+                <div class="status-text">
+                    <span class="status-main">Period expected today</span>
+                    <span class="status-hint">Based on your cycle history</span>
+                </div>
+            </div>
+            {% elif days_until_period <= 3 %}
+            <!-- Period coming soon -->
+            <div class="prediction-status prediction-soon">
+                <div class="status-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                </div>
+                <div class="status-text">
+                    <span class="status-main">{{ days_until_period }} day{% if days_until_period != 1 %}s{% endif %} until period</span>
+                    <span class="status-hint">Estimated based on your cycles</span>
+                </div>
+            </div>
+            {% else %}
+            <!-- Period upcoming -->
+            <div class="prediction-status prediction-upcoming">
+                <div class="status-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                </div>
+                <div class="status-text">
+                    <span class="status-main">{{ days_until_period }} days until period</span>
+                    <span class="status-hint">{{ prediction.predicted_period_start|date:"M j" }}</span>
+                </div>
+            </div>
+            {% endif %}
+        {% else %}
+        <!-- No prediction available yet -->
+        <div class="prediction-status prediction-none">
+            <div class="status-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            </div>
+            <div class="status-text">
+                <span class="status-main">Predictions coming soon</span>
+                <span class="status-hint">Log a few more cycles for predictions</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% elif cycle %}
+    <!-- Cycle exists but no phase data yet -->
+    <div class="summary-main">
+        <div class="cycle-day-display">
+            <span class="cycle-day-number">{{ cycle.current_day }}</span>
+            <span class="cycle-day-label">Day</span>
+        </div>
+        <div class="phase-indicator phase-unknown">
+            <div class="phase-dot"></div>
+            <div class="phase-info">
+                <span class="phase-name">Tracking</span>
+                <span class="phase-description">Continue logging for phase info</span>
+            </div>
+        </div>
+    </div>
+    <div class="summary-prediction">
+        <div class="prediction-status prediction-none">
+            <div class="status-text">
+                <span class="status-main">Keep logging!</span>
+                <span class="status-hint">Predictions require a few cycles of data</span>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- No active cycle -->
+    <div class="summary-empty">
+        <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+            </svg>
+        </div>
+        <h3 class="empty-title">No active cycle</h3>
+        <p class="empty-description">
+            Log your first period day to start tracking your cycle.
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.cycle-summary-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+/* Main Summary Section */
+.summary-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+}
+
+/* Cycle Day Display */
+.cycle-day-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent), color-mix(in srgb, var(--color-primary) 5%, transparent));
+    border-radius: var(--radius-lg);
+    min-width: 80px;
+}
+
+.cycle-day-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-accent);
+}
+
+.cycle-day-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+/* Phase Indicator */
+.phase-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex: 1;
+}
+
+.phase-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}
+
+.phase-unknown .phase-dot {
+    background: var(--color-border);
+}
+
+.phase-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.phase-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+.phase-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Phase Colors */
+.phase-red .phase-name { color: #E53935; }
+.phase-orange .phase-name { color: #FFB300; }
+.phase-green .phase-name { color: #43A047; }
+.phase-blue .phase-name { color: #1E88E5; }
+
+/* Prediction Section */
+.summary-prediction {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.prediction-status {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
+.status-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.prediction-late .status-icon {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+.prediction-today .status-icon {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+}
+
+.prediction-soon .status-icon {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+.prediction-upcoming .status-icon {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+}
+
+.prediction-none .status-icon {
+    background: var(--color-surface-alt, var(--color-background));
+    color: var(--color-text-muted);
+}
+
+.status-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.status-main {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+}
+
+.prediction-late .status-main { color: var(--color-warning); }
+.prediction-today .status-main { color: var(--color-error); }
+.prediction-soon .status-main { color: var(--color-warning); }
+
+.status-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Empty State */
+.summary-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: var(--space-6) var(--space-4);
+}
+
+.empty-icon {
+    color: var(--color-text-muted);
+    opacity: 0.5;
+    margin-bottom: var(--space-4);
+}
+
+.empty-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+
+.empty-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+    max-width: 280px;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 480px) {
+    .cycle-summary-card {
+        padding: var(--space-4);
+    }
+
+    .summary-main {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-4);
+    }
+
+    .cycle-day-display {
+        flex-direction: row;
+        justify-content: center;
+        gap: var(--space-2);
+        padding: var(--space-4);
+    }
+
+    .cycle-day-number {
+        font-size: 2rem;
+    }
+
+    .cycle-day-label {
+        margin-top: 0;
+        align-self: center;
+    }
+
+    .phase-indicator {
+        justify-content: center;
+        text-align: center;
+    }
+
+    .phase-info {
+        align-items: center;
+    }
+
+    .prediction-status {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .status-text {
+        align-items: center;
+    }
+}
+
+/* Tablet */
+@media (min-width: 481px) and (max-width: 768px) {
+    .cycle-day-number {
+        font-size: 2.25rem;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+// Listen for daily-log-saved event and refresh the summary card
+document.addEventListener('daily-log-saved', function(e) {
+    // Re-fetch cycle data to update the card
+    // The hx-trigger on the card handles the HTMX refresh
+    // We can also do a manual fetch if needed for more control
+
+    console.log('Daily log saved, summary card will refresh');
+});
+</script>

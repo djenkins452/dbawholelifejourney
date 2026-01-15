@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Update Cycle Tracking Opt-In Status Display (Phase 6)
+
+**Summary:** Updated the cycle tracking opt-in page to show status when already enabled and provide disable functionality.
+
+**Features Added:**
+- Status display when cycle tracking is already enabled
+- "Enabled based on your profile" message when auto-enabled from gender signal
+- Disable button with confirmation modal dialog
+- Inclusive message: "Anyone can use this feature regardless of gender"
+- Link to preferences page to update gender settings
+- Modal with cancel/confirm actions for disabling
+- Proper JavaScript handling for modal open/close/escape key
+- API integration with opt-out endpoint
+
+**View Updates:**
+- `CycleOptInPageView`: Added context for `is_enabled`, `was_auto_enabled`, and `user_gender`
+
+**Files Modified:**
+- `templates/health/cycle/opt_in.html` - Added status section, disable modal, inclusive message, CSS styles, and JavaScript handlers
+- `apps/health/views_cycle.py` - Updated `CycleOptInPageView` to pass auto-enable context
+
+---
+
 ### Create Cycle Dashboard Page (Phase 6)
 
 **Summary:** Created the main cycle tracking dashboard as the central hub for the feature.

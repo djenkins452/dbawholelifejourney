@@ -1039,22 +1039,38 @@ class CycleOptInPageView(LoginRequiredMixin, TemplateView):
     Cycle tracking opt-in page.
 
     Shows privacy information and allows users to enable cycle tracking.
-    Redirects to dashboard if already enabled.
+    If already enabled (e.g., auto-enabled based on gender), shows status
+    with option to disable.
     """
 
     template_name = "health/cycle/opt_in.html"
 
-    def get(self, request, *args, **kwargs):
-        # If already enabled, redirect to dashboard
-        try:
-            settings = CycleSettings.objects.get(user=request.user)
-            if settings.is_enabled:
-                from django.shortcuts import redirect
-                return redirect("health:cycle_dashboard")
-        except CycleSettings.DoesNotExist:
-            pass
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
 
-        return super().get(request, *args, **kwargs)
+        # Check if cycle tracking already exists
+        try:
+            settings = CycleSettings.objects.get(user=user)
+            context["cycle_settings"] = settings
+            context["is_enabled"] = settings.is_enabled
+        except CycleSettings.DoesNotExist:
+            context["cycle_settings"] = None
+            context["is_enabled"] = False
+
+        # Check if user's gender is female (indicating auto-enable)
+        try:
+            prefs = user.preferences
+            context["user_gender"] = prefs.gender
+            context["was_auto_enabled"] = (
+                prefs.gender == "female"
+                and context.get("cycle_settings") is not None
+            )
+        except Exception:
+            context["user_gender"] = None
+            context["was_auto_enabled"] = False
+
+        return context
 
 
 class CycleDashboardView(LoginRequiredMixin, TemplateView):

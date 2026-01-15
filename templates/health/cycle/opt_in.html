@@ -153,6 +153,35 @@
             </p>
         </div>
 
+        {% if is_enabled %}
+        <!-- Already Enabled State -->
+        <div class="opt-in-section status-section">
+            <div class="status-enabled">
+                <div class="status-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                </div>
+                <div class="status-content">
+                    <h3>Cycle tracking is enabled</h3>
+                    {% if was_auto_enabled %}
+                    <p>This was enabled based on your profile settings.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="status-actions">
+                <a href="{% url 'health:cycle_dashboard' %}" class="btn btn-primary">
+                    Go to Dashboard
+                </a>
+                <button type="button" class="btn btn-ghost text-error" id="disable-btn">
+                    Disable Cycle Tracking
+                </button>
+            </div>
+        </div>
+
+        {% else %}
         <!-- Enable button -->
         <div class="opt-in-action">
             <form method="post" id="opt-in-form">
@@ -166,9 +195,45 @@
                 You can disable this feature anytime from your settings.
             </p>
         </div>
+        {% endif %}
+
+        <!-- Inclusive message -->
+        <div class="inclusive-message">
+            <p>
+                Anyone can use this feature regardless of gender.
+                {% if user_gender %}
+                <a href="{% url 'users:preferences' %}" class="preferences-link">Update your profile settings</a>
+                {% else %}
+                <a href="{% url 'users:preferences' %}" class="preferences-link">Set your preferences</a>
+                {% endif %}
+            </p>
+        </div>
 
         <div class="opt-in-back">
             <a href="{% url 'health:home' %}" class="btn btn-ghost">Back to Health</a>
+        </div>
+    </div>
+</div>
+
+<!-- Disable Confirmation Modal -->
+<div class="modal-overlay" id="disable-modal" style="display: none;">
+    <div class="modal-container modal-sm">
+        <div class="modal-header">
+            <h3 class="modal-title">Disable Cycle Tracking?</h3>
+            <button type="button" class="modal-close" id="close-disable-modal" aria-label="Close">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p>This will turn off cycle tracking. Your existing data will be kept, but you won't see predictions or be able to log new entries.</p>
+            <p class="text-muted text-sm mt-3">You can re-enable this anytime.</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" id="cancel-disable">Cancel</button>
+            <button type="button" class="btn btn-error" id="confirm-disable">Disable</button>
         </div>
     </div>
 </div>
@@ -346,6 +411,187 @@
     text-align: center;
 }
 
+/* Status section - when already enabled */
+.status-section {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-success) 8%, var(--color-surface)), var(--color-surface));
+    border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border));
+}
+
+.status-enabled {
+    display: flex;
+    gap: var(--space-4);
+    align-items: center;
+    margin-bottom: var(--space-5);
+}
+
+.status-icon {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    background: color-mix(in srgb, var(--color-success) 20%, transparent);
+    color: var(--color-success);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-content h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-1);
+    color: var(--color-success);
+}
+
+.status-content p {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.status-actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.status-actions .btn-primary {
+    flex: 1;
+    min-width: 160px;
+}
+
+.status-actions .btn-ghost {
+    flex: 0 0 auto;
+}
+
+/* Inclusive message */
+.inclusive-message {
+    text-align: center;
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+    background: color-mix(in srgb, var(--color-info) 5%, transparent);
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--color-info) 15%, transparent);
+}
+
+.inclusive-message p {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.preferences-link {
+    color: var(--color-accent);
+    text-decoration: underline;
+    margin-left: var(--space-1);
+}
+
+/* Button color variants */
+.text-error {
+    color: var(--color-error);
+}
+
+.btn-error {
+    background: var(--color-error);
+    color: white;
+    border-color: var(--color-error);
+}
+
+.btn-error:hover {
+    background: color-mix(in srgb, var(--color-error) 85%, black);
+    border-color: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
+/* Modal styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--space-4);
+}
+
+.modal-container {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    max-width: 100%;
+    max-height: 90vh;
+    overflow: auto;
+}
+
+.modal-sm {
+    width: 400px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.modal-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+.modal-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text);
+}
+
+.modal-body {
+    padding: var(--space-5);
+}
+
+.modal-body p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.modal-footer {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: flex-end;
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+}
+
+.text-sm {
+    font-size: var(--font-size-sm);
+}
+
+.mt-3 {
+    margin-top: var(--space-3);
+}
+
 /* Mobile responsiveness */
 @media (max-width: 480px) {
     .opt-in-container {
@@ -397,42 +643,121 @@
 
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
+    // Opt-in form handling (only present when not enabled)
     const form = document.getElementById('opt-in-form');
-    const button = form.querySelector('.opt-in-button');
+    if (form) {
+        const button = form.querySelector('.opt-in-button');
 
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
 
-        // Disable button and show loading state
-        button.disabled = true;
-        button.textContent = 'Enabling...';
+            // Disable button and show loading state
+            button.disabled = true;
+            button.textContent = 'Enabling...';
 
-        // Call the opt-in API
-        fetch('{% url "health:cycle_opt_in" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}'
-            },
-            body: JSON.stringify({})
-        })
-        .then(response => {
-            if (response.ok) {
-                return response.json();
-            }
-            throw new Error('Failed to enable cycle tracking');
-        })
-        .then(data => {
-            // Redirect to cycle dashboard on success
-            window.location.href = '{% url "health:home" %}';
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            button.disabled = false;
-            button.textContent = 'Enable Cycle Tracking';
-            alert('Something went wrong. Please try again.');
+            // Call the opt-in API
+            fetch('{% url "health:cycle_opt_in" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('Failed to enable cycle tracking');
+            })
+            .then(data => {
+                // Redirect to cycle dashboard on success
+                window.location.href = '{% url "health:home" %}';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                button.disabled = false;
+                button.textContent = 'Enable Cycle Tracking';
+                alert('Something went wrong. Please try again.');
+            });
         });
-    });
+    }
+
+    // Disable modal handling (only present when enabled)
+    const disableBtn = document.getElementById('disable-btn');
+    const disableModal = document.getElementById('disable-modal');
+    const closeModalBtn = document.getElementById('close-disable-modal');
+    const cancelBtn = document.getElementById('cancel-disable');
+    const confirmBtn = document.getElementById('confirm-disable');
+
+    if (disableBtn && disableModal) {
+        // Open modal
+        disableBtn.addEventListener('click', function() {
+            disableModal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        });
+
+        // Close modal functions
+        function closeModal() {
+            disableModal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', closeModal);
+        }
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', closeModal);
+        }
+
+        // Close on overlay click
+        disableModal.addEventListener('click', function(e) {
+            if (e.target === disableModal) {
+                closeModal();
+            }
+        });
+
+        // Close on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && disableModal.style.display === 'flex') {
+                closeModal();
+            }
+        });
+
+        // Confirm disable
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', function() {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Disabling...';
+
+                // Call the opt-out API
+                fetch('{% url "health:cycle_opt_out" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({})
+                })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    }
+                    throw new Error('Failed to disable cycle tracking');
+                })
+                .then(data => {
+                    // Reload page to show updated state
+                    window.location.reload();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = 'Disable';
+                    alert('Something went wrong. Please try again.');
+                });
+            });
+        }
+    }
 });
 </script>
 {% endblock %}

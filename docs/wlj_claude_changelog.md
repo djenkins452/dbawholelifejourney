@@ -16,6 +16,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Cycle Tracking Feature Documentation (Phase 14)
+
+**Summary:** Added comprehensive Cycle Tracking section to `docs/wlj_claude_features.md`, documenting all models, API endpoints, services, and security considerations.
+
+**File Modified:** `docs/wlj_claude_features.md`
+
+**Documentation Added:**
+- **Overview**: Privacy-first menstrual cycle tracking feature description
+- **Data Models**: CycleSettings, CycleDailyLog, Cycle, CyclePrediction with all fields
+- **URL Routes**: 20+ API endpoints and 5 page views documented
+- **Service Layer**: CycleDetectionService, CyclePhaseService, CycleDataExportService
+- **Privacy & Security**: Opt-in model, data isolation, export security
+- **API Examples**: JSON request/response examples for key endpoints
+- **Integration Points**: Dashboard integration documentation
+- **Key Files**: Complete file listing
+- **Tests**: Test file locations with test counts (250+ tests total)
+
+**Table of Contents Updated:** Added item #20 for Cycle Tracking section.
+
+---
+
 ### Update Teaching Tool Destinations
 
 **Summary:** Added cycle tracking pages to teaching_destinations.json fixture so the Teaching Tool can navigate users to cycle tracking features.

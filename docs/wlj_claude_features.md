@@ -35,6 +35,7 @@ For core project context, see `CLAUDE.md` (project root).
 17. [Significant Events](#significant-events)
 18. [Bible Reading Plans & Study Tools](#bible-reading-plans--study-tools)
 19. [Capture (Audio Recording & Transcription)](#capture-audio-recording--transcription)
+20. [Cycle Tracking](#cycle-tracking)
 
 ---
 
@@ -1919,4 +1920,297 @@ When `capture_enabled = True`:
 
 ---
 
-*Last updated: 2026-01-14*
+## Cycle Tracking
+
+### Overview
+Privacy-first menstrual cycle tracking feature that allows users to log daily symptoms, track period patterns, and receive predictions for upcoming cycles. The feature includes automatic cycle detection, phase calculation, calendar visualization, and comprehensive data export capabilities.
+
+### Key Features
+- **Daily Logging** - Track flow level, symptoms, mood, energy, and optional fertility indicators
+- **Automatic Cycle Detection** - Service detects period start/end from flow patterns
+- **Phase Calculator** - Calculates current menstrual phase (menstrual, follicular, ovulation, luteal)
+- **Cycle Predictions** - Predicts next period based on historical patterns (requires 3+ cycles)
+- **Calendar View** - Visual monthly calendar with color-coded period days and predictions
+- **Data Export** - Export data in JSON or CSV format with rate limiting
+- **Opt-In Privacy** - Explicit opt-in required; data can be completely deleted
+
+### Data Models
+
+#### CycleSettings
+OneToOne settings model for user preferences.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user` | OneToOne | User these settings belong to |
+| `cycle_tracking_enabled` | Boolean | Master toggle for cycle tracking |
+| `average_cycle_length` | SmallInt | Typical cycle length (default 28, range 15-60) |
+| `average_period_length` | SmallInt | Typical period length (default 5, range 1-14) |
+| `notifications_enabled` | Boolean | Send period prediction reminders |
+| `fertile_window_tracking_enabled` | Boolean | Track and show fertile window |
+| `last_period_start_date` | Date | Most recent period start (for predictions) |
+
+**Key Property:** `is_enabled` - Returns True only if record is active AND `cycle_tracking_enabled=True`
+
+#### CycleDailyLog
+Daily health data entry (one per user per day).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user` | ForeignKey | Owner of this log |
+| `log_date` | Date | Date of this entry |
+| `flow_level` | Choice | none, spotting, light, medium, heavy |
+| `symptoms` | JSON | List of symptom keys (cramps, headache, etc.) |
+| `mood` | Choice | happy, calm, anxious, irritable, sad, energetic, tired, neutral |
+| `energy_level` | SmallInt | 1-10 scale |
+| `cervical_mucus` | Choice | Optional fertility tracking |
+| `basal_temp` | Decimal | Optional BBT (95-105°F range) |
+| `notes` | Text | Free-form notes |
+
+**Symptom Choices:** cramps, headache, fatigue, bloating, breast_tenderness, acne, backache, nausea, food_cravings, insomnia
+
+**Key Property:** `is_period_day` - True if flow_level is not "none"
+
+#### Cycle
+Complete menstrual cycle record (auto-numbered per user).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user` | ForeignKey | Owner of this cycle |
+| `cycle_number` | Int | Auto-incremented per user |
+| `start_date` | Date | First day of period |
+| `end_date` | Date | Day before next period starts (nullable) |
+| `period_end_date` | Date | Last day of bleeding (nullable) |
+| `is_predicted` | Boolean | True if AI-predicted (not user-confirmed) |
+| `notes` | Text | User notes |
+
+**Key Properties:**
+- `cycle_length` - Days between start and end (or None if ongoing)
+- `period_length` - Days between start and period_end
+- `is_complete` / `is_ongoing` - Status checks
+
+#### CyclePrediction
+AI-generated predictions for upcoming periods.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user` | ForeignKey | Owner |
+| `predicted_period_start` | Date | Expected period start |
+| `predicted_period_end` | Date | Expected period end |
+| `predicted_fertile_window_start` | Date | Fertile window start (optional) |
+| `predicted_fertile_window_end` | Date | Fertile window end (optional) |
+| `prediction_confidence` | Decimal | 0.00-1.00 confidence score |
+| `prediction_algorithm_version` | Char | Version string (e.g., "v1.0-basic") |
+| `generated_at` | DateTime | When prediction was created |
+| `actual_period_start` | Date | Filled when verified (for accuracy tracking) |
+
+**Class Method:** `get_active_prediction(user)` - Returns most recent unverified prediction
+
+### URL Routes
+
+#### Page Views (`/health/cycle/`)
+| Route | View | Description |
+|-------|------|-------------|
+| `/health/cycle/` | `CycleDashboardView` | Main dashboard with summary |
+| `/health/cycle/opt-in/` | `CycleOptInPageView` | Privacy info and enable/disable |
+| `/health/cycle/settings/` | `CycleSettingsPageView` | Configure cycle preferences |
+| `/health/cycle/calendar/` | `CycleCalendarView` | Monthly calendar visualization |
+| `/health/cycle/data/` | `CycleDataManagementView` | Export/delete data |
+
+#### API Endpoints (`/health/api/cycle/`)
+| Route | Method | View | Description |
+|-------|--------|------|-------------|
+| `/api/cycle/settings/` | GET | `CycleSettingsViewSet` | Get current settings |
+| `/api/cycle/settings/` | PUT/PATCH | `CycleSettingsViewSet` | Update settings |
+| `/api/cycle/opt_in/` | POST | `CycleOptInView` | Enable cycle tracking |
+| `/api/cycle/opt_out/` | POST | `CycleOptOutView` | Disable (optionally delete) |
+| `/api/cycle/check/` | GET | `CycleSettingsCheckView` | Quick enabled status check |
+| `/api/cycle/logs/` | GET | `CycleDailyLogViewSet` | List daily logs (paginated) |
+| `/api/cycle/logs/` | POST | `CycleDailyLogViewSet` | Create new log |
+| `/api/cycle/logs/<id>/` | GET/PUT/PATCH | `CycleDailyLogViewSet` | Retrieve/update log |
+| `/api/cycle/logs/<id>/` | DELETE | `CycleDailyLogViewSet` | Soft delete log |
+| `/api/cycle/cycles/` | GET | `CycleViewSet` | List cycles (paginated) |
+| `/api/cycle/cycles/<id>/` | GET | `CycleViewSet` | Retrieve single cycle |
+| `/api/cycle/cycles/current/` | GET | `CycleViewSet` | Get ongoing cycle |
+| `/api/cycle/cycles/statistics/` | GET | `CycleViewSet` | Get averages and trends |
+| `/api/cycle/predictions/` | GET | `CyclePredictionViewSet` | List predictions |
+| `/api/cycle/predictions/<id>/` | GET | `CyclePredictionViewSet` | Retrieve prediction |
+| `/api/cycle/predictions/current/` | GET | `CyclePredictionViewSet` | Get active prediction |
+| `/api/cycle/predictions/regenerate/` | POST | `CyclePredictionViewSet` | Generate new prediction |
+| `/api/cycle/export/` | GET | `CycleExportAPIView` | Export data (JSON/CSV) |
+| `/api/cycle/delete-all/` | POST | `CycleDeleteAllAPIView` | Delete all data |
+
+#### Form Endpoints (HTML responses)
+| Route | Method | View | Description |
+|-------|--------|------|-------------|
+| `/api/cycle/day-modal/` | GET | `CycleDayModalView` | Day detail modal HTML |
+| `/api/cycle/period-toggle/` | POST | `CyclePeriodToggleView` | Quick start/end period |
+| `/api/cycle/export-json/` | POST | `CycleExportJSONView` | Download JSON file |
+| `/api/cycle/export-csv/` | POST | `CycleExportCSVView` | Download CSV file |
+
+### Service Layer
+
+#### CycleDetectionService (`apps/health/services/cycle_detection.py`)
+Automatically detects period boundaries from daily log flow patterns.
+
+**Key Methods:**
+- `process_daily_log(log)` - Main entry point after log save
+- `_check_period_start(date)` - Detects new period start
+- `_check_period_end(date)` - Detects period end (2+ no-flow days)
+- `_create_new_cycle(date)` - Creates Cycle and closes previous
+- `recalculate_cycles()` - Rebuilds all cycles from logs
+
+**Detection Logic:**
+- Period starts when flow changes from none/spotting to light/medium/heavy
+- Period ends after 2+ consecutive days of no flow
+- Spotting doesn't count as period start/end
+- Previous cycle is automatically closed when new one begins
+
+#### CyclePhaseService (`apps/health/services/cycle_phase.py`)
+Calculates current menstrual phase with proportional adjustment for non-28-day cycles.
+
+**Phases (Standard 28-day):**
+| Phase | Days | Color | Description |
+|-------|------|-------|-------------|
+| Menstrual | 1-5 | Red | Period bleeding |
+| Follicular | 6-13 | Orange | Pre-ovulation |
+| Ovulation | 14-16 | Green | Peak fertility |
+| Luteal | 17-28 | Blue | Post-ovulation |
+
+**Key Functions:**
+- `get_current_phase(user, date)` - Returns phase info dict
+- `get_phase_by_day(day, cycle_length)` - Phase for specific day
+- `get_all_phases(cycle_length)` - All phases with boundaries
+
+#### CycleDataExportService (`apps/health/services/cycle_export.py`)
+Exports user data in JSON and CSV formats.
+
+**Key Methods:**
+- `export_to_json()` - Full data as dict
+- `export_to_json_string()` - JSON string with formatting
+- `export_to_csv(data_type)` - CSV for daily_logs/cycles/predictions
+- `get_export_size_estimate()` - Record counts and size estimates
+
+**Limits:**
+- Max 1000 daily logs per export
+- Max 100 cycles per export
+- Max 50 predictions per export
+- Rate limited: 5 exports per hour per user
+
+### Privacy & Security
+
+#### Opt-In Model
+- Cycle tracking requires explicit opt-in
+- `CycleTrackingEnabledMixin` enforces access control on all API views
+- Users can disable tracking while preserving data
+- Full data deletion with confirmation text ("DELETE ALL MY CYCLE DATA")
+
+#### Data Isolation
+- All models use `UserOwnedModel` base class
+- API views filter by `request.user`
+- Soft delete preserves data for 30 days
+- Hard delete option for permanent removal
+
+#### Export Security
+- Rate limiting: 5 exports/hour prevents abuse
+- No PII in export metadata
+- Audit logging for data deletion (`log_security_event`)
+- Confirmation required for destructive operations
+
+### API Response Examples
+
+**GET /api/cycle/settings/**
+```json
+{
+  "id": 1,
+  "cycle_tracking_enabled": true,
+  "average_cycle_length": 28,
+  "average_period_length": 5,
+  "notifications_enabled": true,
+  "fertile_window_tracking_enabled": false,
+  "last_period_start_date": "2026-01-01",
+  "is_enabled": true
+}
+```
+
+**POST /api/cycle/logs/**
+```json
+{
+  "log_date": "2026-01-15",
+  "flow_level": "medium",
+  "symptoms": ["cramps", "fatigue"],
+  "mood": "tired",
+  "energy_level": 3,
+  "notes": "First day of period"
+}
+```
+
+**GET /api/cycle/predictions/current/**
+```json
+{
+  "id": 5,
+  "predicted_period_start": "2026-01-28",
+  "predicted_period_end": "2026-02-02",
+  "predicted_fertile_window_start": "2026-01-19",
+  "predicted_fertile_window_end": "2026-01-21",
+  "prediction_confidence": 0.75,
+  "confidence_display": "75%",
+  "days_until_period": 13,
+  "status": "upcoming",
+  "status_message": "Period expected in 13 days"
+}
+```
+
+**GET /api/cycle/cycles/statistics/**
+```json
+{
+  "cycle_count": 6,
+  "completed_cycles": 6,
+  "cycle_length": {
+    "average": 28.5,
+    "min": 26,
+    "max": 31,
+    "standard_deviation": 1.8
+  },
+  "period_length": {
+    "average": 5.2,
+    "min": 4,
+    "max": 6
+  },
+  "regularity_score": 74,
+  "trend": {
+    "direction": "stable",
+    "recent_average": 28.3,
+    "older_average": 28.7
+  }
+}
+```
+
+### Integration with Daily Check-In
+
+The cycle tracking feature integrates with the dashboard's daily summary:
+- Current cycle phase displayed when applicable
+- Days until next predicted period shown
+- Quick log actions available from dashboard
+- Today's log status visible in health section
+
+### Key Files
+- `apps/health/models.py` - CycleSettings, CycleDailyLog, Cycle, CyclePrediction
+- `apps/health/serializers.py` - All cycle serializers
+- `apps/health/views_cycle.py` - All cycle views (1700+ lines)
+- `apps/health/services/cycle_detection.py` - Period detection service
+- `apps/health/services/cycle_phase.py` - Phase calculator
+- `apps/health/services/cycle_export.py` - Data export service
+- `templates/health/cycle/` - Dashboard, calendar, settings, opt-in templates
+- `templates/health/cycle/includes/` - Form partials, modals
+
+### Tests
+- `apps/health/tests/test_cycle_models.py` - Model tests
+- `apps/health/tests/test_cycle_services.py` - Service layer tests (48 tests)
+- `apps/health/tests/test_cycle_api.py` - API endpoint tests (77 tests)
+- `apps/health/tests/test_cycle_views.py` - Template/view tests (51 tests)
+
+**Total: 250+ cycle-related tests**
+
+---
+
+*Last updated: 2026-01-15*

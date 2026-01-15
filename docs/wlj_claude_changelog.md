@@ -16,6 +16,94 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Cycle View/Template Tests (Phase 13)
+
+**Summary:** Created comprehensive tests for cycle tracking template rendering and view logic, plus fixed template bugs exposed by tests.
+
+**Test File:** `apps/health/tests/test_cycle_views.py` (51 tests)
+
+**Test Categories:**
+
+1. **Opt-In Page Tests** (8 tests)
+   - Page renders for logged in user
+   - Requires authentication
+   - Shows enable button when not enabled
+   - Shows enabled state when enabled
+   - Displays privacy information
+   - Displays feature descriptions
+   - Has back to health link
+   - Shows disable modal when enabled
+
+2. **Daily Log Form Submission Tests** (5 tests)
+   - Create via API creates database entry
+   - Minimal data submission succeeds
+   - Form validates flow level choices
+   - Triggers cycle detection service
+   - Update existing log succeeds
+
+3. **Calendar View Tests** (8 tests)
+   - Requires authentication
+   - Renders for enabled user
+   - Contains navigation controls
+   - Contains flow level legend
+   - Contains logs data in JavaScript
+   - Contains predictions data
+   - Has fertile window toggle
+   - Has day of week headers
+
+4. **Settings Page Tests** (5 tests)
+   - Requires authentication
+   - Requires cycle tracking enabled
+   - Renders with current values
+   - Contains expected form fields
+   - Has data management link
+
+5. **HTMX Partial Response Tests** (9 tests)
+   - Day modal returns HTML fragment
+   - Shows empty form for new day
+   - Shows existing data
+   - Requires date parameter
+   - Validates date format
+   - Period toggle returns HTML fragment
+   - Period toggle start creates log
+   - Period toggle end marks complete
+   - Invalid action returns error
+
+6. **Mobile Responsiveness Tests** (9 tests)
+   - All pages have viewport meta tag (5 tests)
+   - Pages have mobile-specific CSS (3 tests)
+
+7. **Dashboard View Tests** (7 tests)
+   - Requires authentication
+   - Shows empty state when not enabled
+   - Shows content when enabled
+   - Shows quick actions
+   - Shows recent logs
+   - Shows floating action button
+   - Has log modal
+
+**Bug Fixes (found by tests):**
+
+1. **Template Symptom Check Bug** - `templates/health/cycle/includes/daily_log_form.html:77-116`
+   - Fixed `{% if 'cramps' in log.symptoms %}` to `{% if log.symptoms and 'cramps' in log.symptoms %}`
+   - Template was failing when `log` was None because it tried to check membership in None.symptoms
+
+2. **Template Date Field Bug** - `templates/health/cycle/includes/daily_log_form.html:28-48`
+   - Fixed log_date fallback logic that failed when `log` was None
+   - Changed from `{{ log_date|default:log.log_date|date:'Y-m-d'|default:'' }}` to conditional blocks
+   - Django template filters don't short-circuit, so `log.log_date` was evaluated even when log_date existed
+
+3. **Dashboard Include Bug** - `templates/health/cycle/dashboard.html:159`
+   - Fixed include to explicitly pass `log=None` when no log exists
+   - Changed from `{% include ... with log_date=today %}` to `{% include ... with log_date=today log=None %}`
+
+**Files Modified:**
+- `apps/health/tests/test_cycle_views.py` (new - 700+ lines)
+- `templates/health/cycle/includes/daily_log_form.html` (bug fixes)
+- `templates/health/cycle/dashboard.html` (include fix)
+
+---
+
 ### Create Cycle API Endpoint Tests (Phase 12)
 
 **Summary:** Created comprehensive API endpoint tests for all cycle tracking endpoints.

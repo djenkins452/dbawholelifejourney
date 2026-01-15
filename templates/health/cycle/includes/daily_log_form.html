@@ -25,19 +25,25 @@ Usage:
     {% csrf_token %}
 
     <!-- Hidden log_date field -->
-    <input type="hidden" name="log_date" id="log-date-input" value="{{ log_date|default:log.log_date|date:'Y-m-d'|default:'' }}">
+    {% if log_date %}
+    <input type="hidden" name="log_date" id="log-date-input" value="{{ log_date|date:'Y-m-d' }}">
+    {% elif log %}
+    <input type="hidden" name="log_date" id="log-date-input" value="{{ log.log_date|date:'Y-m-d' }}">
+    {% else %}
+    <input type="hidden" name="log_date" id="log-date-input" value="">
+    {% endif %}
 
     {% if show_date_picker %}
     <!-- Date picker (when needed) -->
     <div class="form-section">
         <label class="section-label">Date</label>
-        <input
-            type="date"
-            id="log-date-visible"
-            class="date-input"
-            value="{{ log_date|default:log.log_date|date:'Y-m-d'|default:'' }}"
-            max="{{ today|date:'Y-m-d' }}"
-        >
+        {% if log_date %}
+        <input type="date" id="log-date-visible" class="date-input" value="{{ log_date|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}">
+        {% elif log %}
+        <input type="date" id="log-date-visible" class="date-input" value="{{ log.log_date|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}">
+        {% else %}
+        <input type="date" id="log-date-visible" class="date-input" value="" max="{{ today|date:'Y-m-d' }}">
+        {% endif %}
     </div>
     {% endif %}
 
@@ -74,43 +80,43 @@ Usage:
         <label class="section-label">Symptoms</label>
         <p class="section-hint">Tap all that apply</p>
         <div class="symptom-chips" role="group" aria-label="Symptoms">
-            <button type="button" class="symptom-chip {% if 'cramps' in log.symptoms %}active{% endif %}" data-value="cramps">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'cramps' in log.symptoms %}active{% endif %}" data-value="cramps">
                 <span class="chip-emoji">🔴</span>
                 <span class="chip-label">Cramps</span>
             </button>
-            <button type="button" class="symptom-chip {% if 'headache' in log.symptoms %}active{% endif %}" data-value="headache">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'headache' in log.symptoms %}active{% endif %}" data-value="headache">
                 <span class="chip-emoji">🤕</span>
                 <span class="chip-label">Headache</span>
             </button>
-            <button type="button" class="symptom-chip {% if 'fatigue' in log.symptoms %}active{% endif %}" data-value="fatigue">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'fatigue' in log.symptoms %}active{% endif %}" data-value="fatigue">
                 <span class="chip-emoji">😴</span>
                 <span class="chip-label">Fatigue</span>
             </button>
-            <button type="button" class="symptom-chip {% if 'bloating' in log.symptoms %}active{% endif %}" data-value="bloating">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'bloating' in log.symptoms %}active{% endif %}" data-value="bloating">
                 <span class="chip-emoji">🎈</span>
                 <span class="chip-label">Bloating</span>
             </button>
-            <button type="button" class="symptom-chip {% if 'breast_tenderness' in log.symptoms %}active{% endif %}" data-value="breast_tenderness">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'breast_tenderness' in log.symptoms %}active{% endif %}" data-value="breast_tenderness">
                 <span class="chip-emoji">💢</span>
                 <span class="chip-label">Tenderness</span>
             </button>
-            <button type="button" class="symptom-chip {% if 'acne' in log.symptoms %}active{% endif %}" data-value="acne">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'acne' in log.symptoms %}active{% endif %}" data-value="acne">
                 <span class="chip-emoji">😣</span>
                 <span class="chip-label">Acne</span>
             </button>
-            <button type="button" class="symptom-chip {% if 'backache' in log.symptoms %}active{% endif %}" data-value="backache">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'backache' in log.symptoms %}active{% endif %}" data-value="backache">
                 <span class="chip-emoji">🔙</span>
                 <span class="chip-label">Backache</span>
             </button>
-            <button type="button" class="symptom-chip {% if 'nausea' in log.symptoms %}active{% endif %}" data-value="nausea">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'nausea' in log.symptoms %}active{% endif %}" data-value="nausea">
                 <span class="chip-emoji">🤢</span>
                 <span class="chip-label">Nausea</span>
             </button>
-            <button type="button" class="symptom-chip {% if 'food_cravings' in log.symptoms %}active{% endif %}" data-value="food_cravings">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'food_cravings' in log.symptoms %}active{% endif %}" data-value="food_cravings">
                 <span class="chip-emoji">🍫</span>
                 <span class="chip-label">Cravings</span>
             </button>
-            <button type="button" class="symptom-chip {% if 'insomnia' in log.symptoms %}active{% endif %}" data-value="insomnia">
+            <button type="button" class="symptom-chip {% if log.symptoms and 'insomnia' in log.symptoms %}active{% endif %}" data-value="insomnia">
                 <span class="chip-emoji">😵</span>
                 <span class="chip-label">Insomnia</span>
             </button>

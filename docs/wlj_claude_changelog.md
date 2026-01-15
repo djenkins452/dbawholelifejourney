@@ -72,6 +72,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Data Migration Strategy for Existing Users (Gender Field)
+
+**Summary:** Implemented migration strategy for existing users where gender field will be null.
+
+**Implementation:**
+- Migration 0036 already sets `null=True, blank=True` so existing users get `gender=None`
+- Added nudge banner in preferences that shows when gender is not set
+- Documented null gender handling in model comments
+- UI gracefully handles null: shows "Not set" badge, prompts user to set if desired
+
+**Files Modified:**
+- `apps/users/models.py`: Added documentation comments for null handling
+- `templates/users/preferences.html`: Added nudge banner for users without gender set
+
+**Usage Note:** Code checking gender must handle None gracefully. For cycle tracking: `if prefs.gender == 'female'`
+
+---
+
 ### Fix Audio Email - Optional Message Field Causing Error
 
 **Summary:** Fixed bug where sending an audio capture email with a blank message body would fail with an AttributeError.

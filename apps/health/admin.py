@@ -7,6 +7,10 @@ from django.contrib import admin
 from .models import (
     CardioDetails,
     CustomFood,
+    Cycle,
+    CycleDailyLog,
+    CyclePrediction,
+    CycleSettings,
     DailyNutritionSummary,
     DexcomCredential,
     Exercise,
@@ -581,3 +585,92 @@ class ProviderStaffAdmin(admin.ModelAdmin):
     search_fields = ["name", "provider__name", "email"]
     raw_id_fields = ["user", "provider"]
     ordering = ["provider__name", "name"]
+
+
+# =============================================================================
+# Cycle Tracking Admin
+# =============================================================================
+
+
+@admin.register(CycleSettings)
+class CycleSettingsAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "cycle_tracking_enabled",
+        "average_cycle_length",
+        "average_period_length",
+        "notifications_enabled",
+        "fertile_window_tracking_enabled",
+    ]
+    list_filter = ["cycle_tracking_enabled", "notifications_enabled", "fertile_window_tracking_enabled"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+
+
+@admin.register(CycleDailyLog)
+class CycleDailyLogAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "log_date",
+        "flow_level",
+        "mood",
+        "energy_level",
+        "is_period_day",
+        "status",
+    ]
+    list_filter = ["flow_level", "mood", "log_date", "status"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "log_date"
+
+    def is_period_day(self, obj):
+        return obj.is_period_day
+    is_period_day.boolean = True
+    is_period_day.short_description = "Period Day"
+
+
+@admin.register(Cycle)
+class CycleAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "cycle_number",
+        "start_date",
+        "end_date",
+        "cycle_length_display",
+        "period_length",
+        "is_predicted",
+        "status",
+    ]
+    list_filter = ["is_predicted", "status", "start_date"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "start_date"
+    ordering = ["-start_date"]
+
+    def cycle_length_display(self, obj):
+        length = obj.cycle_length
+        return f"{length} days" if length else "Ongoing"
+    cycle_length_display.short_description = "Cycle Length"
+
+
+@admin.register(CyclePrediction)
+class CyclePredictionAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "predicted_period_start",
+        "predicted_period_end",
+        "prediction_confidence",
+        "prediction_algorithm_version",
+        "generated_at",
+        "is_verified",
+    ]
+    list_filter = ["prediction_algorithm_version", "generated_at"]
+    search_fields = ["user__email"]
+    raw_id_fields = ["user"]
+    date_hierarchy = "generated_at"
+    ordering = ["-generated_at"]
+
+    def is_verified(self, obj):
+        return obj.is_verified
+    is_verified.boolean = True
+    is_verified.short_description = "Verified"

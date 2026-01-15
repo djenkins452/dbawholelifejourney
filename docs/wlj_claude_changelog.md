@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Register Cycle Models in Admin (Phase 3)
+
+**Summary:** Added Django admin configuration for all cycle tracking models.
+
+**Admin Classes:**
+- `CycleSettingsAdmin`: list_display for user, tracking enabled, cycle/period lengths
+- `CycleDailyLogAdmin`: list_display for user, log_date, flow_level, mood; date_hierarchy
+- `CycleAdmin`: list_display for user, cycle_number, dates, lengths; cycle_length_display method
+- `CyclePredictionAdmin`: list_display for user, prediction dates, confidence, is_verified method
+
+**All models have:**
+- `search_fields = ["user__email"]` for user search
+- `raw_id_fields = ["user"]` for performance
+- Appropriate `list_filter` options
+
+**Files Modified:** `apps/health/admin.py`
+
+---
+
 ### Create CyclePrediction Model (Phase 2)
 
 **Summary:** Created CyclePrediction model for storing AI-generated cycle predictions.

@@ -1034,6 +1034,32 @@ class CyclePredictionViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View
         return JsonResponse(data, status=201)
 
 
+class CycleSettingsPageView(LoginRequiredMixin, CycleTrackingEnabledMixin, TemplateView):
+    """
+    Cycle tracking settings page.
+
+    Allows users to configure:
+    - Average cycle length
+    - Average period length
+    - Fertile window display toggle
+    - Notification preferences
+    """
+
+    template_name = "health/cycle/settings.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        try:
+            settings = CycleSettings.objects.get(user=user)
+            context["settings"] = settings
+        except CycleSettings.DoesNotExist:
+            context["settings"] = None
+
+        return context
+
+
 class CycleOptInPageView(LoginRequiredMixin, TemplateView):
     """
     Cycle tracking opt-in page.

@@ -1,0 +1,550 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Cycle Settings - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container settings-container">
+    <!-- Header -->
+    <div class="page-header">
+        <a href="{% url 'health:cycle_dashboard' %}" class="back-link">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6"/>
+            </svg>
+            Back to Dashboard
+        </a>
+        <h1 class="page-title">Cycle Settings</h1>
+        <p class="page-subtitle">Customize your cycle tracking preferences</p>
+    </div>
+
+    <!-- Settings Form -->
+    <form id="settings-form" class="settings-form">
+        {% csrf_token %}
+
+        <!-- Cycle Length Section -->
+        <section class="settings-section">
+            <h2 class="section-title">Cycle Length</h2>
+            <p class="section-description">
+                Your average cycle length helps us predict your next period.
+                The typical range is 21-45 days.
+            </p>
+
+            <div class="form-group">
+                <label for="average_cycle_length" class="form-label">
+                    Average cycle length
+                </label>
+                <div class="input-with-unit">
+                    <input type="number"
+                           id="average_cycle_length"
+                           name="average_cycle_length"
+                           value="{{ settings.average_cycle_length|default:28 }}"
+                           min="21"
+                           max="45"
+                           class="form-input number-input"
+                           required>
+                    <span class="input-unit">days</span>
+                </div>
+                <p class="form-hint">
+                    A cycle is counted from the first day of one period to the first day of the next.
+                </p>
+            </div>
+        </section>
+
+        <!-- Period Length Section -->
+        <section class="settings-section">
+            <h2 class="section-title">Period Length</h2>
+            <p class="section-description">
+                Your average period length. The typical range is 2-10 days.
+            </p>
+
+            <div class="form-group">
+                <label for="average_period_length" class="form-label">
+                    Average period length
+                </label>
+                <div class="input-with-unit">
+                    <input type="number"
+                           id="average_period_length"
+                           name="average_period_length"
+                           value="{{ settings.average_period_length|default:5 }}"
+                           min="2"
+                           max="10"
+                           class="form-input number-input"
+                           required>
+                    <span class="input-unit">days</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Display Preferences Section -->
+        <section class="settings-section">
+            <h2 class="section-title">Display Preferences</h2>
+
+            <div class="toggle-setting">
+                <div class="toggle-info">
+                    <span class="toggle-label">Show fertile window</span>
+                    <span class="toggle-description">
+                        Display predicted fertile days on the calendar
+                    </span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox"
+                           id="fertile_window_tracking_enabled"
+                           name="fertile_window_tracking_enabled"
+                           {% if settings.fertile_window_tracking_enabled %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </section>
+
+        <!-- Notifications Section -->
+        <section class="settings-section">
+            <h2 class="section-title">Notifications</h2>
+            <p class="section-description">
+                Get reminded about upcoming periods.
+            </p>
+
+            <div class="toggle-setting">
+                <div class="toggle-info">
+                    <span class="toggle-label">Period reminders</span>
+                    <span class="toggle-description">
+                        Receive a reminder before your predicted period starts
+                    </span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox"
+                           id="notifications_enabled"
+                           name="notifications_enabled"
+                           {% if settings.notifications_enabled %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <p class="coming-soon">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6v6l4 2"/>
+                </svg>
+                Push notifications coming soon
+            </p>
+        </section>
+
+        <!-- Save Button -->
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary save-btn" id="save-btn">
+                Save Changes
+            </button>
+            <div class="save-status" id="save-status"></div>
+        </div>
+    </form>
+
+    <!-- Data Management Link -->
+    <div class="data-link-section">
+        <a href="{% url 'health:cycle_data_management' %}" class="data-link">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Export or delete your data</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.settings-container {
+    max-width: 600px;
+    padding-bottom: var(--space-8);
+}
+
+/* Header */
+.page-header {
+    margin-bottom: var(--space-6);
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    margin-bottom: var(--space-3);
+}
+
+.back-link:hover {
+    color: var(--color-accent);
+}
+
+.page-title {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    margin: 0 0 var(--space-2);
+}
+
+.page-subtitle {
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* Sections */
+.settings-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0 0 var(--space-2);
+}
+
+.section-description {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0 0 var(--space-4);
+}
+
+/* Form Groups */
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+}
+
+.input-with-unit {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.number-input {
+    width: 100px;
+    padding: var(--space-3);
+    font-size: var(--font-size-lg);
+    text-align: center;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+}
+
+.number-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+/* Remove spinner buttons for number inputs */
+.number-input::-webkit-outer-spin-button,
+.number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.number-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.input-unit {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.form-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: var(--space-2) 0 0;
+}
+
+/* Toggle Settings */
+.toggle-setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.toggle-setting:last-of-type {
+    border-bottom: none;
+}
+
+.toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.toggle-label {
+    font-weight: 500;
+}
+
+.toggle-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    width: 52px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    transition: background 0.2s;
+}
+
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    left: 3px;
+    top: 3px;
+    background: white;
+    border-radius: var(--radius-full);
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--color-success);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(24px);
+}
+
+.toggle-switch input:focus + .toggle-slider {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+/* Coming Soon Badge */
+.coming-soon {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: var(--space-3) 0 0;
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.save-btn {
+    min-width: 140px;
+}
+
+.save-status {
+    font-size: var(--font-size-sm);
+    color: var(--color-success);
+}
+
+.save-status.error {
+    color: var(--color-danger);
+}
+
+/* Data Link Section */
+.data-link-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.data-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    color: var(--color-text);
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.data-link:hover {
+    background: var(--color-bg-hover);
+}
+
+.data-link span {
+    flex: 1;
+}
+
+.data-link svg:first-child {
+    color: var(--color-text-muted);
+}
+
+.data-link svg:last-child {
+    color: var(--color-text-muted);
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .settings-container {
+        padding-left: var(--space-3);
+        padding-right: var(--space-3);
+    }
+
+    .settings-section {
+        padding: var(--space-4);
+    }
+
+    .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .save-btn {
+        width: 100%;
+    }
+
+    .save-status {
+        text-align: center;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const form = document.getElementById('settings-form');
+    const saveBtn = document.getElementById('save-btn');
+    const saveStatus = document.getElementById('save-status');
+    let originalValues = {};
+
+    // Store original values on load
+    function storeOriginalValues() {
+        originalValues = {
+            average_cycle_length: document.getElementById('average_cycle_length').value,
+            average_period_length: document.getElementById('average_period_length').value,
+            fertile_window_tracking_enabled: document.getElementById('fertile_window_tracking_enabled').checked,
+            notifications_enabled: document.getElementById('notifications_enabled').checked,
+        };
+    }
+
+    storeOriginalValues();
+
+    // Check if form has changes
+    function hasChanges() {
+        return (
+            document.getElementById('average_cycle_length').value !== originalValues.average_cycle_length ||
+            document.getElementById('average_period_length').value !== originalValues.average_period_length ||
+            document.getElementById('fertile_window_tracking_enabled').checked !== originalValues.fertile_window_tracking_enabled ||
+            document.getElementById('notifications_enabled').checked !== originalValues.notifications_enabled
+        );
+    }
+
+    // Validate inputs
+    function validate() {
+        const cycleLength = parseInt(document.getElementById('average_cycle_length').value);
+        const periodLength = parseInt(document.getElementById('average_period_length').value);
+
+        if (cycleLength < 21 || cycleLength > 45) {
+            return 'Cycle length must be between 21 and 45 days.';
+        }
+
+        if (periodLength < 2 || periodLength > 10) {
+            return 'Period length must be between 2 and 10 days.';
+        }
+
+        if (periodLength >= cycleLength) {
+            return 'Period length cannot be longer than cycle length.';
+        }
+
+        return null;
+    }
+
+    // Handle form submission
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const error = validate();
+        if (error) {
+            saveStatus.textContent = error;
+            saveStatus.className = 'save-status error';
+            return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        saveStatus.textContent = '';
+
+        const data = {
+            average_cycle_length: parseInt(document.getElementById('average_cycle_length').value),
+            average_period_length: parseInt(document.getElementById('average_period_length').value),
+            fertile_window_tracking_enabled: document.getElementById('fertile_window_tracking_enabled').checked,
+            notifications_enabled: document.getElementById('notifications_enabled').checked,
+        };
+
+        try {
+            const response = await fetch('{% url "health:cycle_settings_api" %}', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.error || result.errors?.average_cycle_length?.[0] || 'Failed to save');
+            }
+
+            saveStatus.textContent = 'Settings saved!';
+            saveStatus.className = 'save-status';
+            storeOriginalValues();
+
+            // Clear success message after 3 seconds
+            setTimeout(() => {
+                saveStatus.textContent = '';
+            }, 3000);
+
+        } catch (error) {
+            saveStatus.textContent = error.message;
+            saveStatus.className = 'save-status error';
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Changes';
+        }
+    });
+
+    // Warn before leaving with unsaved changes
+    window.addEventListener('beforeunload', (e) => {
+        if (hasChanges()) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+})();
+</script>
+{% endblock %}

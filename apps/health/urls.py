@@ -168,6 +168,7 @@ urlpatterns = [
     # ==========================================================================
     path("cycle/", views_cycle.CycleDashboardView.as_view(), name="cycle_dashboard"),
     path("cycle/calendar/", views_cycle.CycleCalendarView.as_view(), name="cycle_calendar"),
+    path("cycle/settings/", views_cycle.CycleSettingsPageView.as_view(), name="cycle_settings_page"),
     path("cycle/opt-in/", views_cycle.CycleOptInPageView.as_view(), name="cycle_opt_in_page"),
 
     # ==========================================================================

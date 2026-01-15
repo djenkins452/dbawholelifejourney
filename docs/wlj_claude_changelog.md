@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle Settings Page (Phase 9)
+
+**Summary:** Created settings page for users to customize cycle tracking preferences.
+
+**Features:**
+- Average cycle length input (range 21-45 days, default 28)
+- Average period length input (range 2-10 days, default 5)
+- Fertile window display toggle
+- Notifications toggle (placeholder for future feature)
+- Client-side validation with error messages
+- AJAX save with success/error feedback
+- Unsaved changes warning on page leave
+- Link to data management page
+
+**Files Created:**
+- `templates/health/cycle/settings.html` - Settings page
+
+**Files Modified:**
+- `apps/health/views_cycle.py` - Added CycleSettingsPageView
+- `apps/health/urls.py` - Added cycle_settings_page URL
+
+**URL:** `/health/cycle/settings/` (name: `cycle_settings_page`)
+
+---
+
 ### Create Data Management Page (Phase 9)
 
 **Summary:** Created page for users to export and delete their cycle tracking data.

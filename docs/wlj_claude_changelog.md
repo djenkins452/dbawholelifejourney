@@ -16,6 +16,37 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CyclePredictionService (Phase 5)
+
+**Summary:** Created service for predicting next period and fertile window using weighted moving averages.
+
+**Service:** `CyclePredictionService` in `apps/health/services/cycle_prediction.py`
+
+**Methods:**
+- `generate_prediction(save=True)`: Generate new prediction from historical data
+- `can_generate_prediction()`: Check if prediction is possible (min 3 cycles)
+- `get_latest_prediction()`: Get most recent prediction
+- `get_prediction_accuracy_stats()`: Calculate accuracy metrics from past predictions
+
+**Features:**
+- Weighted moving average: recent cycles weighted higher (3x, 2.5x, 2x, etc.)
+- Uses last 3-6 completed cycles for prediction
+- Confidence scores based on cycle regularity (standard deviation)
+- Fertile window calculation adjusted for user's cycle length
+- Returns None if fewer than 3 completed cycles
+- Algorithm version tracking (v1.0-wma)
+
+**Confidence Levels:**
+- High: 80%+ (std dev <= 2 days)
+- Medium: 60-79% (std dev 3-4 days)
+- Low: 40-59% (std dev 5-6 days)
+- Very Low: <40% (std dev 7+ days)
+
+**Files Created:** `apps/health/services/cycle_prediction.py`
+**Files Modified:** `apps/health/services/__init__.py`
+
+---
+
 ### Create cycle phase calculator (Phase 5)
 
 **Summary:** Created service function to calculate current cycle phase based on cycle day.

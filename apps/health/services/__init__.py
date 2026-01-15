@@ -14,6 +14,7 @@ from .food_search import FoodSearchService, food_search_service
 from .cycle_detection import CycleDetectionService, process_daily_log_signal
 from .cycle_export import CycleDataExportService
 from .cycle_phase import get_current_phase, get_phase_by_day, get_all_phases
+from .cycle_prediction import CyclePredictionService
 
 __all__ = [
     'DexcomService',
@@ -30,4 +31,5 @@ __all__ = [
     'get_current_phase',
     'get_phase_by_day',
     'get_all_phases',
+    'CyclePredictionService',
 ]

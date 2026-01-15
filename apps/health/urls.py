@@ -235,4 +235,7 @@ urlpatterns = [
     path("cycle/data/export/json/", views_cycle.CycleExportJSONView.as_view(), name="cycle_export_json"),
     path("cycle/data/export/csv/", views_cycle.CycleExportCSVView.as_view(), name="cycle_export_csv"),
     path("cycle/data/delete-all/", views_cycle.CycleDeleteAllView.as_view(), name="cycle_delete_all"),
+
+    # Export API (GET endpoint with rate limiting)
+    path("api/cycle/export/", views_cycle.CycleExportAPIView.as_view(), name="cycle_export_api"),
 ]

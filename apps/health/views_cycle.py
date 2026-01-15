@@ -1537,3 +1537,96 @@ class CycleDeleteAllView(LoginRequiredMixin, CycleTrackingEnabledMixin, View):
         )
 
         return redirect("health:cycle_opt_in")
+
+
+class CycleExportAPIView(LoginRequiredMixin, CycleTrackingEnabledMixin, View):
+    """
+    API endpoint for exporting cycle data with rate limiting.
+
+    GET /health/api/cycle/export/?format=json
+    GET /health/api/cycle/export/?format=csv
+
+    Rate limited to 5 exports per hour per user.
+
+    Query parameters:
+        format: Export format - 'json' (default) or 'csv'
+
+    Returns:
+        - File download with Content-Disposition header
+        - 429 Too Many Requests if rate limit exceeded
+        - 400 Bad Request if invalid format
+        - 204 No Content if user has no cycle data
+    """
+
+    # Rate limit: 5 exports per hour per user
+    EXPORTS_PER_HOUR = 5
+    RATE_LIMIT_KEY_PREFIX = "cycle_export_rate_limit"
+
+    def get(self, request):
+        """Handle export request with rate limiting."""
+        from django.core.cache import cache
+        from django.http import HttpResponse
+
+        # Check rate limit (per user, not per IP)
+        user_id = request.user.id
+        hour_key = f"{self.RATE_LIMIT_KEY_PREFIX}:user:{user_id}:{timezone.now().strftime('%Y%m%d%H')}"
+        export_count = cache.get(hour_key, 0)
+
+        if export_count >= self.EXPORTS_PER_HOUR:
+            return JsonResponse(
+                {
+                    "error": "Export rate limit exceeded. Maximum 5 exports per hour.",
+                    "retry_after": 3600,
+                    "exports_remaining": 0,
+                },
+                status=429
+            )
+
+        # Validate format parameter
+        export_format = request.GET.get("format", "json").lower()
+        if export_format not in ("json", "csv"):
+            return JsonResponse(
+                {"error": "Invalid format. Must be 'json' or 'csv'."},
+                status=400
+            )
+
+        # Check if user has any data
+        from .services.cycle_export import CycleDataExportService
+        service = CycleDataExportService(request.user)
+        size_estimate = service.get_export_size_estimate()
+
+        total_records = (
+            size_estimate["counts"]["daily_logs"]
+            + size_estimate["counts"]["cycles"]
+            + size_estimate["counts"]["predictions"]
+        )
+
+        if total_records == 0:
+            return JsonResponse(
+                {
+                    "message": "No cycle data to export.",
+                    "counts": size_estimate["counts"],
+                },
+                status=204
+            )
+
+        # Increment rate limit counter
+        cache.set(hour_key, export_count + 1, timeout=3600)
+
+        # Generate export
+        timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+
+        if export_format == "json":
+            content = service.export_to_json_string()
+            content_type = "application/json"
+            filename = f"cycle_data_{timestamp}.json"
+        else:  # csv
+            content = service.export_to_csv(data_type="daily_logs")
+            content_type = "text/csv"
+            filename = f"cycle_logs_{timestamp}.csv"
+
+        response = HttpResponse(content, content_type=content_type)
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        response["X-Exports-Remaining"] = str(self.EXPORTS_PER_HOUR - export_count - 1)
+
+        return response

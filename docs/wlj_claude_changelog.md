@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle Data Export API Endpoint (Phase 10)
+
+**Summary:** Created REST API endpoint for downloading cycle data with rate limiting.
+
+**Endpoint:** `GET /health/api/cycle/export/?format=json|csv`
+
+**Features:**
+- Accepts `format` parameter: `json` (default) or `csv`
+- Returns file download with proper `Content-Disposition` header
+- Rate limited to 5 exports per hour per user (tracked via Django cache)
+- Returns `X-Exports-Remaining` header to track remaining quota
+- Returns 204 No Content when user has no cycle data
+- Returns 400 Bad Request for invalid format parameter
+- Returns 429 Too Many Requests when rate limit exceeded
+
+**Files Modified:**
+- `apps/health/views_cycle.py` - Added CycleExportAPIView class
+- `apps/health/urls.py` - Added route for cycle_export_api
+- `apps/health/tests/test_cycle_export.py` - Created comprehensive test suite (11 tests)
+
+---
+
 ### Add Cycle Tracking to Health Settings (Phase 9)
 
 **Summary:** Added cycle tracking section to the main preferences page under Health & Wellness.

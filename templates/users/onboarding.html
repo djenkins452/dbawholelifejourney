@@ -186,5 +186,39 @@
 .onboarding-footer {
     margin: 0;
 }
+
+@media (max-width: 640px) {
+    .onboarding-container {
+        padding: var(--space-4);
+        align-items: flex-start;
+    }
+
+    .onboarding-header h1 {
+        font-size: var(--font-size-xl);
+    }
+
+    .onboarding-header p {
+        font-size: var(--font-size-base);
+    }
+
+    .step-icon {
+        width: 40px;
+        height: 40px;
+    }
+
+    .step-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .step-content h3 {
+        font-size: var(--font-size-base);
+    }
+
+    .onboarding-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
 </style>
 {% endblock %}

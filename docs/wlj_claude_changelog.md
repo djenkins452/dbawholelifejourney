@@ -16,6 +16,50 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle Service Layer Tests (Phase 11)
+
+**Summary:** Created comprehensive unit tests for all cycle tracking service classes.
+
+**Test File:** `apps/health/tests/test_cycle_services.py` (48 tests)
+
+**Services Tested:**
+
+1. **CycleDetectionService** (12 tests)
+   - `_check_period_start()` detection from no-flow and spotting
+   - `_check_period_end()` after 2+ consecutive no-flow days
+   - `_create_new_cycle()` closes previous ongoing cycle
+   - Flow level constants (light/medium/heavy vs spotting/none)
+   - `recalculate_cycles()` from daily logs
+
+2. **CyclePredictionService** (16 tests)
+   - `can_generate_prediction()` requirements (3+ cycles, tracking enabled)
+   - `generate_prediction()` with regular and irregular cycles
+   - Weighted average favoring recent cycles
+   - Confidence scoring (high for regular, low for irregular)
+   - Fertile window calculation (enabled/disabled)
+   - `get_prediction_accuracy_stats()` with verified predictions
+
+3. **CycleStatisticsService** (13 tests)
+   - `get_average_cycle_length()` and `get_average_period_length()`
+   - `get_symptom_frequency()` counting
+   - `get_cycle_regularity_score()` (excellent/good/fair/irregular)
+   - `get_trends()` (stable/lengthening/shortening)
+   - `get_summary()` comprehensive output
+
+4. **Edge Cases** (7 tests)
+   - Gaps in daily log data
+   - Incomplete cycle data (missing period_end_date)
+   - Highly irregular cycles
+   - Minimum viable data (2 cycles)
+   - Future date handling
+   - Ongoing cycle with prediction
+   - User data isolation
+
+**Files Created:**
+- `apps/health/tests/test_cycle_services.py` - 48 service layer tests
+
+---
+
 ### Create Cycle Tracking Model Unit Tests (Phase 10)
 
 **Summary:** Created comprehensive model unit tests for all cycle tracking models.

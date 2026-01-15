@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Auto-enable Cycle Tracking for Female Users (Phase 2)
+
+**Summary:** Created signal handler to auto-enable cycle tracking when a user sets their gender to female.
+
+**Signal Behavior:**
+- When gender is set to 'female', auto-create CycleSettings with `cycle_tracking_enabled=True`
+- If CycleSettings already exists, respect existing settings (don't override)
+- Changing gender FROM female does NOT delete existing CycleSettings
+- For male/prefer_not_to_say/None, do NOT auto-create CycleSettings
+
+**Files Modified:**
+- `apps/users/signals.py`: Added `auto_enable_cycle_tracking_for_female` signal handler
+- `apps/users/tests/test_signals.py`: Created with 5 tests for signal behavior
+
+---
+
 ### Verify Cycle Model Migrations (Phase 2)
 
 **Summary:** Verified all cycle tracking model migrations are complete.

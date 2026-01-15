@@ -55,3 +55,24 @@ def save_user_preferences(sender, instance, **kwargs):
             user=instance,
             theme=settings.WLJ_SETTINGS.get("DEFAULT_THEME", "minimal"),
         )
+
+
+@receiver(post_save, sender=UserPreferences)
+def auto_enable_cycle_tracking_for_female(sender, instance, **kwargs):
+    """
+    Auto-enable cycle tracking when a user sets their gender to female.
+
+    Behavior:
+    - If gender is 'female', create CycleSettings with cycle_tracking_enabled=True
+    - If CycleSettings already exists, respect existing settings (don't override)
+    - If gender changes FROM female to something else, do NOT delete CycleSettings
+    - For male/prefer_not_to_say/None, do NOT auto-create CycleSettings
+    """
+    if instance.gender == "female":
+        from apps.health.models import CycleSettings
+
+        # get_or_create: only creates if doesn't exist, respects existing settings
+        CycleSettings.objects.get_or_create(
+            user=instance.user,
+            defaults={"cycle_tracking_enabled": True},
+        )

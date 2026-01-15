@@ -17,6 +17,29 @@ from apps.core.utils import get_user_today
 import json
 
 
+def get_document_storage():
+    """
+    Return the appropriate storage backend for document files.
+
+    Uses RawMediaCloudinaryStorage for Cloudinary (handles PDFs and raw files properly)
+    or falls back to default FileSystemStorage for local development.
+    """
+    from django.conf import settings
+
+    # Check if Cloudinary is configured
+    cloudinary_settings = getattr(settings, 'CLOUDINARY_STORAGE', None)
+    if cloudinary_settings and cloudinary_settings.get('CLOUD_NAME'):
+        try:
+            from cloudinary_storage.storage import RawMediaCloudinaryStorage
+            return RawMediaCloudinaryStorage()
+        except ImportError:
+            pass
+
+    # Fall back to default storage
+    from django.core.files.storage import default_storage
+    return default_storage
+
+
 # =============================================================================
 # Projects
 # =============================================================================
@@ -855,9 +878,10 @@ class Document(UserOwnedModel):
         default='other'
     )
     
-    # File upload
+    # File upload - uses RawMediaCloudinaryStorage for PDFs and raw files
     file = models.FileField(
         upload_to='life/documents/%Y/%m/',
+        storage=get_document_storage,
         help_text="Upload document (PDF, image, or other file)"
     )
     file_type = models.CharField(

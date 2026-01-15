@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Fix PDF Document Viewing in Organize/Documents
+
+**Summary:** Fixed "Failed to load PDF document" error when viewing uploaded PDFs in the Documents section. PDFs now display correctly in the iframe preview.
+
+**Problem:** PDFs uploaded via Cloudinary's `MediaCloudinaryStorage` were being treated as image resources, but PDFs require "raw" resource type for proper serving. The direct Cloudinary URL was failing to load in the browser iframe.
+
+**Solution:**
+1. Created `get_document_storage()` function that returns `RawMediaCloudinaryStorage` for proper PDF/raw file handling
+2. Updated Document model's `file` field to use the new storage function
+3. Added `DocumentViewInlineView` that serves files inline with correct Content-Type headers
+4. Updated document detail template to use the new inline view URL instead of direct Cloudinary URL
+
+**Files Modified:**
+- `apps/life/models.py` - Added `get_document_storage()` function, updated Document.file field storage
+- `apps/life/views.py` - Added `DocumentViewInlineView` for inline PDF viewing
+- `apps/life/urls.py` - Added URL pattern `documents/<pk>/view/` for inline viewing
+- `templates/life/document_detail.html` - Changed iframe src to use `document_view_inline` URL
+
+**Technical Details:**
+- New documents will be stored using `RawMediaCloudinaryStorage` which uses Cloudinary's "raw" resource type
+- The inline view serves files through Django with proper Content-Type headers (application/pdf for PDFs)
+- X-Frame-Options is set to SAMEORIGIN to allow iframe embedding
+- Existing documents may need to be re-uploaded if they were stored with wrong resource type
+
+---
+
 ### Add Pending Model Migrations
 
 **Summary:** Created migrations for model field changes that were detected by CI checks.

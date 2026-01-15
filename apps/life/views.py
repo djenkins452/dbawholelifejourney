@@ -1493,6 +1493,35 @@ class DocumentDownloadView(LifeAccessMixin, View):
         return redirect('life:document_detail', pk=pk)
 
 
+class DocumentViewInlineView(LifeAccessMixin, View):
+    """View a document file inline (for PDF viewing in iframe)."""
+
+    def get(self, request, pk):
+        document = get_object_or_404(Document, pk=pk, user=request.user)
+
+        if document.file:
+            # Determine content type
+            content_type = 'application/octet-stream'
+            if document.file_type == 'pdf':
+                content_type = 'application/pdf'
+            elif document.file_type == 'image/jpeg':
+                content_type = 'image/jpeg'
+            elif document.file_type == 'image/png':
+                content_type = 'image/png'
+
+            response = FileResponse(
+                document.file.open('rb'),
+                as_attachment=False,  # Inline viewing
+                content_type=content_type,
+            )
+            # Allow embedding in iframe
+            response['X-Frame-Options'] = 'SAMEORIGIN'
+            return response
+
+        messages.error(request, "File not found.")
+        return redirect('life:document_detail', pk=pk)
+
+
 # =============================================================================
 # Significant Events (Birthdays, Anniversaries, etc.)
 # =============================================================================

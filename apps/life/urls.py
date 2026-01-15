@@ -64,6 +64,7 @@ from .views import (
     DocumentUpdateView,
     DocumentDeleteView,
     DocumentDownloadView,
+    DocumentViewInlineView,
     # Significant Events
     SignificantEventListView,
     SignificantEventDetailView,
@@ -163,6 +164,7 @@ urlpatterns = [
     path("documents/<int:pk>/edit/", DocumentUpdateView.as_view(), name="document_update"),
     path("documents/<int:pk>/delete/", DocumentDeleteView.as_view(), name="document_delete"),
     path("documents/<int:pk>/download/", DocumentDownloadView.as_view(), name="document_download"),
+    path("documents/<int:pk>/view/", DocumentViewInlineView.as_view(), name="document_view_inline"),
     path("documents/bulk/delete/", BulkDeleteDocumentsView.as_view(), name="document_bulk_delete"),
 
     # Significant Events (Birthdays, Anniversaries, etc.)

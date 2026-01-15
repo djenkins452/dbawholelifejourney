@@ -176,6 +176,8 @@ class PreferencesForm(forms.ModelForm):
         fields = [
             "theme",
             "accent_color",
+            # Personal information
+            "gender",
             # Module toggles
             "journal_enabled",
             "faith_enabled",
@@ -238,6 +240,10 @@ class PreferencesForm(forms.ModelForm):
                 "class": "form-input",
                 "type": "color",
                 "placeholder": "#6366f1",
+            }),
+            # Personal information
+            "gender": forms.Select(attrs={
+                "class": "form-select",
             }),
             # Module toggles
             "journal_enabled": forms.CheckboxInput(attrs={

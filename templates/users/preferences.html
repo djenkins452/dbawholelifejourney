@@ -97,6 +97,71 @@
             </div>
 
             <!-- ═══════════════════════════════════════════════════════════════════
+                 PERSONAL INFORMATION
+                 ═══════════════════════════════════════════════════════════════════ -->
+            <div class="accordion-group" data-accordion-key="personal-info">
+                <button type="button" class="accordion-header">
+                    <div class="accordion-header-content">
+                        <span class="accordion-icon">👤</span>
+                        <div class="accordion-title-group">
+                            <h2 class="accordion-title">Personal Information</h2>
+                            <p class="accordion-subtitle">Help us personalize your experience</p>
+                        </div>
+                    </div>
+                    <div class="accordion-header-right">
+                        <div class="accordion-status">
+                            {% if form.gender.value %}
+                                <span class="accordion-badge accordion-badge-active">
+                                    {% for value, label in form.fields.gender.choices %}
+                                        {% if form.gender.value == value %}{{ label }}{% endif %}
+                                    {% endfor %}
+                                </span>
+                            {% else %}
+                                <span class="accordion-badge">Not set</span>
+                            {% endif %}
+                        </div>
+                        <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </button>
+                <div class="accordion-body">
+                    <div class="form-group">
+                        <label for="id_gender" class="form-label">Gender</label>
+                        <select name="gender" id="id_gender" class="form-select">
+                            <option value="">— Select (optional) —</option>
+                            {% for value, label in form.fields.gender.choices %}
+                                <option value="{{ value }}" {% if form.gender.value == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <p class="form-help">
+                            This helps us personalize your health features. For example, users who select "Female"
+                            will have access to cycle tracking features.
+                        </p>
+                    </div>
+
+                    <div class="privacy-info mt-4 p-4 bg-surface-alt rounded-md">
+                        <div class="flex items-start gap-3">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" class="flex-shrink-0 text-muted mt-0.5">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            </svg>
+                            <div>
+                                <p class="text-sm text-muted mb-2">
+                                    <strong>Privacy note:</strong> Your gender is used solely to personalize health features
+                                    within the app. It is never shared with third parties or used for advertising.
+                                </p>
+                                <p class="text-sm text-muted">
+                                    You can change or clear this setting at any time.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════════════
                  MODULES
                  ═══════════════════════════════════════════════════════════════════ -->
             <div class="accordion-group" data-accordion-key="modules">

@@ -225,6 +225,42 @@
     width: 16px;
     height: 16px;
 }
+
+@media (max-width: 640px) {
+    .stats-row {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+        padding: var(--space-4);
+    }
+
+    .stat-card .stat-value {
+        font-size: var(--font-size-2xl);
+    }
+
+    .progress-section {
+        padding: var(--space-4);
+    }
+
+    .exercise-filter select {
+        max-width: 100%;
+    }
+
+    .progress-table {
+        overflow-x: auto;
+    }
+
+    .progress-table table {
+        min-width: 300px;
+    }
+
+    .progress-table th,
+    .progress-table td {
+        padding: var(--space-2);
+        font-size: var(--font-size-sm);
+    }
+}
 </style>
 
 {% if selected_exercise and progress_data %}

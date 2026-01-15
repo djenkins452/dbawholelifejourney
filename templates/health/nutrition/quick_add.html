@@ -102,5 +102,30 @@
 .helper-text {
     max-width: 400px;
 }
+
+@media (max-width: 640px) {
+    .form-card {
+        padding: var(--space-4);
+        max-width: 100%;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: var(--space-3);
+    }
+
+    .form-actions {
+        flex-direction: column-reverse;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .helper-text {
+        max-width: 100%;
+    }
+}
 </style>
 {% endblock %}

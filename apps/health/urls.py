@@ -210,9 +210,9 @@ urlpatterns = [
     path("cycle/api/cycles/statistics/", views_cycle.CycleViewSet.as_view(), {"action": "statistics"}, name="cycle_cycles_statistics"),
     path("cycle/api/cycles/<int:cycle_id>/", views_cycle.CycleViewSet.as_view(), name="cycle_cycles_detail"),
 
-    # Predictions - Placeholder (ViewSet to be created in future task)
-    # path("cycle/api/predictions/", views_cycle.CyclePredictionViewSet.as_view(), name="cycle_predictions_list"),
-    # path("cycle/api/predictions/current/", views_cycle.CyclePredictionViewSet.as_view(), {"action": "current"}, name="cycle_predictions_current"),
-    # path("cycle/api/predictions/regenerate/", views_cycle.CyclePredictionViewSet.as_view(), {"action": "regenerate"}, name="cycle_predictions_regenerate"),
-    # path("cycle/api/predictions/<int:prediction_id>/", views_cycle.CyclePredictionViewSet.as_view(), name="cycle_predictions_detail"),
+    # Predictions - Read-only with regenerate action
+    path("cycle/api/predictions/", views_cycle.CyclePredictionViewSet.as_view(), name="cycle_predictions_list"),
+    path("cycle/api/predictions/current/", views_cycle.CyclePredictionViewSet.as_view(), {"action": "current"}, name="cycle_predictions_current"),
+    path("cycle/api/predictions/regenerate/", views_cycle.CyclePredictionViewSet.as_view(), {"action": "regenerate"}, name="cycle_predictions_regenerate"),
+    path("cycle/api/predictions/<int:prediction_id>/", views_cycle.CyclePredictionViewSet.as_view(), name="cycle_predictions_detail"),
 ]

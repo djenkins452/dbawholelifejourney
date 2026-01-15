@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CyclePredictionViewSet (Phase 4)
+
+**Summary:** Created ViewSet for cycle predictions with regenerate capability.
+
+**Views:**
+- `CyclePredictionViewSet`: ViewSet for predictions
+  - `list`: List all predictions with pagination
+  - `retrieve`: Get single prediction by ID
+  - `current`: Get latest active prediction with days until period and status
+  - `regenerate`: Generate new prediction from cycle data (POST)
+
+**Features:**
+- Minimum 3 completed cycles required for predictions
+- Regenerate calculates predictions based on average cycle/period length
+- Confidence score based on data consistency (std deviation)
+- Fertile window predictions when enabled in user settings
+- Algorithm version tracking (v1.0-basic)
+- Status messages: overdue, today, soon, upcoming
+
+**Endpoints Added:**
+- `/health/cycle/api/predictions/` - List predictions
+- `/health/cycle/api/predictions/<id>/` - Retrieve prediction
+- `/health/cycle/api/predictions/current/` - Get current prediction
+- `/health/cycle/api/predictions/regenerate/` - Generate new prediction
+
+**Files Modified:** `apps/health/views_cycle.py`, `apps/health/urls.py`
+
+---
+
 ### Add URL Routing for Cycle API (Phase 4)
 
 **Summary:** Configured URL routing for all cycle tracking API endpoints.

@@ -24,7 +24,12 @@ from .models import (
     CyclePrediction,
     CycleSettings,
 )
-from .serializers import CycleDailyLogSerializer, CycleSerializer, CycleSettingsSerializer
+from .serializers import (
+    CycleDailyLogSerializer,
+    CyclePredictionSerializer,
+    CycleSerializer,
+    CycleSettingsSerializer,
+)
 
 
 class CycleTrackingEnabledMixin:
@@ -766,3 +771,260 @@ class CycleDailyLogViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View):
         # For now, we'll just ensure the service hook is in place
         # The actual implementation will be in a separate service class
         pass
+
+
+class CyclePredictionViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View):
+    """
+    ViewSet for cycle predictions (read-only with regenerate action).
+
+    Provides:
+    - GET /: List all predictions with pagination
+    - GET /<id>/: Retrieve single prediction
+    - GET /current/: Get the latest/active prediction
+    - POST /regenerate/: Generate new prediction from latest cycle data
+    """
+
+    # Pagination settings
+    DEFAULT_PAGE_SIZE = 10
+    MAX_PAGE_SIZE = 50
+
+    # Minimum cycles required for prediction
+    MIN_CYCLES_FOR_PREDICTION = 3
+
+    # Current algorithm version
+    ALGORITHM_VERSION = "v1.0-basic"
+
+    def get(self, request, prediction_id=None, action=None):
+        """Route GET requests to appropriate handler."""
+        if action == "current":
+            return self.current(request)
+        elif prediction_id:
+            return self.retrieve(request, prediction_id)
+        else:
+            return self.list(request)
+
+    def post(self, request, action=None):
+        """Handle POST requests for regenerate action."""
+        if action == "regenerate":
+            return self.regenerate(request)
+        return JsonResponse({"error": "Method not allowed."}, status=405)
+
+    def list(self, request):
+        """
+        List all predictions with pagination.
+
+        Query params:
+        - page: Page number (default 1)
+        - page_size: Items per page (default 10, max 50)
+        """
+        predictions = CyclePrediction.objects.filter(user=request.user)
+
+        # Get total count before pagination
+        total_count = predictions.count()
+
+        # Check if user has enough cycles for predictions
+        completed_cycles_count = Cycle.objects.filter(
+            user=request.user,
+            end_date__isnull=False
+        ).count()
+
+        if total_count == 0 and completed_cycles_count < self.MIN_CYCLES_FOR_PREDICTION:
+            return JsonResponse({
+                "message": f"Predictions require at least {self.MIN_CYCLES_FOR_PREDICTION} completed cycles. "
+                           f"You have {completed_cycles_count} completed cycle(s).",
+                "completed_cycles": completed_cycles_count,
+                "cycles_needed": self.MIN_CYCLES_FOR_PREDICTION - completed_cycles_count,
+                "count": 0,
+                "results": [],
+            })
+
+        # Pagination
+        page = int(request.GET.get("page", 1))
+        page_size = min(
+            int(request.GET.get("page_size", self.DEFAULT_PAGE_SIZE)),
+            self.MAX_PAGE_SIZE
+        )
+
+        offset = (page - 1) * page_size
+        predictions = predictions.order_by("-generated_at")[offset:offset + page_size]
+
+        # Serialize
+        data = [CyclePredictionSerializer(instance=pred).data for pred in predictions]
+
+        return JsonResponse({
+            "count": total_count,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total_count + page_size - 1) // page_size if page_size > 0 else 0,
+            "algorithm_version": self.ALGORITHM_VERSION,
+            "results": data,
+        })
+
+    def retrieve(self, request, prediction_id):
+        """Retrieve a single prediction by ID."""
+        try:
+            prediction = CyclePrediction.objects.get(id=prediction_id, user=request.user)
+        except CyclePrediction.DoesNotExist:
+            return JsonResponse({"error": "Prediction not found."}, status=404)
+
+        serializer = CyclePredictionSerializer(instance=prediction)
+        data = serializer.data
+        data["algorithm_version"] = prediction.prediction_algorithm_version
+        return JsonResponse(data)
+
+    def current(self, request):
+        """
+        Get the current (latest) active prediction.
+
+        Returns the most recent prediction that hasn't been verified yet.
+        Returns 404 if no active prediction exists.
+        """
+        # Check if user has enough cycles
+        completed_cycles_count = Cycle.objects.filter(
+            user=request.user,
+            end_date__isnull=False
+        ).count()
+
+        if completed_cycles_count < self.MIN_CYCLES_FOR_PREDICTION:
+            return JsonResponse({
+                "message": f"Predictions require at least {self.MIN_CYCLES_FOR_PREDICTION} completed cycles. "
+                           f"You have {completed_cycles_count} completed cycle(s).",
+                "completed_cycles": completed_cycles_count,
+                "cycles_needed": self.MIN_CYCLES_FOR_PREDICTION - completed_cycles_count,
+            }, status=404)
+
+        # Get active prediction
+        prediction = CyclePrediction.get_active_prediction(request.user)
+
+        if not prediction:
+            return JsonResponse({
+                "message": "No active prediction found. Use regenerate to create one.",
+                "can_regenerate": True,
+            }, status=404)
+
+        serializer = CyclePredictionSerializer(instance=prediction)
+        data = serializer.data
+
+        # Add days until predicted period
+        days_until = (prediction.predicted_period_start - date.today()).days
+        data["days_until_period"] = days_until
+
+        # Add status based on timing
+        if days_until < 0:
+            data["status"] = "overdue"
+            data["status_message"] = f"Period was expected {abs(days_until)} day(s) ago"
+        elif days_until == 0:
+            data["status"] = "today"
+            data["status_message"] = "Period expected today"
+        elif days_until <= 3:
+            data["status"] = "soon"
+            data["status_message"] = f"Period expected in {days_until} day(s)"
+        else:
+            data["status"] = "upcoming"
+            data["status_message"] = f"Period expected in {days_until} days"
+
+        return JsonResponse(data)
+
+    def regenerate(self, request):
+        """
+        Generate a new prediction based on the latest cycle data.
+
+        Uses a simple algorithm based on average cycle length.
+        Returns 400 if user has fewer than MIN_CYCLES_FOR_PREDICTION completed cycles.
+        """
+        # Get completed cycles
+        completed_cycles = Cycle.objects.filter(
+            user=request.user,
+            end_date__isnull=False
+        ).order_by("-start_date")
+
+        completed_count = completed_cycles.count()
+
+        if completed_count < self.MIN_CYCLES_FOR_PREDICTION:
+            return JsonResponse({
+                "error": f"Cannot generate prediction. Need at least {self.MIN_CYCLES_FOR_PREDICTION} "
+                         f"completed cycles, but you have {completed_count}.",
+                "completed_cycles": completed_count,
+                "cycles_needed": self.MIN_CYCLES_FOR_PREDICTION - completed_count,
+            }, status=400)
+
+        # Calculate averages from completed cycles
+        cycle_lengths = [c.cycle_length for c in completed_cycles if c.cycle_length]
+        period_lengths = [c.period_length for c in completed_cycles if c.period_length]
+
+        if not cycle_lengths:
+            return JsonResponse({
+                "error": "Cannot generate prediction. Completed cycles have no length data.",
+            }, status=400)
+
+        avg_cycle_length = round(mean(cycle_lengths))
+        avg_period_length = round(mean(period_lengths)) if period_lengths else 5
+
+        # Calculate confidence based on data consistency
+        if len(cycle_lengths) >= 6:
+            std = stdev(cycle_lengths)
+            # Lower std = higher confidence
+            confidence = max(0.3, min(0.95, 1.0 - (std / 10)))
+        elif len(cycle_lengths) >= 3:
+            confidence = 0.6  # Moderate confidence with limited data
+        else:
+            confidence = 0.5
+
+        # Get the most recent cycle to base prediction on
+        # If there's an ongoing cycle, use its start date
+        # Otherwise, use the most recent completed cycle's start date + cycle length
+        ongoing_cycle = Cycle.objects.filter(
+            user=request.user,
+            end_date__isnull=True
+        ).first()
+
+        if ongoing_cycle:
+            base_date = ongoing_cycle.start_date
+        else:
+            latest_completed = completed_cycles.first()
+            if latest_completed:
+                base_date = latest_completed.start_date
+            else:
+                return JsonResponse({
+                    "error": "No cycle data available for prediction.",
+                }, status=400)
+
+        # Calculate predicted dates
+        predicted_period_start = base_date + timedelta(days=avg_cycle_length)
+        predicted_period_end = predicted_period_start + timedelta(days=avg_period_length - 1)
+
+        # Calculate fertile window (typically 12-16 days before period)
+        # Ovulation is approximately 14 days before the next period
+        ovulation_day = predicted_period_start - timedelta(days=14)
+        fertile_start = ovulation_day - timedelta(days=5)  # Fertile window starts 5 days before ovulation
+        fertile_end = ovulation_day + timedelta(days=1)  # Ends 1 day after ovulation
+
+        # Get user's fertile window tracking preference
+        try:
+            settings = CycleSettings.objects.get(user=request.user)
+            include_fertile = settings.fertile_window_tracking_enabled
+        except CycleSettings.DoesNotExist:
+            include_fertile = False
+
+        # Create the prediction
+        prediction = CyclePrediction.objects.create(
+            user=request.user,
+            predicted_period_start=predicted_period_start,
+            predicted_period_end=predicted_period_end,
+            predicted_fertile_window_start=fertile_start if include_fertile else None,
+            predicted_fertile_window_end=fertile_end if include_fertile else None,
+            prediction_confidence=Decimal(str(round(confidence, 2))),
+            prediction_algorithm_version=self.ALGORITHM_VERSION,
+        )
+
+        serializer = CyclePredictionSerializer(instance=prediction)
+        data = serializer.data
+
+        # Add metadata
+        data["message"] = "New prediction generated successfully."
+        data["based_on_cycles"] = len(cycle_lengths)
+        data["average_cycle_length"] = avg_cycle_length
+        data["average_period_length"] = avg_period_length
+        data["days_until_period"] = (predicted_period_start - date.today()).days
+
+        return JsonResponse(data, status=201)

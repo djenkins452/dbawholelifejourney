@@ -1,0 +1,852 @@
+{% comment %}
+Daily Cycle Log Form Component
+
+A reusable form for logging daily cycle data with mobile-first design.
+Supports both creating new logs and editing existing ones.
+
+Context variables:
+- log: (optional) Existing CycleDailyLog instance for editing
+- log_date: (optional) Date string (YYYY-MM-DD) for the log
+- show_date_picker: (optional) Whether to show date picker (default: False)
+
+Usage:
+{% include "health/cycle/includes/daily_log_form.html" %}
+{% include "health/cycle/includes/daily_log_form.html" with log=existing_log %}
+{% endcomment %}
+
+<form
+    id="daily-log-form"
+    class="daily-log-form"
+    hx-post="{% url 'health:cycle_daily_logs_list' %}"
+    hx-headers='{"Content-Type": "application/json"}'
+    hx-trigger="submit"
+    hx-swap="none"
+>
+    {% csrf_token %}
+
+    <!-- Hidden log_date field -->
+    <input type="hidden" name="log_date" id="log-date-input" value="{{ log_date|default:log.log_date|date:'Y-m-d'|default:'' }}">
+
+    {% if show_date_picker %}
+    <!-- Date picker (when needed) -->
+    <div class="form-section">
+        <label class="section-label">Date</label>
+        <input
+            type="date"
+            id="log-date-visible"
+            class="date-input"
+            value="{{ log_date|default:log.log_date|date:'Y-m-d'|default:'' }}"
+            max="{{ today|date:'Y-m-d' }}"
+        >
+    </div>
+    {% endif %}
+
+    <!-- Flow Level Selector -->
+    <div class="form-section">
+        <label class="section-label">Flow</label>
+        <div class="flow-selector" role="radiogroup" aria-label="Flow level">
+            <button type="button" class="flow-btn flow-none {% if log.flow_level == 'none' or not log %}active{% endif %}" data-value="none" aria-pressed="{% if log.flow_level == 'none' or not log %}true{% else %}false{% endif %}">
+                <span class="flow-indicator"></span>
+                <span class="flow-label">None</span>
+            </button>
+            <button type="button" class="flow-btn flow-spotting {% if log.flow_level == 'spotting' %}active{% endif %}" data-value="spotting" aria-pressed="{% if log.flow_level == 'spotting' %}true{% else %}false{% endif %}">
+                <span class="flow-indicator"></span>
+                <span class="flow-label">Spotting</span>
+            </button>
+            <button type="button" class="flow-btn flow-light {% if log.flow_level == 'light' %}active{% endif %}" data-value="light" aria-pressed="{% if log.flow_level == 'light' %}true{% else %}false{% endif %}">
+                <span class="flow-indicator"></span>
+                <span class="flow-label">Light</span>
+            </button>
+            <button type="button" class="flow-btn flow-medium {% if log.flow_level == 'medium' %}active{% endif %}" data-value="medium" aria-pressed="{% if log.flow_level == 'medium' %}true{% else %}false{% endif %}">
+                <span class="flow-indicator"></span>
+                <span class="flow-label">Medium</span>
+            </button>
+            <button type="button" class="flow-btn flow-heavy {% if log.flow_level == 'heavy' %}active{% endif %}" data-value="heavy" aria-pressed="{% if log.flow_level == 'heavy' %}true{% else %}false{% endif %}">
+                <span class="flow-indicator"></span>
+                <span class="flow-label">Heavy</span>
+            </button>
+        </div>
+        <input type="hidden" name="flow_level" id="flow-level-input" value="{{ log.flow_level|default:'none' }}">
+    </div>
+
+    <!-- Symptoms Multi-select Chips -->
+    <div class="form-section">
+        <label class="section-label">Symptoms</label>
+        <p class="section-hint">Tap all that apply</p>
+        <div class="symptom-chips" role="group" aria-label="Symptoms">
+            <button type="button" class="symptom-chip {% if 'cramps' in log.symptoms %}active{% endif %}" data-value="cramps">
+                <span class="chip-emoji">🔴</span>
+                <span class="chip-label">Cramps</span>
+            </button>
+            <button type="button" class="symptom-chip {% if 'headache' in log.symptoms %}active{% endif %}" data-value="headache">
+                <span class="chip-emoji">🤕</span>
+                <span class="chip-label">Headache</span>
+            </button>
+            <button type="button" class="symptom-chip {% if 'fatigue' in log.symptoms %}active{% endif %}" data-value="fatigue">
+                <span class="chip-emoji">😴</span>
+                <span class="chip-label">Fatigue</span>
+            </button>
+            <button type="button" class="symptom-chip {% if 'bloating' in log.symptoms %}active{% endif %}" data-value="bloating">
+                <span class="chip-emoji">🎈</span>
+                <span class="chip-label">Bloating</span>
+            </button>
+            <button type="button" class="symptom-chip {% if 'breast_tenderness' in log.symptoms %}active{% endif %}" data-value="breast_tenderness">
+                <span class="chip-emoji">💢</span>
+                <span class="chip-label">Tenderness</span>
+            </button>
+            <button type="button" class="symptom-chip {% if 'acne' in log.symptoms %}active{% endif %}" data-value="acne">
+                <span class="chip-emoji">😣</span>
+                <span class="chip-label">Acne</span>
+            </button>
+            <button type="button" class="symptom-chip {% if 'backache' in log.symptoms %}active{% endif %}" data-value="backache">
+                <span class="chip-emoji">🔙</span>
+                <span class="chip-label">Backache</span>
+            </button>
+            <button type="button" class="symptom-chip {% if 'nausea' in log.symptoms %}active{% endif %}" data-value="nausea">
+                <span class="chip-emoji">🤢</span>
+                <span class="chip-label">Nausea</span>
+            </button>
+            <button type="button" class="symptom-chip {% if 'food_cravings' in log.symptoms %}active{% endif %}" data-value="food_cravings">
+                <span class="chip-emoji">🍫</span>
+                <span class="chip-label">Cravings</span>
+            </button>
+            <button type="button" class="symptom-chip {% if 'insomnia' in log.symptoms %}active{% endif %}" data-value="insomnia">
+                <span class="chip-emoji">😵</span>
+                <span class="chip-label">Insomnia</span>
+            </button>
+        </div>
+        <input type="hidden" name="symptoms" id="symptoms-input" value="">
+    </div>
+
+    <!-- Mood Emoji Selector -->
+    <div class="form-section">
+        <label class="section-label">Mood</label>
+        <div class="mood-selector" role="radiogroup" aria-label="Mood">
+            <button type="button" class="mood-btn {% if log.mood == 'happy' %}active{% endif %}" data-value="happy" aria-pressed="{% if log.mood == 'happy' %}true{% else %}false{% endif %}">
+                <span class="mood-emoji">😊</span>
+                <span class="mood-label">Happy</span>
+            </button>
+            <button type="button" class="mood-btn {% if log.mood == 'calm' %}active{% endif %}" data-value="calm" aria-pressed="{% if log.mood == 'calm' %}true{% else %}false{% endif %}">
+                <span class="mood-emoji">😌</span>
+                <span class="mood-label">Calm</span>
+            </button>
+            <button type="button" class="mood-btn {% if log.mood == 'energetic' %}active{% endif %}" data-value="energetic" aria-pressed="{% if log.mood == 'energetic' %}true{% else %}false{% endif %}">
+                <span class="mood-emoji">⚡</span>
+                <span class="mood-label">Energetic</span>
+            </button>
+            <button type="button" class="mood-btn {% if log.mood == 'tired' %}active{% endif %}" data-value="tired" aria-pressed="{% if log.mood == 'tired' %}true{% else %}false{% endif %}">
+                <span class="mood-emoji">😩</span>
+                <span class="mood-label">Tired</span>
+            </button>
+            <button type="button" class="mood-btn {% if log.mood == 'sad' %}active{% endif %}" data-value="sad" aria-pressed="{% if log.mood == 'sad' %}true{% else %}false{% endif %}">
+                <span class="mood-emoji">😢</span>
+                <span class="mood-label">Sad</span>
+            </button>
+            <button type="button" class="mood-btn {% if log.mood == 'irritable' %}active{% endif %}" data-value="irritable" aria-pressed="{% if log.mood == 'irritable' %}true{% else %}false{% endif %}">
+                <span class="mood-emoji">😤</span>
+                <span class="mood-label">Irritable</span>
+            </button>
+            <button type="button" class="mood-btn {% if log.mood == 'anxious' %}active{% endif %}" data-value="anxious" aria-pressed="{% if log.mood == 'anxious' %}true{% else %}false{% endif %}">
+                <span class="mood-emoji">😰</span>
+                <span class="mood-label">Anxious</span>
+            </button>
+            <button type="button" class="mood-btn {% if log.mood == 'emotional' %}active{% endif %}" data-value="emotional" aria-pressed="{% if log.mood == 'emotional' %}true{% else %}false{% endif %}">
+                <span class="mood-emoji">🥺</span>
+                <span class="mood-label">Emotional</span>
+            </button>
+        </div>
+        <input type="hidden" name="mood" id="mood-input" value="{{ log.mood|default:'' }}">
+    </div>
+
+    <!-- Energy Level 1-5 -->
+    <div class="form-section">
+        <label class="section-label">Energy Level</label>
+        <div class="energy-selector" role="radiogroup" aria-label="Energy level">
+            <button type="button" class="energy-btn {% if log.energy_level == 1 %}active{% endif %}" data-value="1" aria-pressed="{% if log.energy_level == 1 %}true{% else %}false{% endif %}">
+                <span class="energy-level">1</span>
+                <span class="energy-label">Very Low</span>
+            </button>
+            <button type="button" class="energy-btn {% if log.energy_level == 2 %}active{% endif %}" data-value="2" aria-pressed="{% if log.energy_level == 2 %}true{% else %}false{% endif %}">
+                <span class="energy-level">2</span>
+                <span class="energy-label">Low</span>
+            </button>
+            <button type="button" class="energy-btn {% if log.energy_level == 3 %}active{% endif %}" data-value="3" aria-pressed="{% if log.energy_level == 3 %}true{% else %}false{% endif %}">
+                <span class="energy-level">3</span>
+                <span class="energy-label">Normal</span>
+            </button>
+            <button type="button" class="energy-btn {% if log.energy_level == 4 %}active{% endif %}" data-value="4" aria-pressed="{% if log.energy_level == 4 %}true{% else %}false{% endif %}">
+                <span class="energy-level">4</span>
+                <span class="energy-label">Good</span>
+            </button>
+            <button type="button" class="energy-btn {% if log.energy_level == 5 %}active{% endif %}" data-value="5" aria-pressed="{% if log.energy_level == 5 %}true{% else %}false{% endif %}">
+                <span class="energy-level">5</span>
+                <span class="energy-label">High</span>
+            </button>
+        </div>
+        <input type="hidden" name="energy_level" id="energy-level-input" value="{{ log.energy_level|default:'' }}">
+    </div>
+
+    <!-- Optional Fields (Expandable) -->
+    <details class="optional-fields">
+        <summary class="optional-toggle">
+            <span class="toggle-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </span>
+            <span class="toggle-text">More options</span>
+        </summary>
+
+        <div class="optional-content">
+            <!-- Cervical Mucus -->
+            <div class="form-field">
+                <label class="field-label">Cervical Mucus</label>
+                <div class="mucus-selector" role="radiogroup" aria-label="Cervical mucus type">
+                    <button type="button" class="mucus-btn {% if log.cervical_mucus == 'dry' %}active{% endif %}" data-value="dry" aria-pressed="{% if log.cervical_mucus == 'dry' %}true{% else %}false{% endif %}">Dry</button>
+                    <button type="button" class="mucus-btn {% if log.cervical_mucus == 'sticky' %}active{% endif %}" data-value="sticky" aria-pressed="{% if log.cervical_mucus == 'sticky' %}true{% else %}false{% endif %}">Sticky</button>
+                    <button type="button" class="mucus-btn {% if log.cervical_mucus == 'creamy' %}active{% endif %}" data-value="creamy" aria-pressed="{% if log.cervical_mucus == 'creamy' %}true{% else %}false{% endif %}">Creamy</button>
+                    <button type="button" class="mucus-btn {% if log.cervical_mucus == 'watery' %}active{% endif %}" data-value="watery" aria-pressed="{% if log.cervical_mucus == 'watery' %}true{% else %}false{% endif %}">Watery</button>
+                    <button type="button" class="mucus-btn {% if log.cervical_mucus == 'egg_white' %}active{% endif %}" data-value="egg_white" aria-pressed="{% if log.cervical_mucus == 'egg_white' %}true{% else %}false{% endif %}">Egg White</button>
+                </div>
+                <input type="hidden" name="cervical_mucus" id="cervical-mucus-input" value="{{ log.cervical_mucus|default:'' }}">
+            </div>
+
+            <!-- Basal Temperature -->
+            <div class="form-field">
+                <label class="field-label" for="basal-temp-input">Basal Temperature</label>
+                <div class="temp-input-wrapper">
+                    <input
+                        type="number"
+                        id="basal-temp-input"
+                        name="basal_temp"
+                        class="temp-input"
+                        step="0.01"
+                        min="95"
+                        max="105"
+                        placeholder="97.80"
+                        value="{{ log.basal_temp|default:'' }}"
+                    >
+                    <span class="temp-unit">°F</span>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="form-field">
+                <label class="field-label" for="notes-input">Notes</label>
+                <textarea
+                    id="notes-input"
+                    name="notes"
+                    class="notes-textarea"
+                    rows="3"
+                    placeholder="Any additional observations..."
+                >{{ log.notes|default:'' }}</textarea>
+            </div>
+        </div>
+    </details>
+
+    <!-- Submit Button -->
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-lg submit-btn">
+            <span class="btn-text">Save Log</span>
+            <span class="btn-loading" style="display: none;">Saving...</span>
+        </button>
+    </div>
+
+    <!-- Success Message (shown after save) -->
+    <div id="save-success" class="save-success" style="display: none;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span>Saved!</span>
+    </div>
+</form>
+
+<style nonce="{{ csp_nonce }}">
+.daily-log-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.section-label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+
+.section-hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* Flow Level Selector */
+.flow-selector {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.flow-btn {
+    flex: 1;
+    min-width: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-height: 64px;
+}
+
+.flow-btn:hover {
+    border-color: var(--color-accent);
+}
+
+.flow-btn.active {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.flow-indicator {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    border: 2px solid currentColor;
+}
+
+.flow-none .flow-indicator { background: #e5e7eb; border-color: #d1d5db; }
+.flow-spotting .flow-indicator { background: #fcd34d; border-color: #f59e0b; }
+.flow-light .flow-indicator { background: #fca5a5; border-color: #ef4444; }
+.flow-medium .flow-indicator { background: #ef4444; border-color: #dc2626; }
+.flow-heavy .flow-indicator { background: #b91c1c; border-color: #991b1b; }
+
+.flow-label {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+/* Symptom Chips */
+.symptom-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.symptom-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-height: 44px;
+}
+
+.symptom-chip:hover {
+    border-color: var(--color-accent);
+}
+
+.symptom-chip.active {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+.chip-emoji {
+    font-size: var(--font-size-base);
+}
+
+.chip-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+/* Mood Selector */
+.mood-selector {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-2);
+}
+
+.mood-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-height: 64px;
+}
+
+.mood-btn:hover {
+    border-color: var(--color-accent);
+}
+
+.mood-btn.active {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.mood-emoji {
+    font-size: 1.5rem;
+}
+
+.mood-label {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+/* Energy Selector */
+.energy-selector {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.energy-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-height: 56px;
+}
+
+.energy-btn:hover {
+    border-color: var(--color-accent);
+}
+
+.energy-btn.active {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.energy-level {
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.energy-label {
+    font-size: 0.6rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+}
+
+/* Optional Fields */
+.optional-fields {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.optional-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    list-style: none;
+}
+
+.optional-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.toggle-icon {
+    transition: transform 0.2s ease;
+}
+
+.optional-fields[open] .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.optional-content {
+    padding: var(--space-4);
+    padding-top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.field-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+/* Mucus Selector */
+.mucus-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.mucus-btn {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-background);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-height: 40px;
+}
+
+.mucus-btn:hover {
+    border-color: var(--color-accent);
+}
+
+.mucus-btn.active {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+/* Temperature Input */
+.temp-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.temp-input {
+    width: 100px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-base);
+}
+
+.temp-unit {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+/* Notes Textarea */
+.notes-textarea {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+}
+
+.notes-textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+/* Date Input */
+.date-input {
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+}
+
+/* Submit Button */
+.form-actions {
+    margin-top: var(--space-4);
+}
+
+.submit-btn {
+    width: 100%;
+    min-height: 56px;
+    font-size: var(--font-size-lg);
+}
+
+.submit-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Success Message */
+.save-success {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 480px) {
+    .mood-selector {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .mood-emoji {
+        font-size: 1.25rem;
+    }
+
+    .mood-label {
+        font-size: 0.6rem;
+    }
+
+    .flow-btn {
+        padding: var(--space-2);
+        min-height: 56px;
+    }
+
+    .energy-btn {
+        padding: var(--space-2);
+    }
+}
+
+@media (max-width: 360px) {
+    .mood-selector {
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--space-1);
+    }
+
+    .flow-selector {
+        gap: var(--space-1);
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const form = document.getElementById('daily-log-form');
+    if (!form) return;
+
+    // Flow level buttons
+    const flowBtns = form.querySelectorAll('.flow-btn');
+    const flowInput = document.getElementById('flow-level-input');
+
+    flowBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            flowBtns.forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-pressed', 'false');
+            });
+            btn.classList.add('active');
+            btn.setAttribute('aria-pressed', 'true');
+            flowInput.value = btn.dataset.value;
+        });
+    });
+
+    // Symptom chips (multi-select)
+    const symptomChips = form.querySelectorAll('.symptom-chip');
+    const symptomsInput = document.getElementById('symptoms-input');
+
+    // Initialize symptoms from existing data
+    const initialSymptoms = [];
+    symptomChips.forEach(chip => {
+        if (chip.classList.contains('active')) {
+            initialSymptoms.push(chip.dataset.value);
+        }
+    });
+    symptomsInput.value = JSON.stringify(initialSymptoms);
+
+    symptomChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            chip.classList.toggle('active');
+            updateSymptoms();
+        });
+    });
+
+    function updateSymptoms() {
+        const selected = [];
+        symptomChips.forEach(chip => {
+            if (chip.classList.contains('active')) {
+                selected.push(chip.dataset.value);
+            }
+        });
+        symptomsInput.value = JSON.stringify(selected);
+    }
+
+    // Mood buttons (single select)
+    const moodBtns = form.querySelectorAll('.mood-btn');
+    const moodInput = document.getElementById('mood-input');
+
+    moodBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const wasActive = btn.classList.contains('active');
+            moodBtns.forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-pressed', 'false');
+            });
+            if (!wasActive) {
+                btn.classList.add('active');
+                btn.setAttribute('aria-pressed', 'true');
+                moodInput.value = btn.dataset.value;
+            } else {
+                moodInput.value = '';
+            }
+        });
+    });
+
+    // Energy level buttons (single select)
+    const energyBtns = form.querySelectorAll('.energy-btn');
+    const energyInput = document.getElementById('energy-level-input');
+
+    energyBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const wasActive = btn.classList.contains('active');
+            energyBtns.forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-pressed', 'false');
+            });
+            if (!wasActive) {
+                btn.classList.add('active');
+                btn.setAttribute('aria-pressed', 'true');
+                energyInput.value = btn.dataset.value;
+            } else {
+                energyInput.value = '';
+            }
+        });
+    });
+
+    // Cervical mucus buttons (single select)
+    const mucusBtns = form.querySelectorAll('.mucus-btn');
+    const mucusInput = document.getElementById('cervical-mucus-input');
+
+    mucusBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const wasActive = btn.classList.contains('active');
+            mucusBtns.forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-pressed', 'false');
+            });
+            if (!wasActive) {
+                btn.classList.add('active');
+                btn.setAttribute('aria-pressed', 'true');
+                mucusInput.value = btn.dataset.value;
+            } else {
+                mucusInput.value = '';
+            }
+        });
+    });
+
+    // Date picker sync
+    const dateVisible = document.getElementById('log-date-visible');
+    const dateInput = document.getElementById('log-date-input');
+    if (dateVisible) {
+        dateVisible.addEventListener('change', () => {
+            dateInput.value = dateVisible.value;
+        });
+    }
+
+    // Form submission handling
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const submitBtn = form.querySelector('.submit-btn');
+        const btnText = submitBtn.querySelector('.btn-text');
+        const btnLoading = submitBtn.querySelector('.btn-loading');
+        const successMsg = document.getElementById('save-success');
+
+        // Show loading state
+        submitBtn.disabled = true;
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'inline';
+        successMsg.style.display = 'none';
+
+        // Build the data object
+        const data = {
+            log_date: dateInput.value || new Date().toISOString().split('T')[0],
+            flow_level: flowInput.value || 'none',
+            symptoms: JSON.parse(symptomsInput.value || '[]'),
+            mood: moodInput.value || '',
+            energy_level: energyInput.value ? parseInt(energyInput.value) : null,
+            cervical_mucus: mucusInput.value || '',
+            basal_temp: document.getElementById('basal-temp-input').value || null,
+            notes: document.getElementById('notes-input').value || ''
+        };
+
+        // Remove null/empty optional fields
+        if (!data.mood) delete data.mood;
+        if (!data.energy_level) delete data.energy_level;
+        if (!data.cervical_mucus) delete data.cervical_mucus;
+        if (!data.basal_temp) delete data.basal_temp;
+        if (!data.notes) delete data.notes;
+
+        try {
+            const response = await fetch('{% url "health:cycle_daily_logs_list" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                // Show success message
+                successMsg.style.display = 'flex';
+
+                // Trigger HTMX event for dashboard refresh
+                document.body.dispatchEvent(new CustomEvent('daily-log-saved', { detail: data }));
+
+                // Reset button after delay
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    btnText.style.display = 'inline';
+                    btnLoading.style.display = 'none';
+                }, 1500);
+            } else {
+                const errorData = await response.json();
+                console.error('Save error:', errorData);
+                alert(errorData.error || 'Failed to save. Please try again.');
+                submitBtn.disabled = false;
+                btnText.style.display = 'inline';
+                btnLoading.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Network error:', error);
+            alert('Network error. Please check your connection and try again.');
+            submitBtn.disabled = false;
+            btnText.style.display = 'inline';
+            btnLoading.style.display = 'none';
+        }
+    });
+})();
+</script>

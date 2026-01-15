@@ -393,5 +393,38 @@
 .answered-stat .stat-link {
     margin-left: auto;
 }
+
+@media (max-width: 640px) {
+    .scripture-card {
+        padding: var(--space-4);
+    }
+
+    .scripture-text {
+        font-size: var(--font-size-lg);
+    }
+
+    .faith-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .faith-card {
+        padding: var(--space-4);
+    }
+
+    .faith-card .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+
+    .faith-card .card-header .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .ai-insight-inner {
+        flex-direction: column;
+    }
+}
 </style>
 {% endblock %}

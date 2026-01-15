@@ -138,5 +138,32 @@
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-sm);
 }
+
+@media (max-width: 640px) {
+    .todays-verse-page {
+        padding: var(--space-6) var(--space-2);
+    }
+
+    .verse-text {
+        font-size: var(--font-size-xl);
+    }
+
+    .verse-reference {
+        font-size: var(--font-size-base);
+    }
+
+    .reflection-prompt {
+        padding: var(--space-4);
+    }
+
+    .verse-actions {
+        flex-direction: column;
+    }
+
+    .verse-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
 </style>
 {% endblock %}

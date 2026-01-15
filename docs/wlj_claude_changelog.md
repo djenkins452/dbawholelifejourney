@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CycleDailyLog Model (Phase 2)
+
+**Summary:** Created CycleDailyLog model for recording daily menstrual cycle data.
+
+**Model Fields:**
+- `log_date`: Date of entry (unique per user)
+- `flow_level`: Flow intensity from FLOW_LEVEL_CHOICES
+- `symptoms`: JSONField for multi-select symptom list
+- `mood`: Emotional state from CYCLE_MOOD_CHOICES
+- `energy_level`: 1-5 scale (optional)
+- `cervical_mucus`: Fertility indicator (optional) - added CERVICAL_MUCUS_CHOICES
+- `basal_temp`: Body temperature (optional)
+- `notes`: Free-form observations
+
+**Properties:**
+- `is_period_day`: True if any flow (not 'none')
+- `symptom_display_list`: Human-readable names
+- `flow_emoji`, `mood_emoji`: UI display
+
+**Constraints:**
+- `unique_cycle_log_per_user_per_day`: One entry per user per day
+- Indexed on user + log_date
+
+**Files Modified:**
+- `apps/health/models.py`: Added CycleDailyLog model and CERVICAL_MUCUS_CHOICES
+- `apps/health/migrations/0023_add_cycledailylog_model.py`: New migration
+
+---
+
 ### Add Cycle Tracking Choice Definitions (Phase 2)
 
 **Summary:** Defined standard choice constants for cycle tracking symptoms, moods, and flow levels.

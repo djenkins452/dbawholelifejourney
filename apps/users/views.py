@@ -387,6 +387,10 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
         # Step-specific context
         prefs = self.request.user.preferences
 
+        # VIP access status (for all steps - used to show VIP badge, skip payment prompts, etc.)
+        from apps.billing.services import has_vip_access
+        context["has_vip_access"] = has_vip_access(self.request.user)
+
         if current_step["id"] == "gender":
             from apps.users.models import UserPreferences
             context["gender_choices"] = UserPreferences.GENDER_CHOICES
@@ -475,6 +479,26 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
         step_index, current_step = self.get_current_step()
         prefs = request.user.preferences
 
+        # Handle VIP code on Welcome step
+        if current_step["id"] == "welcome":
+            vip_code = request.POST.get("vip_code", "").strip()
+            if vip_code:
+                from apps.billing.services import redeem_vip_code
+                success, message = redeem_vip_code(
+                    user=request.user,
+                    code=vip_code,
+                    ip_address=self._get_client_ip(request),
+                )
+                if success:
+                    messages.success(request, message)
+                    # VIP users can still go through onboarding
+                    # They just won't see subscription prompts later
+                else:
+                    # Show error and stay on welcome step
+                    context = self.get_context_data()
+                    context['vip_code_error'] = message
+                    return self.render_to_response(context)
+
         # Process step-specific data
         if current_step["id"] == "gender":
             from apps.users.models import UserPreferences
@@ -559,6 +583,15 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
             return redirect("users:onboarding_wizard_step", step=next_step["id"])
 
         return redirect("dashboard:home")
+
+    def _get_client_ip(self, request):
+        """Get client IP address from request for audit logging."""
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0].strip()
+            if ip and len(ip) <= 45:  # Max length for IPv6
+                return ip
+        return request.META.get("REMOTE_ADDR")
 
 
 class CompleteOnboardingView(LoginRequiredMixin, View):

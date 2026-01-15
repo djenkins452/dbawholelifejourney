@@ -1033,3 +1033,153 @@ class PaymentAuditLog(models.Model):
             ip_address=ip_address,
             user_agent=user_agent,
         )
+
+
+class VIPPromoCode(TimeStampedModel):
+    """
+    VIP promo codes that grant lifetime free access.
+
+    Unlike Stripe promo codes (which give discounts), VIP codes bypass
+    payment entirely and grant STATUS_LIFETIME subscription status.
+
+    Usage:
+        - Create codes via Django Admin
+        - Users enter code during onboarding (Welcome step)
+        - Valid codes grant immediate lifetime access
+    """
+
+    code = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="The VIP code users will enter (case-insensitive, stored uppercase)",
+    )
+    description = models.CharField(
+        max_length=255,
+        help_text="Internal description (e.g., 'Beta tester reward')",
+    )
+    max_uses = models.PositiveIntegerField(
+        default=1,
+        help_text="Maximum number of times this code can be used (0 = unlimited)",
+    )
+    current_uses = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of times this code has been redeemed",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this code can currently be redeemed",
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this code expires (null = never expires)",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_vip_codes',
+        help_text="Admin who created this code",
+    )
+
+    class Meta:
+        verbose_name = "VIP Promo Code"
+        verbose_name_plural = "VIP Promo Codes"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        if self.max_uses == 0:
+            return f"{self.code} ({self.current_uses}/unlimited)"
+        return f"{self.code} ({self.current_uses}/{self.max_uses})"
+
+    def save(self, *args, **kwargs):
+        # Normalize code to uppercase
+        self.code = self.code.upper().strip()
+        super().save(*args, **kwargs)
+
+    @property
+    def is_valid(self):
+        """Check if the code can be redeemed."""
+        if not self.is_active:
+            return False
+        if self.max_uses > 0 and self.current_uses >= self.max_uses:
+            return False
+        if self.expires_at and self.expires_at < timezone.now():
+            return False
+        return True
+
+    def redeem(self, user):
+        """
+        Redeem this code for a user.
+
+        Updates user's billing profile to STATUS_LIFETIME.
+        Returns True on success, raises ValueError on failure.
+        """
+        if not self.is_valid:
+            raise ValueError("This VIP code is no longer valid.")
+
+        # Check if user already has lifetime access
+        profile = user.billing_profile
+        if profile.subscription_status == BillingProfile.STATUS_LIFETIME:
+            raise ValueError("You already have lifetime access.")
+
+        # Check if user already used a VIP code
+        if VIPPromoCodeUsage.objects.filter(user=user).exists():
+            raise ValueError("You have already redeemed a VIP code.")
+
+        # Redeem the code - increment usage
+        self.current_uses += 1
+        self.save(update_fields=['current_uses', 'updated_at'])
+
+        # Record usage
+        VIPPromoCodeUsage.objects.create(
+            user=user,
+            vip_code=self,
+        )
+
+        # Grant lifetime access
+        profile.subscription_status = BillingProfile.STATUS_LIFETIME
+        profile.pricing_tier = BillingProfile.TIER_FOUNDING
+        profile.billing_cycle = BillingProfile.CYCLE_LIFETIME
+        profile.save(update_fields=[
+            'subscription_status', 'pricing_tier', 'billing_cycle', 'updated_at'
+        ])
+
+        return True
+
+
+class VIPPromoCodeUsage(TimeStampedModel):
+    """
+    Track VIP promo code redemptions.
+
+    Separate from PromoCodeUsage which tracks Stripe promo codes.
+    This is for audit and to prevent multiple VIP code redemptions per user.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='vip_promo_usages',
+    )
+    vip_code = models.ForeignKey(
+        VIPPromoCode,
+        on_delete=models.CASCADE,
+        related_name='usages',
+    )
+    redeemed_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = "VIP Promo Code Usage"
+        verbose_name_plural = "VIP Promo Code Usages"
+        unique_together = ['user', 'vip_code']
+        ordering = ['-redeemed_at']
+
+    def __str__(self):
+        return f"{self.user.email} used {self.vip_code.code}"

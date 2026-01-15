@@ -62,6 +62,38 @@
                         <p><strong>Everything is optional.</strong> You can skip any step, and you can change any setting later from your preferences.</p>
                     </div>
                 </div>
+
+                <!-- VIP Code Section -->
+                {% if not has_vip_access %}
+                <div class="vip-code-section">
+                    <div class="vip-code-header">
+                        <span class="vip-icon">🎁</span>
+                        <span>Have a VIP code?</span>
+                    </div>
+                    <div class="vip-code-form">
+                        <input type="text"
+                               name="vip_code"
+                               id="vip_code"
+                               class="form-input"
+                               placeholder="Enter VIP code (optional)"
+                               maxlength="50"
+                               autocomplete="off">
+                        <p class="vip-code-help">
+                            VIP codes unlock free lifetime access. Leave blank if you don't have one.
+                        </p>
+                    </div>
+                    {% if vip_code_error %}
+                    <div class="vip-code-error">
+                        {{ vip_code_error }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="vip-access-badge">
+                    <span class="vip-badge-icon">✨</span>
+                    <span>You have VIP lifetime access!</span>
+                </div>
+                {% endif %}
             </div>
 
             {% elif current_step.id == "gender" %}
@@ -617,6 +649,83 @@
 .welcome-reassurance p {
     margin: 0;
     font-size: var(--font-size-sm);
+}
+
+/* VIP Code Section */
+.vip-code-section {
+    margin-top: var(--space-8);
+    padding: var(--space-5);
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-background));
+    border-radius: var(--radius-lg);
+    border: 1px dashed var(--color-border);
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.vip-code-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-weight: 500;
+    margin-bottom: var(--space-4);
+}
+
+.vip-icon {
+    font-size: 1.25rem;
+}
+
+.vip-code-form {
+    text-align: center;
+}
+
+.vip-code-form .form-input {
+    text-align: center;
+    text-transform: uppercase;
+    font-size: var(--font-size-lg);
+    letter-spacing: 0.1em;
+    max-width: 280px;
+    margin: 0 auto;
+}
+
+.vip-code-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-2);
+    margin-bottom: 0;
+}
+
+.vip-code-error {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    background: color-mix(in srgb, var(--color-error, #ef4444) 10%, transparent);
+    border: 1px solid var(--color-error, #ef4444);
+    border-radius: var(--radius-md);
+    color: var(--color-error, #ef4444);
+    font-size: var(--font-size-sm);
+    text-align: center;
+}
+
+.vip-access-badge {
+    margin-top: var(--space-8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-success, #10b981) 10%, transparent);
+    border: 1px solid var(--color-success, #10b981);
+    border-radius: var(--radius-lg);
+    color: var(--color-success, #10b981);
+    font-weight: 500;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.vip-badge-icon {
+    font-size: 1.25rem;
 }
 
 /* Gender Step */

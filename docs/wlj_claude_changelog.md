@@ -16,6 +16,43 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### CRITICAL: Prevent Audio Recording Loss on Upload Failure
+
+**Summary:** Fixed critical bug where audio recordings were permanently lost when upload failed (e.g., 502 timeout). Users can now retry failed uploads without losing their recording, and recordings are automatically recovered if the page is refreshed.
+
+**Problem:** When a user recorded a long sermon/meeting and hit a 502 error during upload:
+1. The "Try Again" button called `discardRecording()` which destroyed the audio blob
+2. No backup storage existed - audio was only in JavaScript memory
+3. Gunicorn's 30-second default timeout caused 502 errors on long uploads
+4. The recording was permanently lost - unacceptable for irreplaceable content like sermons
+
+**Solution:**
+1. **IndexedDB Backup:** Audio blob is now saved to IndexedDB immediately after recording stops
+2. **Preserved Retry:** "Try Again" now preserves the audio and returns to preview state for retry
+3. **Page Reload Recovery:** On page load, checks for saved recordings and restores them automatically
+4. **Increased Timeout:** Gunicorn timeout increased from 30s to 300s (5 minutes) for long uploads
+5. **Auto-Cleanup:** IndexedDB backup is cleared after successful upload or explicit discard
+
+**Files Modified:**
+- `templates/capture/capture_record.html`:
+  - Added IndexedDB helper functions (openDatabase, saveRecordingToIndexedDB, loadRecordingFromIndexedDB, clearRecordingFromIndexedDB)
+  - Modified mediaRecorder.onstop to backup audio immediately
+  - Modified resetForRetry() to preserve audio and restore from IndexedDB if needed
+  - Added checkForSavedRecording() to restore on page load
+  - Modified discard button to clear IndexedDB backup
+  - Modified successful upload to clear IndexedDB backup
+- `Procfile`:
+  - Added `--timeout 300` to Gunicorn command
+
+**Behavior:**
+- Recording stops → Audio backed up to IndexedDB
+- Upload fails → "Try Again" returns to preview with audio intact
+- Page refreshed → Recording automatically restored (if within 24 hours)
+- User discards → IndexedDB backup cleared
+- Upload succeeds → IndexedDB backup cleared
+
+---
+
 ### Fix PDF Document Viewing in Organize/Documents
 
 **Summary:** Fixed "Failed to load PDF document" error when viewing uploaded PDFs in the Documents section. PDFs now display correctly in the iframe preview.

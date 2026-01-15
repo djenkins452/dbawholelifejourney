@@ -249,9 +249,109 @@
         let audioBlob = null;
         let currentEntryId = null;
         let pollingInterval = null;
+        let savedDuration = null;
 
         const MAX_DURATION_MS = 60 * 60 * 1000; // 60 minutes
         const POLLING_INTERVAL_MS = 2000; // Poll every 2 seconds
+        const DB_NAME = 'CaptureRecordingBackup';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'recordings';
+
+        // IndexedDB helper functions for audio backup
+        function openDatabase() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                    }
+                };
+            });
+        }
+
+        async function saveRecordingToIndexedDB(blob, duration) {
+            try {
+                const db = await openDatabase();
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+
+                // Convert blob to ArrayBuffer for storage
+                const arrayBuffer = await blob.arrayBuffer();
+
+                await new Promise((resolve, reject) => {
+                    const request = store.put({
+                        id: 'current_recording',
+                        audioData: arrayBuffer,
+                        mimeType: blob.type,
+                        duration: duration,
+                        timestamp: Date.now()
+                    });
+                    request.onsuccess = resolve;
+                    request.onerror = () => reject(request.error);
+                });
+
+                db.close();
+                console.log('Recording backed up to IndexedDB');
+                return true;
+            } catch (error) {
+                console.error('Failed to backup recording:', error);
+                return false;
+            }
+        }
+
+        async function loadRecordingFromIndexedDB() {
+            try {
+                const db = await openDatabase();
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+
+                const result = await new Promise((resolve, reject) => {
+                    const request = store.get('current_recording');
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+
+                db.close();
+
+                if (result && result.audioData) {
+                    // Convert ArrayBuffer back to Blob
+                    const blob = new Blob([result.audioData], { type: result.mimeType });
+                    return {
+                        blob: blob,
+                        duration: result.duration,
+                        timestamp: result.timestamp
+                    };
+                }
+                return null;
+            } catch (error) {
+                console.error('Failed to load recording from IndexedDB:', error);
+                return null;
+            }
+        }
+
+        async function clearRecordingFromIndexedDB() {
+            try {
+                const db = await openDatabase();
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+
+                await new Promise((resolve, reject) => {
+                    const request = store.delete('current_recording');
+                    request.onsuccess = resolve;
+                    request.onerror = () => reject(request.error);
+                });
+
+                db.close();
+                console.log('Recording backup cleared from IndexedDB');
+                return true;
+            } catch (error) {
+                console.error('Failed to clear recording backup:', error);
+                return false;
+            }
+        }
 
         // Format time as MM:SS
         function formatTime(ms) {
@@ -304,9 +404,11 @@
                     const data = await response.json();
 
                     if (data.status === 'ready') {
-                        // Processing complete - redirect
+                        // Processing complete - clear backup and redirect
                         clearInterval(pollingInterval);
                         pollingInterval = null;
+                        // Clear the IndexedDB backup since upload succeeded
+                        await clearRecordingFromIndexedDB();
                         window.location.href = data.redirect_url || "{% url 'capture:list' %}";
                     } else if (data.status === 'failed') {
                         // Processing failed - show error
@@ -386,7 +488,7 @@
                     }
                 };
 
-                mediaRecorder.onstop = () => {
+                mediaRecorder.onstop = async () => {
                     // Stop all tracks
                     stream.getTracks().forEach(track => track.stop());
 
@@ -396,12 +498,17 @@
                     console.log('Recording completed with MIME type:', mimeTypeUsed);
                     audioBlob = new Blob(audioChunks, { type: mimeTypeUsed });
 
+                    // Calculate duration
+                    const duration = Date.now() - recordingStartTime;
+                    savedDuration = duration;
+
+                    // CRITICAL: Backup recording to IndexedDB immediately
+                    // This protects against page refresh, 502 errors, or retry failures
+                    await saveRecordingToIndexedDB(audioBlob, duration);
+
                     // Set up preview
                     const audioUrl = URL.createObjectURL(audioBlob);
                     audioPreview.src = audioUrl;
-
-                    // Calculate duration
-                    const duration = Date.now() - recordingStartTime;
                     previewDuration.textContent = 'Duration: ' + formatTime(duration);
 
                     showState('preview');
@@ -614,22 +721,87 @@
             }
         }
 
-        // Reset to try again
-        function resetForRetry() {
+        // Reset to try again - PRESERVES the recording for retry
+        async function resetForRetry() {
             stopPolling();
-            discardRecording();
+
+            // If we have an audio blob in memory, go back to preview to retry upload
+            if (audioBlob) {
+                // Set up preview again with existing blob
+                const audioUrl = URL.createObjectURL(audioBlob);
+                audioPreview.src = audioUrl;
+                if (savedDuration) {
+                    previewDuration.textContent = 'Duration: ' + formatTime(savedDuration);
+                }
+                showState('preview');
+                return;
+            }
+
+            // If no blob in memory, try to restore from IndexedDB
+            const savedRecording = await loadRecordingFromIndexedDB();
+            if (savedRecording) {
+                audioBlob = savedRecording.blob;
+                savedDuration = savedRecording.duration;
+
+                const audioUrl = URL.createObjectURL(audioBlob);
+                audioPreview.src = audioUrl;
+                previewDuration.textContent = 'Duration: ' + formatTime(savedRecording.duration);
+                showState('preview');
+                return;
+            }
+
+            // Only if no recording exists anywhere, go to idle state
+            showState('idle');
+        }
+
+        // Check for and restore saved recording from IndexedDB
+        async function checkForSavedRecording() {
+            const savedRecording = await loadRecordingFromIndexedDB();
+            if (savedRecording) {
+                // Check if recording is recent (within last 24 hours)
+                const hoursSinceRecording = (Date.now() - savedRecording.timestamp) / (1000 * 60 * 60);
+                if (hoursSinceRecording < 24) {
+                    // Restore the recording
+                    audioBlob = savedRecording.blob;
+                    savedDuration = savedRecording.duration;
+
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    audioPreview.src = audioUrl;
+                    previewDuration.textContent = 'Duration: ' + formatTime(savedRecording.duration);
+
+                    recordingInterface.style.display = 'block';
+                    showState('preview');
+
+                    console.log('Restored recording from IndexedDB (recorded ' + Math.round(hoursSinceRecording * 60) + ' minutes ago)');
+                    return true;
+                } else {
+                    // Recording is too old, clear it
+                    await clearRecordingFromIndexedDB();
+                }
+            }
+            return false;
         }
 
         // Event listeners
         document.getElementById('start-recording').addEventListener('click', startRecording);
         document.getElementById('stop-recording').addEventListener('click', stopRecording);
-        document.getElementById('discard-recording').addEventListener('click', discardRecording);
+        document.getElementById('discard-recording').addEventListener('click', async function() {
+            // Clear IndexedDB backup when user explicitly discards
+            await clearRecordingFromIndexedDB();
+            discardRecording();
+        });
         document.getElementById('submit-recording').addEventListener('click', submitRecording);
         document.getElementById('retry-permission').addEventListener('click', requestMicrophoneAccess);
         document.getElementById('retry-recording').addEventListener('click', resetForRetry);
 
-        // Initialize
-        requestMicrophoneAccess();
+        // Initialize - check for saved recording first
+        async function initialize() {
+            const hasRecoveredRecording = await checkForSavedRecording();
+            if (!hasRecoveredRecording) {
+                requestMicrophoneAccess();
+            }
+        }
+        initialize();
     });
 </script>
 {% endblock %}

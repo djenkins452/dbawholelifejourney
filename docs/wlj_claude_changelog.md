@@ -16,6 +16,54 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle Tracking Model Unit Tests (Phase 10)
+
+**Summary:** Created comprehensive model unit tests for all cycle tracking models.
+
+**Test File:** `apps/health/tests/test_cycle.py` (56 tests)
+
+**Models Tested:**
+1. **CycleSettings** (8 tests)
+   - Creation with defaults and custom values
+   - `is_enabled` property behavior with tracking enabled/disabled/soft deleted
+   - String representation
+   - OneToOne relationship constraint
+
+2. **CycleDailyLog** (16 tests)
+   - Creation with defaults and all field variations
+   - `is_period_day` property for all flow levels
+   - `symptom_display_list` property (empty, valid, unknown symptoms)
+   - `flow_emoji` and `mood_emoji` properties
+   - Unique constraint on (user, log_date)
+   - Different users same date allowed
+   - Ordering by log_date descending
+   - Soft delete behavior
+
+3. **Cycle** (14 tests)
+   - Auto-numbering per user
+   - `cycle_length` and `period_length` calculated properties
+   - `is_complete` and `is_ongoing` properties
+   - Explicit cycle number assignment
+   - Ordering by start_date descending
+   - Notes field
+   - Soft delete behavior
+
+4. **CyclePrediction** (14 tests)
+   - Creation with basic and fertile window fields
+   - `get_active_prediction()` classmethod (latest unverified, all verified, new user, user filtering)
+   - `accuracy` property (late, early, exact, unverified)
+   - Ordering by generated_at descending
+   - Soft delete removes from active predictions
+
+5. **Soft Delete Behavior** (4 tests)
+   - Cross-model soft delete behavior verification
+   - Numbering behavior when cycles are soft deleted (documents that numbering uses active cycles only)
+
+**Files Created:**
+- `apps/health/tests/test_cycle.py` - 56 model unit tests
+
+---
+
 ### Create Delete All Data API Endpoint (Phase 10)
 
 **Summary:** Created REST API endpoint for deleting all cycle data with confirmation.

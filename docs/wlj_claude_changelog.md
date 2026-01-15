@@ -14,6 +14,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-15 Changes
+
+### Fix Audio Email - Optional Message Field Causing Error
+
+**Summary:** Fixed bug where sending an audio capture email with a blank message body would fail with an AttributeError.
+
+**Problem:** When a user left the optional "Personal Message" field empty in the email modal, JavaScript would send `message: null` in the JSON body. The Python backend's `.strip()` call would fail because `NoneType` has no `.strip()` attribute:
+```python
+message = data.get('message', '').strip()  # Fails if value is None (not missing)
+```
+
+**Root Cause:** `data.get('message', '')` returns the default `''` only when the key is missing. When the key exists with value `None`, it returns `None`, and `None.strip()` raises AttributeError.
+
+**Solution:** Changed the extraction logic to handle both missing keys and explicit null values:
+```python
+message = (data.get('message') or '').strip()
+```
+
+This uses `or ''` to convert any falsy value (None, empty string, missing key) to an empty string before calling `.strip()`.
+
+**Files Modified:**
+- `apps/capture/views.py`: Fixed line 1015-1016 to handle null values for recipient_email and message
+- `apps/capture/tests/test_email.py`: Added `test_email_with_null_message` test case
+
+---
+
 ## 2026-01-14 Changes
 
 ### Fix Assistant Chat Mobile Responsiveness

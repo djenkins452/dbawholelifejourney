@@ -1012,8 +1012,8 @@ class CaptureEmailView(LoginRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-        recipient_email = data.get('recipient_email', '').strip()
-        message = data.get('message', '').strip()
+        recipient_email = (data.get('recipient_email') or '').strip()
+        message = (data.get('message') or '').strip()
 
         # Validate recipient email
         if not recipient_email:

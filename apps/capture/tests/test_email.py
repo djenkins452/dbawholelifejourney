@@ -394,3 +394,28 @@ class CaptureEmailViewTests(TestCase):
         mock_send.assert_called_once()
         call_kwargs = mock_send.call_args[1]
         self.assertIsNone(call_kwargs['message'])
+
+    @patch('apps.capture.services.email.send_capture_email')
+    def test_email_with_null_message(self, mock_send):
+        """Email works when message is explicitly null in JSON."""
+        mock_send.return_value = {'success': True}
+
+        entry = CaptureEntry.objects.create(
+            user=self.user,
+            title='Test Entry',
+            status=CaptureEntry.STATUS_READY
+        )
+
+        response = self.client.post(
+            reverse('capture:send_email', kwargs={'pk': entry.pk}),
+            data=json.dumps({
+                'recipient_email': 'recipient@example.com',
+                'message': None  # JavaScript sends null when field is empty
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_send.assert_called_once()
+        call_kwargs = mock_send.call_args[1]
+        self.assertIsNone(call_kwargs['message'])

@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Delete All Data API Endpoint (Phase 10)
+
+**Summary:** Created REST API endpoint for deleting all cycle data with confirmation.
+
+**Endpoint:** `POST /health/api/cycle/delete-all/`
+
+**Request body:**
+```json
+{
+    "confirmation": "DELETE ALL MY CYCLE DATA",
+    "hard_delete": false
+}
+```
+
+**Features:**
+- Requires exact confirmation text to prevent accidental deletion
+- Soft delete (default) - marks records as deleted, retained for 30 days
+- Hard delete option - permanently removes all records
+- Returns counts of deleted records (daily_logs, cycles, predictions, settings)
+- Creates audit log entry via security_logging
+- User can only delete their own data (permission-isolated)
+
+**Files Modified:**
+- `apps/health/views_cycle.py` - Added CycleDeleteAllAPIView class
+- `apps/health/urls.py` - Added route for cycle_delete_all_api
+- `apps/health/tests/test_cycle_export.py` - Added CycleDeleteAllAPIViewTest class (7 tests)
+
+---
+
 ### Create Cycle Data Export API Endpoint (Phase 10)
 
 **Summary:** Created REST API endpoint for downloading cycle data with rate limiting.

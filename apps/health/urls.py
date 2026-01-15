@@ -238,4 +238,7 @@ urlpatterns = [
 
     # Export API (GET endpoint with rate limiting)
     path("api/cycle/export/", views_cycle.CycleExportAPIView.as_view(), name="cycle_export_api"),
+
+    # Delete All API (POST endpoint with confirmation)
+    path("api/cycle/delete-all/", views_cycle.CycleDeleteAllAPIView.as_view(), name="cycle_delete_all_api"),
 ]

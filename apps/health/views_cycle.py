@@ -1630,3 +1630,134 @@ class CycleExportAPIView(LoginRequiredMixin, CycleTrackingEnabledMixin, View):
         response["X-Exports-Remaining"] = str(self.EXPORTS_PER_HOUR - export_count - 1)
 
         return response
+
+
+class CycleDeleteAllAPIView(LoginRequiredMixin, View):
+    """
+    API endpoint for deleting all cycle data with confirmation.
+
+    POST /health/api/cycle/delete-all/
+
+    Request body:
+        {
+            "confirmation": "DELETE ALL MY CYCLE DATA",
+            "hard_delete": false  // optional, defaults to false (soft delete)
+        }
+
+    Returns:
+        - 200 OK with counts of deleted records
+        - 400 Bad Request if confirmation missing or incorrect
+        - 403 Forbidden if cycle tracking not enabled
+
+    Note: Soft delete (default) marks records as deleted but retains them for 30 days.
+          Hard delete permanently removes all records and cannot be undone.
+    """
+
+    CONFIRMATION_TEXT = "DELETE ALL MY CYCLE DATA"
+
+    def post(self, request):
+        """Handle delete all request with confirmation."""
+        import json
+        from apps.core.security_logging import log_security_event
+
+        user = request.user
+
+        # Check if cycle tracking is enabled
+        try:
+            cycle_settings = CycleSettings.objects.get(user=user)
+            if not cycle_settings.is_enabled:
+                return JsonResponse(
+                    {"error": "Cycle tracking is not enabled for this user."},
+                    status=403
+                )
+        except CycleSettings.DoesNotExist:
+            return JsonResponse(
+                {"error": "Cycle tracking is not enabled for this user."},
+                status=403
+            )
+
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse(
+                {"error": "Invalid JSON in request body."},
+                status=400
+            )
+
+        # Validate confirmation
+        confirmation = data.get("confirmation", "").strip()
+        if confirmation != self.CONFIRMATION_TEXT:
+            return JsonResponse(
+                {
+                    "error": "Confirmation text does not match.",
+                    "expected": self.CONFIRMATION_TEXT,
+                },
+                status=400
+            )
+
+        # Check for hard delete option
+        hard_delete = data.get("hard_delete", False)
+
+        # Count records before deletion
+        daily_logs_count = CycleDailyLog.objects.filter(user=user).count()
+        cycles_count = Cycle.objects.filter(user=user).count()
+        predictions_count = CyclePrediction.objects.filter(user=user).count()
+
+        total_count = daily_logs_count + cycles_count + predictions_count + 1  # +1 for settings
+
+        # Perform deletion
+        if hard_delete:
+            # Hard delete - permanently remove all records
+            CycleDailyLog.all_objects.filter(user=user).delete()
+            Cycle.all_objects.filter(user=user).delete()
+            CyclePrediction.all_objects.filter(user=user).delete()
+            CycleSettings.all_objects.filter(user=user).delete()
+            deletion_type = "hard"
+        else:
+            # Soft delete - mark as deleted
+            now = timezone.now()
+            CycleDailyLog.objects.filter(user=user).update(
+                status="deleted", deleted_at=now
+            )
+            Cycle.objects.filter(user=user).update(
+                status="deleted", deleted_at=now
+            )
+            CyclePrediction.objects.filter(user=user).update(
+                status="deleted", deleted_at=now
+            )
+            cycle_settings.soft_delete()
+            deletion_type = "soft"
+
+        # Create audit log entry
+        log_security_event(
+            event_type="data_export",  # Using data_export type for data deletion
+            severity="warning",
+            message=f"User deleted all cycle tracking data ({deletion_type} delete)",
+            request=request,
+            user=user,
+            details={
+                "action": "cycle_data_delete_all",
+                "deletion_type": deletion_type,
+                "counts": {
+                    "daily_logs": daily_logs_count,
+                    "cycles": cycles_count,
+                    "predictions": predictions_count,
+                    "settings": 1,
+                },
+                "total_records": total_count,
+            }
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": f"All cycle data has been {'permanently deleted' if hard_delete else 'deleted'}.",
+            "deletion_type": deletion_type,
+            "counts": {
+                "daily_logs": daily_logs_count,
+                "cycles": cycles_count,
+                "predictions": predictions_count,
+                "settings": 1,
+            },
+            "total_deleted": total_count,
+        })

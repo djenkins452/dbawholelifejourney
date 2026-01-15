@@ -304,3 +304,198 @@ class CycleExportServiceIntegrationTest(TestCase):
         # Check predictions
         self.assertIn("predictions", data)
         self.assertEqual(len(data["predictions"]), 1)
+
+
+class CycleDeleteAllAPIViewTest(TestCase):
+    """Tests for the CycleDeleteAllAPIView endpoint."""
+
+    def setUp(self):
+        """Set up test user and cycle data."""
+        self.user = self._create_test_user()
+        self.client = Client()
+        self.client.login(email="test@example.com", password="testpass123")
+        self.url = reverse("health:cycle_delete_all_api")
+
+    def _create_test_user(self, email="test@example.com", password="testpass123"):
+        """Create a test user with terms accepted and onboarding completed."""
+        from django.conf import settings
+        user = User.objects.create_user(email=email, password=password)
+        # Accept terms (required by middleware) - use current version
+        current_terms_version = settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0")
+        TermsAcceptance.objects.create(user=user, terms_version=current_terms_version)
+        # Complete onboarding
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+        return user
+
+    def _create_test_data(self):
+        """Create test cycle data."""
+        settings = CycleSettings.objects.create(
+            user=self.user,
+            cycle_tracking_enabled=True,
+            average_cycle_length=28,
+            average_period_length=5,
+        )
+
+        # Create cycles
+        Cycle.objects.create(
+            user=self.user,
+            start_date=date.today() - timedelta(days=28),
+            period_end_date=date.today() - timedelta(days=23),
+            cycle_number=1,
+        )
+
+        # Create daily logs
+        for i in range(3):
+            CycleDailyLog.objects.create(
+                user=self.user,
+                log_date=date.today() - timedelta(days=i),
+                flow_level="medium",
+            )
+
+        # Create prediction
+        CyclePrediction.objects.create(
+            user=self.user,
+            predicted_period_start=date.today() + timedelta(days=14),
+            predicted_period_end=date.today() + timedelta(days=19),
+            prediction_confidence=Decimal("0.75"),
+            prediction_algorithm_version="v1.0",
+        )
+
+        return settings
+
+    def test_delete_requires_authentication(self):
+        """Unauthenticated users cannot delete data."""
+        self.client.logout()
+        response = self.client.post(
+            self.url,
+            data=json.dumps({"confirmation": "DELETE ALL MY CYCLE DATA"}),
+            content_type="application/json",
+        )
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+
+    def test_delete_requires_cycle_tracking_enabled(self):
+        """Delete requires cycle tracking to be enabled."""
+        # No CycleSettings created
+        response = self.client.post(
+            self.url,
+            data=json.dumps({"confirmation": "DELETE ALL MY CYCLE DATA"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+        data = response.json()
+        self.assertIn("not enabled", data["error"])
+
+    def test_delete_requires_confirmation(self):
+        """Delete requires correct confirmation text."""
+        self._create_test_data()
+        response = self.client.post(
+            self.url,
+            data=json.dumps({"confirmation": "wrong text"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("does not match", data["error"])
+
+    def test_delete_requires_json_body(self):
+        """Delete requires valid JSON body."""
+        self._create_test_data()
+        response = self.client.post(
+            self.url,
+            data="not json",
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn("Invalid JSON", data["error"])
+
+    def test_soft_delete_success(self):
+        """Soft delete marks all records as deleted."""
+        self._create_test_data()
+
+        # Verify data exists before deletion
+        self.assertEqual(CycleDailyLog.objects.filter(user=self.user).count(), 3)
+        self.assertEqual(Cycle.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(CyclePrediction.objects.filter(user=self.user).count(), 1)
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps({"confirmation": "DELETE ALL MY CYCLE DATA"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertTrue(data["success"])
+        self.assertEqual(data["deletion_type"], "soft")
+        self.assertEqual(data["counts"]["daily_logs"], 3)
+        self.assertEqual(data["counts"]["cycles"], 1)
+        self.assertEqual(data["counts"]["predictions"], 1)
+        self.assertEqual(data["counts"]["settings"], 1)
+        self.assertEqual(data["total_deleted"], 6)  # 3 + 1 + 1 + 1
+
+        # Verify data is soft-deleted (not visible via normal manager)
+        self.assertEqual(CycleDailyLog.objects.filter(user=self.user).count(), 0)
+        self.assertEqual(Cycle.objects.filter(user=self.user).count(), 0)
+        self.assertEqual(CyclePrediction.objects.filter(user=self.user).count(), 0)
+
+        # But still exists via all_objects
+        self.assertEqual(CycleDailyLog.all_objects.filter(user=self.user).count(), 3)
+        self.assertEqual(Cycle.all_objects.filter(user=self.user).count(), 1)
+        self.assertEqual(CyclePrediction.all_objects.filter(user=self.user).count(), 1)
+
+    def test_hard_delete_success(self):
+        """Hard delete permanently removes all records."""
+        self._create_test_data()
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps({
+                "confirmation": "DELETE ALL MY CYCLE DATA",
+                "hard_delete": True,
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertTrue(data["success"])
+        self.assertEqual(data["deletion_type"], "hard")
+
+        # Verify data is completely gone
+        self.assertEqual(CycleDailyLog.all_objects.filter(user=self.user).count(), 0)
+        self.assertEqual(Cycle.all_objects.filter(user=self.user).count(), 0)
+        self.assertEqual(CyclePrediction.all_objects.filter(user=self.user).count(), 0)
+        self.assertEqual(CycleSettings.all_objects.filter(user=self.user).count(), 0)
+
+    def test_delete_only_affects_own_data(self):
+        """Delete only affects the authenticated user's data."""
+        self._create_test_data()
+
+        # Create second user with data
+        user2 = self._create_test_user(email="test2@example.com")
+        CycleSettings.objects.create(
+            user=user2,
+            cycle_tracking_enabled=True,
+        )
+        CycleDailyLog.objects.create(
+            user=user2,
+            log_date=date.today(),
+            flow_level="light",
+        )
+
+        # Delete first user's data
+        response = self.client.post(
+            self.url,
+            data=json.dumps({"confirmation": "DELETE ALL MY CYCLE DATA"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Second user's data should still exist
+        self.assertEqual(CycleDailyLog.objects.filter(user=user2).count(), 1)
+        self.assertEqual(CycleSettings.objects.filter(user=user2).count(), 1)

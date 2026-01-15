@@ -16,6 +16,36 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Data Management Page (Phase 9)
+
+**Summary:** Created page for users to export and delete their cycle tracking data.
+
+**Features:**
+- Data statistics summary (daily logs, cycles, predictions counts)
+- Date range display showing oldest to newest data
+- Export to JSON button for full data backup
+- Export to CSV button for spreadsheet compatibility
+- Delete All button with double confirmation:
+  - First modal confirms intent
+  - Second modal requires typing "DELETE" to proceed
+- Clear warning about permanent deletion
+- Redirects to opt-in page after deletion
+
+**Files Created:**
+- `templates/health/cycle/data_management.html` - Data management page
+
+**Files Modified:**
+- `apps/health/views_cycle.py` - Added CycleDataManagementView, CycleExportJSONView, CycleExportCSVView, CycleDeleteAllView
+- `apps/health/urls.py` - Added data management URLs
+
+**URLs:**
+- `/health/cycle/data/` (name: `cycle_data_management`)
+- `/health/cycle/data/export/json/` (name: `cycle_export_json`)
+- `/health/cycle/data/export/csv/` (name: `cycle_export_csv`)
+- `/health/cycle/data/delete-all/` (name: `cycle_delete_all`)
+
+---
+
 ### Create Calendar Day Detail Modal (Phase 8)
 
 **Summary:** Added interactive day detail modal for viewing and editing cycle logs from the calendar view.

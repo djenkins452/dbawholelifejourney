@@ -228,4 +228,10 @@ urlpatterns = [
     path("cycle/api/predictions/current/", views_cycle.CyclePredictionViewSet.as_view(), {"action": "current"}, name="cycle_predictions_current"),
     path("cycle/api/predictions/regenerate/", views_cycle.CyclePredictionViewSet.as_view(), {"action": "regenerate"}, name="cycle_predictions_regenerate"),
     path("cycle/api/predictions/<int:prediction_id>/", views_cycle.CyclePredictionViewSet.as_view(), name="cycle_predictions_detail"),
+
+    # Data Management
+    path("cycle/data/", views_cycle.CycleDataManagementView.as_view(), name="cycle_data_management"),
+    path("cycle/data/export/json/", views_cycle.CycleExportJSONView.as_view(), name="cycle_export_json"),
+    path("cycle/data/export/csv/", views_cycle.CycleExportCSVView.as_view(), name="cycle_export_csv"),
+    path("cycle/data/delete-all/", views_cycle.CycleDeleteAllView.as_view(), name="cycle_delete_all"),
 ]

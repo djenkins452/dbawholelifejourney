@@ -1378,3 +1378,136 @@ class CycleDayModalView(LoginRequiredMixin, CycleTrackingEnabledMixin, View):
         )
 
         return HttpResponse(html)
+
+
+class CycleDataManagementView(LoginRequiredMixin, CycleTrackingEnabledMixin, TemplateView):
+    """
+    Data management page for cycle tracking.
+
+    Allows users to:
+    - Export their data in JSON or CSV format
+    - Delete all their cycle tracking data (with double confirmation)
+    - View statistics about their stored data
+    """
+
+    template_name = "health/cycle/data_management.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # Get data counts
+        daily_logs_count = CycleDailyLog.objects.filter(user=user).count()
+        cycles_count = Cycle.objects.filter(user=user).count()
+        predictions_count = CyclePrediction.objects.filter(user=user).count()
+
+        # Get date range
+        oldest_log = CycleDailyLog.objects.filter(user=user).order_by("log_date").first()
+        newest_log = CycleDailyLog.objects.filter(user=user).order_by("-log_date").first()
+
+        context["stats"] = {
+            "daily_logs": daily_logs_count,
+            "cycles": cycles_count,
+            "predictions": predictions_count,
+            "date_range": {
+                "oldest": oldest_log.log_date if oldest_log else None,
+                "newest": newest_log.log_date if newest_log else None,
+            },
+        }
+
+        return context
+
+
+class CycleExportJSONView(LoginRequiredMixin, CycleTrackingEnabledMixin, View):
+    """
+    Export all cycle data as JSON file download.
+    """
+
+    def post(self, request):
+        from django.http import HttpResponse
+        from .services.cycle_export import CycleDataExportService
+
+        service = CycleDataExportService(request.user)
+        json_data = service.export_to_json_string()
+
+        response = HttpResponse(
+            json_data,
+            content_type="application/json"
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="cycle_data_{timezone.now().strftime("%Y%m%d")}.json"'
+        )
+        return response
+
+
+class CycleExportCSVView(LoginRequiredMixin, CycleTrackingEnabledMixin, View):
+    """
+    Export cycle daily logs as CSV file download.
+    """
+
+    def post(self, request):
+        from django.http import HttpResponse
+        from .services.cycle_export import CycleDataExportService
+
+        service = CycleDataExportService(request.user)
+
+        # Export daily logs as CSV (main data)
+        csv_data = service.export_to_csv(data_type="daily_logs")
+
+        response = HttpResponse(
+            csv_data,
+            content_type="text/csv"
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="cycle_logs_{timezone.now().strftime("%Y%m%d")}.csv"'
+        )
+        return response
+
+
+class CycleDeleteAllView(LoginRequiredMixin, CycleTrackingEnabledMixin, View):
+    """
+    Delete all cycle tracking data for the user.
+
+    Requires confirmation text to be "DELETE" to proceed.
+    Redirects to opt-in page after successful deletion.
+    """
+
+    def post(self, request):
+        from django.shortcuts import redirect
+        from django.contrib import messages
+
+        confirmation_text = request.POST.get("confirmation_text", "").strip().upper()
+
+        if confirmation_text != "DELETE":
+            messages.error(
+                request,
+                "Deletion cancelled. Confirmation text did not match."
+            )
+            return redirect("health:cycle_data_management")
+
+        user = request.user
+
+        # Count before deletion for message
+        daily_logs_count = CycleDailyLog.objects.filter(user=user).count()
+        cycles_count = Cycle.objects.filter(user=user).count()
+        predictions_count = CyclePrediction.objects.filter(user=user).count()
+
+        # Soft delete all data
+        CycleDailyLog.objects.filter(user=user).update(deleted_at=timezone.now())
+        Cycle.objects.filter(user=user).update(deleted_at=timezone.now())
+        CyclePrediction.objects.filter(user=user).update(deleted_at=timezone.now())
+
+        # Soft delete settings (disables tracking)
+        try:
+            settings = CycleSettings.objects.get(user=user)
+            settings.soft_delete()
+        except CycleSettings.DoesNotExist:
+            pass
+
+        messages.success(
+            request,
+            f"Deleted {daily_logs_count} logs, {cycles_count} cycles, and {predictions_count} predictions. "
+            "Cycle tracking has been disabled."
+        )
+
+        return redirect("health:cycle_opt_in")

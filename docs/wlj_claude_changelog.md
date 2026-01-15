@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CycleSettingsViewSet (Phase 4)
+
+**Summary:** Created API views for managing cycle tracking settings with opt-in/out control.
+
+**Views:**
+- `CycleSettingsViewSet`: GET/PUT/PATCH for settings retrieval and update
+- `CycleOptInView`: POST to enable cycle tracking (creates or reactivates settings)
+- `CycleOptOutView`: POST to disable tracking (optional data deletion with confirmation)
+- `CycleSettingsCheckView`: GET quick status check for UI feature toggles
+
+**Mixins:**
+- `CycleTrackingEnabledMixin`: Returns 403 if cycle tracking not enabled
+
+**URL Patterns:**
+- `/health/cycle/api/settings/` - Settings CRUD
+- `/health/cycle/api/opt-in/` - Enable tracking
+- `/health/cycle/api/opt-out/` - Disable tracking
+- `/health/cycle/api/check/` - Quick status check
+
+**Files Created:** `apps/health/views_cycle.py`
+**Files Modified:** `apps/health/urls.py`
+
+---
+
 ### Create Serializers for Cycle Models (Phase 4)
 
 **Summary:** Created serializers module for all cycle tracking models.

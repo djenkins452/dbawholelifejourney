@@ -5,6 +5,7 @@ Health URLs - Physical wellness tracking.
 from django.urls import path
 
 from . import views
+from . import views_cycle
 
 app_name = "health"
 
@@ -161,4 +162,10 @@ urlpatterns = [
     path("providers/<int:provider_pk>/staff/add/", views.ProviderStaffCreateView.as_view(), name="staff_create"),
     path("providers/staff/<int:pk>/edit/", views.ProviderStaffUpdateView.as_view(), name="staff_update"),
     path("providers/staff/<int:pk>/delete/", views.ProviderStaffDeleteView.as_view(), name="staff_delete"),
+
+    # Cycle Tracking API
+    path("cycle/api/settings/", views_cycle.CycleSettingsViewSet.as_view(), name="cycle_settings_api"),
+    path("cycle/api/opt-in/", views_cycle.CycleOptInView.as_view(), name="cycle_opt_in"),
+    path("cycle/api/opt-out/", views_cycle.CycleOptOutView.as_view(), name="cycle_opt_out"),
+    path("cycle/api/check/", views_cycle.CycleSettingsCheckView.as_view(), name="cycle_check"),
 ]

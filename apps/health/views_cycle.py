@@ -1224,3 +1224,103 @@ class CyclePeriodToggleView(LoginRequiredMixin, CycleTrackingEnabledMixin, View)
 
         from django.http import HttpResponse
         return HttpResponse(html)
+
+
+class CycleCalendarView(LoginRequiredMixin, TemplateView):
+    """
+    Calendar view for cycle tracking.
+
+    Displays a monthly calendar with:
+    - Color-coded period days based on flow level
+    - Predicted period days with dashed borders
+    - Optional fertile window highlighting
+    - Click-to-log functionality
+    - Month navigation and touch swipe support
+    """
+
+    template_name = "health/cycle/calendar.html"
+
+    def get_context_data(self, **kwargs):
+        import json
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = timezone.now().date()
+
+        # Get requested month/year or default to current
+        year = self.request.GET.get("year")
+        month = self.request.GET.get("month")
+
+        if year and month:
+            try:
+                current_year = int(year)
+                current_month = int(month) - 1  # Convert to 0-indexed for JS
+            except ValueError:
+                current_year = today.year
+                current_month = today.month - 1
+        else:
+            current_year = today.year
+            current_month = today.month - 1
+
+        context["current_year"] = current_year
+        context["current_month_num"] = current_month
+
+        # For display in template
+        display_date = date(current_year, current_month + 1, 1)
+        context["current_month"] = display_date
+
+        # Get logs for visible range (current month plus padding)
+        # Fetch 6 weeks of data to cover any month
+        month_start = date(current_year, current_month + 1, 1)
+        if current_month == 11:
+            month_end = date(current_year + 1, 1, 1) - timedelta(days=1)
+        else:
+            month_end = date(current_year, current_month + 2, 1) - timedelta(days=1)
+
+        # Extend range for calendar padding (days from prev/next month)
+        range_start = month_start - timedelta(days=7)
+        range_end = month_end + timedelta(days=7)
+
+        # Fetch daily logs
+        logs = CycleDailyLog.objects.filter(
+            user=user,
+            log_date__gte=range_start,
+            log_date__lte=range_end
+        )
+
+        logs_dict = {}
+        for log in logs:
+            logs_dict[log.log_date.isoformat()] = {
+                "flow_level": log.flow_level,
+                "mood": log.mood,
+                "energy_level": log.energy_level,
+                "symptoms": log.symptoms,
+                "notes": log.notes[:100] if log.notes else None,
+            }
+
+        context["logs_json"] = json.dumps(logs_dict)
+
+        # Get current prediction
+        prediction = CyclePrediction.get_active_prediction(user)
+        predictions_dict = {}
+        if prediction:
+            predictions_dict = {
+                "predicted_period_start": prediction.predicted_period_start.isoformat() if prediction.predicted_period_start else None,
+                "predicted_period_end": prediction.predicted_period_end.isoformat() if prediction.predicted_period_end else None,
+                "predicted_fertile_window_start": prediction.predicted_fertile_window_start.isoformat() if prediction.predicted_fertile_window_start else None,
+                "predicted_fertile_window_end": prediction.predicted_fertile_window_end.isoformat() if prediction.predicted_fertile_window_end else None,
+            }
+
+        context["predictions_json"] = json.dumps(predictions_dict)
+
+        # Get cycle history (start dates)
+        cycles = Cycle.objects.filter(user=user).order_by("-start_date")[:12]
+        cycles_list = [
+            {
+                "start_date": c.start_date.isoformat(),
+                "end_date": c.end_date.isoformat() if c.end_date else None,
+            }
+            for c in cycles
+        ]
+        context["cycles_json"] = json.dumps(cycles_list)
+
+        return context

@@ -1,0 +1,853 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Cycle Calendar - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container cycle-calendar-container">
+    <!-- Header -->
+    <div class="calendar-header">
+        <a href="{% url 'health:cycle_dashboard' %}" class="back-link">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6"/>
+            </svg>
+            Back to Dashboard
+        </a>
+        <h1 class="calendar-title">Cycle Calendar</h1>
+    </div>
+
+    <!-- Month Navigation -->
+    <div class="month-nav">
+        <button type="button" class="month-btn prev" id="prev-month" aria-label="Previous month">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6"/>
+            </svg>
+        </button>
+        <h2 class="current-month" id="current-month">
+            {{ current_month|date:"F Y" }}
+        </h2>
+        <button type="button" class="month-btn next" id="next-month" aria-label="Next month">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Legend -->
+    <div class="calendar-legend">
+        <div class="legend-item">
+            <span class="legend-dot period-heavy"></span>
+            <span>Heavy Flow</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot period-medium"></span>
+            <span>Medium Flow</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot period-light"></span>
+            <span>Light Flow</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot period-spotting"></span>
+            <span>Spotting</span>
+        </div>
+        <div class="legend-item" id="fertile-legend" style="display: none;">
+            <span class="legend-dot fertile"></span>
+            <span>Fertile Window</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot predicted"></span>
+            <span>Predicted</span>
+        </div>
+    </div>
+
+    <!-- Fertile Window Toggle -->
+    <div class="fertile-toggle">
+        <label class="toggle-label">
+            <input type="checkbox" id="show-fertile" class="toggle-input">
+            <span class="toggle-switch"></span>
+            <span>Show Fertile Window</span>
+        </label>
+    </div>
+
+    <!-- Calendar Grid -->
+    <div class="calendar-wrapper" id="calendar-wrapper">
+        <div class="calendar-grid" id="calendar-grid">
+            <!-- Day headers -->
+            <div class="day-header">Sun</div>
+            <div class="day-header">Mon</div>
+            <div class="day-header">Tue</div>
+            <div class="day-header">Wed</div>
+            <div class="day-header">Thu</div>
+            <div class="day-header">Fri</div>
+            <div class="day-header">Sat</div>
+
+            <!-- Days will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Selected Day Details -->
+    <div class="day-details" id="day-details" style="display: none;">
+        <div class="day-details-header">
+            <h3 id="details-date">January 1, 2026</h3>
+            <button type="button" class="close-details" id="close-details">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="day-details-content" id="details-content">
+            <!-- Will be populated by JavaScript -->
+        </div>
+        <div class="day-details-actions">
+            <a href="#" id="log-link" class="btn btn-primary">Log This Day</a>
+        </div>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.cycle-calendar-container {
+    max-width: 600px;
+    padding-bottom: var(--space-8);
+}
+
+/* Header */
+.calendar-header {
+    margin-bottom: var(--space-6);
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    margin-bottom: var(--space-3);
+}
+
+.back-link:hover {
+    color: var(--color-accent);
+}
+
+.calendar-title {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Month Navigation */
+.month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+}
+
+.month-btn {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.month-btn:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-accent);
+}
+
+.current-month {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Legend */
+.calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-full);
+}
+
+.legend-dot.period-heavy {
+    background: #D32F2F;
+}
+
+.legend-dot.period-medium {
+    background: #E57373;
+}
+
+.legend-dot.period-light {
+    background: #FFCDD2;
+}
+
+.legend-dot.period-spotting {
+    background: #FCE4EC;
+    border: 1px solid #F8BBD9;
+}
+
+.legend-dot.fertile {
+    background: #81C784;
+}
+
+.legend-dot.predicted {
+    background: transparent;
+    border: 2px dashed #E57373;
+}
+
+/* Fertile Window Toggle */
+.fertile-toggle {
+    margin-bottom: var(--space-4);
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+}
+
+.toggle-input {
+    display: none;
+}
+
+.toggle-switch {
+    width: 44px;
+    height: 24px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    position: relative;
+    transition: background 0.2s;
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: var(--radius-full);
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle-input:checked + .toggle-switch {
+    background: var(--color-success);
+}
+
+.toggle-input:checked + .toggle-switch::after {
+    transform: translateX(20px);
+}
+
+/* Calendar Grid */
+.calendar-wrapper {
+    touch-action: pan-y;
+    overflow: hidden;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2);
+}
+
+.day-header {
+    padding: var(--space-2);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-1);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s, transform 0.1s;
+    min-height: 44px;
+}
+
+.calendar-day:hover {
+    background: var(--color-bg-hover);
+}
+
+.calendar-day:active {
+    transform: scale(0.95);
+}
+
+.calendar-day.other-month {
+    color: var(--color-text-muted);
+    opacity: 0.4;
+}
+
+.calendar-day.today {
+    font-weight: 700;
+    box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.day-number {
+    font-size: var(--font-size-sm);
+    line-height: 1;
+    z-index: 1;
+}
+
+/* Period day colors */
+.calendar-day.period-heavy {
+    background: #D32F2F;
+    color: white;
+}
+
+.calendar-day.period-medium {
+    background: #E57373;
+    color: white;
+}
+
+.calendar-day.period-light {
+    background: #FFCDD2;
+    color: #B71C1C;
+}
+
+.calendar-day.period-spotting {
+    background: #FCE4EC;
+    color: #880E4F;
+}
+
+/* Predicted period */
+.calendar-day.predicted-period {
+    background: transparent;
+    position: relative;
+}
+
+.calendar-day.predicted-period::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 2px dashed #E57373;
+    border-radius: var(--radius-sm);
+}
+
+/* Fertile window */
+.calendar-day.fertile-window {
+    background: rgba(129, 199, 132, 0.3);
+}
+
+.calendar-day.fertile-window.predicted-period::before {
+    border-color: #81C784;
+}
+
+/* Indicators */
+.day-indicators {
+    display: flex;
+    gap: 2px;
+    position: absolute;
+    bottom: 4px;
+}
+
+.day-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: var(--radius-full);
+    background: var(--color-accent);
+}
+
+.day-dot.symptom {
+    background: #FFA726;
+}
+
+.day-dot.mood {
+    background: #42A5F5;
+}
+
+/* Day Details Panel */
+.day-details {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: var(--space-5);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    z-index: 100;
+    max-height: 60vh;
+    overflow-y: auto;
+    animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+.day-details-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.day-details-header h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+.close-details {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.close-details:hover {
+    background: var(--color-bg-hover);
+}
+
+.day-details-content {
+    margin-bottom: var(--space-4);
+}
+
+.detail-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    font-size: var(--font-size-sm);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    color: var(--color-text-muted);
+    min-width: 80px;
+}
+
+.detail-value {
+    font-weight: 500;
+}
+
+.day-details-actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.day-details-actions .btn {
+    flex: 1;
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+    .cycle-calendar-container {
+        padding-left: var(--space-2);
+        padding-right: var(--space-2);
+    }
+
+    .calendar-legend {
+        gap: var(--space-2);
+        padding: var(--space-2);
+    }
+
+    .legend-item {
+        font-size: var(--font-size-xs);
+    }
+
+    .day-header {
+        font-size: var(--font-size-xs);
+        padding: var(--space-1);
+    }
+
+    .calendar-day {
+        min-height: 40px;
+    }
+
+    .day-number {
+        font-size: var(--font-size-xs);
+    }
+
+    .current-month {
+        font-size: var(--font-size-lg);
+    }
+}
+
+/* Desktop - side panel instead of bottom sheet */
+@media (min-width: 769px) {
+    .day-details {
+        position: fixed;
+        bottom: auto;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 400px;
+        max-height: 80vh;
+        border-radius: var(--radius-xl);
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translate(-50%, -45%);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, -50%);
+        }
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    // Calendar data from server
+    const calendarData = {
+        logs: {{ logs_json|safe|default:"{}" }},
+        predictions: {{ predictions_json|safe|default:"{}" }},
+        cycles: {{ cycles_json|safe|default:"[]" }}
+    };
+
+    // Current view state
+    let currentYear = {{ current_year }};
+    let currentMonth = {{ current_month_num }};  // 0-indexed for JS
+    let showFertile = false;
+
+    // DOM Elements
+    const calendarGrid = document.getElementById('calendar-grid');
+    const currentMonthEl = document.getElementById('current-month');
+    const prevBtn = document.getElementById('prev-month');
+    const nextBtn = document.getElementById('next-month');
+    const showFertileToggle = document.getElementById('show-fertile');
+    const fertileLegend = document.getElementById('fertile-legend');
+    const dayDetails = document.getElementById('day-details');
+    const detailsDate = document.getElementById('details-date');
+    const detailsContent = document.getElementById('details-content');
+    const closeDetails = document.getElementById('close-details');
+    const logLink = document.getElementById('log-link');
+
+    // Month names
+    const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    // Flow level display
+    const flowLabels = {
+        'spotting': 'Spotting',
+        'light': 'Light',
+        'medium': 'Medium',
+        'heavy': 'Heavy',
+        'none': 'None'
+    };
+
+    // Render the calendar
+    function renderCalendar() {
+        // Update header
+        currentMonthEl.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+
+        // Clear existing days (keep headers)
+        const existingDays = calendarGrid.querySelectorAll('.calendar-day');
+        existingDays.forEach(day => day.remove());
+
+        // Get first day of month and total days
+        const firstDay = new Date(currentYear, currentMonth, 1);
+        const lastDay = new Date(currentYear, currentMonth + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDay = firstDay.getDay();  // 0 = Sunday
+
+        // Get today for comparison
+        const today = new Date();
+        const todayStr = formatDate(today);
+
+        // Add empty cells for days before month starts
+        for (let i = 0; i < startingDay; i++) {
+            // Days from previous month
+            const prevMonthDay = new Date(currentYear, currentMonth, -startingDay + i + 1);
+            const dayEl = createDayElement(prevMonthDay, true);
+            calendarGrid.appendChild(dayEl);
+        }
+
+        // Add days of month
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(currentYear, currentMonth, day);
+            const isToday = formatDate(date) === todayStr;
+            const dayEl = createDayElement(date, false, isToday);
+            calendarGrid.appendChild(dayEl);
+        }
+
+        // Fill remaining cells with next month
+        const totalCells = Math.ceil((startingDay + daysInMonth) / 7) * 7;
+        const remainingCells = totalCells - (startingDay + daysInMonth);
+        for (let i = 1; i <= remainingCells; i++) {
+            const nextMonthDay = new Date(currentYear, currentMonth + 1, i);
+            const dayEl = createDayElement(nextMonthDay, true);
+            calendarGrid.appendChild(dayEl);
+        }
+    }
+
+    // Create a day element
+    function createDayElement(date, isOtherMonth, isToday = false) {
+        const dayEl = document.createElement('div');
+        dayEl.className = 'calendar-day';
+        dayEl.dataset.date = formatDate(date);
+
+        if (isOtherMonth) {
+            dayEl.classList.add('other-month');
+        }
+
+        if (isToday) {
+            dayEl.classList.add('today');
+        }
+
+        // Get data for this day
+        const dateStr = formatDate(date);
+        const logData = calendarData.logs[dateStr];
+        const predictions = calendarData.predictions;
+
+        // Add flow level class
+        if (logData && logData.flow_level && logData.flow_level !== 'none') {
+            dayEl.classList.add(`period-${logData.flow_level}`);
+        }
+
+        // Check predictions
+        if (predictions.predicted_period_start && predictions.predicted_period_end) {
+            const predStart = new Date(predictions.predicted_period_start);
+            const predEnd = new Date(predictions.predicted_period_end);
+            if (date >= predStart && date <= predEnd && !logData?.flow_level) {
+                dayEl.classList.add('predicted-period');
+            }
+        }
+
+        // Check fertile window (if toggled on)
+        if (showFertile && predictions.predicted_fertile_window_start && predictions.predicted_fertile_window_end) {
+            const fertileStart = new Date(predictions.predicted_fertile_window_start);
+            const fertileEnd = new Date(predictions.predicted_fertile_window_end);
+            if (date >= fertileStart && date <= fertileEnd) {
+                dayEl.classList.add('fertile-window');
+            }
+        }
+
+        // Day number
+        const dayNum = document.createElement('span');
+        dayNum.className = 'day-number';
+        dayNum.textContent = date.getDate();
+        dayEl.appendChild(dayNum);
+
+        // Add indicators for symptoms/mood
+        if (logData && (logData.symptoms?.length > 0 || logData.mood)) {
+            const indicators = document.createElement('div');
+            indicators.className = 'day-indicators';
+
+            if (logData.symptoms?.length > 0) {
+                const dot = document.createElement('span');
+                dot.className = 'day-dot symptom';
+                indicators.appendChild(dot);
+            }
+
+            if (logData.mood && logData.mood !== '') {
+                const dot = document.createElement('span');
+                dot.className = 'day-dot mood';
+                indicators.appendChild(dot);
+            }
+
+            dayEl.appendChild(indicators);
+        }
+
+        // Click handler
+        dayEl.addEventListener('click', () => showDayDetails(date, logData));
+
+        return dayEl;
+    }
+
+    // Format date as YYYY-MM-DD
+    function formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // Format date for display
+    function formatDateDisplay(date) {
+        return date.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    // Show day details panel
+    function showDayDetails(date, logData) {
+        detailsDate.textContent = formatDateDisplay(date);
+
+        let content = '';
+
+        if (logData) {
+            if (logData.flow_level && logData.flow_level !== 'none') {
+                content += `<div class="detail-item">
+                    <span class="detail-label">Flow</span>
+                    <span class="detail-value">${flowLabels[logData.flow_level] || logData.flow_level}</span>
+                </div>`;
+            }
+
+            if (logData.mood) {
+                content += `<div class="detail-item">
+                    <span class="detail-label">Mood</span>
+                    <span class="detail-value" style="text-transform: capitalize;">${logData.mood}</span>
+                </div>`;
+            }
+
+            if (logData.energy_level) {
+                content += `<div class="detail-item">
+                    <span class="detail-label">Energy</span>
+                    <span class="detail-value">${logData.energy_level}/5</span>
+                </div>`;
+            }
+
+            if (logData.symptoms && logData.symptoms.length > 0) {
+                content += `<div class="detail-item">
+                    <span class="detail-label">Symptoms</span>
+                    <span class="detail-value">${logData.symptoms.join(', ')}</span>
+                </div>`;
+            }
+
+            if (logData.notes) {
+                content += `<div class="detail-item">
+                    <span class="detail-label">Notes</span>
+                    <span class="detail-value">${logData.notes}</span>
+                </div>`;
+            }
+        }
+
+        if (!content) {
+            content = '<p style="color: var(--color-text-muted);">No data logged for this day.</p>';
+        }
+
+        detailsContent.innerHTML = content;
+
+        // Update log link
+        const dateStr = formatDate(date);
+        logLink.href = `{% url 'health:cycle_dashboard' %}?log_date=${dateStr}`;
+
+        dayDetails.style.display = 'block';
+    }
+
+    // Close details panel
+    function closeDayDetails() {
+        dayDetails.style.display = 'none';
+    }
+
+    // Navigation handlers
+    prevBtn.addEventListener('click', () => {
+        currentMonth--;
+        if (currentMonth < 0) {
+            currentMonth = 11;
+            currentYear--;
+        }
+        renderCalendar();
+    });
+
+    nextBtn.addEventListener('click', () => {
+        currentMonth++;
+        if (currentMonth > 11) {
+            currentMonth = 0;
+            currentYear++;
+        }
+        renderCalendar();
+    });
+
+    // Fertile window toggle
+    showFertileToggle.addEventListener('change', (e) => {
+        showFertile = e.target.checked;
+        fertileLegend.style.display = showFertile ? 'flex' : 'none';
+        renderCalendar();
+    });
+
+    // Close details handlers
+    closeDetails.addEventListener('click', closeDayDetails);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeDayDetails();
+        }
+    });
+
+    // Touch swipe for mobile
+    let touchStartX = 0;
+    const calendarWrapper = document.getElementById('calendar-wrapper');
+
+    calendarWrapper.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+    }, { passive: true });
+
+    calendarWrapper.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const diff = touchStartX - touchEndX;
+
+        if (Math.abs(diff) > 50) {  // Minimum swipe distance
+            if (diff > 0) {
+                // Swipe left - next month
+                nextBtn.click();
+            } else {
+                // Swipe right - previous month
+                prevBtn.click();
+            }
+        }
+    }, { passive: true });
+
+    // Initial render
+    renderCalendar();
+})();
+</script>
+{% endblock %}

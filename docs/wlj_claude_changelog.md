@@ -16,6 +16,43 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle Calendar View (Phase 8)
+
+**Summary:** Created a full-featured calendar view for cycle tracking with color-coded days and predictions.
+
+**Template:** `templates/health/cycle/calendar.html`
+
+**Features:**
+- Monthly calendar grid with responsive layout
+- Color-coded period days:
+  - Heavy flow: #D32F2F (dark red)
+  - Medium flow: #E57373 (medium red)
+  - Light flow: #FFCDD2 (light pink)
+  - Spotting: #FCE4EC (very light pink)
+- Predicted period days with dashed border styling
+- Fertile window highlighting (toggle option)
+- Month/year navigation with arrow buttons
+- Touch swipe support for mobile month navigation
+- Click-to-view day details panel (bottom sheet on mobile, modal on desktop)
+- Day indicators for logged symptoms and mood
+- Legend explaining color meanings
+
+**View:** `CycleCalendarView` in `apps/health/views_cycle.py`
+- Fetches daily logs for visible date range
+- Loads current prediction for highlighting
+- Returns JSON data for JavaScript calendar rendering
+
+**URL:** `/health/cycle/calendar/` (name: `cycle_calendar`)
+
+**Files Created:**
+- `templates/health/cycle/calendar.html`
+
+**Files Modified:**
+- `apps/health/views_cycle.py` - Added CycleCalendarView
+- `apps/health/urls.py` - Added cycle_calendar URL
+
+---
+
 ### Add Cycle Phase to Daily Summary (Phase 7)
 
 **Summary:** Added subtle cycle day and phase display in the dashboard header greeting section.

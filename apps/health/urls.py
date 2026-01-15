@@ -167,6 +167,7 @@ urlpatterns = [
     # Cycle Tracking Pages
     # ==========================================================================
     path("cycle/", views_cycle.CycleDashboardView.as_view(), name="cycle_dashboard"),
+    path("cycle/calendar/", views_cycle.CycleCalendarView.as_view(), name="cycle_calendar"),
     path("cycle/opt-in/", views_cycle.CycleOptInPageView.as_view(), name="cycle_opt_in_page"),
 
     # ==========================================================================

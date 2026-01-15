@@ -215,6 +215,14 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         context['faith_features'] = build_feature_data(UserPreferences.FAITH_FEATURES, 'faith')
         context['journal_features'] = build_feature_data(UserPreferences.JOURNAL_FEATURES, 'journal')
 
+        # Cycle tracking status
+        try:
+            from apps.health.models import CycleSettings
+            cycle_settings = CycleSettings.objects.get(user=self.request.user)
+            context['cycle_tracking_enabled'] = cycle_settings.is_enabled
+        except Exception:
+            context['cycle_tracking_enabled'] = False
+
         return context
 
     def form_valid(self, form):

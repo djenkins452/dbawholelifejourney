@@ -1612,6 +1612,72 @@ Examples:
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Cycle Tracking -->
+                        <div class="accordion-group" data-accordion-key="cycle-tracking">
+                            <button type="button" class="accordion-header">
+                                <div class="accordion-header-content">
+                                    <span class="accordion-icon">🩸</span>
+                                    <div class="accordion-title-group">
+                                        <h3 class="accordion-title">Cycle Tracking</h3>
+                                    </div>
+                                </div>
+                                <div class="accordion-header-right">
+                                    <span class="accordion-badge {% if cycle_tracking_enabled %}accordion-badge-active{% else %}accordion-badge-inactive{% endif %}" id="cycle-status-badge">
+                                        {% if cycle_tracking_enabled %}Active{% else %}Off{% endif %}
+                                    </span>
+                                    <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </button>
+                            <div class="accordion-body">
+                                <div class="cycle-tracking-section">
+                                    <div class="toggle-setting-inline">
+                                        <div class="toggle-info">
+                                            <span class="toggle-label">Enable cycle tracking</span>
+                                            <span class="toggle-description">
+                                                Track your menstrual cycle, predict periods, and log symptoms
+                                            </span>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox"
+                                                   id="cycle-tracking-toggle"
+                                                   {% if cycle_tracking_enabled %}checked{% endif %}
+                                                   onchange="handleCycleTrackingToggle(this)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    {% if cycle_tracking_enabled %}
+                                    <div class="cycle-settings-link mt-4" id="cycle-settings-link">
+                                        <a href="{% url 'health:cycle_settings_page' %}" class="btn btn-secondary btn-sm">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="12" r="3"/>
+                                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                                            </svg>
+                                            Cycle Settings
+                                        </a>
+                                        <p class="text-muted text-sm mt-2">
+                                            Configure cycle length, period length, and display preferences
+                                        </p>
+                                    </div>
+                                    {% endif %}
+
+                                    <div class="privacy-info mt-4 p-3 bg-surface-alt rounded-md">
+                                        <div class="flex items-start gap-2">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="flex-shrink-0 text-muted mt-0.5">
+                                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                            </svg>
+                                            <p class="text-sm text-muted">
+                                                Cycle data is stored securely and never shared. You can export or delete your data anytime from the
+                                                <a href="{% url 'health:cycle_data_management' %}">data management</a> page.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3096,6 +3162,72 @@ function updateAllFeatureCounts() {
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', initFeatureToggles);
+
+// Cycle tracking toggle handler
+async function handleCycleTrackingToggle(checkbox) {
+    const isEnabling = checkbox.checked;
+    const statusBadge = document.getElementById('cycle-status-badge');
+    const settingsLink = document.getElementById('cycle-settings-link');
+
+    if (!isEnabling) {
+        // Show confirmation dialog before disabling
+        const confirmed = confirm(
+            'Are you sure you want to disable cycle tracking?\n\n' +
+            'Your data will be preserved and you can re-enable tracking anytime. ' +
+            'To permanently delete your data, visit the data management page after disabling.'
+        );
+
+        if (!confirmed) {
+            // User cancelled - revert the toggle
+            checkbox.checked = true;
+            return;
+        }
+    }
+
+    // Make API call to enable/disable
+    try {
+        const endpoint = isEnabling
+            ? '{% url "health:cycle_opt_in" %}'
+            : '{% url "health:cycle_opt_out" %}';
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify({}),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to update cycle tracking');
+        }
+
+        // Update UI
+        if (statusBadge) {
+            statusBadge.textContent = isEnabling ? 'Active' : 'Off';
+            statusBadge.className = isEnabling
+                ? 'accordion-badge accordion-badge-active'
+                : 'accordion-badge accordion-badge-inactive';
+        }
+
+        // Show/hide settings link
+        if (settingsLink) {
+            settingsLink.style.display = isEnabling ? 'block' : 'none';
+        }
+
+        // If enabling and settings link doesn't exist, reload to show it
+        if (isEnabling && !settingsLink) {
+            window.location.reload();
+        }
+
+    } catch (error) {
+        console.error('Error toggling cycle tracking:', error);
+        // Revert the toggle on error
+        checkbox.checked = !isEnabling;
+        alert('Failed to update cycle tracking. Please try again.');
+    }
+}
 </script>
 <script src="{% static 'js/biometric.js' %}"></script>
 {% endblock %}

@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Cycle Tracking to Health Settings (Phase 9)
+
+**Summary:** Added cycle tracking section to the main preferences page under Health & Wellness.
+
+**Features:**
+- Toggle switch to enable/disable cycle tracking
+- Confirmation dialog before disabling (data preserved)
+- Link to full cycle settings page when enabled
+- Privacy notice with link to data management
+- Status badge showing Active/Off state
+- AJAX toggle with error handling
+
+**Files Modified:**
+- `templates/users/preferences.html` - Added Cycle Tracking accordion section and JavaScript handler
+- `apps/users/views.py` - Added cycle_tracking_enabled context variable
+
+---
+
 ### Create Cycle Settings Page (Phase 9)
 
 **Summary:** Created settings page for users to customize cycle tracking preferences.

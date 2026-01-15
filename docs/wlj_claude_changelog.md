@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add URL Routing for Cycle API (Phase 4)
+
+**Summary:** Configured URL routing for all cycle tracking API endpoints.
+
+**Endpoints Added:**
+- `/health/cycle/api/daily-logs/` - List/create daily logs
+- `/health/cycle/api/daily-logs/<id>/` - Retrieve/update/delete daily logs
+- `/health/cycle/api/cycles/` - List cycles
+- `/health/cycle/api/cycles/<id>/` - Retrieve cycle
+- `/health/cycle/api/cycles/current/` - Get current ongoing cycle
+- `/health/cycle/api/cycles/statistics/` - Get cycle statistics and trends
+
+**Documentation:**
+- Added comprehensive API documentation comments in urls.py
+- Placeholder routes commented for predictions endpoint (to be implemented)
+
+**Files Modified:** `apps/health/urls.py`
+
+---
+
 ### Create CycleDailyLogViewSet (Phase 4)
 
 **Summary:** Created full CRUD ViewSet for daily cycle logging with validation.

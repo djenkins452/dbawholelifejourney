@@ -163,9 +163,56 @@ urlpatterns = [
     path("providers/staff/<int:pk>/edit/", views.ProviderStaffUpdateView.as_view(), name="staff_update"),
     path("providers/staff/<int:pk>/delete/", views.ProviderStaffDeleteView.as_view(), name="staff_delete"),
 
+    # ==========================================================================
     # Cycle Tracking API
+    # ==========================================================================
+    # All cycle tracking endpoints are prefixed with /health/cycle/api/
+    #
+    # Settings endpoints:
+    #   GET/PUT/PATCH /cycle/api/settings/ - Retrieve/update cycle settings
+    #   POST /cycle/api/opt-in/ - Enable cycle tracking
+    #   POST /cycle/api/opt-out/ - Disable cycle tracking
+    #   GET /cycle/api/check/ - Quick status check
+    #
+    # Daily logs endpoints (CRUD):
+    #   GET /cycle/api/daily-logs/ - List all daily logs (paginated, filterable)
+    #   POST /cycle/api/daily-logs/ - Create a new daily log
+    #   GET /cycle/api/daily-logs/<id>/ - Retrieve a daily log
+    #   PUT/PATCH /cycle/api/daily-logs/<id>/ - Update a daily log
+    #   DELETE /cycle/api/daily-logs/<id>/ - Delete a daily log
+    #
+    # Cycles endpoints (read-only):
+    #   GET /cycle/api/cycles/ - List all cycles (paginated, filterable)
+    #   GET /cycle/api/cycles/<id>/ - Retrieve a cycle
+    #   GET /cycle/api/cycles/current/ - Get current ongoing cycle
+    #   GET /cycle/api/cycles/statistics/ - Get cycle statistics and trends
+    #
+    # Predictions endpoints (read-only, placeholder):
+    #   GET /cycle/api/predictions/ - List predictions
+    #   GET /cycle/api/predictions/<id>/ - Retrieve a prediction
+    #   GET /cycle/api/predictions/current/ - Get latest prediction
+    #   POST /cycle/api/predictions/regenerate/ - Regenerate predictions
+    # ==========================================================================
+
+    # Settings
     path("cycle/api/settings/", views_cycle.CycleSettingsViewSet.as_view(), name="cycle_settings_api"),
     path("cycle/api/opt-in/", views_cycle.CycleOptInView.as_view(), name="cycle_opt_in"),
     path("cycle/api/opt-out/", views_cycle.CycleOptOutView.as_view(), name="cycle_opt_out"),
     path("cycle/api/check/", views_cycle.CycleSettingsCheckView.as_view(), name="cycle_check"),
+
+    # Daily Logs - CRUD
+    path("cycle/api/daily-logs/", views_cycle.CycleDailyLogViewSet.as_view(), name="cycle_daily_logs_list"),
+    path("cycle/api/daily-logs/<int:log_id>/", views_cycle.CycleDailyLogViewSet.as_view(), name="cycle_daily_logs_detail"),
+
+    # Cycles - Read-only
+    path("cycle/api/cycles/", views_cycle.CycleViewSet.as_view(), name="cycle_cycles_list"),
+    path("cycle/api/cycles/current/", views_cycle.CycleViewSet.as_view(), {"action": "current"}, name="cycle_cycles_current"),
+    path("cycle/api/cycles/statistics/", views_cycle.CycleViewSet.as_view(), {"action": "statistics"}, name="cycle_cycles_statistics"),
+    path("cycle/api/cycles/<int:cycle_id>/", views_cycle.CycleViewSet.as_view(), name="cycle_cycles_detail"),
+
+    # Predictions - Placeholder (ViewSet to be created in future task)
+    # path("cycle/api/predictions/", views_cycle.CyclePredictionViewSet.as_view(), name="cycle_predictions_list"),
+    # path("cycle/api/predictions/current/", views_cycle.CyclePredictionViewSet.as_view(), {"action": "current"}, name="cycle_predictions_current"),
+    # path("cycle/api/predictions/regenerate/", views_cycle.CyclePredictionViewSet.as_view(), {"action": "regenerate"}, name="cycle_predictions_regenerate"),
+    # path("cycle/api/predictions/<int:prediction_id>/", views_cycle.CyclePredictionViewSet.as_view(), name="cycle_predictions_detail"),
 ]

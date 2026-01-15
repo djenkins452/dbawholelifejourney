@@ -16,6 +16,41 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create User Help Content for Cycle Tracking (Phase 15)
+
+**Summary:** Added 4 user-facing help articles for cycle tracking with accessible, friendly language covering getting started, FAQ, privacy, and predictions.
+
+**File Modified:** `apps/help/fixtures/help_articles.json`
+
+**Help Articles Added:**
+
+1. **Getting Started with Cycle Tracking** (pk=16)
+   - Slug: `cycle-tracking-guide`
+   - Category: Features
+   - Covers: Enabling tracking, setting preferences, first log, what to track, calendar usage
+
+2. **Cycle Tracking FAQ** (pk=17)
+   - Slug: `cycle-tracking-faq`
+   - Category: FAQ
+   - Covers: Common questions about getting started, using features, predictions, symptoms, privacy
+
+3. **Cycle Tracking Privacy & Data** (pk=18)
+   - Slug: `cycle-tracking-privacy`
+   - Category: Settings & Preferences
+   - Covers: Privacy principles, data protection, export instructions, deletion process
+
+4. **Understanding Cycle Predictions** (pk=19)
+   - Slug: `cycle-predictions`
+   - Category: Features
+   - Covers: How predictions work, confidence levels, why predictions vary, improving accuracy
+
+**Notes:**
+- Used gentle, accessible, non-clinical language throughout
+- All articles tagged with module="health" for contextual help
+- Run `python manage.py loaddata help_articles` in production to update
+
+---
+
 ### Add Cycle Tracking Feature Documentation (Phase 14)
 
 **Summary:** Added comprehensive Cycle Tracking section to `docs/wlj_claude_features.md`, documenting all models, API endpoints, services, and security considerations.

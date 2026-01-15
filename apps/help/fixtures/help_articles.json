@@ -253,5 +253,73 @@
             "created_at": "2025-12-31T12:00:00Z",
             "updated_at": "2025-12-31T12:00:00Z"
         }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 16,
+        "fields": {
+            "title": "Getting Started with Cycle Tracking",
+            "slug": "cycle-tracking-guide",
+            "summary": "Track your menstrual cycle, log symptoms and mood, and get predictions for upcoming periods.",
+            "content": "## What is Cycle Tracking?\n\nCycle tracking helps you understand your body's natural rhythms. By logging a few details each day, you can:\n\n- **Know when to expect your period** - Based on your personal patterns\n- **Track how you feel** - Notice connections between your cycle and mood\n- **Spot patterns** - Understand what's normal for you\n- **Be prepared** - Get gentle reminders before your period arrives\n\n## Getting Started\n\n### Step 1: Enable Cycle Tracking\n\n1. Go to **Health > Cycle**\n2. Read the privacy information\n3. Click **\"Enable Cycle Tracking\"**\n\nYou're in control—you can disable it anytime and even delete all your data.\n\n### Step 2: Set Your Preferences\n\nAfter enabling, you'll set up some basics:\n\n- **Average cycle length** - How many days between periods (most people: 25-35 days)\n- **Average period length** - How many days your period typically lasts\n- **Notifications** - Optional reminders for predictions\n- **Fertile window tracking** - Optional if you want to track this\n\nDon't worry if you're not sure—these can be adjusted later, and the app learns from your actual data.\n\n### Step 3: Log Your First Entry\n\n1. Visit **Health > Cycle** (your dashboard)\n2. Click on today's date\n3. Select your **flow level** (or \"none\" if not on your period)\n4. Add any **symptoms** you're experiencing\n5. Note your **mood** and **energy**\n6. Save!\n\nThat's it. Even logging just flow level is helpful.\n\n## What to Track\n\n### Flow Level\nHow heavy is your period today?\n- **None** - Not on your period\n- **Spotting** - Very light, occasional\n- **Light** - Light bleeding\n- **Medium** - Normal flow\n- **Heavy** - Heavier than usual\n\n### Symptoms (Optional)\nCommon things to track:\n- Cramps\n- Headache\n- Fatigue\n- Bloating\n- Breast tenderness\n- Backache\n- Food cravings\n- And more...\n\n### Mood & Energy (Optional)\nHow are you feeling emotionally? How's your energy? These help you see patterns.\n\n## Using the Calendar\n\nThe **Calendar** view shows your history at a glance:\n- **Red dots** - Period days\n- **Pink dots** - Spotting\n- **Green highlight** - Predicted fertile window (if enabled)\n- **Striped days** - Predicted period\n\nClick any day to see details or add a log.\n\n## Tips for Success\n\n1. **Log daily during your period** - Even a quick flow level helps\n2. **Don't stress about gaps** - Some data is better than none\n3. **Be patient with predictions** - They improve after 3+ cycles\n4. **Check the calendar** - See your patterns over time\n\n## Your Privacy Matters\n\nThis is sensitive, personal information. Here's how we protect it:\n- **Opt-in only** - You choose to enable it\n- **Your data, your choice** - Export or delete anytime\n- **No sharing** - Your cycle data stays private\n- **Encrypted** - Protected in storage and transit",
+            "category": 2,
+            "module": "health",
+            "keywords": "cycle, period, menstrual, tracking, getting started, enable, setup, how to, cycle tracking",
+            "is_active": true,
+            "sort_order": 11,
+            "created_at": "2026-01-15T12:00:00Z",
+            "updated_at": "2026-01-15T12:00:00Z"
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 17,
+        "fields": {
+            "title": "Cycle Tracking FAQ",
+            "slug": "cycle-tracking-faq",
+            "summary": "Answers to common questions about cycle tracking, predictions, and privacy.",
+            "content": "## Frequently Asked Questions\n\n### Getting Started\n\n**Q: How do I enable cycle tracking?**\n\nGo to **Health > Cycle** and click \"Enable Cycle Tracking.\" You'll see privacy information first, then can set your preferences.\n\n**Q: What if I don't know my average cycle length?**\n\nThat's okay! Start with 28 days (the average). The app will learn your actual pattern as you log. You can always update it later in Settings.\n\n**Q: Do I need to log every single day?**\n\nNo. Log when you can, especially during your period. Even partial data helps. The more you log, the better the predictions—but don't stress about gaps.\n\n### Using the Features\n\n**Q: What's the difference between the Dashboard and Calendar?**\n\nThe **Dashboard** shows today's status and quick actions. The **Calendar** shows your full history with color-coded days. Both let you log entries.\n\n**Q: What do the different colors mean on the calendar?**\n\n- Red = Period days (confirmed by you)\n- Pink = Spotting\n- Striped = Predicted period\n- Green = Predicted fertile window (if enabled)\n- Today = Highlighted border\n\n**Q: How do I log for a past day?**\n\nClick on that day in the Calendar, or use the date picker when creating a new log. You can log for any date.\n\n### About Predictions\n\n**Q: Why don't I see period predictions?**\n\nPredictions need at least 3 recorded cycles to generate. Keep logging, and predictions will appear once there's enough data.\n\n**Q: How accurate are the predictions?**\n\nPredictions are based on YOUR patterns and improve over time. Most users find them accurate within 1-3 days after several cycles. Remember—bodies aren't perfectly regular, so predictions are estimates.\n\n**Q: Can I trust the predictions for planning?**\n\nThey're helpful for general planning, but cycles can vary. Use them as a guide, not a guarantee. The confidence percentage shows how reliable each prediction is.\n\n### Symptoms & Patterns\n\n**Q: Why track symptoms?**\n\nTracking symptoms helps you notice patterns. You might discover you always get headaches before your period, or that fatigue is common during certain phases. This awareness can help you prepare.\n\n**Q: What are the cycle phases?**\n\n- **Menstrual** (Period) - When you're bleeding\n- **Follicular** - After period, before ovulation\n- **Ovulation** - Most fertile time\n- **Luteal** - After ovulation, before next period\n\nThe app shows which phase you're in based on your cycle day.\n\n### Privacy & Data\n\n**Q: Who can see my cycle data?**\n\nOnly you. Cycle data is private to your account and isn't shared with anyone—not even aggregated for statistics.\n\n**Q: Can I delete my cycle data?**\n\nYes, completely. Go to **Health > Cycle > Data Management** and choose \"Delete All Data.\" This permanently removes everything.\n\n**Q: What happens if I disable cycle tracking?**\n\nYou have two options:\n1. **Disable and keep data** - Data is preserved but hidden\n2. **Disable and delete** - Everything is permanently removed\n\n**Q: Can I export my data?**\n\nYes! Export as JSON (complete backup) or CSV (spreadsheet-friendly). Go to **Health > Cycle > Data Management**.",
+            "category": 5,
+            "module": "health",
+            "keywords": "cycle faq, questions, help, period questions, predictions, privacy, data, symptoms",
+            "is_active": true,
+            "sort_order": 2,
+            "created_at": "2026-01-15T12:00:00Z",
+            "updated_at": "2026-01-15T12:00:00Z"
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 18,
+        "fields": {
+            "title": "Cycle Tracking Privacy & Data",
+            "slug": "cycle-tracking-privacy",
+            "summary": "How your cycle data is protected, and your options for exporting or deleting it.",
+            "content": "## Your Privacy Comes First\n\nWe understand that cycle data is deeply personal. That's why we've built privacy into every aspect of this feature.\n\n## Our Privacy Principles\n\n### 1. Opt-In Only\n\nCycle tracking is **never enabled automatically**. You explicitly choose to turn it on, and you're shown clear information about what you're enabling.\n\n### 2. Your Data Stays Yours\n\n- Your cycle data is **never shared** with anyone\n- It's **not used** for advertising or sold to third parties\n- It's **not aggregated** into statistics (even anonymously)\n- Only **you** can see it\n\n### 3. You Control Everything\n\nAt any time, you can:\n- **Disable** cycle tracking\n- **Export** all your data\n- **Delete** everything permanently\n\n## How Your Data is Protected\n\n### Encryption\n- Data is encrypted during transmission (HTTPS)\n- Data is encrypted at rest in our database\n- We follow industry security standards\n\n### Access Controls\n- Only you can access your cycle data\n- Even our support team cannot view it\n- No third-party services receive this data\n\n## Exporting Your Data\n\nYou can download a complete copy of your cycle data anytime.\n\n### How to Export\n\n1. Go to **Health > Cycle > Data Management**\n2. Choose your format:\n   - **JSON** - Complete backup, includes everything\n   - **CSV** - Spreadsheet format, easy to view in Excel\n3. Click Export\n4. Your file downloads immediately\n\n### What's Included\n\n- All daily logs with symptoms, mood, notes\n- All cycle records with dates and lengths\n- All predictions with confidence levels\n- Your settings and preferences\n\n## Deleting Your Data\n\nYou can permanently delete all cycle data at any time.\n\n### How to Delete\n\n1. Go to **Health > Cycle > Data Management**\n2. Click **\"Delete All Cycle Data\"**\n3. Type the confirmation phrase\n4. Click Delete\n\n### What Happens\n\n- All daily logs are permanently deleted\n- All cycle records are removed\n- All predictions are erased\n- Your settings are cleared\n- This **cannot be undone**\n\n### Alternative: Disable Without Deleting\n\nIf you want to pause tracking but keep your data, you can disable cycle tracking in Settings. Your data remains but is hidden until you re-enable.\n\n## Questions About Privacy?\n\nIf you have concerns about your data, we're here to help. Your trust matters to us, and we're committed to protecting your most personal information.",
+            "category": 3,
+            "module": "health",
+            "keywords": "cycle privacy, data, security, export, delete, personal data, encryption, private",
+            "is_active": true,
+            "sort_order": 4,
+            "created_at": "2026-01-15T12:00:00Z",
+            "updated_at": "2026-01-15T12:00:00Z"
+        }
+    },
+    {
+        "model": "help.helparticle",
+        "pk": 19,
+        "fields": {
+            "title": "Understanding Cycle Predictions",
+            "slug": "cycle-predictions",
+            "summary": "How period predictions work, what affects accuracy, and what the confidence levels mean.",
+            "content": "## How Predictions Work\n\nCycle predictions are based on **your personal patterns**, not generic averages. The more you log, the better they get.\n\n## The Basic Idea\n\nYour body has patterns. By tracking when your periods start and end, the app learns:\n\n- Your typical cycle length (days between periods)\n- Your typical period length (days of bleeding)\n- How regular or irregular your cycles are\n\nWith this information, it can estimate when your next period will likely arrive.\n\n## What You Need for Predictions\n\n### Minimum: 3 Cycles\n\nPredictions need at least **3 recorded cycles** to generate. This gives enough data to identify your pattern.\n\n### Better: 6+ Cycles\n\nWith more data, predictions become more accurate and confidence levels increase.\n\n## Understanding Confidence Levels\n\nEach prediction includes a **confidence percentage** that tells you how reliable it is.\n\n### What Affects Confidence\n\n- **More cycles recorded** → Higher confidence\n- **Regular cycles** → Higher confidence\n- **Irregular cycles** → Lower confidence\n- **Recent changes** → Temporarily lower confidence\n\n### Confidence Guide\n\n| Confidence | What It Means |\n|------------|---------------|\n| 80-100% | Very reliable prediction |\n| 60-79% | Good prediction, minor variation possible |\n| 40-59% | Estimate only, your cycles may vary |\n| Below 40% | Just a rough guide |\n\n## Why Predictions Might Be Off\n\n### Normal Variation\n\nBodies aren't clockwork. Even with regular cycles, variation of 1-3 days is completely normal.\n\n### Life Changes\n\nMany things can affect your cycle:\n- Stress\n- Travel or time zone changes\n- Illness\n- Changes in exercise or diet\n- Medications\n- Major life events\n\n### Not Enough Data\n\nIf you've only logged a few cycles, predictions will improve as you continue tracking.\n\n## Improving Your Predictions\n\n1. **Log consistently** - Mark when your period starts and ends\n2. **Update your flow level** - Helps detect period boundaries\n3. **Give it time** - Accuracy improves with each cycle\n4. **Update settings** - If your cycle length changes significantly\n\n## What Predictions Show\n\n### Period Prediction\n- Expected start date\n- Expected end date (based on your average)\n- Days until period\n\n### Fertile Window (If Enabled)\n- Estimated fertile days\n- Based on typical ovulation timing\n\n**Note:** Fertile window predictions are estimates only and should not be relied upon for family planning.\n\n## A Helpful Tool, Not a Guarantee\n\nPredictions are meant to help you prepare—not to be perfectly precise. Use them for general planning, but remember that your body may not follow the exact schedule.",
+            "category": 2,
+            "module": "health",
+            "keywords": "predictions, accuracy, confidence, forecast, period prediction, reliable, how predictions work",
+            "is_active": true,
+            "sort_order": 12,
+            "created_at": "2026-01-15T12:00:00Z",
+            "updated_at": "2026-01-15T12:00:00Z"
+        }
     }
 ]

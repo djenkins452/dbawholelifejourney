@@ -1,0 +1,660 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Cycle Tracking - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Cycle Tracking</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center mb-6">
+        <div>
+            <h1 class="page-title">Cycle Tracking {% include "components/favorite_toggle.html" with page_title="Cycle Tracking" %}</h1>
+            <p class="page-subtitle">Track your cycle and understand your body's patterns</p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'health:cycle_settings_api' %}" class="btn btn-ghost btn-sm">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+                Settings
+            </a>
+        </div>
+    </div>
+
+    {% if cycle_enabled %}
+    <!-- Main Dashboard Content -->
+    <div class="cycle-dashboard">
+
+        <!-- Summary Card Section -->
+        <section class="dashboard-section mb-6">
+            {% include "health/cycle/includes/summary_card.html" with phase=phase cycle=cycle prediction=prediction days_until_period=days_until_period %}
+        </section>
+
+        <!-- Quick Actions -->
+        <section class="quick-actions mb-6">
+            <div class="quick-actions-grid">
+                <a href="#log-today" class="quick-action-btn" id="open-log-modal">
+                    <div class="action-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                    </div>
+                    <span class="action-label">Log Today</span>
+                </a>
+                <a href="#calendar" class="quick-action-btn">
+                    <div class="action-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                    </div>
+                    <span class="action-label">Calendar</span>
+                </a>
+                <a href="{% url 'health:cycle_cycles_statistics' %}" class="quick-action-btn">
+                    <div class="action-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="20" x2="18" y2="10"/>
+                            <line x1="12" y1="20" x2="12" y2="4"/>
+                            <line x1="6" y1="20" x2="6" y2="14"/>
+                        </svg>
+                    </div>
+                    <span class="action-label">Statistics</span>
+                </a>
+            </div>
+        </section>
+
+        <!-- Recent Logs Section -->
+        <section class="dashboard-section">
+            <div class="section-header flex justify-between items-center mb-4">
+                <h2 class="section-title">Recent Logs</h2>
+                <span class="text-sm text-muted">Last 7 days</span>
+            </div>
+
+            {% if recent_logs %}
+            <div class="logs-list">
+                {% for log in recent_logs %}
+                <div class="log-item {% if log.is_today %}log-today{% endif %}">
+                    <div class="log-date">
+                        <span class="log-day-name">{% if log.is_today %}Today{% else %}{{ log.log_date|date:"D" }}{% endif %}</span>
+                        <span class="log-day-num">{{ log.log_date|date:"j" }}</span>
+                    </div>
+                    <div class="log-content">
+                        <div class="log-flow">
+                            <span class="flow-badge flow-{{ log.flow_level }}">
+                                {{ log.get_flow_level_display }}
+                            </span>
+                        </div>
+                        {% if log.mood %}
+                        <div class="log-mood">
+                            <span class="mood-emoji">{{ log.mood_emoji }}</span>
+                        </div>
+                        {% endif %}
+                        {% if log.symptoms %}
+                        <div class="log-symptoms">
+                            <span class="symptom-count">{{ log.symptoms|length }} symptom{% if log.symptoms|length != 1 %}s{% endif %}</span>
+                        </div>
+                        {% endif %}
+                        {% if log.energy_level %}
+                        <div class="log-energy">
+                            <span class="energy-indicator">Energy: {{ log.energy_level }}/5</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="log-actions">
+                        <button type="button" class="btn btn-ghost btn-sm edit-log-btn" data-log-id="{{ log.id }}" data-log-date="{{ log.log_date|date:'Y-m-d' }}">
+                            Edit
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <!-- No recent logs -->
+            <div class="empty-logs">
+                <div class="empty-icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="12" y1="18" x2="12" y2="12"/>
+                        <line x1="9" y1="15" x2="15" y2="15"/>
+                    </svg>
+                </div>
+                <p class="empty-text">No logs in the last 7 days</p>
+                <p class="empty-hint">Start tracking by logging today's data</p>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+
+    <!-- Floating Action Button for Quick Log -->
+    <button type="button" class="fab" id="fab-quick-log" aria-label="Log today">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+    </button>
+
+    <!-- Quick Log Modal -->
+    <div class="modal-overlay" id="log-modal" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3 class="modal-title">Log for Today</h3>
+                <button type="button" class="modal-close" id="close-log-modal" aria-label="Close">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                {% include "health/cycle/includes/daily_log_form.html" with log_date=today %}
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Empty State - Cycle tracking not enabled -->
+    <div class="empty-state-container">
+        <div class="empty-state">
+            <div class="empty-icon">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6v6l4 2"/>
+                </svg>
+            </div>
+            <h2 class="empty-title">Start Tracking Your Cycle</h2>
+            <p class="empty-description">
+                Understand your body's patterns by tracking your menstrual cycle.
+                Log periods, symptoms, mood, and more to get personalized insights and predictions.
+            </p>
+            <div class="empty-features">
+                <div class="feature-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Track periods and flow</span>
+                </div>
+                <div class="feature-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Log symptoms and mood</span>
+                </div>
+                <div class="feature-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Get period predictions</span>
+                </div>
+                <div class="feature-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Your data stays private</span>
+                </div>
+            </div>
+            <a href="{% url 'health:cycle_opt_in_page' %}" class="btn btn-primary btn-lg">
+                Get Started
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">Back to Health</a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+/* Dashboard Layout */
+.cycle-dashboard {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* Header Actions */
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+/* Quick Actions Grid */
+.quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+}
+
+.quick-action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: all 0.15s ease;
+}
+
+.quick-action-btn:hover {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-surface));
+}
+
+.action-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-accent);
+    border-radius: var(--radius-full);
+}
+
+.action-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+/* Section Styling */
+.section-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Logs List */
+.logs-list {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.log-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.log-item:last-child {
+    border-bottom: none;
+}
+
+.log-item:hover {
+    background: var(--color-background);
+}
+
+.log-item.log-today {
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+}
+
+.log-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 50px;
+}
+
+.log-day-name {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+}
+
+.log-today .log-day-name {
+    color: var(--color-accent);
+}
+
+.log-day-num {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+}
+
+.log-content {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.flow-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+.flow-badge.flow-none { background: #e5e7eb; color: #6b7280; }
+.flow-badge.flow-spotting { background: #fef3c7; color: #92400e; }
+.flow-badge.flow-light { background: #fecaca; color: #b91c1c; }
+.flow-badge.flow-medium { background: #fca5a5; color: #991b1b; }
+.flow-badge.flow-heavy { background: #ef4444; color: white; }
+
+.mood-emoji {
+    font-size: var(--font-size-lg);
+}
+
+.symptom-count, .energy-indicator {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.log-actions {
+    flex-shrink: 0;
+}
+
+/* Empty Logs */
+.empty-logs {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-8) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+
+.empty-logs .empty-icon {
+    color: var(--color-text-muted);
+    opacity: 0.5;
+    margin-bottom: var(--space-3);
+}
+
+.empty-logs .empty-text {
+    font-weight: 500;
+    margin-bottom: var(--space-1);
+}
+
+.empty-logs .empty-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* Floating Action Button */
+.fab {
+    position: fixed;
+    bottom: var(--space-6);
+    right: var(--space-6);
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-full);
+    background: var(--color-accent);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    z-index: 100;
+}
+
+.fab:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.fab:active {
+    transform: scale(0.95);
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--space-4);
+}
+
+.modal-container {
+    background: var(--color-background);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    background: var(--color-background);
+}
+
+.modal-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    padding: var(--space-2);
+    cursor: pointer;
+    color: var(--color-text-muted);
+    border-radius: var(--radius-md);
+}
+
+.modal-close:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.modal-body {
+    padding: var(--space-4);
+}
+
+/* Empty State Container */
+.empty-state-container {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-8) 0;
+}
+
+.empty-state {
+    max-width: 400px;
+    text-align: center;
+}
+
+.empty-state .empty-icon {
+    color: var(--color-accent);
+    opacity: 0.7;
+    margin-bottom: var(--space-4);
+}
+
+.empty-state .empty-title {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+
+.empty-state .empty-description {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+    line-height: 1.6;
+}
+
+.empty-features {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+    text-align: left;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--color-text-muted);
+}
+
+.feature-item svg {
+    color: var(--color-success);
+    flex-shrink: 0;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 480px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+
+    .header-actions {
+        width: 100%;
+    }
+
+    .header-actions .btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .quick-actions-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-2);
+    }
+
+    .quick-action-btn {
+        padding: var(--space-3);
+    }
+
+    .action-icon {
+        width: 40px;
+        height: 40px;
+    }
+
+    .action-label {
+        font-size: var(--font-size-xs);
+    }
+
+    .log-item {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+
+    .log-content {
+        width: 100%;
+        order: 3;
+    }
+
+    .log-actions {
+        margin-left: auto;
+    }
+
+    .fab {
+        bottom: var(--space-4);
+        right: var(--space-4);
+    }
+
+    .modal-container {
+        max-height: 95vh;
+    }
+}
+
+/* Tablet */
+@media (min-width: 481px) and (max-width: 768px) {
+    .cycle-dashboard {
+        max-width: 600px;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const fab = document.getElementById('fab-quick-log');
+    const openModalBtn = document.getElementById('open-log-modal');
+    const closeModalBtn = document.getElementById('close-log-modal');
+    const modal = document.getElementById('log-modal');
+
+    // Open modal
+    function openModal() {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    // Close modal
+    function closeModal() {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    if (fab) {
+        fab.addEventListener('click', openModal);
+    }
+
+    if (openModalBtn) {
+        openModalBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            openModal();
+        });
+    }
+
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', closeModal);
+    }
+
+    // Close on overlay click
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
+            closeModal();
+        }
+    });
+
+    // Close modal and refresh on successful save
+    document.body.addEventListener('daily-log-saved', function() {
+        closeModal();
+        // Reload page to show updated logs
+        setTimeout(function() {
+            window.location.reload();
+        }, 1000);
+    });
+});
+</script>
+{% endblock %}

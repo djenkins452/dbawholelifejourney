@@ -164,6 +164,12 @@ urlpatterns = [
     path("providers/staff/<int:pk>/delete/", views.ProviderStaffDeleteView.as_view(), name="staff_delete"),
 
     # ==========================================================================
+    # Cycle Tracking Pages
+    # ==========================================================================
+    path("cycle/", views_cycle.CycleDashboardView.as_view(), name="cycle_dashboard"),
+    path("cycle/opt-in/", views_cycle.CycleOptInPageView.as_view(), name="cycle_opt_in_page"),
+
+    # ==========================================================================
     # Cycle Tracking API
     # ==========================================================================
     # All cycle tracking endpoints are prefixed with /health/cycle/api/

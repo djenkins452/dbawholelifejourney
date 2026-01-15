@@ -14,9 +14,11 @@ from statistics import mean, stdev
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Avg, Count, Max, Min
 from django.http import JsonResponse
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
+from django.views.generic import TemplateView
 
 from .models import (
     Cycle,
@@ -1030,3 +1032,97 @@ class CyclePredictionViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View
         data["days_until_period"] = (predicted_period_start - date.today()).days
 
         return JsonResponse(data, status=201)
+
+
+class CycleOptInPageView(LoginRequiredMixin, TemplateView):
+    """
+    Cycle tracking opt-in page.
+
+    Shows privacy information and allows users to enable cycle tracking.
+    Redirects to dashboard if already enabled.
+    """
+
+    template_name = "health/cycle/opt_in.html"
+
+    def get(self, request, *args, **kwargs):
+        # If already enabled, redirect to dashboard
+        try:
+            settings = CycleSettings.objects.get(user=request.user)
+            if settings.is_enabled:
+                from django.shortcuts import redirect
+                return redirect("health:cycle_dashboard")
+        except CycleSettings.DoesNotExist:
+            pass
+
+        return super().get(request, *args, **kwargs)
+
+
+class CycleDashboardView(LoginRequiredMixin, TemplateView):
+    """
+    Main cycle tracking dashboard page.
+
+    Displays:
+    - Cycle summary card with current cycle day and phase
+    - Recent 7 days of logs
+    - Quick actions for logging, calendar, settings
+    - Empty state for users who haven't enabled cycle tracking
+    """
+
+    template_name = "health/cycle/dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = timezone.now().date()
+
+        # Check if cycle tracking is enabled
+        try:
+            settings = CycleSettings.objects.get(user=user)
+            cycle_enabled = settings.is_enabled
+        except CycleSettings.DoesNotExist:
+            cycle_enabled = False
+
+        context["cycle_enabled"] = cycle_enabled
+        context["today"] = today
+
+        if not cycle_enabled:
+            return context
+
+        # Get current cycle
+        current_cycle = Cycle.objects.filter(
+            user=user,
+            end_date__isnull=True,
+        ).first()
+        context["cycle"] = current_cycle
+
+        # Get current phase
+        if current_cycle:
+            from .services.cycle_phase import get_current_phase
+            phase = get_current_phase(user, today)
+            context["phase"] = phase
+
+        # Get current prediction
+        prediction = CyclePrediction.get_active_prediction(user)
+        context["prediction"] = prediction
+
+        if prediction:
+            days_until = (prediction.predicted_period_start - today).days
+            context["days_until_period"] = days_until
+
+        # Get recent 7 days of logs
+        week_ago = today - timedelta(days=7)
+        recent_logs = CycleDailyLog.objects.filter(
+            user=user,
+            log_date__gte=week_ago,
+            log_date__lte=today,
+        ).order_by("-log_date")
+
+        # Mark today's log
+        logs_with_today = []
+        for log in recent_logs:
+            log.is_today = (log.log_date == today)
+            logs_with_today.append(log)
+
+        context["recent_logs"] = logs_with_today
+
+        return context

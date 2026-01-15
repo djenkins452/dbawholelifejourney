@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Cycle Tracking to What's New, Help, and Teaching Tool
+
+**Summary:** Added cycle tracking content to all user-facing documentation systems.
+
+**What's New (Release Notes):**
+- Added pk 17: "Menstrual Cycle Tracking" feature announcement
+- Published as major feature with release date 2026-01-15
+
+**Teaching Destinations:**
+- Added pk 24: "Cycle Tracking" - main cycle dashboard
+- Added pk 25: "Log Cycle Day" - daily logging
+- Added pk 26: "Cycle Predictions" - AI predictions
+- Added pk 27: "Cycle History" - past cycles and statistics
+
+**Help Topics:**
+- Added pk 23: "Cycle Tracking: Understand Your Body's Rhythms"
+- Context ID: CYCLE_HOME
+- Comprehensive help covering phases, logging, predictions, statistics, privacy
+
+**Files Modified:**
+- `apps/core/fixtures/release_notes.json`
+- `apps/help/fixtures/teaching_destinations.json`
+- `apps/help/fixtures/help_topics.json`
+
+---
+
 ### Create CycleStatisticsService (Phase 5)
 
 **Summary:** Created service for calculating cycle statistics and correlations.

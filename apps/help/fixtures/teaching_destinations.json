@@ -389,5 +389,73 @@
             "created_at": "2026-01-14T00:00:00Z",
             "updated_at": "2026-01-14T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 24,
+        "fields": {
+            "destination_id": "cycle-tracking",
+            "name": "Cycle Tracking",
+            "path_description": "Health - Cycle",
+            "explanation": "Track your menstrual cycle, log daily symptoms, moods, and flow levels. View predictions and statistics.",
+            "url": "/health/cycle/",
+            "keywords": "cycle, period, menstrual, menstruation, period tracker, cycle tracker, fertility, ovulation, flow, symptoms, cramps, pms",
+            "module": "health",
+            "sort_order": 24,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 25,
+        "fields": {
+            "destination_id": "cycle-daily-log",
+            "name": "Log Cycle Day",
+            "path_description": "Health - Cycle - Daily Log",
+            "explanation": "Record daily cycle data including flow level, symptoms, mood, and energy levels.",
+            "url": "/health/cycle/log/",
+            "keywords": "log cycle, log period, daily log, track flow, cycle symptoms, period symptoms, log cramps, mood tracker, energy level",
+            "module": "health",
+            "sort_order": 25,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 26,
+        "fields": {
+            "destination_id": "cycle-predictions",
+            "name": "Cycle Predictions",
+            "path_description": "Health - Cycle - Predictions",
+            "explanation": "View AI-powered predictions for your next period and fertile window based on your cycle history.",
+            "url": "/health/cycle/predictions/",
+            "keywords": "cycle prediction, period prediction, when is my period, predict period, fertile window, ovulation prediction, next period",
+            "module": "health",
+            "sort_order": 26,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 27,
+        "fields": {
+            "destination_id": "cycle-history",
+            "name": "Cycle History",
+            "path_description": "Health - Cycle - History",
+            "explanation": "View your past cycles, cycle lengths, period lengths, and track patterns over time.",
+            "url": "/health/cycle/history/",
+            "keywords": "cycle history, past cycles, period history, cycle patterns, cycle length, period length, cycle statistics",
+            "module": "health",
+            "sort_order": 27,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
     }
 ]

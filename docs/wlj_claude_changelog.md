@@ -16,6 +16,33 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Update Teaching Tool Destinations
+
+**Summary:** Added cycle tracking pages to teaching_destinations.json fixture so the Teaching Tool can navigate users to cycle tracking features.
+
+**File Modified:** `apps/help/fixtures/teaching_destinations.json`
+
+**New Destinations Added:**
+
+1. **Cycle Tracking** (pk=24)
+   - URL: `/health/cycle/`
+   - Keywords: cycle, period, menstrual, tracking, health, period tracker, menstrual cycle, cycle tracking, log period, period prediction, symptoms, mood tracker
+
+2. **Cycle Calendar** (pk=25)
+   - URL: `/health/cycle/calendar/`
+   - Keywords: cycle calendar, period calendar, menstrual calendar, cycle history, period history, fertile window, ovulation, cycle view
+
+3. **Cycle Settings** (pk=26)
+   - URL: `/health/cycle/settings/`
+   - Keywords: cycle settings, period settings, cycle preferences, cycle length, period length, cycle configuration, menstrual settings
+
+**Notes:**
+- All destinations set with module="health" and is_active=true
+- Sort_order values 24-26 place them after existing destinations
+- Run `python manage.py loaddata teaching_destinations` in production to update
+
+---
+
 ### Add Cycle View/Template Tests (Phase 13)
 
 **Summary:** Created comprehensive tests for cycle tracking template rendering and view logic, plus fixed template bugs exposed by tests.

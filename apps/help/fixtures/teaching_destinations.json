@@ -389,5 +389,56 @@
             "created_at": "2026-01-14T00:00:00Z",
             "updated_at": "2026-01-14T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 24,
+        "fields": {
+            "destination_id": "cycle-tracking",
+            "name": "Cycle Tracking",
+            "path_description": "Health - Cycle",
+            "explanation": "Track your menstrual cycle, log symptoms, mood, and get period predictions.",
+            "url": "/health/cycle/",
+            "keywords": "cycle, period, menstrual, tracking, health, period tracker, menstrual cycle, cycle tracking, log period, period prediction, symptoms, mood tracker",
+            "module": "health",
+            "sort_order": 24,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 25,
+        "fields": {
+            "destination_id": "cycle-calendar",
+            "name": "Cycle Calendar",
+            "path_description": "Health - Cycle - Calendar",
+            "explanation": "View your cycle history on a calendar with period days, predictions, and fertile windows.",
+            "url": "/health/cycle/calendar/",
+            "keywords": "cycle calendar, period calendar, menstrual calendar, cycle history, period history, fertile window, ovulation, cycle view",
+            "module": "health",
+            "sort_order": 25,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 26,
+        "fields": {
+            "destination_id": "cycle-settings",
+            "name": "Cycle Settings",
+            "path_description": "Health - Cycle - Settings",
+            "explanation": "Configure your cycle tracking preferences, average cycle length, and notification settings.",
+            "url": "/health/cycle/settings/",
+            "keywords": "cycle settings, period settings, cycle preferences, cycle length, period length, cycle configuration, menstrual settings",
+            "module": "health",
+            "sort_order": 26,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
     }
 ]

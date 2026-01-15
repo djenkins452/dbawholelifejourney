@@ -1,0 +1,1136 @@
+{
+  "project": {
+    "name": "WLJ Cycle Tracking Module",
+    "description": "Menstrual cycle tracking module for WLJ Health section. Allows users to log daily cycle data, track period start/end dates, view cycle history on a calendar, receive predictions for next period and fertile window, and see correlations between cycle phase and symptoms/moods over time."
+  },
+  "tasks": [
+    {
+      "phase": "Phase 1",
+      "name": "Add gender field to UserPreferences model",
+      "description": {
+        "objective": "Add a gender field to the UserPreferences model with choices: male, female, other, prefer_not_to_say. This field will be used to conditionally enable cycle tracking by default for users who identify as female.",
+        "inputs": [
+          "apps/users/models.py - UserPreferences model"
+        ],
+        "actions": [
+          "Add gender CharField to UserPreferences model with choices: ('male', 'Male'), ('female', 'Female'), ('other', 'Other'), ('prefer_not_to_say', 'Prefer not to say').",
+          "Set field as nullable with blank=True, null=True for existing users.",
+          "Add help_text explaining the field is used to personalize health features.",
+          "Run makemigrations to create the migration file."
+        ],
+        "output": "UserPreferences model has a gender field with four choices, nullable for existing users."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 1",
+      "name": "Add gender selection to onboarding flow",
+      "description": {
+        "objective": "Add gender selection step to the user onboarding/orientation flow with inclusive, friendly language.",
+        "inputs": [
+          "Existing onboarding wizard templates",
+          "UserPreferences model with gender field"
+        ],
+        "actions": [
+          "Add gender selection step to onboarding wizard.",
+          "Use large tap-friendly radio buttons for mobile (44px+ touch targets).",
+          "Include 'Prefer not to say' option prominently.",
+          "Add brief, friendly explanation: 'This helps us personalize your health features'.",
+          "Include skip option that proceeds without setting gender.",
+          "Save selection to UserPreferences on submit."
+        ],
+        "output": "Onboarding flow includes gender selection step that saves to UserPreferences."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 1",
+      "name": "Add gender field to preferences settings page",
+      "description": {
+        "objective": "Add gender selection to the user preferences/settings page so users can update their selection at any time.",
+        "inputs": [
+          "User preferences settings template",
+          "UserPreferences model with gender field"
+        ],
+        "actions": [
+          "Add gender selector dropdown or radio buttons to preferences page.",
+          "Pre-populate with current value from UserPreferences.",
+          "Use same options as onboarding (Male, Female, Other, Prefer not to say).",
+          "Implement HTMX-powered save with success feedback.",
+          "Add link to privacy info explaining how gender data is used."
+        ],
+        "output": "Users can view and update their gender selection from the preferences page."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 1",
+      "name": "Data migration for existing users",
+      "description": {
+        "objective": "Create data migration strategy for existing users where gender field will be null.",
+        "inputs": [
+          "Migration file for gender field",
+          "Existing user base"
+        ],
+        "actions": [
+          "Ensure migration sets gender=None for all existing users.",
+          "Verify no disruption to existing user preferences.",
+          "Add optional prompt for existing users to set gender on next preferences visit.",
+          "Document handling of null gender values in codebase.",
+          "Test graceful UI handling when gender is not set."
+        ],
+        "output": "Existing users have gender=None after migration with no disruption to their experience."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create CycleSettings model",
+      "description": {
+        "objective": "Create UserOwnedModel subclass for user cycle tracking preferences with opt-in control.",
+        "inputs": [
+          "apps/health/models.py",
+          "apps/core/models.py - UserOwnedModel base class"
+        ],
+        "actions": [
+          "Create CycleSettings model extending UserOwnedModel.",
+          "Add OneToOne relationship to User.",
+          "Add fields: cycle_tracking_enabled (boolean), average_cycle_length (default 28), average_period_length (default 5), notifications_enabled, fertile_window_tracking_enabled, last_period_start_date.",
+          "Add is_enabled property for quick checks.",
+          "Add help_text for all fields."
+        ],
+        "output": "CycleSettings model exists with all preference fields and soft delete support."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Add symptom and mood choice definitions",
+      "description": {
+        "objective": "Define standard choices for symptoms and moods in the cycle module.",
+        "inputs": [
+          "apps/health/models.py",
+          "Existing mood choices from apps/core/models.py"
+        ],
+        "actions": [
+          "Define SYMPTOM_CHOICES constant: cramps, headache, fatigue, bloating, breast_tenderness, acne, backache, nausea, food_cravings, insomnia.",
+          "Define MOOD_CHOICES constant: happy, sad, irritable, anxious, calm, energetic, tired, emotional.",
+          "Define FLOW_LEVEL_CHOICES: none, spotting, light, medium, heavy.",
+          "Ensure choices match existing WLJ mood patterns where applicable.",
+          "Add display labels with optional emoji indicators."
+        ],
+        "output": "Standard choices defined for symptoms, moods, and flow levels."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create DailyLog model",
+      "description": {
+        "objective": "Create model for daily cycle data entry with symptoms, mood, and flow tracking.",
+        "inputs": [
+          "apps/health/models.py",
+          "Symptom and mood choice definitions"
+        ],
+        "actions": [
+          "Create CycleDailyLog model extending UserOwnedModel.",
+          "Add fields: log_date (DateField), flow_level (CharField with choices), symptoms (JSONField for multi-select list), mood (CharField with choices), energy_level (1-5 IntegerField), cervical_mucus (optional), basal_temp (optional DecimalField), notes (TextField).",
+          "Add is_period_day property that returns True if flow_level is not 'none'.",
+          "Add unique_together constraint on user + log_date.",
+          "Add index on user + log_date for efficient queries."
+        ],
+        "output": "CycleDailyLog model exists with all tracking fields and unique constraint per user per day."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create Cycle model",
+      "description": {
+        "objective": "Create model to track complete menstrual cycles with calculated properties.",
+        "inputs": [
+          "apps/health/models.py",
+          "CycleSettings model"
+        ],
+        "actions": [
+          "Create Cycle model extending UserOwnedModel.",
+          "Add fields: cycle_number (auto-numbered per user), start_date, end_date (nullable), period_end_date (nullable), notes, is_predicted (boolean for AI predictions).",
+          "Add cycle_length property calculating days between start_date and end_date.",
+          "Add period_length property calculating days between start_date and period_end_date.",
+          "Add index on user + start_date.",
+          "Add ordering by -start_date."
+        ],
+        "output": "Cycle model exists with auto-numbering and calculated length properties."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create CyclePrediction model",
+      "description": {
+        "objective": "Create model for storing cycle predictions including fertile window.",
+        "inputs": [
+          "apps/health/models.py",
+          "Cycle model"
+        ],
+        "actions": [
+          "Create CyclePrediction model extending UserOwnedModel.",
+          "Add fields: predicted_period_start, predicted_period_end, predicted_fertile_window_start, predicted_fertile_window_end, prediction_confidence (DecimalField 0-1), prediction_algorithm_version, generated_at, actual_period_start (nullable, filled when verified).",
+          "Add get_active_prediction() class method returning most recent prediction for user.",
+          "Add accuracy property comparing predicted vs actual when available."
+        ],
+        "output": "CyclePrediction model exists with fields for predictions and accuracy tracking."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Create migration file for cycle models",
+      "description": {
+        "objective": "Generate Django migration for all cycle tracking models.",
+        "inputs": [
+          "All cycle tracking models: CycleSettings, CycleDailyLog, Cycle, CyclePrediction"
+        ],
+        "actions": [
+          "Run python manage.py makemigrations health.",
+          "Verify migration file created with correct sequential number.",
+          "Ensure all models included in migration.",
+          "Run python manage.py migrate to test migration.",
+          "Test reverse migration with migrate --fake."
+        ],
+        "output": "Migration file created and tested, all cycle models exist in database."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 2",
+      "name": "Auto-enable cycle tracking for female users",
+      "description": {
+        "objective": "Create signal handler to automatically enable cycle tracking when user selects female gender.",
+        "inputs": [
+          "UserPreferences model with gender field",
+          "CycleSettings model"
+        ],
+        "actions": [
+          "Create post_save signal handler on UserPreferences.",
+          "Check if gender changed to 'female'.",
+          "If female, get_or_create CycleSettings with cycle_tracking_enabled=True.",
+          "For male/other/prefer_not_to_say, do NOT auto-create CycleSettings.",
+          "If user changes FROM female to other gender, do NOT delete existing CycleSettings (preserve data).",
+          "Respect existing CycleSettings if already exists (don't override user's manual choice)."
+        ],
+        "output": "Signal automatically creates CycleSettings with tracking enabled for female users."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 3",
+      "name": "Register models in admin.py",
+      "description": {
+        "objective": "Add admin configuration for all cycle tracking models.",
+        "inputs": [
+          "apps/health/admin.py",
+          "All cycle tracking models"
+        ],
+        "actions": [
+          "Register CycleSettings with list_display: user, cycle_tracking_enabled, average_cycle_length.",
+          "Register CycleDailyLog with list_display: user, log_date, flow_level, mood; list_filter: flow_level, mood, log_date.",
+          "Register Cycle with list_display: user, cycle_number, start_date, end_date, cycle_length.",
+          "Register CyclePrediction with list_display: user, predicted_period_start, prediction_confidence.",
+          "Add search_fields for user email on all models."
+        ],
+        "output": "All cycle models accessible in Django admin with appropriate display and filtering."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 3",
+      "name": "Create admin filters and actions",
+      "description": {
+        "objective": "Add custom admin filters for cycle data management.",
+        "inputs": [
+          "apps/health/admin.py",
+          "Registered cycle models"
+        ],
+        "actions": [
+          "Add filter by tracking enabled/disabled on CycleSettings.",
+          "Add filter by last log date on CycleDailyLog.",
+          "Add filter by average cycle length range on CycleSettings.",
+          "Add bulk action to export cycle data for support review.",
+          "Add date range filter for Cycle model."
+        ],
+        "output": "Admin has custom filters and bulk actions for cycle data management."
+      },
+      "priority": "Low",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Create DRF serializers",
+      "description": {
+        "objective": "Create serializers for all cycle tracking models with proper validation.",
+        "inputs": [
+          "All cycle tracking models",
+          "Existing DRF serializer patterns in health app"
+        ],
+        "actions": [
+          "Create CycleSettingsSerializer with all preference fields.",
+          "Create CycleDailyLogSerializer with symptom list validation.",
+          "Create CycleSerializer with nested daily logs (read-only).",
+          "Create CyclePredictionSerializer with confidence formatting.",
+          "Ensure consistent date format across serializers.",
+          "Add validation messages for invalid symptom/mood choices."
+        ],
+        "output": "Serializers created for all cycle models with proper validation."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Create CycleSettingsViewSet",
+      "description": {
+        "objective": "Create DRF ViewSet for managing user cycle settings with opt-in control.",
+        "inputs": [
+          "CycleSettings model and serializer",
+          "Existing health API patterns"
+        ],
+        "actions": [
+          "Create CycleSettingsViewSet with retrieve and update actions.",
+          "Add opt_in action that creates CycleSettings if not exists.",
+          "Add opt_out action that soft-deletes all cycle data with confirmation.",
+          "Add permission class ensuring user can only access own data.",
+          "Return 403 if trying to access other cycle endpoints without settings enabled."
+        ],
+        "output": "ViewSet provides opt-in/opt-out and settings management for cycle tracking."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Create DailyLogViewSet",
+      "description": {
+        "objective": "Create DRF ViewSet for daily cycle logging with date range filtering.",
+        "inputs": [
+          "CycleDailyLog model and serializer",
+          "CycleSettingsViewSet for opt-in check"
+        ],
+        "actions": [
+          "Create CycleDailyLogViewSet with full CRUD operations.",
+          "Add date range filtering via start_date and end_date query params.",
+          "Return 404 if cycle tracking not enabled for user.",
+          "Validate log_date is not in future.",
+          "Trigger period detection service on save (post_save signal)."
+        ],
+        "output": "ViewSet provides CRUD for daily logs with date filtering and validation."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Create CycleViewSet",
+      "description": {
+        "objective": "Create DRF ViewSet for cycle history with statistics endpoint.",
+        "inputs": [
+          "Cycle model and serializer",
+          "CycleStatisticsService (to be created)"
+        ],
+        "actions": [
+          "Create CycleViewSet with list and retrieve actions (read-only).",
+          "Add current_cycle action returning active cycle.",
+          "Add statistics action returning averages and trends.",
+          "Add pagination for cycle list.",
+          "Add date range filtering."
+        ],
+        "output": "ViewSet provides read-only access to cycle history and statistics."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Create PredictionViewSet",
+      "description": {
+        "objective": "Create DRF ViewSet for cycle predictions with regeneration capability.",
+        "inputs": [
+          "CyclePrediction model and serializer",
+          "CyclePredictionService (to be created)"
+        ],
+        "actions": [
+          "Create CyclePredictionViewSet with list and retrieve actions.",
+          "Add current action returning latest prediction.",
+          "Add regenerate action that recalculates prediction from latest data.",
+          "Return appropriate message if user has fewer than 3 completed cycles.",
+          "Include confidence score and algorithm version in response."
+        ],
+        "output": "ViewSet provides prediction access and regeneration capability."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 4",
+      "name": "Add URL routing for cycle API",
+      "description": {
+        "objective": "Configure URL routing for all cycle tracking API endpoints.",
+        "inputs": [
+          "All cycle ViewSets",
+          "apps/health/urls.py"
+        ],
+        "actions": [
+          "Create DefaultRouter for cycle endpoints.",
+          "Register all ViewSets under /health/api/cycle/ prefix.",
+          "Routes: settings/, daily-logs/, cycles/, predictions/.",
+          "Include router URLs in health app urls.py.",
+          "Add API documentation comments for Swagger/OpenAPI."
+        ],
+        "output": "All cycle API endpoints accessible under /health/api/cycle/."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Create CycleDetectionService",
+      "description": {
+        "objective": "Create service class for detecting period start/end from daily logs.",
+        "inputs": [
+          "CycleDailyLog model",
+          "Cycle model"
+        ],
+        "actions": [
+          "Create CycleDetectionService class in apps/health/services/.",
+          "Implement detect_period_start() - triggered when flow_level changes from none to any flow.",
+          "Implement detect_period_end() - triggered after 2+ consecutive days of no flow.",
+          "Create new Cycle when period starts, close previous cycle.",
+          "Update current Cycle with period_end_date when period ends.",
+          "Handle spotting intelligently (don't count as new period).",
+          "Connect to DailyLog post_save signal."
+        ],
+        "output": "Service automatically creates and updates Cycle records based on daily logs."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Create cycle phase calculator",
+      "description": {
+        "objective": "Create service function to calculate current cycle phase based on cycle day.",
+        "inputs": [
+          "Cycle model",
+          "CycleSettings for user's average cycle length"
+        ],
+        "actions": [
+          "Create get_current_phase() function in cycle services.",
+          "Define phases: menstrual (days 1-5), follicular (days 6-13), ovulation (days 14-16), luteal (days 17-28).",
+          "Adjust phase lengths proportionally based on user's average cycle length.",
+          "Return phase name, day within phase, and phase color code.",
+          "Return None if user not in an active cycle."
+        ],
+        "output": "Function returns current cycle phase adjusted for user's cycle length."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Create CyclePredictionService",
+      "description": {
+        "objective": "Create service class for predicting next period and fertile window.",
+        "inputs": [
+          "Cycle model with historical data",
+          "CycleSettings for user preferences"
+        ],
+        "actions": [
+          "Create CyclePredictionService class.",
+          "Implement predict_next_period() using weighted moving average of last 3-6 cycles.",
+          "Weight more recent cycles higher (e.g., most recent = 3x, oldest = 1x).",
+          "Implement predict_fertile_window() as days 10-17 of predicted cycle (adjusted for cycle length).",
+          "Calculate confidence score based on cycle regularity (standard deviation).",
+          "Return None/low confidence if fewer than 3 completed cycles.",
+          "Store predictions in CyclePrediction model."
+        ],
+        "output": "Service generates period and fertile window predictions with confidence scores."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Create CycleStatisticsService",
+      "description": {
+        "objective": "Create service class for calculating cycle statistics and correlations.",
+        "inputs": [
+          "Cycle and CycleDailyLog models",
+          "Historical user data"
+        ],
+        "actions": [
+          "Create CycleStatisticsService class.",
+          "Implement get_average_cycle_length() over configurable period.",
+          "Implement get_average_period_length().",
+          "Implement get_symptom_frequency() returning symptom occurrence counts.",
+          "Implement get_mood_by_cycle_phase() correlating moods with phases.",
+          "Implement get_cycle_regularity_score() (0-100 based on standard deviation).",
+          "Implement get_trends() detecting if cycles are getting longer/shorter."
+        ],
+        "output": "Service provides comprehensive cycle statistics and pattern analysis."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 5",
+      "name": "Create CycleDataExportService",
+      "description": {
+        "objective": "Create service class for exporting cycle data in JSON and CSV formats.",
+        "inputs": [
+          "All cycle models",
+          "User requesting export"
+        ],
+        "actions": [
+          "Create CycleDataExportService class.",
+          "Implement export_to_json() including settings, daily logs, cycles, predictions.",
+          "Implement export_to_csv() with flattened structure for spreadsheet use.",
+          "Use consistent date formatting (ISO 8601).",
+          "Add file size limits for large histories (paginate if needed).",
+          "Ensure no user PII in export metadata (only user's own data)."
+        ],
+        "output": "Service exports all user cycle data in JSON or CSV format."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Create cycle tracking opt-in page",
+      "description": {
+        "objective": "Create template for cycle tracking opt-in flow with privacy-focused messaging.",
+        "inputs": [
+          "CycleSettingsViewSet opt_in endpoint",
+          "Existing health templates"
+        ],
+        "actions": [
+          "Create templates/health/cycle/opt_in.html.",
+          "Write clear explanation of what data is collected.",
+          "Include privacy assurances (data never shared, easy deletion).",
+          "Add single 'Enable Cycle Tracking' button.",
+          "Link to privacy policy.",
+          "Use gentle, non-clinical language per WLJ design principles.",
+          "Make mobile-responsive with large touch targets."
+        ],
+        "output": "Opt-in page clearly explains feature and allows one-click enabling."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Update cycle tracking UI to show opt-in status",
+      "description": {
+        "objective": "Update opt-in page to show whether cycle tracking was auto-enabled based on gender.",
+        "inputs": [
+          "Cycle opt-in template",
+          "UserPreferences gender field"
+        ],
+        "actions": [
+          "Check if CycleSettings was auto-created from gender signal.",
+          "If auto-enabled, show message: 'Enabled based on your profile'.",
+          "Add toggle to disable with confirmation dialog.",
+          "Include message: 'Anyone can use this feature regardless of gender'.",
+          "Add link to update gender in preferences.",
+          "Use non-judgmental, inclusive language throughout."
+        ],
+        "output": "Opt-in page shows auto-enable status and allows manual toggle."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Create daily log form component",
+      "description": {
+        "objective": "Create reusable form component for daily cycle logging with mobile-first design.",
+        "inputs": [
+          "CycleDailyLogViewSet",
+          "Symptom and mood choices"
+        ],
+        "actions": [
+          "Create templates/health/cycle/includes/daily_log_form.html.",
+          "Add flow level selector as large tap-friendly buttons with visual indicators (colors).",
+          "Add symptoms as multi-select chips/pills.",
+          "Add mood as emoji-style selector matching WLJ patterns.",
+          "Add energy level as 1-5 slider or button group.",
+          "Make optional fields (cervical mucus, basal temp, notes) expandable.",
+          "Implement HTMX form submission with success feedback."
+        ],
+        "output": "Mobile-friendly daily log form with quick-entry design."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Create cycle summary card",
+      "description": {
+        "objective": "Create component showing current cycle status at a glance.",
+        "inputs": [
+          "CycleViewSet current_cycle endpoint",
+          "CyclePredictionService",
+          "Cycle phase calculator"
+        ],
+        "actions": [
+          "Create templates/health/cycle/includes/summary_card.html.",
+          "Display current cycle day prominently (large number).",
+          "Add color-coded phase indicator with phase name.",
+          "Show countdown to next predicted period.",
+          "Handle no-prediction state with helpful message.",
+          "Add hx-trigger to refresh on daily log save.",
+          "Make mobile-responsive card layout."
+        ],
+        "output": "Summary card shows cycle day, phase, and prediction at a glance."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Create cycle dashboard page",
+      "description": {
+        "objective": "Create main cycle tracking dashboard as the central hub for the feature.",
+        "inputs": [
+          "Cycle summary card",
+          "Daily log form",
+          "CycleDailyLogViewSet"
+        ],
+        "actions": [
+          "Create templates/health/cycle/dashboard.html.",
+          "Display cycle summary card prominently at top.",
+          "Show list of recent 7 days of logs.",
+          "Add floating action button for quick-log.",
+          "Add navigation links to calendar and settings.",
+          "Create empty state for new users with helpful onboarding message.",
+          "Ensure mobile-responsive layout."
+        ],
+        "output": "Dashboard page serves as main entry point for cycle tracking."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 6",
+      "name": "Create symptom/mood trend charts",
+      "description": {
+        "objective": "Create chart components for visualizing symptom and mood patterns.",
+        "inputs": [
+          "CycleStatisticsService",
+          "Chart.js or similar library"
+        ],
+        "actions": [
+          "Create templates/health/cycle/includes/trend_charts.html.",
+          "Add line/bar chart for symptom frequency by cycle phase.",
+          "Add mood distribution chart by cycle phase.",
+          "Allow configurable date range selection.",
+          "Use mobile-friendly chart sizing.",
+          "Use accessible color palette for colorblind users.",
+          "Add graceful degradation message if JS disabled."
+        ],
+        "output": "Interactive charts showing symptom and mood patterns over cycles."
+      },
+      "priority": "Low",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 7",
+      "name": "Add cycle section to daily check-in",
+      "description": {
+        "objective": "Integrate cycle logging into existing WLJ daily check-in flow.",
+        "inputs": [
+          "Existing daily check-in templates",
+          "Cycle daily log form",
+          "CycleSettings model"
+        ],
+        "actions": [
+          "Add conditional cycle section to daily check-in template.",
+          "Only display if user has cycle_tracking_enabled=True.",
+          "Add quick period toggle (started today / ended today).",
+          "Add link to full daily log form for detailed entry.",
+          "Display current cycle day inline.",
+          "Ensure HTMX integration doesn't disrupt existing check-in flow."
+        ],
+        "output": "Daily check-in includes optional cycle logging for enabled users."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 7",
+      "name": "Add cycle phase to daily summary",
+      "description": {
+        "objective": "Show current cycle phase in daily check-in summary with subtle placement.",
+        "inputs": [
+          "Daily check-in summary section",
+          "Cycle phase calculator"
+        ],
+        "actions": [
+          "Add cycle phase display to daily summary section.",
+          "Only show if cycle tracking enabled.",
+          "Display format: 'Day X of cycle - [Phase Name]'.",
+          "Make text clickable to navigate to cycle dashboard.",
+          "Handle no-data state gracefully (no display).",
+          "Use subtle, non-prominent styling."
+        ],
+        "output": "Daily summary shows cycle day and phase for enabled users."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 8",
+      "name": "Create cycle calendar view",
+      "description": {
+        "objective": "Create calendar view showing cycle history and predictions with color coding.",
+        "inputs": [
+          "CycleDailyLogViewSet with date range filter",
+          "CyclePredictionViewSet",
+          "Calendar component patterns"
+        ],
+        "actions": [
+          "Create templates/health/cycle/calendar.html.",
+          "Build monthly calendar grid component.",
+          "Color-code period days in red/pink shades.",
+          "Show predicted period days in lighter shade.",
+          "Add fertile window highlighting (toggle option).",
+          "Make days clickable to log/edit.",
+          "Add month/year navigation controls.",
+          "Consider mobile-swipeable enhancement."
+        ],
+        "output": "Calendar view shows cycle history and predictions with visual color coding."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 8",
+      "name": "Create calendar day detail modal",
+      "description": {
+        "objective": "Create modal/drawer for viewing and editing a specific day's log from calendar.",
+        "inputs": [
+          "Cycle calendar view",
+          "Daily log form component"
+        ],
+        "actions": [
+          "Create templates/health/cycle/includes/day_modal.html.",
+          "Open modal on calendar day click.",
+          "Display existing log data if present.",
+          "Enable inline editing with HTMX save.",
+          "Show quick-add form for empty days.",
+          "Make mobile-friendly modal or bottom drawer.",
+          "Close on outside click, Escape key, or X button."
+        ],
+        "output": "Modal allows viewing and editing daily logs from calendar interface."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 9",
+      "name": "Create cycle settings page",
+      "description": {
+        "objective": "Create settings page for cycle tracking preferences.",
+        "inputs": [
+          "CycleSettingsViewSet",
+          "CycleSettings model"
+        ],
+        "actions": [
+          "Create templates/health/cycle/settings.html.",
+          "Add input for average cycle length (default 28, range 21-45).",
+          "Add input for average period length (default 5, range 2-10).",
+          "Add toggle for fertile window display.",
+          "Add toggle for notifications (future feature placeholder).",
+          "Implement HTMX-powered save with validation feedback.",
+          "Add link to data management page."
+        ],
+        "output": "Settings page allows users to customize cycle tracking preferences."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 9",
+      "name": "Add cycle tracking to health settings",
+      "description": {
+        "objective": "Add cycle tracking toggle and link to existing health settings page.",
+        "inputs": [
+          "Existing health settings template",
+          "CycleSettings model"
+        ],
+        "actions": [
+          "Add cycle tracking section to health settings page.",
+          "Add toggle switch for enabling/disabling cycle tracking.",
+          "Show confirmation dialog before disabling.",
+          "Add link to full cycle settings page.",
+          "Use HTMX-powered toggle.",
+          "Match styling with other health settings sections."
+        ],
+        "output": "Health settings page includes cycle tracking toggle and settings link."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 9",
+      "name": "Create data management page",
+      "description": {
+        "objective": "Create page for cycle data export and deletion with clear explanations.",
+        "inputs": [
+          "CycleDataExportService",
+          "Delete endpoint"
+        ],
+        "actions": [
+          "Create templates/health/cycle/data_management.html.",
+          "Add 'Export to JSON' button with immediate download.",
+          "Add 'Export to CSV' button with immediate download.",
+          "Add 'Delete All Cycle Data' button with double confirmation.",
+          "Show data statistics (number of logs, cycles, date range).",
+          "Add clear warning that deletion is permanent.",
+          "Redirect to opt-in page after deletion."
+        ],
+        "output": "Data management page allows export and deletion of all cycle data."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 10",
+      "name": "Create export API endpoint",
+      "description": {
+        "objective": "Create API endpoint for downloading cycle data with rate limiting.",
+        "inputs": [
+          "CycleDataExportService",
+          "Existing API patterns"
+        ],
+        "actions": [
+          "Add export action to CycleSettingsViewSet or create separate view.",
+          "Accept format parameter: json or csv.",
+          "Return proper Content-Disposition header for download.",
+          "Implement rate limiting (e.g., 5 exports per hour per user).",
+          "Call CycleDataExportService for data generation.",
+          "Handle empty data case with appropriate response."
+        ],
+        "output": "GET /health/api/cycle/export/?format=json returns downloadable file."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 10",
+      "name": "Create delete all data endpoint",
+      "description": {
+        "objective": "Create API endpoint for deleting all cycle data with confirmation.",
+        "inputs": [
+          "All cycle models",
+          "Soft delete patterns"
+        ],
+        "actions": [
+          "Add delete_all action to CycleSettingsViewSet.",
+          "Require confirmation field in request body.",
+          "Soft-delete CycleSettings, CycleDailyLog, Cycle, CyclePrediction for user.",
+          "Add optional hard_delete parameter for permanent deletion.",
+          "Return count of deleted records.",
+          "Create audit log entry for deletion."
+        ],
+        "output": "POST /health/api/cycle/delete-all/ deletes all user's cycle data."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 11",
+      "name": "Write model unit tests",
+      "description": {
+        "objective": "Create comprehensive unit tests for all cycle tracking models.",
+        "inputs": [
+          "All cycle models",
+          "Existing health app test patterns"
+        ],
+        "actions": [
+          "Create apps/health/tests/test_cycle.py.",
+          "Test CycleSettings model creation and defaults.",
+          "Test CycleDailyLog model with all field variations.",
+          "Test Cycle model calculated properties (cycle_length, period_length).",
+          "Test CyclePrediction model and get_active_prediction().",
+          "Test soft delete behavior on all models.",
+          "Test unique constraint on DailyLog (user + date)."
+        ],
+        "output": "Comprehensive model tests passing for all cycle models."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 11",
+      "name": "Write service layer tests",
+      "description": {
+        "objective": "Create unit tests for cycle detection, prediction, and statistics services.",
+        "inputs": [
+          "All cycle services",
+          "Test data fixtures"
+        ],
+        "actions": [
+          "Test CycleDetectionService with various flow patterns.",
+          "Test period start detection (none -> flow transition).",
+          "Test period end detection (2+ days no flow).",
+          "Test CyclePredictionService accuracy with known data.",
+          "Test CycleStatisticsService calculations.",
+          "Test edge cases: gaps in data, irregular cycles, <3 cycles.",
+          "Mock external dependencies where needed."
+        ],
+        "output": "Service tests cover all methods and edge cases."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 11",
+      "name": "Write API endpoint tests",
+      "description": {
+        "objective": "Create integration tests for all cycle tracking API endpoints.",
+        "inputs": [
+          "All cycle ViewSets",
+          "Existing API test patterns"
+        ],
+        "actions": [
+          "Test all CRUD operations on DailyLogViewSet.",
+          "Test authentication required for all endpoints.",
+          "Test user can only access own data (permission check).",
+          "Test opt-in required before accessing data endpoints.",
+          "Test export endpoint with rate limiting.",
+          "Test delete-all endpoint with confirmation.",
+          "Test error responses for invalid data."
+        ],
+        "output": "API tests cover all endpoints, permissions, and error cases."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "High",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 11",
+      "name": "Write template/view tests",
+      "description": {
+        "objective": "Create tests for template rendering and view logic.",
+        "inputs": [
+          "All cycle templates",
+          "View classes"
+        ],
+        "actions": [
+          "Test opt-in page renders correctly.",
+          "Test daily log form submission creates entry.",
+          "Test calendar view renders with data.",
+          "Test settings page saves updates.",
+          "Test HTMX partial responses return correct content.",
+          "Test pages are mobile-responsive (viewport meta tag present)."
+        ],
+        "output": "Template tests verify correct rendering and form handling."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 11",
+      "name": "Write tests for gender-based cycle tracking auto-enable",
+      "description": {
+        "objective": "Create tests for gender field and auto-enable signal functionality.",
+        "inputs": [
+          "UserPreferences gender field",
+          "Auto-enable signal handler"
+        ],
+        "actions": [
+          "Test gender field on UserPreferences model.",
+          "Test onboarding saves gender correctly.",
+          "Test signal creates CycleSettings when gender set to 'female'.",
+          "Test signal does NOT create CycleSettings for 'male', 'other', 'prefer_not_to_say'.",
+          "Test changing gender from female does NOT delete existing cycle data.",
+          "Test manual toggle overrides auto-enable (user's choice respected)."
+        ],
+        "output": "Tests verify gender-based auto-enable works correctly."
+      },
+      "priority": "High",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 12",
+      "name": "Update teaching tool destinations",
+      "description": {
+        "objective": "Add cycle tracking pages to teaching_destinations.json fixture.",
+        "inputs": [
+          "apps/help/fixtures/teaching_destinations.json",
+          "All cycle tracking page URLs"
+        ],
+        "actions": [
+          "Add destination for cycle dashboard: /health/cycle/.",
+          "Add destination for cycle calendar: /health/cycle/calendar/.",
+          "Add destination for cycle settings: /health/cycle/settings/.",
+          "Include keywords: cycle, period, menstrual, tracking, health.",
+          "Set appropriate sort_order values.",
+          "Run python manage.py loaddata teaching_destinations."
+        ],
+        "output": "Teaching tool can navigate users to cycle tracking features."
+      },
+      "priority": "Medium",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 12",
+      "name": "Create feature documentation",
+      "description": {
+        "objective": "Document cycle tracking feature in docs/wlj_claude_features.md.",
+        "inputs": [
+          "All cycle models, services, and API endpoints",
+          "docs/wlj_claude_features.md"
+        ],
+        "actions": [
+          "Add Cycle Tracking section to features documentation.",
+          "Document data model overview with relationships.",
+          "List all API endpoints with request/response examples.",
+          "Document service layer architecture.",
+          "Add privacy and security considerations.",
+          "Document integration points with daily check-in."
+        ],
+        "output": "Feature documentation complete for cycle tracking module."
+      },
+      "priority": "Low",
+      "status": "New",
+      "effort": "Medium",
+      "allow_out_of_phase": false
+    },
+    {
+      "phase": "Phase 12",
+      "name": "Create user help content",
+      "description": {
+        "objective": "Create user-facing help content for cycle tracking with friendly language.",
+        "inputs": [
+          "Feature functionality",
+          "Help content patterns"
+        ],
+        "actions": [
+          "Write 'Getting Started with Cycle Tracking' guide.",
+          "Create FAQ section addressing common questions.",
+          "Document privacy and data handling.",
+          "Explain how predictions work and their accuracy.",
+          "Provide instructions for data export and deletion.",
+          "Use gentle, accessible, non-clinical language throughout."
+        ],
+        "output": "User help content created with accessible, friendly tone."
+      },
+      "priority": "Low",
+      "status": "New",
+      "effort": "Low",
+      "allow_out_of_phase": false
+    }
+  ]
+}

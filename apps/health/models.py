@@ -298,6 +298,107 @@ class CycleDailyLog(UserOwnedModel):
         return CYCLE_MOOD_EMOJIS.get(self.mood, "")
 
 
+class Cycle(UserOwnedModel):
+    """
+    A complete menstrual cycle record.
+
+    Tracks the full cycle from start of one period to the start of the next.
+    Cycles are auto-numbered per user for easy reference ("Cycle #5").
+
+    Fields:
+    - cycle_number: Auto-incremented per user
+    - start_date: First day of period (cycle start)
+    - end_date: Day before next period starts (nullable until next cycle begins)
+    - period_end_date: Last day of period bleeding (nullable)
+    - is_predicted: True if this cycle was AI-predicted (not user-confirmed)
+    - notes: User notes about this cycle
+    """
+
+    cycle_number = models.PositiveIntegerField(
+        help_text="Cycle number for this user (auto-incremented)",
+    )
+
+    start_date = models.DateField(
+        help_text="First day of period (cycle start date)",
+    )
+
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Day before next period starts (set when next cycle begins)",
+    )
+
+    period_end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Last day of period bleeding",
+    )
+
+    is_predicted = models.BooleanField(
+        default=False,
+        help_text="True if this cycle was AI-predicted rather than user-confirmed",
+    )
+
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about this cycle",
+    )
+
+    class Meta:
+        verbose_name = "cycle"
+        verbose_name_plural = "cycles"
+        ordering = ["-start_date"]
+        indexes = [
+            models.Index(fields=["user", "start_date"]),
+            models.Index(fields=["user", "cycle_number"]),
+        ]
+
+    def __str__(self):
+        return f"Cycle #{self.cycle_number} for {self.user.email} ({self.start_date})"
+
+    def save(self, *args, **kwargs):
+        """Auto-number cycles per user on first save."""
+        if not self.pk and not self.cycle_number:
+            # Get the highest cycle number for this user
+            last_cycle = Cycle.objects.filter(user=self.user).order_by("-cycle_number").first()
+            self.cycle_number = (last_cycle.cycle_number + 1) if last_cycle else 1
+        super().save(*args, **kwargs)
+
+    @property
+    def cycle_length(self):
+        """
+        Calculate cycle length in days.
+
+        Returns the number of days between start_date and end_date.
+        Returns None if end_date is not set (cycle still ongoing).
+        """
+        if self.end_date:
+            return (self.end_date - self.start_date).days + 1
+        return None
+
+    @property
+    def period_length(self):
+        """
+        Calculate period length in days.
+
+        Returns the number of days between start_date and period_end_date.
+        Returns None if period_end_date is not set.
+        """
+        if self.period_end_date:
+            return (self.period_end_date - self.start_date).days + 1
+        return None
+
+    @property
+    def is_complete(self):
+        """Check if this cycle has ended (has an end_date)."""
+        return self.end_date is not None
+
+    @property
+    def is_ongoing(self):
+        """Check if this is the current/ongoing cycle."""
+        return self.end_date is None
+
+
 class WeightEntry(UserOwnedModel):
     """
     Weight tracking entry.

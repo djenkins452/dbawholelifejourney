@@ -16,6 +16,37 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Cycle Tracking Documentation and Help (Documentation)
+
+**Summary:** Added What's New entry, teaching destinations, and context-aware help for cycle tracking feature.
+
+**What's New:**
+- Added release note for Cycle Tracking feature (pk=17)
+
+**Teaching Destinations Added:**
+- `cycle-dashboard` - Cycle Tracking main page
+- `cycle-calendar` - Cycle Calendar view
+- `cycle-settings` - Cycle Settings page
+- `cycle-data` - Cycle Data Management page
+
+**Help Topic Added:**
+- `HEALTH_CYCLE_DASHBOARD` - Comprehensive guide to cycle tracking
+
+**Content-Aware Help Context IDs Added:**
+- `HEALTH_CYCLE_DASHBOARD` - Main cycle dashboard
+- `HEALTH_CYCLE_CALENDAR` - Calendar view
+- `HEALTH_CYCLE_SETTINGS` - Settings page
+- `HEALTH_CYCLE_DATA` - Data management page
+- `HEALTH_CYCLE_OPTIN` - Opt-in page
+
+**Files Modified:**
+- `apps/core/fixtures/release_notes.json` - Added cycle tracking release note
+- `apps/help/fixtures/teaching_destinations.json` - Added 4 cycle destinations
+- `apps/help/fixtures/help_topics.json` - Added cycle tracking help topic
+- `apps/health/views_cycle.py` - Added HelpContextMixin to all TemplateViews
+
+---
+
 ### Add Cycle Tracking to Health Settings (Phase 9)
 
 **Summary:** Added cycle tracking section to the main preferences page under Health & Wellness.

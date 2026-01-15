@@ -1,6 +1,20 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 17,
+        "fields": {
+            "title": "Cycle Tracking",
+            "description": "Track your menstrual cycle with period logging, phase predictions, symptom tracking, and mood monitoring. Features include a color-coded calendar view, daily logging, trend charts, and privacy-focused data management with export options.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-01-15",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": ""
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 16,
         "fields": {
             "title": "Dexcom CGM Integration",

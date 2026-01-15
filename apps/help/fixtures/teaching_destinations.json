@@ -389,5 +389,73 @@
             "created_at": "2026-01-14T00:00:00Z",
             "updated_at": "2026-01-14T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 24,
+        "fields": {
+            "destination_id": "cycle-dashboard",
+            "name": "Cycle Tracking",
+            "path_description": "Health - Cycle",
+            "explanation": "Track your menstrual cycle, log periods, monitor symptoms, and view predictions.",
+            "url": "/health/cycle/",
+            "keywords": "cycle, period, menstrual, cycle tracking, period tracker, log period, track cycle, menstruation, period prediction",
+            "module": "health",
+            "sort_order": 24,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 25,
+        "fields": {
+            "destination_id": "cycle-calendar",
+            "name": "Cycle Calendar",
+            "path_description": "Health - Cycle - Calendar",
+            "explanation": "View your cycle history on a color-coded calendar with period days and predictions.",
+            "url": "/health/cycle/calendar/",
+            "keywords": "cycle calendar, period calendar, menstrual calendar, cycle history, period history, view periods",
+            "module": "health",
+            "sort_order": 25,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 26,
+        "fields": {
+            "destination_id": "cycle-settings",
+            "name": "Cycle Settings",
+            "path_description": "Health - Cycle - Settings",
+            "explanation": "Configure your average cycle length, period length, and display preferences.",
+            "url": "/health/cycle/settings/",
+            "keywords": "cycle settings, cycle length, period length, fertile window settings, cycle preferences",
+            "module": "health",
+            "sort_order": 26,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 27,
+        "fields": {
+            "destination_id": "cycle-data",
+            "name": "Cycle Data Management",
+            "path_description": "Health - Cycle - Data",
+            "explanation": "Export your cycle data or delete all your cycle tracking information.",
+            "url": "/health/cycle/data/",
+            "keywords": "cycle data, export cycle, delete cycle data, cycle export, download cycle data, cycle backup",
+            "module": "health",
+            "sort_order": 27,
+            "is_active": true,
+            "created_at": "2026-01-15T00:00:00Z",
+            "updated_at": "2026-01-15T00:00:00Z"
+        }
     }
 ]

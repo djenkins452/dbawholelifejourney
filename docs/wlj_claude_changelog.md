@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Fix Assistant Chat Mobile Responsiveness
+
+**Summary:** Fixed the assistant chat drawer layout on iPhone - messages were being cut off on the left side due to insufficient mobile CSS adjustments.
+
+**Problem:** On narrow iPhone screens, the chat bubbles appeared cut off because:
+1. Container padding was 20px on mobile (too wide)
+2. Message max-width of 85% didn't account for reduced mobile space
+3. No mobile-specific adjustments for font size, button sizes, or input area
+
+**Solution:** Added comprehensive mobile breakpoint styles (max-width: 480px):
+- Reduced messages container padding from 20px to 12px
+- Increased message max-width from 85% to 90%
+- Set input font-size to 16px (prevents iOS auto-zoom on focus)
+- Reduced header padding and hide subtitle text on mobile
+- Smaller send button and input area padding
+- Adjusted empty state and clear dialog positioning
+
+**Files Modified:**
+- `templates/components/chat_widget.html`: Extended @media (max-width: 480px) with mobile-optimized styles
+
+---
+
 ### Add ffmpeg for 60-Minute Audio Support & Download Button
 
 **Summary:** Added ffmpeg to Railway deployment to enable compression of large audio files, and added a download button to the error state so users can save their recording locally when processing fails.

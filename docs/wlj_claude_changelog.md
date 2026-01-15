@@ -54,6 +54,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Add Gender Selection to Preferences Page
+
+**Summary:** Added a "Personal Information" section to the preferences page with a gender dropdown.
+
+**Features:**
+- Dropdown with options: Male, Female, Prefer not to say (plus empty option)
+- Pre-populated with current UserPreferences value
+- Privacy note explaining how gender data is used
+- Uses existing form submission (Save Changes button)
+
+**Files Modified:**
+- `apps/users/forms.py`: Added gender field to PreferencesForm fields and widgets
+- `templates/users/preferences.html`: Added Personal Information accordion section
+
+**Purpose:** Part of WLJ Cycle Tracking Module - allows users to update their gender selection at any time from settings.
+
+---
+
 ### Fix Audio Email - Optional Message Field Causing Error
 
 **Summary:** Fixed bug where sending an audio capture email with a blank message body would fail with an AttributeError.

@@ -11,8 +11,89 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
-from apps.core.models import UserOwnedModel
+from apps.core.models import SoftDeleteModel, UserOwnedModel
 from apps.core.utils import get_user_today
+
+
+class CycleSettings(SoftDeleteModel):
+    """
+    User preferences for menstrual cycle tracking.
+
+    This is a OneToOne settings model that stores user preferences
+    for cycle tracking features. Users must opt-in to enable tracking.
+
+    Fields:
+    - cycle_tracking_enabled: Master toggle for cycle tracking
+    - average_cycle_length: Typical cycle length in days (default 28)
+    - average_period_length: Typical period length in days (default 5)
+    - notifications_enabled: Send reminders for period predictions
+    - fertile_window_tracking_enabled: Track and show fertile window
+    - last_period_start_date: Most recent period start date
+
+    Note: This model uses SoftDeleteModel (not UserOwnedModel) because
+    it's a OneToOne settings model, not a collection of user entries.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="cycle_settings",
+        help_text="User these cycle settings belong to",
+    )
+
+    # Master toggle - must be True to enable any cycle features
+    cycle_tracking_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable menstrual cycle tracking features",
+    )
+
+    # Cycle configuration
+    average_cycle_length = models.PositiveSmallIntegerField(
+        default=28,
+        help_text="Average length of menstrual cycle in days (typically 21-35)",
+    )
+    average_period_length = models.PositiveSmallIntegerField(
+        default=5,
+        help_text="Average length of period in days (typically 3-7)",
+    )
+
+    # Notification preferences
+    notifications_enabled = models.BooleanField(
+        default=True,
+        help_text="Send notifications for period predictions and reminders",
+    )
+
+    # Fertility tracking (optional sub-feature)
+    fertile_window_tracking_enabled = models.BooleanField(
+        default=False,
+        help_text="Track and display fertile window predictions",
+    )
+
+    # Most recent period data
+    last_period_start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Start date of most recent period (used for predictions)",
+    )
+
+    class Meta:
+        verbose_name = "cycle settings"
+        verbose_name_plural = "cycle settings"
+
+    def __str__(self):
+        status = "enabled" if self.cycle_tracking_enabled else "disabled"
+        return f"Cycle settings for {self.user.email} ({status})"
+
+    @property
+    def is_enabled(self):
+        """
+        Quick check if cycle tracking is enabled for this user.
+
+        Returns True only if:
+        1. The record is active (not soft deleted)
+        2. cycle_tracking_enabled is True
+        """
+        return self.is_active and self.cycle_tracking_enabled
 
 
 class WeightEntry(UserOwnedModel):

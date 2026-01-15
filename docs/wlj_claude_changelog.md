@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create cycle phase calculator (Phase 5)
+
+**Summary:** Created service function to calculate current cycle phase based on cycle day.
+
+**Service:** `cycle_phase.py` in `apps/health/services/`
+
+**Functions:**
+- `get_current_phase(user, reference_date)`: Returns current phase info or None
+- `get_phase_by_day(cycle_day, cycle_length)`: Get phase for specific cycle day
+- `get_all_phases(cycle_length)`: Get all phase boundaries for a cycle length
+
+**Phases Defined:**
+- Menstrual (days 1-5): Red, bleeding phase
+- Follicular (days 6-13): Orange, pre-ovulation
+- Ovulation (days 14-16): Green, peak fertility
+- Luteal (days 17-28): Blue, post-ovulation
+
+**Features:**
+- Proportionally adjusts phase lengths for non-28-day cycles
+- Returns phase name, display_name, description, day_in_phase, total_phase_days
+- Includes color codes (hex and name) for UI display
+- Returns None if user not in active cycle or tracking disabled
+- Handles extended luteal phase gracefully
+
+**Files Created:** `apps/health/services/cycle_phase.py`
+**Files Modified:** `apps/health/services/__init__.py`
+
+---
+
 ### Create CycleDataExportService (Phase 5)
 
 **Summary:** Created service for exporting cycle tracking data in JSON and CSV formats.

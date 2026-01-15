@@ -16,6 +16,45 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create Cycle Dashboard Page (Phase 6)
+
+**Summary:** Created the main cycle tracking dashboard as the central hub for the feature.
+
+**Template:** `templates/health/cycle/dashboard.html`
+
+**Features:**
+- Cycle summary card displayed prominently at top (via include)
+- Recent 7 days of logs list with:
+  - Flow level badges (color-coded)
+  - Mood emoji display
+  - Symptom count
+  - Energy level indicator
+  - Edit button for each log
+  - Today's log highlighted
+- Quick actions grid:
+  - Log Today (opens modal)
+  - Calendar (placeholder link)
+  - Statistics (links to API endpoint)
+- Floating Action Button (FAB) for quick log entry
+- Modal with daily log form component
+- Empty state for new users with:
+  - Feature benefits list
+  - "Get Started" button linking to opt-in page
+- Mobile-responsive layout
+
+**Views Added:**
+- `CycleDashboardView`: Loads cycle data and recent logs for dashboard
+- `CycleOptInPageView`: Renders opt-in page, redirects if already enabled
+
+**URLs Added:**
+- `/health/cycle/` -> `cycle_dashboard`
+- `/health/cycle/opt-in/` -> `cycle_opt_in_page`
+
+**Files Created:** `templates/health/cycle/dashboard.html`
+**Files Modified:** `apps/health/views_cycle.py`, `apps/health/urls.py`
+
+---
+
 ### Create Cycle Summary Card Component (Phase 6)
 
 **Summary:** Created component showing current cycle status at a glance.

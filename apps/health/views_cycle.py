@@ -7,8 +7,12 @@ following patterns similar to DRF ViewSets.
 """
 
 import json
+from datetime import date, datetime, timedelta
+from decimal import Decimal
+from statistics import mean, stdev
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Avg, Count, Max, Min
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -20,7 +24,7 @@ from .models import (
     CyclePrediction,
     CycleSettings,
 )
-from .serializers import CycleSettingsSerializer
+from .serializers import CycleSerializer, CycleSettingsSerializer
 
 
 class CycleTrackingEnabledMixin:
@@ -266,3 +270,249 @@ class CycleSettingsCheckView(LoginRequiredMixin, View):
                 "cycle_tracking_enabled": False,
                 "fertile_window_tracking_enabled": False,
             })
+
+
+class CycleViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View):
+    """
+    ViewSet for cycle history (read-only).
+
+    Provides:
+    - GET /: List all cycles with pagination and date filtering
+    - GET /<id>/: Retrieve single cycle
+    - GET /current/: Get the current (ongoing) cycle
+    - GET /statistics/: Get cycle averages and trends
+    """
+
+    # Pagination settings
+    DEFAULT_PAGE_SIZE = 10
+    MAX_PAGE_SIZE = 50
+
+    def get(self, request, cycle_id=None, action=None):
+        """Route GET requests to appropriate handler."""
+        if action == "current":
+            return self.current_cycle(request)
+        elif action == "statistics":
+            return self.statistics(request)
+        elif cycle_id:
+            return self.retrieve(request, cycle_id)
+        else:
+            return self.list(request)
+
+    def list(self, request):
+        """
+        List all cycles with pagination and date filtering.
+
+        Query params:
+        - page: Page number (default 1)
+        - page_size: Items per page (default 10, max 50)
+        - start_date: Filter cycles starting on or after this date
+        - end_date: Filter cycles starting on or before this date
+        """
+        cycles = Cycle.objects.filter(user=request.user)
+
+        # Date range filtering
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
+                cycles = cycles.filter(start_date__gte=start_dt)
+            except ValueError:
+                return JsonResponse(
+                    {"error": "Invalid start_date format. Use YYYY-MM-DD."},
+                    status=400
+                )
+
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
+                cycles = cycles.filter(start_date__lte=end_dt)
+            except ValueError:
+                return JsonResponse(
+                    {"error": "Invalid end_date format. Use YYYY-MM-DD."},
+                    status=400
+                )
+
+        # Get total count before pagination
+        total_count = cycles.count()
+
+        # Pagination
+        page = int(request.GET.get("page", 1))
+        page_size = min(
+            int(request.GET.get("page_size", self.DEFAULT_PAGE_SIZE)),
+            self.MAX_PAGE_SIZE
+        )
+
+        offset = (page - 1) * page_size
+        cycles = cycles.order_by("-start_date")[offset:offset + page_size]
+
+        # Serialize
+        serializer_context = {"include_daily_logs": request.GET.get("include_logs") == "true"}
+        data = [
+            CycleSerializer(instance=cycle, context=serializer_context).data
+            for cycle in cycles
+        ]
+
+        return JsonResponse({
+            "count": total_count,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total_count + page_size - 1) // page_size if page_size > 0 else 0,
+            "results": data,
+        })
+
+    def retrieve(self, request, cycle_id):
+        """
+        Retrieve a single cycle by ID.
+
+        Includes daily logs by default.
+        """
+        try:
+            cycle = Cycle.objects.get(id=cycle_id, user=request.user)
+        except Cycle.DoesNotExist:
+            return JsonResponse(
+                {"error": "Cycle not found."},
+                status=404
+            )
+
+        serializer = CycleSerializer(
+            instance=cycle,
+            context={"include_daily_logs": True}
+        )
+        return JsonResponse(serializer.data)
+
+    def current_cycle(self, request):
+        """
+        Get the current (ongoing) cycle.
+
+        Returns the cycle with no end_date (is_ongoing=True).
+        Returns 404 if no ongoing cycle exists.
+        """
+        try:
+            cycle = Cycle.objects.get(user=request.user, end_date__isnull=True)
+        except Cycle.DoesNotExist:
+            return JsonResponse(
+                {"error": "No current cycle found. Start a new period to create one."},
+                status=404
+            )
+
+        serializer = CycleSerializer(
+            instance=cycle,
+            context={"include_daily_logs": True}
+        )
+        data = serializer.data
+        data["days_since_start"] = (date.today() - cycle.start_date).days
+        return JsonResponse(data)
+
+    def statistics(self, request):
+        """
+        Get cycle statistics and trends.
+
+        Returns:
+        - Average cycle length
+        - Average period length
+        - Cycle length range (min/max)
+        - Period length range (min/max)
+        - Standard deviation
+        - Cycle count
+        - Regularity score (based on consistency)
+        - Recent trend (getting longer/shorter/stable)
+        """
+        completed_cycles = Cycle.objects.filter(
+            user=request.user,
+            end_date__isnull=False  # Only completed cycles
+        ).order_by("-start_date")
+
+        total_cycles = completed_cycles.count()
+
+        if total_cycles == 0:
+            return JsonResponse({
+                "message": "No completed cycles yet. Statistics require at least one completed cycle.",
+                "cycle_count": 0,
+            })
+
+        # Calculate cycle lengths
+        cycle_lengths = []
+        period_lengths = []
+        for cycle in completed_cycles:
+            if cycle.cycle_length:
+                cycle_lengths.append(cycle.cycle_length)
+            if cycle.period_length:
+                period_lengths.append(cycle.period_length)
+
+        stats = {
+            "cycle_count": total_cycles,
+            "completed_cycles": len(cycle_lengths),
+        }
+
+        # Cycle length statistics
+        if cycle_lengths:
+            stats["cycle_length"] = {
+                "average": round(mean(cycle_lengths), 1),
+                "min": min(cycle_lengths),
+                "max": max(cycle_lengths),
+                "standard_deviation": round(stdev(cycle_lengths), 1) if len(cycle_lengths) > 1 else 0,
+            }
+
+            # Regularity score (0-100, based on standard deviation)
+            # Lower std dev = more regular
+            if len(cycle_lengths) > 1:
+                std = stdev(cycle_lengths)
+                # A std of 0 = 100% regular, std of 7+ = 0% regular
+                regularity = max(0, min(100, round(100 - (std / 7 * 100))))
+            else:
+                regularity = None
+            stats["regularity_score"] = regularity
+
+            # Trend analysis (last 3 vs previous 3 cycles)
+            if len(cycle_lengths) >= 6:
+                recent_avg = mean(cycle_lengths[:3])
+                older_avg = mean(cycle_lengths[3:6])
+                diff = recent_avg - older_avg
+                if diff > 2:
+                    trend = "lengthening"
+                elif diff < -2:
+                    trend = "shortening"
+                else:
+                    trend = "stable"
+                stats["trend"] = {
+                    "direction": trend,
+                    "recent_average": round(recent_avg, 1),
+                    "older_average": round(older_avg, 1),
+                }
+            elif len(cycle_lengths) >= 3:
+                stats["trend"] = {
+                    "direction": "insufficient_data",
+                    "message": "Need at least 6 cycles for trend analysis",
+                }
+            else:
+                stats["trend"] = None
+        else:
+            stats["cycle_length"] = None
+            stats["regularity_score"] = None
+            stats["trend"] = None
+
+        # Period length statistics
+        if period_lengths:
+            stats["period_length"] = {
+                "average": round(mean(period_lengths), 1),
+                "min": min(period_lengths),
+                "max": max(period_lengths),
+            }
+        else:
+            stats["period_length"] = None
+
+        # Recent cycles summary (last 3)
+        recent_cycles = completed_cycles[:3]
+        stats["recent_cycles"] = [
+            {
+                "cycle_number": c.cycle_number,
+                "start_date": c.start_date.isoformat(),
+                "cycle_length": c.cycle_length,
+                "period_length": c.period_length,
+            }
+            for c in recent_cycles
+        ]
+
+        return JsonResponse(stats)

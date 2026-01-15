@@ -16,6 +16,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CycleViewSet (Phase 4)
+
+**Summary:** Created read-only API view for cycle history with statistics endpoint.
+
+**Views:**
+- `CycleViewSet`: Read-only ViewSet for cycle history
+  - `list`: List all cycles with pagination (10/page default, max 50)
+  - `retrieve`: Get single cycle by ID with daily logs
+  - `current_cycle`: Get the ongoing cycle with days_since_start
+  - `statistics`: Get cycle averages, trends, and regularity score
+
+**Features:**
+- Date range filtering via start_date and end_date query params
+- Pagination with page and page_size params
+- Optional include_logs param for nested daily logs in list
+- Statistics include: average/min/max cycle length, regularity score (0-100), trend analysis (lengthening/shortening/stable), recent cycles summary
+
+**Files Modified:** `apps/health/views_cycle.py`
+
+---
+
 ### Create CycleSettingsViewSet (Phase 4)
 
 **Summary:** Created API views for managing cycle tracking settings with opt-in/out control.

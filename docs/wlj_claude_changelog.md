@@ -16,6 +16,33 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Complete Cycle Tracking Integration (Phase 16)
+
+**Summary:** Added What's New entry, context-aware help topics, and help_context_id to cycle tracking views for full integration with app help system.
+
+**Files Modified:**
+- `apps/core/fixtures/release_notes.json` - Added What's New entry (pk=17)
+- `apps/help/fixtures/help_topics.json` - Added 3 context-aware help topics (pk=23-25)
+- `apps/health/views_cycle.py` - Added HelpContextMixin and help_context_id to page views
+
+**What's New Entry:**
+- "Cycle Tracking" (pk=17) - Major feature release, release_date 2026-01-15
+
+**Help Topics Added:**
+1. `HEALTH_CYCLE_HOME` (pk=23) - Cycle dashboard help
+2. `HEALTH_CYCLE_CALENDAR` (pk=24) - Cycle calendar help
+3. `HEALTH_CYCLE_SETTINGS` (pk=25) - Cycle settings help
+
+**View Changes:**
+- `CycleDashboardView` - Added `help_context_id = "HEALTH_CYCLE_HOME"`
+- `CycleCalendarView` - Added `help_context_id = "HEALTH_CYCLE_CALENDAR"`
+- `CycleSettingsPageView` - Added `help_context_id = "HEALTH_CYCLE_SETTINGS"`
+
+**Notes:**
+- Run `python manage.py loaddata release_notes help_topics` in production
+
+---
+
 ### Create User Help Content for Cycle Tracking (Phase 15)
 
 **Summary:** Added 4 user-facing help articles for cycle tracking with accessible, friendly language covering getting started, FAQ, privacy, and predictions.

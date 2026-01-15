@@ -350,5 +350,53 @@
       "created_at": "2026-01-14T00:00:00Z",
       "updated_at": "2026-01-14T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 23,
+    "fields": {
+      "context_id": "HEALTH_CYCLE_HOME",
+      "help_id": "cycle-tracking-overview",
+      "title": "Cycle Tracking: Understand Your Body's Rhythms",
+      "description": "Track your menstrual cycle, log symptoms and mood, and get predictions for upcoming periods.",
+      "content": "## Why Track Your Cycle?\n\nCycle tracking helps you understand your body's natural patterns. By logging a few details each day, you can:\n\n- **Know when to expect your period** - Based on your personal patterns\n- **Track how you feel** - Notice connections between your cycle and mood\n- **Spot patterns** - Understand what's normal for you\n- **Be prepared** - Get gentle reminders before your period arrives\n\n---\n\n## Getting Started\n\n### Enable Cycle Tracking\n1. Go to **Health > Cycle**\n2. Read the privacy information\n3. Click **\"Enable Cycle Tracking\"**\n\nYou're in control—you can disable it anytime and even delete all your data.\n\n### Set Your Preferences\nAfter enabling, set up:\n- **Average cycle length** - How many days between periods (most people: 25-35 days)\n- **Average period length** - How many days your period typically lasts\n- **Notifications** - Optional reminders for predictions\n- **Fertile window tracking** - Optional if you want to track this\n\n---\n\n## What to Track\n\n### Flow Level\nHow heavy is your period today?\n- **None** - Not on your period\n- **Spotting** - Very light, occasional\n- **Light** - Light bleeding\n- **Medium** - Normal flow\n- **Heavy** - Heavier than usual\n\n### Symptoms (Optional)\nCommon things to track: cramps, headache, fatigue, bloating, breast tenderness, backache, food cravings.\n\n### Mood & Energy (Optional)\nHow are you feeling emotionally? How's your energy? These help you see patterns.\n\n---\n\n## Dashboard Overview\n\nYour cycle dashboard shows:\n- **Current Status** - Period day, cycle day, or days until next period\n- **Cycle Phase** - Menstrual, Follicular, Ovulation, or Luteal\n- **Today's Log** - Quick access to log for today\n- **Recent Activity** - Your last few daily logs\n\n---\n\n## Tips for Success\n\n1. **Log daily during your period** - Even a quick flow level helps\n2. **Don't stress about gaps** - Some data is better than none\n3. **Be patient with predictions** - They improve after 3+ cycles\n4. **Check the calendar** - See your patterns over time\n\n---\n\n## Your Privacy Matters\n\nThis is sensitive, personal information:\n- **Opt-in only** - You choose to enable it\n- **Your data, your choice** - Export or delete anytime\n- **No sharing** - Your cycle data stays private\n- **Encrypted** - Protected in storage and transit\n\n---\n\n## Related Features\n- **Calendar** - View your cycle history visually\n- **Settings** - Configure cycle preferences\n- **Data Management** - Export or delete your data",
+      "app_name": "health",
+      "order": 7,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 24,
+    "fields": {
+      "context_id": "HEALTH_CYCLE_CALENDAR",
+      "help_id": "cycle-calendar-overview",
+      "title": "Cycle Calendar: Your Cycle History at a Glance",
+      "description": "View your cycle history on a calendar with period days, predictions, and fertile windows.",
+      "content": "## Understanding Your Calendar\n\nThe cycle calendar gives you a visual overview of your cycle patterns. Each day is color-coded to show your status at a glance.\n\n---\n\n## Calendar Colors\n\n| Color | Meaning |\n|-------|--------|\n| **Red dot** | Period day (confirmed by you) |\n| **Pink dot** | Spotting day |\n| **Striped** | Predicted period |\n| **Green** | Predicted fertile window (if enabled) |\n| **Today border** | Current day highlighted |\n\n---\n\n## Using the Calendar\n\n### Viewing Months\n- Use the **arrows** to navigate between months\n- Click **\"Today\"** to return to current month\n\n### Logging for a Day\n- **Click any day** to view or add a log\n- A modal appears with that day's details\n- Add or edit flow, symptoms, mood, and notes\n\n### Viewing Day Details\n- Click a day to see the full log\n- View symptoms, mood, energy level, and notes\n- Edit or delete the log if needed\n\n---\n\n## Calendar Features\n\n### Cycle Overview\n- See your period patterns across months\n- Notice if cycles are regular or irregular\n- Track cycle length trends\n\n### Predictions\n- Future period predictions shown with striped pattern\n- Confidence level indicates prediction reliability\n- Predictions improve with more logged cycles\n\n### Fertile Window (Optional)\n- If enabled in settings, fertile days show in green\n- Based on typical ovulation timing for your cycle length\n- Remember: estimates only, not for family planning\n\n---\n\n## Tips\n\n1. **Log during your period** - Calendar is more useful with data\n2. **Check past months** - Look for patterns you might miss\n3. **Click uncertain days** - Verify if predictions match reality\n4. **Note irregularities** - Add notes for unusual cycles\n\n---\n\n## Related Features\n- **Dashboard** - Today's status and quick actions\n- **Settings** - Configure predictions and notifications\n- **Data Export** - Download your calendar history",
+      "app_name": "health",
+      "order": 8,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 25,
+    "fields": {
+      "context_id": "HEALTH_CYCLE_SETTINGS",
+      "help_id": "cycle-settings-overview",
+      "title": "Cycle Settings: Customize Your Tracking",
+      "description": "Configure your cycle tracking preferences, average lengths, and notification settings.",
+      "content": "## Cycle Settings Overview\n\nYour cycle settings help the app understand your patterns and provide better predictions.\n\n---\n\n## Settings Options\n\n### Average Cycle Length\n**What it is:** The typical number of days from the start of one period to the start of the next.\n\n- **Default:** 28 days\n- **Range:** 15-60 days\n- **Tip:** Start with your best guess—the app learns your actual pattern over time\n\n### Average Period Length\n**What it is:** How many days your period typically lasts.\n\n- **Default:** 5 days\n- **Range:** 1-14 days\n- **Used for:** Predicting when your period will end\n\n### Notifications\n**What it does:** Sends reminders about upcoming predicted periods.\n\n- Enable to get advance notice\n- Helps you prepare before your period arrives\n- Reminders sent based on your prediction settings\n\n### Fertile Window Tracking\n**What it does:** Shows estimated fertile days on your calendar.\n\n- **Optional feature** - enable if you want to track this\n- Based on typical ovulation timing\n- **Important:** Estimates only, not reliable for family planning\n\n---\n\n## When Settings Update\n\nYour settings are used for:\n- **Predictions** - Calculating when your next period will arrive\n- **Calendar display** - Showing predicted days\n- **Phase calculation** - Determining your current cycle phase\n\nAs you log more cycles, the app learns your actual patterns and predictions improve.\n\n---\n\n## Disabling Cycle Tracking\n\nYou can disable cycle tracking at any time:\n\n1. Visit the **Opt-In page** (Health > Cycle > Privacy)\n2. Choose to **disable and keep data** OR **disable and delete**\n3. Your choice determines if historical data is preserved\n\n---\n\n## Related Features\n- **Dashboard** - See your current cycle status\n- **Calendar** - View your cycle history\n- **Data Management** - Export or delete your data",
+      "app_name": "health",
+      "order": 9,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
   }
 ]

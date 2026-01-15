@@ -20,6 +20,8 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import TemplateView
 
+from apps.help.mixins import HelpContextMixin
+
 from .models import (
     Cycle,
     CycleDailyLog,
@@ -1034,7 +1036,7 @@ class CyclePredictionViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View
         return JsonResponse(data, status=201)
 
 
-class CycleSettingsPageView(LoginRequiredMixin, CycleTrackingEnabledMixin, TemplateView):
+class CycleSettingsPageView(HelpContextMixin, LoginRequiredMixin, CycleTrackingEnabledMixin, TemplateView):
     """
     Cycle tracking settings page.
 
@@ -1046,6 +1048,7 @@ class CycleSettingsPageView(LoginRequiredMixin, CycleTrackingEnabledMixin, Templ
     """
 
     template_name = "health/cycle/settings.html"
+    help_context_id = "HEALTH_CYCLE_SETTINGS"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1099,7 +1102,7 @@ class CycleOptInPageView(LoginRequiredMixin, TemplateView):
         return context
 
 
-class CycleDashboardView(LoginRequiredMixin, TemplateView):
+class CycleDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Main cycle tracking dashboard page.
 
@@ -1109,6 +1112,8 @@ class CycleDashboardView(LoginRequiredMixin, TemplateView):
     - Quick actions for logging, calendar, settings
     - Empty state for users who haven't enabled cycle tracking
     """
+
+    help_context_id = "HEALTH_CYCLE_HOME"
 
     template_name = "health/cycle/dashboard.html"
 
@@ -1252,7 +1257,7 @@ class CyclePeriodToggleView(LoginRequiredMixin, CycleTrackingEnabledMixin, View)
         return HttpResponse(html)
 
 
-class CycleCalendarView(LoginRequiredMixin, TemplateView):
+class CycleCalendarView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Calendar view for cycle tracking.
 
@@ -1265,6 +1270,7 @@ class CycleCalendarView(LoginRequiredMixin, TemplateView):
     """
 
     template_name = "health/cycle/calendar.html"
+    help_context_id = "HEALTH_CYCLE_CALENDAR"
 
     def get_context_data(self, **kwargs):
         import json

@@ -758,8 +758,8 @@ class CycleDailyLogViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View):
         """
         Trigger the period detection service after a log change.
 
-        This is a placeholder that will be implemented by the
-        CyclePeriodDetectionService. For now, it logs the action.
+        Uses CycleDetectionService to analyze flow patterns and
+        automatically create/update Cycle records.
 
         The service will:
         1. Check if this is a period day (flow_level != 'none')
@@ -767,10 +767,12 @@ class CycleDailyLogViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View):
         3. If ending a period, update period_end_date
         4. Update predictions based on new data
         """
-        # TODO: Implement actual period detection service
-        # For now, we'll just ensure the service hook is in place
-        # The actual implementation will be in a separate service class
-        pass
+        if log is None:
+            return
+
+        from .services.cycle_detection import CycleDetectionService
+        service = CycleDetectionService(user)
+        service.process_daily_log(log)
 
 
 class CyclePredictionViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View):

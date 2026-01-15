@@ -11,6 +11,7 @@ from .dexcom import DexcomService, DexcomSyncService
 from .fatsecret import FatSecretService, fatsecret_service
 from .ai_nutrition import AINutritionService, ai_nutrition_service
 from .food_search import FoodSearchService, food_search_service
+from .cycle_detection import CycleDetectionService, process_daily_log_signal
 
 __all__ = [
     'DexcomService',
@@ -21,4 +22,6 @@ __all__ = [
     'ai_nutrition_service',
     'FoodSearchService',
     'food_search_service',
+    'CycleDetectionService',
+    'process_daily_log_signal',
 ]

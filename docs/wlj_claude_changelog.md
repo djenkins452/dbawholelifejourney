@@ -16,6 +16,33 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CycleDetectionService (Phase 5)
+
+**Summary:** Created service for automatic period detection from daily logs.
+
+**Service:** `CycleDetectionService` in `apps/health/services/cycle_detection.py`
+
+**Methods:**
+- `process_daily_log()`: Main entry point, analyzes a log and updates cycles
+- `_check_period_start()`: Detects if flow indicates new period start
+- `_check_period_end()`: Detects period end after 2+ no-flow days
+- `_create_new_cycle()`: Creates new Cycle, closes previous
+- `_update_period_end()`: Sets period_end_date on current cycle
+- `recalculate_cycles()`: Rebuilds all cycles from logs (admin utility)
+
+**Features:**
+- Automatically detects period start when flow changes from none to light/medium/heavy
+- Detects period end after 2+ consecutive days of no flow
+- Handles spotting intelligently (doesn't trigger new period)
+- Creates new Cycle when period starts, closes previous cycle
+- Updates period_end_date when period ends
+- Connected to DailyLog post_save signal in apps.py
+
+**Files Created:** `apps/health/services/cycle_detection.py`
+**Files Modified:** `apps/health/services/__init__.py`, `apps/health/apps.py`, `apps/health/views_cycle.py`
+
+---
+
 ### Create CyclePredictionViewSet (Phase 4)
 
 **Summary:** Created ViewSet for cycle predictions with regenerate capability.

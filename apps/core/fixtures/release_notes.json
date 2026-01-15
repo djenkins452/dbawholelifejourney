@@ -1,6 +1,20 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 17,
+        "fields": {
+            "title": "Cycle Tracking",
+            "description": "Privacy-first menstrual cycle tracking with daily logging, calendar view, cycle predictions, and symptom tracking. Opt-in feature with full data export and deletion control.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-01-15",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": ""
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 16,
         "fields": {
             "title": "Dexcom CGM Integration",

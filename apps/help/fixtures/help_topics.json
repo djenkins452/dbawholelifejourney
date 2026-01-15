@@ -350,5 +350,53 @@
       "created_at": "2026-01-14T00:00:00Z",
       "updated_at": "2026-01-14T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 23,
+    "fields": {
+      "context_id": "HEALTH_CYCLE_HOME",
+      "help_id": "cycle-tracking-overview",
+      "title": "Cycle Tracking: Your Private Health Companion",
+      "description": "Track your menstrual cycle with daily logs, calendar views, and cycle predictions - all with privacy-first design.",
+      "content": "## Why Track Your Cycle?\n\nUnderstanding your cycle helps you:\n\n- **Anticipate your period** - Never be caught off guard\n- **Track patterns** - See how your cycle affects energy, mood, and symptoms\n- **Spot irregularities** - Notice changes that might need attention\n- **Plan ahead** - Schedule around your cycle when helpful\n\n### Privacy First\n\nCycle tracking is an **opt-in feature** with strong privacy protections:\n- Your data is never shared with anyone\n- You control when to enable or disable tracking\n- Export your data anytime in standard formats\n- Delete all cycle data permanently if you choose\n\n---\n\n## Getting Started\n\n### Enable Cycle Tracking\n1. Go to **Health > Cycle Tracking**\n2. Review the privacy information\n3. Click **Enable Cycle Tracking**\n4. Set your average cycle and period length (or use defaults)\n\n### Your First Log\n1. From the cycle dashboard, click the **+** button\n2. Select today's date\n3. Choose your flow level (none, spotting, light, medium, heavy)\n4. Optionally add symptoms and mood\n5. Save your entry\n\n---\n\n## Daily Logging\n\n### What You Can Track\n\n**Flow Level**\n- None, Spotting, Light, Medium, Heavy\n\n**Symptoms** (optional)\n- Cramps, Headache, Bloating, Breast tenderness\n- Fatigue, Acne, Back pain, Nausea\n\n**Mood** (optional)\n- Happy, Sad, Irritable, Anxious\n- Calm, Energetic, Tired, Emotional\n\n**Notes** (optional)\n- Any additional observations for yourself\n\n### Quick Period Toggle\nUse the \"Start Period\" / \"End Period\" button for quick logging without opening the full form.\n\n---\n\n## Calendar View\n\nThe calendar shows your cycle history at a glance:\n\n- **Red shades** - Period days (darker = heavier flow)\n- **Pink** - Spotting days\n- **Blue circle** - Predicted period start\n- **Green dots** - Fertile window (if enabled)\n\nClick any day to view or edit that day's log.\n\n---\n\n## Cycle Predictions\n\nAfter logging 3+ complete cycles, you'll see:\n\n- **Predicted period start** - When your next period is likely\n- **Fertile window** - Optional display of estimated fertile days\n- **Confidence level** - How reliable the prediction is\n\n**Note:** Predictions improve with more data. Log consistently for best results.\n\n---\n\n## Data Management\n\n### Export Your Data\n1. Go to **Cycle Settings > Data Management**\n2. Choose format (JSON or CSV)\n3. Download your complete cycle history\n\n### Delete Your Data\n1. Go to **Cycle Settings > Data Management**\n2. Click **Delete All Cycle Data**\n3. Confirm the permanent deletion\n\n---\n\n## Tips for Accurate Tracking\n\n1. **Log daily during your period** - Even light days matter\n2. **Note the first heavy day** - Helps identify cycle start\n3. **Track symptoms throughout** - Not just during your period\n4. **Be consistent** - Daily logging gives the best predictions\n\n---\n\n## Related Features\n- **Health Home** - Quick access to cycle status\n- **Journal** - Connect mood patterns to your entries\n- **Personal Assistant** - Cycle-aware health insights",
+      "app_name": "health",
+      "order": 7,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 24,
+    "fields": {
+      "context_id": "HEALTH_CYCLE_CALENDAR",
+      "help_id": "cycle-calendar-overview",
+      "title": "Cycle Calendar: Visualize Your Patterns",
+      "description": "View your cycle history with color-coded days showing flow levels, predictions, and fertile windows.",
+      "content": "## Understanding the Calendar\n\nThe cycle calendar provides a visual overview of your menstrual patterns.\n\n### Color Coding\n\n| Color | Meaning |\n|-------|--------|\n| Dark red | Heavy flow |\n| Medium red | Medium flow |\n| Light red | Light flow |\n| Pink | Spotting |\n| Blue circle | Predicted period start |\n| Green dot | Fertile window day |\n| Gray | No data logged |\n\n---\n\n## Navigation\n\n### Month Controls\n- Use **<** and **>** arrows to move between months\n- Click **Today** to return to the current month\n\n### Day Details\n- Click any day to view or edit that day's log\n- A modal opens with the full daily log form\n- Save changes or create a new entry\n\n---\n\n## Calendar Features\n\n### Flow Level Legend\nThe legend at the bottom explains the color coding for flow levels.\n\n### Fertile Window Toggle\nIf you've enabled fertile window display in settings:\n- Toggle on/off using the switch\n- Green dots indicate estimated fertile days\n- Based on cycle length calculations\n\n### Predictions Display\nWhen you have 3+ completed cycles:\n- Blue circles show predicted period starts\n- Hover/tap for prediction confidence\n\n---\n\n## Logging from Calendar\n\n1. Click any date on the calendar\n2. Fill in flow level, symptoms, mood\n3. Add any notes\n4. Click **Save**\n\nYou can log for past dates if you forgot to track.\n\n---\n\n## Tips\n\n1. **Review monthly** - Spot patterns in your cycle\n2. **Check predictions** - See how accurate they've been\n3. **Log gaps** - Fill in any missed days for better data\n4. **Use on mobile** - Calendar is fully responsive",
+      "app_name": "health",
+      "order": 8,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 25,
+    "fields": {
+      "context_id": "HEALTH_CYCLE_SETTINGS",
+      "help_id": "cycle-settings-overview",
+      "title": "Cycle Settings: Customize Your Experience",
+      "description": "Configure your cycle tracking preferences including cycle length, predictions, and data management.",
+      "content": "## Settings Overview\n\nCycle settings let you customize how tracking works for you.\n\n---\n\n## Cycle Parameters\n\n### Average Cycle Length\n- Default: 28 days\n- Range: 21-35 days typical\n- Updates automatically as you log more cycles\n\n### Average Period Length\n- Default: 5 days\n- Range: 2-7 days typical\n- Used for prediction calculations\n\n---\n\n## Display Options\n\n### Show Fertile Window\n- Toggle on/off\n- When on, calendar shows estimated fertile days\n- Based on standard ovulation calculations\n- **Note:** Not reliable for contraception\n\n### Show Predictions\n- Toggle to show/hide cycle predictions\n- Requires 3+ completed cycles for accuracy\n\n---\n\n## Data Management\n\n### Export Data\nDownload all your cycle data:\n- **JSON format** - Complete data structure\n- **CSV format** - Spreadsheet-compatible\n\nIncludes: daily logs, cycles, predictions, settings\n\n### Delete Data\nPermanently remove all cycle tracking data:\n- Deletes all daily logs\n- Deletes all detected cycles\n- Deletes all predictions\n- Resets settings to defaults\n- **Cannot be undone**\n\n---\n\n## Disable Tracking\n\nTo stop cycle tracking:\n1. Click **Disable Cycle Tracking**\n2. Choose whether to keep or delete data\n3. Confirm your choice\n\nYou can re-enable anytime. If you kept data, it will still be there.\n\n---\n\n## Privacy Reminders\n\n- Your cycle data is stored securely\n- Only you can access your data\n- Data is never shared or sold\n- You control deletion at any time",
+      "app_name": "health",
+      "order": 9,
+      "is_active": true,
+      "created_at": "2026-01-15T00:00:00Z",
+      "updated_at": "2026-01-15T00:00:00Z"
+    }
   }
 ]

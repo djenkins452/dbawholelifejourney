@@ -52,6 +52,20 @@
     margin: 0;
 }
 
+/* Subtle cycle day display in header */
+.cycle-day-subtle {
+    display: inline-block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    margin-top: var(--space-1);
+    transition: color 0.2s;
+}
+
+.cycle-day-subtle:hover {
+    color: var(--color-accent);
+}
+
 .quick-stats {
     display: flex;
     gap: var(--space-3);

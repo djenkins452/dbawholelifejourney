@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Cycle Phase to Daily Summary (Phase 7)
+
+**Summary:** Added subtle cycle day and phase display in the dashboard header greeting section.
+
+**Features:**
+- Displays "Day X of cycle · [Phase Name]" below the current date
+- Only shows if cycle tracking enabled and phase data available
+- Clickable link to cycle dashboard
+- Subtle styling that doesn't distract from main content
+- Graceful no-data handling (nothing displayed)
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Added cycle day display in greeting section
+- `static/css/dashboard.css` - Added `.cycle-day-subtle` styling
+
+---
+
 ### Add Cycle Section to Dashboard (Phase 7)
 
 **Summary:** Integrated cycle tracking into the main WLJ dashboard for users with cycle tracking enabled.

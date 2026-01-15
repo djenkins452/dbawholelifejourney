@@ -14,6 +14,11 @@
         <div class="greeting">
             <h1>{{ greeting }}, {{ user.get_short_name }}.</h1>
             <p class="current-date">{{ current_date|date:"l, F j, Y" }}</p>
+            {% if health_enabled and user_data.cycle_tracking_enabled and user_data.cycle_data.phase %}
+            <a href="{% url 'health:cycle_dashboard' %}" class="cycle-day-subtle" title="View Cycle Dashboard">
+                Day {{ user_data.cycle_data.cycle_day }} of cycle &middot; {{ user_data.cycle_data.phase.display_name }}
+            </a>
+            {% endif %}
         </div>
         
         <!-- Quick Stats -->

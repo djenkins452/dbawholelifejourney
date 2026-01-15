@@ -219,6 +219,9 @@ class UserPreferences(models.Model):
     )
 
     # Gender (used for personalized health features like cycle tracking)
+    # Note: null=True allows existing users to skip gender selection.
+    # Code checking gender must handle None (no gender set) gracefully.
+    # Cycle tracking features should check: if prefs.gender == 'female'
     gender = models.CharField(
         max_length=20,
         choices=GENDER_CHOICES,

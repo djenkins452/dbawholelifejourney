@@ -126,6 +126,22 @@
                     </div>
                 </button>
                 <div class="accordion-body">
+                    {% if not form.gender.value %}
+                    <div class="nudge-banner mb-4 p-4 rounded-md" style="background: color-mix(in srgb, var(--color-accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);">
+                        <div class="flex items-start gap-3">
+                            <span class="flex-shrink-0" style="font-size: 1.25rem;">💡</span>
+                            <div>
+                                <p class="text-sm mb-1" style="color: var(--color-text);">
+                                    <strong>New:</strong> Set your gender to unlock personalized health features like cycle tracking.
+                                </p>
+                                <p class="text-xs text-muted">
+                                    This is optional and can be changed at any time.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <div class="form-group">
                         <label for="id_gender" class="form-label">Gender</label>
                         <select name="gender" id="id_gender" class="form-select">

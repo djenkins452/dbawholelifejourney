@@ -207,7 +207,19 @@
       "Bash(grep:*)",
       "Bash(while read file)",
       "Bash(do if ! grep -q '@media' \"$file\")",
-      "Bash(then echo \"$file\")"
+      "Bash(then echo \"$file\")",
+      "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/tasks/278/\")",
+      "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?status=in_progress\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"in_progress\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/279/status/\")",
+      "Bash(DJANGO_SETTINGS_MODULE=config.settings python3:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nCreate CycleViewSet with statistics endpoint\n\nAdd read-only ViewSet for cycle history with:\n- List all cycles with pagination \\(10/page default, max 50\\)\n- Retrieve single cycle by ID with daily logs\n- Current cycle action returning ongoing cycle\n- Statistics action with averages, trends, regularity score\n- Date range filtering via start_date/end_date query params\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/279/status/\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/278/status/\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nCreate CycleDailyLogViewSet with full CRUD operations\n\nAdd ViewSet for daily cycle logging with:\n- Full CRUD \\(create, retrieve, update, destroy\\)\n- Pagination \\(30/page default, max 100\\)\n- Date range filtering via start_date/end_date params\n- Future date validation on log_date\n- Duplicate detection \\(prevents same-date logs\\)\n- Period detection service hook \\(placeholder\\)\n- Uses CycleTrackingEnabledMixin for 404 on disabled tracking\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd URL routing for cycle API endpoints\n\nConfigure URL routing for all cycle tracking API:\n- /cycle/api/daily-logs/ - CRUD for daily logs\n- /cycle/api/cycles/ - List cycles\n- /cycle/api/cycles/<id>/ - Retrieve cycle\n- /cycle/api/cycles/current/ - Get current cycle\n- /cycle/api/cycles/statistics/ - Get statistics\n\nAdd comprehensive API documentation comments.\nPlaceholder routes for predictions \\(commented\\).\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/281/status/\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/280/status/\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/282/status/\")"
     ]
   }
 }

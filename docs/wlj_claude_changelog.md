@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CycleDataExportService (Phase 5)
+
+**Summary:** Created service for exporting cycle tracking data in JSON and CSV formats.
+
+**Service:** `CycleDataExportService` in `apps/health/services/cycle_export.py`
+
+**Methods:**
+- `export_to_json()`: Full JSON export with settings, daily logs, cycles, predictions
+- `export_to_json_string()`: JSON export as string
+- `export_to_csv()`: CSV export for spreadsheets (daily_logs, cycles, or predictions)
+- `get_export_size_estimate()`: Estimate export size and check pagination needs
+
+**Features:**
+- ISO 8601 date formatting throughout
+- File size limits with pagination support (1000 daily logs, 100 cycles, 50 predictions max)
+- No user PII in export metadata
+- Flattened CSV structure for spreadsheet compatibility
+- Symptoms list converted to comma-separated string in CSV
+- Export version tracking for data compatibility
+
+**Files Created:** `apps/health/services/cycle_export.py`
+**Files Modified:** `apps/health/services/__init__.py`
+
+---
+
 ### Create CycleDetectionService (Phase 5)
 
 **Summary:** Created service for automatic period detection from daily logs.

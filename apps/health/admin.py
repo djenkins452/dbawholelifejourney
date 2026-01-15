@@ -592,6 +592,132 @@ class ProviderStaffAdmin(admin.ModelAdmin):
 # =============================================================================
 
 
+class AverageCycleLengthFilter(admin.SimpleListFilter):
+    """Filter CycleSettings by average cycle length range."""
+
+    title = "average cycle length"
+    parameter_name = "avg_cycle_length"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("short", "Short (< 25 days)"),
+            ("normal", "Normal (25-35 days)"),
+            ("long", "Long (> 35 days)"),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == "short":
+            return queryset.filter(average_cycle_length__lt=25)
+        if self.value() == "normal":
+            return queryset.filter(average_cycle_length__gte=25, average_cycle_length__lte=35)
+        if self.value() == "long":
+            return queryset.filter(average_cycle_length__gt=35)
+        return queryset
+
+
+class LastLogDateFilter(admin.SimpleListFilter):
+    """Filter CycleDailyLog by recency of logging."""
+
+    title = "last log recency"
+    parameter_name = "log_recency"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("today", "Today"),
+            ("week", "Last 7 days"),
+            ("month", "Last 30 days"),
+            ("older", "Older than 30 days"),
+        ]
+
+    def queryset(self, request, queryset):
+        from django.utils import timezone
+        from datetime import timedelta
+
+        today = timezone.now().date()
+        if self.value() == "today":
+            return queryset.filter(log_date=today)
+        if self.value() == "week":
+            return queryset.filter(log_date__gte=today - timedelta(days=7))
+        if self.value() == "month":
+            return queryset.filter(log_date__gte=today - timedelta(days=30))
+        if self.value() == "older":
+            return queryset.filter(log_date__lt=today - timedelta(days=30))
+        return queryset
+
+
+class CycleDateRangeFilter(admin.SimpleListFilter):
+    """Filter Cycle by start date range."""
+
+    title = "cycle date range"
+    parameter_name = "date_range"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("current", "Current cycle (ongoing)"),
+            ("3months", "Last 3 months"),
+            ("6months", "Last 6 months"),
+            ("year", "Last year"),
+        ]
+
+    def queryset(self, request, queryset):
+        from django.utils import timezone
+        from datetime import timedelta
+
+        today = timezone.now().date()
+        if self.value() == "current":
+            return queryset.filter(end_date__isnull=True)
+        if self.value() == "3months":
+            return queryset.filter(start_date__gte=today - timedelta(days=90))
+        if self.value() == "6months":
+            return queryset.filter(start_date__gte=today - timedelta(days=180))
+        if self.value() == "year":
+            return queryset.filter(start_date__gte=today - timedelta(days=365))
+        return queryset
+
+
+def export_cycle_data_for_support(modeladmin, request, queryset):
+    """
+    Bulk action to export selected cycle data for support review.
+    Exports as a downloadable CSV file.
+    """
+    import csv
+    from django.http import HttpResponse
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = "attachment; filename=cycle_data_export.csv"
+
+    writer = csv.writer(response)
+    writer.writerow([
+        "User Email",
+        "Cycle Number",
+        "Start Date",
+        "End Date",
+        "Period End Date",
+        "Cycle Length",
+        "Period Length",
+        "Is Predicted",
+        "Notes",
+    ])
+
+    for cycle in queryset.select_related("user"):
+        writer.writerow([
+            cycle.user.email,
+            cycle.cycle_number,
+            cycle.start_date,
+            cycle.end_date or "",
+            cycle.period_end_date or "",
+            cycle.cycle_length or "",
+            cycle.period_length or "",
+            "Yes" if cycle.is_predicted else "No",
+            cycle.notes,
+        ])
+
+    return response
+
+
+export_cycle_data_for_support.short_description = "Export selected cycles for support review"
+
+
 @admin.register(CycleSettings)
 class CycleSettingsAdmin(admin.ModelAdmin):
     list_display = [
@@ -602,7 +728,12 @@ class CycleSettingsAdmin(admin.ModelAdmin):
         "notifications_enabled",
         "fertile_window_tracking_enabled",
     ]
-    list_filter = ["cycle_tracking_enabled", "notifications_enabled", "fertile_window_tracking_enabled"]
+    list_filter = [
+        "cycle_tracking_enabled",
+        "notifications_enabled",
+        "fertile_window_tracking_enabled",
+        AverageCycleLengthFilter,
+    ]
     search_fields = ["user__email"]
     raw_id_fields = ["user"]
 
@@ -618,7 +749,7 @@ class CycleDailyLogAdmin(admin.ModelAdmin):
         "is_period_day",
         "status",
     ]
-    list_filter = ["flow_level", "mood", "log_date", "status"]
+    list_filter = ["flow_level", "mood", LastLogDateFilter, "status"]
     search_fields = ["user__email"]
     raw_id_fields = ["user"]
     date_hierarchy = "log_date"
@@ -641,11 +772,12 @@ class CycleAdmin(admin.ModelAdmin):
         "is_predicted",
         "status",
     ]
-    list_filter = ["is_predicted", "status", "start_date"]
+    list_filter = ["is_predicted", CycleDateRangeFilter, "status"]
     search_fields = ["user__email"]
     raw_id_fields = ["user"]
     date_hierarchy = "start_date"
     ordering = ["-start_date"]
+    actions = [export_cycle_data_for_support]
 
     def cycle_length_display(self, obj):
         length = obj.cycle_length

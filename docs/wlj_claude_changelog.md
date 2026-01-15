@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Admin Filters and Actions for Cycle Tracking (Phase 3)
+
+**Summary:** Added custom admin filters and bulk export action for cycle data management.
+
+**Custom Filters:**
+- `AverageCycleLengthFilter`: Filter by short/normal/long cycle lengths
+- `LastLogDateFilter`: Filter daily logs by today/week/month/older
+- `CycleDateRangeFilter`: Filter cycles by current/3months/6months/year
+
+**Bulk Action:**
+- `export_cycle_data_for_support`: Export selected cycles as CSV for support review
+
+**Files Modified:** `apps/health/admin.py`
+
+---
+
 ### Register Cycle Models in Admin (Phase 3)
 
 **Summary:** Added Django admin configuration for all cycle tracking models.

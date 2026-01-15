@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CycleSettings Model (Phase 2)
+
+**Summary:** Created CycleSettings model for menstrual cycle tracking preferences.
+
+**Model Structure:**
+- Extends SoftDeleteModel with OneToOne relationship to User
+- `cycle_tracking_enabled`: Master toggle (default False)
+- `average_cycle_length`: Days in typical cycle (default 28)
+- `average_period_length`: Days in typical period (default 5)
+- `notifications_enabled`: Send prediction reminders (default True)
+- `fertile_window_tracking_enabled`: Track fertile window (default False)
+- `last_period_start_date`: Most recent period start (nullable)
+
+**Properties:**
+- `is_enabled`: Quick check combining is_active and cycle_tracking_enabled
+
+**Files Modified:**
+- `apps/health/models.py`: Added CycleSettings model
+- `apps/health/migrations/0022_add_cyclesettings_model.py`: New migration
+
+**Purpose:** Foundation model for WLJ Cycle Tracking Module Phase 2.
+
+---
+
 ### Add Gender Field to UserPreferences Model
 
 **Summary:** Added a gender field to the UserPreferences model to support personalized health features like cycle tracking.

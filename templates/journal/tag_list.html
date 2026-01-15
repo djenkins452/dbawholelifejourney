@@ -116,5 +116,24 @@
     color: var(--color-error);
     opacity: 0.8;
 }
+
+@media (max-width: 640px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+
+    .tag-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+
+    .tag-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
 </style>
 {% endblock %}

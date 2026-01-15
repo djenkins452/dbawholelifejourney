@@ -203,7 +203,11 @@
       "Bash(pip3 show:*)",
       "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/261/status/\")",
       "Bash(python3 manage.py makemigrations:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix PDF document viewing in Organize/Documents\n\n- Add get_document_storage\\(\\) for RawMediaCloudinaryStorage support\n- Update Document model to use raw storage for PDFs\n- Add DocumentViewInlineView for inline PDF viewing with proper headers\n- Update template to use inline view URL instead of direct Cloudinary URL\n\nFixes \"Failed to load PDF document\" error when viewing uploaded PDFs.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix PDF document viewing in Organize/Documents\n\n- Add get_document_storage\\(\\) for RawMediaCloudinaryStorage support\n- Update Document model to use raw storage for PDFs\n- Add DocumentViewInlineView for inline PDF viewing with proper headers\n- Update template to use inline view URL instead of direct Cloudinary URL\n\nFixes \"Failed to load PDF document\" error when viewing uploaded PDFs.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(grep:*)",
+      "Bash(while read file)",
+      "Bash(do if ! grep -q '@media' \"$file\")",
+      "Bash(then echo \"$file\")"
     ]
   }
 }

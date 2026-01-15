@@ -155,5 +155,34 @@
     color: var(--color-text-muted);
     font-style: italic;
 }
+
+@media (max-width: 640px) {
+    .random-prompt-section {
+        padding: var(--space-4);
+    }
+
+    .prompt-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .prompt-card {
+        padding: var(--space-4);
+    }
+
+    .prompt-text {
+        font-size: var(--font-size-base);
+    }
+
+    .prompt-filters {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: var(--space-2);
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .filter-tag {
+        flex-shrink: 0;
+    }
+}
 </style>
 {% endblock %}

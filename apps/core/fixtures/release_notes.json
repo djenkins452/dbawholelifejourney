@@ -3,8 +3,8 @@
         "model": "core.releasenote",
         "pk": 17,
         "fields": {
-            "title": "Cycle Tracking",
-            "description": "Track your menstrual cycle with daily logging, symptom tracking, mood and energy levels, and period predictions. Includes calendar view, phase calculator, and privacy-first data export.",
+            "title": "Menstrual Cycle Tracking",
+            "description": "Comprehensive cycle tracking with daily logging for flow, symptoms, mood, and energy. AI-powered predictions for your next period and fertile window. View cycle statistics, trends, and phase information. Auto-enabled for female users during onboarding.",
             "entry_type": "feature",
             "version": "",
             "release_date": "2026-01-15",

@@ -1116,6 +1116,7 @@ class CycleDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     help_context_id = "HEALTH_CYCLE_HOME"
 
     template_name = "health/cycle/dashboard.html"
+    help_context_id = "HEALTH_CYCLE_HOME"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

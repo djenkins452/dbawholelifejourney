@@ -79,6 +79,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Fix X-Frame-Options for PDF Inline Viewing
+
+**Summary:** Fixed "refused to connect" error when viewing PDFs in iframe due to X-Frame-Options being set to 'deny'.
+
+**Problem:** Two issues were preventing PDF viewing:
+1. Django's `XFrameOptionsMiddleware` was setting `X-Frame-Options: DENY` globally
+2. The view was returning 500 errors when trying to open Cloudinary files
+
+**Solution:**
+1. Added `@xframe_options_sameorigin` decorator to `DocumentViewInlineView` to allow same-origin iframe embedding
+2. Added proper error handling with fallback to redirect to file URL if direct streaming fails
+3. Added logging for troubleshooting file access issues
+
+**Files Modified:**
+- `apps/life/views.py` - Added decorator and error handling to `DocumentViewInlineView`
+
+---
+
 ### Add File Replacement Option in Document Edit Mode
 
 **Summary:** Added ability to replace the attached file when editing a document without having to delete the entire entry and start over.

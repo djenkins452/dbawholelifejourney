@@ -22,10 +22,12 @@ logger = logging.getLogger(__name__)
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Case, Count, Q, Sum, Value, When
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.generic import (
     CreateView,
     DeleteView,
@@ -1506,33 +1508,50 @@ class DocumentDownloadView(LifeAccessMixin, View):
         return redirect('life:document_detail', pk=pk)
 
 
+@method_decorator(xframe_options_sameorigin, name='dispatch')
 class DocumentViewInlineView(LifeAccessMixin, View):
     """View a document file inline (for PDF viewing in iframe)."""
 
     def get(self, request, pk):
         document = get_object_or_404(Document, pk=pk, user=request.user)
 
-        if document.file:
-            # Determine content type
-            content_type = 'application/octet-stream'
-            if document.file_type == 'pdf':
-                content_type = 'application/pdf'
-            elif document.file_type == 'image/jpeg':
-                content_type = 'image/jpeg'
-            elif document.file_type == 'image/png':
-                content_type = 'image/png'
+        if not document.file:
+            return HttpResponse("File not found.", status=404)
 
+        # Determine content type
+        content_type = 'application/octet-stream'
+        if document.file_type == 'pdf':
+            content_type = 'application/pdf'
+        elif document.file_type == 'image/jpeg':
+            content_type = 'image/jpeg'
+        elif document.file_type == 'image/png':
+            content_type = 'image/png'
+
+        try:
+            # Try to open and stream the file
+            file_handle = document.file.open('rb')
             response = FileResponse(
-                document.file.open('rb'),
+                file_handle,
                 as_attachment=False,  # Inline viewing
                 content_type=content_type,
             )
-            # Allow embedding in iframe
-            response['X-Frame-Options'] = 'SAMEORIGIN'
             return response
-
-        messages.error(request, "File not found.")
-        return redirect('life:document_detail', pk=pk)
+        except Exception as e:
+            # If we can't open the file (e.g., Cloudinary issue),
+            # try to redirect to the direct URL
+            logger.warning(f"Failed to open document file {pk}: {e}")
+            try:
+                # For Cloudinary files, try redirecting to the URL directly
+                file_url = document.file.url
+                if file_url:
+                    from django.http import HttpResponseRedirect
+                    return HttpResponseRedirect(file_url)
+            except Exception:
+                pass
+            return HttpResponse(
+                "Unable to load file. Please try downloading instead.",
+                status=500
+            )
 
 
 # =============================================================================

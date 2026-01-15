@@ -132,6 +132,14 @@
             <div style="font-size: 3rem; margin-bottom: 1rem; color: #ef4444;">&#9888;</div>
             <h2 style="margin-bottom: 0.5rem; color: #ef4444;">Processing Failed</h2>
             <p id="error-message" style="color: var(--color-text-secondary); margin-bottom: 1.5rem;"></p>
+            <!-- Download button to save recording locally -->
+            <div id="download-recording-container" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px; border: 1px solid #fbbf24;">
+                <p style="margin-bottom: 0.75rem; font-weight: 500; color: #92400e;">Your recording is still available!</p>
+                <a id="download-recording-link" href="#" download="recording.webm" class="btn btn-primary" style="background: #059669;">
+                    Download Recording to Device
+                </a>
+                <p style="font-size: 0.75rem; color: #92400e; margin-top: 0.5rem;">Save your recording to your device, then you can upload it later.</p>
+            </div>
             <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
                 <a href="{% url 'capture:list' %}" class="btn btn-secondary">Back to Capture List</a>
                 <button id="retry-recording" class="btn btn-primary">Try Again</button>
@@ -371,9 +379,26 @@
             stateError.style.display = state === 'error' ? 'block' : 'none';
         }
 
-        // Show error state
+        // Show error state with download option
         function showError(message) {
             document.getElementById('error-message').textContent = message;
+
+            // Show download button if we have a recording to save
+            const downloadContainer = document.getElementById('download-recording-container');
+            const downloadLink = document.getElementById('download-recording-link');
+
+            if (audioBlob) {
+                // Create download URL for the recording
+                const downloadUrl = URL.createObjectURL(audioBlob);
+                const extension = audioBlob.type.split('/')[1]?.split(';')[0] || 'webm';
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+                downloadLink.href = downloadUrl;
+                downloadLink.download = `WLJ-Recording-${timestamp}.${extension}`;
+                downloadContainer.style.display = 'block';
+            } else {
+                downloadContainer.style.display = 'none';
+            }
+
             showState('error');
         }
 

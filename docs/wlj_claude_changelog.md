@@ -16,6 +16,31 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-14 Changes
 
+### Add ffmpeg for 60-Minute Audio Support & Download Button
+
+**Summary:** Added ffmpeg to Railway deployment to enable compression of large audio files, and added a download button to the error state so users can save their recording locally when processing fails.
+
+**Problem:**
+1. 16-minute and longer recordings were failing with "audio file is too large" because ffmpeg wasn't installed on Railway
+2. When processing failed, users had no way to save their recording to their device
+
+**Solution:**
+1. Added ffmpeg to nixpacks.toml so it's installed during Railway deployment
+2. Added "Download Recording to Device" button on the error screen
+3. Improved error messages to be more helpful
+
+**Files Modified:**
+- `nixpacks.toml`: Added `[phases.setup]` with `nixPkgs = ["ffmpeg"]`
+- `templates/capture/capture_record.html`: Added download button container and updated showError() to create download link
+- `apps/capture/services/transcription.py`: Improved error messages for compression failures
+
+**Behavior:**
+- Recording failures now show a prominent "Download Recording to Device" button
+- Users can save their recording locally and upload it later via the Upload page
+- With ffmpeg now available, 60-minute recordings can be compressed to meet Whisper's 25MB limit
+
+---
+
 ### CRITICAL: Prevent Audio Recording Loss on Upload Failure
 
 **Summary:** Fixed critical bug where audio recordings were permanently lost when upload failed (e.g., 502 timeout). Users can now retry failed uploads without losing their recording, and recordings are automatically recovered if the page is refreshed.

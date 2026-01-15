@@ -183,6 +183,12 @@ class UserPreferences(models.Model):
         ("minimal", "Minimal / Life Focus"),
     ]
 
+    GENDER_CHOICES = [
+        ("male", "Male"),
+        ("female", "Female"),
+        ("prefer_not_to_say", "Prefer not to say"),
+    ]
+
     # AI_COACHING_STYLE_CHOICES - Now loaded dynamically from database
     # See apps.ai.models.CoachingStyle
 
@@ -210,6 +216,15 @@ class UserPreferences(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="preferences",
+    )
+
+    # Gender (used for personalized health features like cycle tracking)
+    gender = models.CharField(
+        max_length=20,
+        choices=GENDER_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Used to personalize health features such as cycle tracking",
     )
 
     # Theme settings

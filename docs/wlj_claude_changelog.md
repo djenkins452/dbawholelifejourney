@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Create CycleDailyLogViewSet (Phase 4)
+
+**Summary:** Created full CRUD ViewSet for daily cycle logging with validation.
+
+**Views:**
+- `CycleDailyLogViewSet`: Full CRUD ViewSet for daily logs
+  - `list`: List all daily logs with pagination (30/page default, max 100)
+  - `retrieve`: Get single daily log by ID
+  - `create`: Create new daily log (validates future dates, checks for duplicates)
+  - `update/partial_update`: Update existing log
+  - `destroy`: Soft delete a log
+
+**Features:**
+- Date range filtering via start_date and end_date query params
+- Validates log_date is not in the future
+- Prevents duplicate logs for same date (returns error with suggestion to use PUT)
+- Period detection service hook (placeholder for future implementation)
+- Uses CycleTrackingEnabledMixin to return 404 if tracking not enabled
+
+**Files Modified:** `apps/health/views_cycle.py`
+
+---
+
 ### Create CycleViewSet (Phase 4)
 
 **Summary:** Created read-only API view for cycle history with statistics endpoint.

@@ -24,7 +24,7 @@ from .models import (
     CyclePrediction,
     CycleSettings,
 )
-from .serializers import CycleSerializer, CycleSettingsSerializer
+from .serializers import CycleDailyLogSerializer, CycleSerializer, CycleSettingsSerializer
 
 
 class CycleTrackingEnabledMixin:
@@ -516,3 +516,253 @@ class CycleViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View):
         ]
 
         return JsonResponse(stats)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class CycleDailyLogViewSet(CycleTrackingEnabledMixin, LoginRequiredMixin, View):
+    """
+    ViewSet for daily cycle logging with full CRUD operations.
+
+    Provides:
+    - GET /: List all daily logs with date filtering
+    - GET /<id>/: Retrieve single daily log
+    - POST /: Create a new daily log
+    - PUT/PATCH /<id>/: Update an existing daily log
+    - DELETE /<id>/: Soft delete a daily log
+    """
+
+    # Pagination settings
+    DEFAULT_PAGE_SIZE = 30
+    MAX_PAGE_SIZE = 100
+
+    def get(self, request, log_id=None):
+        """Handle GET requests - list or retrieve."""
+        if log_id:
+            return self.retrieve(request, log_id)
+        return self.list(request)
+
+    def post(self, request):
+        """Create a new daily log."""
+        return self.create(request)
+
+    def put(self, request, log_id=None):
+        """Update an existing daily log."""
+        if not log_id:
+            return JsonResponse({"error": "Log ID required for update."}, status=400)
+        return self.update(request, log_id)
+
+    def patch(self, request, log_id=None):
+        """Partially update an existing daily log."""
+        if not log_id:
+            return JsonResponse({"error": "Log ID required for update."}, status=400)
+        return self.update(request, log_id, partial=True)
+
+    def delete(self, request, log_id=None):
+        """Soft delete a daily log."""
+        if not log_id:
+            return JsonResponse({"error": "Log ID required for delete."}, status=400)
+        return self.destroy(request, log_id)
+
+    def list(self, request):
+        """
+        List all daily logs with date range filtering.
+
+        Query params:
+        - page: Page number (default 1)
+        - page_size: Items per page (default 30, max 100)
+        - start_date: Filter logs on or after this date
+        - end_date: Filter logs on or before this date
+        """
+        logs = CycleDailyLog.objects.filter(user=request.user)
+
+        # Date range filtering
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
+                logs = logs.filter(log_date__gte=start_dt)
+            except ValueError:
+                return JsonResponse(
+                    {"error": "Invalid start_date format. Use YYYY-MM-DD."},
+                    status=400
+                )
+
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
+                logs = logs.filter(log_date__lte=end_dt)
+            except ValueError:
+                return JsonResponse(
+                    {"error": "Invalid end_date format. Use YYYY-MM-DD."},
+                    status=400
+                )
+
+        # Get total count before pagination
+        total_count = logs.count()
+
+        # Pagination
+        page = int(request.GET.get("page", 1))
+        page_size = min(
+            int(request.GET.get("page_size", self.DEFAULT_PAGE_SIZE)),
+            self.MAX_PAGE_SIZE
+        )
+
+        offset = (page - 1) * page_size
+        logs = logs.order_by("-log_date")[offset:offset + page_size]
+
+        # Serialize
+        data = [CycleDailyLogSerializer(instance=log).data for log in logs]
+
+        return JsonResponse({
+            "count": total_count,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total_count + page_size - 1) // page_size if page_size > 0 else 0,
+            "results": data,
+        })
+
+    def retrieve(self, request, log_id):
+        """Retrieve a single daily log by ID."""
+        try:
+            log = CycleDailyLog.objects.get(id=log_id, user=request.user)
+        except CycleDailyLog.DoesNotExist:
+            return JsonResponse({"error": "Daily log not found."}, status=404)
+
+        serializer = CycleDailyLogSerializer(instance=log)
+        return JsonResponse(serializer.data)
+
+    def create(self, request):
+        """
+        Create a new daily log.
+
+        Validates that log_date is not in the future.
+        Triggers period detection service after save.
+        """
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+        # Validate log_date is not in the future
+        log_date = data.get("log_date")
+        if log_date:
+            try:
+                log_date_parsed = datetime.strptime(log_date, "%Y-%m-%d").date()
+                if log_date_parsed > date.today():
+                    return JsonResponse(
+                        {"error": "log_date cannot be in the future."},
+                        status=400
+                    )
+            except ValueError:
+                return JsonResponse(
+                    {"error": "Invalid log_date format. Use YYYY-MM-DD."},
+                    status=400
+                )
+
+        # Check if a log already exists for this date
+        existing_log = CycleDailyLog.objects.filter(
+            user=request.user,
+            log_date=log_date or date.today()
+        ).first()
+
+        if existing_log:
+            return JsonResponse(
+                {"error": f"A log already exists for {existing_log.log_date}. Use PUT to update."},
+                status=400
+            )
+
+        serializer = CycleDailyLogSerializer(data=data)
+        if not serializer.is_valid():
+            return JsonResponse({"errors": serializer.errors}, status=400)
+
+        log = serializer.save(user=request.user)
+
+        # Trigger period detection service
+        self._trigger_period_detection(request.user, log)
+
+        return JsonResponse(
+            CycleDailyLogSerializer(instance=log).data,
+            status=201
+        )
+
+    def update(self, request, log_id, partial=False):
+        """
+        Update an existing daily log.
+
+        Validates that log_date is not in the future.
+        Triggers period detection service after save.
+        """
+        try:
+            log = CycleDailyLog.objects.get(id=log_id, user=request.user)
+        except CycleDailyLog.DoesNotExist:
+            return JsonResponse({"error": "Daily log not found."}, status=404)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+        # Validate log_date is not in the future (if being changed)
+        log_date = data.get("log_date")
+        if log_date:
+            try:
+                log_date_parsed = datetime.strptime(log_date, "%Y-%m-%d").date()
+                if log_date_parsed > date.today():
+                    return JsonResponse(
+                        {"error": "log_date cannot be in the future."},
+                        status=400
+                    )
+            except ValueError:
+                return JsonResponse(
+                    {"error": "Invalid log_date format. Use YYYY-MM-DD."},
+                    status=400
+                )
+
+        serializer = CycleDailyLogSerializer(instance=log, data=data)
+        if not serializer.is_valid():
+            return JsonResponse({"errors": serializer.errors}, status=400)
+
+        log = serializer.save()
+
+        # Trigger period detection service
+        self._trigger_period_detection(request.user, log)
+
+        return JsonResponse(CycleDailyLogSerializer(instance=log).data)
+
+    def destroy(self, request, log_id):
+        """Soft delete a daily log."""
+        try:
+            log = CycleDailyLog.objects.get(id=log_id, user=request.user)
+        except CycleDailyLog.DoesNotExist:
+            return JsonResponse({"error": "Daily log not found."}, status=404)
+
+        log_date = log.log_date
+        log.soft_delete()
+
+        # Trigger period detection after delete (may need to recalculate)
+        self._trigger_period_detection(request.user)
+
+        return JsonResponse({
+            "message": f"Daily log for {log_date} deleted successfully.",
+            "deleted_id": log_id,
+        })
+
+    def _trigger_period_detection(self, user, log=None):
+        """
+        Trigger the period detection service after a log change.
+
+        This is a placeholder that will be implemented by the
+        CyclePeriodDetectionService. For now, it logs the action.
+
+        The service will:
+        1. Check if this is a period day (flow_level != 'none')
+        2. If starting a new period, create/update Cycle record
+        3. If ending a period, update period_end_date
+        4. Update predictions based on new data
+        """
+        # TODO: Implement actual period detection service
+        # For now, we'll just ensure the service hook is in place
+        # The actual implementation will be in a separate service class
+        pass

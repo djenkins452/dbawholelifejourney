@@ -765,6 +765,66 @@
     font-weight: 600;
     color: var(--color-accent);
 }
+
+@media (max-width: 640px) {
+    .stats-row {
+        justify-content: space-around;
+        gap: var(--space-4);
+    }
+
+    .stat-action {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .stat-action .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .life-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .life-card {
+        padding: var(--space-4);
+    }
+
+    .life-card .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+
+    .life-card .card-header .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .today-card {
+        padding: var(--space-4);
+    }
+
+    .today-event {
+        flex-wrap: wrap;
+    }
+
+    .event-type-badge {
+        margin-left: auto;
+    }
+
+    .quick-links {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .quick-link {
+        padding: var(--space-3);
+    }
+
+    .ai-insight-inner {
+        flex-direction: column;
+    }
+}
 </style>
 
 {% if request.GET.task_completed %}

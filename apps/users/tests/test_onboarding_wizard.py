@@ -38,7 +38,7 @@ class OnboardingWizardStepsTest(TestCase):
     def test_expected_step_order(self):
         """Steps are in the expected order."""
         step_ids = [step["id"] for step in ONBOARDING_STEPS]
-        expected = ["welcome", "theme", "modules", "ai", "location", "complete"]
+        expected = ["welcome", "gender", "theme", "modules", "ai", "location", "complete"]
         self.assertEqual(step_ids, expected)
 
 

@@ -14,17 +14,18 @@ Key Views:
     - ProfileView: Display and edit user profile information
     - ProfileUpdateView: Handle profile form submission
     - PreferencesView: User settings (theme, modules, AI, notifications)
-    - OnboardingWizardView: 6-step wizard for new user setup
+    - OnboardingWizardView: 7-step wizard for new user setup
     - AcceptTermsView: Terms of service acceptance
     - Biometric views: Registration, login, credential management
 
 Onboarding Steps:
     1. Welcome - Introduction
-    2. Theme - Visual appearance selection
-    3. Modules - Choose which features to enable
-    4. AI - Configure AI coaching preferences
-    5. Location - Set timezone and location
-    6. Complete - Finalize and redirect to dashboard
+    2. Gender - Optional gender selection for personalized health features
+    3. Theme - Visual appearance selection
+    4. Modules - Choose which features to enable
+    5. AI - Configure AI coaching preferences
+    6. Location - Set timezone and location
+    7. Complete - Finalize and redirect to dashboard
 
 Security Notes:
     - All views require authentication (LoginRequiredMixin)
@@ -67,6 +68,11 @@ ONBOARDING_STEPS = [
         "id": "welcome",
         "title": "Welcome",
         "description": "Let's personalize your experience",
+    },
+    {
+        "id": "gender",
+        "title": "About You",
+        "description": "Help us personalize your experience",
     },
     {
         "id": "theme",
@@ -335,11 +341,12 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
 
     Walks users through personalization:
     1. Welcome - Introduction
-    2. Theme - Visual appearance
-    3. Modules - Enable/disable life areas
-    4. AI - Coaching style selection
-    5. Location - Timezone and city
-    6. Complete - Final summary
+    2. Gender - Optional gender selection for health personalization
+    3. Theme - Visual appearance
+    4. Modules - Enable/disable life areas
+    5. AI - Coaching style selection
+    6. Location - Timezone and city
+    7. Complete - Final summary
     """
 
     template_name = "users/onboarding_wizard.html"
@@ -372,7 +379,12 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
         # Step-specific context
         prefs = self.request.user.preferences
 
-        if current_step["id"] == "theme":
+        if current_step["id"] == "gender":
+            from apps.users.models import UserPreferences
+            context["gender_choices"] = UserPreferences.GENDER_CHOICES
+            context["current_gender"] = prefs.gender
+
+        elif current_step["id"] == "theme":
             context["themes"] = settings.WLJ_SETTINGS["THEMES"]
             context["current_theme"] = prefs.theme
 
@@ -456,7 +468,20 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
         prefs = request.user.preferences
 
         # Process step-specific data
-        if current_step["id"] == "theme":
+        if current_step["id"] == "gender":
+            from apps.users.models import UserPreferences
+            gender = request.POST.get("gender")
+            # Validate gender is a valid choice or empty (skip)
+            valid_genders = [choice[0] for choice in UserPreferences.GENDER_CHOICES]
+            if gender in valid_genders:
+                prefs.gender = gender
+                prefs.save(update_fields=["gender", "updated_at"])
+            elif gender == "":
+                # User chose to skip - clear any existing gender
+                prefs.gender = None
+                prefs.save(update_fields=["gender", "updated_at"])
+
+        elif current_step["id"] == "theme":
             theme = request.POST.get("theme")
             if theme in settings.WLJ_SETTINGS["THEMES"]:
                 prefs.theme = theme

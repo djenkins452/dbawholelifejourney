@@ -64,6 +64,63 @@
                 </div>
             </div>
 
+            {% elif current_step.id == "gender" %}
+            <!-- GENDER STEP -->
+            <div class="step-panel" data-step="gender">
+                <div class="step-header">
+                    <h1>A Little About You</h1>
+                    <p class="step-subtitle">This helps us personalize your health features. You can always change this later or skip this step entirely.</p>
+                </div>
+
+                <div class="gender-selection">
+                    <p class="gender-explanation">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4"/>
+                            <path d="M12 8h.01"/>
+                        </svg>
+                        Some health features like cycle tracking are tailored based on this selection.
+                    </p>
+
+                    <div class="gender-options">
+                        {% for value, label in gender_choices %}
+                        <label class="gender-card {% if current_gender == value %}selected{% endif %}">
+                            <input type="radio" name="gender" value="{{ value }}" {% if current_gender == value %}checked{% endif %}>
+                            <div class="gender-content">
+                                <div class="gender-icon">
+                                    {% if value == "male" %}
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                                        <circle cx="10" cy="14" r="5"/>
+                                        <path d="M19 5l-5.4 5.4"/>
+                                        <path d="M15 5h4v4"/>
+                                    </svg>
+                                    {% elif value == "female" %}
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                                        <circle cx="12" cy="8" r="5"/>
+                                        <path d="M12 13v8"/>
+                                        <path d="M9 18h6"/>
+                                    </svg>
+                                    {% else %}
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M12 8v8"/>
+                                        <path d="M8 12h8"/>
+                                    </svg>
+                                    {% endif %}
+                                </div>
+                                <span class="gender-label">{{ label }}</span>
+                            </div>
+                            <div class="gender-check">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                            </div>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
             {% elif current_step.id == "theme" %}
             <!-- THEME STEP -->
             <div class="step-panel" data-step="theme">
@@ -560,6 +617,137 @@
 .welcome-reassurance p {
     margin: 0;
     font-size: var(--font-size-sm);
+}
+
+/* Gender Step */
+.gender-selection {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.gender-explanation {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.gender-explanation svg {
+    flex-shrink: 0;
+    color: var(--color-accent);
+}
+
+.gender-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.gender-card {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    transition: all 0.2s ease;
+    min-height: 72px; /* 44px+ touch target with padding */
+}
+
+.gender-card:hover {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 5%, var(--color-surface));
+}
+
+.gender-card.selected {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+}
+
+.gender-card input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.gender-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.gender-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border-radius: var(--radius-full);
+    color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+.gender-card.selected .gender-icon {
+    background: var(--color-accent);
+    color: white;
+}
+
+.gender-label {
+    font-size: var(--font-size-lg);
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.gender-check {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    border: 2px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.gender-check svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0;
+    color: white;
+    transition: opacity 0.2s ease;
+}
+
+.gender-card.selected .gender-check {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+}
+
+.gender-card.selected .gender-check svg {
+    opacity: 1;
+}
+
+@media (max-width: 480px) {
+    .gender-card {
+        padding: var(--space-3) var(--space-4);
+    }
+
+    .gender-icon {
+        width: 44px;
+        height: 44px;
+    }
+
+    .gender-label {
+        font-size: var(--font-size-base);
+    }
 }
 
 /* Theme Step */

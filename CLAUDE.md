@@ -74,6 +74,31 @@ python manage.py migrate
 - Railway deployment with Nixpacks | Gunicorn WSGI
 - OpenAI API for AI coaching features
 
+## Responsive Design (REQUIRED)
+
+**This app is used on phones, tablets, and desktops.** All UI changes MUST be responsive.
+
+**Breakpoints:**
+- Mobile: `max-width: 480px`
+- Tablet: `max-width: 768px`
+- Desktop: `min-width: 769px`
+
+**When writing CSS:**
+1. Start with mobile-friendly defaults (reasonable padding, readable font sizes)
+2. Add `@media` queries for tablet/desktop enhancements
+3. Test that touch targets are at least 44x44px on mobile
+4. Use `font-size: 16px` minimum on inputs (prevents iOS auto-zoom)
+5. Avoid fixed widths - use `max-width`, `%`, or `vw` units
+
+**Common mobile issues to avoid:**
+- Horizontal scrolling (content wider than viewport)
+- Text too small to read
+- Buttons/links too close together
+- Forms that don't fit on screen
+- Modals/drawers that overflow
+
+**Before completing UI tasks:** Mentally verify the layout works at 375px width (iPhone SE).
+
 ## Key Architecture
 
 - **Apps:** users, core, dashboard, journal, faith, health, purpose, ai, life, admin_console, help, scan
@@ -200,4 +225,4 @@ Use `/next` slash command or say "What's Next?"
 
 ---
 
-*Last updated: 2026-01-13*
+*Last updated: 2026-01-14*

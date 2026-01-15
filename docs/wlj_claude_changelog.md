@@ -34,6 +34,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Add Gender Selection to Onboarding Wizard
+
+**Summary:** Added a new "About You" step to the onboarding wizard flow for gender selection.
+
+**Features:**
+- Large tap-friendly radio buttons (44px+ touch targets) for mobile
+- Three options: Male, Female, Prefer not to say
+- Skip option to proceed without selecting
+- Friendly explanation about health feature personalization
+- Responsive CSS for mobile devices
+
+**Files Modified:**
+- `apps/users/views.py`: Added gender step to ONBOARDING_STEPS, get_context_data, and post handler
+- `templates/users/onboarding_wizard.html`: Added gender step HTML and CSS (188 lines)
+- `apps/users/tests/test_onboarding_wizard.py`: Updated expected step order
+
+**Purpose:** Part of WLJ Cycle Tracking Module - allows users to optionally select gender during onboarding to enable personalized health features.
+
+---
+
 ### Fix Audio Email - Optional Message Field Causing Error
 
 **Summary:** Fixed bug where sending an audio capture email with a blank message body would fail with an AttributeError.

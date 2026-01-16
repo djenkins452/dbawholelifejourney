@@ -1,16 +1,14 @@
-WLJ Personal Assistant - Approval Required
+{% autoescape off %}WLJ Personal Assistant - Approval Required
 ==========================================
 
 ACTION REQUIRED: {{ message }}
 
 Task #{{ task.task_id }}
 -----------------------
-{% if task.triggered_by_name or task.triggered_by_email %}
-TRIGGERED BY
+{% if task.triggered_by_name or task.triggered_by_email %}TRIGGERED BY
 {% if task.triggered_by_name %}User: {{ task.triggered_by_name }}{% if task.triggered_by_email and task.triggered_by_name != task.triggered_by_email %} ({{ task.triggered_by_email }}){% endif %}{% elif task.triggered_by_email %}User: {{ task.triggered_by_email }}{% endif %}
-{% endif %}{% if task.original_query %}Message: "{{ task.original_query }}"
-{% endif %}
-{% endif %}Title: {{ task.title }}
+{% if task.original_query %}Message: "{{ task.original_query }}"
+{% endif %}{% endif %}Title: {{ task.title }}
 {% if task.description %}Description: {{ task.description }}{% endif %}
 Severity: {{ task.severity|title }}
 
@@ -28,3 +26,4 @@ Note: Approval link will be available in Phase 4. Please review tasks in the adm
 --
 Sent to: {{ admin_email }}
 Timestamp: {{ timestamp }}
+{% endautoescape %}

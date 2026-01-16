@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 
 from apps.admin_console.models import AdminProject, AdminProjectPhase, AdminTask
-from apps.admin_console.services.email_intake import (
+from apps.admin_console.email_intake import (
     EmailIntakeError,
     ParsedEmail,
     create_task_from_email,
@@ -274,11 +274,11 @@ class EmailIntakeIntegrationTests(TestCase):
         EMAIL_INTAKE_USER='admin@example.com',
         EMAIL_INTAKE_PASSWORD='password',
     )
-    @patch('apps.admin_console.services.email_intake.connect_imap')
-    @patch('apps.admin_console.services.email_intake.send_mail')
+    @patch('apps.admin_console.email_intake.connect_imap')
+    @patch('apps.admin_console.email_intake.send_mail')
     def test_process_email_intake_dry_run(self, mock_send_mail, mock_connect):
         """Dry run processes emails without creating tasks."""
-        from apps.admin_console.services.email_intake import process_email_intake
+        from apps.admin_console.email_intake import process_email_intake
 
         # Mock IMAP connection
         mock_imap = MagicMock()
@@ -303,7 +303,7 @@ class EmailIntakeIntegrationTests(TestCase):
     )
     def test_process_email_intake_missing_settings(self):
         """Missing settings cause error."""
-        from apps.admin_console.services.email_intake import process_email_intake
+        from apps.admin_console.email_intake import process_email_intake
 
         results = process_email_intake()
 

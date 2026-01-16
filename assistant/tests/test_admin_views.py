@@ -5,6 +5,7 @@ Tests for the admin approval views and dashboard.
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -13,6 +14,29 @@ from django.utils import timezone
 from assistant.models import APPROVAL_TOKEN_EXPIRY_HOURS, ImprovementTaskModel
 
 User = get_user_model()
+
+
+def make_user_ready_for_dashboard(user):
+    """
+    Helper to ensure a user can access dashboard views.
+
+    Users need to have accepted current terms and completed onboarding
+    to avoid middleware redirects.
+    """
+    # Import here to avoid circular imports
+    from apps.users.models import TermsAcceptance
+
+    # Accept current terms
+    current_version = settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0")
+    TermsAcceptance.objects.create(
+        user=user,
+        terms_version=current_version,
+        accepted_at=timezone.now()
+    )
+
+    # Complete onboarding
+    user.preferences.has_completed_onboarding = True
+    user.preferences.save()
 
 
 class TestApproveTaskView(TestCase):
@@ -300,6 +324,9 @@ class TestImprovementDashboard(TestCase):
             password='testpass123',
             is_staff=True,
         )
+        # Prepare staff user for dashboard access (terms + onboarding)
+        make_user_ready_for_dashboard(self.staff_user)
+
         # Create a non-staff user
         self.regular_user = User.objects.create_user(
             email='user@example.com',
@@ -346,7 +373,8 @@ class TestImprovementDashboard(TestCase):
 
     def test_dashboard_allows_staff(self):
         """Test that staff users can access dashboard."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        # Use force_login instead of login for more reliable test authentication
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_dashboard')
         response = self.client.get(url)
 
@@ -355,7 +383,7 @@ class TestImprovementDashboard(TestCase):
 
     def test_dashboard_displays_tasks(self):
         """Test that dashboard displays tasks."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_dashboard')
         response = self.client.get(url)
 
@@ -364,7 +392,7 @@ class TestImprovementDashboard(TestCase):
 
     def test_dashboard_filter_by_status(self):
         """Test filtering tasks by status."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_dashboard')
         response = self.client.get(f"{url}?status=pending_approval")
 
@@ -373,7 +401,7 @@ class TestImprovementDashboard(TestCase):
 
     def test_dashboard_filter_by_severity(self):
         """Test filtering tasks by severity."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_dashboard')
         response = self.client.get(f"{url}?severity=high")
 
@@ -382,7 +410,7 @@ class TestImprovementDashboard(TestCase):
 
     def test_dashboard_shows_status_badges(self):
         """Test that status badges are displayed."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_dashboard')
         response = self.client.get(url)
 
@@ -402,6 +430,9 @@ class TestDashboardApproveTask(TestCase):
             password='testpass123',
             is_staff=True,
         )
+        # Prepare staff user for dashboard access (terms + onboarding)
+        make_user_ready_for_dashboard(self.staff_user)
+
         self.task = ImprovementTaskModel.objects.create(
             title="Test Task",
             description={"objective": "Test"},
@@ -421,7 +452,7 @@ class TestDashboardApproveTask(TestCase):
 
     def test_approve_requires_post(self):
         """Test that approve action requires POST method."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_approve_task', args=[self.task.id])
         response = self.client.get(url)
 
@@ -429,7 +460,7 @@ class TestDashboardApproveTask(TestCase):
 
     def test_approve_success(self):
         """Test successful task approval from dashboard."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_approve_task', args=[self.task.id])
         response = self.client.post(url)
 
@@ -441,7 +472,7 @@ class TestDashboardApproveTask(TestCase):
 
     def test_approve_ajax_success(self):
         """Test successful AJAX approval."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_approve_task', args=[self.task.id])
         response = self.client.post(
             url,
@@ -459,7 +490,7 @@ class TestDashboardApproveTask(TestCase):
         self.task.status = ImprovementTaskModel.STATUS_COMPLETED
         self.task.save()
 
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_approve_task', args=[self.task.id])
         response = self.client.post(
             url,
@@ -483,6 +514,9 @@ class TestDashboardRejectTask(TestCase):
             password='testpass123',
             is_staff=True,
         )
+        # Prepare staff user for dashboard access (terms + onboarding)
+        make_user_ready_for_dashboard(self.staff_user)
+
         self.task = ImprovementTaskModel.objects.create(
             title="Test Task",
             description={"objective": "Test"},
@@ -495,7 +529,7 @@ class TestDashboardRejectTask(TestCase):
 
     def test_reject_success(self):
         """Test successful task rejection from dashboard."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_reject_task', args=[self.task.id])
         response = self.client.post(url, {'reason': 'Not needed'})
 
@@ -507,7 +541,7 @@ class TestDashboardRejectTask(TestCase):
 
     def test_reject_ajax_success(self):
         """Test successful AJAX rejection."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_reject_task', args=[self.task.id])
         response = self.client.post(
             url,
@@ -531,6 +565,9 @@ class TestDashboardRollbackTask(TestCase):
             password='testpass123',
             is_staff=True,
         )
+        # Prepare staff user for dashboard access (terms + onboarding)
+        make_user_ready_for_dashboard(self.staff_user)
+
         self.task = ImprovementTaskModel.objects.create(
             title="Test Task",
             description={"objective": "Test"},
@@ -547,7 +584,7 @@ class TestDashboardRollbackTask(TestCase):
         self.task.status = ImprovementTaskModel.STATUS_PENDING_APPROVAL
         self.task.save()
 
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
         response = self.client.post(
             url,
@@ -565,7 +602,7 @@ class TestDashboardRollbackTask(TestCase):
         self.task.git_commit_before = ''
         self.task.save()
 
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
         response = self.client.post(
             url,
@@ -580,7 +617,7 @@ class TestDashboardRollbackTask(TestCase):
 
     def test_rollback_requires_reason(self):
         """Test that rollback requires a reason."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
         response = self.client.post(
             url,
@@ -593,15 +630,15 @@ class TestDashboardRollbackTask(TestCase):
         self.assertFalse(data['success'])
         self.assertIn('reason', data['error'].lower())
 
-    @patch('assistant.admin_views.AdminNotificationService')
-    @patch('assistant.admin_views.GitProtectionService')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.git_service.GitProtectionService')
     def test_rollback_success(self, mock_git_service, mock_notification_service):
         """Test successful task rollback."""
         # Mock git rollback success
         mock_git_instance = mock_git_service.return_value
         mock_git_instance.rollback_to_commit.return_value.success = True
 
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
         response = self.client.post(url, {'reason': 'Found a bug'})
 
@@ -612,15 +649,15 @@ class TestDashboardRollbackTask(TestCase):
         self.assertEqual(self.task.rollback_reason, 'Found a bug')
         self.assertIsNotNone(self.task.rolled_back_at)
 
-    @patch('assistant.admin_views.AdminNotificationService')
-    @patch('assistant.admin_views.GitProtectionService')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.git_service.GitProtectionService')
     def test_rollback_ajax_success(self, mock_git_service, mock_notification_service):
         """Test successful AJAX rollback."""
         # Mock git rollback success
         mock_git_instance = mock_git_service.return_value
         mock_git_instance.rollback_to_commit.return_value.success = True
 
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
         response = self.client.post(
             url,
@@ -634,15 +671,15 @@ class TestDashboardRollbackTask(TestCase):
         self.assertIn('rollback_commit', data)
         self.assertEqual(data['rollback_commit'], 'abc12345')
 
-    @patch('assistant.admin_views.AdminNotificationService')
-    @patch('assistant.admin_views.GitProtectionService')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.git_service.GitProtectionService')
     def test_rollback_calls_git_service(self, mock_git_service, mock_notification_service):
         """Test rollback triggers git rollback with correct commit hash."""
         # Mock git rollback success
         mock_git_instance = mock_git_service.return_value
         mock_git_instance.rollback_to_commit.return_value.success = True
 
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
         self.client.post(url, {'reason': 'Test rollback'})
 
@@ -650,21 +687,21 @@ class TestDashboardRollbackTask(TestCase):
             'abc1234567890abcdef1234567890abcdef1234'
         )
 
-    @patch('assistant.admin_views.AdminNotificationService')
-    @patch('assistant.admin_views.GitProtectionService')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.git_service.GitProtectionService')
     def test_rollback_notifies_admin(self, mock_git_service, mock_notification_service):
         """Test rollback sends notification to admin."""
         # Mock git rollback success
         mock_git_instance = mock_git_service.return_value
         mock_git_instance.rollback_to_commit.return_value.success = True
 
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
         self.client.post(url, {'reason': 'Test rollback'})
 
         mock_notification_service.return_value.notify_task_error.assert_called_once()
 
-    @patch('assistant.admin_views.GitProtectionService')
+    @patch('assistant.git_service.GitProtectionService')
     def test_rollback_git_failure(self, mock_git_service):
         """Test rollback handles git failure gracefully."""
         # Mock git rollback failure
@@ -672,7 +709,7 @@ class TestDashboardRollbackTask(TestCase):
         mock_git_instance.rollback_to_commit.return_value.success = False
         mock_git_instance.rollback_to_commit.return_value.message = 'Git error'
 
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:dashboard_rollback_task', args=[self.task.id])
         response = self.client.post(
             url,
@@ -744,6 +781,9 @@ class TestImprovementAnalytics(TestCase):
             password='testpass123',
             is_staff=True,
         )
+        # Prepare staff user for dashboard access (terms + onboarding)
+        make_user_ready_for_dashboard(self.staff_user)
+
         self.regular_user = User.objects.create_user(
             email='user@example.com',
             password='testpass123',
@@ -799,7 +839,7 @@ class TestImprovementAnalytics(TestCase):
 
     def test_analytics_allows_staff(self):
         """Test that staff users can access analytics."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_analytics')
         response = self.client.get(url)
 
@@ -808,7 +848,7 @@ class TestImprovementAnalytics(TestCase):
 
     def test_analytics_displays_total_tasks(self):
         """Test that analytics displays total task count."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_analytics')
         response = self.client.get(url)
 
@@ -818,7 +858,7 @@ class TestImprovementAnalytics(TestCase):
 
     def test_analytics_calculates_success_rate(self):
         """Test that success rate is calculated correctly."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_analytics')
         response = self.client.get(url)
 
@@ -830,7 +870,7 @@ class TestImprovementAnalytics(TestCase):
 
     def test_analytics_displays_pie_chart_data(self):
         """Test that pie chart data is included."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_analytics')
         response = self.client.get(url)
 
@@ -841,7 +881,7 @@ class TestImprovementAnalytics(TestCase):
 
     def test_analytics_displays_gap_types(self):
         """Test that gap types list is included."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_analytics')
         response = self.client.get(url)
 
@@ -855,7 +895,7 @@ class TestImprovementAnalytics(TestCase):
 
     def test_analytics_displays_severity_data(self):
         """Test that severity breakdown is included."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_analytics')
         response = self.client.get(url)
 
@@ -868,7 +908,7 @@ class TestImprovementAnalytics(TestCase):
 
     def test_analytics_displays_activity_feed(self):
         """Test that recent activity feed is included."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_analytics')
         response = self.client.get(url)
 
@@ -882,7 +922,7 @@ class TestImprovementAnalytics(TestCase):
 
     def test_analytics_line_chart_data(self):
         """Test that line chart data is included."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_analytics')
         response = self.client.get(url)
 
@@ -892,7 +932,7 @@ class TestImprovementAnalytics(TestCase):
 
     def test_analytics_links_back_to_dashboard(self):
         """Test that analytics page has link back to dashboard."""
-        self.client.login(email='staff@example.com', password='testpass123')
+        self.client.force_login(self.staff_user)
         url = reverse('assistant:improvement_analytics')
         response = self.client.get(url)
 

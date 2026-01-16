@@ -343,7 +343,7 @@ class TestApplyModification(TestCase):
         )
 
         self.assertFalse(result.success)
-        self.assertIn('invalid Python', result.message.lower())
+        self.assertIn('invalid python', result.message.lower())
 
         # File should be restored to original
         self.assertEqual(self.test_file.read_text(), original_content)

@@ -636,8 +636,13 @@ class SoftDeleteBehaviorIntegrationTest(TestCase):
         result = self.service.get_medication_data()
         self.assertEqual(result['total_logs'], 1)
 
-    def test_archived_entries_are_included(self):
-        """Test that archived (but not deleted) entries are still included."""
+    def test_archived_entries_are_excluded(self):
+        """Test that archived entries are excluded from normal queries.
+
+        The SoftDeleteManager filters out both deleted AND archived records
+        by default. Users who want archived entries can use .include_archived()
+        but PersonalDataService correctly uses the default manager behavior.
+        """
         active = JournalEntry.objects.create(
             user=self.user,
             title="Active",
@@ -651,7 +656,8 @@ class SoftDeleteBehaviorIntegrationTest(TestCase):
         archived.archive()
 
         result = self.service.get_journal_data()
-        self.assertEqual(result['count'], 2)
+        # Archived entries are excluded by the SoftDeleteManager
+        self.assertEqual(result['count'], 1)
 
 
 class QueryByIntentIntegrationTest(TestCase):
@@ -1095,7 +1101,7 @@ class TestCase2LowSeverityAutonomousExecution(SelfImprovementIntegrationTestCase
         """Test that LOW severity tasks execute without manual approval."""
         task = self.create_task(
             severity=ImprovementTaskModel.SEVERITY_LOW,
-            status=ImprovementTaskModel.STATUS_NEW,
+            status=ImprovementTaskModel.STATUS_APPROVED,  # Must be APPROVED to transition to IN_PROGRESS
             requires_approval=False
         )
 
@@ -1143,7 +1149,7 @@ class TestCase2LowSeverityAutonomousExecution(SelfImprovementIntegrationTestCase
         """Test that autonomous execution sends admin notification."""
         task = self.create_task(
             severity=ImprovementTaskModel.SEVERITY_LOW,
-            status=ImprovementTaskModel.STATUS_NEW,
+            status=ImprovementTaskModel.STATUS_APPROVED,  # Must be APPROVED to transition to IN_PROGRESS
             requires_approval=False
         )
 

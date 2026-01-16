@@ -1,4 +1,4 @@
-WLJ Personal Assistant - Auto-Improvement Applied
+{% autoescape off %}WLJ Personal Assistant - Auto-Improvement Applied
 =================================================
 
 {{ message }}
@@ -30,3 +30,4 @@ No manual approval was required.
 --
 Sent to: {{ admin_email }}
 Timestamp: {{ timestamp }}
+{% endautoescape %}

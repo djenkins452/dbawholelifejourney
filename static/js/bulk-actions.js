@@ -606,6 +606,24 @@
         .entry-card.has-checkbox .entry-link {
             padding-left: calc(var(--space-5, 1.25rem) + 28px);
         }
+
+        /* Hide bulk selection on mobile - interferes with tap targets */
+        @media (max-width: 768px) {
+            .bulk-actions-toolbar {
+                display: none !important;
+            }
+
+            .bulk-checkbox,
+            .item-checkbox,
+            [data-item-checkbox] {
+                display: none !important;
+            }
+
+            .bulk-action-header,
+            .bulk-select-all {
+                display: none !important;
+            }
+        }
     `;
     document.head.appendChild(styles);
 

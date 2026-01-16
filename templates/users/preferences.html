@@ -597,7 +597,7 @@
                     </div>
                     <div class="accordion-header-right">
                         <div class="accordion-status">
-                            {% if form.ai_enabled.value %}
+                            {% if form.ai_data_consent.value %}
                                 <span class="accordion-badge accordion-badge-active">Enabled</span>
                             {% else %}
                                 <span class="accordion-badge accordion-badge-inactive">Disabled</span>
@@ -609,36 +609,19 @@
                     </div>
                 </button>
                 <div class="accordion-body">
-                    <!-- AI Master Toggle -->
+                    <!-- Single AI Consent Toggle -->
                     <div class="toggle-option">
                         <div class="toggle-info">
                             <div class="module-header">
                                 <span class="module-icon">🤖</span>
-                                <h4>AI Insights</h4>
-                                {% if form.ai_enabled.value %}<span class="module-status status-active">Active</span>{% endif %}
+                                <h4>Enable AI Features</h4>
+                                {% if form.ai_data_consent.value %}<span class="module-status status-active">Active</span>{% endif %}
                             </div>
                             <p class="text-muted text-sm">
-                                AI-powered pattern recognition, personalized encouragement, and reflective prompts based on your journey.
+                                I consent to AI processing my journal entries, tasks, goals, health data, and other information
+                                to provide personalized insights, coaching, and the Personal Assistant.
+                                Data is sent to OpenAI's API for analysis. Images from camera scanning are processed in real-time and <strong>never stored</strong>.
                                 AI provides thoughts to consider — never medical, financial, or spiritual advice.
-                            </p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" name="ai_enabled" id="ai_enabled_toggle" {% if form.ai_enabled.value %}checked{% endif %}>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div class="toggle-option" id="ai-data-consent-option" {% if not form.ai_enabled.value %}style="display: none;"{% endif %}>
-                        <div class="toggle-info">
-                            <div class="module-header">
-                                <span class="module-icon">🔒</span>
-                                <h4>AI Data Processing Consent</h4>
-                                {% if form.ai_data_consent.value %}<span class="module-status status-active">Granted</span>{% endif %}
-                            </div>
-                            <p class="text-muted text-sm">
-                                <strong>Required for AI features.</strong> I consent to having my personal data (journal entries, health metrics, goals, etc.)
-                                processed by AI to provide personalized insights. Data is sent to OpenAI's API for analysis.
-                                Images from camera scanning are processed in real-time and <strong>never stored</strong>.
                             </p>
                         </div>
                         <label class="toggle-switch">
@@ -646,9 +629,11 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
+                    <!-- Hidden field to sync ai_enabled with ai_data_consent -->
+                    <input type="hidden" name="ai_enabled" id="ai_enabled_hidden" value="{% if form.ai_data_consent.value %}on{% endif %}">
 
                     <!-- Nested Accordion for AI Sub-sections -->
-                    <div class="accordion mt-4" data-accordion-id="ai-subsections" id="ai-subsections-container" {% if not form.ai_enabled.value %}style="display: none;"{% endif %}>
+                    <div class="accordion mt-4" data-accordion-id="ai-subsections" id="ai-subsections-container" {% if not form.ai_data_consent.value %}style="display: none;"{% endif %}>
 
                         <!-- Coaching Style -->
                         <div class="accordion-group" data-accordion-key="coaching-style">
@@ -776,7 +761,7 @@ Examples:
                         </div>
 
                         <!-- Personal Assistant -->
-                        <div class="accordion-group" data-accordion-key="personal-assistant" id="personal-assistant-accordion" {% if not form.ai_data_consent.value %}style="display: none;"{% endif %}>
+                        <div class="accordion-group" data-accordion-key="personal-assistant" id="personal-assistant-accordion">
                             <button type="button" class="accordion-header">
                                 <div class="accordion-header-content">
                                     <span class="accordion-icon">🎯</span>
@@ -787,7 +772,7 @@ Examples:
                                 </div>
                                 <div class="accordion-header-right">
                                     <div class="accordion-status">
-                                        {% if form.personal_assistant_enabled.value and form.personal_assistant_consent.value %}
+                                        {% if form.personal_assistant_enabled.value %}
                                             <span class="accordion-badge accordion-badge-active">Active</span>
                                         {% else %}
                                             <span class="accordion-badge accordion-badge-inactive">Disabled</span>
@@ -812,7 +797,7 @@ Examples:
                                             {% if form.personal_assistant_enabled.value %}<span class="module-status status-active">Active</span>{% endif %}
                                         </div>
                                         <p class="text-muted text-sm">
-                                            Enable Personal Assistant for AI-powered daily guidance, priorities, and coaching.
+                                            Get daily priorities, celebrate wins, and receive gentle accountability based on your complete journey.
                                         </p>
                                     </div>
                                     <label class="toggle-switch">
@@ -821,27 +806,7 @@ Examples:
                                     </label>
                                 </div>
 
-                                <div class="toggle-option" id="personal-assistant-consent-option" {% if not form.personal_assistant_enabled.value %}style="display: none;"{% endif %}>
-                                    <div class="toggle-info">
-                                        <div class="module-header">
-                                            <span class="module-icon">📋</span>
-                                            <h4>Personal Assistant Data Consent</h4>
-                                            {% if form.personal_assistant_consent.value %}<span class="module-status status-active">Granted</span>{% endif %}
-                                        </div>
-                                        <p class="text-muted text-sm">
-                                            <strong>Required for Personal Assistant.</strong> The Personal Assistant goes beyond basic AI insights by analyzing your complete journey —
-                                            journal entries, tasks, goals, prayers, health metrics, and life events — to provide personalized daily guidance.
-                                            By consenting, you allow deeper AI analysis of your personal data to generate priorities, detect patterns, and offer accountability.
-                                            This data is processed by OpenAI's API. You can revoke consent at any time.
-                                        </p>
-                                    </div>
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" name="personal_assistant_consent" id="personal_assistant_consent_toggle" {% if form.personal_assistant_consent.value %}checked{% endif %}>
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </div>
-
-                                <div class="personal-assistant-info" id="personal-assistant-info" {% if not form.personal_assistant_enabled.value or not form.personal_assistant_consent.value %}style="display: none;"{% endif %}>
+                                <div class="personal-assistant-info" id="personal-assistant-info" {% if not form.personal_assistant_enabled.value %}style="display: none;"{% endif %}>
                                     <div class="info-box info-box-success">
                                         <h4>What the Personal Assistant Does:</h4>
                                         <ul class="tips-list">
@@ -2620,63 +2585,41 @@ function clearAccentColor() {
     document.getElementById('accent_color_text').value = '';
 }
 
-// AI visibility management
+// AI visibility management - Single consent controls everything
 function updateAISubsectionsVisibility() {
-    const aiEnabled = document.getElementById('ai_enabled_toggle').checked;
-    const consentEnabled = document.getElementById('ai_data_consent_toggle').checked;
+    const consentToggle = document.getElementById('ai_data_consent_toggle');
+    const consentEnabled = consentToggle && consentToggle.checked;
 
     const subsectionsContainer = document.getElementById('ai-subsections-container');
-    const profileAccordion = document.getElementById('ai-profile-accordion');
-    const assistantAccordion = document.getElementById('personal-assistant-accordion');
+    const aiEnabledHidden = document.getElementById('ai_enabled_hidden');
+
+    // Sync hidden ai_enabled field with consent
+    if (aiEnabledHidden) {
+        aiEnabledHidden.value = consentEnabled ? 'on' : '';
+    }
 
     if (subsectionsContainer) {
-        subsectionsContainer.style.display = aiEnabled ? 'flex' : 'none';
-    }
-
-    if (profileAccordion) {
-        profileAccordion.style.display = (aiEnabled && consentEnabled) ? 'block' : 'none';
-    }
-
-    if (assistantAccordion) {
-        assistantAccordion.style.display = (aiEnabled && consentEnabled) ? 'block' : 'none';
+        subsectionsContainer.style.display = consentEnabled ? 'flex' : 'none';
     }
 }
 
 function updatePersonalAssistantVisibility() {
     const paToggle = document.getElementById('personal_assistant_toggle');
-    const paConsentOption = document.getElementById('personal-assistant-consent-option');
-    const paConsentToggle = document.getElementById('personal_assistant_consent_toggle');
     const paInfo = document.getElementById('personal-assistant-info');
 
-    if (paConsentOption && paToggle) {
-        paConsentOption.style.display = paToggle.checked ? 'flex' : 'none';
-    }
-
-    if (paInfo && paToggle && paConsentToggle) {
-        paInfo.style.display = (paToggle.checked && paConsentToggle.checked) ? 'block' : 'none';
+    if (paInfo && paToggle) {
+        paInfo.style.display = paToggle.checked ? 'block' : 'none';
     }
 }
 
-document.getElementById('ai_enabled_toggle').addEventListener('change', function() {
-    const dataConsentOption = document.getElementById('ai-data-consent-option');
-    if (dataConsentOption) {
-        dataConsentOption.style.display = this.checked ? 'flex' : 'none';
-    }
-    updateAISubsectionsVisibility();
-});
-
-document.getElementById('ai_data_consent_toggle').addEventListener('change', function() {
-    updateAISubsectionsVisibility();
-});
+const aiConsentToggle = document.getElementById('ai_data_consent_toggle');
+if (aiConsentToggle) {
+    aiConsentToggle.addEventListener('change', updateAISubsectionsVisibility);
+}
 
 const personalAssistantToggle = document.getElementById('personal_assistant_toggle');
 if (personalAssistantToggle) {
     personalAssistantToggle.addEventListener('change', updatePersonalAssistantVisibility);
-}
-
-const paConsentToggle = document.getElementById('personal_assistant_consent_toggle');
-if (paConsentToggle) {
-    paConsentToggle.addEventListener('change', updatePersonalAssistantVisibility);
 }
 
 // Character counter for AI profile

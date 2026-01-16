@@ -16,6 +16,50 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Consolidate AI Consent to Single Checkbox
+
+**Summary:** Simplified the AI consent flow during onboarding and in preferences to use a single consent checkbox that covers all AI features including the Personal Assistant.
+
+**Problem:** Users were asked for AI consent multiple times during signup:
+1. "AI Data Processing Consent" for general AI features
+2. "Personal Assistant Data Consent" for the Personal Assistant
+
+This was confusing and redundant since both consents essentially allow the same data access.
+
+**Solution:**
+- Consolidated to a single "Enable AI Features" consent checkbox
+- One consent now covers all AI capabilities: insights, coaching, and Personal Assistant
+- Personal Assistant toggle remains as a feature toggle (on/off), but no separate consent needed
+- Backend automatically syncs `ai_enabled`, `ai_data_consent`, and `personal_assistant_consent` fields
+
+**Files Modified:**
+- `templates/users/onboarding_wizard.html`: Simplified AI step to single consent
+- `templates/users/preferences.html`: Simplified AI section to single consent
+- `apps/users/views.py`: Updated OnboardingWizardView and PreferencesView to handle consolidated consent
+
+**User Experience:**
+- Onboarding: One checkbox for AI consent, then optional Personal Assistant toggle
+- Preferences: One checkbox for AI consent, then optional Personal Assistant toggle within AI settings
+
+---
+
+### Simplify Task List UX - Circle Toggles, Row Opens Edit
+
+**Summary:** Improved mobile task list interaction - tap circle to complete, tap anywhere else to edit.
+
+**Problem:** Previous task list design required multiple taps and was confusing on mobile.
+
+**Solution:**
+- Tapping the circle button now directly toggles task completion
+- Tapping anywhere else on the task row opens the edit page
+- Removed separate "Edit" link since whole row is clickable
+- Added 44px minimum touch target height for accessibility
+
+**Files Modified:**
+- `templates/life/task_list.html`: Restructured task item with `.task-row-link` wrapper
+
+---
+
 ### Fix Mobile Task List - Checkbox Overlap and Duplicate Recurring Tasks
 
 **Summary:** Fixed two issues on mobile task list: (1) bulk checkbox overlapping with task completion checkbox, (2) recurring tasks creating duplicates when toggled multiple times.

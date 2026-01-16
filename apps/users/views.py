@@ -228,15 +228,24 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         from django.utils import timezone as dj_timezone
 
-        # Set Personal Assistant consent date if consent was given
         instance = form.instance
-        if instance.personal_assistant_consent and not instance.personal_assistant_consent_date:
-            instance.personal_assistant_consent_date = dj_timezone.now()
 
-        # If Personal Assistant is disabled or AI is disabled, clear consent
-        if not instance.ai_enabled or not instance.ai_data_consent:
+        # Single AI consent: sync ai_enabled with ai_data_consent
+        instance.ai_enabled = instance.ai_data_consent
+
+        # Record AI consent date if consent was given
+        if instance.ai_data_consent and not instance.ai_data_consent_date:
+            instance.ai_data_consent_date = dj_timezone.now()
+
+        # If AI consent revoked, disable Personal Assistant
+        if not instance.ai_data_consent:
             instance.personal_assistant_enabled = False
             instance.personal_assistant_consent = False
+        else:
+            # Auto-grant PA consent when PA is enabled (covered by single AI consent)
+            instance.personal_assistant_consent = instance.personal_assistant_enabled
+            if instance.personal_assistant_enabled and not instance.personal_assistant_consent_date:
+                instance.personal_assistant_consent_date = dj_timezone.now()
 
         # Set SMS consent date if consent was given
         if instance.sms_consent and not instance.sms_consent_date:
@@ -533,26 +542,37 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
 
         elif current_step["id"] == "ai":
             from django.utils import timezone
-            prefs.ai_enabled = request.POST.get("ai_enabled") == "on"
-            prefs.ai_data_consent = request.POST.get("ai_data_consent") == "on"
+            # Single consent covers all AI features
+            ai_consent = request.POST.get("ai_data_consent") == "on"
+            prefs.ai_data_consent = ai_consent
+            prefs.ai_enabled = ai_consent  # Sync ai_enabled with consent
+
+            # Record consent date if consent was given
+            if ai_consent and not prefs.ai_data_consent_date:
+                prefs.ai_data_consent_date = timezone.now()
+
             coaching_style = request.POST.get("ai_coaching_style")
             if coaching_style:
                 prefs.ai_coaching_style = coaching_style
-            # Personal Assistant settings (only if AI is enabled)
-            if prefs.ai_enabled and prefs.ai_data_consent:
-                prefs.personal_assistant_enabled = request.POST.get("personal_assistant_enabled") == "on"
-                prefs.personal_assistant_consent = request.POST.get("personal_assistant_consent") == "on"
-                # Record consent date if consent was given
-                if prefs.personal_assistant_consent and not prefs.personal_assistant_consent_date:
+
+            # Personal Assistant settings (only if AI consent given)
+            if ai_consent:
+                pa_enabled = request.POST.get("personal_assistant_enabled") == "on"
+                prefs.personal_assistant_enabled = pa_enabled
+                # Auto-grant PA consent when PA is enabled (covered by single consent)
+                prefs.personal_assistant_consent = pa_enabled
+                if pa_enabled and not prefs.personal_assistant_consent_date:
                     prefs.personal_assistant_consent_date = timezone.now()
             else:
-                # Disable Personal Assistant if AI is disabled
+                # Disable Personal Assistant if AI consent revoked
                 prefs.personal_assistant_enabled = False
                 prefs.personal_assistant_consent = False
+
             prefs.save(update_fields=[
-                "ai_enabled", "ai_data_consent", "ai_coaching_style",
-                "personal_assistant_enabled", "personal_assistant_consent",
-                "personal_assistant_consent_date", "updated_at"
+                "ai_enabled", "ai_data_consent", "ai_data_consent_date",
+                "ai_coaching_style", "personal_assistant_enabled",
+                "personal_assistant_consent", "personal_assistant_consent_date",
+                "updated_at"
             ])
 
         elif current_step["id"] == "location":

@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Fix: reCAPTCHA Validation No Longer Triggers Error Emails
+
+**Problem:** When a user attempted to sign up with a low reCAPTCHA score (indicating potential bot), the system was raising a `ValidationError` inside `adapter.save_user()`. This caused Django to treat it as an unhandled exception and send an error email to admins, even though the security feature was working correctly.
+
+**Solution:** Moved reCAPTCHA validation from the adapter's `save_user()` method to the form's `clean()` method. Form validation errors are handled cleanly by Django and display a nice error message to the user without triggering error emails.
+
+**Files Modified:**
+- `apps/users/forms.py` - Added reCAPTCHA validation in `CustomSignupForm.clean()`
+- `apps/users/adapters.py` - Removed blocking logic from `save_user()`, now just logs scores
+- `apps/users/views.py` - Added `CustomSignupView` that passes request to form
+- `config/urls.py` - Override `/accounts/signup/` to use custom view
+
+**Behavior:**
+- Low reCAPTCHA scores still block signup (security maintained)
+- Users see "Unable to create account. Please try again later." message
+- No error emails sent to admin (this is expected behavior, not an error)
+- Security events still logged to `SignupAttempt` model
+
+---
+
 ### Email Intake Service for Task Creation
 
 **Summary:** Added automated email-to-task pipeline that polls IMAP for emails and creates AdminTasks.

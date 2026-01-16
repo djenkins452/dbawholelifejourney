@@ -142,37 +142,22 @@ class WLJAccountAdapter(DefaultAccountAdapter):
 
     def save_user(self, request, user, form, commit=True):
         """
-        Save user, verify reCAPTCHA, log signup attempt, and process referral.
+        Save user, log signup attempt, and process referral.
 
-        Verifies the reCAPTCHA token and logs the score to SignupAttempt.
-        TIER 2 (CISO Review 2026-01-12): Blocks signups with score below threshold.
+        reCAPTCHA validation is now done in CustomSignupForm.clean() to ensure
+        low scores result in form validation errors (not unhandled exceptions
+        that trigger Django error emails).
+
         Also captures referral code from session if present.
         """
-        from django.conf import settings
-
         self.request = request
 
-        # Verify reCAPTCHA token and get score
-        captcha_score = self._verify_recaptcha(request)
-
-        # TIER 2: Block signups with low reCAPTCHA score (CISO Review 2026-01-12)
-        # Check if score is below threshold (default 0.5)
-        threshold = getattr(settings, 'RECAPTCHA_SCORE_THRESHOLD', 0.5)
-        if captcha_score is not None and captcha_score < threshold:
-            # Log the blocked attempt
-            self._log_blocked_signup(request, form.cleaned_data.get('email'), captcha_score, 'low_recaptcha_score')
-
-            # Log security event
-            log_security_event(
-                event_type='bot_activity',
-                severity='warning',
-                message=f'Signup blocked due to low reCAPTCHA score: {captcha_score:.2f} (threshold: {threshold})',
-                request=request,
-                details={'score': captcha_score, 'threshold': threshold},
-            )
-
-            # Raise generic error to not reveal reCAPTCHA detection
-            raise ValidationError("Unable to create account. Please try again later.")
+        # Get reCAPTCHA score from form (validated in form.clean())
+        # or verify it here if form didn't do it (fallback for non-CustomSignupForm)
+        captcha_score = getattr(form, '_recaptcha_score', None)
+        if captcha_score is None:
+            # Form didn't validate reCAPTCHA, do it here (legacy path)
+            captcha_score = self._verify_recaptcha(request)
 
         # Save user via parent
         user = super().save_user(request, user, form, commit)

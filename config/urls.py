@@ -62,6 +62,9 @@ urlpatterns = [
     # The path is configurable via ADMIN_URL_PATH env var, defaults to 'wlj-admin'
     path(f"{settings.ADMIN_URL_PATH}/", admin.site.urls),
     # Authentication (django-allauth)
+    # Custom signup view to handle reCAPTCHA validation in form.clean()
+    # This prevents low reCAPTCHA scores from triggering Django error emails
+    path("accounts/signup/", __import__('apps.users.views', fromlist=['CustomSignupView']).CustomSignupView.as_view(), name="account_signup"),
     path("accounts/", include("allauth.urls")),
     # API endpoints for admin project tasks
     path("api/admin/project/", include("apps.admin_console.api_urls")),

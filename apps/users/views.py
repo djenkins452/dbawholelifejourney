@@ -54,12 +54,31 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import TemplateView, UpdateView, View
 
+from allauth.account.views import SignupView as AllauthSignupView
 from apps.help.mixins import HelpContextMixin
 
-from .forms import ProfileForm, PreferencesForm
+from .forms import CustomSignupForm, ProfileForm, PreferencesForm
 from .models import TermsAcceptance, UserPreferences
 
 logger = logging.getLogger(__name__)
+
+
+class CustomSignupView(AllauthSignupView):
+    """
+    Custom signup view that passes request to the form for reCAPTCHA validation.
+
+    This ensures low reCAPTCHA scores result in form validation errors (which
+    display a nice error message to the user) rather than unhandled exceptions
+    that trigger Django error emails.
+    """
+
+    form_class = CustomSignupForm
+
+    def get_form(self, form_class=None):
+        """Override to pass request to the form."""
+        form = super().get_form(form_class)
+        form.request = self.request
+        return form
 
 
 # Onboarding Wizard Configuration

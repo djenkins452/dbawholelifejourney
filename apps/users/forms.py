@@ -39,6 +39,9 @@ class CustomSignupForm(SignupForm):
     """
     Custom signup form that adds date of birth for COPPA compliance.
     Users must be 13 years or older to create an account.
+
+    Also validates reCAPTCHA score during form validation to prevent
+    bot signups without triggering Django error emails.
     """
 
     date_of_birth = forms.DateField(
@@ -76,6 +79,79 @@ class CustomSignupForm(SignupForm):
                 )
 
         return dob
+
+    def __init__(self, *args, **kwargs):
+        """Store request for reCAPTCHA validation."""
+        super().__init__(*args, **kwargs)
+        # Request will be set by the view
+        self.request = None
+
+    def clean(self):
+        """
+        Validate form data including reCAPTCHA score.
+
+        Validates reCAPTCHA here (during form validation) rather than in
+        adapter.save_user() so that low scores result in form validation
+        errors instead of unhandled exceptions that trigger error emails.
+        """
+        from django.conf import settings
+        from apps.users.services import RecaptchaService
+        from apps.core.security_logging import log_security_event
+
+        cleaned_data = super().clean()
+
+        # Skip reCAPTCHA validation if no request (e.g., in tests)
+        if not self.request:
+            return cleaned_data
+
+        # Get reCAPTCHA token from POST data
+        token = self.request.POST.get("recaptcha_token", "")
+        if not token:
+            # No token - let adapter handle logging, don't block here
+            return cleaned_data
+
+        # Verify reCAPTCHA
+        try:
+            from apps.users.adapters import get_client_ip
+            ip = get_client_ip(self.request)
+            service = RecaptchaService()
+            result = service.verify(token, ip)
+
+            if result.success and result.score is not None:
+                threshold = getattr(settings, 'RECAPTCHA_SCORE_THRESHOLD', 0.5)
+                if result.score < threshold:
+                    # Log the blocked attempt
+                    email = cleaned_data.get('email', '')
+                    log_security_event(
+                        event_type='bot_activity',
+                        severity='warning',
+                        message=f'Signup blocked due to low reCAPTCHA score: {result.score:.2f} (threshold: {threshold})',
+                        request=self.request,
+                        details={'score': result.score, 'threshold': threshold},
+                    )
+
+                    # Store score for adapter's logging
+                    self._recaptcha_score = result.score
+                    self._recaptcha_blocked = True
+
+                    # Raise validation error (handled cleanly, no error email)
+                    raise forms.ValidationError(
+                        "Unable to create account. Please try again later."
+                    )
+
+                # Store score for adapter's logging
+                self._recaptcha_score = result.score
+                self._recaptcha_blocked = False
+
+        except forms.ValidationError:
+            raise  # Re-raise validation errors
+        except Exception as e:
+            # Fail open - don't block signup if reCAPTCHA fails
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error("reCAPTCHA verification error in form: %s", e)
+
+        return cleaned_data
 
     def save(self, request):
         """Save the user with the date of birth."""

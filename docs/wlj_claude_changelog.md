@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Fix Data Visibility Check for Invalid Data Types
+
+**Summary:** Added validation to prevent false "DATA VISIBILITY ISSUE" alerts when the data type is a placeholder like "ambiguous".
+
+**Issue:** When a user's query contained an ambiguous keyword (like "sugar" which could mean blood sugar or dietary sugar), the system set `awaiting_data_type = 'ambiguous'` as a placeholder. If the user then confirmed "yes I can see data", the system tried to look up `get_ambiguous_data` which doesn't exist, triggering a false admin alert.
+
+**Fix:** Added validation at the start of `handle_data_visibility_confirmation()` in `assistant/views.py` to reject placeholder data types ('ambiguous', 'unknown', 'none', empty string) and return a graceful "please ask again" message instead of sending false alerts.
+
+**Files Changed:**
+- `assistant/views.py` - Added data type validation
+
+---
+
 ### Fix Recurring Task FieldError - is_deleted
 
 **Summary:** Fixed `FieldError: Cannot resolve keyword 'is_deleted'` in recurring task processing.

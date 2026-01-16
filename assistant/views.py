@@ -406,6 +406,23 @@ def handle_data_visibility_confirmation(
             - action_taken (str): What action was taken ('none', 'notified_admin', 'invalidated_cache').
             - issue_resolved (bool): Whether the issue was resolved automatically.
     """
+    # Validate data_type is an actual data type, not a placeholder like 'ambiguous'
+    # The 'ambiguous' value is set when clarification is needed (e.g., for "sugar")
+    invalid_data_types = {'ambiguous', 'unknown', 'none', ''}
+    if not data_type or data_type.lower() in invalid_data_types:
+        logger.warning(
+            f"Invalid data_type '{data_type}' passed to handle_data_visibility_confirmation. "
+            f"This is likely a system error - the data type should have been resolved first."
+        )
+        return {
+            'response_message': (
+                "I'm sorry, I got a bit confused about what data type we were discussing. "
+                "Could you please ask your question again?"
+            ),
+            'action_taken': 'none',
+            'issue_resolved': True,
+        }
+
     friendly_name = _get_friendly_data_type_name(data_type)
 
     if not user_confirms_data_exists:

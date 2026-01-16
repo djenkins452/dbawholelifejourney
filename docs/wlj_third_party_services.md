@@ -615,16 +615,61 @@ Railway automatically starts the worker process alongside the web process.
 
 ## Product & Barcode Lookup APIs
 
-### 23. Open Food Facts API
+### 23. FatSecret Platform API
+| Attribute | Value |
+|-----------|-------|
+| **Provider** | FatSecret |
+| **Type** | REST API with OAuth 2.0 |
+| **Pricing** | Premier Free tier (unlimited calls) |
+| **Status** | Active |
+
+**Purpose:**
+- Food search for nutrition tracking (1.9M+ foods including restaurant menus)
+- Barcode/UPC scanning for packaged food lookup
+- AI image recognition for food photo identification
+- Primary data source for nutrition features
+
+**Configuration (Environment Variables):**
+- `FATSECRET_CLIENT_ID` - OAuth client ID
+- `FATSECRET_CLIENT_SECRET` - OAuth client secret
+- `FATSECRET_TIMEOUT_SECONDS` - API timeout (default: 10)
+
+**OAuth Scopes:**
+- `basic` - Food search
+- `barcode` - Barcode/UPC lookup
+- `image-recognition` - AI food image analysis
+
+**API Endpoints Used:**
+- Food Search: `https://platform.fatsecret.com/rest/server.api` (method: foods.search)
+- Food Details: `https://platform.fatsecret.com/rest/server.api` (method: food.get)
+- Barcode Lookup: `https://platform.fatsecret.com/rest/food/barcode/find-by-id/v2`
+- Image Recognition: `https://platform.fatsecret.com/rest/image-recognition/v2`
+
+**Key Files:**
+- `apps/health/services/fatsecret.py` - FatSecretService class
+- `apps/health/services/food_search.py` - Food search integration
+- `apps/scan/services/barcode.py` - Barcode lookup integration
+- `apps/scan/services/vision.py` - Image recognition integration
+
+**Lookup Priority:**
+- Barcode: Local DB → FatSecret → Open Food Facts → OpenAI
+- Food Search: Local DB → FatSecret → OpenAI
+- Food Images: FatSecret AI → OpenAI Vision
+
+**Note:** FatSecret is the primary food data source. Open Food Facts and OpenAI serve as fallbacks.
+
+---
+
+### 24. Open Food Facts API
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Open Food Facts Foundation |
 | **Type** | REST API |
 | **Pricing** | Free (Open Source) |
-| **Status** | Active |
+| **Status** | Active (fallback) |
 
 **Purpose:**
-- Food product barcode lookups for nutrition tracking
+- Fallback food product barcode lookups when FatSecret doesn't have a match
 - Returns nutritional data per serving (calories, protein, carbs, fat, fiber, sugar)
 - 4M+ products in database
 
@@ -633,11 +678,11 @@ Railway automatically starts the worker process alongside the web process.
 **Key Files:**
 - `apps/scan/services/barcode.py` - BarcodeService
 
-**Note:** No authentication required. User-Agent header required.
+**Note:** No authentication required. User-Agent header required. Used as fallback after FatSecret.
 
 ---
 
-### 24. UPC Item DB API
+### 25. UPC Item DB API
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | UPC Item DB |
@@ -659,7 +704,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ---
 
-### 25. RxNav API (NIH)
+### 26. RxNav API (NIH)
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | National Library of Medicine (NIH) |
@@ -681,7 +726,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ---
 
-### 26. FDA OpenData API
+### 27. FDA OpenData API
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | U.S. Food and Drug Administration |
@@ -705,7 +750,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ## CGM (Continuous Glucose Monitor) Integration
 
-### 27. Dexcom API
+### 28. Dexcom API
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Dexcom |
@@ -757,7 +802,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ## Payment Processing
 
-### 28. Stripe
+### 29. Stripe
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Stripe |
@@ -833,7 +878,7 @@ Railway automatically starts the worker process alongside the web process.
 
 ## Audio File Storage
 
-### 29. AWS S3 (Capture Audio Storage)
+### 30. AWS S3 (Capture Audio Storage)
 | Attribute | Value |
 |-----------|-------|
 | **Provider** | Amazon Web Services (or S3-compatible) |
@@ -968,13 +1013,14 @@ The following services are NOT integrated but may be considered for future use:
 | 19 | Zippopotam.us | Location API | Free | Deprecated |
 | 20 | Twilio | SMS API | Paid (usage) | Active |
 | 21 | Django-APScheduler | Background Jobs | Free (OSS) | Active |
-| 22 | Open Food Facts | Food Barcode API | Free (OSS) | Active |
-| 23 | UPC Item DB | Product Barcode API | Free tier | Active |
-| 24 | RxNav (NIH) | Drug Lookup API | Free | Active |
-| 25 | FDA OpenData | NDC Lookup API | Free | Active |
-| 26 | Dexcom | CGM Data API | Free | Active |
-| 27 | Stripe | Payment API | 2.9% + $0.30 | Active |
-| 28 | AWS S3 | Audio Storage | Paid (usage) | Active |
+| 22 | Open Food Facts | Food Barcode API | Free (OSS) | Active (fallback) |
+| 23 | **FatSecret** | **Food/Barcode/Image AI** | **Free (Premier)** | **Active (primary)** |
+| 24 | UPC Item DB | Product Barcode API | Free tier | Active |
+| 25 | RxNav (NIH) | Drug Lookup API | Free | Active |
+| 26 | FDA OpenData | NDC Lookup API | Free | Active |
+| 27 | Dexcom | CGM Data API | Free | Active |
+| 28 | Stripe | Payment API | 2.9% + $0.30 | Active |
+| 29 | AWS S3 | Audio Storage | Paid (usage) | Active |
 
 ---
 
@@ -995,4 +1041,4 @@ The following services are NOT integrated but may be considered for future use:
 
 ---
 
-*Last Updated: 2026-01-13*
+*Last Updated: 2026-01-15*

@@ -489,11 +489,17 @@ Log food consumption, track macros, set nutrition goals, view daily/historical s
 ### Models (`apps/health/models.py`)
 | Model | Description |
 |-------|-------------|
-| `FoodItem` | Global food library (USDA, barcode, AI) |
+| `FoodItem` | Global food library (FatSecret, barcode scans, AI) |
 | `CustomFood` | User-created foods/recipes |
 | `FoodEntry` | Individual food log entry |
 | `DailyNutritionSummary` | Aggregated daily totals |
 | `NutritionGoals` | User's calorie/macro targets |
+
+### Food Search Data Sources
+Food search uses a 3-tier priority system (fastest/cheapest first):
+1. **Local Database** - User's custom foods + cached FoodItem entries
+2. **FatSecret API** - 1.9M+ foods including restaurant menus (Premier tier)
+3. **OpenAI AI** - Estimation for unknown foods (fallback only)
 
 ### URL Routes (`/health/nutrition/`)
 | Route | View | Description |
@@ -859,13 +865,14 @@ The Health module home page (`/health/`) includes a "My Providers" card showing:
 ## Camera Scan Feature
 
 ### Overview
-OpenAI Vision API integration for scanning items and routing to appropriate modules.
+AI-powered image recognition for scanning items and routing to appropriate modules.
+Uses FatSecret AI for food images (faster, specialized) and OpenAI Vision for non-food items.
 Includes multiple barcode scanning modes for quick product lookup across different forms.
 
 ### Scan Modes
 
 #### 1. Vision Mode (AI Recognition)
-Uses OpenAI Vision API to identify items in photos.
+Uses FatSecret AI for food images, OpenAI Vision for non-food items.
 
 **Categories Detected:**
 - food, medicine, supplement, receipt, document
@@ -894,11 +901,12 @@ Dedicated mode for scanning food product barcodes.
 **Lookup Flow:**
 1. Scan barcode → Extract barcode string
 2. Check local FoodItem database first
-3. Query Open Food Facts API (4M+ products)
-4. If not found, use OpenAI to lookup product (with AI consent)
-5. Display product name, brand, and key nutrition info
-6. Pre-fill food entry form with all details
-7. Save results to database for future lookups
+3. Query FatSecret API (1.9M+ products, Premier tier)
+4. Fallback: Query Open Food Facts API (4M+ products)
+5. Last resort: Use OpenAI to lookup product (with AI consent)
+6. Display product name, brand, and key nutrition info
+7. Pre-fill food entry form with all details
+8. Save results to database for future lookups
 
 **Entry Source Tracking:**
 - `entry_source = 'barcode'` set automatically
@@ -943,7 +951,7 @@ Scan OTC medicine barcodes to auto-fill medicine forms.
 **Forms with Barcode Scanning:**
 | Form | Module | Barcode Type | Lookup Service |
 |------|--------|--------------|----------------|
-| Food Entry | Health | UPC/EAN | Open Food Facts + AI |
+| Food Entry | Health | UPC/EAN | FatSecret → Open Food Facts → AI |
 | Inventory | Organize | UPC/EAN | UPC Item DB + AI |
 | Medicine | Health | UPC/NDC | FDA + RxNav + AI |
 
@@ -988,8 +996,9 @@ See `docs/wlj_camera_scan_architecture.md` for full details.
 
 ### Key Files
 - `apps/scan/views.py` - ScanHomeView, ScanAnalyzeView, BarcodeLookupView, ProductLookupView, MedicineLookupView
-- `apps/scan/services/vision.py` - OpenAI Vision integration, `_build_actions()`
-- `apps/scan/services/barcode.py` - Food barcode lookup service (database + Open Food Facts + AI)
+- `apps/scan/services/vision.py` - FatSecret + OpenAI Vision integration, `_build_actions()`
+- `apps/scan/services/barcode.py` - Food barcode lookup (FatSecret → Open Food Facts → AI)
+- `apps/health/services/fatsecret.py` - FatSecret API client (search, barcode, image recognition)
 - `apps/scan/services/product_lookup.py` - Product barcode lookup service (UPC Item DB + AI)
 - `apps/scan/services/medicine_lookup.py` - Medicine barcode lookup service (FDA + RxNav + AI)
 - `apps/health/views.py` - FoodEntryCreateView, MedicineCreateView (accepts prefill params)

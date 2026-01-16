@@ -46,6 +46,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### FatSecret Integration Documentation
+
+**Summary:** Complete documentation for FatSecret Premier integration including third-party services doc, What's New entry, and feature documentation.
+
+**Changes:**
+- `docs/wlj_third_party_services.md`:
+  - Added FatSecret as service #23 with Premier tier details
+  - Documented OAuth 2.0 scopes (basic, barcode, image-recognition)
+  - Renumbered subsequent services (24-30)
+
+- `apps/core/migrations/0046_fatsecret_integration_release_note.py`:
+  - What's New entry: "Improved Food Recognition"
+  - Describes barcode scanning and AI food image recognition features
+
+- `docs/wlj_claude_features.md`:
+  - Updated Camera Scan section with FatSecret lookup flow
+  - Updated Nutrition section with FatSecret integration details
+  - Updated key files list
+
+---
+
 ### Enable Parallel Task Execution
 
 **Summary:** `/next` now starts ALL tasks at the same phase+priority level, enabling parallel execution.

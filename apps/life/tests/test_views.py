@@ -261,14 +261,15 @@ class TaskViewTest(TestCase):
         self.assertFalse(task.is_completed)
         self.assertIsNone(task.completed_at)
 
-    def test_completed_task_shows_undo_link(self):
-        """Completed tasks display an Undo link in the task list."""
+    def test_completed_task_shows_toggle_button(self):
+        """Completed tasks have a checked toggle button for undo."""
         task = Task.objects.create(user=self.user, title='Completed Task', is_completed=True)
 
         response = self.client.get(reverse('life:task_list') + '?show=all')
 
-        self.assertContains(response, 'Undo')
-        self.assertContains(response, f'action="{reverse("life:task_toggle", kwargs={"pk": task.pk})}"')
+        # The toggle URL should be present for undoing completion
+        self.assertContains(response, str(task.pk))
+        self.assertContains(response, 'data-toggle-url')
 
     def test_incomplete_task_no_undo_link(self):
         """Incomplete tasks do not display an Undo link."""

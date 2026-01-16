@@ -19,9 +19,10 @@ User = get_user_model()
 
 def accept_terms(user):
     """Accept terms of service for user."""
+    from django.conf import settings
     TermsAcceptance.objects.get_or_create(
         user=user,
-        defaults={'terms_version': '1.0'}
+        defaults={'terms_version': settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')}
     )
 
 

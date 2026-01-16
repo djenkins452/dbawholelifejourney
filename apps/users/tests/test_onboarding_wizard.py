@@ -154,15 +154,15 @@ class OnboardingWizardSubmissionTest(TestCase):
         )
         self.client.login(email="test@example.com", password="testpass123")
 
-    def test_welcome_step_advances_to_theme(self):
-        """Submitting welcome step advances to theme."""
+    def test_welcome_step_advances_to_gender(self):
+        """Submitting welcome step advances to gender."""
         response = self.client.post(
             reverse("users:onboarding_wizard"),
             {"action": "next"}
         )
         self.assertRedirects(
             response,
-            reverse("users:onboarding_wizard_step", kwargs={"step": "theme"})
+            reverse("users:onboarding_wizard_step", kwargs={"step": "gender"})
         )
 
     def test_theme_selection_saves(self):
@@ -199,7 +199,7 @@ class OnboardingWizardSubmissionTest(TestCase):
         self.client.post(
             reverse("users:onboarding_wizard_step", kwargs={"step": "ai"}),
             {
-                "ai_enabled": "on",
+                "ai_data_consent": "on",
                 "ai_coaching_style": "direct",
                 "action": "next"
             }
@@ -271,7 +271,7 @@ class OnboardingWizardNavigationTest(TestCase):
             reverse("users:onboarding_wizard_step", kwargs={"step": "theme"})
         )
         self.assertIn("prev_step", response.context)
-        self.assertEqual(response.context["prev_step"]["id"], "welcome")
+        self.assertEqual(response.context["prev_step"]["id"], "gender")
 
     def test_no_prev_step_on_welcome(self):
         """No previous step on welcome page."""
@@ -282,7 +282,7 @@ class OnboardingWizardNavigationTest(TestCase):
         """Next step is in context for non-last steps."""
         response = self.client.get(reverse("users:onboarding_wizard"))
         self.assertIn("next_step", response.context)
-        self.assertEqual(response.context["next_step"]["id"], "theme")
+        self.assertEqual(response.context["next_step"]["id"], "gender")
 
     def test_no_next_step_on_complete(self):
         """No next step on complete page."""

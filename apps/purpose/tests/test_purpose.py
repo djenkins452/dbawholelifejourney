@@ -124,10 +124,11 @@ class PurposeViewTest(TestCase):
         self.user.preferences.save()
 
     def _accept_terms(self, user):
+        from django.conf import settings
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(
             user=user,
-            terms_version='1.0'
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
         )
 
     def _complete_onboarding(self, user):
@@ -206,10 +207,11 @@ class PurposeDataIsolationTest(TestCase):
         )
 
     def _accept_terms(self, user):
+        from django.conf import settings
         from apps.users.models import TermsAcceptance
         TermsAcceptance.objects.create(
             user=user,
-            terms_version='1.0'
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
         )
 
     def _complete_onboarding(self, user):

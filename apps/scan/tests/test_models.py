@@ -24,7 +24,11 @@ class ScanTestMixin:
         return user
 
     def _accept_terms(self, user):
-        TermsAcceptance.objects.create(user=user, terms_version='1.0')
+        from django.conf import settings
+        TermsAcceptance.objects.create(
+            user=user,
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+        )
 
     def _complete_onboarding(self, user):
         """Mark user onboarding as complete."""

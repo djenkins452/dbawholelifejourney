@@ -47,7 +47,11 @@ class SMSTestMixin:
 
     def _accept_terms(self, user):
         """Accept terms for user."""
-        TermsAcceptance.objects.get_or_create(user=user, defaults={'terms_version': '1.0'})
+        from django.conf import settings
+        TermsAcceptance.objects.get_or_create(
+            user=user,
+            defaults={'terms_version': settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')}
+        )
 
     def _complete_onboarding(self, user):
         """Complete onboarding for user."""

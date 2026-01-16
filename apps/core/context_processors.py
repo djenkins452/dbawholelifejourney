@@ -107,6 +107,17 @@ def theme_context(request):
             # Personal Assistant toggles
             context['personal_assistant_enabled'] = prefs.personal_assistant_enabled
             context['personal_assistant_consent'] = prefs.personal_assistant_consent
+            # Cycle tracking - check if user has opted in
+            try:
+                from apps.health.models import CycleSettings
+                cycle_settings = CycleSettings.objects.filter(
+                    user=request.user, is_active=True
+                ).first()
+                context['cycle_tracking_enabled'] = (
+                    cycle_settings.cycle_tracking_enabled if cycle_settings else False
+                )
+            except Exception:
+                context['cycle_tracking_enabled'] = False
             # User's "today" in their timezone (for date comparisons in templates)
             from apps.core.utils import get_user_today
             context['user_today'] = get_user_today(request.user)

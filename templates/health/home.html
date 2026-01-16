@@ -301,6 +301,62 @@
             {% endif %}
         </div>
 
+        <!-- Cycle Tracking Card (only shown if opted in) -->
+        {% if cycle_tracking_enabled %}
+        <div class="health-card cycle-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                    Cycle Tracking
+                </h2>
+                <a href="{% url 'health:cycle_calendar' %}" class="btn btn-primary btn-sm">Log Today</a>
+            </div>
+
+            {% if cycle_current_phase %}
+                <div class="cycle-phase-display">
+                    <span class="phase-indicator" style="background-color: {{ cycle_current_phase.color_hex }}"></span>
+                    <div class="phase-info">
+                        <span class="phase-name">{{ cycle_current_phase.display_name }}</span>
+                        <span class="phase-day">Day {{ cycle_current_phase.day_in_phase }} of {{ cycle_current_phase.total_phase_days }}</span>
+                    </div>
+                </div>
+                {% if cycle_days_until_period is not None %}
+                    <p class="metric-avg">
+                        {% if cycle_days_until_period == 0 %}
+                            Period expected today
+                        {% elif cycle_days_until_period == 1 %}
+                            Period expected tomorrow
+                        {% elif cycle_days_until_period > 0 %}
+                            {{ cycle_days_until_period }} days until period
+                        {% else %}
+                            Period {{ cycle_days_until_period|abs }} days late
+                        {% endif %}
+                    </p>
+                {% endif %}
+            {% elif cycle_day_count %}
+                <div class="cycle-stats">
+                    <div class="stat">
+                        <span class="stat-value">{{ cycle_day_count }}</span>
+                        <span class="stat-label">days logged</span>
+                    </div>
+                    {% if cycle_avg_length %}
+                    <div class="stat">
+                        <span class="stat-value">{{ cycle_avg_length }}</span>
+                        <span class="stat-label">avg cycle</span>
+                    </div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <p class="text-muted">Start logging to see your cycle insights.</p>
+            {% endif %}
+
+            <a href="{% url 'health:cycle_dashboard' %}" class="card-link">Go to Cycle Tracking</a>
+        </div>
+        {% endif %}
+
         <!-- Medicine Card -->
         <div class="health-card medicine-card">
             <div class="card-header">
@@ -834,6 +890,57 @@
 .provider-name {
     font-weight: 500;
     font-size: var(--font-size-sm);
+}
+
+/* Cycle Tracking Card */
+.cycle-phase-display {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.phase-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}
+
+.phase-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.phase-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+.phase-day {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.cycle-stats {
+    display: flex;
+    gap: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.cycle-stats .stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.cycle-stats .stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.cycle-stats .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
 }
 
 @media (max-width: 640px) {

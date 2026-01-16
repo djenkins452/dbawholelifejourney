@@ -296,6 +296,7 @@
                                 {% if features.health.blood_pressure %}<a href="{% url 'health:blood_pressure_list' %}" class="nav-dropdown-item">Blood Pressure</a>{% endif %}
                                 {% if features.health.glucose %}<a href="{% url 'health:glucose_dashboard' %}" class="nav-dropdown-item">Glucose</a>{% endif %}
                                 {% if features.health.blood_oxygen %}<a href="{% url 'health:blood_oxygen_list' %}" class="nav-dropdown-item">Blood Oxygen</a>{% endif %}
+                                {% if cycle_tracking_enabled %}<a href="{% url 'health:cycle_dashboard' %}" class="nav-dropdown-item">Cycle Tracking</a>{% endif %}
                             </div>
                             <!-- Medicine Column -->
                             {% if features.health.medicine %}

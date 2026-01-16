@@ -16,6 +16,34 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Add Cycle Tracking to Navigation and Health Home Page
+
+**Summary:** Made Cycle Tracking discoverable by adding it to the Health navigation menu and Health home page, conditional on user opt-in.
+
+**Problem:** Users could only access Cycle Tracking via direct URL or buried in Preferences. The feature was not visible in the main navigation or Health home page.
+
+**Solution:**
+1. Added `cycle_tracking_enabled` to the global context processor so it's available in all templates
+2. Added "Cycle Tracking" link to Health dropdown menu (under Vitals column)
+3. Added Cycle Tracking card to Health home page with:
+   - Current phase display with color indicator
+   - Days until next period prediction
+   - Daily log count and average cycle length stats
+   - Quick access to calendar for logging
+
+**Visibility Rules:**
+- Only shown when user has opted into cycle tracking
+- Uses existing CycleSettings.cycle_tracking_enabled flag
+- Respects is_active (soft delete) status
+
+**Files Modified:**
+- `apps/core/context_processors.py`: Added cycle_tracking_enabled to theme_context
+- `templates/components/navigation.html`: Added conditional Cycle Tracking link
+- `templates/health/home.html`: Added Cycle Tracking card with CSS styles
+- `apps/health/views.py`: Added cycle context data to HealthHomeView
+
+---
+
 ### Add Cycle Tracking to What's New, Help, and Teaching Tool
 
 **Summary:** Added cycle tracking content to all user-facing documentation systems.

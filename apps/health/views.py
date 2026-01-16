@@ -276,6 +276,47 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             month_workouts = workouts.filter(date__gte=month_start)
             context["workouts_this_month"] = month_workouts.count()
 
+        # Cycle Tracking summary (only if opted in)
+        try:
+            from .models import CycleSettings, CycleDailyLog, Cycle
+            from .services.cycle_phase import get_current_phase
+            from .services.cycle_prediction import CyclePredictionService
+
+            cycle_settings = CycleSettings.objects.filter(
+                user=user, is_active=True, cycle_tracking_enabled=True
+            ).first()
+
+            if cycle_settings:
+                context['cycle_tracking_enabled'] = True
+
+                # Get current phase info
+                phase_info = get_current_phase(user)
+                if phase_info:
+                    context['cycle_current_phase'] = phase_info
+
+                # Get days until next period from prediction
+                prediction_service = CyclePredictionService(user)
+                latest_prediction = prediction_service.get_latest_prediction()
+                if latest_prediction and latest_prediction.predicted_period_start:
+                    days_until = (latest_prediction.predicted_period_start - today).days
+                    context['cycle_days_until_period'] = days_until
+
+                # Get daily log count
+                log_count = CycleDailyLog.objects.filter(user=user).count()
+                context['cycle_day_count'] = log_count
+
+                # Get average cycle length if we have enough data
+                completed_cycles = Cycle.objects.filter(
+                    user=user, end_date__isnull=False
+                )
+                if completed_cycles.count() >= 2:
+                    # Calculate average manually since cycle_length is a property
+                    cycle_lengths = [c.cycle_length for c in completed_cycles if c.cycle_length]
+                    if cycle_lengths:
+                        context['cycle_avg_length'] = round(sum(cycle_lengths) / len(cycle_lengths))
+        except Exception:
+            pass
+
         # Generate AI insight if user has AI enabled and consented
         context['ai_insight'] = None
         context['ai_enabled'] = False

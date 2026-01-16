@@ -16,6 +16,33 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Add Delete Functionality for Completed Reading Plans
+
+**Summary:** Added ability to delete completed Bible reading plans from the reading plans listing page.
+
+**Purpose:** Users can now manage their completed reading plan history by removing plans they no longer want to see.
+
+**Implementation:**
+- Created `DeleteReadingPlanView` in `apps/faith/views.py` with soft delete support
+- Added URL route `reading-plans/progress/<pk>/delete/` in `apps/faith/urls.py`
+- Added delete button with trash icon for each completed plan in `templates/faith/reading_plans/list.html`
+- Uses JavaScript confirmation dialog via `data-confirm-delete` attribute
+- Responsive design: On mobile, only shows icon; on desktop shows "Delete" text
+
+**Security:**
+- Only allows deletion of completed plans (plan_status="completed")
+- Uses soft delete for data retention (30-day grace period)
+- Validates user ownership before deletion
+- CSRF protection via form token
+
+**Files Changed:**
+- `apps/faith/views.py` - Added DeleteReadingPlanView class
+- `apps/faith/urls.py` - Added delete_reading_plan URL pattern
+- `templates/faith/reading_plans/list.html` - Added delete button with responsive styling
+- `apps/faith/tests/test_reading_plans.py` - Added DeleteReadingPlanViewTest class
+
+---
+
 ### Create /close Command for Session Closure
 
 **Summary:** Added a new `/close` slash command to close out coding sessions with a comprehensive review.

@@ -394,3 +394,93 @@ class ReadingPlanDataIsolationTest(ReadingPlanTestMixin, TestCase):
             plans = response.context['user_plans']
             self.assertEqual(plans.count(), 1)
             self.assertEqual(plans.first().user, self.user_a)
+
+
+# =============================================================================
+# 4. DELETE READING PLAN TESTS
+# =============================================================================
+
+class DeleteReadingPlanViewTest(ReadingPlanTestMixin, TestCase):
+    """Tests for deleting completed reading plans."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.template = self.create_reading_plan_template()
+        self.user_plan = self.start_reading_plan(self.user, self.template)
+        # Mark the plan as completed
+        for progress in self.user_plan.day_completions.all():
+            progress.mark_complete()
+        self.user_plan.refresh_from_db()
+        self.login_user()
+
+    def test_delete_completed_plan(self):
+        """Completed plan can be deleted."""
+        self.assertEqual(self.user_plan.plan_status, 'completed')
+
+        url = reverse('faith:delete_reading_plan', kwargs={'pk': self.user_plan.pk})
+        response = self.client.post(url)
+
+        # Should redirect on success
+        self.assertEqual(response.status_code, 302)
+
+        # Plan should be soft deleted (not visible in default manager)
+        self.assertFalse(UserReadingPlan.objects.filter(pk=self.user_plan.pk).exists())
+        # But still exists in all_objects manager
+        self.assertTrue(UserReadingPlan.all_objects.filter(pk=self.user_plan.pk).exists())
+        # And has deleted status
+        deleted_plan = UserReadingPlan.all_objects.get(pk=self.user_plan.pk)
+        self.assertEqual(deleted_plan.status, 'deleted')
+
+    def test_cannot_delete_active_plan(self):
+        """Active plan cannot be deleted via this endpoint."""
+        # Create a new active plan
+        template2 = self.create_reading_plan_template(title='Active Plan', slug='active-plan')
+        active_plan = self.start_reading_plan(self.user, template2)
+        self.assertEqual(active_plan.plan_status, 'active')
+
+        url = reverse('faith:delete_reading_plan', kwargs={'pk': active_plan.pk})
+        response = self.client.post(url)
+
+        # Should return 404 because the view only finds completed plans
+        self.assertEqual(response.status_code, 404)
+
+        # Plan should still exist and be active
+        active_plan.refresh_from_db()
+        self.assertEqual(active_plan.plan_status, 'active')
+        self.assertEqual(active_plan.status, 'active')
+
+    def test_cannot_delete_other_users_plan(self):
+        """User cannot delete another user's completed plan."""
+        other_user = self.create_user(email='other@example.com')
+        other_template = self.create_reading_plan_template(
+            title='Other Plan', slug='other-plan'
+        )
+        other_plan = self.start_reading_plan(other_user, other_template)
+        # Mark it complete
+        for progress in other_plan.day_completions.all():
+            progress.mark_complete()
+        other_plan.refresh_from_db()
+
+        url = reverse('faith:delete_reading_plan', kwargs={'pk': other_plan.pk})
+        response = self.client.post(url)
+
+        # Should return 404 because the view filters by current user
+        self.assertEqual(response.status_code, 404)
+
+        # Plan should still exist
+        self.assertTrue(UserReadingPlan.objects.filter(pk=other_plan.pk).exists())
+
+    def test_delete_requires_login(self):
+        """Deleting a plan requires authentication."""
+        self.client.logout()
+
+        url = reverse('faith:delete_reading_plan', kwargs={'pk': self.user_plan.pk})
+        response = self.client.post(url)
+
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('login', response.url.lower())
+
+        # Plan should still exist
+        self.assertTrue(UserReadingPlan.objects.filter(pk=self.user_plan.pk).exists())

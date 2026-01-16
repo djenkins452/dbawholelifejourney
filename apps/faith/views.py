@@ -1268,6 +1268,25 @@ class AbandonReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
         return redirect("faith:reading_plans")
 
 
+class DeleteReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Delete a completed reading plan.
+
+    Uses soft delete to remove the plan from the user's history.
+    Only allows deletion of completed plans.
+    """
+
+    def post(self, request, pk):
+        user_plan = get_object_or_404(
+            UserReadingPlan.objects.filter(user=request.user, plan_status="completed"),
+            pk=pk
+        )
+        plan_title = user_plan.template.title
+        user_plan.soft_delete()
+        messages.success(request, f"'{plan_title}' has been removed from your completed plans.")
+        return redirect("faith:reading_plans")
+
+
 # =============================================================================
 # BIBLE STUDY TOOLS VIEWS - Highlights
 # =============================================================================

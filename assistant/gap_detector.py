@@ -134,6 +134,12 @@ CONVERSATIONAL_WORDS = {
     # Discourse markers and fillers
     'well', 'now', 'also', 'still', 'even', 'back', 'yes', 'yeah', 'okay',
     'please', 'thanks', 'thank', 'sorry', 'hello', 'hey', 'hi',
+    # UI/navigation terms - not data types
+    'dashboard', 'page', 'pages', 'screen', 'screens', 'menu', 'menus',
+    'settings', 'preferences', 'profile', 'account', 'navigation', 'navigate',
+    'button', 'buttons', 'link', 'links', 'click', 'clicked', 'clicking',
+    'tab', 'tabs', 'section', 'sections', 'sidebar', 'header', 'footer',
+    'home', 'homepage', 'landing', 'view', 'views', 'display', 'displays',
 }
 
 # Query pattern keywords we currently support

@@ -16,6 +16,39 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Fix False Positive Gap Detection for Navigation Questions
+
+**Summary:** Fixed a bug where navigation questions like "how do I get to the dashboard" were incorrectly triggering the gap detector to suggest creating a new data type.
+
+**Issue:** When a user asked "how do I get to the dashboard", the AI system incorrectly detected "dashboard" as a potential new data type and triggered an approval task suggesting to create a DashboardEntry model. This was a false positive - the user was asking for navigation help, not asking to store dashboard data.
+
+**Root Cause Analysis:**
+1. The intent detector correctly detected `is_personal_query: False` and `data_types: []` since "dashboard" is not in PERSONAL_DATA_KEYWORDS
+2. However, the gap detector's `extract_potential_keywords()` function extracted "dashboard" as a potential keyword
+3. Combined with personal pronoun "I" in the query, this triggered `GapType.UNKNOWN_DATA_TYPE`
+4. The gap detector lacked awareness that UI/navigation terms should be excluded
+
+**Solution:** Added UI/navigation terms to the `CONVERSATIONAL_WORDS` set in `assistant/gap_detector.py`:
+- dashboard, page, pages, screen, screens, menu, menus
+- settings, preferences, profile, account, navigation, navigate
+- button, buttons, link, links, click, clicked, clicking
+- tab, tabs, section, sections, sidebar, header, footer
+- home, homepage, landing, view, views, display, displays
+
+These terms represent UI elements and navigation concepts that users might ask about but should never be flagged as potential new data types.
+
+**Files Modified:**
+- `assistant/gap_detector.py` - Added UI/navigation terms to CONVERSATIONAL_WORDS
+- `assistant/tests/test_gap_detector.py` - Added test class `TestUINavigationWordsFiltered` with 4 tests
+
+**Tests Added:**
+- `test_dashboard_is_not_data_type` - Verifies "dashboard" is filtered
+- `test_settings_is_not_data_type` - Verifies "settings" is filtered
+- `test_page_is_not_data_type` - Verifies "page" is filtered
+- `test_navigation_question_no_gap` - Integration test verifying navigation questions don't trigger gaps
+
+---
+
 ### Improve Password Reset Email Templates to Reduce Spam Detection
 
 **Summary:** Created custom django-allauth email templates for password reset and "unknown account" notifications to reduce spam filter blocking.

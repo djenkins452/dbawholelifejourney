@@ -504,6 +504,43 @@ class TestFalsePositivePatterns(unittest.TestCase):
         self.assertNotIn('bat', result)
 
 
+class TestUINavigationWordsFiltered(unittest.TestCase):
+    """Tests for filtering UI/navigation terms that are not data types."""
+
+    def test_dashboard_is_not_data_type(self):
+        """'dashboard' is a UI term, not a data type to be tracked."""
+        result = extract_potential_keywords("how do I get to the dashboard")
+        self.assertNotIn('dashboard', result)
+
+    def test_settings_is_not_data_type(self):
+        """'settings' is a UI term, not a data type to be tracked."""
+        result = extract_potential_keywords("where are my settings")
+        self.assertNotIn('settings', result)
+
+    def test_page_is_not_data_type(self):
+        """'page' is a UI term, not a data type to be tracked."""
+        result = extract_potential_keywords("take me to the weight page")
+        self.assertNotIn('page', result)
+
+    def test_navigation_question_no_gap(self):
+        """Navigation questions should not trigger unknown data type gap."""
+        intent_result = {
+            'is_personal_query': False,
+            'data_types': [],
+            'has_date_context': False,
+            'is_meta_question': False,
+            'is_compound_query': False,
+        }
+        result = detect_knowledge_gap(
+            "how do I get to the dashboard",
+            intent_result=intent_result,
+            data_result=None
+        )
+        # Should NOT detect a gap - user is asking for navigation help
+        # not asking to store "dashboard" as data
+        self.assertFalse(result['gap_detected'])
+
+
 class TestIntegrationScenarios(unittest.TestCase):
     """Integration tests for realistic gap detection scenarios."""
 

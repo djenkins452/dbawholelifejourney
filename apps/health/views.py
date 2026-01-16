@@ -279,8 +279,6 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         # Cycle Tracking summary (only if opted in)
         try:
             from .models import CycleSettings, CycleDailyLog, Cycle
-            from .services.cycle_phase import get_current_phase
-            from .services.cycle_prediction import CyclePredictionService
 
             cycle_settings = CycleSettings.objects.filter(
                 user=user, is_active=True, cycle_tracking_enabled=True
@@ -289,31 +287,47 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if cycle_settings:
                 context['cycle_tracking_enabled'] = True
 
-                # Get current phase info
-                phase_info = get_current_phase(user)
-                if phase_info:
-                    context['cycle_current_phase'] = phase_info
+                # Get current phase info (wrapped separately to isolate errors)
+                try:
+                    from .services.cycle_phase import get_current_phase
+                    phase_info = get_current_phase(user)
+                    if phase_info:
+                        context['cycle_current_phase'] = phase_info
+                except Exception:
+                    pass
 
                 # Get days until next period from prediction
-                prediction_service = CyclePredictionService(user)
-                latest_prediction = prediction_service.get_latest_prediction()
-                if latest_prediction and latest_prediction.predicted_period_start:
-                    days_until = (latest_prediction.predicted_period_start - today).days
-                    context['cycle_days_until_period'] = days_until
+                try:
+                    from .services.cycle_prediction import CyclePredictionService
+                    prediction_service = CyclePredictionService(user)
+                    latest_prediction = prediction_service.get_latest_prediction()
+                    if latest_prediction and latest_prediction.predicted_period_start:
+                        days_until = (latest_prediction.predicted_period_start - today).days
+                        context['cycle_days_until_period'] = days_until
+                        # Also pass absolute value for "days late" display
+                        context['cycle_days_late'] = abs(days_until) if days_until < 0 else 0
+                except Exception:
+                    pass
 
                 # Get daily log count
-                log_count = CycleDailyLog.objects.filter(user=user).count()
-                context['cycle_day_count'] = log_count
+                try:
+                    log_count = CycleDailyLog.objects.filter(user=user).count()
+                    context['cycle_day_count'] = log_count
+                except Exception:
+                    pass
 
                 # Get average cycle length if we have enough data
-                completed_cycles = Cycle.objects.filter(
-                    user=user, end_date__isnull=False
-                )
-                if completed_cycles.count() >= 2:
-                    # Calculate average manually since cycle_length is a property
-                    cycle_lengths = [c.cycle_length for c in completed_cycles if c.cycle_length]
-                    if cycle_lengths:
-                        context['cycle_avg_length'] = round(sum(cycle_lengths) / len(cycle_lengths))
+                try:
+                    completed_cycles = Cycle.objects.filter(
+                        user=user, end_date__isnull=False
+                    )
+                    if completed_cycles.count() >= 2:
+                        # Calculate average manually since cycle_length is a property
+                        cycle_lengths = [c.cycle_length for c in completed_cycles if c.cycle_length]
+                        if cycle_lengths:
+                            context['cycle_avg_length'] = round(sum(cycle_lengths) / len(cycle_lengths))
+                except Exception:
+                    pass
         except Exception:
             pass
 

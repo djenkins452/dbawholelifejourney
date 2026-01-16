@@ -332,7 +332,7 @@
                         {% elif cycle_days_until_period > 0 %}
                             {{ cycle_days_until_period }} days until period
                         {% else %}
-                            Period {{ cycle_days_until_period|abs }} days late
+                            Period {{ cycle_days_late }} day{% if cycle_days_late != 1 %}s{% endif %} late
                         {% endif %}
                     </p>
                 {% endif %}

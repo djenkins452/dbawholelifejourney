@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 # FatSecret API configuration
 FATSECRET_TOKEN_URL = 'https://oauth.fatsecret.com/connect/token'
 FATSECRET_API_URL = 'https://platform.fatsecret.com/rest/server.api'
+FATSECRET_BARCODE_URL = 'https://platform.fatsecret.com/rest/food/barcode/find-by-id/v2'
+FATSECRET_IMAGE_URL = 'https://platform.fatsecret.com/rest/image-recognition/v2'
 FATSECRET_TOKEN_CACHE_KEY = 'fatsecret_access_token'
 FATSECRET_TOKEN_CACHE_TIMEOUT = 86400 - 300  # 24 hours minus 5 minute buffer
 
@@ -94,18 +96,25 @@ class FatSecretService:
         """Check if FatSecret API credentials are configured."""
         return bool(self.client_id and self.client_secret)
 
-    def _get_access_token(self) -> Optional[str]:
+    def _get_access_token(self, scope: str = 'basic') -> Optional[str]:
         """
         Get OAuth 2.0 access token with caching.
 
         Token is cached for ~24 hours (token lifetime minus buffer).
+        Different scopes require different tokens.
+
+        Args:
+            scope: OAuth scope ('basic', 'barcode', 'image-recognition')
         """
         if not self.is_available:
             logger.warning("FatSecret API credentials not configured")
             return None
 
+        # Use scope-specific cache key
+        cache_key = f"{FATSECRET_TOKEN_CACHE_KEY}_{scope}"
+
         # Check cache first
-        token = cache.get(FATSECRET_TOKEN_CACHE_KEY)
+        token = cache.get(cache_key)
         if token:
             return token
 
@@ -120,7 +129,7 @@ class FatSecretService:
                 headers={'Authorization': f'Basic {auth}'},
                 data={
                     'grant_type': 'client_credentials',
-                    'scope': 'basic'
+                    'scope': scope
                 },
                 timeout=self.timeout
             )
@@ -132,11 +141,11 @@ class FatSecretService:
             if token:
                 # Cache the token
                 cache.set(
-                    FATSECRET_TOKEN_CACHE_KEY,
+                    cache_key,
                     token,
                     FATSECRET_TOKEN_CACHE_TIMEOUT
                 )
-                logger.debug("FatSecret access token obtained and cached")
+                logger.debug(f"FatSecret access token ({scope}) obtained and cached")
                 return token
 
         except requests.exceptions.RequestException as e:
@@ -349,6 +358,136 @@ class FatSecretService:
             return float(value)
         except (ValueError, TypeError):
             return None
+
+    def lookup_barcode(self, barcode: str) -> Optional[FatSecretFood]:
+        """
+        Look up a food product by barcode (UPC/EAN).
+
+        Args:
+            barcode: 13-digit GTIN-13 barcode string
+
+        Returns:
+            FatSecretFood with nutrition data, or None if not found
+        """
+        token = self._get_access_token(scope='barcode')
+        if not token:
+            return None
+
+        try:
+            # Pad barcode to 13 digits if needed (GTIN-13 format)
+            barcode = barcode.zfill(13)
+
+            response = requests.get(
+                FATSECRET_BARCODE_URL,
+                headers={
+                    'Authorization': f'Bearer {token}',
+                },
+                params={
+                    'barcode': barcode,
+                    'format': 'json',
+                    'flag_default_serving': 'true',
+                    'include_food_attributes': 'true'
+                },
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            food_data = data.get('food')
+
+            if not food_data:
+                logger.debug(f"Barcode {barcode} not found in FatSecret")
+                return None
+
+            return self._parse_food_detail(food_data)
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FatSecret barcode lookup failed: {e}")
+        except Exception as e:
+            logger.error(f"Error parsing FatSecret barcode response: {e}")
+
+        return None
+
+    def recognize_food_image(
+        self,
+        image_base64: str,
+        include_food_data: bool = True
+    ) -> List[FatSecretFood]:
+        """
+        Identify foods in an image using FatSecret's AI.
+
+        Args:
+            image_base64: Base64-encoded image (jpg, png, webp)
+            include_food_data: Include full nutrition data in response
+
+        Returns:
+            List of FatSecretFood objects for identified foods
+        """
+        token = self._get_access_token(scope='image-recognition')
+        if not token:
+            return []
+
+        try:
+            response = requests.post(
+                FATSECRET_IMAGE_URL,
+                headers={
+                    'Authorization': f'Bearer {token}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'image_b64': image_base64,
+                    'include_food_data': include_food_data,
+                    'region': 'US'
+                },
+                timeout=30  # Image recognition may take longer
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            food_responses = data.get('food_response', [])
+
+            if not food_responses:
+                logger.debug("No foods identified in image by FatSecret")
+                return []
+
+            results = []
+            for item in food_responses:
+                eaten = item.get('eaten', {})
+                food = item.get('food', {})
+                suggested = item.get('suggested_serving', {})
+
+                # Get nutrition from eaten data or suggested serving
+                nutrition = eaten if eaten else suggested
+
+                results.append(FatSecretFood(
+                    food_id=str(food.get('food_id', '')),
+                    name=food.get('food_name', item.get('food_entry_name', '')),
+                    brand=food.get('brand_name', ''),
+                    food_type=food.get('food_type', 'Generic'),
+                    description=food.get('food_description', ''),
+                    calories=self._safe_float(nutrition.get('calories')),
+                    protein_g=self._safe_float(nutrition.get('protein')),
+                    carbohydrates_g=self._safe_float(nutrition.get('carbohydrate')),
+                    fat_g=self._safe_float(nutrition.get('fat')),
+                    fiber_g=self._safe_float(nutrition.get('fiber')),
+                    sugar_g=self._safe_float(nutrition.get('sugar')),
+                    saturated_fat_g=self._safe_float(nutrition.get('saturated_fat')),
+                    serving_size=self._safe_float(
+                        nutrition.get('metric_serving_amount') or
+                        nutrition.get('serving_amount')
+                    ),
+                    serving_unit=nutrition.get('metric_serving_unit', 'g'),
+                ))
+
+            logger.info(f"FatSecret identified {len(results)} food(s) in image")
+            return results
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FatSecret image recognition failed: {e}")
+        except Exception as e:
+            logger.error(f"Error parsing FatSecret image response: {e}")
+
+        return []
 
 
 # Singleton instance

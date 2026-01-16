@@ -313,7 +313,10 @@ class ScanResult:
 
 class VisionService:
     """
-    Service for analyzing images using OpenAI Vision API.
+    Service for analyzing images using FatSecret AI and OpenAI Vision API.
+
+    For food images, FatSecret's specialized food AI is tried first.
+    OpenAI Vision is used for non-food items and as a fallback.
 
     Usage:
         from apps.scan.services import vision_service
@@ -325,6 +328,7 @@ class VisionService:
         self.model = getattr(settings, 'OPENAI_VISION_MODEL', 'gpt-4o')
         self.timeout = getattr(settings, 'SCAN_REQUEST_TIMEOUT_SECONDS', 30)
         self._initialize_client()
+        self._fatsecret_available = None
 
     def _initialize_client(self):
         """Initialize OpenAI client if API key is available."""
@@ -343,23 +347,113 @@ class VisionService:
         """Check if vision service is available."""
         return self.client is not None
 
+    @property
+    def fatsecret_available(self) -> bool:
+        """Check if FatSecret image recognition is available."""
+        if self._fatsecret_available is None:
+            try:
+                from apps.health.services.fatsecret import fatsecret_service
+                self._fatsecret_available = fatsecret_service.is_available
+            except ImportError:
+                self._fatsecret_available = False
+        return self._fatsecret_available
+
+    def _try_fatsecret_food_recognition(
+        self,
+        image_base64: str,
+        request_id: str
+    ) -> Optional[ScanResult]:
+        """
+        Try FatSecret's food-specific image recognition.
+
+        Returns ScanResult if food is detected, None otherwise.
+        """
+        if not self.fatsecret_available:
+            return None
+
+        try:
+            from apps.health.services.fatsecret import fatsecret_service
+
+            foods = fatsecret_service.recognize_food_image(image_base64)
+
+            if not foods:
+                return None
+
+            # Convert FatSecret results to scan items
+            items = []
+            for food in foods:
+                items.append({
+                    'label': food.name,
+                    'details': {
+                        'brand': food.brand or '',
+                        'product_name': food.name,
+                        'description': food.description or '',
+                        'calories': food.calories,
+                        'protein_g': food.protein_g,
+                        'carbohydrates_g': food.carbohydrates_g,
+                        'fat_g': food.fat_g,
+                        'fiber_g': food.fiber_g,
+                        'sugar_g': food.sugar_g,
+                        'saturated_fat_g': food.saturated_fat_g,
+                        'serving_size': food.serving_size,
+                        'serving_unit': food.serving_unit,
+                        'meal_type': self._get_meal_type_from_time()
+                    },
+                    'confidence': 0.95  # FatSecret food AI is highly accurate
+                })
+
+            # Build next best actions for food
+            next_actions = self._build_actions('food', items)
+
+            logger.info(
+                f"Scan {request_id} completed via FatSecret: food "
+                f"({len(foods)} item(s) identified)"
+            )
+
+            return ScanResult(
+                request_id=request_id,
+                top_category='food',
+                confidence=0.95,
+                items=items,
+                safety_notes=[],
+                next_best_actions=next_actions
+            )
+
+        except Exception as e:
+            logger.warning(f"FatSecret food recognition failed: {e}")
+            return None
+
     def analyze_image(
         self,
         image_base64: str,
         request_id: str,
-        image_format: str = 'jpeg'
+        image_format: str = 'jpeg',
+        try_fatsecret: bool = True
     ) -> ScanResult:
         """
         Analyze an image and return structured results.
+
+        For food images, tries FatSecret's specialized food AI first (faster, cheaper).
+        Falls back to OpenAI Vision for non-food items or if FatSecret fails.
 
         Args:
             image_base64: Base64-encoded image data (without data URI prefix)
             request_id: UUID for tracking this request
             image_format: Image format (jpeg, png, webp)
+            try_fatsecret: Whether to try FatSecret food recognition first
 
         Returns:
             ScanResult with category, items, and suggested actions
         """
+        # Try FatSecret's food-specific AI first (faster and cheaper for food)
+        if try_fatsecret:
+            fatsecret_result = self._try_fatsecret_food_recognition(
+                image_base64, request_id
+            )
+            if fatsecret_result:
+                return fatsecret_result
+
+        # Fall back to OpenAI Vision for non-food or if FatSecret found nothing
         if not self.is_available:
             logger.error(f"Vision service unavailable for request {request_id}")
             return self._error_result(request_id, "Vision service not configured")

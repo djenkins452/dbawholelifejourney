@@ -16,6 +16,36 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Integrate FatSecret Premier Features (Barcode + Image Recognition)
+
+**Summary:** Added FatSecret Premier tier features for barcode scanning and food image recognition, reducing OpenAI API costs.
+
+**Changes:**
+- `apps/health/services/fatsecret.py`:
+  - Added `lookup_barcode()` method using FatSecret's barcode API
+  - Added `recognize_food_image()` method using FatSecret's AI image recognition
+  - Updated `_get_access_token()` to support multiple scopes (basic, barcode, image-recognition)
+  - Added new API endpoint constants for barcode and image services
+
+- `apps/scan/services/barcode.py`:
+  - Added FatSecret as primary barcode lookup source (before Open Food Facts)
+  - New lookup order: Local DB → FatSecret → Open Food Facts → OpenAI
+  - Added `_lookup_fatsecret()` and `_save_fatsecret_result()` methods
+
+- `apps/scan/services/vision.py`:
+  - Added FatSecret food recognition as first attempt for food images
+  - OpenAI Vision now used as fallback for non-food items or when FatSecret fails
+  - Added `_try_fatsecret_food_recognition()` method
+  - Added `fatsecret_available` property
+
+**Benefits:**
+- Unlimited API calls (Premier Free tier)
+- Better barcode coverage than Open Food Facts
+- Faster food image recognition (specialized AI)
+- Reduced OpenAI costs (food images handled by FatSecret)
+
+---
+
 ### Enable Parallel Task Execution
 
 **Summary:** `/next` now starts ALL tasks at the same phase+priority level, enabling parallel execution.

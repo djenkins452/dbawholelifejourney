@@ -160,8 +160,9 @@ class BarcodeService:
 
         Lookup order:
         1. Local database (fastest, exact match)
-        2. Open Food Facts API (free, 4M+ products)
-        3. OpenAI fallback (if enabled)
+        2. FatSecret API (Premier tier - best coverage)
+        3. Open Food Facts API (free fallback, 4M+ products)
+        4. OpenAI fallback (if enabled)
 
         Args:
             barcode: The product barcode string (UPC, EAN, etc.)
@@ -187,7 +188,15 @@ class BarcodeService:
             logger.info(f"Barcode {barcode} found in database")
             return db_result
 
-        # Step 2: Try Open Food Facts API (free, open database)
+        # Step 2: Try FatSecret API (Premier tier)
+        fs_result = self._lookup_fatsecret(barcode)
+        if fs_result and fs_result.found:
+            logger.info(f"Barcode {barcode} found in FatSecret")
+            # Save to local database for faster future lookups
+            self._save_fatsecret_result(fs_result)
+            return fs_result
+
+        # Step 3: Try Open Food Facts API (free fallback)
         off_result = self._lookup_openfoodfacts(barcode)
         if off_result and off_result.found:
             logger.info(f"Barcode {barcode} found in Open Food Facts")
@@ -195,7 +204,7 @@ class BarcodeService:
             self._save_openfoodfacts_result(off_result)
             return off_result
 
-        # Step 3: Try AI lookup if enabled and available
+        # Step 4: Try AI lookup if enabled and available
         if use_ai and self.is_available:
             ai_result = self._lookup_ai(barcode)
             if ai_result.found:
@@ -263,6 +272,81 @@ class BarcodeService:
 
         except Exception as e:
             logger.error(f"Database lookup error for barcode {barcode}: {e}")
+            return None
+
+    def _lookup_fatsecret(self, barcode: str) -> Optional[BarcodeResult]:
+        """Look up barcode using FatSecret API (Premier tier)."""
+        try:
+            from apps.health.services.fatsecret import fatsecret_service
+
+            if not fatsecret_service.is_available:
+                return None
+
+            food = fatsecret_service.lookup_barcode(barcode)
+            if not food:
+                return None
+
+            return BarcodeResult(
+                barcode=barcode,
+                found=True,
+                source='fatsecret',
+                food_name=food.name,
+                brand=food.brand or '',
+                description=food.description or '',
+                calories=food.calories,
+                protein_g=food.protein_g,
+                carbohydrates_g=food.carbohydrates_g,
+                fat_g=food.fat_g,
+                fiber_g=food.fiber_g,
+                sugar_g=food.sugar_g,
+                saturated_fat_g=food.saturated_fat_g,
+                serving_size=food.serving_size,
+                serving_unit=food.serving_unit or 'g',
+                confidence=0.98  # FatSecret data is highly reliable
+            )
+
+        except Exception as e:
+            logger.error(f"FatSecret barcode lookup error: {e}")
+            return None
+
+    def _save_fatsecret_result(self, result: BarcodeResult) -> Optional[int]:
+        """Save FatSecret barcode result to local database for caching."""
+        if not result.found or result.source != 'fatsecret':
+            return None
+
+        try:
+            from apps.health.models import FoodItem
+
+            # Check if barcode already exists
+            existing = FoodItem.objects.filter(barcode=result.barcode).first()
+            if existing:
+                return existing.id
+
+            # Create new FoodItem
+            food_item = FoodItem.objects.create(
+                name=result.food_name,
+                brand=result.brand,
+                description=result.description,
+                barcode=result.barcode,
+                data_source=FoodItem.SOURCE_FATSECRET,
+                serving_size=result.serving_size or 100,
+                serving_unit=result.serving_unit or 'g',
+                calories=result.calories or 0,
+                protein_g=result.protein_g or 0,
+                carbohydrates_g=result.carbohydrates_g or 0,
+                fat_g=result.fat_g or 0,
+                fiber_g=result.fiber_g or 0,
+                sugar_g=result.sugar_g or 0,
+                saturated_fat_g=result.saturated_fat_g or 0,
+                sodium_mg=result.sodium_mg,
+                is_verified=True  # FatSecret data is verified
+            )
+
+            logger.info(f"Cached FatSecret barcode {result.barcode} as FoodItem {food_item.id}")
+            return food_item.id
+
+        except Exception as e:
+            logger.error(f"Failed to cache FatSecret barcode {result.barcode}: {e}")
             return None
 
     def _lookup_openfoodfacts(self, barcode: str) -> Optional[BarcodeResult]:

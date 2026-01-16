@@ -14,6 +14,37 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-16 Changes
+
+### Fix Mobile Task List - Checkbox Overlap and Duplicate Recurring Tasks
+
+**Summary:** Fixed two issues on mobile task list: (1) bulk checkbox overlapping with task completion checkbox, (2) recurring tasks creating duplicates when toggled multiple times.
+
+**Problem 1 - Checkbox Overlap:**
+- On mobile, the bulk selection checkbox (`.item-checkbox`) was absolutely positioned at top-left of each task item
+- This caused it to visually overlap with the task completion circle checkbox
+- Made the UI confusing and potentially caused misclicks
+
+**Solution 1:**
+- Changed `.item-checkbox` from `position: absolute` to flexbox-based positioning
+- Checkbox now flows naturally within the flex container without overlapping
+
+**Problem 2 - Duplicate Recurring Tasks:**
+- When a recurring task was marked complete, it created a new task for the next occurrence
+- If user toggled the task incomplete and then complete again, another duplicate was created
+- This led to many identical tasks piling up (user had 9+ copies of same task)
+
+**Solution 2:**
+- Added duplicate check in `RecurrenceService.process_completed_recurring_task()`
+- Before creating a new task, checks if a task with same title, due_date, and is_recurring=True already exists
+- If existing task found, returns it instead of creating a duplicate
+
+**Files Modified:**
+- `templates/life/task_list.html`: Changed `.item-checkbox` CSS positioning (line 562-566)
+- `apps/life/services/recurrence.py`: Added duplicate prevention check (lines 268-279)
+
+---
+
 ## 2026-01-15 Changes
 
 ### Add Cycle Tracking to Navigation and Health Home Page

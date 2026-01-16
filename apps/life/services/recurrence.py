@@ -265,6 +265,19 @@ class RecurrenceService:
         # Import here to avoid circular imports
         from apps.life.models import Task
 
+        # Check if a task with the same title and due_date already exists
+        # This prevents duplicates when users toggle complete/incomplete multiple times
+        existing_task = Task.objects.filter(
+            user=task.user,
+            title=task.title,
+            due_date=next_date,
+            is_recurring=True,
+            is_deleted=False,
+        ).first()
+
+        if existing_task:
+            return existing_task
+
         # Create new task for next occurrence
         with transaction.atomic():
             new_task = Task.objects.create(

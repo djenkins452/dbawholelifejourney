@@ -560,9 +560,8 @@
 }
 
 .item-checkbox {
-    position: absolute;
-    top: var(--space-3);
-    left: var(--space-3);
+    /* Position relative within flexbox flow, not absolute */
+    flex-shrink: 0;
     z-index: 10;
 }
 

@@ -565,6 +565,17 @@
     z-index: 10;
 }
 
+/* Hide bulk selection checkboxes on mobile - they interfere with task completion taps */
+@media (max-width: 768px) {
+    .item-checkbox {
+        display: none;
+    }
+
+    .bulk-action-header {
+        display: none;
+    }
+}
+
 .task-item {
     position: relative;
 }

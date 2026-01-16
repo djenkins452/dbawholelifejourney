@@ -919,6 +919,24 @@ CAPTURE_AUDIO_RETENTION_DAYS = env.int('CAPTURE_AUDIO_RETENTION_DAYS', default=7
 CAPTURE_PRESIGNED_URL_EXPIRATION = env.int('CAPTURE_PRESIGNED_URL_EXPIRATION', default=3600)
 
 
+# ==============================================================================
+# Email Intake Configuration (IMAP polling for task creation)
+# ==============================================================================
+# Used by process_email_tasks management command to poll for emails
+# Emails in the "Automate" folder are converted to AdminTasks
+#
+# Usage workflow:
+# 1. Move an email to the "Automate" folder in your mailbox
+# 2. Wait for next polling cycle (runs 3x daily)
+# 3. Receive confirmation email with task details
+# 4. Email is moved to "New Requests" folder
+
+EMAIL_INTAKE_HOST = env('EMAIL_INTAKE_HOST', default='mail.privateemail.com')
+EMAIL_INTAKE_PORT = env.int('EMAIL_INTAKE_PORT', default=993)
+EMAIL_INTAKE_USER = env('EMAIL_INTAKE_USER', default='')
+EMAIL_INTAKE_PASSWORD = env('EMAIL_INTAKE_PASSWORD', default='')
+
+
 if SENTRY_DSN and not DEBUG and SENTRY_AVAILABLE:
     sentry_sdk.init(
         dsn=SENTRY_DSN,

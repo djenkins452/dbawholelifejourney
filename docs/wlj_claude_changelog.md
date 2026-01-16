@@ -16,6 +16,44 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Email Intake Service for Task Creation
+
+**Summary:** Added automated email-to-task pipeline that polls IMAP for emails and creates AdminTasks.
+
+**Feature:**
+- Move any email to the "Automate" folder in admin@wholelifejourney.com
+- The `process_email_tasks` management command polls the folder (runs 3x daily on Railway)
+- Each email creates an AdminTask with the subject as title, email content as task context
+- Sends confirmation email with task ID to the original sender
+- Moves processed email to "New Requests" folder
+
+**Implementation:**
+1. Created email intake service with IMAP connection, email parsing, and task creation
+2. Created management command `process_email_tasks` with --dry-run option
+3. Added settings for EMAIL_INTAKE_HOST, EMAIL_INTAKE_PORT, EMAIL_INTAKE_USER, EMAIL_INTAKE_PASSWORD
+4. Tasks are created in "Email Intake" project, "Email Requests" phase (phase 999)
+5. Full test coverage for parsing, settings validation, and task creation
+
+**Files Created:**
+- `apps/admin_console/services/email_intake.py` - IMAP polling and task creation
+- `apps/admin_console/services/__init__.py` - Package init
+- `apps/admin_console/management/commands/process_email_tasks.py` - Management command
+- `apps/admin_console/tests/test_email_intake.py` - Tests (16 tests passing)
+
+**Files Modified:**
+- `config/settings.py` - Added EMAIL_INTAKE_* settings
+
+**Environment Variables (added to Railway):**
+- `EMAIL_INTAKE_HOST=mail.privateemail.com`
+- `EMAIL_INTAKE_PORT=993`
+- `EMAIL_INTAKE_USER=admin@wholelifejourney.com`
+- `EMAIL_INTAKE_PASSWORD=<password>`
+
+**Railway Scheduled Task Required:**
+- Add cron job to run `python manage.py process_email_tasks` at 6am, 12pm, 10pm
+
+---
+
 ### Add Attachment Support to Task API
 
 **Summary:** Fixed task attachments not being visible to Claude when working tasks via the API.

@@ -55,7 +55,6 @@ Custom slash commands for the Whole Life Journey project.
 - Checks if WLJ Assistant needs updates for new data types
 - Reviews if CLAUDE.md needs new instructions
 - Verifies git status (all committed and pushed)
-- Reports any outstanding tasks
 - Provides session summary
 
 ## Typical Workflow

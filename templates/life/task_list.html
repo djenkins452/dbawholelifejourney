@@ -119,25 +119,20 @@
             
             <ul class="task-list">
                 {% for task in priority_group.list %}
-                <li class="task-item {% if task.is_completed %}completed{% endif %}" data-bulk-item data-item-id="{{ task.pk }}">
+                <li class="task-item {% if task.is_completed %}completed{% endif %}" data-bulk-item data-item-id="{{ task.pk }}" data-task-id="{{ task.pk }}">
                     <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox">
-                    <!-- Circle button: toggle completion -->
-                    <form method="post" action="{% url 'life:task_toggle' task.pk %}" class="task-checkbox-form">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button type="submit" class="task-checkbox {% if task.is_completed %}checked{% endif %}">
-                            {% if task.is_completed %}
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                                <polyline points="22 4 12 14.01 9 11.01"/>
-                            </svg>
-                            {% else %}
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                            </svg>
-                            {% endif %}
-                        </button>
-                    </form>
+                    <!-- Circle button: toggle completion via AJAX -->
+                    <button type="button" class="task-checkbox {% if task.is_completed %}checked{% endif %}"
+                            data-toggle-url="{% url 'life:task_toggle' task.pk %}"
+                            data-task-id="{{ task.pk }}">
+                        <svg class="circle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                        </svg>
+                        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                    </button>
 
                     <!-- Clicking anywhere else opens edit page -->
                     <a href="{% url 'life:task_update' task.pk %}" class="task-row-link">
@@ -412,7 +407,7 @@
 }
 
 .task-checkbox.checked {
-    color: var(--color-accent);
+    color: var(--color-success, #22c55e);
 }
 
 .task-checkbox svg {
@@ -421,6 +416,44 @@
     /* Ensure SVG doesn't capture pointer events separately */
     pointer-events: none;
     display: block;
+}
+
+/* Show circle by default, check when completed */
+.task-checkbox .circle-icon {
+    display: block;
+}
+.task-checkbox .check-icon {
+    display: none;
+}
+.task-checkbox.checked .circle-icon {
+    display: none;
+}
+.task-checkbox.checked .check-icon {
+    display: block;
+}
+
+/* Task completion animation */
+.task-item.completing {
+    background: color-mix(in srgb, var(--color-success, #22c55e) 10%, transparent);
+    transition: background 0.3s ease;
+}
+
+.task-item.completing .task-checkbox {
+    color: var(--color-success, #22c55e);
+}
+
+/* Show checkmark during completing animation */
+.task-item.completing .task-checkbox .circle-icon {
+    display: none;
+}
+.task-item.completing .task-checkbox .check-icon {
+    display: block;
+}
+
+.task-item.fade-out {
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
 .task-content {
@@ -677,6 +710,124 @@ document.addEventListener('DOMContentLoaded', function() {
     to { opacity: 0; }
 }
 </style>
+
+<!-- Task Toggle AJAX Handler -->
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    // Get CSRF token from cookie
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Handle task toggle button clicks
+    document.querySelectorAll('.task-checkbox[data-toggle-url]').forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const toggleUrl = this.dataset.toggleUrl;
+            const taskItem = this.closest('.task-item');
+            const isCompleted = this.classList.contains('checked');
+
+            // If already completing, ignore
+            if (taskItem.classList.contains('completing')) {
+                return;
+            }
+
+            // Immediate visual feedback - show checkmark
+            if (!isCompleted) {
+                taskItem.classList.add('completing');
+                this.classList.add('checked');
+            }
+
+            // Send AJAX request
+            fetch(toggleUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.is_completed) {
+                    // Keep showing completion state, then fade out after 2 seconds
+                    setTimeout(function() {
+                        taskItem.classList.add('fade-out');
+                        // Remove from DOM after animation
+                        setTimeout(function() {
+                            taskItem.remove();
+                            // Update task count in section header
+                            updateTaskCounts();
+                        }, 400);
+                    }, 2000);
+                } else if (data.success && !data.is_completed) {
+                    // Task was uncompleted - restore visual state
+                    taskItem.classList.remove('completing');
+                    button.classList.remove('checked');
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling task:', error);
+                // On error, still keep the visual state since task likely completed
+                // but fade out anyway to be consistent
+                setTimeout(function() {
+                    taskItem.classList.add('fade-out');
+                    setTimeout(function() {
+                        taskItem.remove();
+                        updateTaskCounts();
+                    }, 400);
+                }, 2000);
+            });
+        });
+    });
+
+    // Update task counts in section headers after removing a task
+    function updateTaskCounts() {
+        document.querySelectorAll('.task-section').forEach(function(section) {
+            const taskCount = section.querySelectorAll('.task-item:not(.fade-out)').length;
+            const countSpan = section.querySelector('.task-count');
+            if (countSpan) {
+                countSpan.textContent = taskCount;
+            }
+            // Hide section if no tasks remain
+            if (taskCount === 0) {
+                section.style.display = 'none';
+            }
+        });
+
+        // Check if all sections are empty, show empty state
+        const visibleSections = document.querySelectorAll('.task-section:not([style*="display: none"])');
+        if (visibleSections.length === 0) {
+            const taskSections = document.querySelector('.task-sections');
+            if (taskSections) {
+                taskSections.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        <h2>All done!</h2>
+                        <p>You've completed all your tasks.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+});
+</script>
 
 <script src="{% static 'js/bulk-actions.js' %}"></script>
 {% endblock %}

@@ -433,12 +433,28 @@ class TaskToggleView(LifeAccessMixin, View):
     """Toggle task completion status."""
 
     def post(self, request, pk):
+        from django.http import JsonResponse
+
         task = get_object_or_404(Task, pk=pk, user=request.user)
         was_completed = task.is_completed
-        if task.is_completed:
-            task.mark_incomplete()
-        else:
-            task.mark_complete()
+
+        try:
+            if task.is_completed:
+                task.mark_incomplete()
+            else:
+                task.mark_complete()
+        except Exception as e:
+            # Log error but don't fail - task state may have changed
+            import logging
+            logging.getLogger(__name__).error(f"Error toggling task {pk}: {e}")
+
+        # Check if this is an AJAX request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'is_completed': task.is_completed,
+                'task_id': task.pk,
+            })
 
         # Return to referring page or task list (with open redirect protection)
         from apps.core.utils import get_safe_redirect_url

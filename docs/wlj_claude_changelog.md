@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
+### Enable Parallel Task Execution
+
+**Summary:** `/next` now starts ALL tasks at the same phase+priority level, enabling parallel execution.
+
+**Changes:**
+- `apps/admin_console/views.py`: `ReadyTasksAPIView` now marks all tasks at top phase+priority as in_progress (not just first one). `auto_started` returns list of IDs instead of single ID.
+- `.claude/commands/next.md`: Updated to explain parallel task batching
+- `.claude/commands/run-task.md`: Updated to handle multiple in_progress tasks, auto-continue to next batch
+- `apps/admin_console/tests/test_admin_console.py`: Updated existing test, added new test for parallel task starting
+
+**Workflow:**
+- Phase 1, Priority 1: Tasks A, B → run in parallel
+- Phase 1, Priority 2: Task C → runs after A+B complete
+- Phase 2, Priority 1: Task D → runs after all Phase 1 complete
+
+---
+
 ### Add Behavior Rules to CLAUDE.md
 
 **Summary:** Added explicit behavior rules at top of CLAUDE.md so they're loaded automatically every session.

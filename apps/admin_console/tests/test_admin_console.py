@@ -3663,7 +3663,7 @@ class ReadyTasksAPITests(AdminTestMixin, TestCase):
 
     @override_settings(CLAUDE_API_KEY='test-api-key-12345')
     def test_auto_start_marks_first_task_in_progress(self):
-        """auto_start=true marks the first task as in_progress."""
+        """auto_start=true marks tasks at top phase+priority as in_progress."""
         from apps.admin_console.models import AdminTask
 
         # Delete existing ready task to isolate test
@@ -3697,12 +3697,92 @@ class ReadyTasksAPITests(AdminTestMixin, TestCase):
         self.assertEqual(response.status_code, 200)
 
         data = json.loads(response.content)
-        self.assertEqual(data['auto_started'], task.id)
+        # auto_started is now a list of task IDs
+        self.assertEqual(data['auto_started'], [task.id])
         self.assertEqual(data['tasks'][0]['status'], 'in_progress')
 
         # Verify the task was updated in the database
         task.refresh_from_db()
         self.assertEqual(task.status, 'in_progress')
+
+    @override_settings(CLAUDE_API_KEY='test-api-key-12345')
+    def test_auto_start_marks_parallel_tasks_in_progress(self):
+        """auto_start=true marks ALL tasks at same phase+priority as in_progress."""
+        from apps.admin_console.models import AdminTask
+
+        # Delete existing ready tasks to isolate test
+        AdminTask.objects.filter(status='ready').delete()
+
+        # Create multiple ready tasks at same phase+priority (should run in parallel)
+        AdminTask._skip_executable_validation = True
+        task1 = AdminTask.objects.create(
+            title='Parallel Task 1',
+            description={
+                'objective': 'Test objective 1',
+                'inputs': [],
+                'actions': ['Test action 1'],
+                'output': 'Test output 1'
+            },
+            category='feature',
+            status='ready',
+            priority=1,
+            effort='S',
+            phase=self.phase,
+            project=self.project,
+            created_by='human'
+        )
+        task2 = AdminTask.objects.create(
+            title='Parallel Task 2',
+            description={
+                'objective': 'Test objective 2',
+                'inputs': [],
+                'actions': ['Test action 2'],
+                'output': 'Test output 2'
+            },
+            category='feature',
+            status='ready',
+            priority=1,  # Same priority = parallel
+            effort='S',
+            phase=self.phase,  # Same phase
+            project=self.project,
+            created_by='human'
+        )
+        task3 = AdminTask.objects.create(
+            title='Sequential Task',
+            description={
+                'objective': 'Test objective 3',
+                'inputs': [],
+                'actions': ['Test action 3'],
+                'output': 'Test output 3'
+            },
+            category='feature',
+            status='ready',
+            priority=2,  # Different priority = sequential (after 1+2)
+            effort='S',
+            phase=self.phase,
+            project=self.project,
+            created_by='human'
+        )
+        AdminTask._skip_executable_validation = False
+
+        # Call with auto_start=true
+        response = self.client.get(
+            '/admin-console/api/claude/ready-tasks/?auto_start=true',
+            HTTP_X_CLAUDE_API_KEY='test-api-key-12345'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.content)
+        # Should have started task1 and task2 (same phase+priority), but not task3
+        self.assertEqual(set(data['auto_started']), {task1.id, task2.id})
+
+        # Verify tasks 1 and 2 are in_progress, task3 is still ready
+        task1.refresh_from_db()
+        task2.refresh_from_db()
+        task3.refresh_from_db()
+        self.assertEqual(task1.status, 'in_progress')
+        self.assertEqual(task2.status, 'in_progress')
+        self.assertEqual(task3.status, 'ready')
 
     @override_settings(CLAUDE_API_KEY='test-api-key-12345')
     def test_auto_start_without_tasks_returns_null(self):

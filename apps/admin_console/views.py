@@ -3257,18 +3257,28 @@ class ReadyTasksAPIView(APIRateLimitMixin, View):
             'id'  # Tie-breaker
         )[:limit])
 
-        # If auto_start is true and we have tasks, mark the first one as in_progress
-        started_task_id = None
+        # If auto_start is true and we have tasks, mark ALL tasks at the top
+        # phase+priority level as in_progress (enables parallel execution)
+        started_task_ids = []
         if auto_start and tasks:
-            first_task = tasks[0]
-            first_task.status = 'in_progress'
-            first_task.save(update_fields=['status'])
-            started_task_id = first_task.id
+            # Get the phase and priority of the first (highest priority) task
+            top_phase = tasks[0].phase_id
+            top_priority = tasks[0].priority
+
+            # Mark all tasks at this phase+priority as in_progress
+            for task in tasks:
+                if task.phase_id == top_phase and task.priority == top_priority:
+                    task.status = 'in_progress'
+                    task.save(update_fields=['status'])
+                    started_task_ids.append(task.id)
+                else:
+                    # Tasks are ordered, so once we hit a different phase/priority, stop
+                    break
 
         # Build response with full executable task structure
         result = {
             'count': len(tasks),
-            'auto_started': started_task_id,
+            'auto_started': started_task_ids if started_task_ids else None,
             'tasks': [
                 {
                     'id': task.id,

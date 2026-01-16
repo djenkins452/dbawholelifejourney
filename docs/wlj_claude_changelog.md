@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Fix WLJ Assistant "Approval Required" Email Link
+
+**Summary:** Fixed the feature request notification emails to include a clickable button that navigates directly to the task for review and approval.
+
+**Issue:** When the AI Assistant detected a feature request and created a task, the email notification only showed the task ID without a link to review it. Users had to manually navigate to the admin console.
+
+**Changes:**
+- `apps/ai/feature_request_service.py`:
+  - Added `task_url` field to `FeatureRequestInfo` dataclass
+  - Generate full URL to task edit page after task creation
+  - Use Django's `reverse()` to build the path
+  - Include `SITE_DOMAIN` setting for absolute URL
+
+- `templates/assistant/emails/feature_request.html`:
+  - Added prominent "Review Task #X" button with link to task edit page
+  - Button styled with indigo background matching app theme
+
+- `config/settings.py`:
+  - Added `SITE_DOMAIN` setting (defaults to https://wholelifejourney.com)
+
+**Result:** Feature request emails now include a "Review Task #X" button that navigates directly to the admin console task edit page.
+
+---
+
 ### Context Aware Help Update - Teaching Tool Expansion
 
 **Summary:** Expanded teaching destinations fixture with 28 new entries to cover all major app features, ensuring users can find any feature via the Teaching Tool.

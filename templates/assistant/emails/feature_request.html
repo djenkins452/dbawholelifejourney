@@ -71,6 +71,15 @@
         <li>If rejected, mark as "Done" or delete the task</li>
     </ul>
 </div>
+
+{% if request.task_url %}
+<p style="margin-top: 20px; text-align: center;">
+    <a href="{{ request.task_url }}"
+       style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">
+        Review Task #{{ request.task_id }}
+    </a>
+</p>
+{% endif %}
 {% else %}
 <div class="action-required">
     <strong>Action Required:</strong>

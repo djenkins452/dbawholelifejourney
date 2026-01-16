@@ -582,6 +582,9 @@ ADMINS = [
 ]
 
 
+# Site domain for email links and absolute URLs
+SITE_DOMAIN = env("SITE_DOMAIN", default="https://wholelifejourney.com")
+
 # CSRF Trusted Origins - must be set for both production and development
 # Django 4.0+ requires this for HTTPS requests
 CSRF_TRUSTED_ORIGINS = [

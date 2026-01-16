@@ -38,6 +38,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,7 @@ class FeatureRequestInfo:
     task_id: Optional[int] = None  # ID of the created AdminTask
     task_title: Optional[str] = None  # Generated task title
     task_description: Optional[dict] = None  # Implementation details
+    task_url: Optional[str] = None  # Full URL to view/edit the task
 
 
 class FeatureRequestService:
@@ -501,6 +503,17 @@ class FeatureRequestService:
         # Create AdminTask in "New Requests" project
         task_id = self._create_admin_task(request_info)
         request_info.task_id = task_id
+
+        # Generate task URL if task was created
+        if task_id:
+            try:
+                # Build the full URL to the task edit page
+                task_path = reverse('admin_console:admin_task_update', kwargs={'pk': task_id})
+                # Get the site domain from settings or use default
+                site_domain = getattr(settings, 'SITE_DOMAIN', 'https://wholelifejourney.com')
+                request_info.task_url = f"{site_domain}{task_path}"
+            except Exception as e:
+                logger.warning(f"Failed to generate task URL: {e}")
 
         # Send email notification (even if task creation failed)
         email_sent = self._send_notification(request_info)

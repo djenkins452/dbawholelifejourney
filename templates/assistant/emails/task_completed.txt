@@ -1,4 +1,4 @@
-WLJ Personal Assistant - Task Completed
+{% autoescape off %}WLJ Personal Assistant - Task Completed
 =======================================
 
 {{ message }}
@@ -24,3 +24,4 @@ All changes have been committed and are now live.
 --
 Sent to: {{ admin_email }}
 Timestamp: {{ timestamp }}
+{% endautoescape %}

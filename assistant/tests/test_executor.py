@@ -182,6 +182,9 @@ class TestImprovementExecutorExecution(TestCase):
             errors=["AssertionError: Expected 1, got 2"]
         )
 
+        # Set test_template so tests actually run
+        self.task.test_template = "def test_something(): assert False"
+
         result = self.executor.execute_task(self.task)
 
         # Verify failure and rollback

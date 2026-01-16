@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Fix Failing Tests in Assistant App
+
+**Summary:** Fixed 8 failing tests in assistant module related to executor, notifications, and file modifier.
+
+**Issues Fixed:**
+1. **test_is_safe_rejects_medium_severity / test_is_safe_rejects_high_severity**: Updated `is_safe_for_autonomous()` to output severity in uppercase (e.g., "MEDIUM", "HIGH") to match test expectations.
+
+2. **test_execute_task_test_failure_triggers_rollback**: Added `test_template` to the test task so that tests actually run and can fail, triggering the rollback.
+
+3. **test_rejects_from_imports**: Fixed the regex pattern for detecting `from X import` statements to handle dotted module names (e.g., `from django.db import models`). Changed `\w+` to `[\w.]+`.
+
+4. **test_includes_changes_preview / test_includes_changes_list / test_includes_git_diff**: Added `{% autoescape off %}` to plain text email templates to prevent HTML entity escaping of apostrophes and other special characters.
+
+5. **test_invalid_syntax_rollback**: Fixed case sensitivity issue - changed assertion from `'invalid Python'` to `'invalid python'` when comparing against `.lower()` result.
+
+6. **Template syntax error**: Fixed malformed template structure in `approval_required.txt` where `{% endif %}` tags were incorrectly nested.
+
+**Files Modified:**
+- `assistant/executor.py` - Line 616: uppercase severity output; Line 523: fixed from-import regex pattern
+- `assistant/tests/test_executor.py` - Line 186: added test_template to trigger test execution
+- `assistant/tests/test_file_modifier.py` - Line 346: fixed case sensitivity in assertion
+- `templates/assistant/emails/approval_required.txt` - Added autoescape, fixed template structure
+- `templates/assistant/emails/auto_improvement.txt` - Added autoescape
+- `templates/assistant/emails/task_completed.txt` - Added autoescape
+
+**Tests:** All 97 tests in the three test files now pass.
+
+---
+
 ### Email Intake Service for Task Creation
 
 **Summary:** Added automated email-to-task pipeline that polls IMAP for emails and creates AdminTasks.

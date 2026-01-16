@@ -520,7 +520,7 @@ ALLOWED_FILES = [
 # Dangerous patterns that should not be auto-executed
 DANGEROUS_PATTERNS = [
     r'^\s*import\s+',           # Import statements
-    r'^\s*from\s+\w+\s+import', # From imports
+    r'^\s*from\s+[\w.]+\s+import', # From imports (handles dotted module names like django.db)
     r'^\s*class\s+\w+',         # Class definitions
     r'\.objects\.',             # Django ORM queries
     r'\.save\s*\(',             # Database save calls
@@ -613,7 +613,7 @@ class AutonomousExecutor(ImprovementExecutor):
         """
         # Check severity
         if task.severity != ImprovementTaskModel.SEVERITY_LOW:
-            return (False, f"Task severity is {task.severity}, only LOW severity tasks allowed")
+            return (False, f"Task severity is {task.severity.upper()}, only LOW severity tasks allowed")
 
         # Parse code_template to get target file
         if task.code_template:

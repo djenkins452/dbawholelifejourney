@@ -24,10 +24,11 @@ If multiple tasks are in_progress at the same phase+priority:
 ## Run Task Mode Execution (per task)
 
 1. **Validate** task has: objective, inputs, actions, output
-2. **Gather inputs** - read any files mentioned
-3. **Execute actions** - in order, exactly as written
-4. **Run tests** if code was changed: `python manage.py test`
-5. **Verify output** criteria is met
+2. **Check for attachment** - if task has `attachment_url`, use the Read tool to view the image
+3. **Gather inputs** - read any files mentioned
+4. **Execute actions** - in order, exactly as written
+5. **Run tests** if code was changed: `python manage.py test`
+6. **Verify output** criteria is met
 
 ## On Failure
 

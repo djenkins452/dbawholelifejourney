@@ -16,15 +16,16 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-15 Changes
 
-### Add Claude Code Cheat Sheet and Local Preferences
+### Add Behavior Rules to CLAUDE.md
 
-**Summary:** Created documentation to improve Claude Code workflow efficiency.
+**Summary:** Added explicit behavior rules at top of CLAUDE.md so they're loaded automatically every session.
 
-**Files Added:**
-- `Cheat_Sheet.md`: Quick reference for slash commands, communication patterns, project-specific workflows, and advanced features
-- `CLAUDE.local.md`: User preferences for session behavior - auto-read CLAUDE.md, skip redundant permission requests, execute standard deploy workflow without asking
+**Changes:**
+- Added "BEHAVIOR RULES" section to CLAUDE.md with permission handling and communication style preferences
+- Removed `CLAUDE.local.md` (merged into CLAUDE.md)
+- Added `Cheat_Sheet.md` for quick reference
 
-**Why:** User training session identified friction points in Claude Code interactions. These files codify preferences and provide reference material.
+**Why:** User shouldn't have to repeat preferences each session. Rules in CLAUDE.md are auto-loaded.
 
 ---
 

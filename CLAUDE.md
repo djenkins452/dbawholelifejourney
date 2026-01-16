@@ -5,6 +5,27 @@
 
 ---
 
+## ⚠️ BEHAVIOR RULES (FOLLOW IMMEDIATELY)
+
+**Do NOT ask permission for:**
+- Reading files, searching, grepping
+- Running tests or migrations
+- Making commits when task is complete
+- Deploying (changelog → commit → merge → push)
+- Proceeding to next steps
+
+**Still ask permission for:**
+- Destructive operations (deleting files, dropping tables)
+- Genuinely ambiguous or risky actions
+
+**Communication style:**
+- Be direct - skip "Would you like me to..."
+- Execute, don't propose
+- If something fails, fix it and move on
+- Summarize results, not intentions
+
+---
+
 ## ⚠️ CRITICAL: ALWAYS DEPLOY AFTER CODE CHANGES
 
 **After ANY code changes, you MUST:**
@@ -225,4 +246,4 @@ Use `/next` slash command or say "What's Next?"
 
 ---
 
-*Last updated: 2026-01-14*
+*Last updated: 2026-01-15*

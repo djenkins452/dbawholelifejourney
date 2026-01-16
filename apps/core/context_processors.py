@@ -111,7 +111,7 @@ def theme_context(request):
             try:
                 from apps.health.models import CycleSettings
                 cycle_settings = CycleSettings.objects.filter(
-                    user=request.user, is_active=True
+                    user=request.user, status='active'
                 ).first()
                 context['cycle_tracking_enabled'] = (
                     cycle_settings.cycle_tracking_enabled if cycle_settings else False

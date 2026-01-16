@@ -281,7 +281,7 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             from .models import CycleSettings, CycleDailyLog, Cycle
 
             cycle_settings = CycleSettings.objects.filter(
-                user=user, is_active=True, cycle_tracking_enabled=True
+                user=user, status='active', cycle_tracking_enabled=True
             ).first()
 
             if cycle_settings:

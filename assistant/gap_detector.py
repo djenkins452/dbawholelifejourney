@@ -62,6 +62,80 @@ STOP_WORDS = {
     'their', 'theirs', 'any', 'both', 'each', 'much', 'many', 'out',
 }
 
+# Contraction fragments - words that result from splitting contractions
+# e.g., "didn't" -> "didn", "wouldn't" -> "wouldn"
+CONTRACTION_FRAGMENTS = {
+    'didn', 'doesn', 'don', 'won', 'wouldn', 'couldn', 'shouldn', 'wasn',
+    'weren', 'isn', 'aren', 'hasn', 'haven', 'hadn', 'ain', 'can', 'shan',
+    'mustn', 'needn', 'oughtn', 'mightn', 'daren', 'll', 've', 're', 'd',
+}
+
+# Common conversational words that are never data types
+# These are pronouns, quantifiers, and abstract words that appear in everyday speech
+CONVERSATIONAL_WORDS = {
+    # Pronouns and determiners
+    'everything', 'something', 'nothing', 'anything',
+    'everyone', 'someone', 'anyone', 'noone', 'nobody', 'somebody', 'everybody',
+    'somewhere', 'anywhere', 'nowhere', 'everywhere',
+    'sometime', 'anytime',
+    # Common abstract words
+    'thing', 'things', 'stuff', 'way', 'ways', 'place', 'places',
+    'time', 'times', 'day', 'days', 'week', 'weeks', 'month', 'months',
+    'year', 'years', 'today', 'yesterday', 'tomorrow',
+    # Common verbs that might get extracted
+    'want', 'wanted', 'wanting', 'like', 'liked', 'liking',
+    'think', 'thought', 'thinking', 'know', 'knew', 'knowing',
+    'make', 'made', 'making', 'take', 'took', 'taking',
+    'get', 'got', 'getting', 'put', 'putting',
+    'say', 'said', 'saying', 'tell', 'told', 'telling',
+    'ask', 'asked', 'asking', 'use', 'used', 'using',
+    'find', 'found', 'finding', 'give', 'gave', 'giving',
+    'work', 'worked', 'working', 'seem', 'seemed', 'seeming',
+    'feel', 'felt', 'feeling', 'try', 'tried', 'trying',
+    'leave', 'left', 'leaving', 'call', 'called', 'calling',
+    'keep', 'kept', 'keeping', 'let', 'letting',
+    'begin', 'began', 'beginning', 'help', 'helped', 'helping',
+    'show', 'showed', 'showing', 'hear', 'heard', 'hearing',
+    'play', 'played', 'playing', 'run', 'ran', 'running',
+    'move', 'moved', 'moving', 'live', 'lived', 'living',
+    'believe', 'believed', 'believing', 'bring', 'brought', 'bringing',
+    'happen', 'happened', 'happening', 'write', 'wrote', 'writing',
+    'provide', 'provided', 'providing', 'sit', 'sat', 'sitting',
+    'stand', 'stood', 'standing', 'lose', 'lost', 'losing',
+    'pay', 'paid', 'paying', 'meet', 'met', 'meeting',
+    'include', 'included', 'including', 'continue', 'continued', 'continuing',
+    'set', 'setting', 'learn', 'learned', 'learning',
+    'change', 'changed', 'changing', 'lead', 'led', 'leading',
+    'understand', 'understood', 'understanding',
+    'watch', 'watched', 'watching', 'follow', 'followed', 'following',
+    'stop', 'stopped', 'stopping', 'create', 'created', 'creating',
+    'speak', 'spoke', 'speaking', 'read', 'reading',
+    'allow', 'allowed', 'allowing', 'add', 'added', 'adding',
+    'spend', 'spent', 'spending', 'grow', 'grew', 'growing',
+    'open', 'opened', 'opening', 'walk', 'walked', 'walking',
+    'win', 'winning', 'offer', 'offered', 'offering',
+    'remember', 'remembered', 'remembering', 'love', 'loved', 'loving',
+    'consider', 'considered', 'considering', 'appear', 'appeared', 'appearing',
+    'buy', 'bought', 'buying', 'wait', 'waited', 'waiting',
+    'serve', 'served', 'serving', 'die', 'died', 'dying',
+    'send', 'sent', 'sending', 'expect', 'expected', 'expecting',
+    'build', 'built', 'building', 'stay', 'stayed', 'staying',
+    'fall', 'fell', 'falling', 'cut', 'cutting',
+    'reach', 'reached', 'reaching', 'kill', 'killed', 'killing',
+    'remain', 'remained', 'remaining',
+    # Common adjectives
+    'good', 'better', 'best', 'bad', 'worse', 'worst',
+    'new', 'old', 'young', 'long', 'short', 'big', 'small',
+    'high', 'low', 'great', 'little', 'large', 'right', 'wrong',
+    'different', 'important', 'sure', 'real', 'true', 'false',
+    'possible', 'able', 'late', 'early', 'hard', 'easy',
+    'whole', 'full', 'empty', 'ready', 'clear', 'certain',
+    'fine', 'free', 'strong', 'special', 'open', 'close',
+    # Discourse markers and fillers
+    'well', 'now', 'also', 'still', 'even', 'back', 'yes', 'yeah', 'okay',
+    'please', 'thanks', 'thank', 'sorry', 'hello', 'hey', 'hi',
+}
+
 # Query pattern keywords we currently support
 SUPPORTED_QUERY_PATTERNS = [
     'what', 'how', 'when', 'show', 'tell', 'list', 'get', 'find',
@@ -280,11 +354,14 @@ def extract_potential_keywords(query: str) -> List[str]:
     import re
     words = re.findall(r'\b[a-z]+\b', query_lower)
 
-    # Filter out stop words and very short words
+    # Filter out stop words, contraction fragments, conversational words,
+    # and words that are too short (minimum 4 characters to be a data type)
     candidates = [
         word for word in words
         if word not in STOP_WORDS
-        and len(word) >= 3
+        and word not in CONTRACTION_FRAGMENTS
+        and word not in CONVERSATIONAL_WORDS
+        and len(word) >= 4  # Increased from 3 to 4 to reduce noise
         and not word.isdigit()
     ]
 

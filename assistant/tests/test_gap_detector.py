@@ -12,6 +12,8 @@ from datetime import datetime
 from unittest.mock import patch
 
 from assistant.gap_detector import (
+    CONTRACTION_FRAGMENTS,
+    CONVERSATIONAL_WORDS,
     DATA_TYPES_WITH_METHODS,
     GapSeverity,
     GapType,
@@ -321,10 +323,12 @@ class TestExtractPotentialKeywords(unittest.TestCase):
             self.assertLess(result.index('caffeine'), result.index('high'))
 
     def test_filters_short_words(self):
-        """Should filter out words shorter than 3 characters."""
-        result = extract_potential_keywords("my ox is ok")
-        self.assertNotIn('ox', result)
-        self.assertNotIn('ok', result)
+        """Should filter out words shorter than 4 characters."""
+        result = extract_potential_keywords("my cat is fat and the dog ran")
+        self.assertNotIn('cat', result)
+        self.assertNotIn('fat', result)
+        self.assertNotIn('dog', result)
+        self.assertNotIn('ran', result)
 
     def test_returns_unique_words(self):
         """Should not return duplicate words."""
@@ -387,6 +391,117 @@ class TestSupportedQueryPatterns(unittest.TestCase):
         expected = ['what', 'how', 'when', 'show']
         for word in expected:
             self.assertIn(word, SUPPORTED_QUERY_PATTERNS)
+
+
+class TestContractionFragments(unittest.TestCase):
+    """Tests for CONTRACTION_FRAGMENTS constant and filtering."""
+
+    def test_contraction_fragments_is_set(self):
+        """CONTRACTION_FRAGMENTS should be a set for O(1) lookup."""
+        self.assertIsInstance(CONTRACTION_FRAGMENTS, set)
+
+    def test_contains_common_contraction_fragments(self):
+        """Should contain common contraction fragments."""
+        expected = ['didn', 'doesn', 'don', 'wouldn', 'couldn', 'shouldn',
+                    'wasn', 'weren', 'isn', 'aren', 'hasn', 'haven', 'hadn']
+        for word in expected:
+            self.assertIn(word, CONTRACTION_FRAGMENTS)
+
+    def test_filters_didnt_fragment(self):
+        """Should filter 'didn' from 'didn't'."""
+        result = extract_potential_keywords("I didn't log my hydration today")
+        self.assertNotIn('didn', result)
+        self.assertIn('hydration', result)
+
+    def test_filters_wouldnt_fragment(self):
+        """Should filter 'wouldn' from 'wouldn't'."""
+        result = extract_potential_keywords("I wouldn't want to miss logging")
+        self.assertNotIn('wouldn', result)
+
+    def test_filters_couldnt_fragment(self):
+        """Should filter 'couldn' from 'couldn't'."""
+        result = extract_potential_keywords("I couldn't remember my meditation time")
+        self.assertNotIn('couldn', result)
+        self.assertIn('meditation', result)
+
+
+class TestConversationalWords(unittest.TestCase):
+    """Tests for CONVERSATIONAL_WORDS constant and filtering."""
+
+    def test_conversational_words_is_set(self):
+        """CONVERSATIONAL_WORDS should be a set for O(1) lookup."""
+        self.assertIsInstance(CONVERSATIONAL_WORDS, set)
+
+    def test_contains_everything_variants(self):
+        """Should contain 'everything' and similar words."""
+        expected = ['everything', 'something', 'nothing', 'anything',
+                    'everyone', 'someone', 'anyone', 'nobody', 'somebody']
+        for word in expected:
+            self.assertIn(word, CONVERSATIONAL_WORDS)
+
+    def test_filters_everything(self):
+        """Should filter 'everything' as a conversational word."""
+        result = extract_potential_keywords("Make sure everything looks like you want")
+        self.assertNotIn('everything', result)
+
+    def test_filters_something(self):
+        """Should filter 'something' as a conversational word."""
+        result = extract_potential_keywords("I want to track something about hydration")
+        self.assertNotIn('something', result)
+        self.assertIn('hydration', result)
+
+    def test_filters_common_verbs(self):
+        """Should filter common verbs like 'want', 'think', 'know'."""
+        result = extract_potential_keywords("I want to know about my meditation")
+        self.assertNotIn('want', result)
+        self.assertNotIn('know', result)
+        self.assertIn('meditation', result)
+
+
+class TestFalsePositivePatterns(unittest.TestCase):
+    """Tests for known false positive patterns that should be filtered."""
+
+    def test_didnt_is_not_data_type(self):
+        """'didn' from 'didn't' should never be flagged as a data type."""
+        # This was a real false positive case
+        result = extract_potential_keywords("I didn't log my weight today")
+        self.assertNotIn('didn', result)
+
+    def test_everything_is_not_data_type(self):
+        """'everything' should never be flagged as a data type."""
+        # This was a real false positive case
+        result = extract_potential_keywords(
+            "Wrong, you should have told me to go to preferences and make sure "
+            "everything looks like you want it to"
+        )
+        self.assertNotIn('everything', result)
+
+    def test_conversational_feedback_no_false_positives(self):
+        """Conversational feedback should not extract false data types."""
+        # User giving feedback about the app, not requesting data tracking
+        result = extract_potential_keywords(
+            "That's not what I wanted. You should have shown me something different."
+        )
+        self.assertNotIn('wanted', result)
+        self.assertNotIn('something', result)
+        self.assertNotIn('different', result)
+
+    def test_real_data_types_still_extracted(self):
+        """Real potential data types should still be extracted."""
+        result = extract_potential_keywords("What was my hydration level yesterday?")
+        self.assertIn('hydration', result)
+
+    def test_caffeine_still_extracted(self):
+        """Domain-relevant words like 'caffeine' should still be extracted."""
+        result = extract_potential_keywords("How much caffeine did I have today?")
+        self.assertIn('caffeine', result)
+
+    def test_minimum_length_filters_short_words(self):
+        """Words with fewer than 4 characters should be filtered."""
+        result = extract_potential_keywords("my cat ate the bat")
+        self.assertNotIn('cat', result)
+        self.assertNotIn('ate', result)
+        self.assertNotIn('bat', result)
 
 
 class TestIntegrationScenarios(unittest.TestCase):

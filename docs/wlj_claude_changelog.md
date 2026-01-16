@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Reduce False Positives in Gap Detector
+
+**Summary:** Added filters to prevent the gap detector from flagging conversational phrases as potential data types.
+
+**Issue:** The gap detector was incorrectly flagging words like "didn" (from "didn't") and "everything" as potential new data types, generating false "Approval Required" emails.
+
+**Root Cause:** The `extract_potential_keywords()` function in `gap_detector.py` was extracting words too aggressively without filtering out:
+- Contraction fragments (didn, wouldn, couldn, etc.)
+- Common conversational words (everything, something, nothing, etc.)
+
+**Fix:** Added three new filters to `gap_detector.py`:
+1. `CONTRACTION_FRAGMENTS` - Set of 29 words that result from splitting contractions
+2. `CONVERSATIONAL_WORDS` - Set of ~200 common words that are never data types (pronouns, verbs, adjectives, discourse markers)
+3. Increased minimum word length from 3 to 4 characters
+
+**Files Changed:**
+- `assistant/gap_detector.py` - Added CONTRACTION_FRAGMENTS and CONVERSATIONAL_WORDS constants, updated extract_potential_keywords() to filter them
+- `assistant/tests/test_gap_detector.py` - Added 3 new test classes with 18 test cases for false positive patterns
+
+**Test Results:** All 56 gap detector tests pass.
+
+---
+
 ### Fix Data Visibility Check for Invalid Data Types
 
 **Summary:** Added validation to prevent false "DATA VISIBILITY ISSUE" alerts when the data type is a placeholder like "ambiguous".

@@ -16,6 +16,36 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Improve Password Reset Email Templates to Reduce Spam Detection
+
+**Summary:** Created custom django-allauth email templates for password reset and "unknown account" notifications to reduce spam filter blocking.
+
+**Issue:** An email sent to mark57a@ptd.net was blocked by mx.ptd.net with error "554 5.7.1 Message blocked due to spam content in the message". The email had subject "[Whole Life Journey] Unknown Account" - the default django-allauth template for password reset requests when the email doesn't exist.
+
+**Root Cause Analysis:**
+- `ACCOUNT_PREVENT_ENUMERATION = True` setting causes django-allauth to send "unknown account" emails when password reset is requested for non-existent emails
+- Default allauth templates have minimal content that can look automated/spammy:
+  - Short subject line: "Unknown Account"
+  - Brief message body without proper branding
+  - Generic phrasing like "you, or someone else" resembles phishing
+
+**Solution:** Created custom email templates with:
+- Professional subject lines: "Password Reset Request - Whole Life Journey"
+- Proper greeting and clear explanations
+- Branded footer with website URL
+- "This is an automated message" disclaimer
+- Consistent formatting across all password reset emails
+
+**Files Created:**
+- `templates/account/email/unknown_account_subject.txt` - Custom subject for unknown account emails
+- `templates/account/email/unknown_account_message.txt` - Custom body for unknown account emails
+- `templates/account/email/password_reset_key_subject.txt` - Custom subject for password reset emails
+- `templates/account/email/password_reset_key_message.txt` - Custom body for password reset emails
+
+**Note:** We cannot guarantee emails won't be spam-filtered (that depends on recipient server settings, SPF/DKIM alignment, sender reputation, etc.), but these changes follow email best practices to reduce false positive spam detection.
+
+---
+
 ### Add Delete Functionality for Completed Reading Plans
 
 **Summary:** Added ability to delete completed Bible reading plans from the reading plans listing page.

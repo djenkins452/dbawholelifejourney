@@ -1,0 +1,17 @@
+Hello,
+
+We received a password reset request for this email address ({{ email }}) on Whole Life Journey.
+
+However, we don't have an account registered with this email address. If you previously signed up with a different email, please try the password reset with that email instead.
+
+If you'd like to create a new account, you can sign up here:
+{{ signup_url }}
+
+If you did not request this password reset, you can safely ignore this email. No action is needed on your part.
+
+---
+Whole Life Journey
+Your personal wellness companion
+https://wholelifejourney.com
+
+This is an automated message. Please do not reply directly to this email.

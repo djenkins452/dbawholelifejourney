@@ -267,12 +267,14 @@ class RecurrenceService:
 
         # Check if a task with the same title and due_date already exists
         # This prevents duplicates when users toggle complete/incomplete multiple times
+        # Note: SoftDeleteManager already filters out deleted records, but we use
+        # deleted_at__isnull=True explicitly to ensure we check non-deleted records
         existing_task = Task.objects.filter(
             user=task.user,
             title=task.title,
             due_date=next_date,
             is_recurring=True,
-            is_deleted=False,
+            deleted_at__isnull=True,
         ).first()
 
         if existing_task:

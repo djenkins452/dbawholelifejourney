@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Fix Recurring Task FieldError - is_deleted
+
+**Summary:** Fixed `FieldError: Cannot resolve keyword 'is_deleted'` in recurring task processing.
+
+**Issue:** The `process_recurring_tasks` command was failing with:
+```
+FieldError: Cannot resolve keyword 'is_deleted' into field.
+Choices are: completed_at, created_at, ... deleted_at, ...
+```
+
+**Root Cause:** The `recurrence.py` service was using `is_deleted=False` but the Task model uses `deleted_at` field for soft deletes.
+
+**Fix:** Changed `is_deleted=False` to `deleted_at__isnull=True` in `apps/life/services/recurrence.py` line 275.
+
+---
+
 ### Fix WLJ Assistant Approval Email Links (Both Systems)
 
 **Summary:** Fixed email links for BOTH approval notification systems - the ImprovementTask gap detection system AND the Feature Request system.

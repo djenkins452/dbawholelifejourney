@@ -16,27 +16,41 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
-### Fix WLJ Assistant "Approval Required" Email Link
+### Fix WLJ Assistant Approval Email Links (Both Systems)
 
-**Summary:** Fixed the feature request notification emails to include a clickable button that navigates directly to the task for review and approval.
+**Summary:** Fixed email links for BOTH approval notification systems - the ImprovementTask gap detection system AND the Feature Request system.
 
-**Issue:** When the AI Assistant detected a feature request and created a task, the email notification only showed the task ID without a link to review it. Users had to manually navigate to the admin console.
+**Issue #1 - ImprovementTask Approval Emails:**
+- "[WLJ Assistant] Approval Required" emails had non-functional links
+- The approval URL was `/assistant/admin/tasks/<id>/` which doesn't exist
+- Users received emails but couldn't click through to review tasks
+
+**Issue #2 - Feature Request Emails:**
+- "[WLJ Assistant] Feature Request" emails showed task ID but no clickable link
+- Users had to manually navigate to admin console
 
 **Changes:**
-- `apps/ai/feature_request_service.py`:
-  - Added `task_url` field to `FeatureRequestInfo` dataclass
-  - Generate full URL to task edit page after task creation
-  - Use Django's `reverse()` to build the path
-  - Include `SITE_DOMAIN` setting for absolute URL
 
-- `templates/assistant/emails/feature_request.html`:
-  - Added prominent "Review Task #X" button with link to task edit page
-  - Button styled with indigo background matching app theme
+1. `assistant/views.py`:
+   - Fixed `_send_approval_notification()` to generate proper approval token
+   - Build correct URL: `/assistant/admin/approve/<uuid>/<token>/`
+   - Uses `SITE_DOMAIN` setting for absolute URL
 
-- `config/settings.py`:
-  - Added `SITE_DOMAIN` setting (defaults to https://wholelifejourney.com)
+2. `apps/ai/feature_request_service.py`:
+   - Added `task_url` field to `FeatureRequestInfo` dataclass
+   - Generate full URL to task edit page after task creation
+   - Improved task creation robustness with validation safeguards
 
-**Result:** Feature request emails now include a "Review Task #X" button that navigates directly to the admin console task edit page.
+3. `templates/assistant/emails/feature_request.html`:
+   - Added prominent "Review Task #X" button with clickable link
+   - Button styled with indigo background matching app theme
+
+4. `config/settings.py`:
+   - Added `SITE_DOMAIN` setting (defaults to https://wholelifejourney.com)
+
+**Result:** Both email systems now have working approval/review links:
+- ImprovementTask emails link to `/assistant/admin/approve/<uuid>/<token>/`
+- Feature Request emails link to `/admin-console/projects/tasks/<id>/edit/`
 
 ---
 

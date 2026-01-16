@@ -11,6 +11,8 @@ when the assistant encounters knowledge gaps.
 import logging
 from typing import Any, Dict, Optional
 
+from django.conf import settings
+
 from .context_builder import build_personal_context
 from .data_service import PersonalDataService
 from .date_parser import extract_date_from_message
@@ -363,8 +365,10 @@ def _send_approval_notification(
             original_query=task_model.original_query,
         )
 
-        # Generate approval URL (will be implemented in admin views)
-        approval_url = f"/assistant/admin/tasks/{task_model.id}/"
+        # Generate approval token and create URL
+        approval_token = task_model.generate_approval_token()
+        site_domain = getattr(settings, 'SITE_DOMAIN', 'https://wholelifejourney.com')
+        approval_url = f"{site_domain}/assistant/admin/approve/{task_model.id}/{approval_token}/"
 
         notification_service.notify_approval_required(
             task=task_info,

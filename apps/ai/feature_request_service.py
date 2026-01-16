@@ -387,13 +387,19 @@ class FeatureRequestService:
                         logger.info(f"Using first available phase: {phase.id} - {phase.name}")
                     else:
                         # Create Phase 1 if no phases exist at all
-                        phase = AdminProjectPhase.objects.create(
+                        # Use get_or_create to handle race conditions
+                        phase, created = AdminProjectPhase.objects.get_or_create(
                             phase_number=1,
-                            name='Phase 1',
-                            objective='Initial phase for new requests and tasks',
-                            status='in_progress',
+                            defaults={
+                                'name': 'Phase 1',
+                                'objective': 'Initial phase for new requests and tasks',
+                                'status': 'in_progress',
+                            }
                         )
-                        logger.info("Created Phase 1 for feature requests")
+                        if created:
+                            logger.info("Created Phase 1 for feature requests")
+                        else:
+                            logger.info(f"Found existing Phase 1: {phase.id}")
             except Exception as e:
                 logger.error(f"Failed to get/create phase: {e}\n{traceback.format_exc()}")
                 raise
@@ -407,8 +413,33 @@ class FeatureRequestService:
 
             # Create the task
             try:
+                # Sanitize the title - truncate if too long and strip any problematic chars
+                safe_title = title[:200] if title else "Feature Request"
+
+                # Ensure description is a proper dict with all required fields
+                if not isinstance(description, dict):
+                    logger.error(f"Description is not a dict: {type(description)}")
+                    description = {
+                        "objective": str(description) if description else "Review user request",
+                        "inputs": [f"User request: {request_info.message[:500]}"],
+                        "actions": ["Review and implement the user's feature request"],
+                        "output": "Implemented feature as requested"
+                    }
+
+                # Verify all required fields exist
+                required_fields = ['objective', 'inputs', 'actions', 'output']
+                for field in required_fields:
+                    if field not in description:
+                        logger.warning(f"Missing field '{field}' in description, adding default")
+                        if field == 'inputs':
+                            description[field] = [f"User request: {request_info.message[:500]}"]
+                        elif field == 'actions':
+                            description[field] = ["Review and implement the user's feature request"]
+                        else:
+                            description[field] = f"Review user request: {safe_title}"
+
                 task = AdminTask(
-                    title=title,
+                    title=safe_title,
                     description=description,
                     category='feature',
                     priority=3,  # Medium-high priority

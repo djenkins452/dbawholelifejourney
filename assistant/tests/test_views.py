@@ -307,17 +307,28 @@ class TestProcessAssistantMessageDateExtraction(unittest.TestCase):
 class TestProcessAssistantMessageUnsupportedDataTypes(unittest.TestCase):
     """Tests for queries with unsupported data types."""
 
+    @patch('assistant.views.detect_knowledge_gap')
     @patch('assistant.views.PersonalDataService')
-    def test_filters_unsupported_data_types(self, mock_service_class):
-        """Should filter out unsupported data types before querying."""
+    def test_filters_unsupported_data_types(self, mock_service_class, mock_detect_gap):
+        """Should filter out unsupported data types before querying.
+
+        Note: This test uses a message that detects as personal but has no
+        supported data types. 'mood' is now a supported type, so we use a
+        message that might trigger intent detection but doesn't map to any
+        implemented data method.
+        """
         from assistant.views import process_assistant_message
 
         mock_service = MagicMock()
         mock_service.query_by_intent.return_value = None
         mock_service_class.return_value = mock_service
 
+        # Mock gap detection to not create tasks
+        mock_detect_gap.return_value = {'gap_detected': False}
+
         user = MagicMock()
-        # 'mood' is detected but not supported yet
+        # 'mood' IS now supported (in views.py supported_types list),
+        # so this test should verify that query_by_intent IS called
         message = "How has my mood been lately?"
         base_prompt = "Assistant."
 
@@ -327,9 +338,8 @@ class TestProcessAssistantMessageUnsupportedDataTypes(unittest.TestCase):
         self.assertTrue(result['is_personal_query'])
         self.assertIn('mood', result['data_types'])
 
-        # But query_by_intent should not be called since mood is unsupported
-        # (no supported types to query)
-        self.assertFalse(mock_service.query_by_intent.called)
+        # query_by_intent SHOULD be called since mood is now a supported type
+        self.assertTrue(mock_service.query_by_intent.called)
 
 
 class TestProcessAssistantMessageServiceInitialization(unittest.TestCase):

@@ -14,6 +14,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-16 Changes
+
+### Context Aware Help Update - Teaching Tool Expansion
+
+**Summary:** Expanded teaching destinations fixture with 28 new entries to cover all major app features, ensuring users can find any feature via the Teaching Tool.
+
+**Changes:**
+- `apps/help/fixtures/teaching_destinations.json`:
+  - Added entries 28-55 covering previously missing features:
+  - **Scan:** Camera scan (food recognition, barcode)
+  - **Finance:** Dashboard, budgets, savings goals
+  - **Life/Organize:** Inventory, pets, documents, significant events, maintenance logs
+  - **Health:** Blood pressure, heart rate, steps, blood oxygen, medical providers, workout templates, personal records, quick log
+  - **Faith:** Daily verse, saved scripture, milestones, study tools
+  - **Purpose/Goals:** Annual direction, intentions, reflections
+  - **Core:** What's New, journal prompts, SMS history, billing/subscription
+
+**Total destinations:** Increased from 27 to 55
+
+**Load command:** `python manage.py loaddata teaching_destinations`
+
+---
+
 ## 2026-01-15 Changes
 
 ### Integrate FatSecret Premier Features (Barcode + Image Recognition)

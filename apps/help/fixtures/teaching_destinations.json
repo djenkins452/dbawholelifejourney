@@ -457,5 +457,481 @@
             "created_at": "2026-01-15T00:00:00Z",
             "updated_at": "2026-01-15T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 28,
+        "fields": {
+            "destination_id": "scan-camera",
+            "name": "Camera Scan",
+            "path_description": "Scan",
+            "explanation": "Use your camera to scan food, medicine, products, and more. AI identifies items and suggests actions like logging nutrition.",
+            "url": "/scan/",
+            "keywords": "scan, camera, barcode, food scan, medicine scan, take photo, photograph, identify, ai scan, food recognition",
+            "module": "scan",
+            "sort_order": 28,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 29,
+        "fields": {
+            "destination_id": "finance-dashboard",
+            "name": "Finance Dashboard",
+            "path_description": "Finance",
+            "explanation": "Track your finances, bank accounts, transactions, budgets, and savings goals.",
+            "url": "/finance/",
+            "keywords": "finance, money, budget, bank account, transactions, spending, savings, financial, bills, expenses",
+            "module": "finance",
+            "sort_order": 29,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 30,
+        "fields": {
+            "destination_id": "finance-budgets",
+            "name": "Budgets",
+            "path_description": "Finance - Budgets",
+            "explanation": "Create and manage budgets to track spending by category and stay on target.",
+            "url": "/finance/budgets/",
+            "keywords": "budget, budgets, spending limit, expense tracking, budget tracking, budget categories, financial planning",
+            "module": "finance",
+            "sort_order": 30,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 31,
+        "fields": {
+            "destination_id": "finance-goals",
+            "name": "Savings Goals",
+            "path_description": "Finance - Goals",
+            "explanation": "Set and track savings goals like emergency funds, vacations, or major purchases.",
+            "url": "/finance/goals/",
+            "keywords": "savings, savings goal, save money, financial goal, emergency fund, save for, money goal",
+            "module": "finance",
+            "sort_order": 31,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 32,
+        "fields": {
+            "destination_id": "inventory",
+            "name": "Home Inventory",
+            "path_description": "Organize - Inventory",
+            "explanation": "Track your belongings, valuables, and household items with photos and details for insurance or organization.",
+            "url": "/life/inventory/",
+            "keywords": "inventory, belongings, valuables, home inventory, insurance, items, possessions, household items, track items",
+            "module": "life",
+            "sort_order": 32,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 33,
+        "fields": {
+            "destination_id": "pets",
+            "name": "Pet Management",
+            "path_description": "Organize - Pets",
+            "explanation": "Track your pets' information, vet visits, medications, and important records.",
+            "url": "/life/pets/",
+            "keywords": "pets, pet, dog, cat, vet, veterinarian, pet records, pet health, animal, pet care",
+            "module": "life",
+            "sort_order": 33,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 34,
+        "fields": {
+            "destination_id": "documents",
+            "name": "Document Storage",
+            "path_description": "Organize - Documents",
+            "explanation": "Store and organize important documents like IDs, insurance cards, and records.",
+            "url": "/life/documents/",
+            "keywords": "documents, files, upload, storage, important documents, insurance card, id card, passport, records",
+            "module": "life",
+            "sort_order": 34,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 35,
+        "fields": {
+            "destination_id": "significant-events",
+            "name": "Birthdays & Anniversaries",
+            "path_description": "Organize - Significant Events",
+            "explanation": "Track birthdays, anniversaries, and other important dates for family and friends.",
+            "url": "/life/significant-events/",
+            "keywords": "birthday, birthdays, anniversary, anniversaries, important dates, special dates, remember dates, celebrations",
+            "module": "life",
+            "sort_order": 35,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 36,
+        "fields": {
+            "destination_id": "maintenance-logs",
+            "name": "Maintenance Logs",
+            "path_description": "Organize - Maintenance",
+            "explanation": "Track home and vehicle maintenance like oil changes, HVAC service, and repairs.",
+            "url": "/life/maintenance/",
+            "keywords": "maintenance, home maintenance, vehicle maintenance, car maintenance, oil change, hvac, repairs, service records",
+            "module": "life",
+            "sort_order": 36,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 37,
+        "fields": {
+            "destination_id": "blood-pressure",
+            "name": "Blood Pressure",
+            "path_description": "Health - Blood Pressure",
+            "explanation": "Log and monitor your blood pressure readings over time.",
+            "url": "/health/blood-pressure/",
+            "keywords": "blood pressure, bp, systolic, diastolic, hypertension, heart health, log blood pressure",
+            "module": "health",
+            "sort_order": 37,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 38,
+        "fields": {
+            "destination_id": "heart-rate",
+            "name": "Heart Rate",
+            "path_description": "Health - Heart Rate",
+            "explanation": "Log and track your heart rate and resting heart rate over time.",
+            "url": "/health/heart-rate/",
+            "keywords": "heart rate, pulse, bpm, resting heart rate, heart health, log heart rate",
+            "module": "health",
+            "sort_order": 38,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 39,
+        "fields": {
+            "destination_id": "steps-tracking",
+            "name": "Steps Tracking",
+            "path_description": "Health - Steps",
+            "explanation": "Log your daily steps and track your activity levels over time.",
+            "url": "/health/steps/",
+            "keywords": "steps, step count, walking, activity, pedometer, daily steps, step tracking",
+            "module": "health",
+            "sort_order": 39,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 40,
+        "fields": {
+            "destination_id": "blood-oxygen",
+            "name": "Blood Oxygen",
+            "path_description": "Health - Blood Oxygen",
+            "explanation": "Track your blood oxygen saturation (SpO2) levels.",
+            "url": "/health/blood-oxygen/",
+            "keywords": "blood oxygen, spo2, oxygen saturation, pulse ox, oxygen level",
+            "module": "health",
+            "sort_order": 40,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 41,
+        "fields": {
+            "destination_id": "medical-providers",
+            "name": "Medical Providers",
+            "path_description": "Health - Providers",
+            "explanation": "Store your doctors, specialists, and healthcare provider contact information.",
+            "url": "/health/providers/",
+            "keywords": "doctor, doctors, provider, providers, specialist, physician, healthcare, medical, dentist, therapist",
+            "module": "health",
+            "sort_order": 41,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 42,
+        "fields": {
+            "destination_id": "workout-templates",
+            "name": "Workout Templates",
+            "path_description": "Health - Fitness - Templates",
+            "explanation": "Create and manage workout templates for quick logging of your regular routines.",
+            "url": "/health/fitness/templates/",
+            "keywords": "workout template, exercise template, routine, workout plan, exercise routine, gym routine",
+            "module": "health",
+            "sort_order": 42,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 43,
+        "fields": {
+            "destination_id": "personal-records",
+            "name": "Personal Records",
+            "path_description": "Health - Fitness - PRs",
+            "explanation": "View and track your personal best records for exercises like bench press, squat, and deadlift.",
+            "url": "/health/fitness/prs/",
+            "keywords": "personal records, pr, prs, personal best, max lift, one rep max, fitness records, strength records",
+            "module": "health",
+            "sort_order": 43,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 44,
+        "fields": {
+            "destination_id": "daily-verse",
+            "name": "Daily Verse",
+            "path_description": "Faith - Daily Verse",
+            "explanation": "Read today's Bible verse with reflection and share it with others.",
+            "url": "/faith/verse/",
+            "keywords": "verse, daily verse, bible verse, scripture, today's verse, verse of the day",
+            "module": "faith",
+            "sort_order": 44,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 45,
+        "fields": {
+            "destination_id": "saved-scripture",
+            "name": "Saved Scripture",
+            "path_description": "Faith - Scripture",
+            "explanation": "View and manage your saved scripture verses and memory verses.",
+            "url": "/faith/scripture/",
+            "keywords": "saved scripture, saved verses, memory verse, memorize, scripture collection, saved bible verses",
+            "module": "faith",
+            "sort_order": 45,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 46,
+        "fields": {
+            "destination_id": "faith-milestones",
+            "name": "Faith Milestones",
+            "path_description": "Faith - Milestones",
+            "explanation": "Record significant spiritual milestones like baptism, conversions, and meaningful moments.",
+            "url": "/faith/milestones/",
+            "keywords": "milestones, faith milestone, baptism, saved, conversion, spiritual journey, testimony",
+            "module": "faith",
+            "sort_order": 46,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 47,
+        "fields": {
+            "destination_id": "study-tools",
+            "name": "Bible Study Tools",
+            "path_description": "Faith - Study Tools",
+            "explanation": "Access your Bible study highlights, bookmarks, and notes all in one place.",
+            "url": "/faith/study-tools/",
+            "keywords": "study tools, bible study, highlights, bookmarks, notes, study notes, bible notes",
+            "module": "faith",
+            "sort_order": 47,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 48,
+        "fields": {
+            "destination_id": "annual-direction",
+            "name": "Annual Direction",
+            "path_description": "Goals - Annual Direction",
+            "explanation": "Set your annual vision, word of the year, and long-term life direction.",
+            "url": "/purpose/direction/",
+            "keywords": "annual direction, word of the year, yearly goals, vision, life direction, annual planning, year plan",
+            "module": "purpose",
+            "sort_order": 48,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 49,
+        "fields": {
+            "destination_id": "intentions",
+            "name": "Daily Intentions",
+            "path_description": "Goals - Intentions",
+            "explanation": "Set daily or weekly intentions to focus your energy and attention.",
+            "url": "/purpose/intentions/",
+            "keywords": "intentions, daily intention, weekly intention, focus, mindfulness, set intention, today's intention",
+            "module": "purpose",
+            "sort_order": 49,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 50,
+        "fields": {
+            "destination_id": "reflections",
+            "name": "Purpose Reflections",
+            "path_description": "Goals - Reflections",
+            "explanation": "Reflect on your progress, growth, and life experiences.",
+            "url": "/purpose/reflections/",
+            "keywords": "reflections, reflect, life reflection, growth, progress reflection, self reflection",
+            "module": "purpose",
+            "sort_order": 50,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 51,
+        "fields": {
+            "destination_id": "whats-new",
+            "name": "What's New",
+            "path_description": "What's New",
+            "explanation": "See the latest features, improvements, and updates to the app.",
+            "url": "/whats-new/",
+            "keywords": "what's new, updates, new features, release notes, changelog, improvements, app updates",
+            "module": "core",
+            "sort_order": 51,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 52,
+        "fields": {
+            "destination_id": "quick-log",
+            "name": "Quick Log",
+            "path_description": "Health - Quick Log",
+            "explanation": "Quickly log multiple health metrics in one place - weight, steps, heart rate, and more.",
+            "url": "/health/quick-log/",
+            "keywords": "quick log, fast log, quick entry, log health, log metrics, quick health log",
+            "module": "health",
+            "sort_order": 52,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 53,
+        "fields": {
+            "destination_id": "journal-prompts",
+            "name": "Journal Prompts",
+            "path_description": "Journal - Prompts",
+            "explanation": "Browse journal prompts for inspiration when you don't know what to write.",
+            "url": "/journal/prompts/",
+            "keywords": "prompts, journal prompts, writing prompts, inspiration, what to write, journal ideas",
+            "module": "journal",
+            "sort_order": 53,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 54,
+        "fields": {
+            "destination_id": "sms-history",
+            "name": "SMS History",
+            "path_description": "User - SMS History",
+            "explanation": "View your SMS message history including reminders and notifications.",
+            "url": "/sms/history/",
+            "keywords": "sms, text messages, notifications, reminders, message history, text history",
+            "module": "users",
+            "sort_order": 54,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 55,
+        "fields": {
+            "destination_id": "billing",
+            "name": "Subscription & Billing",
+            "path_description": "Billing",
+            "explanation": "Manage your subscription plan, view billing history, and update payment methods.",
+            "url": "/billing/plans/",
+            "keywords": "billing, subscription, payment, plan, upgrade, premium, subscription management, pricing",
+            "module": "billing",
+            "sort_order": 55,
+            "is_active": true,
+            "created_at": "2026-01-16T00:00:00Z",
+            "updated_at": "2026-01-16T00:00:00Z"
+        }
     }
 ]

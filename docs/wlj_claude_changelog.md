@@ -14,6 +14,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-15 Changes
+
+### Add Claude Code Cheat Sheet and Local Preferences
+
+**Summary:** Created documentation to improve Claude Code workflow efficiency.
+
+**Files Added:**
+- `Cheat_Sheet.md`: Quick reference for slash commands, communication patterns, project-specific workflows, and advanced features
+- `CLAUDE.local.md`: User preferences for session behavior - auto-read CLAUDE.md, skip redundant permission requests, execute standard deploy workflow without asking
+
+**Why:** User training session identified friction points in Claude Code interactions. These files codify preferences and provide reference material.
+
+---
+
 ## 2026-01-16 Changes
 
 ### Consolidate AI Consent to Single Checkbox

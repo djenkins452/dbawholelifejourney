@@ -62,15 +62,6 @@ Run `git status` and `git log --oneline -5` to verify:
 - Commits are pushed to both worktree branch and main
 - No uncommitted work is left behind
 
-### 7. Outstanding Tasks
-
-Check for any tasks that were started but not completed:
-```bash
-curl -s -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" "https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=10"
-```
-
-Report any in_progress tasks that should be completed or reset.
-
 ## Output
 
 After completing all checks, provide a **Session Summary** with:
@@ -90,10 +81,7 @@ After completing all checks, provide a **Session Summary** with:
    - Uncommitted changes: Yes/No
    - Pushed to main: Yes/No
 
-4. **Outstanding Items:**
-   - Any incomplete tasks or follow-ups needed
-
-5. **Ready to Close:** Yes/No
+4. **Ready to Close:** Yes/No
 
 ## Authority
 

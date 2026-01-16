@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Create /close Command for Session Closure
+
+**Summary:** Added a new `/close` slash command to close out coding sessions with a comprehensive review.
+
+**Purpose:** Ensures all documentation, help systems, and tracking are up to date before ending work.
+
+**The /close command performs:**
+1. Changelog review - verifies all changes are documented
+2. What's New document updates (if user-facing features added)
+3. Teaching Tool destinations check (for new pages/features)
+4. WLJ Assistant updates check (for new data types)
+5. CLAUDE.md review (for new instructions)
+6. Git status verification (all committed and pushed)
+7. Outstanding tasks report
+8. Session summary output
+
+**Files Changed:**
+- `.claude/commands/close.md` - New command file
+- `.claude/commands/README.md` - Added /close documentation
+
+---
+
 ### Reduce False Positives in Gap Detector
 
 **Summary:** Added filters to prevent the gap detector from flagging conversational phrases as potential data types.

@@ -43,11 +43,27 @@ Custom slash commands for the Whole Life Journey project.
 **Actions:**
 - Appends formatted entry to docs/wlj_claude_changelog.md
 
+### /close
+**Purpose:** Close out a coding session with comprehensive review
+**Model:** Sonnet
+**Usage:** `/close`
+**Actions:**
+- Reviews session for completeness
+- Verifies changelog has all changes documented
+- Checks if What's New document needs updates
+- Verifies Teaching Tool destinations are current
+- Checks if WLJ Assistant needs updates for new data types
+- Reviews if CLAUDE.md needs new instructions
+- Verifies git status (all committed and pushed)
+- Reports any outstanding tasks
+- Provides session summary
+
 ## Typical Workflow
 
 1. `/next` - See what's ready to work on
 2. `/run-task` - Execute the task with full context
 3. (Automatic) - Changelog updated on completion
+4. `/close` - End session with comprehensive review
 
 ## Troubleshooting Workflow
 
@@ -62,4 +78,5 @@ All commands are in `.claude/commands/`:
 - `run-task.md`
 - `troubleshoot.md`
 - `log-change.md`
+- `close.md`
 - `README.md` (this file)

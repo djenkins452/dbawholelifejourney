@@ -31,9 +31,12 @@ For active development context, see `CLAUDE.md` (project root).
   - **Purpose/Goals:** Annual direction, intentions, reflections
   - **Core:** What's New, journal prompts, SMS history, billing/subscription
 
+- `apps/admin_console/migrations/0018_reset_teaching_destinations_loader.py`:
+  - Resets the DataLoadConfig for teaching_destinations so fixture reloads on deploy
+
 **Total destinations:** Increased from 27 to 55
 
-**Load command:** `python manage.py loaddata teaching_destinations`
+**Auto-reload:** Migration resets the loader, so `load_initial_data` will reload the fixture automatically on next Railway deploy
 
 ---
 

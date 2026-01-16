@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Add Attachment Support to Task API
+
+**Summary:** Fixed task attachments not being visible to Claude when working tasks via the API.
+
+**Issue:** The AdminTask model had an `attachment` ImageField, and the form template displayed the file input, but:
+1. The attachment field was not included in the form's `fields` list, so uploads weren't being saved
+2. The API response didn't include the attachment URL, so Claude couldn't see task screenshots
+
+**Solution:**
+1. Added `attachment` to the `fields` list in `AdminTaskCreateView` and `AdminTaskUpdateView`
+2. Added `attachment_url` field to the `ReadyTasksAPIView` response (returns full URL or null)
+3. Updated `/run-task` command to check for and read attachments
+
+**Files Modified:**
+- `apps/admin_console/views.py` - Added attachment to form fields, added attachment_url to API response
+- `.claude/commands/run-task.md` - Added step to check for attachment_url
+
+---
+
 ### Fix False Positive Gap Detection for Navigation Questions
 
 **Summary:** Fixed a bug where navigation questions like "how do I get to the dashboard" were incorrectly triggering the gap detector to suggest creating a new data type.

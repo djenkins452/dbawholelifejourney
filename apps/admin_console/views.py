@@ -929,7 +929,7 @@ class AdminTaskCreateView(AdminRequiredMixin, CreateView):
     """Create a new admin task with executable description."""
     template_name = "admin_console/admin_task_form.html"
     success_url = reverse_lazy('admin_console:admin_task_list')
-    fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
+    fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by', 'attachment']
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
@@ -942,7 +942,7 @@ class AdminTaskCreateView(AdminRequiredMixin, CreateView):
         class AdminTaskForm(forms.ModelForm):
             class Meta:
                 model = AdminTask
-                fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
+                fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by', 'attachment']
 
         return AdminTaskForm
 
@@ -981,7 +981,7 @@ class AdminTaskUpdateView(AdminRequiredMixin, UpdateView):
     """Edit an admin task with executable description."""
     template_name = "admin_console/admin_task_form.html"
     success_url = reverse_lazy('admin_console:admin_task_list')
-    fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by']
+    fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by', 'attachment']
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask
@@ -3193,9 +3193,12 @@ class ReadyTasksAPIView(APIRateLimitMixin, View):
                     "inputs": ["CLAUDE.md file in the project root"],
                     "actions": ["Open the CLAUDE.md file", "Add a section..."],
                     "output": "CLAUDE.md contains a clearly documented..."
-                }
+                },
+                "attachment_url": "https://wholelifejourney.com/media/admin_tasks/attachments/screenshot.png"
             }]
         }
+
+    Note: attachment_url will be null if no attachment is present.
     """
 
     # Rate limiting configuration (CISO Review 2026-01-12)
@@ -3289,6 +3292,7 @@ class ReadyTasksAPIView(APIRateLimitMixin, View):
                     'description': task.description,
                     'created_at': task.created_at.isoformat(),
                     'status': task.status,
+                    'attachment_url': request.build_absolute_uri(task.attachment.url) if task.attachment else None,
                 }
                 for task in tasks
             ]

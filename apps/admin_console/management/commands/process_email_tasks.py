@@ -35,7 +35,7 @@ import logging
 
 from django.core.management.base import BaseCommand
 
-from apps.admin_console.services.email_intake import (
+from apps.admin_console.email_intake import (
     EmailIntakeError,
     process_email_intake,
 )

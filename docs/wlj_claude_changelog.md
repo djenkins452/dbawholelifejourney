@@ -16,6 +16,48 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Fix Additional Failing Tests in Assistant App (Integration, Views, Admin Views)
+
+**Summary:** Fixed failing tests in assistant module test files: test_integration.py, test_views.py, and test_admin_views.py.
+
+**Issues Fixed:**
+
+1. **test_archived_entries_are_included** (renamed to `test_archived_entries_are_excluded`):
+   - The test incorrectly expected archived entries to be included in PersonalDataService queries
+   - SoftDeleteManager correctly excludes both deleted AND archived records by default
+   - Updated test expectation from count=2 to count=1
+
+2. **test_low_severity_task_executes_autonomously / test_autonomous_execution_sends_admin_notification**:
+   - Tests created tasks with `status=STATUS_NEW` but the state machine doesn't allow transitioning from 'new' to 'in_progress'
+   - Changed initial status to `STATUS_APPROVED` which CAN transition to 'in_progress'
+
+3. **test_filters_unsupported_data_types**:
+   - Test assumed 'mood' was an unsupported data type, but it's now in the supported_types list
+   - Updated test to verify that mood queries ARE processed (query_by_intent IS called)
+
+4. **test_admin_views.py tests (45+ errors)**:
+   - Added assistant URLs to main config/urls.py (they were never registered)
+   - Added helper function `make_user_ready_for_dashboard()` to ensure test users have accepted terms and completed onboarding (required by TermsAcceptanceMiddleware)
+   - Changed all `self.client.login()` calls to `self.client.force_login()` for reliable authentication
+   - Fixed patch paths: `assistant.admin_views.GitProtectionService` -> `assistant.git_service.GitProtectionService`
+   - Fixed patch paths: `assistant.admin_views.AdminNotificationService` -> `assistant.notifications.AdminNotificationService`
+   - Added `@override_settings(STATICFILES_STORAGE=...)` to test_approve_task_not_found to handle missing staticfiles manifest
+
+**Files Modified:**
+- `assistant/tests/test_integration.py` - Fixed archived entries test, status for autonomous tests
+- `assistant/tests/test_views.py` - Fixed mood test expectation, added gap detection mock
+- `assistant/tests/test_admin_views.py` - Added helper function, force_login, fixed patch paths, staticfiles fix
+- `config/urls.py` - Added assistant URL registration: `path('assistant/', include('assistant.urls', namespace='assistant'))`
+
+**Tests:** All originally failing tests now pass:
+- `test_archived_entries_are_excluded` - OK
+- `test_low_severity_task_executes_autonomously` - OK
+- `test_autonomous_execution_sends_admin_notification` - OK
+- `test_filters_unsupported_data_types` - OK
+- All 58 test_admin_views.py tests - OK
+
+---
+
 ### Fix Failing Tests in Assistant App
 
 **Summary:** Fixed 8 failing tests in assistant module related to executor, notifications, and file modifier.

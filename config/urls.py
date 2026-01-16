@@ -89,8 +89,10 @@ urlpatterns = [
     path('scan/', include('apps.scan.urls', namespace='scan')),
     # Audio Capture & Transcription
     path('capture/', include('apps.capture.urls', namespace='capture')),
-    # AI Personal Assistant
+    # AI Personal Assistant (public-facing)
     path('assistant/', include('apps.ai.urls', namespace='ai')),
+    # Assistant Self-Improvement Admin Views
+    path('assistant/', include('assistant.urls', namespace='assistant')),
     # SMS Notifications
     path('sms/', include('apps.sms.urls', namespace='sms')),
     # Finance

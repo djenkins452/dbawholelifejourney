@@ -121,6 +121,7 @@
                 {% for task in priority_group.list %}
                 <li class="task-item {% if task.is_completed %}completed{% endif %}" data-bulk-item data-item-id="{{ task.pk }}">
                     <input type="checkbox" data-item-checkbox class="bulk-checkbox item-checkbox">
+                    <!-- Circle button: toggle completion -->
                     <form method="post" action="{% url 'life:task_toggle' task.pk %}" class="task-checkbox-form">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -137,40 +138,34 @@
                             {% endif %}
                         </button>
                     </form>
-                    
-                    <div class="task-content">
-                        <span class="task-title">{{ task.title }}</span>
-                        {% if task.project %}
-                        <a href="{{ task.project.get_absolute_url }}" class="task-project">{{ task.project.title }}</a>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="task-meta">
-                        {% if task.effort %}
-                        <span class="task-effort">{{ task.get_effort_display }}</span>
-                        {% endif %}
-                        
-                        {% if task.due_date %}
-                        <span class="task-due {% if task.due_date < user_today %}overdue{% endif %}">
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                                <line x1="16" y1="2" x2="16" y2="6"/>
-                                <line x1="8" y1="2" x2="8" y2="6"/>
-                                <line x1="3" y1="10" x2="21" y2="10"/>
-                            </svg>
-                            {{ task.due_date|date:"M j" }}
-                        </span>
-                        {% endif %}
-                        
-                        <a href="{% url 'life:task_update' task.pk %}" class="task-edit">Edit</a>
-                        {% if task.is_completed %}
-                        <form method="post" action="{% url 'life:task_toggle' task.pk %}" class="task-undo-form">
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                            <button type="submit" class="task-undo">Undo</button>
-                        </form>
-                        {% endif %}
-                    </div>
+
+                    <!-- Clicking anywhere else opens edit page -->
+                    <a href="{% url 'life:task_update' task.pk %}" class="task-row-link">
+                        <div class="task-content">
+                            <span class="task-title">{{ task.title }}</span>
+                            {% if task.project %}
+                            <span class="task-project">{{ task.project.title }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="task-meta">
+                            {% if task.effort %}
+                            <span class="task-effort">{{ task.get_effort_display }}</span>
+                            {% endif %}
+
+                            {% if task.due_date %}
+                            <span class="task-due {% if task.due_date < user_today %}overdue{% endif %}">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                                {{ task.due_date|date:"M j" }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </a>
                 </li>
                 {% endfor %}
             </ul>
@@ -470,40 +465,28 @@
     color: var(--color-error);
 }
 
-.task-edit {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-    opacity: 0;
-    transition: opacity var(--transition-fast);
+/* Clickable row link - takes user to edit page */
+.task-row-link {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    text-decoration: none;
+    color: inherit;
+    min-height: 44px; /* Touch-friendly target */
+    padding: var(--space-2) 0;
 }
 
-.task-item:hover .task-edit {
-    opacity: 1;
+.task-row-link:hover {
+    text-decoration: none;
 }
 
-.task-undo-form {
-    display: contents;
+.task-row-link .task-content {
+    flex: 1;
 }
 
-.task-undo {
-    font-size: var(--font-size-xs);
-    color: var(--color-accent);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    text-decoration: underline;
-    opacity: 0.8;
-    transition: opacity var(--transition-fast);
-}
-
-.task-undo:hover {
-    opacity: 1;
-}
-
-/* Show undo button always for completed tasks */
-.task-item.completed .task-undo {
-    opacity: 1;
+.task-row-link .task-meta {
+    flex-shrink: 0;
 }
 
 .empty-state {

@@ -2303,10 +2303,16 @@ Use this context to provide relevant, contextual help. For scripture questions, 
             role = "User" if msg.role == 'user' else "Assistant"
             messages_context += f"{role}: {msg.content}\n"
 
+        # Build the user prompt, noting if an image is attached
+        if image_data and image_mime_type:
+            image_note = "\n\n[The user has attached an image. Please analyze and respond to it along with their message.]"
+        else:
+            image_note = ""
+
         user_prompt = f"""Recent conversation:
 {messages_context}
 
-User's new message: {message}
+User's new message: {message}{image_note}
 
 Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do not add unsolicited information about tasks, priorities, or what the user should be doing."""
 

@@ -31,6 +31,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Fix AI Not Analyzing Attached Images
+
+**Issue:** When users attached images in chat, the AI responded "I can't see the image you've uploaded" even though the image was being sent to OpenAI correctly.
+
+**Root Cause:** The user prompt sent to OpenAI didn't mention that an image was attached. While the OpenAI Vision API received the image, the text prompt didn't acknowledge it, causing the AI to be confused about whether an image was present.
+
+**Solution:** Modified `_generate_response()` to add a note to the prompt when an image is attached: `[The user has attached an image. Please analyze and respond to it along with their message.]`
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Added image attachment note to user prompt in `_generate_response()`
+
+---
+
 ### Add Image Upload to Assistant Dashboard Chat
 
 **Issue:** The image upload feature was only implemented in the floating chat widget (`chat_widget.html`), but not in the main Assistant dashboard page (`assistant_dashboard.html`). Users on `/assistant/` had no way to attach images.

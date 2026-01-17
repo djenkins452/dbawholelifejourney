@@ -4,7 +4,7 @@
 # Description: Known issues and solutions for common development problems
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-01-04
-# Last Updated: 2026-01-12
+# Last Updated: 2026-01-16
 # ==============================================================================
 
 # WLJ Troubleshooting Guide
@@ -298,3 +298,66 @@ function openDrawer() {
 - Critical inline CSS in `base.html` and `account/base.html` for nav/logo sizing
 - Strengthened cache headers in `NoCacheHTMLMiddleware`
 - bfcache handler for pageshow event
+
+---
+
+## 10. Staticfiles Manifest Error in Tests
+
+**Error:** `ValueError: Missing staticfiles manifest entry for 'icons/common/logo.svg'`
+
+**Cause:** `CompressedManifestStaticFilesStorage` requires `collectstatic` to generate a manifest, but this doesn't exist in development/test environments.
+
+**Solution (2026-01-16):** Added `TESTING` detection to `config/settings.py` that uses a simpler storage backend during tests:
+
+```python
+# At top of settings.py
+import sys
+TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
+
+# In STORAGES configuration
+if TESTING:
+    STORAGES = {
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        },
+    }
+```
+
+**Files Modified:** `config/settings.py`
+
+---
+
+## 11. Missing .env File in Git Worktrees
+
+**Error:** `ImproperlyConfigured: Set the SECRET_KEY environment variable`
+
+**Cause:** Git worktrees don't automatically copy untracked files like `.env` from the main repository.
+
+**Solution (2026-01-16):** Added a `post-checkout` git hook that automatically copies `.env` to new worktrees:
+
+**Location:** `.git/hooks/post-checkout` (in main repository)
+
+```bash
+#!/bin/bash
+MAIN_REPO=$(git rev-parse --git-common-dir 2>/dev/null | xargs dirname)
+CURRENT_DIR=$(pwd)
+
+if [ -f "$MAIN_REPO/.env" ] && [ ! -f "$CURRENT_DIR/.env" ]; then
+    cp "$MAIN_REPO/.env" "$CURRENT_DIR/.env"
+    echo "Copied .env from main repository to worktree"
+fi
+```
+
+**Note:** The hook is stored in the main repo's `.git/hooks/` directory, not in a worktree. New worktrees automatically use hooks from the shared git directory.

@@ -1800,19 +1800,13 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                         # Check for feature requests ("I wish", "I want") and notify admin
                         # This captures user needs that the system doesn't currently handle
-                        feature_request_notified = self._check_feature_request(
+                        # Note: We don't append an acknowledgment message here because the AI
+                        # already handles feature requests gracefully in its response
+                        self._check_feature_request(
                             message=message,
                             conversation=conversation,
                             feature_request_service=feature_request_service
                         )
-
-                        # If feature request was detected and forwarded, acknowledge it to the user
-                        if feature_request_notified:
-                            response += (
-                                "\n\nThis feature isn't currently available, but I've sent "
-                                "our support team a notification about your suggestion. "
-                                "Thank you for helping us improve!"
-                            )
 
         # Save assistant response
         msg_type = 'action' if actions_taken else 'text'

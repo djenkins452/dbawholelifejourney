@@ -835,14 +835,30 @@ class UserReleaseNoteViewModelTest(CoreTestMixin, TestCase):
         self.UserReleaseNoteView = UserReleaseNoteView
         self.user = self.create_user()
 
-    def test_mark_viewed_creates_record(self):
-        """mark_viewed creates a new record for first-time view."""
-        self.assertEqual(self.UserReleaseNoteView.objects.count(), 0)
+    def test_mark_viewed_creates_or_updates_record(self):
+        """mark_viewed creates/updates a record for the user.
+
+        Note: New users now get a UserReleaseNoteView record automatically
+        on signup so they don't see existing "What's New" items.
+        """
+        # A record exists from user creation signal
+        self.assertEqual(self.UserReleaseNoteView.objects.count(), 1)
+        original_view = self.UserReleaseNoteView.objects.get(user=self.user)
+        original_time = original_view.last_viewed_at
+
+        # Small delay to ensure different timestamp
+        import time
+        time.sleep(0.1)
+
+        # mark_viewed should update the existing record
         self.UserReleaseNoteView.mark_viewed(self.user)
         self.assertEqual(self.UserReleaseNoteView.objects.count(), 1)
+        updated_view = self.UserReleaseNoteView.objects.get(user=self.user)
+        self.assertGreater(updated_view.last_viewed_at, original_time)
 
     def test_mark_viewed_updates_existing(self):
         """mark_viewed updates timestamp on subsequent views."""
+        # First explicit mark_viewed call (record already exists from signup)
         first_view = self.UserReleaseNoteView.mark_viewed(self.user)
         first_time = first_view.last_viewed_at
 
@@ -870,8 +886,32 @@ class ReleaseNoteUnseenTest(CoreTestMixin, TestCase):
         self.ReleaseNote.objects.all().delete()
         self.user = self.create_user()
 
-    def test_new_user_sees_all_notes(self):
-        """New user with no view history sees all notes (up to limit)."""
+    def test_new_user_does_not_see_existing_notes(self):
+        """New users don't see release notes that existed before they signed up.
+
+        This ensures new users aren't shown "What's New" for features they
+        never knew were missing - it's all new to them anyway.
+        """
+        # Create release notes with dates in the past (before user signup)
+        for i in range(5):
+            self.ReleaseNote.objects.create(
+                title=f'Old Note {i}',
+                description='Existed before user signup',
+                release_date=date.today() - timedelta(days=30),
+            )
+
+        # New user should NOT see these old notes
+        unseen = self.ReleaseNote.get_unseen_for_user(self.user)
+        self.assertEqual(len(list(unseen)), 0)
+
+    def test_user_sees_notes_created_after_signup(self):
+        """User sees notes with release_date after their signup/last_viewed_at.
+
+        Note: New users get a UserReleaseNoteView record on signup with
+        last_viewed_at = now(), so they only see notes added after signup.
+        """
+        # These notes are created AFTER the user (and their UserReleaseNoteView),
+        # so they should be visible as "new" to the user
         for i in range(5):
             self.ReleaseNote.objects.create(
                 title=f'Note {i}',
@@ -991,11 +1031,26 @@ class WhatsNewViewsTest(CoreTestMixin, TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_dismiss_endpoint_marks_viewed(self):
-        """Dismiss endpoint marks notes as viewed."""
-        self.assertEqual(self.UserReleaseNoteView.objects.count(), 0)
+        """Dismiss endpoint updates the user's last_viewed_at timestamp.
+
+        Note: New users get a UserReleaseNoteView record on signup,
+        so the dismiss endpoint updates (not creates) the record.
+        """
+        # Record already exists from user creation
+        self.assertEqual(self.UserReleaseNoteView.objects.count(), 1)
+        original_time = self.UserReleaseNoteView.objects.get(user=self.user).last_viewed_at
+
+        # Small delay to ensure different timestamp
+        import time
+        time.sleep(0.1)
+
         response = self.client.post(reverse('core:whats_new_dismiss'))
         self.assertEqual(response.status_code, 200)
+        # Still just one record (updated, not created)
         self.assertEqual(self.UserReleaseNoteView.objects.count(), 1)
+        # Timestamp was updated
+        updated_time = self.UserReleaseNoteView.objects.get(user=self.user).last_viewed_at
+        self.assertGreater(updated_time, original_time)
 
     def test_dismiss_endpoint_returns_success(self):
         """Dismiss endpoint returns success JSON."""

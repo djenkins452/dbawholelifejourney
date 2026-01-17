@@ -494,6 +494,7 @@ class ActionHandlerTests(TestCase):
         """Test taking medicine with single match."""
         from apps.ai.action_handlers import ActionHandler
         from apps.health.models import Medicine, MedicineLog
+        from datetime import date
 
         # Create a medicine
         medicine = Medicine.objects.create(
@@ -501,7 +502,8 @@ class ActionHandlerTests(TestCase):
             name='Metformin',
             dose='500mg',
             is_prn=True,
-            medicine_status=Medicine.STATUS_ACTIVE
+            medicine_status=Medicine.STATUS_ACTIVE,
+            start_date=date.today()
         )
 
         handler = ActionHandler(self.user)
@@ -519,19 +521,22 @@ class ActionHandlerTests(TestCase):
         """Test taking medicine with multiple matches."""
         from apps.ai.action_handlers import ActionHandler
         from apps.health.models import Medicine
+        from datetime import date
 
         # Create multiple matching medicines
         Medicine.objects.create(
             user=self.user,
             name='Metformin 500mg',
             dose='500mg',
-            medicine_status=Medicine.STATUS_ACTIVE
+            medicine_status=Medicine.STATUS_ACTIVE,
+            start_date=date.today()
         )
         Medicine.objects.create(
             user=self.user,
             name='Metformin 1000mg',
             dose='1000mg',
-            medicine_status=Medicine.STATUS_ACTIVE
+            medicine_status=Medicine.STATUS_ACTIVE,
+            start_date=date.today()
         )
 
         handler = ActionHandler(self.user)

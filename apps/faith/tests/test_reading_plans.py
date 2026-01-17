@@ -36,8 +36,12 @@ class ReadingPlanTestMixin:
         return user
 
     def _accept_terms(self, user):
+        from django.conf import settings
         from apps.users.models import TermsAcceptance
-        TermsAcceptance.objects.create(user=user, terms_version='1.0')
+        TermsAcceptance.objects.create(
+            user=user,
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+        )
 
     def _complete_onboarding(self, user):
         """Mark user onboarding as complete."""
@@ -381,19 +385,18 @@ class ReadingPlanDataIsolationTest(ReadingPlanTestMixin, TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_user_sees_only_own_plans(self):
-        """User plans list only shows their own plans."""
+        """User can view their own plan progress but not others'."""
         self.login_user(email='usera@example.com')
 
-        url = reverse('faith:reading_plan_my_plans')
+        # Can view own plan progress
+        url = reverse('faith:reading_plan_progress', kwargs={'pk': self.plan_a.pk})
         response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
 
-        # Should see own plan
-        self.assertContains(response, self.template.title)
-        # Context should only have user A's plan
-        if 'user_plans' in response.context:
-            plans = response.context['user_plans']
-            self.assertEqual(plans.count(), 1)
-            self.assertEqual(plans.first().user, self.user_a)
+        # Cannot view other user's plan progress
+        url = reverse('faith:reading_plan_progress', kwargs={'pk': self.plan_b.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
 
 
 # =============================================================================

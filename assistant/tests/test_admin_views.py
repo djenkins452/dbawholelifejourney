@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -113,13 +113,19 @@ class TestApproveTaskView(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertContains(response, 'not pending approval', status_code=400)
 
+    @override_settings(STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage')
     def test_approve_task_not_found(self):
-        """Test that non-existent task returns 404."""
+        """Test that non-existent task returns 404.
+
+        Note: This test uses override_settings to use a simpler static files
+        storage to avoid issues with missing staticfiles manifest in tests.
+        """
         import uuid
         fake_id = uuid.uuid4()
         url = reverse('assistant:approve_task', args=[fake_id, self.token])
         response = self.client.get(url)
 
+        # Django returns 404 for get_object_or_404 failures
         self.assertEqual(response.status_code, 404)
 
     def test_approve_task_already_used_token(self):

@@ -41,8 +41,12 @@ class FaithTestMixin:
         return user
 
     def _accept_terms(self, user):
+        from django.conf import settings
         from apps.users.models import TermsAcceptance
-        TermsAcceptance.objects.create(user=user, terms_version='1.0')
+        TermsAcceptance.objects.create(
+            user=user,
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+        )
 
     def _complete_onboarding(self, user):
         """Mark user onboarding as complete."""
@@ -663,8 +667,12 @@ class FaithModuleDisabledTest(TestCase):
             password='testpass123'
         )
         # Accept terms but DON'T enable faith
+        from django.conf import settings
         from apps.users.models import TermsAcceptance
-        TermsAcceptance.objects.create(user=self.user, terms_version='1.0')
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+        )
         self.user.preferences.faith_enabled = False
         self.user.preferences.save()
     

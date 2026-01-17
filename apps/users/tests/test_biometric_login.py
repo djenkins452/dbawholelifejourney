@@ -32,8 +32,12 @@ class BiometricTestMixin:
 
     def create_user(self, email='test@example.com', password='testpass123'):
         """Create a test user with terms accepted and onboarding complete."""
+        from django.conf import settings
         user = User.objects.create_user(email=email, password=password)
-        TermsAcceptance.objects.create(user=user, terms_version='1.0')
+        TermsAcceptance.objects.create(
+            user=user,
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
+        )
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
         return user

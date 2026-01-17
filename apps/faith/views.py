@@ -75,14 +75,22 @@ BIBLE_API_BASE = "https://rest.api.bible/v1"
 class FaithRequiredMixin(UserPassesTestMixin):
     """
     Mixin to ensure user has Faith module enabled.
-    
+
     Redirects to preferences if Faith is not enabled.
+    Requires user to be authenticated first (use with LoginRequiredMixin).
     """
 
     def test_func(self):
+        # Only check faith_enabled for authenticated users
+        # LoginRequiredMixin should handle unauthenticated users first
+        if not self.request.user.is_authenticated:
+            return False
         return self.request.user.preferences.faith_enabled
 
     def handle_no_permission(self):
+        # If user is not authenticated, let LoginRequiredMixin handle it
+        if not self.request.user.is_authenticated:
+            return super().handle_no_permission()
         messages.info(
             self.request,
             "Enable the Faith module in your preferences to access this feature."

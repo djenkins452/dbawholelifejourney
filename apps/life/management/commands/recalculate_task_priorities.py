@@ -82,3 +82,7 @@ class Command(BaseCommand):
                     f'someday: {changes["someday"]})'
                 )
             )
+        elif verbosity >= 1:
+            self.stdout.write(
+                self.style.SUCCESS('No task priority changes needed')
+            )

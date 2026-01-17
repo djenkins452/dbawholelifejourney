@@ -79,10 +79,11 @@ CONVERSATIONAL_WORDS = {
     'everyone', 'someone', 'anyone', 'noone', 'nobody', 'somebody', 'everybody',
     'somewhere', 'anywhere', 'nowhere', 'everywhere',
     'sometime', 'anytime',
-    # Common abstract words
+    # Common abstract words - "data" is too generic to be a data type
     'thing', 'things', 'stuff', 'way', 'ways', 'place', 'places',
     'time', 'times', 'day', 'days', 'week', 'weeks', 'month', 'months',
     'year', 'years', 'today', 'yesterday', 'tomorrow',
+    'data', 'info', 'information', 'details', 'stats', 'statistics',
     # Question/answer words - these are conversational, not data types
     'question', 'questions', 'answer', 'answers', 'answering', 'answered',
     'reply', 'replies', 'response', 'responses',
@@ -305,6 +306,8 @@ def is_external_data_query(query: str) -> bool:
         'news about', 'latest news', 'headlines',
         # Stock/crypto prices
         'stock price', 'price of', 'how much is',
+        # Horoscopes and astrology - external entertainment data
+        'horoscope', 'zodiac', 'astrology', 'star sign',
     ]
 
     for pattern in external_patterns:

@@ -28,6 +28,7 @@ from apps.admin_console.email_intake import (
     extract_email_body,
     get_email_settings,
     parse_email_message,
+    should_skip_confirmation,
 )
 
 
@@ -309,3 +310,79 @@ class EmailIntakeIntegrationTests(TestCase):
 
         self.assertEqual(results['errors'], 1)
         self.assertIn('Missing required email settings', results['error_messages'][0])
+
+
+class ShouldSkipConfirmationTests(TestCase):
+    """Tests for the should_skip_confirmation function."""
+
+    def test_skip_noreply_addresses(self):
+        """Should skip noreply@ addresses."""
+        self.assertTrue(should_skip_confirmation('noreply@example.com'))
+        self.assertTrue(should_skip_confirmation('no-reply@example.com'))
+        self.assertTrue(should_skip_confirmation('no_reply@example.com'))
+        self.assertTrue(should_skip_confirmation('NOREPLY@example.com'))  # Case insensitive
+
+    def test_skip_donotreply_addresses(self):
+        """Should skip do-not-reply@ addresses."""
+        self.assertTrue(should_skip_confirmation('donotreply@example.com'))
+        self.assertTrue(should_skip_confirmation('do-not-reply@example.com'))
+        self.assertTrue(should_skip_confirmation('do_not_reply@example.com'))
+
+    def test_skip_postmaster_addresses(self):
+        """Should skip postmaster@ addresses."""
+        self.assertTrue(should_skip_confirmation('postmaster@example.com'))
+        self.assertTrue(should_skip_confirmation('postmaster@postandcourier.com'))
+
+    def test_skip_mailer_daemon_addresses(self):
+        """Should skip mailer-daemon@ addresses."""
+        self.assertTrue(should_skip_confirmation('mailer-daemon@example.com'))
+        self.assertTrue(should_skip_confirmation('mailerdaemon@example.com'))
+
+    def test_skip_bounce_addresses(self):
+        """Should skip bounce@ addresses."""
+        self.assertTrue(should_skip_confirmation('bounce@example.com'))
+        self.assertTrue(should_skip_confirmation('bounces@example.com'))
+
+    def test_skip_notification_addresses(self):
+        """Should skip notification@ addresses."""
+        self.assertTrue(should_skip_confirmation('notification@example.com'))
+        self.assertTrue(should_skip_confirmation('notifications@example.com'))
+        self.assertTrue(should_skip_confirmation('alert@example.com'))
+        self.assertTrue(should_skip_confirmation('alerts@example.com'))
+
+    def test_skip_newsletter_addresses(self):
+        """Should skip newsletter/marketing addresses."""
+        self.assertTrue(should_skip_confirmation('newsletter@example.com'))
+        self.assertTrue(should_skip_confirmation('news@example.com'))
+        self.assertTrue(should_skip_confirmation('marketing@example.com'))
+        self.assertTrue(should_skip_confirmation('promo@example.com'))
+
+    def test_skip_system_addresses(self):
+        """Should skip system/automated addresses."""
+        self.assertTrue(should_skip_confirmation('system@example.com'))
+        self.assertTrue(should_skip_confirmation('automated@example.com'))
+        self.assertTrue(should_skip_confirmation('auto@example.com'))
+
+    def test_skip_support_addresses(self):
+        """Should skip support/helpdesk addresses (often ticketing systems)."""
+        self.assertTrue(should_skip_confirmation('support@example.com'))
+        self.assertTrue(should_skip_confirmation('helpdesk@example.com'))
+
+    def test_allow_normal_addresses(self):
+        """Should allow normal person addresses."""
+        self.assertFalse(should_skip_confirmation('john@example.com'))
+        self.assertFalse(should_skip_confirmation('jane.doe@company.com'))
+        self.assertFalse(should_skip_confirmation('danny@wholelifejourney.com'))
+        self.assertFalse(should_skip_confirmation('admin@wholelifejourney.com'))
+
+    def test_skip_empty_and_none(self):
+        """Should skip empty or None addresses."""
+        self.assertTrue(should_skip_confirmation(''))
+        self.assertTrue(should_skip_confirmation(None))
+
+    def test_partial_match_not_skipped(self):
+        """Addresses that just contain keywords but don't start with them pass."""
+        # 'supportive@example.com' starts with 'support', so it WILL be skipped
+        # But 'my-support@example.com' doesn't start with 'support'
+        self.assertFalse(should_skip_confirmation('my-newsletter@example.com'))
+        self.assertFalse(should_skip_confirmation('user-alert@example.com'))

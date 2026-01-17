@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Skip Confirmation Emails for Automated/System Addresses
+
+**Problem:** Email intake was sending confirmation emails to automated addresses (postmaster@, noreply@, etc.) that would never receive them, resulting in bounce notifications creating noise in the task queue.
+
+**Root Cause:** When an email from an automated sender (e.g., newsletter, system notification) was processed, we'd send a confirmation back to an address that can't receive mail, generating a bounce that then itself became a task.
+
+**Solution:** Added `should_skip_confirmation()` function that checks if the sender address appears to be automated/system before sending confirmation emails.
+
+**Files Modified:**
+- `apps/admin_console/email_intake.py` - Added `should_skip_confirmation()` function and integrated it into `send_confirmation_email()`
+- `apps/admin_console/tests/test_email_intake.py` - Added 12 new tests for the skip logic
+
+**Addresses now skipped:**
+- noreply@, no-reply@, donotreply@, postmaster@, mailer-daemon@
+- bounce@, notification@, alert@, newsletter@, marketing@
+- system@, automated@, support@, helpdesk@, info@
+
+---
+
 ### Add API Endpoint for Email Processing (/process-emails)
 
 **Problem:** The `/process-emails` slash command couldn't work because there was no API endpoint - it required running a management command on the server, but Railway doesn't have a console.

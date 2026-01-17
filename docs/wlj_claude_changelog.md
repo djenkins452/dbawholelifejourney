@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Feature Request User Acknowledgment
+
+**Issue:** When users mentioned features that don't exist in the AI Assistant chat (e.g., "I wish I could track my sleep"), the system was detecting and emailing admin but not telling the user their suggestion was received.
+
+**Solution:** Modified the AI response flow to acknowledge feature requests to the user:
+- When a feature request is detected and forwarded to admin, the AI now appends: "This feature isn't currently available, but I've sent our support team a notification about your suggestion. Thank you for helping us improve!"
+- The email to admin already included user name and email address for follow-up/credit
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Capture `_check_feature_request()` return value and append acknowledgment to response when True
+
+**Tests:** All 31 feature_request_service tests pass, all 61 personal_assistant tests pass
+
+---
+
 ### 7-Day Free Trial System
 
 **Issue:** Users could sign up and access all features indefinitely without paying. No trial or subscription requirement existed.

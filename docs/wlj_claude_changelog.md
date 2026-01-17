@@ -48,6 +48,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Fix SMS Test - Disable Quiet Hours to Avoid Time-Dependent Failures
+
+**Bug:** `test_full_notification_lifecycle` in SMS tests failed intermittently in CI because scheduled notifications were being rescheduled to future times due to quiet hours.
+
+**Root Cause:** By default, `sms_quiet_hours_enabled = True` with quiet hours from 22:00 to 07:00. When CI runs during these hours (in UTC), the test's notification scheduled for "1 minute ago" would be pushed to 07:00 - making it not "pending" for immediate send.
+
+**Solution:** Updated `enable_sms_for_user()` test helper to explicitly set `sms_quiet_hours_enabled = False`, ensuring consistent test behavior regardless of when tests run.
+
+**Files Modified:**
+- `apps/sms/tests/test_sms_comprehensive.py` - Added `prefs.sms_quiet_hours_enabled = False` to `enable_sms_for_user()` method
+
+---
+
 ### Fix Honeypot Validation - Move to Form Where Request is Available
 
 **Bug:** The honeypot validation in `WLJAccountAdapter.clean_email()` was dead code that never executed. The adapter's `clean_email` method is called by django-allauth before `pre_save`/`save_user`, meaning `self.request` was always `None` at that point.

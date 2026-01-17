@@ -74,6 +74,8 @@ class SMSTestMixin:
         prefs.sms_medicine_refill_alerts = True
         prefs.sms_task_reminders = True
         prefs.sms_event_reminders = True
+        # Disable quiet hours for tests to avoid time-dependent failures
+        prefs.sms_quiet_hours_enabled = False
         prefs.save()
         return prefs
 

@@ -308,6 +308,15 @@ def is_external_data_query(query: str) -> bool:
         'stock price', 'price of', 'how much is',
         # Horoscopes and astrology - external entertainment data
         'horoscope', 'zodiac', 'astrology', 'star sign',
+        # Sports - external data about games, scores, schedules
+        'football', 'basketball', 'baseball', 'hockey', 'soccer',
+        'nfl', 'nba', 'mlb', 'nhl', 'mls',
+        'college football', 'college basketball', 'ncaa',
+        'game today', 'games today', 'game tonight', 'games tonight',
+        'score', 'scores', 'standings', 'playoffs', 'championship',
+        # General knowledge questions - not personal data
+        'who is', 'who was', 'who are', 'who were',
+        'what is on', 'what\'s on',
     ]
 
     for pattern in external_patterns:

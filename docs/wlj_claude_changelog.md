@@ -16,6 +16,54 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Gap Detector False Positives for Sports and General Knowledge Queries
+
+**Issue:** The gap_detector was flagging queries about external data (sports, general knowledge) as "new data types" to evaluate. Examples: "what college football is on today?", "what horoscope should I read?", "what data do you have on me?"
+
+**Root Cause:** The `is_external_data_query()` function didn't include sports and general knowledge patterns, causing the gap detector to suggest these as new personal data types to track.
+
+**Solution:** Added comprehensive patterns to `is_external_data_query()`:
+- Sports: football, basketball, baseball, hockey, soccer, NFL/NBA/MLB/NHL/MLS, college football/basketball, NCAA, game today/tonight, scores, standings, playoffs, championship
+- General knowledge: "who is", "who was", "what is on", "what's on"
+
+Also previously added to `CONVERSATIONAL_WORDS`: 'data', 'info', 'information', 'details', 'stats', 'statistics'
+
+And `external_patterns`: 'horoscope', 'zodiac', 'astrology', 'star sign'
+
+**Files Modified:**
+- `assistant/gap_detector.py` - Extended external_patterns in is_external_data_query() and CONVERSATIONAL_WORDS
+
+---
+
+### Add Resolution Notes Feature to AdminTask
+
+**Issue:** When tasks were completed, there was no documentation of what was done to resolve them, making it hard to track root causes and preventive actions.
+
+**Solution:** Added two new fields to AdminTask model:
+- `resolution_notes` (TextField): Documents what was done to resolve the task
+- `completed_at` (DateTimeField): Auto-set when task transitions to 'done'
+
+Updated `transition_status()` method to accept optional `resolution_notes` parameter. Updated the Claude API to accept 'notes' parameter when marking tasks done. Added Resolution section to task edit form with green styling.
+
+**Files Modified:**
+- `apps/admin_console/models.py` - Added resolution_notes and completed_at fields to AdminTask
+- `apps/admin_console/views.py` - Updated UpdateTaskStatusAPIView to accept 'notes' parameter
+- `templates/admin_console/admin_task_form.html` - Added Resolution section UI
+- `apps/admin_console/migrations/0022_admintask_completed_at_admintask_resolution_notes.py` - Migration for new fields
+
+---
+
+### Remove Redundant Feature Request Acknowledgment
+
+**Issue:** When users made feature requests, the AI responded with a good acknowledgment, but then the feature_request_service was appending a second redundant acknowledgment paragraph.
+
+**Solution:** Removed the redundant acknowledgment message from feature_request_service since the AI already handles the response naturally.
+
+**Files Modified:**
+- `apps/ai/feature_request_service.py` - Removed redundant acknowledgment message
+
+---
+
 ### Fix AI Hallucinating Non-Existent Features and Friendly 404 Page
 
 **Issues:**

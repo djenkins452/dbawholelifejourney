@@ -833,3 +833,122 @@ class SearchHistoryClearView(LoginRequiredMixin, View):
                 'success': False,
                 'error': 'Failed to clear history'
             }, status=500)
+
+
+# =============================================================================
+# 404 REPORTING
+# =============================================================================
+
+
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class Report404View(View):
+    """
+    API endpoint to report 404 errors for tracking and fixing broken links.
+
+    CSRF exempt because 404 pages don't have CSRF tokens.
+
+    Accepts POST with JSON:
+    - url: The URL that resulted in 404
+    - referrer: The page that linked to the broken URL
+    - timestamp: When the error occurred
+
+    Creates an AdminTask for broken link investigation if the URL hasn't
+    been reported recently.
+    """
+
+    def post(self, request, *args, **kwargs):
+
+        try:
+            data = json.loads(request.body)
+            url = data.get('url', '')
+            referrer = data.get('referrer', 'direct')
+
+            if not url:
+                return JsonResponse({'success': False, 'error': 'No URL provided'}, status=400)
+
+            # Rate limit: Check if this URL was reported recently (using cache)
+            from django.core.cache import cache
+            cache_key = f"404_report_{hash(url)}"
+            if cache.get(cache_key):
+                # Already reported in the last hour
+                return JsonResponse({'success': True, 'already_reported': True})
+
+            # Log the 404
+            logger.warning(f"404 reported: {url} (referrer: {referrer})")
+
+            # Create AdminTask for the broken link
+            try:
+                from apps.admin_console.models import AdminTask, AdminProject, AdminProjectPhase
+
+                # Get or create the "Bug Reports" project
+                project, _ = AdminProject.objects.get_or_create(
+                    name="Bug Reports",
+                    defaults={
+                        'description': 'Bug reports and broken links from users',
+                        'status': 'open',
+                        'priority': 2,
+                    }
+                )
+
+                # Get Phase 1 for new tasks
+                phase = AdminProjectPhase.objects.filter(phase_number=1).first()
+                if not phase:
+                    phase = AdminProjectPhase.objects.first()
+
+                # Extract path from URL for the title
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                path = parsed.path or url
+
+                # Check if we already have a task for this exact URL
+                existing = AdminTask.objects.filter(
+                    title__icontains=path,
+                    project=project,
+                    status__in=['backlog', 'ready', 'in_progress']
+                ).first()
+
+                if not existing and phase:
+                    task = AdminTask(
+                        title=f"404: {path[:70]}",
+                        description={
+                            "objective": f"Fix broken link: {path}",
+                            "inputs": [
+                                f"URL: {url}",
+                                f"Referrer: {referrer}",
+                                "Reported from 404 page"
+                            ],
+                            "actions": [
+                                "Identify why this URL returns 404",
+                                "Either create the missing page or fix the link",
+                                "Test that the URL now works"
+                            ],
+                            "output": f"URL {path} no longer returns 404"
+                        },
+                        category='bug',
+                        priority=3,  # Medium priority
+                        status='backlog',
+                        effort='S',
+                        phase=phase,
+                        project=project,
+                        created_by='404_reporter',
+                    )
+                    task.save(skip_validation=False)
+                    logger.info(f"Created AdminTask #{task.id} for 404: {path}")
+
+            except Exception as e:
+                logger.error(f"Failed to create AdminTask for 404: {e}")
+
+            # Mark as reported (cache for 1 hour)
+            cache.set(cache_key, True, timeout=3600)
+
+            return JsonResponse({'success': True})
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            logger.error(f"Error in Report404View: {e}")
+            return JsonResponse({'success': False, 'error': 'Server error'}, status=500)

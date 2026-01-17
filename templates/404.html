@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Page Not Found - Whole Life Journey</title>
+    <title>Oops! Page Not Found - Whole Life Journey</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'icons/common/logo.svg' %}">
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
     <style nonce="{{ csp_nonce }}">
@@ -18,28 +18,33 @@
             padding: 2rem;
             background: var(--color-bg, #f5f5f5);
         }
-        .error-code {
-            font-size: 6rem;
-            font-weight: bold;
-            color: var(--color-accent, #6366f1);
-            margin-bottom: 0.5rem;
-            line-height: 1;
+        .error-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
         }
         .error-title {
-            font-size: 1.5rem;
+            font-size: 1.75rem;
             color: var(--color-text, #333);
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        .error-subtitle {
+            font-size: 1.1rem;
+            color: var(--color-text-muted, #666);
+            margin-bottom: 1.5rem;
         }
         .error-message {
             color: var(--color-text-muted, #666);
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
             max-width: 400px;
+            line-height: 1.6;
         }
         .error-actions {
             display: flex;
             gap: 1rem;
             flex-wrap: wrap;
             justify-content: center;
+            margin-bottom: 2rem;
         }
         .btn {
             padding: 0.75rem 1.5rem;
@@ -47,6 +52,9 @@
             text-decoration: none;
             font-weight: 500;
             transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
         }
         .btn-primary {
             background: var(--color-accent, #6366f1);
@@ -63,20 +71,118 @@
         .btn-secondary:hover {
             background: var(--color-bg-hover, #f0f0f0);
         }
+        .support-notice {
+            background: var(--color-surface, #fff);
+            border: 1px solid var(--color-border, #e5e7eb);
+            border-radius: 0.75rem;
+            padding: 1rem 1.5rem;
+            max-width: 400px;
+            color: var(--color-text-muted, #666);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .support-notice.sent {
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+            color: #065f46;
+        }
+        .checkmark {
+            display: inline-block;
+            margin-right: 0.25rem;
+        }
+        @media (max-width: 480px) {
+            .error-icon {
+                font-size: 3rem;
+            }
+            .error-title {
+                font-size: 1.5rem;
+            }
+            .error-actions {
+                flex-direction: column;
+                width: 100%;
+                max-width: 280px;
+            }
+            .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="error-container">
-        <div class="error-code">404</div>
-        <h1 class="error-title">Page Not Found</h1>
+        <div class="error-icon">🗺️</div>
+        <h1 class="error-title">Well, that didn't work!</h1>
+        <p class="error-subtitle">We couldn't find that page</p>
         <p class="error-message">
-            The page you're looking for doesn't exist or has been moved.
-            Let's get you back on track.
+            The page you were looking for doesn't exist or may have been moved.
+            No worries though - let's get you back on track.
         </p>
         <div class="error-actions">
-            <a href="/" class="btn btn-primary">Go Home</a>
-            <a href="javascript:history.back()" class="btn btn-secondary">Go Back</a>
+            <a href="javascript:history.back()" class="btn btn-primary">Go Back</a>
+            <a href="/" class="btn btn-secondary">Go to Dashboard</a>
+        </div>
+        <div id="support-notice" class="support-notice">
+            We've let our support team know about this broken link so they can fix it.
         </div>
     </div>
+
+    <script nonce="{{ csp_nonce }}">
+    // Notify support about 404 errors (with rate limiting)
+    (function() {
+        try {
+            const storageKey = '404_reported';
+            const currentUrl = window.location.href;
+            const referrer = document.referrer || 'direct';
+
+            // Check if we've already reported this URL recently (within 1 hour)
+            const reported = JSON.parse(localStorage.getItem(storageKey) || '{}');
+            const now = Date.now();
+            const oneHour = 60 * 60 * 1000;
+
+            // Clean up old entries
+            Object.keys(reported).forEach(url => {
+                if (now - reported[url] > oneHour) {
+                    delete reported[url];
+                }
+            });
+
+            if (reported[currentUrl]) {
+                // Already reported recently
+                return;
+            }
+
+            // Report the 404
+            fetch('/api/report-404/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    url: currentUrl,
+                    referrer: referrer,
+                    timestamp: new Date().toISOString()
+                })
+            }).then(response => {
+                if (response.ok) {
+                    // Mark as reported
+                    reported[currentUrl] = now;
+                    localStorage.setItem(storageKey, JSON.stringify(reported));
+
+                    // Update the notice to show success
+                    const notice = document.getElementById('support-notice');
+                    if (notice) {
+                        notice.classList.add('sent');
+                        notice.innerHTML = '<span class="checkmark">✓</span> We\'ve notified our support team about this broken link.';
+                    }
+                }
+            }).catch(() => {
+                // Silent fail - not critical
+            });
+        } catch (e) {
+            // Silent fail - localStorage might not be available
+        }
+    })();
+    </script>
 </body>
 </html>

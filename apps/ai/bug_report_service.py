@@ -111,7 +111,7 @@ class BugReportService:
 
     # Acknowledgment message for users
     ACKNOWLEDGMENT_MESSAGE = (
-        "I've sent your report to our support team at admin@wholelifejourney.com. "
+        "I've sent your report to our support team. "
         "Thank you for helping us improve! We'll look into this and may reach out "
         "if we need more details."
     )

@@ -16,6 +16,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix AI Hallucinating Non-Existent Features and Friendly 404 Page
+
+**Issues:**
+1. AI assistant was generating broken links to features that don't exist (e.g., "Sleep Tracking" links leading to 404)
+2. The 404 error page was bland and didn't help users
+3. Bug report acknowledgment message exposed the admin email address
+
+**Solutions:**
+
+1. **AI System Prompt Update:** Updated the personal assistant's feature link list to be comprehensive and added explicit instructions to ONLY use links from the provided list. If users ask about unavailable features (like sleep tracking, water tracking), the AI now explains the feature isn't available yet and suggests using "I wish I could..." to add to the roadmap.
+
+2. **Friendly 404 Page:** Redesigned the 404 page with:
+   - Friendly messaging ("Well, that didn't work!")
+   - Map emoji for visual interest
+   - Clear "Go Back" and "Go to Dashboard" buttons
+   - Automatic notification to support team about broken links
+   - Creates AdminTask in Bug Reports project for tracking
+
+3. **Email Privacy:** Removed specific email address from bug report acknowledgment message (now just says "our support team")
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Updated feature link list and added "do not hallucinate" instructions
+- `templates/404.html` - Complete redesign with friendly UX and auto-reporting
+- `apps/core/views.py` - Added Report404View API endpoint for broken link tracking
+- `apps/core/urls.py` - Added /api/report-404/ URL pattern
+- `apps/ai/bug_report_service.py` - Removed email address from acknowledgment message
+
+---
+
 ### Clean Up Vision Debug Logging
 
 **Change:** Changed vision logging from `logger.info` to `logger.debug` now that image upload feature is working correctly. This reduces log noise in production.

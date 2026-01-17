@@ -58,4 +58,7 @@ urlpatterns = [
     path("api/search-history/", views.SearchHistoryGetView.as_view(), name="search_history_get"),
     path("api/search-history/save/", views.SearchHistorySaveView.as_view(), name="search_history_save"),
     path("api/search-history/clear/", views.SearchHistoryClearView.as_view(), name="search_history_clear"),
+
+    # 404 Reporting API
+    path("api/report-404/", views.Report404View.as_view(), name="report_404"),
 ]

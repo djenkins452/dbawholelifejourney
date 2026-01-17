@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Allow AI Assistant to Answer Any Question
+
+**Issue:** The AI Assistant was refusing to answer general knowledge questions like "what's my horoscope" by saying it was only a wellness assistant and couldn't help with that.
+
+**Solution:** Added a new "ANSWER ANYTHING (WITHIN REASON)" section to the master prompt that explicitly allows the AI to answer:
+- General knowledge and trivia
+- Horoscopes, recipes, sports scores
+- History, math, advice
+- Any helpful question
+
+**The only things it refuses:**
+- Rude, vulgar, or hateful content
+- Anything illegal or harmful
+- Personal attacks
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Added "ANSWER ANYTHING" section to `PERSONAL_ASSISTANT_BASE_PROMPT`
+
+**Result:** The AI is now a helpful general-purpose assistant that also specializes in wellness, rather than being limited to only wellness topics.
+
+---
+
 ### Always Include Clickable Links When Directing Users
 
 **Issue:** When the AI told users to "go to your Journal entries" or similar, it wasn't including a clickable link. The navigation response system only provided links for explicit navigation queries ("where to find X"), not when the AI naturally suggested going somewhere.

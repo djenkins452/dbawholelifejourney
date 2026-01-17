@@ -31,6 +31,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Fix Delete Button and Add Vision Logging
+
+**Issue 1:** The clear conversation (trash) button in the Assistant dashboard wasn't working because clicking it also triggered the sidebar's click handler which called `refreshChatHistory()`, interfering with the delete operation.
+
+**Issue 2:** Need visibility into whether images are actually being sent to OpenAI Vision.
+
+**Solution:**
+1. Added `e.stopPropagation()` to the clear button click handler to prevent the sidebar click handler from interfering
+2. Added logging to `_call_api()` when sending vision requests to OpenAI
+
+**Files Modified:**
+- `templates/ai/assistant_dashboard.html` - Added stopPropagation to clear button handler
+- `apps/ai/services.py` - Added logging for vision requests
+
+---
+
 ### Fix AI Not Analyzing Attached Images
 
 **Issue:** When users attached images in chat, the AI responded "I can't see the image you've uploaded" even though the image was being sent to OpenAI correctly.

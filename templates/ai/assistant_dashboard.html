@@ -1326,7 +1326,8 @@
     }
 
     // Clear conversation
-    clearChatBtn.addEventListener('click', async function() {
+    clearChatBtn.addEventListener('click', async function(e) {
+        e.stopPropagation();  // Prevent sidebar click handler from refreshing
         if (!hasMessages) return;
 
         if (!confirm('Clear all messages and start fresh?')) return;

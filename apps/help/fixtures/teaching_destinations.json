@@ -933,5 +933,22 @@
             "created_at": "2026-01-16T00:00:00Z",
             "updated_at": "2026-01-16T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 56,
+        "fields": {
+            "destination_id": "water-tracking",
+            "name": "Water Intake",
+            "path_description": "Health - Water",
+            "explanation": "Log and track your daily water intake to stay hydrated.",
+            "url": "/health/water/",
+            "keywords": "water, hydration, water intake, drink water, log water, track water, hydrated, dehydrated, fluids, water goal, water consumption, glasses of water",
+            "module": "health",
+            "sort_order": 56,
+            "is_active": true,
+            "created_at": "2026-01-17T00:00:00Z",
+            "updated_at": "2026-01-17T00:00:00Z"
+        }
     }
 ]

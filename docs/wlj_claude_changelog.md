@@ -16,6 +16,66 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Add Water/Hydration Tracking Feature
+
+**Feature Request:** User requested water tracking functionality via email intake task.
+
+**Implementation:** Added complete water/hydration tracking to the Health module:
+
+**Model (apps/health/models.py):**
+- New `WaterEntry` model with amount, unit (oz/ml/cups/liters), container type, logged_date
+- Helper methods: `amount_oz`, `amount_ml` for unit conversion
+- Class methods: `get_daily_total()`, `get_daily_goal_progress()` for progress tracking
+
+**Views (apps/health/views.py):**
+- `WaterListView` - List water entries with today's progress, weekly stats, and chart
+- `WaterCreateView` - Form to log water with quick presets
+- `WaterUpdateView` - Edit existing entries
+- `WaterDeleteView` - Delete with undo support
+- `QuickWaterLogView` - Quick AJAX logging from dashboard
+
+**Templates:**
+- `templates/health/water_list.html` - Main water tracking page with progress bar, quick-add buttons, stats
+- `templates/health/water_form.html` - Entry form with quick presets (8oz glass, 16oz bottle, etc.)
+- Updated `templates/health/home.html` - Added Water card to health dashboard
+
+**URLs (apps/health/urls.py):**
+- `/health/water/` - List view
+- `/health/water/log/` - Create view
+- `/health/water/<pk>/edit/` - Update view
+- `/health/water/<pk>/delete/` - Delete view
+- `/health/water/quick/` - Quick log endpoint
+
+**AI Integration:**
+- `assistant/data_service.py` - Added `get_water_data()` method for assistant queries
+- `assistant/intent_detector.py` - Added 'water' keywords for intent detection
+- `apps/ai/signals.py` - Added cache invalidation signals for WaterEntry
+- `apps/ai/personal_assistant.py` - Added water tracking to feature list
+
+**Navigation:**
+- `apps/help/fixtures/teaching_destinations.json` - Added water tracking destination
+
+**Migration:**
+- `apps/health/migrations/0026_water_entry.py` - Create WaterEntry table
+
+---
+
+### Fix AI Page Context Awareness (Navigation Override)
+
+**Issue:** When users asked about page content (like "show me the actual scripture NIV"), the AI was incorrectly redirecting them to unrelated features (like habits) instead of using the page context to answer about the scripture they were viewing.
+
+**Root Cause:** The `_try_navigation_response()` function was triggered by "show me the" and other navigation indicators, causing it to search for unrelated destinations instead of using the rich page context (scripture references, reading plan content) that was already being collected.
+
+**Solution:** Updated `_try_navigation_response()` to:
+1. Check for page content indicators first ("this scripture", "actual scripture", "NIV", "explain this", etc.)
+2. Skip navigation if page_context has rich content and query references that content
+3. Pass page_context parameter to enable context-aware decisions
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Updated `_try_navigation_response()` with content indicators and page_context parameter
+
+---
+
 ### Fix Gap Detector False Positives for Sports and General Knowledge Queries
 
 **Issue:** The gap_detector was flagging queries about external data (sports, general knowledge) as "new data types" to evaluate. Examples: "what college football is on today?", "what horoscope should I read?", "what data do you have on me?"

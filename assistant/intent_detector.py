@@ -326,6 +326,19 @@ PERSONAL_DATA_KEYWORDS: Dict[str, List[str]] = {
     ],
 
     # =========================================================================
+    # WATER / HYDRATION
+    # =========================================================================
+    'water': [
+        'water', 'hydration', 'hydrated', 'hydrating', 'dehydrated', 'dehydration',
+        'water intake', 'water consumption', 'drinking water', 'drank water',
+        'glasses of water', 'cups of water', 'ounces of water', 'oz water',
+        'liters of water', 'bottles of water', 'how much water', 'enough water',
+        'daily water', 'water goal', 'water today', 'water yesterday',
+        'staying hydrated', 'drink more water', 'fluid intake', 'fluids',
+        'h2o', 'thirsty', 'thirst',
+    ],
+
+    # =========================================================================
     # MOOD & MENTAL STATE
     # =========================================================================
     'mood': [

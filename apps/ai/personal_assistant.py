@@ -197,6 +197,7 @@ Use this format: "You can do that by going to **[Feature Name]**. For easy acces
 - Nutrition/Food Log: [click here](/health/nutrition/)
 - Medication/Medicine: [click here](/health/medicine/)
 - Steps: [click here](/health/steps/)
+- Water/Hydration: [click here](/health/water/)
 - Cycle Tracking: [click here](/health/cycle/)
 - Quick Log: [click here](/health/quick-log/)
 - Goals: [click here](/purpose/goals/)
@@ -215,7 +216,7 @@ Use this format: "You can do that by going to **[Feature Name]**. For easy acces
 
 **IMPORTANT - DO NOT MAKE UP FEATURES OR LINKS:**
 - ONLY suggest features that exist in the list above
-- If a user asks about a feature NOT in this list (like sleep tracking, water tracking, etc.), tell them: "That feature isn't available yet, but I've noted your interest! You can let us know what features you'd like by saying 'I wish I could...' and we'll add it to our roadmap."
+- If a user asks about a feature NOT in this list (like sleep tracking, etc.), tell them: "That feature isn't available yet, but I've noted your interest! You can let us know what features you'd like by saying 'I wish I could...' and we'll add it to our roadmap."
 - NEVER invent URLs or guess at paths - if it's not in the list above, it doesn't exist
 - If you're unsure whether a feature exists, err on the side of telling the user it's not available rather than sending them to a broken link
 
@@ -1786,7 +1787,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                         response += "\n\n" + bug_report_ack
                     else:
                         # Not a bug report - check for navigation query
-                        navigation_response = self._try_navigation_response(message, conversation)
+                        # Pass page_context so we don't navigate away when asking about current content
+                        navigation_response = self._try_navigation_response(message, conversation, page_context)
                         if navigation_response:
                             response = navigation_response
                         else:
@@ -1996,7 +1998,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
         return True
 
-    def _try_navigation_response(self, message: str, conversation: AssistantConversation = None) -> str:
+    def _try_navigation_response(self, message: str, conversation: AssistantConversation = None, page_context: dict = None) -> str:
         """
         Check if the message is a navigation query and return a helpful response.
 
@@ -2009,12 +2011,48 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         Args:
             message: User's message
             conversation: Optional conversation for context on ambiguous queries
+            page_context: Optional page context - if query references page content, skip navigation
 
         Returns:
             Response string with navigation info, or None if not a navigation query
         """
         # Check if query looks like a navigation question
         query_lower = message.lower().strip()
+
+        # First, check if the query is about the CURRENT PAGE content
+        # These queries should NOT be handled as navigation - they want the AI
+        # to explain/show content that's already on the page
+        page_content_indicators = [
+            # References to current page content
+            'this scripture', 'the scripture', 'this verse', 'the verse',
+            'this passage', 'the passage', 'this reading', 'the reading',
+            'this entry', 'this journal', 'this prayer', 'this goal',
+            'this task', 'this page', 'the actual', 'actual scripture',
+            # Explanation requests about content
+            'explain it', 'explain this', 'explain the', 'what does it mean',
+            'what does this mean', 'in simple terms', 'like i am',
+            'tell me about this', 'tell me what', 'niv', 'esv', 'kjv',
+        ]
+
+        # If the query is about current page content, skip navigation
+        if any(indicator in query_lower for indicator in page_content_indicators):
+            return None
+
+        # If there's page context with content (like a reading plan), and the query
+        # seems to be asking about that content, skip navigation
+        if page_context and page_context.get('page_content'):
+            content_type = page_context['page_content'].get('type', '')
+            # For reading plans, skip navigation if query mentions scripture/reading/explain
+            if content_type == 'reading_plan_progress':
+                reading_context_words = ['scripture', 'verse', 'passage', 'read', 'reading', 'explain', 'mean', 'bible', 'luke', 'john', 'matthew', 'mark']
+                if any(word in query_lower for word in reading_context_words):
+                    return None
+            # For journal entries, skip if query mentions entry/journal/wrote
+            elif content_type == 'journal_entry':
+                journal_context_words = ['entry', 'journal', 'wrote', 'writing', 'wrote']
+                if any(word in query_lower for word in journal_context_words):
+                    return None
+
         navigation_indicators = [
             # Location questions
             'where do i', 'where can i', 'where is', 'where are',

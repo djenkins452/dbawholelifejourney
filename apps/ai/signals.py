@@ -270,3 +270,25 @@ def invalidate_cache_on_food_entry_save(sender, instance, created, **kwargs):
 def invalidate_cache_on_food_entry_delete(sender, instance, **kwargs):
     """Invalidate personal data cache when a food entry is deleted."""
     invalidate_personal_data_cache(instance.user, 'food')
+
+
+# =============================================================================
+# WATER SIGNALS
+# =============================================================================
+
+@receiver(post_save, sender='health.WaterEntry')
+def invalidate_cache_on_water_entry_save(sender, instance, created, **kwargs):
+    """Invalidate personal data cache when a water entry is saved."""
+    invalidate_personal_data_cache(instance.user, 'water')
+    # Also invalidate health insights
+    insight_types = ['daily_insight', 'health_home', 'health_encouragement']
+    invalidate_user_insights(instance.user, insight_types)
+
+
+@receiver(post_delete, sender='health.WaterEntry')
+def invalidate_cache_on_water_entry_delete(sender, instance, **kwargs):
+    """Invalidate personal data cache when a water entry is deleted."""
+    invalidate_personal_data_cache(instance.user, 'water')
+    # Also invalidate health insights
+    insight_types = ['daily_insight', 'health_home', 'health_encouragement']
+    invalidate_user_insights(instance.user, insight_types)

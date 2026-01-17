@@ -1352,6 +1352,96 @@ class PersonalDataService:
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
         return result
 
+    def get_water_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's water/hydration data.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+            limit: Maximum number of recent entries to include (default 10).
+
+        Returns:
+            None if no water entries exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'water'
+                - total_entries (int): Total number of water entries
+                - today_oz (float): Today's total water intake in ounces
+                - today_percentage (float): Percentage of daily goal achieved
+                - today_goal_met (bool): Whether today's goal is met
+                - avg_daily_oz (float): 7-day average daily intake
+                - entries (list): Recent water entries
+        """
+        cache_key = _generate_cache_key(self.user.id, 'water', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import WaterEntry
+        from apps.core.utils import get_user_today
+        from datetime import timedelta
+
+        queryset = WaterEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(recorded_at__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        today = get_user_today(self.user)
+        total_entries = queryset.count()
+
+        # Today's progress
+        today_progress = WaterEntry.get_daily_goal_progress(self.user, today)
+
+        # Calculate 7-day average
+        week_ago = timezone.now() - timedelta(days=7)
+        week_entries = queryset.filter(logged_date__gte=week_ago.date())
+        avg_daily_oz = 0.0
+        if week_entries.exists():
+            daily_totals = {}
+            for entry in week_entries:
+                day = entry.logged_date
+                if day not in daily_totals:
+                    daily_totals[day] = 0
+                daily_totals[day] += entry.amount_oz
+            if daily_totals:
+                avg_daily_oz = round(sum(daily_totals.values()) / len(daily_totals), 1)
+
+        # Recent entries
+        recent_entries = list(
+            queryset[:limit].values('amount', 'unit', 'container', 'logged_date', 'recorded_at', 'notes')
+        )
+
+        entries = [
+            {
+                'amount': float(entry['amount']),
+                'unit': entry['unit'],
+                'container': entry['container'],
+                'logged_date': entry['logged_date'],
+                'recorded_at': entry['recorded_at'],
+                'notes': entry['notes'],
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'water',
+            'total_entries': total_entries,
+            'today_oz': today_progress['total_oz'],
+            'today_percentage': today_progress['percentage'],
+            'today_goal_met': today_progress['goal_met'],
+            'avg_daily_oz': avg_daily_oz,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
     def get_task_data(
         self,
         since_date: Optional[datetime] = None,
@@ -1538,6 +1628,7 @@ class PersonalDataService:
             'blood_oxygen': self.get_blood_oxygen_data,
             'workout': self.get_workout_data,
             'fasting': self.get_fasting_data,
+            'water': self.get_water_data,
             'task': self.get_task_data,
         }
 

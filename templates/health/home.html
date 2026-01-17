@@ -190,6 +190,54 @@
             {% endif %}
         </div>
 
+        <!-- Water Card -->
+        <div class="health-card water-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                    </svg>
+                    Water
+                </h2>
+                <a href="{% url 'health:water_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            <div class="water-progress">
+                <div class="water-progress-bar">
+                    <div class="water-progress-fill" style="width: {{ water_today_percentage }}%"></div>
+                </div>
+                <div class="water-stats">
+                    <span class="water-current">{{ water_today_oz|floatformat:0 }} oz</span>
+                    <span class="water-goal">/ {{ water_goal_oz }} oz</span>
+                </div>
+            </div>
+
+            {% if water_goal_met %}
+                <p class="goal-badge">Goal Met!</p>
+            {% endif %}
+
+            {% if avg_water_oz %}
+                <p class="metric-avg">7-day avg: {{ avg_water_oz }} oz/day</p>
+            {% endif %}
+
+            <div class="quick-water-buttons">
+                <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="preset" value="8">
+                    <input type="hidden" name="next" value="{% url 'health:home' %}">
+                    <button type="submit" class="btn btn-ghost btn-xs">+8oz</button>
+                </form>
+                <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="preset" value="16">
+                    <input type="hidden" name="next" value="{% url 'health:home' %}">
+                    <button type="submit" class="btn btn-ghost btn-xs">+16oz</button>
+                </form>
+            </div>
+
+            <a href="{% url 'health:water_list' %}" class="card-link">View history{% if water_entry_count %} ({{ water_entry_count }}){% endif %}</a>
+        </div>
+
         <!-- Glucose Card -->
         <div class="health-card">
             <div class="card-header">
@@ -953,6 +1001,67 @@
     .fast-info {
         justify-content: center;
     }
+}
+
+/* Water Card Styles */
+.water-card .card-header h2 svg {
+    color: #0ea5e9;
+}
+
+.water-progress {
+    margin-bottom: var(--space-3);
+}
+
+.water-progress-bar {
+    height: 12px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--space-2);
+}
+
+.water-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0ea5e9, #0284c7);
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+}
+
+.water-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+}
+
+.water-current {
+    font-weight: 600;
+    color: #0284c7;
+}
+
+.water-goal {
+    color: var(--color-text-muted);
+}
+
+.quick-water-buttons {
+    display: flex;
+    gap: var(--space-2);
+    margin: var(--space-3) 0;
+}
+
+.quick-water-buttons .btn-xs {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+}
+
+.goal-badge {
+    display: inline-block;
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
 }
 </style>
 {% endblock %}

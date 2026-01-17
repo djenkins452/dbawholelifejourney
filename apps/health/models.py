@@ -808,6 +808,113 @@ class StepsEntry(UserOwnedModel):
         return None
 
 
+class WaterEntry(UserOwnedModel):
+    """
+    Water/hydration tracking entry.
+
+    Tracks daily water intake with support for different units and containers.
+    Designed for simple daily logging with optional goal tracking.
+    """
+
+    UNIT_CHOICES = [
+        ("oz", "Ounces (oz)"),
+        ("ml", "Milliliters (ml)"),
+        ("cups", "Cups"),
+        ("liters", "Liters"),
+    ]
+
+    CONTAINER_CHOICES = [
+        ("glass", "Glass"),
+        ("bottle", "Water Bottle"),
+        ("cup", "Cup/Mug"),
+        ("large_bottle", "Large Bottle (32oz+)"),
+        ("other", "Other"),
+    ]
+
+    amount = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        help_text="Amount of water consumed",
+    )
+    unit = models.CharField(
+        max_length=10,
+        choices=UNIT_CHOICES,
+        default="oz",
+    )
+    container = models.CharField(
+        max_length=20,
+        choices=CONTAINER_CHOICES,
+        default="glass",
+        blank=True,
+    )
+    logged_date = models.DateField(
+        help_text="Date the water was logged for",
+    )
+    recorded_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When this entry was recorded",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-logged_date", "-recorded_at"]
+        verbose_name = "water entry"
+        verbose_name_plural = "water entries"
+
+    def __str__(self):
+        return f"{self.amount} {self.unit} on {self.logged_date}"
+
+    @property
+    def amount_oz(self):
+        """Convert amount to ounces for standardized calculations."""
+        conversions = {
+            "oz": 1,
+            "ml": 0.033814,  # 1 ml = 0.033814 oz
+            "cups": 8,  # 1 cup = 8 oz
+            "liters": 33.814,  # 1 liter = 33.814 oz
+        }
+        return round(float(self.amount) * conversions.get(self.unit, 1), 1)
+
+    @property
+    def amount_ml(self):
+        """Convert amount to milliliters for standardized calculations."""
+        conversions = {
+            "oz": 29.5735,  # 1 oz = 29.5735 ml
+            "ml": 1,
+            "cups": 236.588,  # 1 cup = 236.588 ml
+            "liters": 1000,  # 1 liter = 1000 ml
+        }
+        return round(float(self.amount) * conversions.get(self.unit, 1), 1)
+
+    @classmethod
+    def get_daily_total(cls, user, date):
+        """Get total water intake for a specific date in ounces."""
+        entries = cls.objects.filter(user=user, logged_date=date)
+        return sum(entry.amount_oz for entry in entries)
+
+    @classmethod
+    def get_daily_goal_progress(cls, user, date, goal_oz=64):
+        """
+        Get progress toward daily water goal.
+
+        Args:
+            user: The user
+            date: The date to check
+            goal_oz: Daily goal in ounces (default 64oz = 8 glasses)
+
+        Returns:
+            dict with total_oz, goal_oz, percentage, and goal_met
+        """
+        total = cls.get_daily_total(user, date)
+        percentage = min(100, round((total / goal_oz) * 100, 1)) if goal_oz > 0 else 0
+        return {
+            "total_oz": total,
+            "goal_oz": goal_oz,
+            "percentage": percentage,
+            "goal_met": total >= goal_oz,
+        }
+
+
 class GlucoseEntry(UserOwnedModel):
     """
     Blood glucose tracking entry.

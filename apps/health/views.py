@@ -69,6 +69,7 @@ from .models import (
     StepsEntry,
     TemplateExercise,
     TemplateExerciseSet,
+    WaterEntry,
     WeightEntry,
     WorkoutExercise,
     WorkoutSession,
@@ -142,6 +143,31 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if week_steps.exists():
                 avg = week_steps.aggregate(avg=Avg("count"))["avg"]
                 context["avg_steps"] = round(avg) if avg else None
+
+        # Water/Hydration summary
+        today = get_user_today(user)
+        water_progress = WaterEntry.get_daily_goal_progress(user, today)
+        context["water_today_oz"] = water_progress["total_oz"]
+        context["water_goal_oz"] = water_progress["goal_oz"]
+        context["water_today_percentage"] = water_progress["percentage"]
+        context["water_goal_met"] = water_progress["goal_met"]
+
+        water_entries = WaterEntry.objects.filter(user=user)
+        if water_entries.exists():
+            context["water_entry_count"] = water_entries.count()
+            # 7-day average
+            week_ago = now - timedelta(days=7)
+            week_water = water_entries.filter(logged_date__gte=week_ago.date())
+            if week_water.exists():
+                # Calculate daily totals, then average
+                daily_totals = {}
+                for entry in week_water:
+                    day = entry.logged_date
+                    if day not in daily_totals:
+                        daily_totals[day] = 0
+                    daily_totals[day] += entry.amount_oz
+                if daily_totals:
+                    context["avg_water_oz"] = round(sum(daily_totals.values()) / len(daily_totals), 1)
 
         # Glucose summary
         glucose_entries = GlucoseEntry.objects.filter(user=user)
@@ -865,6 +891,181 @@ class BulkDeleteStepsView(LoginRequiredMixin, View):
             ).delete()[0]
             messages.success(request, f"Deleted {deleted_count} steps entries.")
         return redirect("health:steps_list")
+
+
+# =============================================================================
+# Water / Hydration Views
+# =============================================================================
+
+
+class WaterListView(HelpContextMixin, LoginRequiredMixin, ListView):
+    """
+    List water/hydration entries.
+    """
+
+    model = WaterEntry
+    template_name = "health/water_list.html"
+    context_object_name = "entries"
+    paginate_by = 30
+    help_context_id = "HEALTH_WATER"
+
+    def get_queryset(self):
+        return WaterEntry.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = get_user_today(user)
+        entries = self.get_queryset()
+
+        # Today's progress
+        today_progress = WaterEntry.get_daily_goal_progress(user, today)
+        context["today_total"] = today_progress["total_oz"]
+        context["today_goal"] = today_progress["goal_oz"]
+        context["today_percentage"] = today_progress["percentage"]
+        context["today_goal_met"] = today_progress["goal_met"]
+
+        if entries.exists():
+            context["latest"] = entries.first()
+            context["total_count"] = entries.count()
+
+            # Stats for past 7 days
+            week_ago = timezone.now() - timedelta(days=7)
+            week_entries = entries.filter(logged_date__gte=week_ago.date())
+            if week_entries.exists():
+                # Calculate daily totals for the week
+                daily_totals = {}
+                for entry in week_entries:
+                    day = entry.logged_date
+                    if day not in daily_totals:
+                        daily_totals[day] = 0
+                    daily_totals[day] += entry.amount_oz
+
+                if daily_totals:
+                    totals = list(daily_totals.values())
+                    context["week_avg"] = round(sum(totals) / len(totals), 1)
+                    context["week_total"] = round(sum(totals), 1)
+                    context["week_max"] = round(max(totals), 1)
+                    context["week_days"] = len(totals)
+
+            # Chart data for last 14 days
+            two_weeks_ago = timezone.now() - timedelta(days=14)
+            chart_entries = entries.filter(
+                logged_date__gte=two_weeks_ago.date()
+            )
+            if chart_entries.exists():
+                # Aggregate by day
+                daily_data = {}
+                for entry in chart_entries:
+                    day = entry.logged_date
+                    if day not in daily_data:
+                        daily_data[day] = 0
+                    daily_data[day] += entry.amount_oz
+
+                # Sort by date
+                sorted_days = sorted(daily_data.keys())
+                context["chart_labels"] = json.dumps([
+                    d.strftime("%m/%d") for d in sorted_days
+                ])
+                context["chart_data"] = json.dumps([
+                    round(daily_data[d], 1) for d in sorted_days
+                ])
+
+        return context
+
+
+class WaterCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
+    """
+    Log a new water entry.
+    """
+
+    model = WaterEntry
+    fields = ["amount", "unit", "container", "logged_date", "notes"]
+    template_name = "health/water_form.html"
+    success_url = reverse_lazy("health:water_list")
+    save_add_another_message = "Water logged. Add another!"
+
+    def get_initial(self):
+        initial = super().get_initial()
+        initial["logged_date"] = get_user_today(self.request.user)
+        return initial
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, "Water logged.")
+        return super().form_valid(form)
+
+
+class WaterUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Edit a water entry.
+    """
+
+    model = WaterEntry
+    fields = ["amount", "unit", "container", "logged_date", "notes"]
+    template_name = "health/water_form.html"
+    success_url = reverse_lazy("health:water_list")
+
+    def get_queryset(self):
+        return WaterEntry.objects.filter(user=self.request.user)
+
+
+class WaterDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
+    """
+    Delete a water entry.
+    Supports undo via toast notification for AJAX requests.
+    """
+
+    model = WaterEntry
+    item_type = 'health.waterentry'
+    item_name = 'water entry'
+    success_url = 'health:water_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            WaterEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
+        )
+
+
+class QuickWaterLogView(LoginRequiredMixin, View):
+    """
+    Quick log water from dashboard or widget.
+    Accepts preset amounts for fast logging.
+    """
+
+    def post(self, request):
+        preset = request.POST.get("preset", "8")  # Default to 8oz glass
+        try:
+            amount = float(preset)
+        except ValueError:
+            amount = 8.0
+
+        WaterEntry.objects.create(
+            user=request.user,
+            amount=amount,
+            unit="oz",
+            container="glass" if amount <= 12 else "bottle",
+            logged_date=get_user_today(request.user),
+        )
+
+        messages.success(request, f"Logged {amount}oz of water!")
+
+        # Handle AJAX requests
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            today_progress = WaterEntry.get_daily_goal_progress(
+                request.user,
+                get_user_today(request.user)
+            )
+            return JsonResponse({
+                "success": True,
+                "total_oz": today_progress["total_oz"],
+                "percentage": today_progress["percentage"],
+                "goal_met": today_progress["goal_met"],
+            })
+
+        return redirect(request.POST.get("next", "health:water_list"))
 
 
 # NOTE: Glucose views moved to end of file with Dexcom integration views

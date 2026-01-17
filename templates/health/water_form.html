@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit{% else %}Log{% endif %} Water - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:water_list' %}">Water</a>
+        <span>/</span>
+        <span>{% if object %}Edit{% else %}Log{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if object %}Edit{% else %}Log{% endif %} Water Intake</h1>
+    </div>
+
+    <form method="post" class="card">
+        {% csrf_token %}
+
+        <!-- Quick Presets -->
+        {% if not object %}
+        <div class="quick-presets">
+            <h3>Quick Add</h3>
+            <div class="preset-buttons">
+                <button type="button" class="preset-btn" data-amount="8" data-unit="oz" data-container="glass">
+                    8oz Glass
+                </button>
+                <button type="button" class="preset-btn" data-amount="12" data-unit="oz" data-container="cup">
+                    12oz Cup
+                </button>
+                <button type="button" class="preset-btn" data-amount="16" data-unit="oz" data-container="bottle">
+                    16oz Bottle
+                </button>
+                <button type="button" class="preset-btn" data-amount="20" data-unit="oz" data-container="bottle">
+                    20oz Bottle
+                </button>
+                <button type="button" class="preset-btn" data-amount="32" data-unit="oz" data-container="large_bottle">
+                    32oz Bottle
+                </button>
+                <button type="button" class="preset-btn" data-amount="1" data-unit="liters" data-container="large_bottle">
+                    1 Liter
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_amount" class="form-label">Amount</label>
+                <input
+                    type="number"
+                    name="amount"
+                    id="id_amount"
+                    class="form-input"
+                    value="{{ form.amount.value|default:'' }}"
+                    min="0"
+                    step="0.5"
+                    placeholder="e.g., 8"
+                    required
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="id_unit" class="form-label">Unit</label>
+                <select name="unit" id="id_unit" class="form-select">
+                    <option value="oz" {% if form.unit.value == 'oz' or not form.unit.value %}selected{% endif %}>Ounces (oz)</option>
+                    <option value="ml" {% if form.unit.value == 'ml' %}selected{% endif %}>Milliliters (ml)</option>
+                    <option value="cups" {% if form.unit.value == 'cups' %}selected{% endif %}>Cups</option>
+                    <option value="liters" {% if form.unit.value == 'liters' %}selected{% endif %}>Liters</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_container" class="form-label">Container (optional)</label>
+                <select name="container" id="id_container" class="form-select">
+                    <option value="glass" {% if form.container.value == 'glass' or not form.container.value %}selected{% endif %}>Glass</option>
+                    <option value="bottle" {% if form.container.value == 'bottle' %}selected{% endif %}>Water Bottle</option>
+                    <option value="cup" {% if form.container.value == 'cup' %}selected{% endif %}>Cup/Mug</option>
+                    <option value="large_bottle" {% if form.container.value == 'large_bottle' %}selected{% endif %}>Large Bottle (32oz+)</option>
+                    <option value="other" {% if form.container.value == 'other' %}selected{% endif %}>Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_logged_date" class="form-label">Date</label>
+                <input
+                    type="date"
+                    name="logged_date"
+                    id="id_logged_date"
+                    class="form-input"
+                    value="{{ form.logged_date.value|date:'Y-m-d' }}"
+                    required
+                >
+            </div>
+        </div>
+
+        <div class="hydration-guide">
+            <h3>Hydration Tips</h3>
+            <ul>
+                <li><strong>Daily Goal:</strong> Most adults need about 64oz (8 cups) per day</li>
+                <li><strong>Active?</strong> Add 12oz for every 30 minutes of exercise</li>
+                <li><strong>Hot weather?</strong> Drink extra to compensate for sweating</li>
+                <li>Urine should be light yellow - dark means drink more!</li>
+            </ul>
+        </div>
+
+        <div class="form-group">
+            <label for="id_notes" class="form-label">Notes (optional)</label>
+            <textarea
+                name="notes"
+                id="id_notes"
+                class="form-textarea"
+                placeholder="e.g., with lemon, after workout..."
+                rows="2"
+            >{{ form.notes.value|default:'' }}</textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if object %}Save Changes{% else %}Log Water{% endif %}
+            </button>
+            {% if not object %}
+            <button type="submit" name="save_add_another" class="btn btn-secondary">
+                Save &amp; Add Another
+            </button>
+            {% endif %}
+            <a href="{% url 'health:water_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.quick-presets {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+    color: white;
+}
+
+.quick-presets h3 {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+    opacity: 0.9;
+}
+
+.preset-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.preset-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    transition: background 0.2s;
+}
+
+.preset-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .preset-buttons {
+        flex-direction: column;
+    }
+
+    .preset-btn {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+.hydration-guide {
+    background: var(--color-surface);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+}
+
+.hydration-guide h3 {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-2);
+    color: var(--color-primary);
+}
+
+.hydration-guide ul {
+    margin: 0;
+    padding-left: var(--space-4);
+}
+
+.hydration-guide li {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    // Quick preset buttons
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('id_amount').value = this.dataset.amount;
+            document.getElementById('id_unit').value = this.dataset.unit;
+            document.getElementById('id_container').value = this.dataset.container;
+        });
+    });
+});
+</script>
+{% endblock %}

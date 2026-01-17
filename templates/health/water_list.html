@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Water Intake - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Water</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Water Intake {% include "components/favorite_toggle.html" with page_title="Water Intake" %}</h1>
+            <p class="page-subtitle">Track your daily hydration</p>
+        </div>
+        <div class="header-actions">
+            <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="preset" value="8">
+                <input type="hidden" name="next" value="{% url 'health:water_list' %}">
+                <button type="submit" class="btn btn-ghost">+ 8oz Glass</button>
+            </form>
+            <a href="{% url 'health:water_create' %}" class="btn btn-primary">Log Water</a>
+        </div>
+    </div>
+
+    <!-- Today's Progress -->
+    <div class="progress-card mb-6">
+        <h3 class="progress-title">Today's Hydration</h3>
+        <div class="progress-bar-container">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: {{ today_percentage }}%"></div>
+            </div>
+            <div class="progress-stats">
+                <span class="progress-current">{{ today_total|floatformat:0 }} oz</span>
+                <span class="progress-goal">of {{ today_goal }} oz goal</span>
+            </div>
+        </div>
+        {% if today_goal_met %}
+        <div class="goal-achieved-badge">Goal Reached!</div>
+        {% endif %}
+        <div class="quick-add-buttons">
+            <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="preset" value="8">
+                <input type="hidden" name="next" value="{% url 'health:water_list' %}">
+                <button type="submit" class="btn btn-ghost btn-sm">+8oz</button>
+            </form>
+            <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="preset" value="16">
+                <input type="hidden" name="next" value="{% url 'health:water_list' %}">
+                <button type="submit" class="btn btn-ghost btn-sm">+16oz</button>
+            </form>
+            <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="preset" value="32">
+                <input type="hidden" name="next" value="{% url 'health:water_list' %}">
+                <button type="submit" class="btn btn-ghost btn-sm">+32oz</button>
+            </form>
+        </div>
+    </div>
+
+    {% if entries %}
+        <!-- Stats Summary -->
+        <div class="stats-bar mb-6">
+            {% if latest %}
+            <div class="stat-item">
+                <span class="stat-label">Latest</span>
+                <span class="stat-value">{{ latest.amount }} {{ latest.unit }}</span>
+                <span class="stat-date">{{ latest.logged_date|date:"M j" }}</span>
+            </div>
+            {% endif %}
+            {% if week_avg %}
+            <div class="stat-item">
+                <span class="stat-label">7-Day Avg</span>
+                <span class="stat-value">{{ week_avg }} oz/day</span>
+            </div>
+            {% endif %}
+            {% if week_total %}
+            <div class="stat-item">
+                <span class="stat-label">7-Day Total</span>
+                <span class="stat-value">{{ week_total }} oz</span>
+            </div>
+            {% endif %}
+            <div class="stat-item">
+                <span class="stat-label">Total Entries</span>
+                <span class="stat-value">{{ total_count }}</span>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        {% if chart_data %}
+        <div class="chart-container mb-6">
+            <canvas id="waterChart"></canvas>
+        </div>
+        {% endif %}
+
+        <!-- Entry List -->
+        <div class="entry-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th>Container</th>
+                        <th>Notes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                        <tr>
+                            <td>
+                                <span class="entry-date">{{ entry.logged_date|date:"M j, Y" }}</span>
+                                <span class="entry-time">{{ entry.recorded_at|time:"g:i A" }}</span>
+                            </td>
+                            <td class="entry-value">{{ entry.amount }} {{ entry.unit }}</td>
+                            <td>{{ entry.get_container_display|default:"-" }}</td>
+                            <td class="entry-notes">{{ entry.notes|truncatewords:10|default:"-" }}</td>
+                            <td class="entry-actions">
+                                <a href="{% url 'health:water_update' entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                                <form method="post" action="{% url 'health:water_delete' entry.pk %}" class="inline-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-ghost btn-sm text-error">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+            <nav class="pagination mt-6">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">&larr; Previous</a>
+                {% endif %}
+                <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next &rarr;</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <h2 class="empty-state-title">No water logged yet</h2>
+            <p class="empty-state-text">Start tracking your hydration to stay healthy!</p>
+            <a href="{% url 'health:water_create' %}" class="btn btn-primary">Log Your First Entry</a>
+        </div>
+    {% endif %}
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">&larr; Back to Health</a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.progress-card {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    color: white;
+}
+
+.progress-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+}
+
+.progress-bar-container {
+    margin-bottom: var(--space-3);
+}
+
+.progress-bar-bg {
+    height: 16px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: white;
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+}
+
+.progress-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: var(--space-2);
+    font-size: var(--font-size-lg);
+}
+
+.progress-current {
+    font-weight: 600;
+}
+
+.progress-goal {
+    opacity: 0.8;
+}
+
+.goal-achieved-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.2);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    margin-top: var(--space-2);
+}
+
+.quick-add-buttons {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.quick-add-buttons .btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+}
+
+.quick-add-buttons .btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.stats-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.stat-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.stat-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.chart-container {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    min-height: 200px;
+}
+
+.entry-table {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.entry-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.entry-table th,
+.entry-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.entry-table th {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.entry-date {
+    font-weight: 500;
+    display: block;
+}
+
+.entry-time {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.entry-value {
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+.entry-notes {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.entry-actions {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.inline-form {
+    display: inline;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.pagination-info {
+    color: var(--color-text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.empty-state-title {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+
+.empty-state-text {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+
+@media (max-width: 768px) {
+    .header-actions {
+        flex-direction: column;
+    }
+
+    .stats-bar {
+        gap: var(--space-4);
+    }
+
+    .entry-table {
+        overflow-x: auto;
+    }
+
+    .entry-actions {
+        flex-direction: column;
+    }
+}
+</style>
+
+{% if chart_data %}
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('waterChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [{
+                label: 'Water (oz)',
+                data: {{ chart_data|safe }},
+                backgroundColor: '#0ea5e9',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value + ' oz';
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

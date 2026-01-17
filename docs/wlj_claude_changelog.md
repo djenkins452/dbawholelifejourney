@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Don't Show "What's New" to New Users
+
+**Issue:** When a new user signed up, they were shown the "What's New" modal with all existing release notes. These features aren't "new" to them since they never knew the features were missing - everything is new to them.
+
+**Solution:** Modified the user creation signal to also create a `UserReleaseNoteView` record with `last_viewed_at` set to the current time. This marks all existing release notes as "seen" at signup, so new users will only see release notes added after they signed up.
+
+**Files Modified:**
+- `apps/users/signals.py` - Added UserReleaseNoteView creation in `create_user_preferences` signal
+- `apps/core/tests/test_core_comprehensive.py` - Updated tests to reflect new behavior
+
+**Result:** New users no longer see the "What's New" modal on first login. They'll only see it when genuinely new features are released after their signup date.
+
+---
+
 ### Fix Weather Query Location Extraction Bug
 
 **Issue:** When asking "what is the weather", the system incorrectly extracted "what is the" as the location name, returning error: "I couldn't find the location 'what is the'."

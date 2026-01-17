@@ -27,6 +27,7 @@ Copyright:
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from .models import UserPreferences
 
@@ -35,11 +36,23 @@ from .models import UserPreferences
 def create_user_preferences(sender, instance, created, **kwargs):
     """
     Automatically create UserPreferences when a new User is created.
+
+    Also creates UserReleaseNoteView with current timestamp so new users
+    don't see existing "What's New" items - those features aren't new to them.
     """
     if created:
         UserPreferences.objects.create(
             user=instance,
             theme=settings.WLJ_SETTINGS.get("DEFAULT_THEME", "minimal"),
+        )
+
+        # Mark all existing release notes as "seen" for new users
+        # They'll only see release notes added after they signed up
+        from apps.core.models import UserReleaseNoteView
+
+        UserReleaseNoteView.objects.create(
+            user=instance,
+            last_viewed_at=timezone.now(),
         )
 
 

@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix AI Not Knowing About Image Capabilities
+
+**Issue:** The AI was responding "I can't accept files" and "I can't accept pictures" when users asked about file/image upload, even though the image upload feature was fully implemented in the frontend and backend.
+
+**Root Cause:** The AI's system prompt (`PERSONAL_ASSISTANT_BASE_PROMPT`) was never updated to include information about image capabilities.
+
+**Solution:** Added two sections to the AI system prompt:
+1. In the "WHAT CAN YOU DO?" capabilities section, added "Images & Screenshots" capability
+2. Added new "## IMAGE CAPABILITIES" section explaining that users can click the + button or paste images
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Added image capability documentation to the system prompt
+
+---
+
 ### Fix Test Failures - Cache Mock and Gap Detection Tests
 
 **Fixed two test failures in CI:**

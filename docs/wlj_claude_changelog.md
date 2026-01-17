@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Test Failures Due to Staticfiles Manifest and Missing .env
+
+**Problem:** Tests were failing in worktrees with two issues:
+1. `ValueError: Missing staticfiles manifest entry for 'icons/common/logo.svg'` - because `CompressedManifestStaticFilesStorage` requires `collectstatic` to run
+2. `ImproperlyConfigured: Set the SECRET_KEY environment variable` - because `.env` isn't copied to worktrees automatically
+
+**Solution:**
+1. Added `TESTING` detection in settings.py that uses simpler storage backends during tests
+2. Created a `post-checkout` git hook that automatically copies `.env` to new worktrees
+
+**Files Modified:**
+- `config/settings.py` - Added `TESTING` flag, conditional STORAGES config
+- `.git/hooks/post-checkout` (main repo) - Auto-copy .env to worktrees
+- `docs/wlj_claude_troubleshoot.md` - Added issues #10 and #11
+
+---
+
 ### Add Root Cause Analysis Prompts to Email Tasks
 
 **Problem:** When processing email tasks, Claude would often mark them "done" without investigating why the email was received or if there's a systemic fix to prevent recurrence.

@@ -43,10 +43,14 @@ Copyright:
 
 import logging
 import os
+import sys
 from pathlib import Path
 
 import environ
 from django.core.exceptions import ImproperlyConfigured
+
+# Detect if we're running tests
+TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
 
 # Sentry SDK is optional - only import if available
 try:
@@ -263,14 +267,25 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # WhiteNoise for static file serving
-STORAGES = {
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-    "default": {
-        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
-    },
-}
+# Use simpler storage during tests to avoid manifest requirement
+if TESTING:
+    STORAGES = {
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        },
+    }
 
 # Media files (user uploads)
 # Cloudinary handles media in production, local filesystem in development

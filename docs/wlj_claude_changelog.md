@@ -16,6 +16,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
+### Improve Assistant Message Tone - More Conversational, Less ChatGPT
+
+**Problem:** The Assistant's state assessment messages sounded corporate and robotic - like ChatGPT, not like a real person talking.
+
+**Solution:** Updated `STATE_ASSESSMENT_PROMPT` to instruct the AI to:
+- Write like texting a friend, not a corporate email
+- Use contractions and punchy language
+- Format as: one conversational opener, then bulleted action items, then a motivating closer
+- Avoid bold text, superlatives, and formal language
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Rewrote STATE_ASSESSMENT_PROMPT with new voice guidelines
+
+**Example of new tone:**
+"Alright partner, here's what needs your attention tonight:
+- One task still due today - wrap it up before calling it a night
+- Four active life goals haven't seen progress lately - pick one and take a small step
+Don't let 'em slip away - take action and keep that momentum rollin'."
+
+---
+
 ### Fix: reCAPTCHA Validation No Longer Triggers Error Emails
 
 **Problem:** When a user attempted to sign up with a low reCAPTCHA score (indicating potential bot), the system was raising a `ValidationError` inside `adapter.save_user()`. This caused Django to treat it as an unhandled exception and send an error email to admins, even though the security feature was working correctly.

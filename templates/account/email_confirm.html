@@ -3,15 +3,25 @@
 {% block title %}Confirm Email - Whole Life Journey{% endblock %}
 
 {% block auth_content %}
+{% if confirmation %}
 <h1>Confirm your email</h1>
-<p>Please confirm that <strong>{{ email }}</strong> is your email address.</p>
+<p>Please confirm that <strong>{{ confirmation.email_address.email }}</strong> is your email address.</p>
 
-<form method="post" action="{% url 'account_confirm_email' key|default:confirmation.key %}">
+<form method="post" action="{% url 'account_confirm_email' confirmation.key %}">
     {% csrf_token %}
     <button type="submit" class="btn btn-primary" style="width: 100%;">
         Confirm Email
     </button>
 </form>
+{% else %}
+<h1>Invalid confirmation link</h1>
+<p>This email confirmation link is invalid or has expired.</p>
+<p>If you need to verify your email, please:</p>
+<ul style="text-align: left; margin: 1rem auto; max-width: 300px;">
+    <li>Check that you copied the full link from your email</li>
+    <li>Request a new confirmation email from your account settings</li>
+</ul>
+{% endif %}
 
 <p class="auth-link">
     <a href="{% url 'core:landing' %}">Return to home</a>

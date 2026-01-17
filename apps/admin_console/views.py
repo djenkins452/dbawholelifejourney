@@ -981,7 +981,7 @@ class AdminTaskUpdateView(AdminRequiredMixin, UpdateView):
     """Edit an admin task with executable description."""
     template_name = "admin_console/admin_task_form.html"
     success_url = reverse_lazy('admin_console:admin_task_list')
-    fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by', 'attachment']
+    fields = ['title', 'category', 'priority', 'status', 'effort', 'phase', 'project', 'created_by', 'attachment', 'resolution_notes']
 
     def get_queryset(self):
         from apps.admin_console.models import AdminTask

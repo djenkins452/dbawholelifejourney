@@ -276,7 +276,7 @@ class AIService:
             # Build the user message content
             if image_data and image_mime_type:
                 # Vision message with image - use content array format
-                logger.info(f"Sending vision request with image ({image_mime_type}, {len(image_data)} chars base64)")
+                logger.debug(f"Sending vision request with image ({image_mime_type}, {len(image_data)} chars base64)")
                 user_content = [
                     {"type": "text", "text": user_prompt},
                     {
@@ -302,7 +302,7 @@ class AIService:
             )
             result = response.choices[0].message.content.strip()
             if image_data and image_mime_type:
-                logger.info(f"Vision response (first 200 chars): {result[:200]}")
+                logger.debug(f"Vision response (first 200 chars): {result[:200]}")
             return result
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")

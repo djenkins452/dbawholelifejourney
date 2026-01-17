@@ -16,6 +16,15 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Clean Up Vision Debug Logging
+
+**Change:** Changed vision logging from `logger.info` to `logger.debug` now that image upload feature is working correctly. This reduces log noise in production.
+
+**Files Modified:**
+- `apps/ai/services.py` - Changed vision request/response logging from info to debug level
+
+---
+
 ### Fix AI Not Knowing About Image Capabilities
 
 **Issue:** The AI was responding "I can't accept files" and "I can't accept pictures" when users asked about file/image upload, even though the image upload feature was fully implemented in the frontend and backend.

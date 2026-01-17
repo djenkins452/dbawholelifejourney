@@ -8,7 +8,7 @@
 """
 Process Email Tasks Management Command
 
-Polls the IMAP mailbox for emails in the "Automate" folder and creates AdminTasks.
+Polls the IMAP mailbox for emails in the "INBOX/Automate" folder and creates AdminTasks.
 
 Usage:
     # Normal run (processes emails, creates tasks, moves to New Requests)
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Process emails from the Automate folder and create AdminTasks'
+    help = 'Process emails from the INBOX/Automate folder and create AdminTasks'
 
     def add_arguments(self, parser):
         parser.add_argument(

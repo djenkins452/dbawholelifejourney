@@ -8,16 +8,16 @@
 """
 Email Intake Service
 
-Polls IMAP mailbox for emails in the "Automate" folder and creates AdminTasks.
+Polls IMAP mailbox for emails in the "INBOX/Automate" folder and creates AdminTasks.
 
 Workflow:
 1. Connect to IMAP mailbox (mail.privateemail.com)
-2. Check "Automate" folder for any emails
+2. Check "INBOX/Automate" folder for any emails
 3. For each email found:
    - Parse subject, sender, body (and forwarded content if present)
    - Create AdminTask to review/work the email
    - Send confirmation reply with task details
-   - Move email to "New Requests" folder
+   - Move email to "INBOX/New Requests" folder
 4. Done
 
 Environment Variables Required:
@@ -227,13 +227,13 @@ def connect_imap():
         raise EmailConnectionError(f"IMAP connection failed: {e}")
 
 
-def fetch_emails_from_folder(imap, folder_name: str = 'Automate') -> list[ParsedEmail]:
+def fetch_emails_from_folder(imap, folder_name: str = 'INBOX/Automate') -> list[ParsedEmail]:
     """
     Fetch all emails from a folder.
 
     Args:
         imap: IMAP connection
-        folder_name: Folder to fetch from (default: Automate)
+        folder_name: Folder to fetch from (default: INBOX/Automate)
 
     Returns:
         List of ParsedEmail objects
@@ -457,7 +457,7 @@ def process_email_intake(dry_run: bool = False):
         imap = connect_imap()
 
         # Fetch emails from Automate folder
-        emails = fetch_emails_from_folder(imap, 'Automate')
+        emails = fetch_emails_from_folder(imap, 'INBOX/Automate')
 
         if not emails:
             logger.info("No emails to process")
@@ -486,8 +486,8 @@ def process_email_intake(dry_run: bool = False):
 
                 # Move email to New Requests folder
                 # Need to re-select Automate folder since we may have been in a different state
-                imap.select('"Automate"')
-                move_email_to_folder(imap, parsed_email.uid, 'New Requests')
+                imap.select('"INBOX/Automate"')
+                move_email_to_folder(imap, parsed_email.uid, 'INBOX/New Requests')
 
                 results['processed'] += 1
 

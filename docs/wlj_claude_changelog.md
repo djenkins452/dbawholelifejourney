@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Email Intake IMAP Folder Path
+
+**Bug:** Email intake was looking for folder "Automate" but the actual IMAP path is "INBOX/Automate".
+
+**Root Cause:** PrivateEmail (mail.privateemail.com) uses nested folder structure where folders are children of INBOX, requiring the full path format `INBOX/FolderName`.
+
+**Files Modified:**
+- `apps/admin_console/email_intake.py` - Changed folder paths from `Automate` to `INBOX/Automate` and `New Requests` to `INBOX/New Requests`
+- `apps/admin_console/management/commands/process_email_tasks.py` - Updated help text
+
+**Resolution:** Now correctly connects to `INBOX/Automate` and moves processed emails to `INBOX/New Requests`.
+
+---
+
 ### Add /process-emails Slash Command
 
 **Feature:** Created `/process-emails` slash command to manually trigger the Email Intake Service.
@@ -26,7 +40,7 @@ For active development context, see `CLAUDE.md` (project root).
 **Files Modified:**
 - `.claude/commands/README.md` - Added process-emails to command list
 
-**Usage:** Run `/process-emails` to check the "Automate" email folder and create AdminTasks from any emails found.
+**Usage:** Run `/process-emails` to check the "INBOX/Automate" email folder and create AdminTasks from any emails found.
 
 **Note:** To change the cron schedule to hourly, update the Railway dashboard cron service settings.
 

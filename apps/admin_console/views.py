@@ -3172,7 +3172,8 @@ class ReadyTasksAPIView(APIRateLimitMixin, View):
     GET /admin-console/api/claude/ready-tasks/
     Query params:
         - limit (optional, default 10): Maximum tasks to return
-        - auto_start (optional): If 'true', automatically marks first task as 'in_progress'
+        - auto_start (optional): If 'true', automatically marks top phase+priority tasks as 'in_progress'
+        - include_in_progress (optional): If 'true', also returns tasks with 'in_progress' status
 
     Returns:
         JSON object with:
@@ -3241,6 +3242,14 @@ class ReadyTasksAPIView(APIRateLimitMixin, View):
         # Check for auto_start parameter
         auto_start = request.GET.get('auto_start', '').lower() == 'true'
 
+        # Check for include_in_progress parameter (for /run-task to find started tasks)
+        include_in_progress = request.GET.get('include_in_progress', '').lower() == 'true'
+
+        # Determine which statuses to include
+        statuses = ['ready']
+        if include_in_progress:
+            statuses.append('in_progress')
+
         # Fetch ready tasks using project priority rules:
         # 1. Project Priority (1 = highest, 10 = lowest)
         # 2. Phase (ascending by phase_number)
@@ -3249,7 +3258,7 @@ class ReadyTasksAPIView(APIRateLimitMixin, View):
         # 5. Task ID (tie-breaker)
         # Note: No project status filter - task status is what matters
         tasks = list(AdminTask.objects.filter(
-            status='ready',
+            status__in=statuses,
         ).select_related(
             'phase', 'project'
         ).order_by(

@@ -16,6 +16,18 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Add include_in_progress Parameter to Ready Tasks API
+
+**Bug:** `/run-task` couldn't find tasks after `/next` marked them as `in_progress`, because the API only returned `ready` status tasks.
+
+**Files Modified:**
+- `apps/admin_console/views.py` - Added `include_in_progress=true` query param to `ReadyTasksAPIView`
+- `.claude/commands/run-task.md` - Updated curl command to use new parameter
+
+**Resolution:** `/run-task` now fetches both `ready` and `in_progress` tasks so it can execute tasks started by `/next`.
+
+---
+
 ### Sanitize Email Subject Lines in Confirmation Emails
 
 **Bug:** Confirmation emails failed when original email subjects contained newlines (e.g., `\r\n`).

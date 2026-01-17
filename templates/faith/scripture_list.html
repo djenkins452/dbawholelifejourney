@@ -595,6 +595,7 @@
 // The API key is kept server-side and never exposed to the frontend
 const API_PROXY_BASE = '/faith/api/bible';
 const DEFAULT_TRANSLATION = '{{ default_translation }}';
+const LOOKUP_REFERENCE = '{{ lookup_reference|escapejs }}';
 
 let currentBibleId = '';
 let currentBookId = '';
@@ -888,10 +889,114 @@ function closeSaveModal() {
     document.getElementById('save-modal').style.display = 'none';
 }
 
+// Parse a scripture reference like "Luke 18:1-8" or "Genesis 1:1"
+function parseScriptureReference(reference) {
+    if (!reference) return null;
+
+    // Match patterns like "Luke 18:1-8", "2 Timothy 1:7", "Genesis 1", "Proverbs 3:5-6"
+    const match = reference.match(/^(\d?\s*[A-Za-z]+)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/);
+    if (!match) return null;
+
+    return {
+        book: match[1].trim(),
+        chapter: parseInt(match[2]),
+        verseStart: match[3] ? parseInt(match[3]) : null,
+        verseEnd: match[4] ? parseInt(match[4]) : null
+    };
+}
+
+// Auto-lookup Scripture from URL parameter
+async function autoLookupScripture(reference) {
+    const parsed = parseScriptureReference(reference);
+    if (!parsed) {
+        console.log('Could not parse scripture reference:', reference);
+        return;
+    }
+
+    console.log('Auto-looking up:', parsed);
+    showLoading('Looking up ' + reference + '...');
+
+    // Wait for books to be loaded
+    const bookSelect = document.getElementById('bible-book');
+    const waitForBooks = () => new Promise((resolve) => {
+        const check = () => {
+            if (booksData.length > 0) {
+                resolve();
+            } else {
+                setTimeout(check, 100);
+            }
+        };
+        check();
+    });
+
+    await waitForBooks();
+
+    // Find the matching book (case-insensitive, handle "1 John" vs "1John")
+    const bookNameNormalized = parsed.book.toLowerCase().replace(/\s+/g, '');
+    let matchedBook = null;
+    for (const book of booksData) {
+        const bookNormalized = book.name.toLowerCase().replace(/\s+/g, '');
+        if (bookNormalized === bookNameNormalized || bookNormalized.startsWith(bookNameNormalized)) {
+            matchedBook = book;
+            break;
+        }
+    }
+
+    if (!matchedBook) {
+        hideLoading();
+        showError('Could not find book: ' + parsed.book);
+        return;
+    }
+
+    // Select the book
+    bookSelect.value = matchedBook.id;
+
+    // Fetch chapters for this book
+    await fetchChapters(matchedBook.id);
+
+    // Find and select the chapter
+    const chapterSelect = document.getElementById('bible-chapter');
+    const chapterId = `${matchedBook.id}.${parsed.chapter}`;
+
+    // Find the matching chapter option
+    let chapterFound = false;
+    for (const option of chapterSelect.options) {
+        if (option.value === chapterId) {
+            chapterSelect.value = chapterId;
+            chapterFound = true;
+            break;
+        }
+    }
+
+    if (!chapterFound) {
+        hideLoading();
+        showError('Could not find chapter ' + parsed.chapter + ' in ' + matchedBook.name);
+        return;
+    }
+
+    // Set verse range if specified
+    if (parsed.verseStart) {
+        document.getElementById('verse-start').value = parsed.verseStart;
+    }
+    if (parsed.verseEnd) {
+        document.getElementById('verse-end').value = parsed.verseEnd;
+    }
+
+    // Enable and trigger the lookup
+    document.getElementById('lookup-btn').disabled = false;
+    lookupScripture();
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
     // Start by fetching Bibles
     fetchBibles();
+
+    // Check for auto-lookup parameter
+    if (LOOKUP_REFERENCE) {
+        // Wait a short time for Bibles to load, then auto-lookup
+        setTimeout(() => autoLookupScripture(LOOKUP_REFERENCE), 500);
+    }
     
     document.getElementById('bible-version').addEventListener('change', function() {
         if (this.value) {

@@ -264,7 +264,8 @@
       "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\", \"\"notes\"\": \"\"False positive from gap_detector. User asked \\\\\"\"what college football is on today?\\\\\"\" which is asking about external sports data, not personal data to track.\\\\n\\\\nRoot cause fix: Added sports-related terms to is_external_data_query\\(\\) in assistant/gap_detector.py including: football, basketball, baseball, hockey, soccer, NFL/NBA/MLB/NHL/MLS, college football, college basketball, NCAA, game today/tonight, scores, standings, playoffs, championship. Also added general knowledge patterns like \\\\\"\"who is\\\\\"\", \\\\\"\"what is on\\\\\"\".\\\\n\\\\nPrevention: This fix prevents future false positives for sports-related queries.\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/337/status/\")",
       "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"in_progress\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/337/status/\")",
       "Bash(curl -s -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/ready-tasks/?limit=20\")",
-      "Bash(curl -s \"https://wholelifejourney.com/admin-console/api/tasks/?project=Email+Intake\" -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\")"
+      "Bash(curl -s \"https://wholelifejourney.com/admin-console/api/tasks/?project=Email+Intake\" -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\")",
+      "Bash(1)"
     ]
   }
 }

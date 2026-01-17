@@ -294,6 +294,8 @@ class ScriptureListView(LoginRequiredMixin, FaithRequiredMixin, ListView):
         # Bible API is now accessed via server-side proxy at /faith/api/bible/
         # User's default translation preference
         context["default_translation"] = self.request.user.preferences.default_bible_translation
+        # Auto-lookup parameter (e.g., "Luke 18:1-8")
+        context["lookup_reference"] = self.request.GET.get("lookup", "")
         return context
 
 

@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Scripture Reference Links on Reading Plan (Auto-Lookup)
+
+**Issue:** Clicking on scripture references (like "Luke 18:1-8") on the Reading Plan progress page navigated to the Scripture Library page but didn't auto-lookup the passage - users had to manually re-enter the reference.
+
+**Root Cause:** The template was correctly passing `?lookup=Luke%2018%3A1-8` as a URL parameter, but the ScriptureListView didn't process this parameter and the JavaScript didn't look for it to trigger auto-lookup.
+
+**Solution:** Added auto-lookup functionality:
+
+**View (apps/faith/views.py):**
+- Added `lookup_reference` to context from query parameter
+
+**Template (templates/faith/scripture_list.html):**
+- Added `LOOKUP_REFERENCE` JavaScript constant from template context
+- Added `parseScriptureReference()` function to parse references like "Luke 18:1-8" into book, chapter, verses
+- Added `autoLookupScripture()` async function to:
+  - Wait for Bible API to load translations and books
+  - Find and select the matching book
+  - Fetch and select the chapter
+  - Set verse range if specified
+  - Trigger the lookup automatically
+- Added DOMContentLoaded handler to auto-lookup if parameter is present
+
+**Tests Fixed:** Updated JavaScript comments to use example references that don't conflict with test assertions.
+
+---
+
 ### Add Water/Hydration Tracking Feature
 
 **Feature Request:** User requested water tracking functionality via email intake task.

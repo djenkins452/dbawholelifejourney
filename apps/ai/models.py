@@ -660,6 +660,22 @@ class AssistantMessage(models.Model):
     # User feedback
     was_helpful = models.BooleanField(null=True, blank=True)
 
+    # Image attachment (for user messages)
+    image_data = models.TextField(
+        blank=True,
+        help_text="Base64 encoded image data"
+    )
+    image_mime_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="MIME type of the image (e.g., 'image/png')"
+    )
+    image_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the image data should be auto-deleted (72 hours after creation)"
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -669,10 +685,23 @@ class AssistantMessage(models.Model):
         verbose_name_plural = "Assistant Messages"
         indexes = [
             models.Index(fields=['conversation', 'created_at']),
+            models.Index(fields=['image_expires_at']),
         ]
 
     def __str__(self):
         return f"{self.get_role_display()}: {self.content[:50]}..."
+
+    @property
+    def has_image(self):
+        """Check if this message has an attached image."""
+        return bool(self.image_data and self.image_mime_type)
+
+    @property
+    def image_data_url(self):
+        """Get the full data URL for the image (for display in img src)."""
+        if self.has_image:
+            return f"data:{self.image_mime_type};base64,{self.image_data}"
+        return None
 
 
 class UserStateSnapshot(models.Model):

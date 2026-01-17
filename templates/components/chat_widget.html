@@ -62,13 +62,35 @@
 
     <!-- Input Area -->
     <div class="assistant-input-area">
+        <!-- Image Preview Area -->
+        <div id="assistant-attachment-preview" class="assistant-attachment-preview" style="display: none;">
+            <img id="assistant-preview-image" class="assistant-preview-image" alt="Attached image">
+            <button type="button" id="assistant-remove-attachment" class="assistant-remove-attachment" title="Remove attachment">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
         <form id="assistant-form" class="assistant-form">
             {% csrf_token %}
+            <!-- Hidden file input for image upload -->
+            <input type="file" id="assistant-file-input" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
+
+            <!-- Attach button -->
+            <button type="button" id="assistant-attach-btn" class="assistant-attach-btn" title="Attach image">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            </button>
+
             <input
                 type="text"
                 id="assistant-input"
                 class="assistant-input"
-                placeholder="Ask me anything..."
+                placeholder="Ask me anything... (paste images here)"
                 autocomplete="off"
                 maxlength="2000"
             >
@@ -370,7 +392,76 @@
 
 .assistant-form {
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Attachment preview area */
+.assistant-attachment-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: var(--color-surface, #f3f4f6);
+    border-radius: 12px;
+    border: 1px solid var(--color-border, #e5e7eb);
+}
+
+.assistant-preview-image {
+    max-width: 100px;
+    max-height: 80px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.assistant-remove-attachment {
+    background: var(--color-background, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-text-muted, #6b7280);
+    transition: background 0.2s, color 0.2s;
+    flex-shrink: 0;
+}
+
+.assistant-remove-attachment:hover {
+    background: #fee2e2;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+/* Attach button */
+.assistant-attach-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--color-border, #e5e7eb);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted, #6b7280);
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+}
+
+.assistant-attach-btn:hover {
+    background: var(--color-surface, #f3f4f6);
+    color: var(--color-accent, #6366f1);
+    border-color: var(--color-accent, #6366f1);
+}
+
+.assistant-attach-btn.has-attachment {
+    background: var(--color-accent, #6366f1);
+    color: white;
+    border-color: var(--color-accent, #6366f1);
 }
 
 .assistant-input {
@@ -519,6 +610,20 @@
         height: 40px;
     }
 
+    .assistant-attach-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    .assistant-attachment-preview {
+        padding: 6px 10px;
+    }
+
+    .assistant-preview-image {
+        max-width: 80px;
+        max-height: 60px;
+    }
+
     .assistant-empty {
         padding: 24px 16px;
     }
@@ -553,9 +658,19 @@
     const clearConfirm = document.getElementById('assistant-clear-confirm');
     const clearCancel = document.getElementById('assistant-clear-cancel');
 
+    // Image attachment elements
+    const attachBtn = document.getElementById('assistant-attach-btn');
+    const fileInput = document.getElementById('assistant-file-input');
+    const attachmentPreview = document.getElementById('assistant-attachment-preview');
+    const previewImage = document.getElementById('assistant-preview-image');
+    const removeAttachmentBtn = document.getElementById('assistant-remove-attachment');
+
     let isOpen = false;
     let isLoaded = false;
     let hasMessages = false;
+
+    // Current attached image data
+    let attachedImage = null;  // { data: base64, mimeType: string }
 
     // Storage key for persisting drawer state
     const DRAWER_STATE_KEY = 'wlj_assistant_drawer_open';
@@ -985,7 +1100,9 @@
 
             if (data.success && data.messages && data.messages.length > 0) {
                 data.messages.forEach(msg => {
-                    addMessage(msg.content, msg.role === 'user', false);
+                    const isUser = msg.role === 'user';
+                    const imageDataUrl = msg.image_data_url || null;
+                    addMessage(msg.content, isUser, false, imageDataUrl);
                 });
                 hasMessages = true;
             } else {
@@ -1010,8 +1127,8 @@
         `;
     }
 
-    // Add message to chat
-    function addMessage(content, isUser, scroll = true) {
+    // Add message to chat (with optional image for user messages)
+    function addMessage(content, isUser, scroll = true, imageDataUrl = null) {
         // Remove empty state if present
         const emptyState = messagesContainer.querySelector('.assistant-empty');
         if (emptyState) emptyState.remove();
@@ -1022,7 +1139,23 @@
         if (!isUser) {
             msg.innerHTML = formatAssistantMessage(content);
         } else {
-            msg.textContent = content;
+            // User message - may include image
+            if (imageDataUrl) {
+                // Create container for image + text
+                const imgEl = document.createElement('img');
+                imgEl.src = imageDataUrl;
+                imgEl.className = 'assistant-message-image';
+                imgEl.style.cssText = 'max-width: 100%; max-height: 200px; border-radius: 8px; margin-bottom: 8px;';
+                msg.appendChild(imgEl);
+
+                if (content) {
+                    const textEl = document.createElement('div');
+                    textEl.textContent = content;
+                    msg.appendChild(textEl);
+                }
+            } else {
+                msg.textContent = content;
+            }
         }
 
         messagesContainer.appendChild(msg);
@@ -1048,14 +1181,25 @@
         if (typing) typing.remove();
     }
 
-    // Send message
+    // Send message (with optional image attachment)
     async function sendMessage() {
         const message = input.value.trim();
-        if (!message) return;
+        if (!message && !attachedImage) return;
 
-        addMessage(message, true);
+        // Build the image data URL for display if we have an attachment
+        const imageDataUrl = attachedImage
+            ? `data:${attachedImage.mimeType};base64,${attachedImage.data}`
+            : null;
+
+        // Add user message to chat (with image preview if attached)
+        addMessage(message || '(Image attached)', true, true, imageDataUrl);
         input.value = '';
         sendBtn.disabled = true;
+
+        // Clear attachment UI
+        const sentImage = attachedImage;
+        clearAttachment();
+
         showTyping();
 
         try {
@@ -1065,17 +1209,45 @@
                 currentPageContext = getPageContext();
             }
 
-            const response = await fetch('/assistant/api/chat/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: JSON.stringify({
-                    message: message,
-                    page_context: currentPageContext
-                })
-            });
+            let response;
+
+            if (sentImage) {
+                // Use FormData for multipart upload with image
+                const formData = new FormData();
+                formData.append('message', message);
+                formData.append('page_context', JSON.stringify(currentPageContext || {}));
+
+                // Convert base64 to Blob for file upload
+                const byteString = atob(sentImage.data);
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+                for (let i = 0; i < byteString.length; i++) {
+                    ia[i] = byteString.charCodeAt(i);
+                }
+                const blob = new Blob([ab], { type: sentImage.mimeType });
+                formData.append('image', blob, 'attachment.png');
+
+                response = await fetch('/assistant/api/chat/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: formData
+                });
+            } else {
+                // Regular JSON request
+                response = await fetch('/assistant/api/chat/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        page_context: currentPageContext
+                    })
+                });
+            }
 
             hideTyping();
             const data = await response.json();
@@ -1092,6 +1264,95 @@
             addMessage('Sorry, I had trouble responding. Please try again.', false);
         }
     }
+
+    // =========================================================================
+    // IMAGE ATTACHMENT HANDLING
+    // =========================================================================
+
+    // Handle image file selection (from file picker or paste)
+    function handleImageFile(file) {
+        // Validate file type
+        const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+            alert('Please select a valid image (JPEG, PNG, GIF, or WebP)');
+            return;
+        }
+
+        // Validate file size (5MB max)
+        const maxSize = 5 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert('Image is too large. Maximum size is 5MB.');
+            return;
+        }
+
+        // Read file as base64
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64 = e.target.result.split(',')[1]; // Remove data:image/xxx;base64, prefix
+            attachedImage = {
+                data: base64,
+                mimeType: file.type
+            };
+
+            // Show preview
+            previewImage.src = e.target.result;
+            attachmentPreview.style.display = 'flex';
+            attachBtn.classList.add('has-attachment');
+
+            // Enable send button
+            updateSendButton();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // Clear attached image
+    function clearAttachment() {
+        attachedImage = null;
+        previewImage.src = '';
+        attachmentPreview.style.display = 'none';
+        attachBtn.classList.remove('has-attachment');
+        fileInput.value = '';
+        updateSendButton();
+    }
+
+    // Update send button state
+    function updateSendButton() {
+        sendBtn.disabled = !input.value.trim() && !attachedImage;
+    }
+
+    // Attach button click - open file picker
+    attachBtn.addEventListener('click', function() {
+        fileInput.click();
+    });
+
+    // File input change
+    fileInput.addEventListener('change', function() {
+        if (fileInput.files && fileInput.files[0]) {
+            handleImageFile(fileInput.files[0]);
+        }
+    });
+
+    // Remove attachment button
+    removeAttachmentBtn.addEventListener('click', function() {
+        clearAttachment();
+    });
+
+    // Paste handler for clipboard images
+    input.addEventListener('paste', function(e) {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (file) {
+                    handleImageFile(file);
+                }
+                break;
+            }
+        }
+    });
 
     // Clear conversation
     async function clearConversation() {
@@ -1158,13 +1419,13 @@
     });
 
     input.addEventListener('input', function() {
-        sendBtn.disabled = !input.value.trim();
+        updateSendButton();
     });
 
     input.addEventListener('keypress', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (input.value.trim()) {
+            if (input.value.trim() || attachedImage) {
                 sendMessage();
             }
         }
@@ -1214,7 +1475,9 @@
                     messagesContainer.innerHTML = '';
                     if (newMessageCount > 0) {
                         data.messages.forEach(msg => {
-                            addMessage(msg.content, msg.role === 'user', false);
+                            const isUser = msg.role === 'user';
+                            const imageDataUrl = msg.image_data_url || null;
+                            addMessage(msg.content, isUser, false, imageDataUrl);
                         });
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
                         hasMessages = true;

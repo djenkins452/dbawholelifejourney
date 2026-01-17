@@ -382,6 +382,69 @@ class WhatsNewListView(LoginRequiredMixin, ListView):
 
 
 # =============================================================================
+# DEVELOPMENT NOTICE VIEWS
+# =============================================================================
+
+
+class DevelopmentNoticeCheckView(LoginRequiredMixin, View):
+    """
+    API endpoint to check if the development notice should be shown.
+
+    Shows the notice if:
+    - User has been registered for more than 48 hours
+    - User hasn't dismissed the notice yet (development_notice_seen_at is None)
+
+    Returns JSON with:
+    - should_show: boolean
+    """
+
+    def get(self, request, *args, **kwargs):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.users.models import UserPreferences
+
+        should_show = False
+
+        try:
+            # Get or create user preferences
+            prefs, _ = UserPreferences.objects.get_or_create(user=request.user)
+
+            # Check if notice hasn't been seen yet
+            if prefs.development_notice_seen_at is None:
+                # Check if user has been registered for more than 48 hours
+                hours_since_signup = (timezone.now() - request.user.date_joined).total_seconds() / 3600
+                if hours_since_signup >= 48:
+                    should_show = True
+        except Exception as e:
+            logger.warning(f"Error checking development notice: {e}")
+
+        return JsonResponse({'should_show': should_show})
+
+
+class DevelopmentNoticeDismissView(LoginRequiredMixin, View):
+    """
+    API endpoint to dismiss the development notice.
+
+    Called when user dismisses the modal.
+    Sets development_notice_seen_at to the current time.
+    """
+
+    def post(self, request, *args, **kwargs):
+        from django.utils import timezone
+        from apps.users.models import UserPreferences
+
+        try:
+            prefs, _ = UserPreferences.objects.get_or_create(user=request.user)
+            prefs.development_notice_seen_at = timezone.now()
+            prefs.save(update_fields=['development_notice_seen_at'])
+        except Exception as e:
+            logger.warning(f"Error dismissing development notice: {e}")
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+        return JsonResponse({'success': True})
+
+
+# =============================================================================
 # FAVORITES VIEWS
 # =============================================================================
 

@@ -42,6 +42,10 @@ urlpatterns = [
     path("api/whats-new/check/", views.WhatsNewCheckView.as_view(), name="whats_new_check"),
     path("api/whats-new/dismiss/", views.WhatsNewDismissView.as_view(), name="whats_new_dismiss"),
 
+    # Development Notice (early access reminder)
+    path("api/development-notice/check/", views.DevelopmentNoticeCheckView.as_view(), name="dev_notice_check"),
+    path("api/development-notice/dismiss/", views.DevelopmentNoticeDismissView.as_view(), name="dev_notice_dismiss"),
+
     # Favorites API
     path("api/favorites/toggle/", views.FavoriteToggleView.as_view(), name="favorite_toggle"),
     path("api/favorites/check/", views.FavoriteCheckView.as_view(), name="favorite_check"),

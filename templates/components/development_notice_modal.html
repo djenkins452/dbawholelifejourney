@@ -1,0 +1,310 @@
+{% comment %}
+Development Notice Modal Component
+
+Shows a notice to users after 48 hours reminding them we're still building.
+Includes guidance on how to report bugs/issues using "Fix this:" in chat.
+Include this once in base.html for authenticated users.
+{% endcomment %}
+
+<!-- Development Notice Modal -->
+<dialog id="dev-notice-modal" class="dev-notice-modal">
+    <div class="dev-notice-modal-content">
+        <header class="dev-notice-modal-header">
+            <div class="dev-notice-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                </svg>
+            </div>
+            <h2>Welcome to the Journey!</h2>
+            <button type="button" class="dev-notice-modal-close" onclick="dismissDevNotice()" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </header>
+
+        <div class="dev-notice-modal-body">
+            <p class="dev-notice-main">
+                We're actively building and improving Whole Life Journey. You may occasionally
+                experience brief downtime or encounter bugs as we make things better. Your patience
+                means the world to us &mdash; and your feedback helps shape what we build next!
+            </p>
+
+            <div class="dev-notice-tip">
+                <div class="dev-notice-tip-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                </div>
+                <div class="dev-notice-tip-content">
+                    <strong>Found something to improve?</strong>
+                    <p>
+                        Go to your <a href="{% url 'ai:assistant_dashboard' %}">AI Assistant Chat</a>
+                        and type <code>Fix this:</code> followed by what you experienced.
+                        We'll get a notification and look into it right away!
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <footer class="dev-notice-modal-footer">
+            <button type="button" class="btn btn-primary" onclick="dismissDevNotice()">
+                Got it, thanks!
+            </button>
+        </footer>
+    </div>
+</dialog>
+
+<style nonce="{{ csp_nonce }}">
+/* Development Notice Modal Styles */
+.dev-notice-modal {
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: 0;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    background: var(--color-background);
+}
+
+.dev-notice-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.dev-notice-modal-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.dev-notice-modal-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-6) var(--space-5) var(--space-4);
+    position: relative;
+    text-align: center;
+}
+
+.dev-notice-modal-header h2 {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin: var(--space-3) 0 0 0;
+    color: var(--color-text);
+}
+
+.dev-notice-icon {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 70%, #8b5cf6));
+    border-radius: var(--radius-full);
+    color: white;
+}
+
+.dev-notice-icon svg {
+    width: 28px;
+    height: 28px;
+}
+
+.dev-notice-modal-close {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-2);
+    color: var(--color-text-muted);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.dev-notice-modal-close:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.dev-notice-modal-close svg {
+    width: 20px;
+    height: 20px;
+}
+
+.dev-notice-modal-body {
+    padding: 0 var(--space-5) var(--space-4);
+}
+
+.dev-notice-main {
+    font-size: var(--font-size-base);
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    margin: 0 0 var(--space-4) 0;
+    text-align: center;
+}
+
+.dev-notice-tip {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+    border-radius: var(--radius-md);
+}
+
+.dev-notice-tip-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-accent);
+    color: white;
+    border-radius: var(--radius-full);
+}
+
+.dev-notice-tip-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.dev-notice-tip-content {
+    flex: 1;
+}
+
+.dev-notice-tip-content strong {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    margin-bottom: var(--space-1);
+}
+
+.dev-notice-tip-content p {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.dev-notice-tip-content a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.dev-notice-tip-content a:hover {
+    text-decoration: underline;
+}
+
+.dev-notice-tip-content code {
+    display: inline-block;
+    padding: 2px 6px;
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    font-family: monospace;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+.dev-notice-modal-footer {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.dev-notice-modal-footer .btn {
+    min-width: 160px;
+}
+
+@media (max-width: 640px) {
+    .dev-notice-modal {
+        width: 95%;
+    }
+
+    .dev-notice-modal-header,
+    .dev-notice-modal-body,
+    .dev-notice-modal-footer {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+    }
+
+    .dev-notice-tip {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .dev-notice-tip-icon {
+        align-self: center;
+    }
+
+    .dev-notice-modal-footer .btn {
+        width: 100%;
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const modal = document.getElementById('dev-notice-modal');
+    if (!modal) return;
+
+    // Check if we should show the modal
+    async function checkAndShowDevNotice() {
+        try {
+            const response = await fetch('/api/development-notice/check/');
+            const data = await response.json();
+
+            if (data.should_show) {
+                modal.showModal();
+            }
+        } catch (error) {
+            console.error('Error checking development notice:', error);
+        }
+    }
+
+    // Dismiss the modal
+    window.dismissDevNotice = async function() {
+        try {
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                             document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+
+            await fetch('/api/development-notice/dismiss/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            });
+        } catch (error) {
+            console.error('Error dismissing development notice:', error);
+        }
+
+        modal.close();
+    };
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            dismissDevNotice();
+        }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.open) {
+            dismissDevNotice();
+        }
+    });
+
+    // Check on page load (with small delay to not block rendering)
+    setTimeout(checkAndShowDevNotice, 1000);
+})();
+</script>

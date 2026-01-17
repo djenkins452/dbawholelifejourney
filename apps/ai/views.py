@@ -18,6 +18,7 @@ API endpoints for:
 - State assessment
 """
 
+import base64
 import json
 import logging
 from datetime import timedelta
@@ -155,9 +156,19 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
     """
     Send a message to the assistant and get a response.
 
-    Now supports intent recognition for structured data extraction.
+    Supports:
+    - JSON body with 'message' and optional 'page_context'
+    - Multipart form data with 'message', optional 'page_context', and optional 'image'
+    - Intent recognition for structured data extraction
+    - Image uploads for OpenAI Vision processing
+
     The response includes 'action_taken' when an action was executed.
     """
+
+    # Maximum image size (5MB)
+    MAX_IMAGE_SIZE = 5 * 1024 * 1024
+    # Allowed image MIME types
+    ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
     def post(self, request, *args, **kwargs):
         enabled, error = self.check_personal_assistant_enabled()
@@ -169,9 +180,50 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
             }, status=200)
 
         try:
-            data = json.loads(request.body)
-            message = data.get('message', '').strip()
-            page_context = data.get('page_context', {})
+            # Handle both JSON and multipart/form-data requests
+            content_type = request.content_type or ''
+
+            if 'multipart/form-data' in content_type:
+                # Multipart form data (with potential image)
+                message = request.POST.get('message', '').strip()
+                page_context_str = request.POST.get('page_context', '{}')
+                try:
+                    page_context = json.loads(page_context_str)
+                except json.JSONDecodeError:
+                    page_context = {}
+
+                # Handle image upload
+                image_data = None
+                image_mime_type = None
+                if 'image' in request.FILES:
+                    image_file = request.FILES['image']
+
+                    # Validate file size
+                    if image_file.size > self.MAX_IMAGE_SIZE:
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Image too large (max 5MB)',
+                        }, status=400)
+
+                    # Validate MIME type
+                    if image_file.content_type not in self.ALLOWED_IMAGE_TYPES:
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'Invalid image type. Allowed: {", ".join(self.ALLOWED_IMAGE_TYPES)}',
+                        }, status=400)
+
+                    # Read and encode image as base64
+                    image_bytes = image_file.read()
+                    image_data = base64.b64encode(image_bytes).decode('utf-8')
+                    image_mime_type = image_file.content_type
+
+            else:
+                # JSON body (traditional request)
+                data = json.loads(request.body)
+                message = data.get('message', '').strip()
+                page_context = data.get('page_context', {})
+                image_data = data.get('image_data')  # Already base64 encoded
+                image_mime_type = data.get('image_mime_type')
 
             if not message:
                 return JsonResponse({
@@ -187,7 +239,13 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
 
             assistant = self.get_assistant()
             conversation = assistant.get_or_create_conversation()
-            result = assistant.send_message(message, conversation, page_context=page_context)
+            result = assistant.send_message(
+                message,
+                conversation,
+                page_context=page_context,
+                image_data=image_data,
+                image_mime_type=image_mime_type
+            )
 
             # Handle both old string response and new dict response
             if isinstance(result, dict):
@@ -205,6 +263,9 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 elif result.get('action_taken'):
                     # Single action only
                     response_data['action_taken'] = result['action_taken']
+                # Include image info if present in user message
+                if result.get('user_message_has_image'):
+                    response_data['user_message_has_image'] = True
             else:
                 # Backwards compatibility for string response
                 response_data = {
@@ -246,14 +307,31 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
                 conversation = AssistantConversation.get_or_create_active(request.user)
 
             messages = conversation.messages.order_by('created_at').values(
-                'id', 'role', 'content', 'message_type', 'created_at', 'was_helpful'
+                'id', 'role', 'content', 'message_type', 'created_at', 'was_helpful',
+                'image_data', 'image_mime_type'
             )
+
+            # Process messages to include image data URLs
+            messages_list = []
+            for msg in messages:
+                msg_data = {
+                    'id': msg['id'],
+                    'role': msg['role'],
+                    'content': msg['content'],
+                    'message_type': msg['message_type'],
+                    'created_at': msg['created_at'],
+                    'was_helpful': msg['was_helpful'],
+                }
+                # Add image data URL if present
+                if msg.get('image_data') and msg.get('image_mime_type'):
+                    msg_data['image_data_url'] = f"data:{msg['image_mime_type']};base64,{msg['image_data']}"
+                messages_list.append(msg_data)
 
             return JsonResponse({
                 'success': True,
                 'conversation_id': conversation.id,
                 'session_type': conversation.session_type,
-                'messages': list(messages),
+                'messages': messages_list,
             })
 
         except AssistantConversation.DoesNotExist:

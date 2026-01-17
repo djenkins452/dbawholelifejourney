@@ -16,6 +16,58 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Development Notice Modal + Bug Report Command + Image Upload in Chat
+
+**Three connected features to help users report issues and communicate better with support:**
+
+#### Part 1: Development Notice Modal
+Shows a modal to users 48+ hours after registration reminding them we're in active development and guiding them to the "Fix this:" command for reporting issues.
+
+**Files Created:**
+- `templates/components/development_notice_modal.html` - Modal with welcome message and guidance
+- `apps/users/migrations/0037_add_development_notice_seen_at.py` - Track when user saw modal
+
+**Files Modified:**
+- `apps/users/models.py` - Added `development_notice_seen_at` field to UserPreferences
+- `apps/core/views.py` - Added `DevelopmentNoticeCheckView` and `DevelopmentNoticeDismissView` API endpoints
+- `apps/core/urls.py` - Added routes for development notice API
+- `templates/base.html` - Include development notice modal
+
+#### Part 2: Bug Report "Fix this:" Command
+Detects when users type "Fix this:", "Bug:", "Error:", etc. in the AI chat and emails admin with full context.
+
+**Files Created:**
+- `apps/ai/bug_report_service.py` - Detects bug reports, creates AdminTask, sends email
+- `templates/assistant/emails/bug_report.html` - Email template for bug reports
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Integrated bug report detection before feature request detection
+
+#### Part 3: Image Upload in Chat
+Users can paste images (Ctrl+V/Cmd+V) or click + to attach images. Images are sent to OpenAI Vision for analysis.
+
+**Files Created:**
+- `apps/ai/migrations/0016_add_image_fields_to_assistant_message.py` - Image storage fields
+
+**Files Modified:**
+- `apps/ai/models.py` - Added `image_data`, `image_mime_type`, `image_expires_at` fields to AssistantMessage
+- `apps/ai/views.py` - Updated `AssistantChatView` to accept multipart/form-data with images
+- `apps/ai/views.py` - Updated `ConversationHistoryView` to include image data URLs in response
+- `apps/ai/personal_assistant.py` - Updated `send_message()` and `_generate_response()` to handle images
+- `apps/ai/services.py` - Updated `_call_api()` to support OpenAI Vision format with image content
+- `templates/components/chat_widget.html` - Added image upload button, paste handler, preview area, and image display in chat
+
+**Image Features:**
+- Paste images from clipboard directly into chat input
+- Click + button to open file picker
+- Preview attached image before sending
+- Images displayed in chat history (user messages only)
+- Images stored as base64 with 72-hour auto-expiration
+- 5MB maximum file size
+- Supports JPEG, PNG, GIF, WebP formats
+
+---
+
 ### Smart Goal Rotation in Today's Priorities
 
 **Issue:** The "Today's Priorities" on the Assistant page always showed the same 2-3 goals repeatedly, based on their sort order. Goals that hadn't been worked on or that the user was neglecting weren't being surfaced.

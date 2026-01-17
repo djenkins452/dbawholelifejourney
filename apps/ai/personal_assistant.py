@@ -1611,7 +1611,14 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         """Get or create today's conversation."""
         return AssistantConversation.get_or_create_active(self.user)
 
-    def send_message(self, message: str, conversation: AssistantConversation = None, page_context: dict = None) -> dict:
+    def send_message(
+        self,
+        message: str,
+        conversation: AssistantConversation = None,
+        page_context: dict = None,
+        image_data: str = None,
+        image_mime_type: str = None
+    ) -> dict:
         """
         Send a message to the assistant and get a response.
 
@@ -1625,26 +1632,40 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         Also detects feature requests ("I wish", "I want") when no matching solution
         exists and sends notifications to admin for review.
 
+        Supports image attachments for OpenAI Vision processing.
+
         Args:
             message: User's message
             conversation: Optional conversation to add to
             page_context: Optional dict with 'url', 'module', 'page_title' for context-aware responses
+            image_data: Optional base64-encoded image data
+            image_mime_type: Optional MIME type of the image (e.g., 'image/png')
 
         Returns:
-            Dict with 'response' (str) and optionally 'actions_taken' (list of dicts)
+            Dict with 'response' (str), optionally 'actions_taken' (list of dicts),
+            and optionally 'user_message_has_image' (bool)
         """
         from .intent_service import intent_service
         from .feature_request_service import feature_request_service
+        from .bug_report_service import bug_report_service
 
         if not conversation:
             conversation = self.get_or_create_conversation()
 
-        # Save user message
+        # Calculate image expiration (72 hours from now)
+        image_expires_at = None
+        if image_data and image_mime_type:
+            image_expires_at = timezone.now() + timedelta(hours=72)
+
+        # Save user message (with optional image)
         user_msg = AssistantMessage.objects.create(
             conversation=conversation,
             role='user',
             content=message,
-            message_type='text'
+            message_type='text',
+            image_data=image_data or '',
+            image_mime_type=image_mime_type or '',
+            image_expires_at=image_expires_at
         )
 
         response = ""
@@ -1717,29 +1738,52 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
                         response = " ".join(response_parts)
                 else:
-                    # No action intent - check for navigation query first
-                    navigation_response = self._try_navigation_response(message, conversation)
-                    if navigation_response:
-                        response = navigation_response
-                    else:
-                        # Generate normal chat response
-                        response = self._generate_response(message, conversation, page_context=page_context)
-
-                    # Check for feature requests ("I wish", "I want") and notify admin
-                    # This captures user needs that the system doesn't currently handle
-                    feature_request_notified = self._check_feature_request(
+                    # No action intent - check for bug reports first ("Fix this:", "Bug:", etc.)
+                    bug_report_ack = self._check_bug_report(
                         message=message,
                         conversation=conversation,
-                        feature_request_service=feature_request_service
+                        bug_report_service=bug_report_service
                     )
 
-                    # If feature request was detected and forwarded, acknowledge it to the user
-                    if feature_request_notified:
-                        response += (
-                            "\n\nThis feature isn't currently available, but I've sent "
-                            "our support team a notification about your suggestion. "
-                            "Thank you for helping us improve!"
+                    if bug_report_ack:
+                        # Bug report was detected and handled
+                        # Generate a helpful response and append the acknowledgment
+                        response = self._generate_response(
+                            message, conversation,
+                            page_context=page_context,
+                            image_data=image_data,
+                            image_mime_type=image_mime_type
                         )
+                        response += "\n\n" + bug_report_ack
+                    else:
+                        # Not a bug report - check for navigation query
+                        navigation_response = self._try_navigation_response(message, conversation)
+                        if navigation_response:
+                            response = navigation_response
+                        else:
+                            # Generate normal chat response
+                            response = self._generate_response(
+                                message, conversation,
+                                page_context=page_context,
+                                image_data=image_data,
+                                image_mime_type=image_mime_type
+                            )
+
+                        # Check for feature requests ("I wish", "I want") and notify admin
+                        # This captures user needs that the system doesn't currently handle
+                        feature_request_notified = self._check_feature_request(
+                            message=message,
+                            conversation=conversation,
+                            feature_request_service=feature_request_service
+                        )
+
+                        # If feature request was detected and forwarded, acknowledge it to the user
+                        if feature_request_notified:
+                            response += (
+                                "\n\nThis feature isn't currently available, but I've sent "
+                                "our support team a notification about your suggestion. "
+                                "Thank you for helping us improve!"
+                            )
 
         # Save assistant response
         msg_type = 'action' if actions_taken else 'text'
@@ -1760,6 +1804,10 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             # For backwards compatibility, also include single action_taken
             result['action_taken'] = actions_taken[0] if len(actions_taken) == 1 else None
             result['actions_taken'] = actions_taken
+
+        # Include flag if user message had an image
+        if image_data and image_mime_type:
+            result['user_message_has_image'] = True
 
         return result
 
@@ -1811,6 +1859,47 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             # Don't let feature request detection break the chat flow
             logger.warning(f"Feature request check failed: {e}")
             return False
+
+    def _check_bug_report(
+        self,
+        message: str,
+        conversation: AssistantConversation,
+        bug_report_service
+    ) -> Optional[str]:
+        """
+        Check if message is a bug report and notify admin if needed.
+
+        When users report bugs using "Fix this:", "Bug:", or similar phrases,
+        this creates a task and sends a notification to admin for review.
+
+        Args:
+            message: The user's message
+            conversation: The current conversation
+            bug_report_service: The bug report service instance
+
+        Returns:
+            Acknowledgment message if bug report was detected and handled,
+            None otherwise
+        """
+        try:
+            # Build conversation context from recent messages
+            recent_messages = conversation.messages.order_by('-created_at')[:5]
+            context_parts = []
+            for msg in reversed(list(recent_messages)):
+                role = "User" if msg.role == 'user' else "Assistant"
+                context_parts.append(f"{role}: {msg.content[:200]}")
+            conversation_context = "\n".join(context_parts) if context_parts else None
+
+            # Check and notify (handles rate limiting internally)
+            return bug_report_service.check_and_notify(
+                user=self.user,
+                message=message,
+                conversation_context=conversation_context
+            )
+        except Exception as e:
+            # Don't let bug report detection break the chat flow
+            logger.warning(f"Bug report check failed: {e}")
+            return None
 
     def _handle_data_visibility_confirmation(
         self, message: str, conversation: AssistantConversation
@@ -2003,7 +2092,14 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             logger.error(f"Error in navigation response: {e}")
             return None
 
-    def _generate_response(self, message: str, conversation: AssistantConversation, page_context: dict = None) -> str:
+    def _generate_response(
+        self,
+        message: str,
+        conversation: AssistantConversation,
+        page_context: dict = None,
+        image_data: str = None,
+        image_mime_type: str = None
+    ) -> str:
         """Generate AI response to user message using coaching style.
 
         Now integrates with the personal data query system to inject relevant
@@ -2013,10 +2109,14 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         The assistant is RESPONSIVE, not PROACTIVE. It only provides task/priority
         information when the user explicitly asks for it.
 
+        Supports image attachments for OpenAI Vision processing.
+
         Args:
             message: User's message
             conversation: The conversation object
             page_context: Optional dict with 'url', 'module', 'page_title' for context-aware responses
+            image_data: Optional base64-encoded image data
+            image_mime_type: Optional MIME type of the image (e.g., 'image/png')
         """
         # Get conversation history
         history = conversation.messages.order_by('-created_at')[:10]
@@ -2197,7 +2297,13 @@ User's new message: {message}
 Respond as the Dashboard AI Personal Assistant. Answer ONLY what was asked - do not add unsolicited information about tasks, priorities, or what the user should be doing."""
 
         try:
-            return ai_service._call_api(system_prompt, user_prompt, max_tokens=300) or self._get_fallback_response(message)
+            return ai_service._call_api(
+                system_prompt,
+                user_prompt,
+                max_tokens=300,
+                image_data=image_data,
+                image_mime_type=image_mime_type
+            ) or self._get_fallback_response(message)
         except Exception as e:
             logger.error(f"Response generation error: {e}")
             return self._get_fallback_response(message)

@@ -604,6 +604,14 @@ class UserPreferences(models.Model):
         help_text="List of module intro banners the user has dismissed",
     )
 
+    # Development notice modal
+    # Shows after 48 hours to remind users we're still building
+    development_notice_seen_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the user saw the development notice modal",
+    )
+
     # What's New popup preference
     show_whats_new = models.BooleanField(
         default=True,

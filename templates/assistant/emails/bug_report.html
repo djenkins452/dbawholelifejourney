@@ -1,0 +1,95 @@
+{% extends "assistant/emails/base_email.html" %}
+
+{% block title %}Bug Report - WLJ Assistant{% endblock %}
+
+{% block header_title %}Bug Report{% endblock %}
+
+{% block content %}
+<p>A user has reported a bug or issue through the AI Assistant.</p>
+
+{% if report.task_id %}
+<span class="badge badge-error" style="background-color: #fee2e2; color: #dc2626;">Task #{{ report.task_id }} Created</span>
+{% else %}
+<span class="badge badge-error" style="background-color: #fee2e2; color: #dc2626;">Bug Report</span>
+{% endif %}
+
+<dl class="task-info">
+    {% if report.task_id %}
+    <dt>Task ID</dt>
+    <dd><strong>#{{ report.task_id }}</strong> (in "Bug Reports" project - status: backlog)</dd>
+    {% endif %}
+
+    <dt>User</dt>
+    <dd>{{ report.user_name }} (<a href="mailto:{{ report.user_email }}">{{ report.user_email }}</a>)</dd>
+
+    <dt>User ID</dt>
+    <dd>{{ report.user_id }}</dd>
+
+    <dt>Timestamp</dt>
+    <dd>{{ report.timestamp }}</dd>
+
+    <dt>Detected Pattern</dt>
+    <dd>"{{ report.detected_pattern }}"</dd>
+</dl>
+
+<p><strong>Bug Report:</strong></p>
+<div class="code-block" style="background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca;">
+{{ report.message }}
+</div>
+
+{% if report.image_data and report.image_mime_type %}
+<p><strong>Attached Screenshot:</strong></p>
+<div style="margin: 15px 0; max-width: 100%;">
+    <img src="data:{{ report.image_mime_type }};base64,{{ report.image_data }}"
+         style="max-width: 100%; height: auto; border-radius: 6px; border: 1px solid #e5e7eb;"
+         alt="User attached screenshot">
+</div>
+{% endif %}
+
+{% if report.conversation_context %}
+<p><strong>Recent Conversation Context:</strong></p>
+<div class="diff-block" style="white-space: pre-wrap;">
+{{ report.conversation_context }}
+</div>
+{% endif %}
+
+{% if report.task_id %}
+<div class="action-required" style="border-left-color: #ef4444;">
+    <strong>Action Required:</strong>
+    <ul>
+        <li>Investigate and attempt to reproduce the issue</li>
+        <li>Review Task #{{ report.task_id }} in the Admin Console</li>
+        <li>Consider reaching out to the user for more details</li>
+        <li>Fix the issue and update the task status</li>
+    </ul>
+</div>
+
+{% if report.task_url %}
+<p style="margin-top: 20px; text-align: center;">
+    <a href="{{ report.task_url }}"
+       style="display: inline-block; padding: 12px 24px; background-color: #ef4444; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">
+        Review Task #{{ report.task_id }}
+    </a>
+</p>
+{% endif %}
+
+{% else %}
+<div class="action-required" style="border-left-color: #ef4444;">
+    <strong>Action Required:</strong>
+    <ul>
+        <li>Investigate this bug report</li>
+        <li>Attempt to reproduce the issue</li>
+        <li>Manually create a task in the Admin Console</li>
+        <li>Consider reaching out to the user for more details</li>
+    </ul>
+    <p><em>Note: Automatic task creation failed. Please investigate manually.</em></p>
+</div>
+{% endif %}
+
+<div style="margin-top: 20px; padding: 15px; background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+    <p style="margin: 0; font-size: 14px; color: #0369a1;">
+        <strong>Tip:</strong> Reply to the user at <a href="mailto:{{ report.user_email }}">{{ report.user_email }}</a>
+        to thank them for reporting and let them know when it's fixed.
+    </p>
+</div>
+{% endblock %}

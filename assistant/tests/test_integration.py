@@ -1473,7 +1473,7 @@ class TestCase7HealthMonitorPausesSystem(SelfImprovementIntegrationTestCase):
             task.save()
 
         monitor = HealthMonitor()
-        report = monitor.get_health_report()
+        report = monitor.get_full_status_report()
 
         # With 30% error rate, system should be degraded (threshold is 20%)
         self.assertIn(report['status'], [
@@ -1503,10 +1503,10 @@ class TestCase7HealthMonitorPausesSystem(SelfImprovementIntegrationTestCase):
                 task.save()
 
         monitor = HealthMonitor()
-        report = monitor.get_health_report()
+        report = monitor.get_full_status_report()
 
         # With 50% error rate, should be critical
-        if report['error_rate'] >= 40:
+        if report['metrics']['error_rate'] >= 40:
             self.assertEqual(report['status'], SystemStatus.CRITICAL.value)
 
     def test_health_check_returns_recommendations(self):
@@ -1518,7 +1518,7 @@ class TestCase7HealthMonitorPausesSystem(SelfImprovementIntegrationTestCase):
         task.save()
 
         monitor = HealthMonitor()
-        report = monitor.get_health_report()
+        report = monitor.get_full_status_report()
 
         # Report should include recommendations if issues exist
         self.assertIn('recommendations', report)

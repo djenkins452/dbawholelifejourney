@@ -2023,6 +2023,18 @@ Use this context to provide relevant, contextual help. For scripture questions, 
             )
             return personal_data_result['clarifying_question']
 
+        # Check if this is a web search query (weather, news, etc.)
+        # Handle these with web search before falling back to general AI
+        from apps.ai.web_search_service import needs_web_search, search_web, get_user_location
+
+        if needs_web_search(message):
+            # Try web search for real-time information
+            user_location = get_user_location(self.user)
+            web_result = search_web(message, user_location)
+            if web_result:
+                logger.info(f"Answered query via web search: {message[:50]}...")
+                return web_result
+
         # Build conversation context
         messages_context = ""
         for msg in reversed(list(history)[:5]):

@@ -175,6 +175,8 @@ def _extract_location(query: str) -> Optional[str]:
     Examples:
         "what's the weather in maryville, tn" -> "maryville, tn"
         "weather for nashville" -> "nashville"
+        "nashville weather" -> "nashville"
+        "what is the weather" -> None (no location specified)
     """
     query_lower = query.lower()
 
@@ -183,10 +185,16 @@ def _extract_location(query: str) -> Optional[str]:
     if match:
         return match.group(1).strip()
 
-    # Pattern: "[location] weather"
+    # Pattern: "[location] weather" - but NOT common question words
+    # Exclude question starters like "what", "how", "what's", "is the", etc.
+    question_words = {'what', 'whats', "what's", 'how', 'is', 'the', 'today', 'tomorrow', 'current', 'my'}
     match = re.search(r'^([a-zA-Z\s,]+?)\s+weather', query_lower)
     if match:
-        return match.group(1).strip()
+        potential_location = match.group(1).strip()
+        # Check if this looks like a real location (not question words)
+        words = set(potential_location.lower().split())
+        if not words.issubset(question_words) and len(potential_location) > 2:
+            return potential_location
 
     return None
 

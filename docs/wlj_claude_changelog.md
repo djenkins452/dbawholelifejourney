@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Weather Query Location Extraction Bug
+
+**Issue:** When asking "what is the weather", the system incorrectly extracted "what is the" as the location name, returning error: "I couldn't find the location 'what is the'."
+
+**Root Cause:** The regex pattern `^([a-zA-Z\s,]+?)\s+weather` in `_extract_location()` was matching the question words before "weather".
+
+**Solution:** Added a filter to exclude common question words (what, whats, how, is, the, today, tomorrow, current, my) from being treated as locations.
+
+**Files Modified:**
+- `apps/ai/web_search_service.py` - Updated `_extract_location()` to filter out question words
+
+**Result:** "what is the weather" now correctly prompts "What city would you like the weather for?" instead of trying to geocode "what is the".
+
+---
+
 ### Allow AI Assistant to Answer Any Question
 
 **Issue:** The AI Assistant was refusing to answer general knowledge questions like "what's my horoscope" by saying it was only a wellness assistant and couldn't help with that.

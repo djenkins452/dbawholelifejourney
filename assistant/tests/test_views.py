@@ -367,8 +367,8 @@ class TestProcessAssistantMessageServiceInitialization(unittest.TestCase):
 class TestProcessAssistantMessageGapDetection(unittest.TestCase):
     """Tests for gap detection integration in process_assistant_message."""
 
-    @patch('assistant.views.AdminNotificationService')
-    @patch('assistant.views.ImprovementTaskModel')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
     @patch('assistant.views.PersonalDataService')
@@ -418,8 +418,8 @@ class TestProcessAssistantMessageGapDetection(unittest.TestCase):
         self.assertIsNotNone(result['gap_message'])
         self.assertIn("noted this for improvement", result['gap_message'])
 
-    @patch('assistant.views.AdminNotificationService')
-    @patch('assistant.views.ImprovementTaskModel')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
     def test_detects_gap_for_unknown_data_type(
@@ -461,8 +461,8 @@ class TestProcessAssistantMessageGapDetection(unittest.TestCase):
         self.assertTrue(result['gap_detected'])
         mock_detect_gap.assert_called()
 
-    @patch('assistant.views.AdminNotificationService')
-    @patch('assistant.views.ImprovementTaskModel')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
     @patch('assistant.views.PersonalDataService')
@@ -505,9 +505,9 @@ class TestProcessAssistantMessageGapDetection(unittest.TestCase):
 class TestGapDetectionTaskRouting(unittest.TestCase):
     """Tests for task routing based on severity."""
 
-    @patch('assistant.views.AutonomousExecutor')
-    @patch('assistant.views.AdminNotificationService')
-    @patch('assistant.views.ImprovementTaskModel')
+    @patch('assistant.executor.AutonomousExecutor')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
     @patch('assistant.views.PersonalDataService')
@@ -566,9 +566,9 @@ class TestGapDetectionTaskRouting(unittest.TestCase):
         # Task should be marked as not requiring approval
         mock_model.save.assert_called()
 
-    @patch('assistant.views.AutonomousExecutor')
-    @patch('assistant.views.AdminNotificationService')
-    @patch('assistant.views.ImprovementTaskModel')
+    @patch('assistant.executor.AutonomousExecutor')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
     @patch('assistant.views.PersonalDataService')
@@ -630,8 +630,8 @@ class TestGapDetectionLogging(unittest.TestCase):
     """Tests for gap detection logging."""
 
     @patch('assistant.views.logger')
-    @patch('assistant.views.AdminNotificationService')
-    @patch('assistant.views.ImprovementTaskModel')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
     @patch('assistant.views.PersonalDataService')
@@ -684,8 +684,8 @@ class TestGapDetectionLogging(unittest.TestCase):
 class TestGapDetectionUserMessage(unittest.TestCase):
     """Tests for user-facing gap messages."""
 
-    @patch('assistant.views.AdminNotificationService')
-    @patch('assistant.views.ImprovementTaskModel')
+    @patch('assistant.notifications.AdminNotificationService')
+    @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
     @patch('assistant.views.PersonalDataService')

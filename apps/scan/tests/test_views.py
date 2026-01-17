@@ -20,6 +20,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from apps.scan.models import ScanConsent, ScanLog
+from apps.scan.services.barcode import barcode_service
 from apps.users.models import TermsAcceptance
 
 User = get_user_model()
@@ -109,8 +110,11 @@ class ScanHomeViewTests(ScanTestMixin, TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('accounts/login', response.url)
 
-    def test_shows_ai_consent_prompt_if_not_enabled(self):
+    @patch('apps.scan.views.vision_service')
+    def test_shows_ai_consent_prompt_if_not_enabled(self, mock_vision_service):
         """Test that users without AI consent see the enable AI prompt."""
+        mock_vision_service.is_available = True
+
         self.user.preferences.ai_enabled = False
         self.user.preferences.ai_data_consent = False
         self.user.preferences.save()
@@ -121,8 +125,11 @@ class ScanHomeViewTests(ScanTestMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Enable AI Features First')
 
-    def test_shows_scan_consent_prompt_if_not_consented(self):
+    @patch('apps.scan.views.vision_service')
+    def test_shows_scan_consent_prompt_if_not_consented(self, mock_vision_service):
         """Test that users without scan consent see the consent form."""
+        mock_vision_service.is_available = True
+
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(self.url)
 
@@ -606,12 +613,13 @@ class BarcodeLookupViewTests(ScanTestMixin, TestCase):
         self.assertIsNotNone(scan_log)
         self.assertEqual(scan_log.status, ScanLog.STATUS_SUCCESS)
 
-    @patch('apps.scan.services.barcode.BarcodeService._lookup_ai')
-    def test_barcode_found_via_ai(self, mock_ai_lookup):
+    @patch('apps.scan.services.barcode.barcode_service.lookup')
+    def test_barcode_found_via_ai(self, mock_lookup):
         """Test response when barcode is found via AI."""
         from apps.scan.services.barcode import BarcodeResult
 
-        mock_ai_lookup.return_value = BarcodeResult(
+        # Mock the entire lookup to return an AI result
+        mock_lookup.return_value = BarcodeResult(
             barcode='9876543210123',
             found=True,
             source='ai',

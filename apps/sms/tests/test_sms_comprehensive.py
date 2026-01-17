@@ -19,7 +19,7 @@ Tests for:
 """
 
 import json
-from datetime import time, timedelta
+from datetime import date, time, timedelta
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -794,7 +794,7 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
             name='Test Med',
             dose='10mg',
             frequency='daily',
-            start_date=today,
+            start_date=date.today(),
             medicine_status=Medicine.STATUS_ACTIVE,
         )
 

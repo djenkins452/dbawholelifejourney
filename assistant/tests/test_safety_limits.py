@@ -380,9 +380,13 @@ class TestSafetyLimitServiceSystemHealth(TestCase):
             task.status = ImprovementTaskModel.STATUS_COMPLETED if i > 0 else ImprovementTaskModel.STATUS_ERROR
             mock_tasks.append(task)
 
+        # Create a sliced queryset mock that supports both iteration and count()
+        sliced_qs = MagicMock()
+        sliced_qs.count.return_value = 10
+        sliced_qs.__iter__ = lambda self: iter(mock_tasks)
+
         mock_queryset = MagicMock()
-        mock_queryset.order_by.return_value.__getitem__.return_value = mock_tasks
-        mock_queryset.count.return_value = 10
+        mock_queryset.order_by.return_value.__getitem__.return_value = sliced_qs
         mock_filter.return_value = mock_queryset
 
         result = self.service.is_system_healthy()
@@ -405,9 +409,13 @@ class TestSafetyLimitServiceSystemHealth(TestCase):
             task.status = ImprovementTaskModel.STATUS_ERROR if i < 4 else ImprovementTaskModel.STATUS_COMPLETED
             mock_tasks.append(task)
 
+        # Create a sliced queryset mock that supports both iteration and count()
+        sliced_qs = MagicMock()
+        sliced_qs.count.return_value = 10
+        sliced_qs.__iter__ = lambda self: iter(mock_tasks)
+
         mock_queryset = MagicMock()
-        mock_queryset.order_by.return_value.__getitem__.return_value = mock_tasks
-        mock_queryset.count.return_value = 10
+        mock_queryset.order_by.return_value.__getitem__.return_value = sliced_qs
         mock_filter.return_value = mock_queryset
 
         result = self.service.is_system_healthy()
@@ -425,9 +433,13 @@ class TestSafetyLimitServiceSystemHealth(TestCase):
         # Create mock tasks with high error rate
         mock_tasks = [MagicMock(status=ImprovementTaskModel.STATUS_ERROR) for _ in range(10)]
 
+        # Create a sliced queryset mock that supports both iteration and count()
+        sliced_qs = MagicMock()
+        sliced_qs.count.return_value = 10
+        sliced_qs.__iter__ = lambda self: iter(mock_tasks)
+
         mock_queryset = MagicMock()
-        mock_queryset.order_by.return_value.__getitem__.return_value = mock_tasks
-        mock_queryset.count.return_value = 10
+        mock_queryset.order_by.return_value.__getitem__.return_value = sliced_qs
         mock_filter.return_value = mock_queryset
 
         self.service.is_system_healthy()

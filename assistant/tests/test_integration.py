@@ -262,7 +262,8 @@ class MedicationDataIntegrationTest(TestCase):
             user=self.user,
             name="Test Medicine",
             dose="500mg",
-            frequency="daily"
+            frequency="daily",
+            start_date=date.today()
         )
         self.service = PersonalDataService(self.user)
 
@@ -619,7 +620,8 @@ class SoftDeleteBehaviorIntegrationTest(TestCase):
         medicine = Medicine.objects.create(
             user=self.user,
             name="Test Med",
-            dose="100mg"
+            dose="100mg",
+            start_date=date.today()
         )
         active = MedicineLog.objects.create(
             user=self.user,

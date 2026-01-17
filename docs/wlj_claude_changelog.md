@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Always Include Clickable Links When Directing Users
+
+**Issue:** When the AI told users to "go to your Journal entries" or similar, it wasn't including a clickable link. The navigation response system only provided links for explicit navigation queries ("where to find X"), not when the AI naturally suggested going somewhere.
+
+**Solution:** Added a new "ALWAYS INCLUDE LINKS WHEN DIRECTING USERS" section to the master prompt with:
+1. Clear instruction that ANY time the AI tells a user to go somewhere, it MUST include a link
+2. A reference list of common links (Journal, Weight, Blood Pressure, Goals, Tasks, etc.)
+3. Example format: "You can do that by going to **[Feature Name]**. For easy access, [click here](/path/)."
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Added link reference section to `PERSONAL_ASSISTANT_BASE_PROMPT`
+
+**Result:** Now when the AI says "go to your Journal" in any context, it will include "[click here](/journal/)" for easy navigation.
+
+---
+
 ### Fix Navigation Link Detection for "Where to Find" Queries
 
 **Issue:** When users asked "where to find blood pressure" or similar navigation queries, the AI wasn't returning clickable links to the feature. The navigation response system was only triggering for patterns like "where do I" and "how do I find", but not "where to find".

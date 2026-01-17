@@ -16,6 +16,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Add Weather Support to Personal Assistant
+
+**Problem:** When asking the Assistant "what is the weather in Maryville, TN", it replied that it doesn't have access to real-time weather data. ChatGPT can answer this, so our Assistant should too.
+
+**Solution:** Created a web search service that handles weather queries using the Open-Meteo API (free, no API key required). The Assistant now:
+1. Detects weather-related questions
+2. Extracts location from the question or uses user's saved location
+3. Fetches real-time weather data from Open-Meteo
+4. Returns current conditions, today's forecast, and tomorrow's forecast
+
+**Files Created:**
+- `apps/ai/web_search_service.py` - Web search routing, weather API integration
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Added web search check in `_generate_response()`
+
+**Features:**
+- Extracts location from query ("weather in Nashville" -> Nashville)
+- Falls back to user's saved `location_city` from preferences
+- Asks for location if none found
+- Shows current temp, conditions, humidity, wind
+- Shows today's high/low and precipitation chance
+- Shows tomorrow's forecast
+
+---
+
 ### Fix: Email Confirmation Template Handles Invalid Keys
 
 **Problem:** Hitting `/accounts/confirm-email/` with an invalid key (like `contact-us` from a bot) caused a `VariableDoesNotExist` error because the template tried to access `confirmation.key` when `confirmation` was `None`.

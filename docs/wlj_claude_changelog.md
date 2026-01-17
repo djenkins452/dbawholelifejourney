@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Gap Detector Tests After Water Tracking Feature
+
+**Issue:** 7 gap detector tests were failing in CI after the water/hydration tracking feature was added. The tests were using "hydration" as an example of an **unknown** data type that should trigger gap detection, but now that water/hydration is a supported data type, these tests were incorrect.
+
+**Root Cause:** When water tracking was added, `hydration` was added to `PERSONAL_DATA_KEYWORDS['water']` in `intent_detector.py`. The `extract_potential_keywords()` function correctly filters out known keywords, so "hydration" was no longer being extracted as a "potential new keyword".
+
+**Solution:** Updated 7 tests to use "creatinine" (kidney function marker) instead of "hydration" as the example of an unsupported data type:
+- `test_filters_didnt_fragment` - Tests contraction filtering with unknown data type
+- `test_filters_something` - Tests conversational word filtering with unknown data type
+- `test_extracts_potential_new_keywords` - Tests extraction of unknown data types
+- `test_real_data_types_still_extracted` - Tests that legitimate health terms are extracted
+- `test_gap_for_new_data_type_request` - Tests gap detection for unrecognized queries
+- `test_creatinine_is_legitimate_gap` (renamed from `test_hydration_is_legitimate_gap`)
+- `test_creatinine_still_extracted` (renamed from `test_hydration_still_extracted`)
+
+**Files Modified:**
+- `assistant/tests/test_gap_detector.py`
+
+**Testing:** All 83 gap detector tests pass. All 736 assistant tests pass.
+
+---
+
 ### Prevent AI Hallucination of Real-Time Data (Sports, Stocks, News)
 
 **Issue:** The AI assistant was confidently making up specific sports scores and game information when asked questions like "are there any college football games on with an SEC team?" - providing invented matchups like "Alabama vs. Mississippi State" when it has no access to live sports data.

@@ -316,8 +316,8 @@ class TestExtractPotentialKeywords(unittest.TestCase):
 
     def test_extracts_potential_new_keywords(self):
         """Should extract words that could be new data type indicators."""
-        result = extract_potential_keywords("What was my hydration level yesterday?")
-        self.assertIn('hydration', result)
+        result = extract_potential_keywords("What was my creatinine level yesterday?")
+        self.assertIn('creatinine', result)
 
     def test_prioritizes_words_after_my(self):
         """Words after 'my' should be prioritized."""
@@ -413,9 +413,9 @@ class TestContractionFragments(unittest.TestCase):
 
     def test_filters_didnt_fragment(self):
         """Should filter 'didn' from 'didn't'."""
-        result = extract_potential_keywords("I didn't log my hydration today")
+        result = extract_potential_keywords("I didn't log my creatinine today")
         self.assertNotIn('didn', result)
-        self.assertIn('hydration', result)
+        self.assertIn('creatinine', result)
 
     def test_filters_wouldnt_fragment(self):
         """Should filter 'wouldn' from 'wouldn't'."""
@@ -450,9 +450,9 @@ class TestConversationalWords(unittest.TestCase):
 
     def test_filters_something(self):
         """Should filter 'something' as a conversational word."""
-        result = extract_potential_keywords("I want to track something about hydration")
+        result = extract_potential_keywords("I want to track something about creatinine")
         self.assertNotIn('something', result)
-        self.assertIn('hydration', result)
+        self.assertIn('creatinine', result)
 
     def test_filters_common_verbs(self):
         """Should filter common verbs like 'want', 'think', 'know'."""
@@ -492,8 +492,8 @@ class TestFalsePositivePatterns(unittest.TestCase):
 
     def test_real_data_types_still_extracted(self):
         """Real potential data types should still be extracted."""
-        result = extract_potential_keywords("What was my hydration level yesterday?")
-        self.assertIn('hydration', result)
+        result = extract_potential_keywords("What was my creatinine level yesterday?")
+        self.assertIn('creatinine', result)
 
     def test_caffeine_still_extracted(self):
         """Domain-relevant words like 'caffeine' should still be extracted."""
@@ -577,12 +577,12 @@ class TestIntegrationScenarios(unittest.TestCase):
         }
 
         result = detect_knowledge_gap(
-            "How much water did I drink today?",
+            "What was my creatinine level today?",
             intent_result=intent_result,
             data_result=None
         )
-        # Should detect as unknown data type since "my" is not in query
-        # but "i" is, indicating personal context
+        # Should detect as unknown data type since "my" is in query
+        # indicating personal context with unrecognized data type
         self.assertTrue(result['gap_detected'])
 
     def test_no_gap_when_user_has_no_data(self):
@@ -804,15 +804,15 @@ class TestLegitimateGapDetection(unittest.TestCase):
             'is_compound_query': False,
         }
 
-    def test_hydration_is_legitimate_gap(self):
-        """'hydration' is a legitimate new data type request."""
+    def test_creatinine_is_legitimate_gap(self):
+        """'creatinine' is a legitimate new data type request."""
         result = detect_knowledge_gap(
-            "How much water did I drink today?",
+            "What was my creatinine level today?",
             intent_result=self._get_non_personal_intent(),
             data_result=None
         )
-        # This should still detect a gap - hydration/water tracking is
-        # a legitimate personal data feature request
+        # This should detect a gap - creatinine tracking is
+        # a legitimate personal health data type not yet supported
         self.assertTrue(result['gap_detected'])
 
     def test_caffeine_still_extracted(self):
@@ -820,10 +820,10 @@ class TestLegitimateGapDetection(unittest.TestCase):
         result = extract_potential_keywords("How much caffeine did I consume?")
         self.assertIn('caffeine', result)
 
-    def test_hydration_still_extracted(self):
-        """'hydration' should still be extracted as a potential data type."""
-        result = extract_potential_keywords("What was my hydration level?")
-        self.assertIn('hydration', result)
+    def test_creatinine_still_extracted(self):
+        """'creatinine' should still be extracted as a potential data type."""
+        result = extract_potential_keywords("What was my creatinine level?")
+        self.assertIn('creatinine', result)
 
 
 if __name__ == '__main__':

@@ -510,10 +510,10 @@ class TestGapDetectionTaskRouting(unittest.TestCase):
     @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
-    @patch('assistant.views.PersonalDataService')
+    @patch('assistant.views.detect_personal_data_intent')
     def test_low_severity_queued_for_autonomous(
         self,
-        mock_service_class,
+        mock_detect_intent,
         mock_detect_gap,
         mock_generate_task,
         mock_model_class,
@@ -524,10 +524,12 @@ class TestGapDetectionTaskRouting(unittest.TestCase):
         from assistant.views import process_assistant_message
         from assistant.gap_detector import GapType, GapSeverity
 
-        # Mock service to return no data
-        mock_service = MagicMock()
-        mock_service.query_by_intent.return_value = None
-        mock_service_class.return_value = mock_service
+        # Mock intent detection to return non-personal query (triggers gap detection path)
+        mock_detect_intent.return_value = {
+            'is_personal_query': False,
+            'data_types': [],
+            'confidence': 0.3,
+        }
 
         # Mock gap detection for LOW severity (missing keywords)
         mock_detect_gap.return_value = {
@@ -571,10 +573,10 @@ class TestGapDetectionTaskRouting(unittest.TestCase):
     @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
-    @patch('assistant.views.PersonalDataService')
+    @patch('assistant.views.detect_personal_data_intent')
     def test_medium_severity_sent_to_admin(
         self,
-        mock_service_class,
+        mock_detect_intent,
         mock_detect_gap,
         mock_generate_task,
         mock_model_class,
@@ -585,10 +587,12 @@ class TestGapDetectionTaskRouting(unittest.TestCase):
         from assistant.views import process_assistant_message
         from assistant.gap_detector import GapType, GapSeverity
 
-        # Mock service to return no data
-        mock_service = MagicMock()
-        mock_service.query_by_intent.return_value = None
-        mock_service_class.return_value = mock_service
+        # Mock intent detection to return non-personal query (triggers gap detection path)
+        mock_detect_intent.return_value = {
+            'is_personal_query': False,
+            'data_types': [],
+            'confidence': 0.3,
+        }
 
         # Mock gap detection for MEDIUM severity (no data method)
         mock_detect_gap.return_value = {
@@ -634,10 +638,10 @@ class TestGapDetectionLogging(unittest.TestCase):
     @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
-    @patch('assistant.views.PersonalDataService')
+    @patch('assistant.views.detect_personal_data_intent')
     def test_gap_detection_is_logged(
         self,
-        mock_service_class,
+        mock_detect_intent,
         mock_detect_gap,
         mock_generate_task,
         mock_model_class,
@@ -648,10 +652,12 @@ class TestGapDetectionLogging(unittest.TestCase):
         from assistant.views import process_assistant_message
         from assistant.gap_detector import GapType
 
-        # Mock service to return no data
-        mock_service = MagicMock()
-        mock_service.query_by_intent.return_value = None
-        mock_service_class.return_value = mock_service
+        # Mock intent detection to return non-personal query (triggers gap detection path)
+        mock_detect_intent.return_value = {
+            'is_personal_query': False,
+            'data_types': [],
+            'confidence': 0.3,
+        }
 
         # Mock gap detection
         mock_detect_gap.return_value = {
@@ -688,10 +694,10 @@ class TestGapDetectionUserMessage(unittest.TestCase):
     @patch('assistant.models.ImprovementTaskModel')
     @patch('assistant.views.generate_improvement_task')
     @patch('assistant.views.detect_knowledge_gap')
-    @patch('assistant.views.PersonalDataService')
+    @patch('assistant.views.detect_personal_data_intent')
     def test_gap_message_returned_to_user(
         self,
-        mock_service_class,
+        mock_detect_intent,
         mock_detect_gap,
         mock_generate_task,
         mock_model_class,
@@ -701,10 +707,12 @@ class TestGapDetectionUserMessage(unittest.TestCase):
         from assistant.views import process_assistant_message, GAP_DETECTED_MESSAGE
         from assistant.gap_detector import GapType
 
-        # Mock service to return no data
-        mock_service = MagicMock()
-        mock_service.query_by_intent.return_value = None
-        mock_service_class.return_value = mock_service
+        # Mock intent detection to return non-personal query (triggers gap detection path)
+        mock_detect_intent.return_value = {
+            'is_personal_query': False,
+            'data_types': [],
+            'confidence': 0.3,
+        }
 
         # Mock gap detection
         mock_detect_gap.return_value = {

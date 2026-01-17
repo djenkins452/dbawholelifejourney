@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Test Failures - Cache Mock and Gap Detection Tests
+
+**Fixed two test failures in CI:**
+
+1. **`test_rate_limit_is_per_user`** (apps/health/tests/test_cycle_export.py)
+   - **Issue:** The `@patch('django.core.cache.cache')` decorator patched cache globally, which interfered with the billing signal when creating test users. The `create_billing_profile` signal tried to compare `trial_days > 0` but `trial_days` was a `MagicMock`.
+   - **Fix:** Moved user creation BEFORE the cache patch, then used `with patch()` context manager for the actual rate limit testing.
+
+2. **`test_low_severity_queued_for_autonomous`** (assistant/tests/test_views.py)
+   - **Issue:** Tests expected gap detection to trigger when `query_by_intent` returned `None`, but the code flow changed - empty data results now trigger a clarification prompt, not gap detection.
+   - **Fix:** Changed tests to mock `detect_personal_data_intent` to return `is_personal_query=False`, which correctly triggers the gap detection path.
+
+**Files Modified:**
+- `apps/health/tests/test_cycle_export.py` - Fixed `test_rate_limit_is_per_user` cache mocking
+- `assistant/tests/test_views.py` - Fixed 4 gap detection tests to use proper intent mocking:
+  - `test_low_severity_queued_for_autonomous`
+  - `test_medium_severity_sent_to_admin`
+  - `test_gap_detection_is_logged`
+  - `test_gap_message_returned_to_user`
+
+---
+
 ### Development Notice Modal + Bug Report Command + Image Upload in Chat
 
 **Three connected features to help users report issues and communicate better with support:**

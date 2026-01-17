@@ -191,12 +191,12 @@ class CycleExportAPIViewTest(TestCase):
         self.assertIn("rate limit", data["error"].lower())
         self.assertEqual(data["exports_remaining"], 0)
 
-    @patch('django.core.cache.cache')
-    def test_rate_limit_is_per_user(self, mock_cache):
+    def test_rate_limit_is_per_user(self):
         """Rate limit is tracked per user, not globally."""
         self._create_test_data()
 
-        # Create second user with cycle tracking
+        # Create second user with cycle tracking BEFORE patching cache
+        # to avoid interference with billing signals
         user2 = self._create_test_user(
             email="test2@example.com",
             password="testpass123"
@@ -211,34 +211,36 @@ class CycleExportAPIViewTest(TestCase):
             flow_level="medium",
         )
 
-        # Simulate cache - user1 exhausted, user2 fresh
-        user_counts = {}
-        def get_side_effect(key, default=0):
-            return user_counts.get(key, default)
+        # Now patch cache for the actual rate limit testing
+        with patch('django.core.cache.cache') as mock_cache:
+            # Simulate cache - user1 exhausted, user2 fresh
+            user_counts = {}
+            def get_side_effect(key, default=0):
+                return user_counts.get(key, default)
 
-        def incr_side_effect(key, delta=1, version=None):
-            user_counts[key] = user_counts.get(key, 0) + delta
-            return user_counts[key]
+            def incr_side_effect(key, delta=1, version=None):
+                user_counts[key] = user_counts.get(key, 0) + delta
+                return user_counts[key]
 
-        def set_side_effect(key, value, timeout=None):
-            user_counts[key] = value
+            def set_side_effect(key, value, timeout=None):
+                user_counts[key] = value
 
-        mock_cache.get.side_effect = get_side_effect
-        mock_cache.incr.side_effect = incr_side_effect
-        mock_cache.set.side_effect = set_side_effect
+            mock_cache.get.side_effect = get_side_effect
+            mock_cache.incr.side_effect = incr_side_effect
+            mock_cache.set.side_effect = set_side_effect
 
-        # Exhaust rate limit for first user
-        for _ in range(5):
-            self.client.get(self.url)
+            # Exhaust rate limit for first user
+            for _ in range(5):
+                self.client.get(self.url)
 
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 429)
+            response = self.client.get(self.url)
+            self.assertEqual(response.status_code, 429)
 
-        # Second user should still be able to export
-        self.client.logout()
-        self.client.login(email="test2@example.com", password="testpass123")
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 200)
+            # Second user should still be able to export
+            self.client.logout()
+            self.client.login(email="test2@example.com", password="testpass123")
+            response = self.client.get(self.url)
+            self.assertEqual(response.status_code, 200)
 
     def test_export_includes_remaining_header(self):
         """Export response includes X-Exports-Remaining header."""

@@ -16,6 +16,15 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Sanitize Email Subject Lines in Confirmation Emails
+
+**Bug:** Confirmation emails failed when original email subjects contained newlines (e.g., `\r\n`).
+
+**Files Modified:**
+- `apps/admin_console/email_intake.py` - Strip newlines from subject before sending confirmation
+
+---
+
 ### Fix Email Intake IMAP Folder Path
 
 **Bug:** Email intake was looking for folder "Automate" but the actual IMAP path is "INBOX/Automate".

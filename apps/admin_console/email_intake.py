@@ -395,7 +395,9 @@ def send_confirmation_email(parsed_email: ParsedEmail, task):
     """
     config = get_email_settings()
 
-    subject = f"[WLJ Task #{task.pk}] Task created: {parsed_email.subject[:80]}"
+    # Sanitize subject - remove newlines which are invalid in email headers
+    clean_subject = parsed_email.subject.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
+    subject = f"[WLJ Task #{task.pk}] Task created: {clean_subject[:80]}"
 
     body = f"""Your email has been received and converted to a task in Whole Life Journey.
 

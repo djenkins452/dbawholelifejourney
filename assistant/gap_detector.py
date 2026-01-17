@@ -82,6 +82,19 @@ CONVERSATIONAL_WORDS = {
     'thing', 'things', 'stuff', 'way', 'ways', 'place', 'places',
     'time', 'times', 'day', 'days', 'week', 'weeks', 'month', 'months',
     'year', 'years', 'today', 'yesterday', 'tomorrow',
+    # Question/answer words - these are conversational, not data types
+    'question', 'questions', 'answer', 'answers', 'answering', 'answered',
+    'reply', 'replies', 'response', 'responses',
+    # Meta/conversation words - about the assistant or dialog itself
+    'conversation', 'conversations', 'dialog', 'dialogue', 'chat', 'chats',
+    'message', 'messages', 'context', 'current', 'session', 'sessions',
+    # External data that should use APIs, not stored data types
+    'weather', 'forecast', 'temperature', 'climate',
+    'news', 'headline', 'headlines', 'article', 'articles',
+    'definition', 'definitions', 'meaning', 'meanings',
+    # Location words
+    'city', 'cities', 'town', 'towns', 'state', 'states', 'country', 'countries',
+    'location', 'locations', 'address', 'addresses',
     # Common verbs that might get extracted
     'want', 'wanted', 'wanting', 'like', 'liked', 'liking',
     'think', 'thought', 'thinking', 'know', 'knew', 'knowing',
@@ -148,6 +161,153 @@ SUPPORTED_QUERY_PATTERNS = [
     'search', 'look', 'check', 'did', 'have', 'has', 'was', 'were',
     'average', 'total', 'count', 'sum', 'last', 'latest', 'recent',
 ]
+
+# Bible book names - used to detect scripture references (e.g., "1 John 5:14")
+BIBLE_BOOKS = {
+    'genesis', 'exodus', 'leviticus', 'numbers', 'deuteronomy',
+    'joshua', 'judges', 'ruth', 'samuel', 'kings', 'chronicles',
+    'ezra', 'nehemiah', 'esther', 'job', 'psalms', 'psalm', 'proverbs',
+    'ecclesiastes', 'song', 'isaiah', 'jeremiah', 'lamentations',
+    'ezekiel', 'daniel', 'hosea', 'joel', 'amos', 'obadiah', 'jonah',
+    'micah', 'nahum', 'habakkuk', 'zephaniah', 'haggai', 'zechariah',
+    'malachi', 'matthew', 'mark', 'luke', 'john', 'acts', 'romans',
+    'corinthians', 'galatians', 'ephesians', 'philippians', 'colossians',
+    'thessalonians', 'timothy', 'titus', 'philemon', 'hebrews', 'james',
+    'peter', 'jude', 'revelation', 'revelations',
+}
+
+
+def is_meta_question(query: str) -> bool:
+    """
+    Detect if a query is a meta question about the assistant itself.
+
+    These are questions directed AT the assistant about its capabilities,
+    context, or behavior - not requests for personal data.
+
+    Args:
+        query: The user's query string.
+
+    Returns:
+        True if this is a meta question about the assistant.
+
+    Examples:
+        >>> is_meta_question("Can you answer that question?")
+        True
+        >>> is_meta_question("Are you looking at the page I am on?")
+        True
+        >>> is_meta_question("What was my weight yesterday?")
+        False
+    """
+    query_lower = query.lower().strip()
+
+    # Patterns that indicate questions directed at the assistant
+    meta_patterns = [
+        # Questions about assistant capabilities
+        'can you ', 'could you ', 'are you ', 'do you ', 'will you ',
+        'would you ', 'should you ', 'how do you ', 'how can you ',
+        'are you able', 'can you see', 'can you read', 'can you access',
+        # Questions about what the assistant is doing/using
+        'are you looking', 'are you using', 'are you based',
+        'is that based on', 'is this based on',
+        # Questions about the interface/page context
+        'based on the current page', 'based on this page',
+        'based on our conversation', 'based on the page',
+        'looking at the page', 'see the page', 'read the page',
+        # Questions about how the assistant works
+        'how does this work', 'how do you work', 'what can you do',
+        'what are you', 'who are you',
+    ]
+
+    for pattern in meta_patterns:
+        if pattern in query_lower:
+            return True
+
+    return False
+
+
+def is_bible_reference(query: str) -> bool:
+    """
+    Detect if a query contains a Bible verse reference.
+
+    Bible references follow patterns like "1 John 5:14-15", "John 3:16",
+    "Psalm 23", etc.
+
+    Args:
+        query: The user's query string.
+
+    Returns:
+        True if the query contains a Bible reference.
+
+    Examples:
+        >>> is_bible_reference("What is 1 John 5:14-15")
+        True
+        >>> is_bible_reference("Read me Psalm 23")
+        True
+        >>> is_bible_reference("What was my weight?")
+        False
+    """
+    import re
+    query_lower = query.lower()
+
+    # Check if any Bible book name appears in the query
+    for book in BIBLE_BOOKS:
+        if book in query_lower:
+            # Look for chapter:verse pattern near the book name
+            # Pattern: optional number + book name + chapter(:verse)?
+            pattern = rf'\b\d?\s*{book}\s+\d+(?::\d+)?'
+            if re.search(pattern, query_lower):
+                return True
+            # Also match just the book name with a number after it
+            if re.search(rf'\b{book}\s+\d', query_lower):
+                return True
+
+    return False
+
+
+def is_external_data_query(query: str) -> bool:
+    """
+    Detect if a query is asking for external/real-time data.
+
+    These are queries that should be answered by external APIs,
+    not by creating new data types in the system.
+
+    Args:
+        query: The user's query string.
+
+    Returns:
+        True if this is an external data query.
+
+    Examples:
+        >>> is_external_data_query("What is the weather in Nashville?")
+        True
+        >>> is_external_data_query("What time is it in Tokyo?")
+        True
+        >>> is_external_data_query("What was my weight yesterday?")
+        False
+    """
+    query_lower = query.lower()
+
+    # External data patterns
+    external_patterns = [
+        # Weather
+        'weather in', 'weather for', 'temperature in', 'forecast for',
+        'is it raining', 'is it sunny', 'is it cold', 'is it hot',
+        # Time
+        'what time is it', 'current time', 'time in',
+        # General knowledge/definitions
+        'what is a ', 'what is an ', 'what is the definition',
+        'define ', 'meaning of ',
+        # News
+        'news about', 'latest news', 'headlines',
+        # Stock/crypto prices
+        'stock price', 'price of', 'how much is',
+    ]
+
+    for pattern in external_patterns:
+        if pattern in query_lower:
+            return True
+
+    return False
 
 
 def detect_knowledge_gap(
@@ -259,6 +419,19 @@ def detect_knowledge_gap(
         }
 
     # Case 4: Not detected as personal query but might be one
+    # First, filter out queries that should NEVER trigger data type suggestions:
+    # - Meta questions about the assistant itself
+    # - Bible verse references
+    # - External data queries (weather, time, definitions, etc.)
+    if is_meta_question(original_query):
+        return base_response
+
+    if is_bible_reference(original_query):
+        return base_response
+
+    if is_external_data_query(original_query):
+        return base_response
+
     # Check for query patterns that suggest it should be personal
     has_personal_indicators = any(
         word in query_lower

@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix "No Data Found" Response and Add Capability Guidance
+
+**Issue:** When no data was found for a query, the AI gave a confusing response: "Can you see your most recent entries in the app? If you can see them there but I can't, please let me know and I'll investigate." This made users feel like they were troubleshooting for the AI.
+
+**Additionally:** When users asked "How can you help me?", the AI gave a generic vague response instead of listing specific capabilities.
+
+**Solution:**
+1. Changed the "no data found" message to: "I don't have any [type] entries in your records yet. Would you like to log some? I can help you find where to do that."
+
+2. Added explicit guidance in the prompt for capability questions - now the AI lists specific things it can help with (health data, goals, tasks, faith, journal, navigation) and gives concrete examples.
+
+3. Added friendly names for all new data types (heart_rate → "heart rate", blood_pressure → "blood pressure", etc.)
+
+**Files Modified:**
+- `assistant/views.py` - Updated `DATA_NOT_FOUND_CLARIFYING_MESSAGE` and expanded `_get_friendly_data_type_name()`
+- `apps/ai/personal_assistant.py` - Added "WHEN ASKED WHAT CAN YOU DO?" section to the prompt
+
+---
+
 ### Redesign AI Assistant Master Prompt for Trust & Confidence
 
 **Issue:** The AI Assistant was appearing "lost" and saying "I don't know" too often. Even when data was available, the responses felt like a generic chatbot rather than a knowledgeable partner who knows the user.

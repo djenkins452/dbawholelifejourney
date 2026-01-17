@@ -155,45 +155,46 @@ class TestHealthMonitorRateCalculation(TestCase):
     @patch.object(ImprovementTaskModel.objects, 'filter')
     def test_get_rate_metrics_with_errors(self, mock_filter):
         """Test rate metrics calculation with some errors."""
-        # Create mock queryset for total count
-        mock_total_queryset = MagicMock()
-        mock_total_queryset.order_by.return_value = mock_total_queryset
-        mock_total_queryset.count.return_value = 10
+        # Create mock querysets that return proper int values for count()
+        mock_error_qs = MagicMock()
+        mock_error_qs.count.return_value = 3
 
-        # Create mock queryset for error count
-        mock_error_queryset = MagicMock()
-        mock_error_queryset.count.return_value = 3
+        mock_rollback_qs = MagicMock()
+        mock_rollback_qs.count.return_value = 1
 
-        # Create mock queryset for rollback count
-        mock_rollback_queryset = MagicMock()
-        mock_rollback_queryset.count.return_value = 1
+        mock_completed_qs = MagicMock()
+        mock_completed_qs.count.return_value = 6
 
-        # Create mock queryset for completed count
-        mock_completed_queryset = MagicMock()
-        mock_completed_queryset.count.return_value = 6
+        # The recent_tasks queryset - it needs to support chained .filter().count()
+        mock_recent_tasks = MagicMock()
+        mock_recent_tasks.count.return_value = 10
 
-        # Set up filter to return different querysets based on args
-        call_count = [0]
+        def recent_filter_side_effect(**kwargs):
+            status = kwargs.get('status')
+            if status == ImprovementTaskModel.STATUS_ERROR:
+                return mock_error_qs
+            elif status == ImprovementTaskModel.STATUS_ROLLED_BACK:
+                return mock_rollback_qs
+            elif status == ImprovementTaskModel.STATUS_COMPLETED:
+                return mock_completed_qs
+            return MagicMock(count=MagicMock(return_value=0))
 
-        def filter_side_effect(**kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return mock_total_queryset
-            elif 'status' in kwargs and kwargs.get('status') == ImprovementTaskModel.STATUS_ERROR:
-                return mock_error_queryset
-            elif 'status' in kwargs and kwargs.get('status') == ImprovementTaskModel.STATUS_ROLLED_BACK:
-                return mock_rollback_queryset
-            elif 'status' in kwargs and kwargs.get('status') == ImprovementTaskModel.STATUS_COMPLETED:
-                return mock_completed_queryset
-            return mock_total_queryset
+        mock_recent_tasks.filter.side_effect = recent_filter_side_effect
 
-        mock_filter.side_effect = filter_side_effect
+        # The initial filter returns a queryset with order_by
+        mock_initial_qs = MagicMock()
+        mock_initial_qs.order_by.return_value = mock_recent_tasks
+
+        mock_filter.return_value = mock_initial_qs
 
         # Patch _count_consecutive_failures to return 0
         with patch.object(self.monitor, '_count_consecutive_failures', return_value=0):
             metrics = self.monitor._get_rate_metrics()
 
         self.assertEqual(metrics.total_count, 10)
+        self.assertEqual(metrics.error_count, 3)
+        self.assertEqual(metrics.rollback_count, 1)
+        self.assertEqual(metrics.completed_count, 6)
 
 
 class TestHealthMonitorErrorRateCheck(TestCase):

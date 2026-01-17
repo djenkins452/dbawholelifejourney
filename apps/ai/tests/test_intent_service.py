@@ -17,7 +17,7 @@ Tests cover:
 
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
-from datetime import datetime, time
+from datetime import date, datetime, time
 import json
 
 from django.test import TestCase

@@ -31,6 +31,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Add Image Upload to Assistant Dashboard Chat
+
+**Issue:** The image upload feature was only implemented in the floating chat widget (`chat_widget.html`), but not in the main Assistant dashboard page (`assistant_dashboard.html`). Users on `/assistant/` had no way to attach images.
+
+**Solution:** Added full image upload functionality to the Assistant dashboard chat sidebar:
+- Added CSS styles for attachment preview, attach button, and message images
+- Added HTML for attach button (+), hidden file input, and preview area
+- Added JavaScript for:
+  - File selection via button click
+  - Image paste from clipboard (Ctrl+V / Cmd+V)
+  - Base64 encoding and multipart form upload
+  - Preview before sending
+  - Display of images in chat history
+
+**Files Modified:**
+- `templates/ai/assistant_dashboard.html` - Added complete image upload functionality
+
+---
+
 ### Fix Test Failures - Cache Mock and Gap Detection Tests
 
 **Fixed two test failures in CI:**

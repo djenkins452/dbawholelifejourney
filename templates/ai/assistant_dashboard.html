@@ -434,6 +434,80 @@
     cursor: not-allowed;
 }
 
+/* Image attachment styles */
+.chat-attachment-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: var(--color-surface);
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+}
+
+.chat-preview-image {
+    max-width: 80px;
+    max-height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.chat-remove-attachment {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    transition: background 0.2s, color 0.2s;
+    flex-shrink: 0;
+}
+
+.chat-remove-attachment:hover {
+    background: #fee2e2;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+.chat-attach-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+}
+
+.chat-attach-btn:hover {
+    background: var(--color-surface);
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+}
+
+.chat-attach-btn.has-attachment {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+.chat-message-image {
+    max-width: 100%;
+    max-height: 150px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
 /* Reflection Prompt */
 .reflection-prompt {
     background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
@@ -656,13 +730,35 @@
         </div>
 
         <div class="chat-input-container">
+            <!-- Image Preview Area -->
+            <div id="chat-attachment-preview" class="chat-attachment-preview" style="display: none;">
+                <img id="chat-preview-image" class="chat-preview-image" alt="Attached image">
+                <button type="button" id="chat-remove-attachment" class="chat-remove-attachment" title="Remove attachment">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
             <form class="chat-input-form" id="chat-form">
                 {% csrf_token %}
+                <!-- Hidden file input for image upload -->
+                <input type="file" id="chat-file-input" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
+
+                <!-- Attach button -->
+                <button type="button" id="chat-attach-btn" class="chat-attach-btn" title="Attach image" {% if not personal_assistant_accessible %}disabled{% endif %}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+
                 <input
                     type="text"
                     class="chat-input"
                     id="chat-input"
-                    placeholder="Ask me anything..."
+                    placeholder="Ask me anything... (paste images here)"
                     autocomplete="off"
                     maxlength="2000"
                     {% if not personal_assistant_accessible %}disabled{% endif %}
@@ -886,8 +982,23 @@
     const clearChatBtn = document.getElementById('clear-chat-btn');
     let hasMessages = false;
 
+    // Image attachment elements
+    const attachBtn = document.getElementById('chat-attach-btn');
+    const fileInput = document.getElementById('chat-file-input');
+    const attachmentPreview = document.getElementById('chat-attachment-preview');
+    const previewImage = document.getElementById('chat-preview-image');
+    const removeAttachmentBtn = document.getElementById('chat-remove-attachment');
+
+    // Current attached image data
+    let attachedImage = null;  // { data: base64, mimeType: string }
+
+    // Update send button state
+    function updateSendButton() {
+        chatSend.disabled = !chatInput.value.trim() && !attachedImage;
+    }
+
     chatInput.addEventListener('input', function() {
-        chatSend.disabled = !chatInput.value.trim();
+        updateSendButton();
     });
 
     // Refresh chat when user clicks/focuses on chat input (sync with drawer)
@@ -904,39 +1015,159 @@
     chatInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (chatInput.value.trim()) {
+            if (chatInput.value.trim() || attachedImage) {
                 chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+            }
+        }
+    });
+
+    // =========================================================================
+    // IMAGE ATTACHMENT HANDLING
+    // =========================================================================
+
+    // Handle image file selection (from file picker or paste)
+    function handleImageFile(file) {
+        // Validate file type
+        const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+            alert('Please select a valid image (JPEG, PNG, GIF, or WebP)');
+            return;
+        }
+
+        // Validate file size (5MB max)
+        const maxSize = 5 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert('Image is too large. Maximum size is 5MB.');
+            return;
+        }
+
+        // Read file as base64
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64 = e.target.result.split(',')[1]; // Remove data:image/xxx;base64, prefix
+            attachedImage = {
+                data: base64,
+                mimeType: file.type
+            };
+
+            // Show preview
+            previewImage.src = e.target.result;
+            attachmentPreview.style.display = 'flex';
+            attachBtn.classList.add('has-attachment');
+
+            // Enable send button
+            updateSendButton();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // Clear attached image
+    function clearAttachment() {
+        attachedImage = null;
+        previewImage.src = '';
+        attachmentPreview.style.display = 'none';
+        attachBtn.classList.remove('has-attachment');
+        fileInput.value = '';
+        updateSendButton();
+    }
+
+    // Attach button click - open file picker
+    attachBtn.addEventListener('click', function() {
+        fileInput.click();
+    });
+
+    // File input change
+    fileInput.addEventListener('change', function() {
+        if (fileInput.files && fileInput.files[0]) {
+            handleImageFile(fileInput.files[0]);
+        }
+    });
+
+    // Remove attachment button
+    removeAttachmentBtn.addEventListener('click', function() {
+        clearAttachment();
+    });
+
+    // Paste handler for clipboard images
+    chatInput.addEventListener('paste', function(e) {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (file) {
+                    handleImageFile(file);
+                }
+                break;
             }
         }
     });
 
     chatForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        if (!chatInput.value.trim()) return;
-
         const message = chatInput.value.trim();
+        if (!message && !attachedImage) return;
+
+        // Build the image data URL for display if we have an attachment
+        const imageDataUrl = attachedImage
+            ? `data:${attachedImage.mimeType};base64,${attachedImage.data}`
+            : null;
+
         chatInput.value = '';
         chatSend.disabled = true;
+
+        // Clear attachment UI
+        const sentImage = attachedImage;
+        clearAttachment();
 
         // Remove empty state if present
         const emptyState = chatMessages.querySelector('.chat-empty');
         if (emptyState) emptyState.remove();
 
-        // Add user message
-        addChatMessage(message, true);
+        // Add user message (with image preview if attached)
+        addChatMessage(message || '(Image attached)', true, true, imageDataUrl);
 
         // Show typing
         showTyping();
 
         try {
-            const response = await fetch('/assistant/api/chat/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: JSON.stringify({ message })
-            });
+            let response;
+
+            if (sentImage) {
+                // Use FormData for multipart upload with image
+                const formData = new FormData();
+                formData.append('message', message);
+
+                // Convert base64 to Blob for file upload
+                const byteString = atob(sentImage.data);
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+                for (let i = 0; i < byteString.length; i++) {
+                    ia[i] = byteString.charCodeAt(i);
+                }
+                const blob = new Blob([ab], { type: sentImage.mimeType });
+                formData.append('image', blob, 'attachment.png');
+
+                response = await fetch('/assistant/api/chat/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: formData
+                });
+            } else {
+                // Regular JSON request
+                response = await fetch('/assistant/api/chat/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ message })
+                });
+            }
 
             hideTyping();
             const data = await response.json();
@@ -954,15 +1185,30 @@
         }
     });
 
-    function addChatMessage(content, isUser, scroll = true) {
+    function addChatMessage(content, isUser, scroll = true, imageDataUrl = null) {
         const msg = document.createElement('div');
         msg.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
 
-        if (isUser) {
-            msg.textContent = content;
-        } else {
+        if (!isUser) {
             // Format assistant messages with markdown-like parsing
             msg.innerHTML = formatAssistantMessage(content);
+        } else {
+            // User message - may include image
+            if (imageDataUrl) {
+                // Create container for image + text
+                const imgEl = document.createElement('img');
+                imgEl.src = imageDataUrl;
+                imgEl.className = 'chat-message-image';
+                msg.appendChild(imgEl);
+
+                if (content) {
+                    const textEl = document.createElement('div');
+                    textEl.textContent = content;
+                    msg.appendChild(textEl);
+                }
+            } else {
+                msg.textContent = content;
+            }
         }
 
         chatMessages.appendChild(msg);
@@ -1062,7 +1308,9 @@
                 // Clear any existing content (loading spinner, empty state) before adding messages
                 chatMessages.innerHTML = '';
                 data.messages.forEach(msg => {
-                    addChatMessage(msg.content, msg.role === 'user', false);
+                    const isUser = msg.role === 'user';
+                    const imageDataUrl = msg.image_data_url || null;
+                    addChatMessage(msg.content, isUser, false, imageDataUrl);
                 });
                 // Scroll to bottom after loading all messages
                 chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -1134,7 +1382,9 @@
                     chatMessages.innerHTML = '';
                     if (newMessageCount > 0) {
                         data.messages.forEach(msg => {
-                            addChatMessage(msg.content, msg.role === 'user', false);
+                            const isUser = msg.role === 'user';
+                            const imageDataUrl = msg.image_data_url || null;
+                            addChatMessage(msg.content, isUser, false, imageDataUrl);
                         });
                         chatMessages.scrollTop = chatMessages.scrollHeight;
                     } else {

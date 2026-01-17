@@ -385,6 +385,63 @@ def create_task_from_email(parsed_email: ParsedEmail):
     return task
 
 
+def should_skip_confirmation(sender: str) -> bool:
+    """
+    Check if we should skip sending a confirmation email to this sender.
+
+    Automated/system addresses will never receive our confirmations,
+    so sending to them just creates bounce notifications.
+
+    Args:
+        sender: Email address of the original sender
+
+    Returns:
+        True if we should skip sending confirmation
+    """
+    if not sender:
+        return True
+
+    sender_lower = sender.lower()
+
+    # Extract the local part (before @)
+    local_part = sender_lower.split('@')[0] if '@' in sender_lower else sender_lower
+
+    # System/automated address prefixes that won't receive replies
+    skip_prefixes = [
+        'noreply',
+        'no-reply',
+        'no_reply',
+        'donotreply',
+        'do-not-reply',
+        'do_not_reply',
+        'postmaster',
+        'mailer-daemon',
+        'mailerdaemon',
+        'bounce',
+        'bounces',
+        'notification',
+        'notifications',
+        'alert',
+        'alerts',
+        'newsletter',
+        'news',
+        'marketing',
+        'promo',
+        'info',  # Often automated
+        'support',  # Often ticketing systems
+        'helpdesk',
+        'system',
+        'automated',
+        'auto',
+    ]
+
+    for prefix in skip_prefixes:
+        if local_part.startswith(prefix):
+            return True
+
+    return False
+
+
 def send_confirmation_email(parsed_email: ParsedEmail, task):
     """
     Send confirmation email that task was created.
@@ -393,6 +450,14 @@ def send_confirmation_email(parsed_email: ParsedEmail, task):
         parsed_email: Original email that was processed
         task: Created AdminTask
     """
+    # Skip confirmation for automated/system addresses that won't receive it
+    if should_skip_confirmation(parsed_email.sender):
+        logger.info(
+            f"Skipping confirmation email for task #{task.pk} - "
+            f"sender '{parsed_email.sender}' appears to be automated/system address"
+        )
+        return
+
     config = get_email_settings()
 
     # Sanitize subject - remove newlines which are invalid in email headers

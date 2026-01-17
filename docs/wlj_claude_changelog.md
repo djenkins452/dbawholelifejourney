@@ -16,6 +16,44 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Expand AI Assistant Data Query Capabilities
+
+**Issue:** AI Assistant was saying "I don't know" too often because it couldn't query many data types that users were asking about. The intent detector recognized queries about heart rate, blood pressure, workouts, fasting, and tasks, but there were no query methods to fetch that data.
+
+**Solution:** Added 7 new data query methods and context formatters to enable the AI to respond accurately about more data types.
+
+**New Data Query Methods in `assistant/data_service.py`:**
+- `get_heart_rate_data()` - Heart rate entries with average, latest, context
+- `get_blood_pressure_data()` - Blood pressure readings with systolic/diastolic averages
+- `get_blood_oxygen_data()` - SpO2 measurements
+- `get_workout_data()` - Workout sessions with duration stats
+- `get_fasting_data()` - Fasting windows with active fast detection
+- `get_task_data()` - Task summary with overdue/due today counts
+
+**New Context Formatters in `assistant/context_builder.py`:**
+- `_format_heart_rate_data()`
+- `_format_blood_pressure_data()`
+- `_format_blood_oxygen_data()`
+- `_format_workout_data()`
+- `_format_fasting_data()`
+- `_format_task_data()`
+- `_format_user_data()`
+
+**Other Changes:**
+- Added `fasting` keywords to `assistant/intent_detector.py`
+- Updated `supported_types` in `assistant/views.py` to include all new data types
+- Updated `query_map` in `data_service.py` to route to new methods
+
+**Files Modified:**
+- `assistant/data_service.py` (added 6 new query methods, updated query_map)
+- `assistant/context_builder.py` (added 7 formatting functions)
+- `assistant/intent_detector.py` (added fasting keywords)
+- `assistant/views.py` (updated supported_types list)
+
+**Result:** AI Assistant can now accurately respond to questions about heart rate, blood pressure, blood oxygen, workouts, fasting, and tasks instead of appearing "lost" and saying it doesn't have that information.
+
+---
+
 ### Fix Test Cache Bleeding and Outdated Test APIs
 
 **Bug:** Integration tests were failing due to cache bleeding between test classes and outdated method calls.

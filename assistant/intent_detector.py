@@ -314,6 +314,18 @@ PERSONAL_DATA_KEYWORDS: Dict[str, List[str]] = {
     ],
 
     # =========================================================================
+    # FASTING
+    # =========================================================================
+    'fasting': [
+        'fasting', 'fast', 'fasts', 'fasted', 'intermittent fasting', 'if',
+        'eating window', 'fasting window', '16:8', '18:6', '20:4', 'omad',
+        'one meal a day', 'time restricted eating', 'time-restricted',
+        'hours fasted', 'fasting hours', 'when did i start fasting',
+        'fasting streak', 'broke my fast', 'break fast', 'breaking fast',
+        'extended fast', 'water fast', 'autophagy',
+    ],
+
+    # =========================================================================
     # MOOD & MENTAL STATE
     # =========================================================================
     'mood': [

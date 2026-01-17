@@ -961,6 +961,466 @@ class PersonalDataService:
 
         return result
 
+    def get_heart_rate_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's heart rate data.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+                       If None, returns all entries.
+            limit: Maximum number of recent entries to include (default 10).
+
+        Returns:
+            None if no heart rate entries exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'heart_rate'
+                - count (int): Total number of entries matching criteria
+                - average (float): Average heart rate value
+                - latest (int): Most recent heart rate value
+                - latest_date (datetime): Date of most recent entry
+                - context (str): Context of latest reading (resting, active, etc.)
+                - entries (list): Last N entries
+        """
+        # Check cache first
+        cache_key = _generate_cache_key(self.user.id, 'heart_rate', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import HeartRateEntry
+
+        queryset = HeartRateEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(recorded_at__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+        avg_result = queryset.aggregate(avg_value=Avg('bpm'))
+        average = float(avg_result['avg_value']) if avg_result['avg_value'] else 0.0
+
+        latest_entry = queryset.first()
+        latest_value = latest_entry.bpm
+        latest_date = latest_entry.recorded_at
+        latest_context = latest_entry.context
+
+        recent_entries = list(
+            queryset[:limit].values('bpm', 'recorded_at', 'context', 'notes')
+        )
+
+        entries = [
+            {
+                'bpm': entry['bpm'],
+                'recorded_at': entry['recorded_at'],
+                'context': entry['context'],
+                'notes': entry['notes'],
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'heart_rate',
+            'count': count,
+            'average': round(average, 1),
+            'latest': latest_value,
+            'latest_date': latest_date,
+            'context': latest_context,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_blood_pressure_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's blood pressure data.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+            limit: Maximum number of recent entries to include (default 10).
+
+        Returns:
+            None if no blood pressure entries exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'blood_pressure'
+                - count (int): Total number of entries
+                - avg_systolic (float): Average systolic value
+                - avg_diastolic (float): Average diastolic value
+                - latest_systolic (int): Most recent systolic value
+                - latest_diastolic (int): Most recent diastolic value
+                - latest_date (datetime): Date of most recent entry
+                - entries (list): Last N entries
+        """
+        cache_key = _generate_cache_key(self.user.id, 'blood_pressure', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import BloodPressureEntry
+
+        queryset = BloodPressureEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(recorded_at__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+        avg_result = queryset.aggregate(
+            avg_sys=Avg('systolic'),
+            avg_dia=Avg('diastolic')
+        )
+        avg_systolic = float(avg_result['avg_sys']) if avg_result['avg_sys'] else 0.0
+        avg_diastolic = float(avg_result['avg_dia']) if avg_result['avg_dia'] else 0.0
+
+        latest_entry = queryset.first()
+        latest_systolic = latest_entry.systolic
+        latest_diastolic = latest_entry.diastolic
+        latest_date = latest_entry.recorded_at
+
+        recent_entries = list(
+            queryset[:limit].values('systolic', 'diastolic', 'recorded_at', 'notes')
+        )
+
+        entries = [
+            {
+                'systolic': entry['systolic'],
+                'diastolic': entry['diastolic'],
+                'recorded_at': entry['recorded_at'],
+                'notes': entry['notes'],
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'blood_pressure',
+            'count': count,
+            'avg_systolic': round(avg_systolic, 1),
+            'avg_diastolic': round(avg_diastolic, 1),
+            'latest_systolic': latest_systolic,
+            'latest_diastolic': latest_diastolic,
+            'latest_date': latest_date,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_blood_oxygen_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's blood oxygen (SpO2) data.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+            limit: Maximum number of recent entries to include (default 10).
+
+        Returns:
+            None if no blood oxygen entries exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'blood_oxygen'
+                - count (int): Total number of entries
+                - average (float): Average SpO2 value
+                - latest (int): Most recent SpO2 value
+                - latest_date (datetime): Date of most recent entry
+                - entries (list): Last N entries
+        """
+        cache_key = _generate_cache_key(self.user.id, 'blood_oxygen', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import BloodOxygenEntry
+
+        queryset = BloodOxygenEntry.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(recorded_at__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+        avg_result = queryset.aggregate(avg_value=Avg('spo2'))
+        average = float(avg_result['avg_value']) if avg_result['avg_value'] else 0.0
+
+        latest_entry = queryset.first()
+        latest_value = latest_entry.spo2
+        latest_date = latest_entry.recorded_at
+
+        recent_entries = list(
+            queryset[:limit].values('spo2', 'recorded_at', 'notes')
+        )
+
+        entries = [
+            {
+                'spo2': entry['spo2'],
+                'recorded_at': entry['recorded_at'],
+                'notes': entry['notes'],
+            }
+            for entry in recent_entries
+        ]
+
+        result = {
+            'type': 'blood_oxygen',
+            'count': count,
+            'average': round(average, 1),
+            'latest': latest_value,
+            'latest_date': latest_date,
+            'entries': entries,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_workout_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's workout session data.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+            limit: Maximum number of recent entries to include (default 10).
+
+        Returns:
+            None if no workout sessions exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'workout'
+                - count (int): Total number of sessions
+                - total_minutes (int): Total workout time in minutes
+                - avg_duration (float): Average workout duration
+                - latest_date (date): Date of most recent session
+                - workouts (list): Last N sessions
+        """
+        cache_key = _generate_cache_key(self.user.id, 'workout', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import WorkoutSession
+
+        queryset = WorkoutSession.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(date__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        count = queryset.count()
+
+        # Calculate total and average duration
+        total_minutes = 0
+        for session in queryset:
+            if session.duration_minutes:
+                total_minutes += session.duration_minutes
+
+        avg_duration = round(total_minutes / count, 1) if count > 0 else 0
+
+        latest_entry = queryset.first()
+        latest_date = latest_entry.date
+
+        # Get recent workouts
+        recent_sessions = queryset[:limit]
+        workouts = [
+            {
+                'name': session.name,
+                'date': session.date,
+                'duration_minutes': session.duration_minutes,
+                'notes': session.notes,
+            }
+            for session in recent_sessions
+        ]
+
+        result = {
+            'type': 'workout',
+            'count': count,
+            'total_minutes': total_minutes,
+            'avg_duration': avg_duration,
+            'latest_date': latest_date,
+            'workouts': workouts,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_fasting_data(
+        self,
+        since_date: Optional[datetime] = None,
+        limit: int = 10,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's fasting window data.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+            limit: Maximum number of recent entries to include (default 10).
+
+        Returns:
+            None if no fasting windows exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'fasting'
+                - total_fasts (int): Total number of completed fasts
+                - active_fast (dict or None): Currently active fast if any
+                - avg_duration_hours (float): Average fast duration in hours
+                - longest_fast_hours (float): Longest fast duration
+                - recent_fasts (list): Last N completed fasts
+        """
+        cache_key = _generate_cache_key(self.user.id, 'fasting', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.health.models import FastingWindow
+
+        queryset = FastingWindow.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(started_at__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        # Check for active fast
+        active_fast = None
+        active_qs = queryset.filter(ended_at__isnull=True)
+        if active_qs.exists():
+            active = active_qs.first()
+            from django.utils import timezone
+            now = timezone.now()
+            duration_hours = (now - active.started_at).total_seconds() / 3600
+            active_fast = {
+                'started_at': active.started_at,
+                'fasting_type': active.fasting_type,
+                'hours_elapsed': round(duration_hours, 1),
+            }
+
+        # Get completed fasts
+        completed = queryset.filter(ended_at__isnull=False)
+        total_fasts = completed.count()
+
+        # Calculate durations
+        durations = []
+        for fast in completed:
+            if fast.ended_at and fast.started_at:
+                duration = (fast.ended_at - fast.started_at).total_seconds() / 3600
+                durations.append(duration)
+
+        avg_duration = round(sum(durations) / len(durations), 1) if durations else 0
+        longest_fast = round(max(durations), 1) if durations else 0
+
+        # Recent completed fasts
+        recent = completed.order_by('-started_at')[:limit]
+        recent_fasts = []
+        for fast in recent:
+            duration = 0
+            if fast.ended_at and fast.started_at:
+                duration = (fast.ended_at - fast.started_at).total_seconds() / 3600
+            recent_fasts.append({
+                'started_at': fast.started_at,
+                'ended_at': fast.ended_at,
+                'fasting_type': fast.fasting_type,
+                'duration_hours': round(duration, 1),
+            })
+
+        result = {
+            'type': 'fasting',
+            'total_fasts': total_fasts,
+            'active_fast': active_fast,
+            'avg_duration_hours': avg_duration,
+            'longest_fast_hours': longest_fast,
+            'recent_fasts': recent_fasts,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
+    def get_task_data(
+        self,
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve and summarize the user's task data.
+
+        Args:
+            since_date: Optional datetime to filter entries from this date.
+
+        Returns:
+            None if no tasks exist for the user.
+            Otherwise, a dictionary containing:
+                - type (str): 'task'
+                - total (int): Total number of tasks
+                - completed (int): Number of completed tasks
+                - pending (int): Number of pending tasks
+                - overdue (int): Number of overdue tasks
+                - due_today (int): Number of tasks due today
+                - completion_rate (float): Percentage of completed tasks
+        """
+        cache_key = _generate_cache_key(self.user.id, 'task', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        from apps.life.models import Task
+        from apps.core.utils import get_user_today
+
+        queryset = Task.objects.filter(user=self.user)
+
+        if since_date:
+            queryset = queryset.filter(created_at__gte=since_date)
+
+        if not queryset.exists():
+            return None
+
+        today = get_user_today(self.user)
+        total = queryset.count()
+        completed = queryset.filter(is_completed=True).count()
+        pending = total - completed
+
+        # Overdue: not completed, due date in the past
+        overdue = queryset.filter(
+            is_completed=False,
+            due_date__lt=today
+        ).count()
+
+        # Due today: not completed, due date is today
+        due_today = queryset.filter(
+            is_completed=False,
+            due_date=today
+        ).count()
+
+        completion_rate = round((completed / total) * 100, 1) if total > 0 else 0.0
+
+        result = {
+            'type': 'task',
+            'total': total,
+            'completed': completed,
+            'pending': pending,
+            'overdue': overdue,
+            'due_today': due_today,
+            'completion_rate': completion_rate,
+        }
+
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+        return result
+
     def get_user_data(
         self,
         since_date: Optional[datetime] = None,
@@ -1072,6 +1532,13 @@ class PersonalDataService:
             'faith': self.get_faith_data,
             'goals': self.get_goals_data,
             'user': self.get_user_data,
+            # New data types
+            'heart_rate': self.get_heart_rate_data,
+            'blood_pressure': self.get_blood_pressure_data,
+            'blood_oxygen': self.get_blood_oxygen_data,
+            'workout': self.get_workout_data,
+            'fasting': self.get_fasting_data,
+            'task': self.get_task_data,
         }
 
         # Collect results

@@ -36,11 +36,10 @@ GAP_DETECTED_MESSAGE = (
     "I do not have that information yet, but I have noted this for improvement."
 )
 
-# User-facing message when no data is found but user might have logged it
+# User-facing message when no data is found
 DATA_NOT_FOUND_CLARIFYING_MESSAGE = (
-    "I'm not seeing any {data_type} data in my records. "
-    "Can you see your most recent {data_type} entries in the app? "
-    "If you can see them there but I can't, please let me know and I'll investigate."
+    "I don't have any {data_type} entries in your records yet. "
+    "Would you like to log some? I can help you find where to do that."
 )
 
 # User-facing message when user confirms data exists but assistant can't see it
@@ -226,8 +225,15 @@ def _get_friendly_data_type_name(data_type: str) -> str:
         'mood': 'mood',
         'faith': 'faith',
         'goals': 'goals',
+        'heart_rate': 'heart rate',
+        'blood_pressure': 'blood pressure',
+        'blood_oxygen': 'blood oxygen',
+        'workout': 'workout',
+        'fasting': 'fasting',
+        'task': 'task',
+        'user': 'profile',
     }
-    return friendly_names.get(data_type, data_type)
+    return friendly_names.get(data_type, data_type.replace('_', ' '))
 
 
 def _handle_gap_detection(

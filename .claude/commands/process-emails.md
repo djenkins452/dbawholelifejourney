@@ -6,23 +6,30 @@ Manually trigger the Email Intake Service to check for new emails in the "Automa
 
 1. Output: `Checking Automate folder for emails...`
 
-2. Run the management command on Railway:
+2. Call the API endpoint:
 ```bash
-curl -s -X POST "https://api.railway.app/graphql/v2" \
-  -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"mutation { serviceInstanceDeploy(serviceId: \"YOUR_SERVICE_ID\", input: { command: \"python manage.py process_email_tasks\" }) { id } }"}'
-```
-
-**Alternative - Run locally if you have env vars set:**
-```bash
-python manage.py process_email_tasks
+curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" "https://wholelifejourney.com/admin-console/api/claude/process-emails/"
 ```
 
 3. Report results:
    - How many emails were found
    - Tasks created (with IDs and titles)
    - Any errors encountered
+
+## Response format
+
+```json
+{
+  "success": true,
+  "dry_run": false,
+  "processed": 3,
+  "errors_count": 0,
+  "tasks_created": [
+    {"id": 123, "title": "Email: Subject line here"}
+  ],
+  "error_messages": []
+}
+```
 
 ## What happens when emails are processed
 
@@ -31,16 +38,10 @@ python manage.py process_email_tasks
 3. **Confirmation email** sent to original sender with task ID
 4. **Email moved** to "New Requests" folder (out of Automate)
 
-## Where to see results
-
-After processing, go to:
-- **Admin Console** → Look for "Email Intake" project
-- Or check your email for confirmation messages
-
 ## Dry run (preview without creating tasks)
 
 ```bash
-python manage.py process_email_tasks --dry-run
+curl -s -X POST -H "X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" "https://wholelifejourney.com/admin-console/api/claude/process-emails/?dry_run=true"
 ```
 
 ## Authority

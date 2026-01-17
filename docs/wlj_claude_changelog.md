@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Add API Endpoint for Email Processing (/process-emails)
+
+**Problem:** The `/process-emails` slash command couldn't work because there was no API endpoint - it required running a management command on the server, but Railway doesn't have a console.
+
+**Solution:** Added `ProcessEmailsAPIView` API endpoint that Claude Code can call directly.
+
+**Files Modified:**
+- `apps/admin_console/views.py` - Added `ProcessEmailsAPIView` class
+- `apps/admin_console/urls.py` - Added route: `api/claude/process-emails/`
+- `.claude/commands/process-emails.md` - Updated to use the new API endpoint
+
+**API Usage:**
+```bash
+curl -s -X POST -H "X-Claude-API-Key: <key>" "https://wholelifejourney.com/admin-console/api/claude/process-emails/"
+```
+
+**Rate Limiting:** 10 requests/minute, 60 requests/hour (email processing is expensive)
+
+---
+
 ### Fix WLJ Assistant False Positive Data Type Proposals
 
 **Bug:** The WLJ Assistant was incorrectly proposing new data types for queries that were clearly NOT personal data requests. Real examples:

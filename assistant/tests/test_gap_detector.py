@@ -632,6 +632,13 @@ class TestIsMetaQuestion(unittest.TestCase):
         self.assertFalse(is_meta_question("How much did I sleep last night?"))
         self.assertFalse(is_meta_question("What did I eat today?"))
 
+    def test_complaints_and_feedback(self):
+        """Complaints/feedback about assistant behavior are meta questions."""
+        self.assertTrue(is_meta_question("Why didn't you look up my location in user preferences?"))
+        self.assertTrue(is_meta_question("You should have checked my settings"))
+        self.assertTrue(is_meta_question("You didn't answer my question"))
+        self.assertTrue(is_meta_question("Why did you ignore that?"))
+
 
 class TestIsBibleReference(unittest.TestCase):
     """Tests for is_bible_reference helper function."""

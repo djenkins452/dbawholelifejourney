@@ -213,6 +213,9 @@ def is_meta_question(query: str) -> bool:
         'based on the current page', 'based on this page',
         'based on our conversation', 'based on the page',
         'looking at the page', 'see the page', 'read the page',
+        # Complaints/feedback about assistant behavior
+        "why didn't you", "why did you", "you should have",
+        "you didn't", "you forgot", "you missed",
         # Questions about how the assistant works
         'how does this work', 'how do you work', 'what can you do',
         'what are you', 'who are you',

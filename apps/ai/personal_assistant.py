@@ -1277,25 +1277,87 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         }
 
     def _generate_purpose_priorities(self, state: Dict, context: Dict) -> List[Dict]:
-        """Generate priorities based on goals and intentions."""
+        """
+        Generate priorities based on goals and intentions.
+
+        Uses smart rotation to ensure all goals get attention:
+        1. Goals that haven't been shown recently are prioritized
+        2. Goals shown but not completed (user not making progress) are prioritized
+        3. Goals recently shown AND completed are deprioritized (already being worked on)
+        """
         from apps.purpose.models import LifeGoal, ChangeIntention
+        from apps.core.utils import get_user_today
+        from datetime import timedelta
 
         priorities = []
+        today = get_user_today(self.user)
+        lookback_days = 7  # Consider last 7 days of priorities
 
-        # Get active goals
-        goals = LifeGoal.objects.filter(
+        # Get all active goals
+        all_goals = list(LifeGoal.objects.filter(
             user=self.user,
             status='active'
-        ).order_by('sort_order')[:3]
+        ))
 
-        for goal in goals:
-            priorities.append({
-                'priority_type': 'purpose',
-                'title': f'Progress on: {goal.title[:50]}',
-                'description': goal.description[:200] if goal.description else '',
-                'why_important': goal.why_it_matters[:200] if goal.why_it_matters else 'This is one of your stated life goals.',
-                'linked_goal_id': goal.id,
-            })
+        if not all_goals:
+            # No goals - fall through to intentions
+            pass
+        else:
+            # Get recent priorities linked to goals (last 7 days)
+            recent_goal_priorities = DailyPriority.objects.filter(
+                user=self.user,
+                priority_date__gte=today - timedelta(days=lookback_days),
+                linked_goal_id__isnull=False
+            ).values('linked_goal_id', 'is_completed', 'priority_date')
+
+            # Build a map: goal_id -> {shown_count, completed_count, last_shown}
+            goal_activity = {}
+            for p in recent_goal_priorities:
+                gid = p['linked_goal_id']
+                if gid not in goal_activity:
+                    goal_activity[gid] = {'shown': 0, 'completed': 0, 'last_shown': None}
+                goal_activity[gid]['shown'] += 1
+                if p['is_completed']:
+                    goal_activity[gid]['completed'] += 1
+                if goal_activity[gid]['last_shown'] is None or p['priority_date'] > goal_activity[gid]['last_shown']:
+                    goal_activity[gid]['last_shown'] = p['priority_date']
+
+            # Score each goal - lower score = higher priority
+            # Scoring logic:
+            # - Never shown (shown=0): score = 0 (highest priority)
+            # - Shown but never completed: score = 1 (needs attention)
+            # - Shown and partially completed: score = 2 (making some progress)
+            # - Shown many times and completed many times: score = 3 (doing well)
+            def goal_priority_score(goal):
+                activity = goal_activity.get(goal.id, {'shown': 0, 'completed': 0, 'last_shown': None})
+                shown = activity['shown']
+                completed = activity['completed']
+
+                if shown == 0:
+                    # Never shown in recent days - highest priority
+                    return (0, goal.sort_order)
+                elif completed == 0:
+                    # Shown but never completed - needs attention
+                    return (1, goal.sort_order)
+                elif completed < shown:
+                    # Partially completing - moderate priority
+                    return (2, goal.sort_order)
+                else:
+                    # Completing consistently - lowest priority (doing well!)
+                    return (3, goal.sort_order)
+
+            # Sort goals by priority score
+            sorted_goals = sorted(all_goals, key=goal_priority_score)
+
+            # Take top 3 goals based on need
+            for goal in sorted_goals[:3]:
+                priorities.append({
+                    'priority_type': 'purpose',
+                    'title': f'Progress on: {goal.title[:50]}',
+                    'description': goal.description[:200] if goal.description else '',
+                    'why_important': goal.why_it_matters[:200] if goal.why_it_matters else 'This is one of your stated life goals.',
+                    'linked_goal_id': goal.id,
+                })
 
         # If few goals, add intention-based priority
         if len(priorities) < 2:

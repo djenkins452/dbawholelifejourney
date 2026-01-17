@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Smart Goal Rotation in Today's Priorities
+
+**Issue:** The "Today's Priorities" on the Assistant page always showed the same 2-3 goals repeatedly, based on their sort order. Goals that hadn't been worked on or that the user was neglecting weren't being surfaced.
+
+**Solution:** Implemented smart goal rotation that prioritizes goals based on recent activity:
+1. Goals never shown in the last 7 days get highest priority (neglected goals)
+2. Goals shown but never completed get next priority (needs attention)
+3. Goals partially completed get moderate priority (making some progress)
+4. Goals consistently completed get lowest priority (doing well - rotate to others)
+
+This ensures all active goals get attention over time, and goals the user isn't making progress on are surfaced more frequently.
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Rewrote `_generate_purpose_priorities()` to score goals by recent activity
+
+**Tests:** All 61 personal_assistant tests pass
+
+---
+
 ### Feature Request User Acknowledgment
 
 **Issue:** When users mentioned features that don't exist in the AI Assistant chat (e.g., "I wish I could track my sleep"), the system was detecting and emailing admin but not telling the user their suggestion was received.

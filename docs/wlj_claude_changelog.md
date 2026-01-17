@@ -14,6 +14,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-17 Changes
+
+### Fix: Email Confirmation Template Handles Invalid Keys
+
+**Problem:** Hitting `/accounts/confirm-email/` with an invalid key (like `contact-us` from a bot) caused a `VariableDoesNotExist` error because the template tried to access `confirmation.key` when `confirmation` was `None`.
+
+**Solution:** Updated `templates/account/email_confirm.html` to check if `confirmation` exists before rendering the form. Invalid keys now show a friendly "Invalid confirmation link" message instead of crashing.
+
+**Files Modified:**
+- `templates/account/email_confirm.html` - Added `{% if confirmation %}` check
+
+---
+
 ## 2026-01-16 Changes
 
 ### Improve Assistant Message Tone - More Conversational, Less ChatGPT

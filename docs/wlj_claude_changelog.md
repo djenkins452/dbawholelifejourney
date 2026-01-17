@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Prevent AI Hallucination of Real-Time Data (Sports, Stocks, News)
+
+**Issue:** The AI assistant was confidently making up specific sports scores and game information when asked questions like "are there any college football games on with an SEC team?" - providing invented matchups like "Alabama vs. Mississippi State" when it has no access to live sports data.
+
+**Root Cause:** The system prompt told the AI it could "answer ANY question" including "sports scores" but the actual implementation only has real-time data access for weather (via Open-Meteo API). The gap_detector correctly identified these as external data queries, but the AI still generated confident-sounding but fabricated answers.
+
+**Solution:** Updated the Personal Assistant system prompt to:
+1. Remove "sports scores" from the list of things it claims to answer
+2. Added explicit "CRITICAL: What you DON'T have access to" section listing:
+   - Live sports scores, schedules, or game information
+   - Stock prices or financial market data
+   - Breaking news or current events
+3. Added instruction to be honest when asked about these topics
+4. Added explicit warning: "NEVER make up specific information you don't have"
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Updated PERSONAL_ASSISTANT_BASE_PROMPT
+
+**Testing:** All 61 personal assistant tests pass.
+
+---
+
 ### Fix Scripture Reference Links on Reading Plan (Auto-Lookup)
 
 **Issue:** Clicking on scripture references (like "Luke 18:1-8") on the Reading Plan progress page navigated to the Scripture Library page but didn't auto-lookup the passage - users had to manually re-enter the reference.

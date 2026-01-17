@@ -1106,15 +1106,25 @@
                 }
             });
 
+            if (!response.ok) {
+                console.error('Clear API returned status:', response.status);
+                addMessage('Sorry, I couldn\'t clear the conversation. Please try again.', false);
+                return;
+            }
+
             const data = await response.json();
 
             if (data.success) {
                 hasMessages = false;
                 showEmptyState();
+            } else {
+                console.error('Clear failed:', data.error);
+                addMessage('Sorry, I couldn\'t clear the conversation. Please try again.', false);
             }
 
         } catch (error) {
             console.error('Clear error:', error);
+            addMessage('Sorry, I couldn\'t clear the conversation. Please try again.', false);
         }
     }
 

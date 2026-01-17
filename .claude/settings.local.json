@@ -244,7 +244,8 @@
       "Bash(/opt/homebrew/bin/python3:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix honeypot validation by moving to form where request is available\n\nThe honeypot check in WLJAccountAdapter.clean_email\\(\\) was dead code because\nself.request is None when clean_email is called \\(per django-allauth #2941\\).\nMoved validation to CustomSignupForm.clean\\(\\) where request is available.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(GIT_SSH_COMMAND=\"ssh -p 443\" git pull:*)",
-      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/320/status/\")"
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" -H \"Content-Type: application/json\" -d '{\"\"status\"\": \"\"done\"\"}' \"https://wholelifejourney.com/admin-console/api/claude/tasks/320/status/\")",
+      "Bash(curl -s -X POST -H \"X-Claude-API-Key: a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1\" \"https://wholelifejourney.com/admin-console/api/claude/process-emails/\")"
     ]
   }
 }

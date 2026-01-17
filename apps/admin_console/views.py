@@ -3889,3 +3889,86 @@ class ProjectImportView(AdminRequiredMixin, View):
             return render(request, self.template_name, context)
 
         return render(request, self.template_name, context)
+
+
+# ==============================================================================
+# Email Intake API (for Claude Code /process-emails command)
+# ==============================================================================
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ProcessEmailsAPIView(APIRateLimitMixin, View):
+    """
+    API endpoint for Claude Code to trigger email intake processing.
+
+    This endpoint allows Claude Code to poll the Automate folder for new emails
+    and create AdminTasks from them, without needing Railway console access.
+
+    Authentication:
+        Requires CLAUDE_API_KEY header matching settings.CLAUDE_API_KEY
+
+    Rate Limiting:
+        - 10 requests per minute (email processing is expensive)
+        - 60 requests per hour
+
+    POST /admin-console/api/claude/process-emails/
+    Query params:
+        - dry_run (optional): If 'true', don't create tasks or move emails
+
+    Returns:
+        JSON object with:
+        - success: Boolean indicating success
+        - processed: Number of emails processed
+        - tasks_created: Array of created task info
+        - errors: Array of error messages if any
+    """
+
+    rate_limit_requests_per_minute = 10
+    rate_limit_requests_per_hour = 60
+    rate_limit_key_prefix = 'admin_api_email_intake'
+
+    def post(self, request):
+        from django.conf import settings
+        from apps.core.rate_limiting import secure_compare_api_key
+        from .email_intake import process_email_intake, EmailIntakeError
+
+        # Authenticate via API key
+        api_key = request.headers.get('X-Claude-API-Key', '')
+
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse(
+                {'error': 'CLAUDE_API_KEY not configured on server'},
+                status=500
+            )
+
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401
+            )
+
+        # Check for dry_run parameter
+        dry_run = request.GET.get('dry_run', '').lower() == 'true'
+
+        try:
+            results = process_email_intake(dry_run=dry_run)
+
+            return JsonResponse({
+                'success': True,
+                'dry_run': dry_run,
+                'processed': results['processed'],
+                'errors_count': results['errors'],
+                'tasks_created': results['tasks_created'],
+                'error_messages': results['error_messages'],
+            })
+
+        except EmailIntakeError as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e),
+            }, status=500)
+        except Exception as e:
+            logger.exception("Unexpected error in email intake API")
+            return JsonResponse({
+                'success': False,
+                'error': f'Unexpected error: {str(e)}',
+            }, status=500)

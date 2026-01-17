@@ -132,6 +132,7 @@ urlpatterns = [
     # Claude Code API - Ready Tasks (for "What's Next?" protocol)
     path("api/claude/ready-tasks/", views.ReadyTasksAPIView.as_view(), name="api_claude_ready_tasks"),
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),
+    path("api/claude/process-emails/", views.ProcessEmailsAPIView.as_view(), name="api_claude_process_emails"),
 
     # Data Load Configuration Management
     path("dataload/", views.DataLoadConfigListView.as_view(), name="dataload_list"),

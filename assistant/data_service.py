@@ -961,6 +961,72 @@ class PersonalDataService:
 
         return result
 
+    def get_user_data(
+        self,
+        since_date: Optional[datetime] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve the user's profile data (non-sensitive information).
+
+        This method returns user profile information that the assistant
+        can use to personalize responses (e.g., name, location, timezone).
+
+        Args:
+            since_date: Not used for user data, but accepted for API consistency.
+
+        Returns:
+            None if user has no preferences set.
+            Otherwise, a dictionary containing:
+                - type (str): 'user'
+                - name (str): User's full name or email
+                - first_name (str): User's first name
+                - location_city (str): User's city (if set)
+                - location_country (str): User's country (if set)
+                - timezone (str): User's timezone
+                - gender (str): User's gender preference (if set)
+
+        Example:
+            >>> service = PersonalDataService(user)
+            >>> data = service.get_user_data()
+            >>> print(data)
+            {
+                'type': 'user',
+                'name': 'Danny Jenkins',
+                'first_name': 'Danny',
+                'location_city': 'Maryville',
+                'location_country': 'United States',
+                'timezone': 'America/New_York',
+                'gender': 'male'
+            }
+        """
+        # Check cache first
+        cache_key = _generate_cache_key(self.user.id, 'user', since_date)
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        # Get user preferences from database (avoid cached relation)
+        from apps.users.models import UserPreferences
+        try:
+            prefs = UserPreferences.objects.get(user=self.user)
+        except UserPreferences.DoesNotExist:
+            prefs = None
+
+        result = {
+            'type': 'user',
+            'name': self.user.get_full_name() or self.user.email,
+            'first_name': self.user.first_name or '',
+            'location_city': prefs.location_city if prefs else '',
+            'location_country': prefs.location_country if prefs else '',
+            'timezone': prefs.timezone_iana if prefs else 'UTC',
+            'gender': prefs.gender if prefs else None,
+        }
+
+        # Cache the result
+        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
+
+        return result
+
     def query_by_intent(
         self,
         data_types: List[str],
@@ -1005,6 +1071,7 @@ class PersonalDataService:
             'glucose': self.get_glucose_data,
             'faith': self.get_faith_data,
             'goals': self.get_goals_data,
+            'user': self.get_user_data,
         }
 
         # Collect results

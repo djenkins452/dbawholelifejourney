@@ -1696,3 +1696,90 @@ CODE:
         self.assertFalse(result.success)
         mock_git.rollback_to_commit.assert_called_once_with("before123")
         mock_notification.notify_task_error.assert_called_once()
+
+
+class UserDataIntegrationTest(TestCase):
+    """Integration tests for get_user_data() with actual User and UserPreferences."""
+
+    def setUp(self):
+        """Create test user and clear cache."""
+        from django.core.cache import cache
+        cache.clear()
+
+        self.user = User.objects.create_user(
+            email="test@example.com",
+            password="testpass123",
+            first_name="Test",
+            last_name="User"
+        )
+        self.service = PersonalDataService(self.user)
+
+    def test_get_user_data_returns_basic_info(self):
+        """Test that get_user_data returns user's basic profile info."""
+        result = self.service.get_user_data()
+        self.assertIsNotNone(result)
+        self.assertEqual(result['type'], 'user')
+        self.assertEqual(result['name'], 'Test User')
+        self.assertEqual(result['first_name'], 'Test')
+
+    def test_get_user_data_with_preferences(self):
+        """Test that get_user_data includes preferences data when available."""
+        from django.core.cache import cache
+        from apps.users.models import UserPreferences
+
+        # Get or create preferences with location (signal may have created it)
+        prefs, _ = UserPreferences.objects.get_or_create(user=self.user)
+        prefs.location_city = 'Maryville'
+        prefs.location_country = 'United States'
+        prefs.timezone = 'America/New_York'
+        prefs.gender = 'male'
+        prefs.save()
+
+        # Clear cache to ensure fresh data
+        cache.clear()
+
+        result = self.service.get_user_data()
+        self.assertEqual(result['location_city'], 'Maryville')
+        self.assertEqual(result['location_country'], 'United States')
+        self.assertEqual(result['timezone'], 'America/New_York')
+        self.assertEqual(result['gender'], 'male')
+
+    def test_get_user_data_without_preferences(self):
+        """Test that get_user_data works when user has no preferences."""
+        # User created in setUp has no preferences
+        result = self.service.get_user_data()
+        self.assertIsNotNone(result)
+        self.assertEqual(result['location_city'], '')
+        self.assertEqual(result['location_country'], '')
+        self.assertEqual(result['timezone'], 'UTC')
+        self.assertIsNone(result['gender'])
+
+    def test_get_user_data_uses_email_when_no_name(self):
+        """Test that get_user_data falls back to email when no name set."""
+        user_no_name = User.objects.create_user(
+            email="noname@example.com",
+            password="testpass123"
+        )
+        service = PersonalDataService(user_no_name)
+
+        result = service.get_user_data()
+        self.assertEqual(result['name'], 'noname@example.com')
+        self.assertEqual(result['first_name'], '')
+
+    def test_query_by_intent_includes_user(self):
+        """Test that query_by_intent can fetch user data."""
+        from django.core.cache import cache
+        from apps.users.models import UserPreferences
+
+        prefs, _ = UserPreferences.objects.get_or_create(user=self.user)
+        prefs.location_city = 'Nashville'
+        prefs.location_country = 'United States'
+        prefs.save()
+
+        # Clear cache to ensure fresh data
+        cache.clear()
+
+        result = self.service.query_by_intent(data_types=['user'])
+        self.assertIsNotNone(result)
+        self.assertIn('user', result)
+        self.assertEqual(result['user']['location_city'], 'Nashville')

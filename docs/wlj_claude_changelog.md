@@ -16,6 +16,30 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Add 'user' Data Type to Personal Assistant
+
+**Feature:** The WLJ Personal Assistant can now access user profile data to personalize responses.
+
+**Implementation:**
+- Added 'user' to `SUPPORTED_DATA_TYPES` and `DATA_TYPES_WITH_METHODS` in `assistant/gap_detector.py`
+- Added `get_user_data()` method to `PersonalDataService` in `assistant/data_service.py`
+- Added 'user' to `query_map` in `query_by_intent()` method
+
+**Data Exposed:**
+- User name (first_name, last_name, full name)
+- Location (city, country)
+- Timezone
+- Gender preference
+
+**Files Modified:**
+- `assistant/gap_detector.py` - Added 'user' to data type lists
+- `assistant/data_service.py` - Added `get_user_data()` method and updated `query_by_intent()`
+- `assistant/tests/test_integration.py` - Added 5 tests for user data functionality
+
+**Use Case:** User asks "What's the weather in my city?" → Assistant can now look up user's location from their profile.
+
+---
+
 ### Add include_in_progress Parameter to Ready Tasks API
 
 **Bug:** `/run-task` couldn't find tasks after `/next` marked them as `in_progress`, because the API only returned `ready` status tasks.

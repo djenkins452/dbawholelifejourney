@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 
@@ -22,11 +23,20 @@ from assistant.views import process_assistant_message
 User = get_user_model()
 
 
-class WeightDataIntegrationTest(TestCase):
+class CacheClearingTestCase(TestCase):
+    """Base TestCase that clears cache before each test to prevent data bleed."""
+
+    def setUp(self):
+        cache.clear()
+        super().setUp()
+
+
+class WeightDataIntegrationTest(CacheClearingTestCase):
     """Integration tests for get_weight_data() with actual WeightEntry records."""
 
     def setUp(self):
         """Create test user and weight entries."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123"
@@ -155,11 +165,12 @@ class WeightDataIntegrationTest(TestCase):
         self.assertEqual(result['entries'][0]['notes'], 'Morning weight')
 
 
-class JournalDataIntegrationTest(TestCase):
+class JournalDataIntegrationTest(CacheClearingTestCase):
     """Integration tests for get_journal_data() with actual JournalEntry records."""
 
     def setUp(self):
         """Create test user."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123"
@@ -249,11 +260,12 @@ class JournalDataIntegrationTest(TestCase):
         self.assertEqual(result['count'], 1)  # Only the active entry
 
 
-class MedicationDataIntegrationTest(TestCase):
+class MedicationDataIntegrationTest(CacheClearingTestCase):
     """Integration tests for get_medication_data() with actual MedicineLog records."""
 
     def setUp(self):
         """Create test user and medicine."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123"
@@ -371,11 +383,12 @@ class MedicationDataIntegrationTest(TestCase):
         self.assertEqual(result['total_logs'], 1)
 
 
-class FoodDataIntegrationTest(TestCase):
+class FoodDataIntegrationTest(CacheClearingTestCase):
     """Integration tests for get_food_data() with actual FoodEntry records."""
 
     def setUp(self):
         """Create test user."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123"
@@ -460,11 +473,12 @@ class FoodDataIntegrationTest(TestCase):
         self.assertEqual(result['total_calories'], 500.0)
 
 
-class MoodDataIntegrationTest(TestCase):
+class MoodDataIntegrationTest(CacheClearingTestCase):
     """Integration tests for get_mood_data() with actual JournalEntry mood records."""
 
     def setUp(self):
         """Create test user."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123"
@@ -587,11 +601,12 @@ class MoodDataIntegrationTest(TestCase):
         self.assertEqual(result['latest_mood'], 'good')
 
 
-class SoftDeleteBehaviorIntegrationTest(TestCase):
+class SoftDeleteBehaviorIntegrationTest(CacheClearingTestCase):
     """Integration tests specifically for soft delete behavior across all data types."""
 
     def setUp(self):
         """Create test user and test data."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123"
@@ -662,11 +677,12 @@ class SoftDeleteBehaviorIntegrationTest(TestCase):
         self.assertEqual(result['count'], 1)
 
 
-class QueryByIntentIntegrationTest(TestCase):
+class QueryByIntentIntegrationTest(CacheClearingTestCase):
     """Integration tests for query_by_intent() with real data."""
 
     def setUp(self):
         """Create test user and varied test data."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123"
@@ -739,11 +755,12 @@ class QueryByIntentIntegrationTest(TestCase):
         self.assertNotIn('unknown_type', result)
 
 
-class ProcessAssistantMessageIntegrationTest(TestCase):
+class ProcessAssistantMessageIntegrationTest(CacheClearingTestCase):
     """End-to-end integration tests for process_assistant_message()."""
 
     def setUp(self):
         """Create test user with various data."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123"
@@ -871,11 +888,12 @@ class ProcessAssistantMessageIntegrationTest(TestCase):
         self.assertTrue(result['has_data'])
 
 
-class DateFilteringIntegrationTest(TestCase):
+class DateFilteringIntegrationTest(CacheClearingTestCase):
     """Integration tests specifically for date filtering across all data types."""
 
     def setUp(self):
         """Create test user."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123"
@@ -1014,19 +1032,18 @@ from assistant.test_runner import TestResult
 User = get_user_model()
 
 
-class SelfImprovementIntegrationTestCase(TestCase):
+class SelfImprovementIntegrationTestCase(CacheClearingTestCase):
     """Base test case with common setup for self-improvement tests."""
 
     def setUp(self):
         """Create test user and common fixtures."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="admin@wholelifejourney.com",
             password="testpass123",
             is_staff=True,
             is_superuser=True
         )
-        # Clear cache before each test
-        cache.clear()
 
     def create_task(self, severity=ImprovementTaskModel.SEVERITY_LOW,
                     status=ImprovementTaskModel.STATUS_NEW,
@@ -1481,7 +1498,7 @@ class TestCase7HealthMonitorPausesSystem(SelfImprovementIntegrationTestCase):
         self.assertIn(report['status'], [
             SystemStatus.DEGRADED.value,
             SystemStatus.CRITICAL.value,
-            'healthy'  # If no tasks in 24h window
+            SystemStatus.HEALTHY.value,  # If no tasks in 24h window
         ])
 
     def test_critical_error_rate_pauses_autonomous(self):
@@ -1700,14 +1717,12 @@ CODE:
         mock_notification.notify_task_error.assert_called_once()
 
 
-class UserDataIntegrationTest(TestCase):
+class UserDataIntegrationTest(CacheClearingTestCase):
     """Integration tests for get_user_data() with actual User and UserPreferences."""
 
     def setUp(self):
-        """Create test user and clear cache."""
-        from django.core.cache import cache
-        cache.clear()
-
+        """Create test user."""
+        super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123",
@@ -1726,7 +1741,6 @@ class UserDataIntegrationTest(TestCase):
 
     def test_get_user_data_with_preferences(self):
         """Test that get_user_data includes preferences data when available."""
-        from django.core.cache import cache
         from apps.users.models import UserPreferences
 
         # Get or create preferences with location (signal may have created it)
@@ -1770,7 +1784,6 @@ class UserDataIntegrationTest(TestCase):
 
     def test_query_by_intent_includes_user(self):
         """Test that query_by_intent can fetch user data."""
-        from django.core.cache import cache
         from apps.users.models import UserPreferences
 
         prefs, _ = UserPreferences.objects.get_or_create(user=self.user)

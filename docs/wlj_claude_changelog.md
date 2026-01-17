@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Test Cache Bleeding and Outdated Test APIs
+
+**Bug:** Integration tests were failing due to cache bleeding between test classes and outdated method calls.
+
+**Issues Fixed:**
+1. **Cache bleeding:** Test classes inheriting from `CacheClearingTestCase` weren't calling `super().setUp()`, so cache wasn't being cleared between tests
+2. **Outdated API calls:** Tests called `HealthMonitor.get_health_report()` which doesn't exist (should be `get_full_status_report()`)
+3. **Incorrect unpacking:** Tests tried to unpack `RateLimitResult` as tuple instead of accessing `.allowed` and `.reason` attributes
+
+**Files Modified:**
+- `assistant/tests/test_integration.py`
+  - Added `super().setUp()` calls to all 11 test classes inheriting from `CacheClearingTestCase`
+  - Fixed `get_health_report()` → `get_full_status_report()` (3 occurrences)
+  - Fixed `is_within, reason = service.check_rate_limits()` → `result = service.check_rate_limits()`
+  - Removed redundant cache imports
+
+**Result:** All 78 integration tests now pass.
+
+---
+
 ### Add 'user' Data Type to Personal Assistant
 
 **Feature:** The WLJ Personal Assistant can now access user profile data to personalize responses.

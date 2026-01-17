@@ -16,106 +16,44 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-16 Changes
 
-### Fix Additional Failing Tests in Assistant App (Integration, Views, Admin Views)
+### Improve Assistant Message Tone - More Conversational, Less ChatGPT
 
-**Summary:** Fixed failing tests in assistant module test files: test_integration.py, test_views.py, and test_admin_views.py.
+**Problem:** The Assistant's state assessment messages sounded corporate and robotic - like ChatGPT, not like a real person talking.
 
-**Issues Fixed:**
-
-1. **test_archived_entries_are_included** (renamed to `test_archived_entries_are_excluded`):
-   - The test incorrectly expected archived entries to be included in PersonalDataService queries
-   - SoftDeleteManager correctly excludes both deleted AND archived records by default
-   - Updated test expectation from count=2 to count=1
-
-2. **test_low_severity_task_executes_autonomously / test_autonomous_execution_sends_admin_notification**:
-   - Tests created tasks with `status=STATUS_NEW` but the state machine doesn't allow transitioning from 'new' to 'in_progress'
-   - Changed initial status to `STATUS_APPROVED` which CAN transition to 'in_progress'
-
-3. **test_filters_unsupported_data_types**:
-   - Test assumed 'mood' was an unsupported data type, but it's now in the supported_types list
-   - Updated test to verify that mood queries ARE processed (query_by_intent IS called)
-
-4. **test_admin_views.py tests (45+ errors)**:
-   - Added assistant URLs to main config/urls.py (they were never registered)
-   - Added helper function `make_user_ready_for_dashboard()` to ensure test users have accepted terms and completed onboarding (required by TermsAcceptanceMiddleware)
-   - Changed all `self.client.login()` calls to `self.client.force_login()` for reliable authentication
-   - Fixed patch paths: `assistant.admin_views.GitProtectionService` -> `assistant.git_service.GitProtectionService`
-   - Fixed patch paths: `assistant.admin_views.AdminNotificationService` -> `assistant.notifications.AdminNotificationService`
-   - Added `@override_settings(STATICFILES_STORAGE=...)` to test_approve_task_not_found to handle missing staticfiles manifest
+**Solution:** Updated `STATE_ASSESSMENT_PROMPT` to instruct the AI to:
+- Write like texting a friend, not a corporate email
+- Use contractions and punchy language
+- Format as: one conversational opener, then bulleted action items, then a motivating closer
+- Avoid bold text, superlatives, and formal language
 
 **Files Modified:**
-- `assistant/tests/test_integration.py` - Fixed archived entries test, status for autonomous tests
-- `assistant/tests/test_views.py` - Fixed mood test expectation, added gap detection mock
-- `assistant/tests/test_admin_views.py` - Added helper function, force_login, fixed patch paths, staticfiles fix
-- `config/urls.py` - Added assistant URL registration: `path('assistant/', include('assistant.urls', namespace='assistant'))`
+- `apps/ai/personal_assistant.py` - Rewrote STATE_ASSESSMENT_PROMPT with new voice guidelines
 
-**Tests:** All originally failing tests now pass:
+**Example of new tone:**
+"Alright partner, here's what needs your attention tonight:
+- One task still due today - wrap it up before calling it a night
+- Four active life goals haven't seen progress lately - pick one and take a small step
+Don't let 'em slip away - take action and keep that momentum rollin'."
 
 ---
 
-### Fix URL Conflict Breaking AI Assistant Chat
+### Fix: reCAPTCHA Validation No Longer Triggers Error Emails
 
-**Summary:** Fixed URL routing conflict that prevented the AI Personal Assistant chat from processing commands.
+**Problem:** When a user attempted to sign up with a low reCAPTCHA score (indicating potential bot), the system was raising a `ValidationError` inside `adapter.save_user()`. This caused Django to treat it as an unhandled exception and send an error email to admins, even though the security feature was working correctly.
 
-**Issue:** The assistant-admin internal URLs were registered at the same path (`assistant/`) as the public-facing AI Personal Assistant, causing Django to route chat API requests to the wrong handler. Users would see "You can chat with your personal ai assistant for guidance and support by going to Assistant" instead of actual AI responses.
-
-**Fix:** Moved the internal assistant-admin URLs to a separate path (`assistant-admin/`) to avoid conflict with the AI assistant at `assistant/`.
+**Solution:** Moved reCAPTCHA validation from the adapter's `save_user()` method to the form's `clean()` method. Form validation errors are handled cleanly by Django and display a nice error message to the user without triggering error emails.
 
 **Files Modified:**
-- `config/urls.py` - Changed `path('assistant/', include('assistant.urls', ...))` to `path('assistant-admin/', include('assistant.urls', ...))`
+- `apps/users/forms.py` - Added reCAPTCHA validation in `CustomSignupForm.clean()`
+- `apps/users/adapters.py` - Removed blocking logic from `save_user()`, now just logs scores
+- `apps/users/views.py` - Added `CustomSignupView` that passes request to form
+- `config/urls.py` - Override `/accounts/signup/` to use custom view
 
----
-
-### Fix Test Authentication and Terms Acceptance Issues
-
-**Summary:** Fixed widespread test failures caused by terms acceptance middleware and authentication issues.
-
-**Issues Fixed:**
-- Tests using `client.login()` were failing due to TermsAcceptanceMiddleware redirects
-- Added `make_user_ready_for_dashboard()` helper to ensure test users have accepted terms and completed onboarding
-- Changed `client.login()` to `client.force_login()` for reliable test authentication
-- Fixed terms_version to use current `settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')` value
-
-**Files Modified:**
-- Multiple test files across apps: ai, core, dashboard, faith, finance, health, journal, life, purpose, scan, users, assistant
-
----
-
-**Previous Tests:** All originally failing tests now pass:
-- `test_archived_entries_are_excluded` - OK
-- `test_low_severity_task_executes_autonomously` - OK
-- `test_autonomous_execution_sends_admin_notification` - OK
-- `test_filters_unsupported_data_types` - OK
-- All 58 test_admin_views.py tests - OK
-
----
-
-### Fix Failing Tests in Assistant App
-
-**Summary:** Fixed 8 failing tests in assistant module related to executor, notifications, and file modifier.
-
-**Issues Fixed:**
-1. **test_is_safe_rejects_medium_severity / test_is_safe_rejects_high_severity**: Updated `is_safe_for_autonomous()` to output severity in uppercase (e.g., "MEDIUM", "HIGH") to match test expectations.
-
-2. **test_execute_task_test_failure_triggers_rollback**: Added `test_template` to the test task so that tests actually run and can fail, triggering the rollback.
-
-3. **test_rejects_from_imports**: Fixed the regex pattern for detecting `from X import` statements to handle dotted module names (e.g., `from django.db import models`). Changed `\w+` to `[\w.]+`.
-
-4. **test_includes_changes_preview / test_includes_changes_list / test_includes_git_diff**: Added `{% autoescape off %}` to plain text email templates to prevent HTML entity escaping of apostrophes and other special characters.
-
-5. **test_invalid_syntax_rollback**: Fixed case sensitivity issue - changed assertion from `'invalid Python'` to `'invalid python'` when comparing against `.lower()` result.
-
-6. **Template syntax error**: Fixed malformed template structure in `approval_required.txt` where `{% endif %}` tags were incorrectly nested.
-
-**Files Modified:**
-- `assistant/executor.py` - Line 616: uppercase severity output; Line 523: fixed from-import regex pattern
-- `assistant/tests/test_executor.py` - Line 186: added test_template to trigger test execution
-- `assistant/tests/test_file_modifier.py` - Line 346: fixed case sensitivity in assertion
-- `templates/assistant/emails/approval_required.txt` - Added autoescape, fixed template structure
-- `templates/assistant/emails/auto_improvement.txt` - Added autoescape
-- `templates/assistant/emails/task_completed.txt` - Added autoescape
-
-**Tests:** All 97 tests in the three test files now pass.
+**Behavior:**
+- Low reCAPTCHA scores still block signup (security maintained)
+- Users see "Unable to create account. Please try again later." message
+- No error emails sent to admin (this is expected behavior, not an error)
+- Security events still logged to `SignupAttempt` model
 
 ---
 

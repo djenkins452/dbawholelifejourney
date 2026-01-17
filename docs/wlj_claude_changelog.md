@@ -16,6 +16,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Navigation Link Detection for "Where to Find" Queries
+
+**Issue:** When users asked "where to find blood pressure" or similar navigation queries, the AI wasn't returning clickable links to the feature. The navigation response system was only triggering for patterns like "where do I" and "how do I find", but not "where to find".
+
+**Solution:** Expanded the navigation detection patterns in `_try_navigation_response()` to match more natural phrasings:
+
+1. **New navigation indicators added:**
+   - `'where to find'`, `'where to log'`, `'where to track'`, `'where to add'`, `'where to record'`
+   - `'find my'`, `'find the'`, `'looking for'`
+
+2. **New topic keywords for context resolution:**
+   - `'blood pressure'`: ['blood pressure', 'bp', 'systolic', 'diastolic']
+   - `'heart rate'`: ['heart rate', 'pulse', 'bpm', 'heartbeat']
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` - Expanded `navigation_indicators` list and `topic_keywords` dict
+
+**Result:** Users asking "where to find blood pressure" will now get a response like: "You can log and monitor your blood pressure readings over time by going to **Health - Blood Pressure**. For easy access, [click here](/health/blood-pressure/)."
+
+---
+
 ### Fix "No Data Found" Response and Add Capability Guidance
 
 **Issue:** When no data was found for a query, the AI gave a confusing response: "Can you see your most recent entries in the app? If you can see them there but I can't, please let me know and I'll investigate." This made users feel like they were troubleshooting for the AI.

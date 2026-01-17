@@ -1796,7 +1796,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         navigation_indicators = [
             # Location questions
             'where do i', 'where can i', 'where is', 'where are',
-            'where\'s the', 'where\'s my',
+            'where\'s the', 'where\'s my', 'where to find', 'where to log',
+            'where to track', 'where to add', 'where to record',
             # Navigation questions
             'how do i get to', 'how do i find', 'how do i access',
             'how do i go to', 'how do i navigate',
@@ -1810,6 +1811,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             'take me to', 'go to the', 'navigate to',
             'show me the', 'open the',
             'link to', 'path to', 'url for',
+            # Find questions
+            'find my', 'find the', 'looking for',
         ]
 
         is_navigation_query = any(
@@ -1847,6 +1850,8 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
                     'medication': ['medication', 'medicine', 'meds', 'pills'],
                     'fasting': ['fasting', 'fast', 'intermittent'],
                     'glucose': ['glucose', 'blood sugar', 'sugar'],
+                    'blood pressure': ['blood pressure', 'bp', 'systolic', 'diastolic'],
+                    'heart rate': ['heart rate', 'pulse', 'bpm', 'heartbeat'],
                     'prayer': ['prayer', 'pray', 'prayers'],
                     'goals': ['goal', 'goals', 'objective'],
                     'habits': ['habit', 'habits', 'routine'],

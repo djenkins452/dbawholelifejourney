@@ -300,7 +300,10 @@ class AIService:
                 max_tokens=max_tokens,
                 temperature=0.7,
             )
-            return response.choices[0].message.content.strip()
+            result = response.choices[0].message.content.strip()
+            if image_data and image_mime_type:
+                logger.info(f"Vision response (first 200 chars): {result[:200]}")
+            return result
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
             return None

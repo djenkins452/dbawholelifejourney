@@ -9,6 +9,9 @@ from . import views, webhooks
 app_name = 'billing'
 
 urlpatterns = [
+    # Trial expired page
+    path('trial-expired/', views.trial_expired, name='trial_expired'),
+
     # Plan selection and checkout
     path('plans/', views.select_plan, name='select_plan'),
     path('checkout/', views.create_checkout_session, name='create_checkout'),

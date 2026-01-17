@@ -3,28 +3,33 @@ Whole Life Journey - User Middleware
 
 Project: Whole Life Journey
 Path: apps/users/middleware.py
-Purpose: Enforce terms acceptance and onboarding completion for authenticated users
+Purpose: Enforce terms acceptance, onboarding, and subscription/trial for authenticated users
 
 Description:
     This middleware runs on every request and ensures that authenticated users
-    have accepted the current terms of service and completed the onboarding
-    wizard before they can access the main application.
+    have accepted the current terms of service, completed the onboarding
+    wizard, and have an active subscription or free trial before they can
+    access the main application.
 
 Key Responsibilities:
     - TermsAcceptanceMiddleware: Redirect to terms page if not accepted
     - Redirect to onboarding wizard if not completed
-    - Exempt certain paths (login, logout, admin, static files)
+    - SubscriptionRequiredMiddleware: Redirect to subscribe page if trial expired
+    - Exempt certain paths (login, logout, admin, static files, billing)
 
 Enforcement Flow:
     1. Check if user is authenticated
-    2. Skip exempt paths (login, terms, onboarding, static)
+    2. Skip exempt paths (login, terms, onboarding, static, billing)
     3. Check terms acceptance - redirect to terms page if needed
     4. Check onboarding completion - redirect to wizard if needed
-    5. Allow request to proceed
+    5. Check subscription/trial status - redirect to subscribe page if needed
+    6. Allow request to proceed
 
 Critical for Testing:
-    All test users must have has_completed_onboarding = True or tests will
-    get 302 redirects instead of expected responses.
+    All test users must have has_completed_onboarding = True and either:
+    - An active subscription (is_subscribed = True), or
+    - A valid trial (trial_ends_at in the future)
+    Otherwise tests will get 302 redirects instead of expected responses.
 
 Copyright:
     (c) Whole Life Journey. All rights reserved.
@@ -93,6 +98,59 @@ class TermsAcceptanceMiddleware:
                         pass  # Let it through
                     else:
                         return redirect("users:onboarding_wizard")
+
+        response = self.get_response(request)
+        return response
+
+
+class SubscriptionRequiredMiddleware:
+    """
+    Middleware to ensure authenticated users have an active subscription or trial.
+
+    After terms acceptance and onboarding, this middleware checks if the user
+    has access to premium features (via subscription or free trial).
+
+    If the user's trial has expired and they don't have an active subscription,
+    they are redirected to the subscription page.
+
+    Exempt paths:
+    - Same as TermsAcceptanceMiddleware, plus:
+    - Billing/subscription pages (so users can subscribe)
+    - API endpoints (handled separately with decorators)
+    """
+
+    EXEMPT_PATHS = [
+        "/terms/",
+        "/accounts/",  # Login, logout, password reset
+        "/admin/",
+        "/static/",
+        "/media/",
+        "/billing/",  # Subscription/payment pages
+        "/user/onboarding/",
+        "/user/accept-terms/",
+        "/api/",  # API endpoints - use decorators for API auth
+        "/help/",  # Help pages should be accessible
+        "/__debug__/",  # Django debug toolbar
+    ]
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # Only check for authenticated users
+        if request.user.is_authenticated:
+            # Skip exempt paths
+            if not any(request.path.startswith(path) for path in self.EXEMPT_PATHS):
+                # Skip for staff/superusers (admins always have access)
+                if not request.user.is_staff:
+                    try:
+                        # Check if user has access (subscription or trial)
+                        if not request.user.billing_profile.has_access:
+                            # User's trial has expired and no active subscription
+                            return redirect("billing:trial_expired")
+                    except AttributeError:
+                        # No billing profile - shouldn't happen but handle gracefully
+                        pass
 
         response = self.get_response(request)
         return response

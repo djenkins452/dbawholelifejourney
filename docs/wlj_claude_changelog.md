@@ -16,6 +16,38 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### 7-Day Free Trial System
+
+**Issue:** Users could sign up and access all features indefinitely without paying. No trial or subscription requirement existed.
+
+**Solution:** Implemented a 7-day free trial system with subscription gating:
+
+1. **BillingConfiguration** - Added `free_trial_days` field (default: 7) to configure trial duration
+2. **BillingProfile** - Added:
+   - `trial_ends_at` DateTimeField to track when trial expires
+   - `is_in_trial` property to check if currently in trial
+   - `trial_expired` property to check if trial has ended
+   - `trial_days_remaining` property for days left
+   - `has_access` property that checks subscription OR active trial
+3. **Signals** - Auto-sets `trial_ends_at` when new users sign up
+4. **SubscriptionRequiredMiddleware** - Redirects expired trial users to subscribe page
+5. **Trial Expired Page** - Shows subscription options when trial ends
+
+**Exemptions:** Staff users, billing pages, onboarding, terms, help, and API endpoints bypass the trial check.
+
+**Files Modified:**
+- `apps/billing/models.py` - Added trial fields and properties
+- `apps/billing/signals.py` - Added trial period on user creation
+- `apps/users/middleware.py` - Added SubscriptionRequiredMiddleware
+- `config/settings.py` - Added middleware to MIDDLEWARE list
+- `apps/billing/views.py` - Added trial_expired view
+- `apps/billing/urls.py` - Added trial-expired URL route
+- `templates/billing/trial_expired.html` - Created trial expired template
+
+**Migration:** `apps/billing/migrations/0005_add_trial_fields.py`
+
+---
+
 ### Fix Weather Query Location Extraction Bug
 
 **Issue:** When asking "what is the weather", the system incorrectly extracted "what is the" as the location name, returning error: "I couldn't find the location 'what is the'."

@@ -162,6 +162,7 @@ MIDDLEWARE = [
     "allauth.account.middleware.AccountMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "apps.users.middleware.TermsAcceptanceMiddleware",
+    "apps.users.middleware.SubscriptionRequiredMiddleware",  # Check subscription/trial status
     "apps.users.middleware.TimezoneMiddleware",  # Convert UTC to user's timezone
     "apps.core.middleware.PageViewTrackingMiddleware",  # Track page views for Favorites
     # CSP disabled temporarily - causing FOUC issues

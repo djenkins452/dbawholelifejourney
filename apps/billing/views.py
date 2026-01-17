@@ -337,3 +337,31 @@ def credit_history(request):
         'transactions': transactions,
         'profile': get_or_create_billing_profile(request.user),
     })
+
+
+@login_required
+def trial_expired(request):
+    """
+    Display trial expired page with subscription options.
+
+    Users are redirected here when their free trial has expired
+    and they don't have an active subscription.
+    """
+    profile = get_or_create_billing_profile(request.user)
+
+    # If user actually has access, redirect to dashboard
+    if profile.has_access:
+        return redirect('dashboard:home')
+
+    # Determine which tier the user qualifies for
+    eligible_tier = determine_tier_by_age(request.user.date_of_birth)
+
+    context = {
+        'profile': profile,
+        'eligible_tier': eligible_tier,
+        'is_student_eligible': eligible_tier == BillingProfile.TIER_STUDENT,
+        'trial_ended': profile.trial_ends_at,
+        'stripe_public_key': settings.STRIPE_PUBLIC_KEY,
+    }
+
+    return render(request, 'billing/trial_expired.html', context)

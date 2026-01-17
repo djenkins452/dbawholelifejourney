@@ -131,6 +131,12 @@ class BillingConfiguration(models.Model):
         help_text="Days a referred user must stay subscribed for Founding Member bonus",
     )
 
+    # Free Trial
+    free_trial_days = models.PositiveIntegerField(
+        default=7,
+        help_text="Number of days for free trial (0 to disable trials)",
+    )
+
     # Stripe Fees (for documentation/calculations)
     stripe_fee_percentage = models.DecimalField(
         max_digits=5,
@@ -381,6 +387,13 @@ class BillingProfile(TimeStampedModel):
         help_text="Subscription will cancel at end of current period",
     )
 
+    # Free Trial
+    trial_ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the free trial ends (null = no trial or already expired)",
+    )
+
     # Referral system
     referral_code = models.CharField(
         max_length=20,
@@ -503,6 +516,45 @@ class BillingProfile(TimeStampedModel):
     def referral_link(self):
         """Get the full referral link URL."""
         return f"https://wholelifejourney.com/join?ref={self.referral_code}"
+
+    @property
+    def is_in_trial(self):
+        """Check if user is currently in a free trial period."""
+        if not self.trial_ends_at:
+            return False
+        return timezone.now() < self.trial_ends_at
+
+    @property
+    def trial_expired(self):
+        """Check if user's trial has expired."""
+        if not self.trial_ends_at:
+            return False  # No trial was ever started
+        return timezone.now() >= self.trial_ends_at
+
+    @property
+    def trial_days_remaining(self):
+        """Get the number of days remaining in the trial."""
+        if not self.trial_ends_at:
+            return 0
+        if self.trial_expired:
+            return 0
+        delta = self.trial_ends_at - timezone.now()
+        return max(0, delta.days + 1)  # +1 to include partial days
+
+    @property
+    def has_access(self):
+        """
+        Check if user has access to premium features.
+
+        Returns True if:
+        - User has an active subscription (active, trialing, lifetime)
+        - User is in a free trial period
+        """
+        if self.is_subscribed:
+            return True
+        if self.is_in_trial:
+            return True
+        return False
 
     def add_credit(self, amount, transaction_type, description):
         """Add credit to account and log transaction."""

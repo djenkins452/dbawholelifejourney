@@ -16,6 +16,49 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Redesign AI Assistant Master Prompt for Trust & Confidence
+
+**Issue:** The AI Assistant was appearing "lost" and saying "I don't know" too often. Even when data was available, the responses felt like a generic chatbot rather than a knowledgeable partner who knows the user.
+
+**Solution:** Complete rewrite of the master prompt with a new philosophy centered on the "Trust Principle" - the user must trust that the assistant knows their data, remembers context, and gives real answers.
+
+**Key Changes to `apps/ai/personal_assistant.py`:**
+
+1. **New Identity Section** - Defines the assistant as "the user's trusted partner" who KNOWS them, not a generic chatbot
+
+2. **Trust Principle** - Three core behaviors:
+   - Know their data: Share confidently when data is available
+   - Remember context: Connect ideas naturally across the conversation
+   - Give real answers: No deflecting, no "I don't know" when you DO know
+
+3. **Lead with Data** - New instruction: "If you have data about what they're asking, LEAD WITH THE DATA. Don't hedge. Don't add caveats. Just answer."
+
+4. **Explicit Anti-Patterns** - Clear list of what to NEVER do:
+   - Say "I don't have that information" when data IS available
+   - Deflect to user ("Would you like me to check?")
+   - Pad with filler ("That's a great question...")
+   - Add uninvited task reminders
+
+5. **Handling Data Questions** - New section with explicit flow:
+   - Check if data is in context
+   - If YES: Answer directly with specific numbers, dates, trends
+   - If NO: Clear acknowledgment that no entries exist yet
+
+6. **Improved Coaching Style Examples** - Each style now includes a concrete example of how to phrase the same information
+
+7. **Gold Standard Check** - New self-evaluation: "Did I sound like someone who knows this person and their data? Or did I sound like a confused chatbot?"
+
+8. **Faith Integration** - Rewritten to be more natural and confident, less preachy
+
+9. **State Assessment Prompt** - Streamlined for clarity
+
+**Files Modified:**
+- `apps/ai/personal_assistant.py` (complete prompt rewrite)
+
+**Result:** The AI Assistant should now respond with confidence and specificity when it has data, feel like a knowledgeable friend rather than a confused chatbot, and only admit lack of information when it's genuinely true.
+
+---
+
 ### Expand AI Assistant Data Query Capabilities
 
 **Issue:** AI Assistant was saying "I don't know" too often because it couldn't query many data types that users were asking about. The intent detector recognized queries about heart rate, blood pressure, workouts, fasting, and tasks, but there were no query methods to fetch that data.

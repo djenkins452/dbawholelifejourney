@@ -233,7 +233,8 @@
       "Bash(git rm:*)",
       "Skill(log-change)",
       "Skill(log-change:*)",
-      "Bash(curl -s -X POST https://wholelifejourney.com/assistant/api/clear/ -H \"Content-Type: application/json\")"
+      "Bash(curl -s -X POST https://wholelifejourney.com/assistant/api/clear/ -H \"Content-Type: application/json\")",
+      "Bash(/opt/homebrew/bin/python3:*)"
     ]
   }
 }

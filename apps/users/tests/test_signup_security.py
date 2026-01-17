@@ -38,11 +38,17 @@ class EmailVerificationFlowTest(TestCase):
 
     def test_signup_requires_email_verification(self):
         """New signup should create user that requires email verification."""
+        from datetime import date, timedelta
+
+        # Calculate DOB for someone 25 years old
+        dob = date.today().replace(year=date.today().year - 25)
+
         # Sign up a new user
         response = self.client.post(self.signup_url, {
             'email': 'newuser@example.com',
             'password1': 'SecurePass123!',
             'password2': 'SecurePass123!',
+            'date_of_birth': dob.isoformat(),
         })
 
         # User should be created
@@ -131,10 +137,16 @@ class EmailVerificationFlowTest(TestCase):
 
     def test_signup_sends_branded_email(self):
         """Verification email should use branded template."""
+        from datetime import date
+
+        # Calculate DOB for someone 25 years old
+        dob = date.today().replace(year=date.today().year - 25)
+
         response = self.client.post(self.signup_url, {
             'email': 'brandtest@example.com',
             'password1': 'SecurePass123!',
             'password2': 'SecurePass123!',
+            'date_of_birth': dob.isoformat(),
         })
 
         # Check email was sent with branding

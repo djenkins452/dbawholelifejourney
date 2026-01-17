@@ -378,7 +378,10 @@ class PersonalAssistantServiceTest(AssistantTestMixin, TestCase):
         response = self.assistant.send_message("How can you help me?")
 
         self.assertIsNotNone(response)
-        self.assertIsInstance(response, str)
+        # send_message now returns a dict with 'response' key
+        self.assertIsInstance(response, dict)
+        self.assertIn('response', response)
+        self.assertIsInstance(response['response'], str)
 
     def test_send_message_without_ai(self):
         """Sends fallback response when AI unavailable."""
@@ -389,7 +392,10 @@ class PersonalAssistantServiceTest(AssistantTestMixin, TestCase):
         response = assistant.send_message("Hello")
 
         self.assertIsNotNone(response)
-        self.assertIsInstance(response, str)
+        # send_message now returns a dict with 'response' key
+        self.assertIsInstance(response, dict)
+        self.assertIn('response', response)
+        self.assertIsInstance(response['response'], str)
 
 
 # =============================================================================
@@ -1053,9 +1059,10 @@ class PersonalDataQueryIntegrationTests(TestCase, AssistantTestMixin):
         self.assertEqual(assistant.coaching_style, 'direct')
 
         conversation = assistant.get_or_create_conversation()
-        response = assistant._generate_response("What should I do?", conversation)
+        # Using a message that won't trigger is_asking_about_tasks detection
+        response = assistant._generate_response("Hello, how are you?", conversation)
 
-        # Verify AI service was called
+        # Verify AI service was called for the response
         mock_ai._call_api.assert_called_once()
         # The system prompt should still contain coaching style info
         call_args = mock_ai._call_api.call_args

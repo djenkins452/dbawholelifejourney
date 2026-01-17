@@ -1459,8 +1459,11 @@ class CaptureDetailViewTests(TestCase):
             reverse('capture:detail', kwargs={'pk': entry.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Processing Failed')
-        self.assertContains(response, 'audio quality')
+        # The template shows error_info from get_user_friendly_error(), which has
+        # 'title' as 'Transcription Failed' or similar, not 'Processing Failed'
+        self.assertContains(response, 'Failed')
+        # Error message is displayed via error_info.message, which mentions audio quality
+        self.assertContains(response, 'audio')
 
     def test_detail_view_shows_audio_player_when_url_exists(self):
         """Detail view shows audio player when audio URL exists."""

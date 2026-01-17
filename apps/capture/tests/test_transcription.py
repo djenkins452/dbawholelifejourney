@@ -376,7 +376,8 @@ class TranscriptionServiceCompressionTests(TestCase):
 
         self.capture_entry.refresh_from_db()
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
-        self.assertIn('too large', self.capture_entry.error_message)
+        # Error message changed to user-friendly text about compression not being available
+        self.assertIn('compression', self.capture_entry.error_message.lower())
 
 
 class TranscriptionErrorTests(TestCase):

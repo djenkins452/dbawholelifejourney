@@ -155,9 +155,26 @@ class CycleExportAPIViewTest(TestCase):
 
         self.assertEqual(response.status_code, 204)
 
-    def test_export_rate_limiting(self):
+    @patch('django.core.cache.cache')
+    def test_export_rate_limiting(self, mock_cache):
         """Export is rate limited to 5 per hour per user."""
         self._create_test_data()
+
+        # Simulate cache behavior - increment counter each time
+        export_counts = {'count': 0}
+        def get_side_effect(key, default=0):
+            return export_counts['count']
+
+        def incr_side_effect(key, delta=1, version=None):
+            export_counts['count'] += delta
+            return export_counts['count']
+
+        def set_side_effect(key, value, timeout=None):
+            export_counts['count'] = value
+
+        mock_cache.get.side_effect = get_side_effect
+        mock_cache.incr.side_effect = incr_side_effect
+        mock_cache.set.side_effect = set_side_effect
 
         # First 5 requests should succeed
         for i in range(5):
@@ -174,7 +191,8 @@ class CycleExportAPIViewTest(TestCase):
         self.assertIn("rate limit", data["error"].lower())
         self.assertEqual(data["exports_remaining"], 0)
 
-    def test_rate_limit_is_per_user(self):
+    @patch('django.core.cache.cache')
+    def test_rate_limit_is_per_user(self, mock_cache):
         """Rate limit is tracked per user, not globally."""
         self._create_test_data()
 
@@ -192,6 +210,22 @@ class CycleExportAPIViewTest(TestCase):
             log_date=date.today(),
             flow_level="medium",
         )
+
+        # Simulate cache - user1 exhausted, user2 fresh
+        user_counts = {}
+        def get_side_effect(key, default=0):
+            return user_counts.get(key, default)
+
+        def incr_side_effect(key, delta=1, version=None):
+            user_counts[key] = user_counts.get(key, 0) + delta
+            return user_counts[key]
+
+        def set_side_effect(key, value, timeout=None):
+            user_counts[key] = value
+
+        mock_cache.get.side_effect = get_side_effect
+        mock_cache.incr.side_effect = incr_side_effect
+        mock_cache.set.side_effect = set_side_effect
 
         # Exhaust rate limit for first user
         for _ in range(5):

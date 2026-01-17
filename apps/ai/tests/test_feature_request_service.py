@@ -144,20 +144,33 @@ class FeatureRequestRateLimitingTests(TestCase):
             first_name='Test',
             last_name='User'
         )
-        # Clear cache before each test
-        cache.clear()
+        # Use a simple dict to simulate cache since DummyCache doesn't persist
+        self._cache_store = {}
 
     def tearDown(self):
-        cache.clear()
+        self._cache_store = {}
 
-    def test_should_notify_first_request(self):
+    @patch('apps.ai.feature_request_service.cache')
+    def test_should_notify_first_request(self, mock_cache):
         """Test that first request should be notified."""
+        mock_cache.get.return_value = None  # Not in cache
         message = "I wish I could track my sleep"
         self.assertTrue(self.service.should_notify(self.user, message))
 
-    def test_should_not_notify_after_marking(self):
+    @patch('apps.ai.feature_request_service.cache')
+    def test_should_not_notify_after_marking(self, mock_cache):
         """Test that repeated similar requests are rate limited."""
         message = "I wish I could track my sleep"
+
+        # Simulate cache behavior
+        cache_store = {}
+        def get_side_effect(key, default=None):
+            return cache_store.get(key, default)
+        def set_side_effect(key, value, timeout=None):
+            cache_store[key] = value
+
+        mock_cache.get.side_effect = get_side_effect
+        mock_cache.set.side_effect = set_side_effect
 
         # First time should allow
         self.assertTrue(self.service.should_notify(self.user, message))
@@ -168,10 +181,21 @@ class FeatureRequestRateLimitingTests(TestCase):
         # Second time should be rate limited
         self.assertFalse(self.service.should_notify(self.user, message))
 
-    def test_different_messages_allowed(self):
+    @patch('apps.ai.feature_request_service.cache')
+    def test_different_messages_allowed(self, mock_cache):
         """Test that different messages are allowed through."""
         message1 = "I wish I could track my sleep"
         message2 = "I wish I could export my data to PDF"
+
+        # Simulate cache behavior
+        cache_store = {}
+        def get_side_effect(key, default=None):
+            return cache_store.get(key, default)
+        def set_side_effect(key, value, timeout=None):
+            cache_store[key] = value
+
+        mock_cache.get.side_effect = get_side_effect
+        mock_cache.set.side_effect = set_side_effect
 
         self.service.mark_notified(self.user, message1)
 
@@ -304,9 +328,20 @@ class FeatureRequestNotificationTests(TestCase):
         self.assertFalse(result)
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_check_and_notify_rate_limited(self):
+    @patch('apps.ai.feature_request_service.cache')
+    def test_check_and_notify_rate_limited(self, mock_cache):
         """Test that repeated similar requests are rate limited."""
         message = "I wish I could track my sleep"
+
+        # Simulate cache behavior
+        cache_store = {}
+        def get_side_effect(key, default=None):
+            return cache_store.get(key, default)
+        def set_side_effect(key, value, timeout=None):
+            cache_store[key] = value
+
+        mock_cache.get.side_effect = get_side_effect
+        mock_cache.set.side_effect = set_side_effect
 
         # First call should send notification
         result1 = self.service.check_and_notify(

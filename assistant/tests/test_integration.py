@@ -1450,10 +1450,12 @@ class TestCase6RateLimitsPreventsExcessiveExecution(SelfImprovementIntegrationTe
             task.save()
 
         # Check if within limits (should be over daily limit of 20)
-        is_within, reason = service.check_rate_limits()
+        result = service.check_rate_limits()
 
         # Note: This depends on task completion timing
         # The service counts tasks from last 24 hours
+        # Result is a RateLimitResult dataclass with allowed, reason, current_count, limit
+        self.assertIsNotNone(result.reason)
 
 
 class TestCase7HealthMonitorPausesSystem(SelfImprovementIntegrationTestCase):

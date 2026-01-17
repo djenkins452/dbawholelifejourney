@@ -4063,13 +4063,18 @@ class ProviderStaffDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 
     item_type = 'health.providerstaff'
     item_name = 'staff member'
+    _cached_object = None
 
     def get_object(self):
-        from .models import ProviderStaff
-        return get_object_or_404(
-            ProviderStaff.objects.filter(user=self.request.user),
-            pk=self.kwargs['pk']
-        )
+        # Cache the object since get_success_url is called after soft_delete
+        # and the SoftDeleteManager would exclude the deleted object
+        if self._cached_object is None:
+            from .models import ProviderStaff
+            self._cached_object = get_object_or_404(
+                ProviderStaff.objects.filter(user=self.request.user),
+                pk=self.kwargs['pk']
+            )
+        return self._cached_object
 
     def get_success_url(self):
         from django.urls import reverse

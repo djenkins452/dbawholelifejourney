@@ -50,6 +50,38 @@ For active development context, see `CLAUDE.md` (project root).
 - `config/urls.py` - Added assistant URL registration: `path('assistant/', include('assistant.urls', namespace='assistant'))`
 
 **Tests:** All originally failing tests now pass:
+
+---
+
+### Fix URL Conflict Breaking AI Assistant Chat
+
+**Summary:** Fixed URL routing conflict that prevented the AI Personal Assistant chat from processing commands.
+
+**Issue:** The assistant-admin internal URLs were registered at the same path (`assistant/`) as the public-facing AI Personal Assistant, causing Django to route chat API requests to the wrong handler. Users would see "You can chat with your personal ai assistant for guidance and support by going to Assistant" instead of actual AI responses.
+
+**Fix:** Moved the internal assistant-admin URLs to a separate path (`assistant-admin/`) to avoid conflict with the AI assistant at `assistant/`.
+
+**Files Modified:**
+- `config/urls.py` - Changed `path('assistant/', include('assistant.urls', ...))` to `path('assistant-admin/', include('assistant.urls', ...))`
+
+---
+
+### Fix Test Authentication and Terms Acceptance Issues
+
+**Summary:** Fixed widespread test failures caused by terms acceptance middleware and authentication issues.
+
+**Issues Fixed:**
+- Tests using `client.login()` were failing due to TermsAcceptanceMiddleware redirects
+- Added `make_user_ready_for_dashboard()` helper to ensure test users have accepted terms and completed onboarding
+- Changed `client.login()` to `client.force_login()` for reliable test authentication
+- Fixed terms_version to use current `settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')` value
+
+**Files Modified:**
+- Multiple test files across apps: ai, core, dashboard, faith, finance, health, journal, life, purpose, scan, users, assistant
+
+---
+
+**Previous Tests:** All originally failing tests now pass:
 - `test_archived_entries_are_excluded` - OK
 - `test_low_severity_task_executes_autonomously` - OK
 - `test_autonomous_execution_sends_admin_notification` - OK

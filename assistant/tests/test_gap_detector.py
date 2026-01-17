@@ -12,6 +12,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from assistant.gap_detector import (
+    BIBLE_BOOKS,
     CONTRACTION_FRAGMENTS,
     CONVERSATIONAL_WORDS,
     DATA_TYPES_WITH_METHODS,
@@ -23,6 +24,9 @@ from assistant.gap_detector import (
     categorize_gap_severity,
     detect_knowledge_gap,
     extract_potential_keywords,
+    is_bible_reference,
+    is_external_data_query,
+    is_meta_question,
 )
 
 
@@ -600,6 +604,219 @@ class TestIntegrationScenarios(unittest.TestCase):
         )
         # This is not a gap - we recognize weight, we just have no data
         self.assertFalse(result['gap_detected'])
+
+
+class TestIsMetaQuestion(unittest.TestCase):
+    """Tests for is_meta_question helper function."""
+
+    def test_can_you_questions(self):
+        """Questions starting with 'can you' are meta questions."""
+        self.assertTrue(is_meta_question("Can you answer that question?"))
+        self.assertTrue(is_meta_question("Can you see this page?"))
+        self.assertTrue(is_meta_question("Can you help me with something?"))
+
+    def test_are_you_questions(self):
+        """Questions about the assistant's state are meta questions."""
+        self.assertTrue(is_meta_question("Are you looking at the page I am on?"))
+        self.assertTrue(is_meta_question("Are you using my conversation history?"))
+        self.assertTrue(is_meta_question("Are you based on GPT?"))
+
+    def test_context_questions(self):
+        """Questions about context source are meta questions."""
+        self.assertTrue(is_meta_question("Is that based on our conversation?"))
+        self.assertTrue(is_meta_question("Is this based on the current page?"))
+
+    def test_personal_data_questions_are_not_meta(self):
+        """Personal data questions are NOT meta questions."""
+        self.assertFalse(is_meta_question("What was my weight yesterday?"))
+        self.assertFalse(is_meta_question("How much did I sleep last night?"))
+        self.assertFalse(is_meta_question("What did I eat today?"))
+
+
+class TestIsBibleReference(unittest.TestCase):
+    """Tests for is_bible_reference helper function."""
+
+    def test_numbered_book_with_verse(self):
+        """Numbered books like 1 John 5:14-15 should be detected."""
+        self.assertTrue(is_bible_reference("What is 1 John 5:14-15"))
+        self.assertTrue(is_bible_reference("Read 2 Corinthians 5:17"))
+        self.assertTrue(is_bible_reference("Tell me about 1 Peter 3:15"))
+
+    def test_regular_book_with_verse(self):
+        """Regular books like John 3:16 should be detected."""
+        self.assertTrue(is_bible_reference("What does John 3:16 mean?"))
+        self.assertTrue(is_bible_reference("Read me Psalm 23"))
+        self.assertTrue(is_bible_reference("What is Romans 8:28?"))
+
+    def test_non_bible_queries(self):
+        """Regular queries should not be detected as Bible references."""
+        self.assertFalse(is_bible_reference("What was my weight yesterday?"))
+        self.assertFalse(is_bible_reference("How is the weather?"))
+        self.assertFalse(is_bible_reference("Tell me about John"))  # Just a name
+
+    def test_bible_books_constant(self):
+        """BIBLE_BOOKS should contain common Bible books."""
+        expected_books = ['genesis', 'john', 'romans', 'psalms', 'revelation']
+        for book in expected_books:
+            self.assertIn(book, BIBLE_BOOKS)
+
+
+class TestIsExternalDataQuery(unittest.TestCase):
+    """Tests for is_external_data_query helper function."""
+
+    def test_weather_queries(self):
+        """Weather queries should be detected as external data."""
+        self.assertTrue(is_external_data_query("What is the weather in Nashville?"))
+        self.assertTrue(is_external_data_query("Weather in Maryville, TN"))
+        self.assertTrue(is_external_data_query("What's the forecast for tomorrow?"))
+
+    def test_time_queries(self):
+        """Time queries should be detected as external data."""
+        self.assertTrue(is_external_data_query("What time is it in Tokyo?"))
+        self.assertTrue(is_external_data_query("What's the current time?"))
+
+    def test_definition_queries(self):
+        """Definition queries should be detected as external data."""
+        self.assertTrue(is_external_data_query("What is a calorie?"))
+        self.assertTrue(is_external_data_query("Define metabolism"))
+
+    def test_personal_data_not_external(self):
+        """Personal data queries should NOT be detected as external."""
+        self.assertFalse(is_external_data_query("What was my weight yesterday?"))
+        self.assertFalse(is_external_data_query("How many calories did I eat?"))
+        self.assertFalse(is_external_data_query("What's my blood pressure trend?"))
+
+
+class TestRealFalsePositiveCases(unittest.TestCase):
+    """
+    Tests for the specific false positive cases that triggered erroneous
+    'Evaluate new data type' email tasks.
+
+    These test cases are based on real emails sent by the WLJ Assistant
+    in January 2026.
+    """
+
+    def _get_non_personal_intent(self):
+        """Helper to create a non-personal intent result."""
+        return {
+            'is_personal_query': False,
+            'data_types': [],
+            'has_date_context': False,
+            'is_meta_question': False,
+            'is_compound_query': False,
+        }
+
+    def test_question_data_type_false_positive(self):
+        """
+        User message: "Can you answer that question based on the current page?"
+        This should NOT propose 'question' as a new data type.
+        """
+        result = detect_knowledge_gap(
+            "Can you answer that question based on the current page?",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertFalse(result['gap_detected'])
+
+    def test_weather_data_type_false_positive(self):
+        """
+        User message: "what is the weather in maryville, tn"
+        This should NOT propose 'weather' as a new data type.
+        """
+        result = detect_knowledge_gap(
+            "what is the weather in maryville, tn",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertFalse(result['gap_detected'])
+
+    def test_john_data_type_false_positive(self):
+        """
+        User message: "What is 1 John 5:14-15"
+        This should NOT propose 'john' as a new data type.
+        """
+        result = detect_knowledge_gap(
+            "What is 1 John 5:14-15",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertFalse(result['gap_detected'])
+
+    def test_conversation_data_type_false_positive(self):
+        """
+        User message: "Is that based on our conversation we are having
+                       or are you looking at the page I am on?"
+        This should NOT propose 'conversation' as a new data type.
+        """
+        result = detect_knowledge_gap(
+            "Is that based on our conversation we are having or are you looking at the page I am on?",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        self.assertFalse(result['gap_detected'])
+
+    def test_answer_not_extracted_as_keyword(self):
+        """'answer' should not be extracted as a potential keyword."""
+        result = extract_potential_keywords("Can you answer that question?")
+        self.assertNotIn('answer', result)
+        self.assertNotIn('question', result)
+
+    def test_weather_not_extracted_as_keyword(self):
+        """'weather' should not be extracted as a potential keyword."""
+        result = extract_potential_keywords("What is the weather in Nashville?")
+        self.assertNotIn('weather', result)
+
+    def test_conversation_not_extracted_as_keyword(self):
+        """'conversation' should not be extracted as a potential keyword."""
+        result = extract_potential_keywords("Is that based on our conversation?")
+        self.assertNotIn('conversation', result)
+
+
+class TestLegitimateGapDetection(unittest.TestCase):
+    """
+    Ensure that legitimate gap detection still works after fixing false positives.
+    """
+
+    def _get_personal_intent_no_types(self):
+        """Helper for personal query with no recognized data types."""
+        return {
+            'is_personal_query': True,
+            'data_types': [],
+            'has_date_context': True,
+            'is_meta_question': False,
+            'is_compound_query': False,
+        }
+
+    def _get_non_personal_intent(self):
+        """Helper for non-personal intent."""
+        return {
+            'is_personal_query': False,
+            'data_types': [],
+            'has_date_context': True,
+            'is_meta_question': False,
+            'is_compound_query': False,
+        }
+
+    def test_hydration_is_legitimate_gap(self):
+        """'hydration' is a legitimate new data type request."""
+        result = detect_knowledge_gap(
+            "How much water did I drink today?",
+            intent_result=self._get_non_personal_intent(),
+            data_result=None
+        )
+        # This should still detect a gap - hydration/water tracking is
+        # a legitimate personal data feature request
+        self.assertTrue(result['gap_detected'])
+
+    def test_caffeine_still_extracted(self):
+        """'caffeine' should still be extracted as a potential data type."""
+        result = extract_potential_keywords("How much caffeine did I consume?")
+        self.assertIn('caffeine', result)
+
+    def test_hydration_still_extracted(self):
+        """'hydration' should still be extracted as a potential data type."""
+        result = extract_potential_keywords("What was my hydration level?")
+        self.assertIn('hydration', result)
 
 
 if __name__ == '__main__':

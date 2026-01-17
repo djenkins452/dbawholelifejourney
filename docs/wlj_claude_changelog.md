@@ -16,6 +16,38 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix WLJ Assistant False Positive Data Type Proposals
+
+**Bug:** The WLJ Assistant was incorrectly proposing new data types for queries that were clearly NOT personal data requests. Real examples:
+- "Can you answer that question based on the current page?" → proposed 'question' data type
+- "what is the weather in maryville, tn" → proposed 'weather' data type
+- "What is 1 John 5:14-15" → proposed 'john' data type (Bible verse!)
+- "Is that based on our conversation?" → proposed 'conversation' data type
+
+**Root Cause:** The `detect_knowledge_gap()` function in `assistant/gap_detector.py` was too aggressive. It checked for personal pronouns ("my", "i", "me") but didn't filter out:
+1. Meta questions about the assistant itself ("Can you...", "Are you...")
+2. Bible verse references (1 John 5:14-15)
+3. External data queries (weather, time, definitions)
+4. Generic conversational words being extracted as "data types"
+
+**Solution:**
+1. Added three helper functions:
+   - `is_meta_question()` - Detects questions about the assistant
+   - `is_bible_reference()` - Detects Bible verse patterns like "1 John 5:14"
+   - `is_external_data_query()` - Detects weather, time, definition queries
+2. Added `BIBLE_BOOKS` constant with all 66 Bible book names
+3. Expanded `CONVERSATIONAL_WORDS` to include: question, answer, conversation, weather, dialog, message, context, etc.
+4. Updated `detect_knowledge_gap()` Case 4 to check these filters BEFORE proposing new data types
+5. Added 22 new test cases covering the exact false positive scenarios
+
+**Files Modified:**
+- `assistant/gap_detector.py` - Added helper functions, BIBLE_BOOKS constant, expanded CONVERSATIONAL_WORDS, updated detect_knowledge_gap()
+- `assistant/tests/test_gap_detector.py` - Added TestIsMetaQuestion, TestIsBibleReference, TestIsExternalDataQuery, TestRealFalsePositiveCases, TestLegitimateGapDetection classes
+
+**Result:** The assistant will no longer propose new data types for meta questions, Bible verses, weather queries, or conversational patterns. Legitimate data type suggestions (hydration, caffeine, etc.) still work correctly.
+
+---
+
 ### Fix Honeypot Validation - Move to Form Where Request is Available
 
 **Bug:** The honeypot validation in `WLJAccountAdapter.clean_email()` was dead code that never executed. The adapter's `clean_email` method is called by django-allauth before `pre_save`/`save_user`, meaning `self.request` was always `None` at that point.

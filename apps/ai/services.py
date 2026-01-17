@@ -244,19 +244,57 @@ class AIService:
             system = self._get_system_prompt(faith_enabled, coaching_style, user_profile=user_profile)
             return (system, 150)  # Default max tokens
     
-    def _call_api(self, system_prompt: str, user_prompt: str, 
-                  max_tokens: int = 300) -> Optional[str]:
-        """Make an API call to OpenAI."""
+    def _call_api(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 300,
+        image_data: str = None,
+        image_mime_type: str = None
+    ) -> Optional[str]:
+        """
+        Make an API call to OpenAI.
+
+        Supports image attachments for Vision processing when image_data
+        and image_mime_type are provided.
+
+        Args:
+            system_prompt: The system prompt
+            user_prompt: The user's message
+            max_tokens: Maximum tokens for response
+            image_data: Optional base64-encoded image data
+            image_mime_type: Optional MIME type of the image
+
+        Returns:
+            The AI response content or None if unavailable
+        """
         if not self.is_available:
             logger.warning("AI service not available - no API key configured")
             return None
-        
+
         try:
+            # Build the user message content
+            if image_data and image_mime_type:
+                # Vision message with image - use content array format
+                user_content = [
+                    {"type": "text", "text": user_prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{image_mime_type};base64,{image_data}",
+                            "detail": "auto"  # Let OpenAI decide resolution
+                        }
+                    }
+                ]
+            else:
+                # Standard text-only message
+                user_content = user_prompt
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_content}
                 ],
                 max_tokens=max_tokens,
                 temperature=0.7,

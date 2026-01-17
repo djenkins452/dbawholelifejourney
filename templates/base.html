@@ -144,6 +144,11 @@
     {% include "components/whats_new_modal.html" %}
     {% endif %}
 
+    <!-- Development Notice Modal (early access reminder) -->
+    {% if user.is_authenticated %}
+    {% include "components/development_notice_modal.html" %}
+    {% endif %}
+
     <!-- WLJ Assistant Chat Widget -->
     {% if user.is_authenticated %}
     {% include "components/chat_widget.html" %}

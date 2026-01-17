@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Add Root Cause Analysis Prompts to Email Tasks
+
+**Problem:** When processing email tasks, Claude would often mark them "done" without investigating why the email was received or if there's a systemic fix to prevent recurrence.
+
+**Solution:** Updated email task template to include explicit prompts for root cause analysis and prevention.
+
+**New task actions:**
+- "Investigate ROOT CAUSE: Why did we receive this email? Is there a systemic issue?"
+- "PREVENT RECURRENCE: Is there a fix that prevents this type of email in the future?"
+
+**Updated output criteria:**
+- "Email request processed with root cause identified, action taken, and prevention considered"
+
+**Files Modified:**
+- `apps/admin_console/email_intake.py` - Updated task description template
+
+---
+
 ### Skip Confirmation Emails for Automated/System Addresses
 
 **Problem:** Email intake was sending confirmation emails to automated addresses (postmaster@, noreply@, etc.) that would never receive them, resulting in bounce notifications creating noise in the task queue.

@@ -360,12 +360,14 @@ def create_task_from_email(parsed_email: ParsedEmail):
         ],
         'actions': [
             "Read and understand the email content and context",
+            "Investigate ROOT CAUSE: Why did we receive this email? Is there a systemic issue?",
             "Determine what action is needed (feature request, bug report, question, etc.)",
             "If it requires code changes, create appropriate sub-tasks",
             "If it requires a response, draft and send a reply",
+            "PREVENT RECURRENCE: Is there a fix that prevents this type of email in the future?",
             "Document any decisions or outcomes",
         ],
-        'output': "Email request processed with appropriate action taken and documented",
+        'output': "Email request processed with root cause identified, action taken, and prevention considered",
     }
 
     # Create the task

@@ -230,6 +230,29 @@ class Task(UserOwnedModel):
         blank=True,
         help_text="End date for recurring tasks (optional)"
     )
+
+    # Email source tracking (for Gmail integration)
+    email_source_id = models.CharField(
+        max_length=255,
+        blank=True,
+        db_index=True,
+        help_text="Gmail message ID if created from email"
+    )
+    email_source_subject = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Original email subject"
+    )
+    email_source_sender = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Original email sender"
+    )
+    email_source_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Original email date"
+    )
     
     class Meta:
         ordering = ['is_completed', 'priority', '-created_at']
@@ -1453,3 +1476,234 @@ class SignificantEvent(UserOwnedModel):
         if not self.reminder_days:
             return []
         return sorted(self.reminder_days, reverse=True)
+
+
+# =============================================================================
+# Gmail Integration
+# =============================================================================
+
+class GmailCredential(models.Model):
+    """
+    Store Gmail OAuth credentials for inbox scanning.
+
+    Follows OAuth 2.0 pattern matching GoogleCalendarCredential.
+
+    Security Note (CISO Review):
+        OAuth tokens are encrypted at rest using Fernet AES-256 encryption.
+        Use property accessors (access_token_decrypted, etc.) for plaintext.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='gmail_credential'
+    )
+
+    # OAuth tokens (encrypted at rest)
+    access_token = models.TextField(help_text="Encrypted access token")
+    refresh_token = models.TextField(blank=True, help_text="Encrypted refresh token")
+    token_uri = models.CharField(
+        max_length=500,
+        default='https://oauth2.googleapis.com/token'
+    )
+    client_id = models.CharField(max_length=500)
+    client_secret = models.CharField(max_length=500, help_text="Encrypted")
+    token_expiry = models.DateTimeField(null=True, blank=True)
+    scopes = models.TextField(blank=True, help_text="JSON list of OAuth scopes")
+
+    # Sync settings
+    scan_enabled = models.BooleanField(
+        default=True,
+        help_text="Enable automatic inbox scanning"
+    )
+    max_emails_per_scan = models.PositiveIntegerField(
+        default=20,
+        help_text="Maximum emails to process per scan"
+    )
+    days_to_look_back = models.PositiveIntegerField(
+        default=3,
+        help_text="Only scan emails from the last N days"
+    )
+
+    # Tracking
+    last_scan = models.DateTimeField(null=True, blank=True)
+    last_scan_status = models.CharField(max_length=50, blank=True)
+    last_scan_message = models.TextField(blank=True)
+    last_scan_tasks_created = models.PositiveIntegerField(default=0)
+    last_scan_errors = models.TextField(blank=True, help_text="JSON list of errors")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Gmail Credential"
+        verbose_name_plural = "Gmail Credentials"
+
+    def __str__(self):
+        return f"Gmail for {self.user}"
+
+    @property
+    def is_token_expired(self):
+        """Check if the access token has expired."""
+        if not self.token_expiry:
+            return True
+        return timezone.now() >= self.token_expiry
+
+    @property
+    def is_connected(self):
+        """Check if we have valid credentials."""
+        return bool(self.access_token)
+
+    # =========================================================================
+    # Encrypted Token Accessors
+    # =========================================================================
+
+    @property
+    def access_token_decrypted(self):
+        """Get the decrypted access token."""
+        from apps.core.encryption import decrypt_oauth_token_safe
+        value, success = decrypt_oauth_token_safe(self.access_token)
+        if not success:
+            self._decryption_failed = True
+        return value
+
+    @property
+    def refresh_token_decrypted(self):
+        """Get the decrypted refresh token."""
+        from apps.core.encryption import decrypt_oauth_token_safe
+        value, success = decrypt_oauth_token_safe(self.refresh_token)
+        if not success:
+            self._decryption_failed = True
+        return value
+
+    @property
+    def client_secret_decrypted(self):
+        """Get the decrypted client secret."""
+        from apps.core.encryption import decrypt_oauth_token_safe
+        value, success = decrypt_oauth_token_safe(self.client_secret)
+        if not success:
+            self._decryption_failed = True
+        return value
+
+    def has_decryption_error(self):
+        """Check if any token decryption has failed."""
+        self._decryption_failed = False
+        from apps.core.encryption import decrypt_oauth_token_safe
+
+        for field in [self.access_token, self.refresh_token, self.client_secret]:
+            if field:
+                _, success = decrypt_oauth_token_safe(field)
+                if not success:
+                    return True
+        return False
+
+    def set_access_token(self, plaintext):
+        """Set and encrypt the access token."""
+        from apps.core.encryption import encrypt_oauth_token
+        self.access_token = encrypt_oauth_token(plaintext)
+
+    def set_refresh_token(self, plaintext):
+        """Set and encrypt the refresh token."""
+        from apps.core.encryption import encrypt_oauth_token
+        self.refresh_token = encrypt_oauth_token(plaintext) if plaintext else ''
+
+    def set_client_secret(self, plaintext):
+        """Set and encrypt the client secret."""
+        from apps.core.encryption import encrypt_oauth_token
+        self.client_secret = encrypt_oauth_token(plaintext)
+
+    def get_credentials_dict(self):
+        """Return credentials in the format expected by Google API."""
+        return {
+            'token': self.access_token_decrypted,
+            'refresh_token': self.refresh_token_decrypted,
+            'token_uri': self.token_uri,
+            'client_id': self.client_id,
+            'client_secret': self.client_secret_decrypted,
+            'scopes': self.get_scopes_list(),
+        }
+
+    def update_from_credentials(self, credentials_dict):
+        """Update model from a credentials dictionary (encrypts tokens)."""
+        if 'token' in credentials_dict:
+            self.set_access_token(credentials_dict.get('token', ''))
+        if 'refresh_token' in credentials_dict:
+            self.set_refresh_token(credentials_dict.get('refresh_token', ''))
+        self.token_uri = credentials_dict.get('token_uri', self.token_uri)
+        self.client_id = credentials_dict.get('client_id', self.client_id)
+        if 'client_secret' in credentials_dict:
+            self.set_client_secret(credentials_dict.get('client_secret', ''))
+
+        # Handle expiry
+        expiry = credentials_dict.get('expiry')
+        if expiry:
+            if isinstance(expiry, str):
+                from datetime import datetime
+                self.token_expiry = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
+            else:
+                self.token_expiry = expiry
+
+        if credentials_dict.get('scopes'):
+            self.set_scopes_list(credentials_dict['scopes'])
+
+        self.save()
+
+    def get_scopes_list(self):
+        """Get scopes as a Python list."""
+        if not self.scopes:
+            return []
+        try:
+            return json.loads(self.scopes)
+        except json.JSONDecodeError:
+            return []
+
+    def set_scopes_list(self, scopes_list):
+        """Set scopes from a Python list."""
+        self.scopes = json.dumps(scopes_list)
+
+    def record_scan(self, success=True, message='', tasks_created=0, errors=None):
+        """Record the result of a scan operation."""
+        self.last_scan = timezone.now()
+        self.last_scan_status = 'success' if success else 'error'
+        self.last_scan_message = message
+        self.last_scan_tasks_created = tasks_created
+        self.last_scan_errors = json.dumps(errors) if errors else ''
+        self.save(update_fields=[
+            'last_scan', 'last_scan_status', 'last_scan_message',
+            'last_scan_tasks_created', 'last_scan_errors'
+        ])
+
+
+class ProcessedEmail(models.Model):
+    """
+    Track which emails have been processed to prevent duplicates.
+
+    Each processed email is recorded with its Gmail message ID so we
+    don't re-process the same email multiple times.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='processed_emails'
+    )
+    gmail_message_id = models.CharField(max_length=255, db_index=True)
+    processed_at = models.DateTimeField(auto_now_add=True)
+
+    # Result tracking
+    action_items_found = models.PositiveIntegerField(default=0)
+    tasks_created = models.PositiveIntegerField(default=0)
+    skipped_reason = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="e.g., 'no_action_items', 'ai_error'"
+    )
+
+    class Meta:
+        unique_together = ['user', 'gmail_message_id']
+        ordering = ['-processed_at']
+        verbose_name = "Processed Email"
+        verbose_name_plural = "Processed Emails"
+
+    def __str__(self):
+        return f"Email {self.gmail_message_id} for {self.user}"

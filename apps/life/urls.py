@@ -79,6 +79,14 @@ from .views import (
     GoogleCalendarDisconnectView,
     GoogleCalendarSyncView,
     GoogleCalendarPushEventView,
+    # Gmail Integration
+    GmailSettingsView,
+    GmailConnectView,
+    GmailCallbackView,
+    GmailDisconnectView,
+    GmailSaveSettingsView,
+    GmailManualScanView,
+    GmailSyncCronView,
     # Bulk Actions
     BulkDeleteTasksView,
     BulkDeleteInventoryView,
@@ -183,4 +191,13 @@ urlpatterns = [
     path("calendar/google/disconnect/", GoogleCalendarDisconnectView.as_view(), name="google_calendar_disconnect"),
     path("calendar/google/sync/", GoogleCalendarSyncView.as_view(), name="google_calendar_sync"),
     path("events/<int:pk>/push-to-google/", GoogleCalendarPushEventView.as_view(), name="google_calendar_push_event"),
+
+    # Gmail Integration
+    path("gmail/", GmailSettingsView.as_view(), name="gmail_settings"),
+    path("gmail/connect/", GmailConnectView.as_view(), name="gmail_connect"),
+    path("gmail/callback/", GmailCallbackView.as_view(), name="gmail_callback"),
+    path("gmail/disconnect/", GmailDisconnectView.as_view(), name="gmail_disconnect"),
+    path("gmail/settings/", GmailSaveSettingsView.as_view(), name="gmail_save_settings"),
+    path("gmail/scan/", GmailManualScanView.as_view(), name="gmail_manual_scan"),
+    path("api/gmail/cron-sync/", GmailSyncCronView.as_view(), name="gmail_cron_sync"),
 ]

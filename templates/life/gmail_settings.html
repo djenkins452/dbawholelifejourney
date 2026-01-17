@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}Gmail Integration - Organize{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'life:home' %}">Organize</a>
+        <span>/</span>
+        <a href="{% url 'life:task_list' %}">Tasks</a>
+        <span>/</span>
+        <span>Gmail Integration</span>
+    </nav>
+
+    <div class="settings-page">
+        <div class="page-header">
+            <h1 class="page-title">Gmail Integration {% include "components/favorite_toggle.html" with page_title="Gmail Integration" %}</h1>
+            <p class="page-subtitle">Automatically create tasks from action items in your emails</p>
+        </div>
+
+        {% if not is_configured %}
+        <!-- Not Configured -->
+        <div class="settings-card">
+            <div class="card-icon warning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
+            <div class="card-content">
+                <h2>Gmail Integration Not Configured</h2>
+                <p>Gmail integration requires API credentials. Please add the following to your settings:</p>
+                <ul class="config-list">
+                    <li><code>GMAIL_CLIENT_ID</code></li>
+                    <li><code>GMAIL_CLIENT_SECRET</code></li>
+                    <li><code>GMAIL_REDIRECT_URI</code></li>
+                </ul>
+                <p>You can obtain these from the <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a>.</p>
+            </div>
+        </div>
+
+        {% elif is_connected %}
+        <!-- Connected -->
+        <div class="settings-card connected">
+            <div class="card-icon success">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </div>
+            <div class="card-content">
+                <h2>Gmail Connected</h2>
+                <p>Your Gmail account is connected. Emails from your primary inbox will be scanned for action items.</p>
+
+                <div class="connection-info">
+                    {% if last_scan %}
+                    <p><strong>Last Scan:</strong> {{ last_scan|date:"M j, Y g:i A" }}</p>
+                    {% if last_scan_status == 'success' %}
+                    <p><strong>Status:</strong> <span class="text-success">Success</span> - {{ last_scan_message }}</p>
+                    {% elif last_scan_status == 'error' %}
+                    <p><strong>Status:</strong> <span class="text-error">Error</span> - {{ last_scan_message }}</p>
+                    {% endif %}
+                    {% if last_tasks_created > 0 %}
+                    <p><strong>Tasks Created:</strong> {{ last_tasks_created }}</p>
+                    {% endif %}
+                    {% else %}
+                    <p><strong>Last Scan:</strong> Never</p>
+                    {% endif %}
+                </div>
+
+                <div class="action-buttons">
+                    <form method="post" action="{% url 'life:gmail_manual_scan' %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                                <polyline points="1 4 1 10 7 10"/>
+                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                            </svg>
+                            Scan Now
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'life:gmail_disconnect' %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost text-error">Disconnect</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scan Settings -->
+        <div class="settings-card">
+            <h3>Scan Settings</h3>
+
+            <form method="post" action="{% url 'life:gmail_save_settings' %}">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="scan_enabled" {% if scan_enabled %}checked{% endif %}>
+                        <span>Enable Automatic Scanning</span>
+                    </label>
+                    <p class="form-help">When enabled, your inbox will be scanned automatically on a schedule</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="max_emails" class="form-label">Emails Per Scan</label>
+                    <select name="max_emails" id="max_emails" class="form-select">
+                        <option value="10" {% if max_emails == 10 %}selected{% endif %}>10 emails</option>
+                        <option value="20" {% if max_emails == 20 %}selected{% endif %}>20 emails</option>
+                        <option value="30" {% if max_emails == 30 %}selected{% endif %}>30 emails</option>
+                        <option value="50" {% if max_emails == 50 %}selected{% endif %}>50 emails</option>
+                    </select>
+                    <p class="form-help">Maximum number of recent emails to process per scan</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="days_back" class="form-label">Look Back Period</label>
+                    <select name="days_back" id="days_back" class="form-select">
+                        <option value="1" {% if days_back == 1 %}selected{% endif %}>1 day</option>
+                        <option value="3" {% if days_back == 3 %}selected{% endif %}>3 days</option>
+                        <option value="7" {% if days_back == 7 %}selected{% endif %}>7 days</option>
+                        <option value="14" {% if days_back == 14 %}selected{% endif %}>14 days</option>
+                    </select>
+                    <p class="form-help">Only scan emails from this time period</p>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Save Settings</button>
+            </form>
+        </div>
+
+        <!-- How It Works -->
+        <div class="settings-card">
+            <h3>How It Works</h3>
+            <div class="info-list">
+                <div class="info-item">
+                    <div class="info-number">1</div>
+                    <div class="info-content">
+                        <strong>Email Scanning</strong>
+                        <p>We scan your primary inbox (excluding Promotions, Social, and Updates) for recent emails.</p>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-number">2</div>
+                    <div class="info-content">
+                        <strong>AI Analysis</strong>
+                        <p>Our AI analyzes each email to identify action items, requests, and tasks directed at you.</p>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-number">3</div>
+                    <div class="info-content">
+                        <strong>Task Creation</strong>
+                        <p>Action items are automatically created as tasks in your Life module, including the original email context.</p>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-number">4</div>
+                    <div class="info-content">
+                        <strong>Duplicate Prevention</strong>
+                        <p>Each email is tracked so it's only processed once, even if you run multiple scans.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <!-- Not Connected -->
+        <div class="settings-card">
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                </svg>
+            </div>
+            <div class="card-content">
+                <h2>Connect Your Gmail</h2>
+                <p>Connect your Gmail account to automatically create tasks from action items in your emails.</p>
+
+                <div class="benefits-list">
+                    <h4>Benefits:</h4>
+                    <ul>
+                        <li>Automatically extract action items from emails</li>
+                        <li>AI-powered analysis identifies real tasks</li>
+                        <li>Scans primary inbox only (no promotions or spam)</li>
+                        <li>Tasks include original email context</li>
+                        <li>Duplicate prevention - each email processed once</li>
+                    </ul>
+                </div>
+
+                <div class="privacy-note">
+                    <h4>Privacy & Security:</h4>
+                    <ul>
+                        <li>We only request read-only access to your emails</li>
+                        <li>Email content is processed but not stored</li>
+                        <li>OAuth tokens are encrypted at rest</li>
+                        <li>You can disconnect at any time</li>
+                    </ul>
+                </div>
+
+                <div class="action-buttons mt-4">
+                    <a href="{% url 'life:gmail_connect' %}" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                            <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                        Connect Gmail
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.settings-card {
+    background: var(--card-background);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border-color);
+}
+
+.settings-card.connected {
+    border-color: var(--success-color);
+}
+
+.card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--surface-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.card-icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: var(--text-secondary);
+}
+
+.card-icon.success {
+    background: rgba(var(--success-rgb), 0.1);
+}
+
+.card-icon.success svg {
+    stroke: var(--success-color);
+}
+
+.card-icon.warning {
+    background: rgba(var(--warning-rgb), 0.1);
+}
+
+.card-icon.warning svg {
+    stroke: var(--warning-color);
+}
+
+.connection-info {
+    background: var(--surface-color);
+    padding: 16px;
+    border-radius: 8px;
+    margin: 16px 0;
+}
+
+.connection-info p {
+    margin: 4px 0;
+    font-size: 14px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.btn-icon {
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+}
+
+.config-list {
+    margin: 16px 0;
+    padding-left: 20px;
+}
+
+.config-list li {
+    margin: 8px 0;
+}
+
+.config-list code {
+    background: var(--surface-color);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.benefits-list, .privacy-note {
+    margin: 20px 0;
+}
+
+.benefits-list h4, .privacy-note h4 {
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.benefits-list ul, .privacy-note ul {
+    padding-left: 20px;
+}
+
+.benefits-list li, .privacy-note li {
+    margin: 6px 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.form-select {
+    width: 100%;
+    max-width: 300px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-background);
+    font-size: 14px;
+}
+
+.form-help {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.info-item {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.info-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.info-content strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.info-content p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.text-success {
+    color: var(--success-color);
+}
+
+.text-error {
+    color: var(--error-color);
+}
+
+@media (max-width: 480px) {
+    .settings-card {
+        padding: 16px;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .action-buttons .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}

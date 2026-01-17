@@ -751,6 +751,26 @@ else:
 
 
 # ==============================================================================
+# Gmail Integration
+# ==============================================================================
+# Gmail OAuth credentials - use the same Google Cloud project as Calendar
+GMAIL_CLIENT_ID = env('GMAIL_CLIENT_ID', default='')
+GMAIL_CLIENT_SECRET = env('GMAIL_CLIENT_SECRET', default='')
+
+# Redirect URI - must match exactly what's registered in Google Cloud Console
+if DEBUG:
+    GMAIL_REDIRECT_URI = 'http://localhost:8000/life/gmail/callback/'
+else:
+    GMAIL_REDIRECT_URI = env(
+        'GMAIL_REDIRECT_URI',
+        default='https://wholelifejourney.com/life/gmail/callback/'
+    )
+
+# API key for external cron trigger (generate a secure random string)
+GMAIL_SYNC_API_KEY = env('GMAIL_SYNC_API_KEY', default='')
+
+
+# ==============================================================================
 # Plaid Bank Integration Configuration
 # ==============================================================================
 # Get your credentials at: https://dashboard.plaid.com/overview

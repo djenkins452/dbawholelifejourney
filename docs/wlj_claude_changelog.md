@@ -16,6 +16,69 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Gmail Integration - Auto-Create Tasks from Email Action Items
+
+**Feature:** Added Gmail integration allowing users to connect their Gmail account and automatically create tasks from action items in their emails.
+
+**Implementation:**
+
+**Models (`apps/life/models.py`):**
+- `GmailCredential` - Stores OAuth tokens (encrypted), scan settings, tracking info
+- `ProcessedEmail` - Tracks processed email IDs to prevent duplicates
+- Added email source fields to `Task` model: `email_source_id`, `email_source_subject`, `email_source_sender`, `email_source_date`
+
+**Services:**
+- `apps/life/services/gmail.py` - Gmail OAuth flow, email fetching (primary inbox only, excludes Promotions/Social/Updates)
+- `apps/life/services/email_processor.py` - AI-powered action item extraction using OpenAI
+- `apps/life/services/gmail_sync.py` - Orchestration for user/all-user scanning
+
+**Views (`apps/life/views.py`):**
+- `GmailSettingsView` - Settings page
+- `GmailConnectView` - OAuth initiation
+- `GmailCallbackView` - OAuth callback
+- `GmailDisconnectView` - Remove connection
+- `GmailSaveSettingsView` - Save preferences
+- `GmailManualScanView` - Manual scan trigger
+- `GmailSyncCronView` - External cron endpoint (secured with API key)
+
+**URLs (`apps/life/urls.py`):**
+- `/life/gmail/` - Settings page
+- `/life/gmail/connect/` - OAuth connect
+- `/life/gmail/callback/` - OAuth callback
+- `/life/gmail/disconnect/` - Disconnect
+- `/life/gmail/settings/` - Save settings
+- `/life/gmail/scan/` - Manual scan
+- `/life/api/gmail/cron-sync/` - Cron endpoint
+
+**Template:**
+- `templates/life/gmail_settings.html` - Settings UI with connection status, scan controls, "How It Works" section
+
+**Settings (`config/settings.py`):**
+- `GMAIL_CLIENT_ID` - OAuth client ID
+- `GMAIL_CLIENT_SECRET` - OAuth client secret
+- `GMAIL_REDIRECT_URI` - OAuth redirect URI
+- `GMAIL_SYNC_API_KEY` - API key for cron endpoint
+
+**Security:**
+- OAuth tokens encrypted at rest using Fernet AES-256
+- Cron endpoint uses constant-time comparison for API key validation
+- `gmail.readonly` scope (read-only access)
+- CSRF protection via state parameter in OAuth flow
+
+**Migration:**
+- `apps/life/migrations/0010_gmail_integration.py`
+
+**Testing:** All 209 life module tests pass.
+
+**Setup Required:**
+1. Enable Gmail API in Google Cloud Console
+2. Create OAuth 2.0 credentials (same project as Calendar)
+3. Add redirect URI: `https://wholelifejourney.com/life/gmail/callback/`
+4. Set environment variables: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_SYNC_API_KEY`
+5. Configure external cron service to call `/life/api/gmail/cron-sync/` with API key header
+
+---
+
 ### Fix Gap Detector Tests After Water Tracking Feature
 
 **Issue:** 7 gap detector tests were failing in CI after the water/hydration tracking feature was added. The tests were using "hydration" as an example of an **unknown** data type that should trigger gap detection, but now that water/hydration is a supported data type, these tests were incorrect.

@@ -2061,6 +2061,296 @@ class GoogleCalendarPushEventView(LifeAccessMixin, View):
 
 
 # =============================================================================
+# Gmail Integration Views
+# =============================================================================
+
+def get_user_gmail_credential(user):
+    """Get user's Gmail credential or None."""
+    from apps.life.models import GmailCredential
+    try:
+        return GmailCredential.objects.get(user=user)
+    except GmailCredential.DoesNotExist:
+        return None
+
+
+class GmailSettingsView(LifeAccessMixin, TemplateView):
+    """Gmail integration settings page."""
+
+    template_name = "life/gmail_settings.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Check if Gmail is configured in settings
+        from django.conf import settings
+        context['is_configured'] = all([
+            getattr(settings, 'GMAIL_CLIENT_ID', ''),
+            getattr(settings, 'GMAIL_CLIENT_SECRET', ''),
+            getattr(settings, 'GMAIL_REDIRECT_URI', ''),
+        ])
+
+        # Get user's credential
+        credential = get_user_gmail_credential(self.request.user)
+        context['credential'] = credential
+        context['is_connected'] = credential and credential.access_token
+
+        if credential:
+            context['last_scan'] = credential.last_scan
+            context['scan_enabled'] = credential.scan_enabled
+            context['max_emails'] = credential.max_emails_per_scan
+            context['days_back'] = credential.days_to_look_back
+            context['last_tasks_created'] = credential.last_scan_tasks_created
+            context['last_scan_status'] = credential.last_scan_status
+            context['last_scan_message'] = credential.last_scan_message
+
+        return context
+
+
+class GmailConnectView(LifeAccessMixin, View):
+    """Initiate Gmail OAuth2 flow."""
+
+    def get(self, request):
+        try:
+            from apps.life.services.gmail import GmailService
+
+            service = GmailService()
+            state = secrets.token_urlsafe(32)
+            request.session['gmail_oauth_state'] = state
+
+            authorization_url, _ = service.get_authorization_url(state=state)
+            return redirect(authorization_url)
+
+        except ImportError as e:
+            messages.error(request, str(e))
+            return redirect('life:gmail_settings')
+        except ValueError as e:
+            messages.error(request, str(e))
+            return redirect('life:gmail_settings')
+
+
+class GmailCallbackView(LifeAccessMixin, View):
+    """Handle Gmail OAuth2 callback and store credentials in database."""
+
+    def get(self, request):
+        from apps.life.models import GmailCredential
+
+        state = request.GET.get('state')
+        stored_state = request.session.get('gmail_oauth_state')
+
+        if state != stored_state:
+            messages.error(request, "Invalid OAuth state. Please try again.")
+            return redirect('life:gmail_settings')
+
+        error = request.GET.get('error')
+        if error:
+            messages.error(request, f"Gmail authorization failed: {error}")
+            return redirect('life:gmail_settings')
+
+        code = request.GET.get('code')
+        if not code:
+            messages.error(request, "No authorization code received.")
+            return redirect('life:gmail_settings')
+
+        try:
+            from apps.life.services.gmail import GmailService
+
+            service = GmailService()
+            credentials_dict = service.exchange_code_for_credentials(code)
+
+            # Store credentials in database (create or update)
+            credential, created = GmailCredential.objects.update_or_create(
+                user=request.user,
+                defaults={
+                    'client_id': credentials_dict.get('client_id', ''),
+                }
+            )
+
+            # Use encrypted setters for sensitive data
+            credential.set_access_token(credentials_dict.get('token', ''))
+            credential.set_refresh_token(credentials_dict.get('refresh_token', ''))
+            credential.set_client_secret(credentials_dict.get('client_secret', ''))
+            credential.token_uri = credentials_dict.get('token_uri', 'https://oauth2.googleapis.com/token')
+
+            # Set expiry if available
+            if credentials_dict.get('expiry'):
+                from datetime import datetime
+                expiry = credentials_dict['expiry']
+                if isinstance(expiry, str):
+                    credential.token_expiry = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
+                else:
+                    credential.token_expiry = expiry
+
+            if credentials_dict.get('scopes'):
+                credential.set_scopes_list(credentials_dict['scopes'])
+
+            credential.save()
+
+            # Clear OAuth state from session
+            if 'gmail_oauth_state' in request.session:
+                del request.session['gmail_oauth_state']
+
+            messages.success(
+                request,
+                "Gmail connected successfully! Configure your scan settings below."
+            )
+            return redirect('life:gmail_settings')
+
+        except Exception as e:
+            logger.error(f"Gmail callback error: {e}", exc_info=True)
+            messages.error(request, f"Failed to connect Gmail: {str(e)}")
+            return redirect('life:gmail_settings')
+
+
+class GmailDisconnectView(LifeAccessMixin, View):
+    """Disconnect Gmail by removing credentials from database."""
+
+    def post(self, request):
+        from apps.life.models import GmailCredential, ProcessedEmail
+
+        # Delete credentials and processed email records
+        GmailCredential.objects.filter(user=request.user).delete()
+        ProcessedEmail.objects.filter(user=request.user).delete()
+
+        messages.success(request, "Gmail disconnected.")
+        return redirect('life:gmail_settings')
+
+
+class GmailSaveSettingsView(LifeAccessMixin, View):
+    """Save Gmail scan settings."""
+
+    def post(self, request):
+        credential = get_user_gmail_credential(request.user)
+        if not credential:
+            messages.error(request, "Please connect Gmail first.")
+            return redirect('life:gmail_settings')
+
+        # Update settings
+        credential.scan_enabled = request.POST.get('scan_enabled') == 'on'
+
+        try:
+            credential.max_emails_per_scan = int(request.POST.get('max_emails', 20))
+            credential.max_emails_per_scan = max(1, min(50, credential.max_emails_per_scan))
+        except (ValueError, TypeError):
+            credential.max_emails_per_scan = 20
+
+        try:
+            credential.days_to_look_back = int(request.POST.get('days_back', 3))
+            credential.days_to_look_back = max(1, min(14, credential.days_to_look_back))
+        except (ValueError, TypeError):
+            credential.days_to_look_back = 3
+
+        credential.save()
+
+        messages.success(request, "Gmail settings saved.")
+        return redirect('life:gmail_settings')
+
+
+class GmailManualScanView(LifeAccessMixin, View):
+    """Trigger manual Gmail scan for current user."""
+
+    def post(self, request):
+        credential = get_user_gmail_credential(request.user)
+        if not credential or not credential.access_token:
+            messages.error(request, "Please connect Gmail first.")
+            return redirect('life:gmail_settings')
+
+        from apps.life.services.gmail_sync import GmailSyncService
+
+        try:
+            sync_service = GmailSyncService()
+            result = sync_service.scan_user_inbox(request.user)
+
+            if result.get('error'):
+                if result['error'] == 'decryption_error':
+                    messages.warning(
+                        request,
+                        "Your Gmail connection needs to be re-authorized. "
+                        "Please disconnect and reconnect."
+                    )
+                else:
+                    messages.error(request, f"Scan failed: {result['error']}")
+            elif result['tasks_created'] > 0:
+                messages.success(
+                    request,
+                    f"Scan complete! Created {result['tasks_created']} new tasks "
+                    f"from {result['emails_scanned']} emails."
+                )
+            else:
+                messages.info(
+                    request,
+                    f"Scan complete. Checked {result['emails_scanned']} emails, "
+                    "no new action items found."
+                )
+
+        except Exception as e:
+            logger.error(f"Gmail scan error: {e}", exc_info=True)
+            messages.error(request, f"Scan failed: {str(e)}")
+
+        return redirect('life:gmail_settings')
+
+
+class GmailSyncCronView(View):
+    """
+    External cron trigger for Gmail inbox scanning.
+
+    Called by external services (cron-job.org, GitHub Actions) to trigger
+    inbox scanning for all users with Gmail connected.
+
+    Authentication:
+        Requires X-Gmail-Sync-API-Key header matching settings.GMAIL_SYNC_API_KEY
+
+    GET /life/api/gmail/cron-sync/
+
+    Returns:
+        JSON with users_processed, tasks_created, errors
+    """
+
+    def get(self, request):
+        from django.conf import settings
+        from django.http import JsonResponse
+
+        # Authenticate
+        api_key = request.headers.get('X-Gmail-Sync-API-Key', '')
+
+        expected_key = getattr(settings, 'GMAIL_SYNC_API_KEY', '')
+        if not expected_key:
+            return JsonResponse(
+                {'error': 'GMAIL_SYNC_API_KEY not configured'},
+                status=500
+            )
+
+        # Constant-time comparison to prevent timing attacks
+        import hmac
+        if not hmac.compare_digest(api_key, expected_key):
+            logger.warning(f"Gmail cron: Invalid API key from {request.META.get('REMOTE_ADDR')}")
+            return JsonResponse(
+                {'error': 'Invalid API key'},
+                status=401
+            )
+
+        # Run sync for all enabled users
+        try:
+            from apps.life.services.gmail_sync import GmailSyncService
+
+            sync_service = GmailSyncService()
+            result = sync_service.scan_all_users()
+
+            return JsonResponse({
+                'status': 'success',
+                'users_processed': result['users_processed'],
+                'tasks_created': result['tasks_created'],
+                'errors': result.get('errors'),
+            })
+
+        except Exception as e:
+            logger.exception(f"Gmail cron sync error: {e}")
+            return JsonResponse(
+                {'error': str(e)},
+                status=500
+            )
+
+
+# =============================================================================
 # Bulk Delete Views
 # =============================================================================
 

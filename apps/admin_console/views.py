@@ -3333,6 +3333,7 @@ class UpdateTaskStatusAPIView(APIRateLimitMixin, View):
     Body (JSON):
         - status: New status value (e.g., 'done', 'in_progress', 'blocked')
         - reason: Optional reason (required for 'blocked' status)
+        - notes: Optional resolution notes documenting what was done (for 'done' status)
 
     Returns:
         JSON object with success status and updated task info
@@ -3386,6 +3387,7 @@ class UpdateTaskStatusAPIView(APIRateLimitMixin, View):
 
         new_status = data.get('status')
         reason = data.get('reason', '')
+        resolution_notes = data.get('notes', '')  # What was done to complete the task
 
         if not new_status:
             return JsonResponse(
@@ -3404,7 +3406,12 @@ class UpdateTaskStatusAPIView(APIRateLimitMixin, View):
         # Attempt the status transition
         try:
             old_status = task.status
-            task.transition_status(new_status, reason=reason, created_by='claude')
+            task.transition_status(
+                new_status,
+                reason=reason,
+                created_by='claude',
+                resolution_notes=resolution_notes if new_status == 'done' else None
+            )
 
             return JsonResponse({
                 'success': True,
@@ -3413,6 +3420,7 @@ class UpdateTaskStatusAPIView(APIRateLimitMixin, View):
                     'title': task.title,
                     'old_status': old_status,
                     'new_status': task.status,
+                    'resolution_notes': task.resolution_notes if new_status == 'done' else None,
                 }
             })
 

@@ -521,6 +521,16 @@ class AdminTask(models.Model):
         blank=True,
         help_text='Optional screenshot or image attachment for task context'
     )
+    resolution_notes = models.TextField(
+        blank=True,
+        default='',
+        help_text='Documentation of what was done to complete this task: root cause, fix applied, files changed, etc.'
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the task was marked as done'
+    )
     created_by = models.CharField(max_length=10, choices=CREATED_BY_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -624,7 +634,7 @@ class AdminTask(models.Model):
 
         return True
 
-    def transition_status(self, new_status, reason=None, created_by='human'):
+    def transition_status(self, new_status, reason=None, created_by='human', resolution_notes=None):
         """
         Transition the task to a new status with validation and logging.
 
@@ -632,6 +642,7 @@ class AdminTask(models.Model):
             new_status: The target status
             reason: Optional reason (required for blocked status)
             created_by: Who initiated the change ('human' or 'claude')
+            resolution_notes: Documentation of what was done to complete the task
 
         Returns:
             The created AdminActivityLog entry
@@ -639,6 +650,8 @@ class AdminTask(models.Model):
         Raises:
             TaskStatusTransitionError if transition is invalid
         """
+        from django.utils import timezone
+
         old_status = self.status
 
         # No-op if status unchanged
@@ -655,6 +668,13 @@ class AdminTask(models.Model):
         elif new_status != 'blocked' and self.blocked_reason:
             # Clear blocked reason when leaving blocked state
             self.blocked_reason = ''
+
+        # Set resolution notes and completed_at when transitioning to done
+        if new_status == 'done':
+            if resolution_notes:
+                self.resolution_notes = resolution_notes
+            self.completed_at = timezone.now()
+
         self.save()
 
         # Create activity log
@@ -662,6 +682,10 @@ class AdminTask(models.Model):
             action = f"Status changed from '{old_status}' to '{new_status}'. Reason: {reason}"
         else:
             action = f"Status changed from '{old_status}' to '{new_status}'."
+
+        # Include resolution notes in activity log if provided
+        if resolution_notes and new_status == 'done':
+            action += f"\n\nResolution: {resolution_notes}"
 
         log = AdminActivityLog.objects.create(
             task=self,

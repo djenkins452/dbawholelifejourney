@@ -364,11 +364,15 @@ class CaptureEntryUserRelationshipTests(TestCase):
         CaptureEntry.objects.create(user=self.user1, title='Entry 1')
         CaptureEntry.objects.create(user=self.user1, title='Entry 2')
 
-        self.assertEqual(CaptureEntry.objects.filter(user=self.user1).count(), 2)
+        # Save user ID before deletion - can't use user object after delete
+        user1_id = self.user1.id
+
+        self.assertEqual(CaptureEntry.objects.filter(user_id=user1_id).count(), 2)
 
         self.user1.delete()
 
-        self.assertEqual(CaptureEntry.objects.filter(user=self.user1).count(), 0)
+        # After cascade delete, entries should be gone
+        self.assertEqual(CaptureEntry.objects.filter(user_id=user1_id).count(), 0)
 
 
 class CaptureEntryDurationTests(TestCase):

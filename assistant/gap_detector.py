@@ -36,12 +36,13 @@ class GapSeverity(Enum):
 SUPPORTED_DATA_TYPES = [
     'weight', 'journal', 'medication', 'food', 'mood',
     'sleep', 'exercise', 'glucose', 'blood_pressure', 'faith', 'goals',
+    'user',  # User profile data (name, location, timezone, preferences)
 ]
 
 # Data types that have query methods in PersonalDataService
 DATA_TYPES_WITH_METHODS = [
     'weight', 'journal', 'medication', 'food', 'mood',
-    'glucose', 'faith', 'goals',
+    'glucose', 'faith', 'goals', 'user',
 ]
 
 # Common words to exclude from potential keyword extraction

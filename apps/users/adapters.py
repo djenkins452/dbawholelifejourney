@@ -31,7 +31,6 @@ ADMIN_BYPASS_EMAILS = {
 import logging
 
 from allauth.account.adapter import DefaultAccountAdapter
-from django.core.exceptions import ValidationError
 
 from apps.core.security_logging import log_security_event
 from apps.users.models import SignupAttempt
@@ -99,11 +98,7 @@ class WLJAccountAdapter(DefaultAccountAdapter):
         honeypot_value = request.POST.get("website", "")
 
         if honeypot_value:
-            # Log the blocked attempt
-            self._log_honeypot_block(request)
-
-            # Return False to block signup (shows "signup closed" message)
-            # We'll raise a ValidationError in clean_email for better UX
+            # Log the warning (actual blocking is done in CustomSignupForm.clean())
             logger.warning(
                 "Honeypot triggered - blocking signup attempt from IP: %s",
                 get_client_ip(request),
@@ -113,21 +108,12 @@ class WLJAccountAdapter(DefaultAccountAdapter):
 
     def clean_email(self, email):
         """
-        Validate email and check for honeypot field.
+        Validate email address.
 
-        Raises ValidationError if honeypot is filled.
+        Note: Honeypot validation is done in CustomSignupForm.clean() where
+        we have access to the request. The adapter's clean_email is called
+        before pre_save/save_user, so self.request is not available here.
         """
-        # Get the request from the adapter's context
-        request = getattr(self, "request", None)
-
-        if request:
-            honeypot_value = request.POST.get("website", "")
-            if honeypot_value:
-                # Log the blocked attempt
-                self._log_honeypot_block(request, email)
-                # Raise generic error to not reveal honeypot detection
-                raise ValidationError("Unable to create account. Please try again later.")
-
         # Call parent's clean_email for standard validation
         return super().clean_email(email)
 

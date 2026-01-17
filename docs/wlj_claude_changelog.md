@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Fix Honeypot Validation - Move to Form Where Request is Available
+
+**Bug:** The honeypot validation in `WLJAccountAdapter.clean_email()` was dead code that never executed. The adapter's `clean_email` method is called by django-allauth before `pre_save`/`save_user`, meaning `self.request` was always `None` at that point.
+
+**Root Cause:** Per django-allauth issue #2941, `self.request` is not available during adapter `clean_email()` calls. The honeypot check was looking at `self.request.POST.get("website", "")` but `self.request` was `None`.
+
+**Solution:** Moved honeypot validation to `CustomSignupForm.clean()` where we have access to the request (passed from `CustomSignupView.get_form()`). This ensures:
+1. Honeypot detection actually works
+2. Bot blocks result in form validation errors (not 500 errors)
+3. Security logging (`SignupAttempt` records) is created correctly
+
+**Files Modified:**
+- `apps/users/forms.py` - Added honeypot validation and `_log_honeypot_block()` method to `CustomSignupForm`
+- `apps/users/adapters.py` - Removed dead honeypot code from `clean_email()`, removed unused `ValidationError` import, updated comments
+
+**Behavior:**
+- Bots filling the hidden "website" field are blocked with generic error
+- SignupAttempt records logged with `block_reason='honeypot'`
+- Security events logged via `log_security_event()`
+- No more 500 error emails for honeypot blocks
+
+---
+
 ### Sanitize Email Subject Lines in Confirmation Emails
 
 **Bug:** Confirmation emails failed when original email subjects contained newlines (e.g., `\r\n`).

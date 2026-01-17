@@ -88,11 +88,12 @@ class CustomSignupForm(SignupForm):
 
     def clean(self):
         """
-        Validate form data including reCAPTCHA score.
+        Validate form data including honeypot and reCAPTCHA score.
 
-        Validates reCAPTCHA here (during form validation) rather than in
-        adapter.save_user() so that low scores result in form validation
-        errors instead of unhandled exceptions that trigger error emails.
+        Validates both honeypot and reCAPTCHA here (during form validation)
+        rather than in adapter.save_user() so that blocked signups result in
+        form validation errors instead of unhandled exceptions that trigger
+        error emails.
         """
         from django.conf import settings
         from apps.users.services import RecaptchaService
@@ -100,9 +101,19 @@ class CustomSignupForm(SignupForm):
 
         cleaned_data = super().clean()
 
-        # Skip reCAPTCHA validation if no request (e.g., in tests)
+        # Skip validation if no request (e.g., in tests)
         if not self.request:
             return cleaned_data
+
+        # Check honeypot field - bots will fill this hidden field
+        honeypot_value = self.request.POST.get("website", "")
+        if honeypot_value:
+            # Log the blocked attempt
+            self._log_honeypot_block(cleaned_data.get('email', ''))
+            # Raise generic error to not reveal honeypot detection
+            raise forms.ValidationError(
+                "Unable to create account. Please try again later."
+            )
 
         # Get reCAPTCHA token from POST data
         token = self.request.POST.get("recaptcha_token", "")
@@ -152,6 +163,52 @@ class CustomSignupForm(SignupForm):
             logger.error("reCAPTCHA verification error in form: %s", e)
 
         return cleaned_data
+
+    def _log_honeypot_block(self, email=None):
+        """
+        Log a blocked signup attempt due to honeypot trigger.
+
+        Args:
+            email: Optional email address (may not be available)
+        """
+        import logging
+        from apps.core.security_logging import log_security_event
+        from apps.users.adapters import get_client_ip
+        from apps.users.models import SignupAttempt
+        from apps.users.security import hash_email, hash_ip
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            ip = get_client_ip(self.request)
+            user_agent = self.request.META.get("HTTP_USER_AGENT", "")[:500]
+
+            SignupAttempt.objects.create(
+                email_hash=hash_email(email) if email else "",
+                ip_hash=hash_ip(ip),
+                user_agent=user_agent,
+                status="blocked",
+                block_reason="honeypot",
+                risk_level="high",
+                risk_score=1.0,
+            )
+
+            # Send security notification for bot detection
+            log_security_event(
+                event_type='bot_activity',
+                severity='warning',
+                message='Bot signup blocked via honeypot',
+                request=self.request,
+                details={'email_provided': bool(email)},
+            )
+
+            logger.warning(
+                "Honeypot triggered - blocking signup attempt from IP: %s",
+                ip,
+            )
+        except Exception as e:
+            # Don't let logging failures break the validation
+            logger.error("Failed to log honeypot block: %s", e)
 
     def save(self, request):
         """Save the user with the date of birth."""

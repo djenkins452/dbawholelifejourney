@@ -33,11 +33,11 @@ For active development context, see `CLAUDE.md` (project root).
 
 ### Allow AI Assistant to Answer Any Question
 
-**Issue:** The AI Assistant was refusing to answer general knowledge questions like "what's my horoscope" by saying it was only a wellness assistant and couldn't help with that.
+**Issue:** The AI Assistant was refusing to answer general knowledge questions by saying it was only a wellness assistant and couldn't help.
 
 **Solution:** Added a new "ANSWER ANYTHING (WITHIN REASON)" section to the master prompt that explicitly allows the AI to answer:
 - General knowledge and trivia
-- Horoscopes, recipes, sports scores
+- Recipes, sports scores, weather
 - History, math, advice
 - Any helpful question
 

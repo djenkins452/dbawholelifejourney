@@ -18,8 +18,9 @@
             padding: 2rem;
             background: var(--color-bg, #f5f5f5);
         }
-        .error-icon {
-            font-size: 4rem;
+        .error-logo {
+            width: 80px;
+            height: 80px;
             margin-bottom: 1rem;
         }
         .error-title {
@@ -91,8 +92,9 @@
             margin-right: 0.25rem;
         }
         @media (max-width: 480px) {
-            .error-icon {
-                font-size: 3rem;
+            .error-logo {
+                width: 60px;
+                height: 60px;
             }
             .error-title {
                 font-size: 1.5rem;
@@ -111,7 +113,7 @@
 </head>
 <body>
     <div class="error-container">
-        <div class="error-icon">🗺️</div>
+        <img src="{% static 'icons/common/logo.svg' %}" alt="Whole Life Journey" class="error-logo">
         <h1 class="error-title">Well, that didn't work!</h1>
         <p class="error-subtitle">We couldn't find that page</p>
         <p class="error-message">
@@ -123,7 +125,7 @@
             <a href="/" class="btn btn-secondary">Go to Dashboard</a>
         </div>
         <div id="support-notice" class="support-notice">
-            We've let our support team know about this broken link so they can fix it.
+            We've notified our support team about this broken link. Whole Life Journey thanks you for being a customer!
         </div>
     </div>
 
@@ -173,7 +175,7 @@
                     const notice = document.getElementById('support-notice');
                     if (notice) {
                         notice.classList.add('sent');
-                        notice.innerHTML = '<span class="checkmark">✓</span> We\'ve notified our support team about this broken link.';
+                        notice.innerHTML = '<span class="checkmark">✓</span> We\'ve notified our support team about this broken link. Whole Life Journey thanks you for being a customer!';
                     }
                 }
             }).catch(() => {

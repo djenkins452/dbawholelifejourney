@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-17 Changes
 
+### Add /process-emails Slash Command
+
+**Feature:** Created `/process-emails` slash command to manually trigger the Email Intake Service.
+
+**Files Created:**
+- `.claude/commands/process-emails.md` - Slash command definition
+
+**Files Modified:**
+- `.claude/commands/README.md` - Added process-emails to command list
+
+**Usage:** Run `/process-emails` to check the "Automate" email folder and create AdminTasks from any emails found.
+
+**Note:** To change the cron schedule to hourly, update the Railway dashboard cron service settings.
+
+---
+
 ### Add Weather Support to Personal Assistant
 
 **Problem:** When asking the Assistant "what is the weather in Maryville, TN", it replied that it doesn't have access to real-time weather data. ChatGPT can answer this, so our Assistant should too.

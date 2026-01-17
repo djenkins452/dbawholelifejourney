@@ -57,6 +57,18 @@ Custom slash commands for the Whole Life Journey project.
 - Verifies git status (all committed and pushed)
 - Provides session summary
 
+### /process-emails
+**Purpose:** Check the "Automate" email folder and create tasks from emails
+**Model:** Default
+**Usage:** `/process-emails`
+**Actions:**
+- Connects to IMAP mailbox
+- Checks "Automate" folder for emails
+- Creates AdminTask for each email found
+- Sends confirmation email to sender
+- Moves processed email to "New Requests" folder
+- Reports results (tasks created, any errors)
+
 ## Typical Workflow
 
 1. `/next` - See what's ready to work on
@@ -78,4 +90,5 @@ All commands are in `.claude/commands/`:
 - `troubleshoot.md`
 - `log-change.md`
 - `close.md`
+- `process-emails.md`
 - `README.md` (this file)

@@ -440,6 +440,8 @@ class AdminTask(models.Model):
     CREATED_BY_CHOICES = [
         ('human', 'Human'),
         ('claude', 'Claude'),
+        ('404_reporter', '404 Reporter'),
+        ('system', 'System'),
     ]
 
     title = models.CharField(max_length=200)
@@ -531,7 +533,7 @@ class AdminTask(models.Model):
         blank=True,
         help_text='When the task was marked as done'
     )
-    created_by = models.CharField(max_length=10, choices=CREATED_BY_CHOICES)
+    created_by = models.CharField(max_length=15, choices=CREATED_BY_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -724,6 +726,8 @@ class AdminActivityLog(models.Model):
     CREATED_BY_CHOICES = [
         ('human', 'Human'),
         ('claude', 'Claude'),
+        ('404_reporter', '404 Reporter'),
+        ('system', 'System'),
     ]
 
     task = models.ForeignKey(
@@ -732,7 +736,7 @@ class AdminActivityLog(models.Model):
         related_name='activity_logs'
     )
     action = models.TextField()
-    created_by = models.CharField(max_length=10, choices=CREATED_BY_CHOICES)
+    created_by = models.CharField(max_length=15, choices=CREATED_BY_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

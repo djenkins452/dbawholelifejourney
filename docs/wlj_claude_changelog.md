@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-18 Changes
 
+### Fix AdminTask created_by Validation for 404 Reporter
+
+**Bug:** The 404 auto-reporter was failing to create AdminTasks because `'404_reporter'` was not a valid choice in the `created_by` field.
+
+**Root Cause:** The `Report404View` in `apps/core/views.py` was using `created_by='404_reporter'` but this value wasn't in `AdminTask.CREATED_BY_CHOICES`.
+
+**Fix:**
+- Added `'404_reporter'` and `'system'` to `CREATED_BY_CHOICES` for both `AdminTask` and `AdminActivityLog`
+- Increased `max_length` from 10 to 15 to accommodate longer values
+
+**Migrations:**
+- `0020_extend_created_by_max_length` - Alters `created_by` field on both models
+
+**Files Modified:**
+- `apps/admin_console/models.py` - Updated CREATED_BY_CHOICES and max_length
+
+**Tasks Resolved:** #338, #339, #340, #341
+
+---
+
 ### Reading Plan Source Grouping and Access Control
 
 **Feature:** Added source/series grouping and access control for reading plans to support copyrighted sermon content.

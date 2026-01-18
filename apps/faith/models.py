@@ -360,6 +360,34 @@ class ReadingPlanTemplate(models.Model):
         default="beginner",
     )
 
+    # Source and series grouping
+    source = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Source of the content (e.g., 'Seymour Heights Christian Church')",
+    )
+    source_abbreviation = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Short form for display (e.g., 'SHCC')",
+    )
+    series = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Series name within the source (e.g., 'Blind Spots')",
+    )
+    series_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Order within series (e.g., 1 for Week 1, 2 for Week 2)",
+    )
+
+    # Access control for copyrighted content
+    allowed_emails = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of email addresses allowed to access this plan. Empty = public.",
+    )
+
     # Plan metadata
     duration_days = models.PositiveIntegerField(
         help_text="Total days to complete the plan",

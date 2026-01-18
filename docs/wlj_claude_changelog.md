@@ -16,6 +16,45 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-18 Changes
 
+### Reading Plan Source Grouping and Access Control
+
+**Feature:** Added source/series grouping and access control for reading plans to support copyrighted sermon content.
+
+**Model Changes to ReadingPlanTemplate:**
+- `source` - Full name of content source (e.g., "Seymour Heights Christian Church")
+- `source_abbreviation` - Short display name (e.g., "SHCC")
+- `series` - Series name within source (e.g., "Blind Spots")
+- `series_order` - Order within series (1 for Week 1, 2 for Week 2, etc.)
+- `allowed_emails` - JSON list of emails that can access the plan (empty = public)
+
+**View Changes:**
+- `ReadingPlanListView.get_accessible_plans()` - Filters plans by user's email access
+- Plans grouped by source and series for organized display
+- Public plans (no source) shown separately under "All Reading Plans"
+
+**Template Changes:**
+- Source sections with header showing abbreviation and full name
+- Series subsections with week badges
+- Public plans in separate section
+- Responsive styling for mobile
+
+**Migrations:**
+- `0012_add_reading_plan_source_series_access` - Adds new fields
+- `0013_populate_shcc_reading_plans` - Sets SHCC data on existing Blind Spots plans
+
+**Access Restriction:**
+- SHCC Blind Spots plans restricted to dannyjenkins71@gmail.com and heatherjenkins74@gmail.com
+- Other users will not see these plans in the list
+
+**Files Modified:**
+- `apps/faith/models.py` - Added 5 new fields to ReadingPlanTemplate
+- `apps/faith/views.py` - Updated ReadingPlanListView with filtering and grouping
+- `templates/faith/reading_plans/list.html` - Grouped display with new CSS
+- `apps/faith/fixtures/blind_spots_reading_plan.json` - Added source/series fields
+- `apps/faith/fixtures/blind_spots_week1_reading_plan.json` - Added source/series fields
+
+---
+
 ### Faith Only Plan - Free Ministry Tier
 
 **Feature:** Added "Faith Only" plan that gives users permanent free access to the Faith module after their 7-day trial expires, as part of Whole Life Journey's ministry.

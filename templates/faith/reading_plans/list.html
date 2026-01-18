@@ -77,6 +77,64 @@
     </section>
     {% endif %}
 
+    {% comment %}
+    Grouped Plans by Source (e.g., SHCC) and Series (e.g., Blind Spots)
+    These are plans from specific sources that may have access restrictions.
+    {% endcomment %}
+    {% for source_abbrev, source_data in grouped_plans.items %}
+    <section class="mb-8 source-section">
+        <div class="source-header">
+            <h2 class="section-title mb-0">{{ source_abbrev }}</h2>
+            <span class="source-full-name">{{ source_data.full_name }}</span>
+        </div>
+
+        {% for series_name, plans in source_data.series.items %}
+        <div class="series-group mb-6">
+            <h3 class="series-title">{{ series_name }}</h3>
+            <div class="card-grid">
+                {% for plan in plans %}
+                <div class="card reading-plan-card {% if plan.pk in completed_template_ids %}completed-card{% endif %}">
+                    <div class="card-body">
+                        <div class="badge-row">
+                            <span class="badge badge-{{ plan.category }}">{{ plan.get_category_display }}</span>
+                            {% if plan.series_order %}
+                            <span class="badge badge-series-order">Week {{ plan.series_order }}</span>
+                            {% endif %}
+                            {% if plan.pk in completed_template_ids %}
+                            <span class="badge badge-completed">Completed</span>
+                            {% endif %}
+                        </div>
+                        <h3 class="card-title">{{ plan.title }}</h3>
+                        <p class="card-text">{{ plan.description|truncatewords:20 }}</p>
+                        <div class="plan-meta">
+                            <span class="meta-item">{{ plan.duration_days }} days</span>
+                            <span class="meta-item">{{ plan.get_difficulty_display }}</span>
+                        </div>
+                        {% if plan.topics %}
+                        <div class="topic-tags mt-2">
+                            {% for topic in plan.topics|slice:":3" %}
+                            <span class="topic-tag">{{ topic }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <div class="card-actions mt-4">
+                            <a href="{% url 'faith:reading_plan_detail' slug=plan.slug %}" class="btn btn-ghost btn-sm">
+                                Learn More
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endfor %}
+
+    {% comment %}
+    Public Plans - plans without a specific source
+    {% endcomment %}
+    {% if public_plans %}
     <section class="mb-8">
         <div class="flex justify-between items-center mb-4">
             <h2 class="section-title mb-0">All Reading Plans</h2>
@@ -94,9 +152,8 @@
             {% endif %}
         </div>
 
-        {% if all_plans %}
         <div class="card-grid">
-            {% for plan in all_plans %}
+            {% for plan in public_plans %}
             <div class="card reading-plan-card {% if plan.pk in completed_template_ids %}completed-card{% endif %}">
                 <div class="card-body">
                     <div class="badge-row">
@@ -127,15 +184,19 @@
             </div>
             {% endfor %}
         </div>
-        {% else %}
+    </section>
+    {% endif %}
+
+    {% if not grouped_plans and not public_plans %}
+    <section class="mb-8">
         <div class="empty-state">
             <h2 class="empty-state-title">No reading plans available</h2>
             <p class="empty-state-text">
                 Check back soon for new reading plans to help you grow in Scripture.
             </p>
         </div>
-        {% endif %}
     </section>
+    {% endif %}
 
     {% if completed_plans %}
     <section class="mb-8">
@@ -365,6 +426,68 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: var(--space-4);
+}
+
+/* Source and Series grouping styles */
+.source-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.source-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 2px solid var(--color-primary);
+}
+
+.source-header .section-title {
+    color: var(--color-primary);
+    margin-bottom: 0;
+}
+
+.source-full-name {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.series-group {
+    margin-top: var(--space-4);
+}
+
+.series-title {
+    font-size: var(--font-size-lg);
+    font-weight: 500;
+    color: var(--color-text);
+    margin-bottom: var(--space-3);
+    padding-left: var(--space-2);
+    border-left: 3px solid var(--color-accent);
+}
+
+.badge-series-order {
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+}
+
+/* Mobile adjustments for source sections */
+@media (max-width: 480px) {
+    .source-section {
+        padding: var(--space-3);
+    }
+
+    .source-header {
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+
+    .series-title {
+        font-size: var(--font-size-base);
+    }
 }
 </style>
 {% endblock %}

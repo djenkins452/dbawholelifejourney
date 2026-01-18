@@ -1032,22 +1032,36 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
     Browse available reading plans and view active plans.
 
     Shows featured plans, user's active plans, and completed plans.
+    Plans with allowed_emails restrictions are only shown to authorized users.
+    Plans are grouped by source and series.
     """
 
     template_name = "faith/reading_plans/list.html"
     help_context_id = "FAITH_READING_PLANS"
 
+    def get_accessible_plans(self, user):
+        """
+        Return QuerySet of plans the user can access.
+        Plans with empty allowed_emails are public.
+        Plans with allowed_emails only show to users in that list.
+        """
+        from django.db.models import Q
+
+        return ReadingPlanTemplate.objects.filter(
+            Q(allowed_emails=[]) | Q(allowed_emails__contains=user.email),
+            is_active=True,
+        )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        # Available reading plan templates
-        context["featured_plans"] = ReadingPlanTemplate.objects.filter(
-            is_active=True, is_featured=True
-        )
-        context["all_plans"] = ReadingPlanTemplate.objects.filter(
-            is_active=True
-        )
+        # Get plans accessible to this user
+        accessible_plans = self.get_accessible_plans(user)
+
+        # Available reading plan templates (filtered by access)
+        context["featured_plans"] = accessible_plans.filter(is_featured=True)
+        context["all_plans"] = accessible_plans
 
         # User's active plans
         context["active_plans"] = UserReadingPlan.objects.filter(
@@ -1072,12 +1086,35 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
             context["all_plans"] = context["all_plans"].filter(topics__icontains=topic)
             context["selected_topic"] = topic
 
-        # Get all unique topics for filtering
+        # Get all unique topics for filtering (from accessible plans only)
         topics = set()
-        for plan in ReadingPlanTemplate.objects.filter(is_active=True):
+        for plan in accessible_plans:
             if plan.topics:
                 topics.update(plan.topics)
         context["available_topics"] = sorted(topics)
+
+        # Group plans by source and series for organized display
+        # Structure: {source_abbrev: {series_name: [plans], ...}, ...}
+        grouped_plans = {}
+        public_plans = []
+
+        for plan in accessible_plans.order_by("source", "series", "series_order"):
+            if plan.source:
+                source_key = plan.source_abbreviation or plan.source
+                if source_key not in grouped_plans:
+                    grouped_plans[source_key] = {
+                        "full_name": plan.source,
+                        "series": {}
+                    }
+                series_key = plan.series or "Other"
+                if series_key not in grouped_plans[source_key]["series"]:
+                    grouped_plans[source_key]["series"][series_key] = []
+                grouped_plans[source_key]["series"][series_key].append(plan)
+            else:
+                public_plans.append(plan)
+
+        context["grouped_plans"] = grouped_plans
+        context["public_plans"] = public_plans
 
         return context
 

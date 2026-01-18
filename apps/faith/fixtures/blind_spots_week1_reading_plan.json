@@ -11,8 +11,13 @@
       "duration_days": 6,
       "image_url": "",
       "topics": ["blind-spots-series", "self-awareness", "transformation", "holy-spirit", "growth"],
+      "source": "Seymour Heights Christian Church",
+      "source_abbreviation": "SHCC",
+      "series": "Blind Spots",
+      "series_order": 1,
+      "allowed_emails": ["dannyjenkins71@gmail.com", "heatherjenkins74@gmail.com"],
       "is_active": true,
-      "is_featured": true,
+      "is_featured": false,
       "created_at": "2026-01-18T00:00:00Z",
       "updated_at": "2026-01-18T00:00:00Z"
     }

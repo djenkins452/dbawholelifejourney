@@ -91,6 +91,11 @@ FIXTURE_LOADERS = [
         'display': 'Teaching Tool Destinations',
         'description': 'Navigation destinations for teaching tool (where do I...)',
     },
+    {
+        'name': 'blind_spots_reading_plan',
+        'display': 'Blind Spots Reading Plan',
+        'description': 'Surrendering My Blind Spots 6-day reading plan with assessment',
+    },
 ]
 
 COMMAND_LOADERS = [

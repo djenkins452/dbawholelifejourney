@@ -206,11 +206,29 @@ Each destination entry includes:
 
 **To add a new destination:**
 1. Add an entry to `teaching_destinations.json`
-2. Run `python manage.py loaddata teaching_destinations` in production
+2. Fixture loads automatically on deploy (see "Production Data Loading" section)
 
 **API endpoints:**
 - `GET /help/api/teaching/search/?q=<query>` - Search for destinations
 - `GET /help/api/teaching/suggestions/` - Get popular destinations
+
+---
+
+## Production Data Loading
+
+**IMPORTANT:** The user cannot run scripts in production manually. All data loading happens automatically on deploy.
+
+**How it works:**
+- The `Procfile` runs `python manage.py load_initial_data` on every deploy
+- `load_initial_data` uses `DataLoadConfig` to track what's been loaded
+- New fixtures/commands only run once (tracked by name in database)
+
+**To add new fixtures or data:**
+1. Create the fixture file in `apps/<app>/fixtures/<name>.json`
+2. Register it in `apps/core/management/commands/load_initial_data.py` under `FIXTURE_LOADERS`
+3. Commit and push to deploy - it loads automatically
+
+**DO NOT** tell the user to run `loaddata` or any management command in production. Just push the code and it deploys automatically.
 
 ---
 
@@ -246,4 +264,4 @@ Use `/next` slash command or say "What's Next?"
 
 ---
 
-*Last updated: 2026-01-15*
+*Last updated: 2026-01-18*

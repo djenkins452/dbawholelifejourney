@@ -1,0 +1,121 @@
+[
+  {
+    "model": "faith.readingplantemplate",
+    "pk": 101,
+    "fields": {
+      "title": "Opening Your Eyes",
+      "slug": "blind-spots-opening-eyes",
+      "description": "Week 1 of the Blind Spots series at Seymour Heights Christian Church. Begin the journey of self-awareness by recognizing that we all have blind spots—gaps in our perception that prevent us from seeing truth about ourselves and others. This 6-day plan helps you open your heart to the Holy Spirit's guidance for transformation.",
+      "category": "devotional",
+      "difficulty": "beginner",
+      "duration_days": 6,
+      "image_url": "",
+      "topics": ["blind-spots-series", "self-awareness", "transformation", "holy-spirit", "growth"],
+      "is_active": true,
+      "is_featured": true,
+      "created_at": "2026-01-18T00:00:00Z",
+      "updated_at": "2026-01-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1011,
+    "fields": {
+      "plan": 101,
+      "day_number": 1,
+      "title": "What You Don't See Can Hurt You",
+      "scripture_references": ["Matthew 7:1-5"],
+      "reflection_prompt": "Take the Blind Spot Self-Assessment below. Where did you score highest? What surprised you about your answers? Are there areas you initially wanted to rate lower but had to be honest about?",
+      "devotional_text": "Every driver learns about blind spots—those areas beyond your vision where another vehicle might be hiding. You can look in your mirrors, feel confident the lane is clear, and still miss what's right there beside you. What you don't see can hurt you.\n\nBlind spots aren't just a car thing—they're a human thing. And if they're a human thing, they're a Christian thing too. We all have mental blind spots, gaps in our perception that blind us from seeing the truth about ourselves and even other people.\n\nJesus addressed this directly in the Sermon on the Mount when He asked, \"Why do you look at the speck of sawdust in your brother's eye and pay no attention to the plank in your own eye?\" Our blind spots are like logs in our eyes that we've just gotten used to. They've become part of us.\n\nThis is where our journey begins—not with fixing problems, but with seeing them. Before we can address a blind spot, we have to see it. And that requires something uncomfortable: honest self-examination.\n\nAs you begin this series, know that this journey won't always be easy. We may see some things about ourselves that make us wince. But it can also be transforming as we deal with things we've avoided for years.\n\nPrayer Focus: Lord, I give you the green light. I surrender. Open my eyes. Help me see myself as you see me."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1012,
+    "fields": {
+      "plan": 101,
+      "day_number": 2,
+      "title": "The High Capacity for Self-Deception",
+      "scripture_references": ["Jeremiah 17:9-10", "Proverbs 16:2"],
+      "reflection_prompt": "Think about a time you were certain you were right about something, only to discover you were wrong. How did you react when confronted with the truth? What defense mechanisms did you deploy?",
+      "devotional_text": "Blind spots exist because every single one of us has a high capacity for self-deception. We can be deceived—blinded to reality—and not even know it. We tend to deploy defense mechanisms that keep our eyes hidden from what we don't want to see.\n\nJeremiah wrote that \"the heart is deceitful above all things.\" We can do what seems right to us, follow our instincts, and still end up acting foolishly. Our defenses kick in and we create a narrative of excuses, of blame that shifts the responsibility from us onto somebody else.\n\n\"I don't have a problem. They have a problem.\"\n\"I'm the adult in this situation. They're the one acting like a child.\"\n\"I'm just trying to do the right thing. They're the one trying to sabotage things.\"\n\nIt's like a toddler playing in the bathtub who flips onto her tummy and lies motionless when dad says it's time to get out—thinking maybe if she stays still, dad won't see her. We do the same thing spiritually. We think if we don't acknowledge the issue, it isn't there.\n\nBut God sees everything. And His seeing isn't meant to condemn us—it's meant to free us.\n\nPrayer Focus: Ask God to expose the narratives and excuses you've built to avoid seeing truth about yourself."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1013,
+    "fields": {
+      "plan": 101,
+      "day_number": 3,
+      "title": "What Feeds the Blind Spot",
+      "scripture_references": ["Romans 12:3", "Galatians 6:3-5", "1 Corinthians 4:6-7"],
+      "reflection_prompt": "Which of the three contributors—dissatisfaction, competition, or insecurity—resonates most with you? How has it shaped your behavior? Who are you comparing yourself to, and what does that comparison cost you?",
+      "devotional_text": "Several unhealthy elements contribute to our blind spots. Understanding them helps us recognize when we're vulnerable.\n\nThe first is dissatisfaction—being unhappy with the gifts and skills God has given us. Instead of developing what we have, we wish for something else. \"I wish I could do it like that person. I wish I was as outgoing as them.\" So we never develop what God uniquely gave us.\n\nThe second is competition. We compete with others in the family, on the team, at work. We're tempted to base our worth by ranking ourselves against other people. Where's my ranking here? How do I measure up?\n\nThe third is insecurity. We cover up our insecurities with fear or anger or withdrawal. We work extra hard to prove our worth. We gauge our success by others' approval or acceptance rather than God's.\n\nAll three of these keep our eyes off Christ and onto ourselves or others. They become the soil where blind spots grow and thrive.\n\nThe truth is we are not to be conformed to the gifts of others, comparison to others, or how others value our worth. Paul wrote in Romans that God conforms us to the image of His Son, Jesus. That's our only standard.\n\nPrayer Focus: Confess the specific dissatisfaction, competition, or insecurity that feeds your blind spots."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1014,
+    "fields": {
+      "plan": 101,
+      "day_number": 4,
+      "title": "Information vs. Transformation",
+      "scripture_references": ["Romans 12:1-2", "James 1:22-25"],
+      "reflection_prompt": "Think about a truth from Scripture you know well but haven't allowed to change you. What would it look like if that information became transformation? What's stopping you?",
+      "devotional_text": "There's a challenge that haunts the church: We are way educated beyond our level of obedience. We have a lot of information. The issue is we haven't let the information transform us.\n\nPaul wrote, \"Do not be conformed any longer to the pattern of this world, but be transformed by the renewing of your mind.\" Notice the difference—conformed versus transformed. We're always conforming to something. We're conforming to the healthy or unhealthy patterns our family modeled. We're being influenced by the books we read, the shows we watch, our social media footprint, the people we hang out with.\n\nRobert Mulholland wrote something powerful: \"We're being shaped into either the wholeness of the image of Christ or a horrible, destructive caricature of that image—destructive not only to ourselves but to others, because we inflict our brokenness upon them. We either become agents of God's healing and liberating grace or carriers of the sickness of the world.\"\n\nAgents of grace or carriers of sickness. Those are the options. Information alone makes us like the Pharisees—people with Scripture at their fingertips but unchanged hearts. Transformation makes us like Jesus.\n\nPrayer Focus: Ask God to move truth from your head to your heart—from information to transformation."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1015,
+    "fields": {
+      "plan": 101,
+      "day_number": 5,
+      "title": "The Aroma You Carry",
+      "scripture_references": ["2 Corinthians 2:14-17", "Matthew 5:13-16"],
+      "reflection_prompt": "If you asked three people close to you to describe your 'aroma'—the impression you leave—what would they say? Are you attracting people to Christ or repelling them? What blind spot might be affecting your witness?",
+      "devotional_text": "Paul wrote something striking to the Corinthians: \"For we are to God the pleasing aroma of Christ among those who are being saved and those who are perishing.\" We are to be a sweet scent rising to God—a fragrant testimony to the essence of Christ and His good news.\n\nBut here's the uncomfortable question: Are we that? Or are we some disgusting smell? Some offending odor?\n\nThat's exactly what blind spots become. They become an odor that goes with us wherever we go. People notice it, but we don't. We don't realize we're that competitive—always having to win. We don't see that we always have to have the last word, always have to be right, always have to be in control.\n\nWe go through life not being something that turns people toward Christ, but something that repels them. \"I don't want Christ if it means living like that person.\"\n\nAnd we never see it. We're blind to it.\n\nThe goal of self-awareness isn't self-improvement for its own sake. It's becoming a more accurate reflection of Christ in the world. It's carrying an aroma that draws people to Him rather than driving them away.\n\nPrayer Focus: Ask God to reveal any blind spots that are affecting your witness and making you an unpleasant aroma to others."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 1016,
+    "fields": {
+      "plan": 101,
+      "day_number": 6,
+      "title": "The Green Light",
+      "scripture_references": ["John 8:31-32", "Psalm 139:23-24", "Psalm 51:10-12"],
+      "reflection_prompt": "Are you truly open to change in this season of your life? What would it look like to give God complete access to examine your heart? Write out a prayer of surrender, giving God the green light to reveal and address your blind spots.",
+      "devotional_text": "As we conclude this first week, there's one essential question: Are we really open to change? Not surface-level change—real transformation. Are we willing to let the Holy Spirit shape us, mold us, address issues within us like pride, insecurity, and bitterness?\n\nJesus said, \"When we know the truth, the truth will set us free.\" That's what this journey is about—asking God to help us see the truth about ourselves, even the painful truth. The truth that will help us face whatever blind spots we have, see clearly, and become more like Christ.\n\nThis is not a self-help project. It's not about making a better version of yourself. It's a humble openness to the Holy Spirit's guidance that will often lead to brokenness, confession, forgiveness, and a new direction. It's a prayerful journey.\n\nThe Psalmist prayed, \"Search me, God, and know my heart; test me and know my anxious thoughts. See if there is any offensive way in me, and lead me in the way everlasting.\"\n\nThat's the green light. That's the prayer of surrender. When we pray that honestly, we're saying: Lord, I give you permission. Show me what I've been missing. Reveal the patterns I've protected. Open the doors I've kept locked.\n\nPrayer Focus: Pray Psalm 139:23-24 slowly and personally. Give God the green light to begin the work of revealing and healing your blind spots."
+    }
+  },
+  {
+    "model": "faith.readingplanassessment",
+    "pk": 2,
+    "fields": {
+      "plan_day": 1011,
+      "title": "Blind Spot Self-Assessment",
+      "description": "Rate yourself on a scale of 1-5 for each question. 1 = Not at all, 3 = Sometimes, 5 = That's definitely me. Be completely honest—remember, the goal is to see what you've been missing.",
+      "questions": [
+        {"id": "1", "text": "Do you have a habit that is hurtful or harmful to your joy and well-being?", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "2", "text": "Is there a theme or pattern in your life that appears over and over again (relationships that reach a certain point then fail, jobs you love then hate, etc.)?", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "3", "text": "Do you feel tension in a relationship and you can't put your finger on the issue?", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "4", "text": "Is there an area of your life that you're struggling to manage?", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "5", "text": "Do you have behaviors or experiences that happen repeatedly in your career?", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "6", "text": "Do you value being right over being effective?", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "7", "text": "Do you struggle to say no to people you should say no to?", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"},
+        {"id": "8", "text": "Do you struggle to stand up for yourself in conflict or find yourself exiting every conflict situation?", "min_label": "Not at all", "mid_label": "Sometimes", "max_label": "Definitely"}
+      ],
+      "score_ranges": [
+        {"min": 32, "max": 40, "label": "Significant Blind Spots", "description": "Your high score suggests there are several areas in your life where blind spots may be affecting your relationships, growth, and walk with God. This isn't bad news—it's the beginning of transformation. Acknowledging blind spots is the hardest step. You're ready to let God's light shine into hidden places."},
+        {"min": 24, "max": 31, "label": "Some Blind Spots", "description": "You have some areas that deserve attention. There are patterns or habits that may be holding you back without you fully realizing it. This series will help you identify specific blind spots and begin addressing them with the Holy Spirit's guidance."},
+        {"min": 16, "max": 23, "label": "Growing Awareness", "description": "You show good self-awareness in many areas, but there's always room to grow. Pay attention to the questions where you scored higher—those may point to specific blind spots worth exploring during this series."},
+        {"min": 8, "max": 15, "label": "Strong Self-Awareness", "description": "You scored low, which could mean you have strong self-awareness—or it could be a blind spot in itself. Make sure you're being completely honest. Ask a trusted friend if they see anything you might be missing. Even the most self-aware people have blind spots."}
+      ],
+      "min_score_per_question": 1,
+      "max_score_per_question": 5,
+      "created_at": "2026-01-18T00:00:00Z",
+      "updated_at": "2026-01-18T00:00:00Z"
+    }
+  }
+]

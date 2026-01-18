@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-18 Changes
 
+### Blind Spots Week 1 Reading Plan - "Opening Your Eyes"
+
+**Feature:** Created 6-day reading plan for Week 1 of the Blind Spots sermon series at Seymour Heights Christian Church.
+
+**Content:**
+- Day 1: What You Don't See Can Hurt You (Matthew 7:1-5) - Introduction with self-assessment
+- Day 2: The High Capacity for Self-Deception (Jeremiah 17:9-10, Proverbs 16:2)
+- Day 3: What Feeds the Blind Spot (Romans 12:3, Galatians 6:3-5) - Dissatisfaction, competition, insecurity
+- Day 4: Information vs. Transformation (Romans 12:1-2, James 1:22-25)
+- Day 5: The Aroma You Carry (2 Corinthians 2:14-17, Matthew 5:13-16)
+- Day 6: The Green Light (John 8:31-32, Psalm 139:23-24) - Surrender and openness to Holy Spirit
+
+**Assessment:** 8-question "Blind Spot Self-Assessment" based on sermon reflection prompts, with 4 score interpretation ranges.
+
+**Files Created:**
+- `apps/faith/fixtures/blind_spots_week1_reading_plan.json` - Fixture with template (PK 101), 6 days (PK 1011-1016), and assessment (PK 2)
+
+**Files Modified:**
+- `apps/core/management/commands/load_initial_data.py` - Added fixture to FIXTURE_LOADERS
+
+---
+
 ### Fix Reading Plan Display Issues
 
 **Fixes:**

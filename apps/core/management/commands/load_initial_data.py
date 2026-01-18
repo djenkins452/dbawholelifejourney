@@ -93,8 +93,13 @@ FIXTURE_LOADERS = [
     },
     {
         'name': 'blind_spots_reading_plan',
-        'display': 'Blind Spots Reading Plan',
+        'display': 'Blind Spots Reading Plan (Week 2)',
         'description': 'Surrendering My Blind Spots 6-day reading plan with assessment',
+    },
+    {
+        'name': 'blind_spots_week1_reading_plan',
+        'display': 'Blind Spots Reading Plan (Week 1)',
+        'description': 'Opening Your Eyes 6-day reading plan with self-assessment',
     },
 ]
 

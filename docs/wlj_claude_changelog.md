@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-18 Changes
 
+### Fix Reading Plan Display Issues
+
+**Fixes:**
+1. **Markdown markers in devotional text** - Created migration `0011_update_blind_spots_devotional_text.py` to update database with clean text (no `**` markers)
+2. **Line breaks not rendering** - Changed template to use `|linebreaks` filter instead of wrapping in `<p>` tag
+3. **Scripture references cut off** - Added `white-space: nowrap` to prevent truncation
+
+**Files Modified:**
+- `apps/faith/migrations/0011_update_blind_spots_devotional_text.py` - Data migration to clean up devotional text
+- `templates/faith/reading_plans/progress.html` - Template and CSS fixes
+
+---
+
 ### Reading Plan Completion Badge on Browse Cards
 
 **Feature:** Added completion badge indicator on the "All Reading Plans" browse grid to show which plans a user has previously completed.

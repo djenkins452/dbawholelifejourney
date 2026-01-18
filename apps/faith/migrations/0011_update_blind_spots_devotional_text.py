@@ -131,17 +131,31 @@ If we trust Jesus to carry away our sin and make us right with God—can't we tr
 Prayer Focus: Name the specific thing you're surrendering. Wave your white flag. Ask God for grace to trust Him one day at a time—starting today.""",
 }
 
+# Scripture references for each day
+SCRIPTURE_REFERENCES = {
+    1: ["Genesis 2:15-25", "Genesis 3:1-7"],
+    2: ["Matthew 6:25-27"],
+    3: ["Matthew 6:28-32"],
+    4: ["James 4:1-10"],
+    5: ["Matthew 6:25-34"],
+    6: ["1 Peter 5:6-11", "Psalm 37:1-9"],
+}
+
 
 def update_devotional_texts(apps, schema_editor):
-    """Update devotional texts to remove ** markdown markers."""
+    """Update devotional texts to remove ** markdown markers and ensure scripture refs."""
     ReadingPlanDay = apps.get_model('faith', 'ReadingPlanDay')
 
     for day_number, text in DEVOTIONAL_TEXTS.items():
         # Update the record for the Blind Spots reading plan (pk=100)
+        update_data = {'devotional_text': text}
+        if day_number in SCRIPTURE_REFERENCES:
+            update_data['scripture_references'] = SCRIPTURE_REFERENCES[day_number]
+
         ReadingPlanDay.objects.filter(
             plan_id=100,
             day_number=day_number
-        ).update(devotional_text=text)
+        ).update(**update_data)
 
 
 def reverse_migration(apps, schema_editor):

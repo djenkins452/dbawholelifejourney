@@ -58,10 +58,12 @@ from .models import (
     DailyVerse,
     FaithMilestone,
     PrayerRequest,
+    ReadingPlanAssessment,
     ReadingPlanDay,
     ReadingPlanTemplate,
     SavedVerse,
     ScriptureVerse,
+    UserAssessmentResponse,
     UserReadingPlan,
     UserReadingProgress,
 )
@@ -1187,6 +1189,21 @@ class ReadingPlanProgressView(LoginRequiredMixin, FaithRequiredMixin, DetailView
                 plan_day=context["current_day"],
             ).first()
 
+            # Get assessments for current day with user responses
+            assessments = context["current_day"].assessments.all()
+            assessments_with_responses = []
+            for assessment in assessments:
+                user_response = UserAssessmentResponse.objects.filter(
+                    user=self.request.user,
+                    assessment=assessment,
+                    user_plan=user_plan,
+                ).first()
+                assessments_with_responses.append({
+                    "assessment": assessment,
+                    "user_response": user_response,
+                })
+            context["assessments"] = assessments_with_responses
+
         # Get all progress entries
         context["all_progress"] = user_plan.day_completions.select_related(
             "plan_day"
@@ -1295,6 +1312,55 @@ class DeleteReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
         user_plan.soft_delete()
         messages.success(request, f"'{plan_title}' has been removed from your completed plans.")
         return redirect("faith:reading_plans")
+
+
+class SaveAssessmentResponseView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Save user's assessment responses via AJAX.
+
+    Expects POST with JSON body:
+    {
+        "responses": {"1": 3, "2": 5, ...}
+    }
+    """
+
+    def post(self, request, plan_pk, assessment_pk):
+        user_plan = get_object_or_404(
+            UserReadingPlan.objects.filter(user=request.user),
+            pk=plan_pk
+        )
+        assessment = get_object_or_404(
+            ReadingPlanAssessment,
+            pk=assessment_pk
+        )
+
+        try:
+            data = json.loads(request.body)
+            responses = data.get("responses", {})
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+        # Get or create the response object
+        user_response, created = UserAssessmentResponse.objects.get_or_create(
+            user=request.user,
+            assessment=assessment,
+            user_plan=user_plan,
+            defaults={"responses": responses}
+        )
+
+        if not created:
+            user_response.responses = responses
+            user_response.save()
+
+        # Get interpretation
+        interpretation = user_response.interpretation
+
+        return JsonResponse({
+            "success": True,
+            "total_score": user_response.total_score,
+            "max_score": assessment.max_possible_score,
+            "interpretation": interpretation,
+        })
 
 
 # =============================================================================

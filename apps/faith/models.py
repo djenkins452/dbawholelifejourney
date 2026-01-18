@@ -568,6 +568,146 @@ class UserReadingProgress(UserOwnedModel):
 
 
 # =============================================================================
+# READING PLAN ASSESSMENTS
+# =============================================================================
+
+
+class ReadingPlanAssessment(models.Model):
+    """
+    An interactive assessment embedded within a reading plan day.
+
+    Assessments can have multiple questions with scored responses,
+    allowing users to evaluate themselves and see results with
+    interpretive feedback.
+    """
+
+    plan_day = models.ForeignKey(
+        ReadingPlanDay,
+        on_delete=models.CASCADE,
+        related_name="assessments",
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="e.g., 'Control Freak Assessment'",
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Instructions or context for the assessment",
+    )
+
+    # Questions stored as JSON array:
+    # [
+    #   {"id": 1, "text": "Do you help other people drive?", "min_label": "Never", "max_label": "Always"},
+    #   {"id": 2, "text": "Do you over-plan simple activities?", "min_label": "Never", "max_label": "Always"},
+    # ]
+    questions = models.JSONField(
+        default=list,
+        help_text="List of questions with id, text, min_label, max_label",
+    )
+
+    # Score ranges stored as JSON array:
+    # [
+    #   {"min": 40, "max": 50, "label": "Control Freak", "description": "You have significant control issues..."},
+    #   {"min": 30, "max": 39, "label": "Control Issues", "description": "You have some control tendencies..."},
+    # ]
+    score_ranges = models.JSONField(
+        default=list,
+        help_text="Score interpretation ranges with label and description",
+    )
+
+    # Scoring configuration
+    min_score_per_question = models.PositiveIntegerField(
+        default=1,
+        help_text="Minimum score value (e.g., 1)",
+    )
+    max_score_per_question = models.PositiveIntegerField(
+        default=5,
+        help_text="Maximum score value (e.g., 5)",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["plan_day", "pk"]
+        verbose_name = "reading plan assessment"
+        verbose_name_plural = "reading plan assessments"
+
+    def __str__(self):
+        return f"{self.plan_day} - {self.title}"
+
+    @property
+    def max_possible_score(self):
+        """Calculate maximum possible score based on questions."""
+        return len(self.questions) * self.max_score_per_question
+
+    def get_score_interpretation(self, score):
+        """Return the interpretation for a given score."""
+        for range_info in self.score_ranges:
+            if range_info["min"] <= score <= range_info["max"]:
+                return range_info
+        return None
+
+
+class UserAssessmentResponse(UserOwnedModel):
+    """
+    Stores a user's responses to a reading plan assessment.
+
+    Responses are stored as a JSON object mapping question IDs to scores.
+    """
+
+    assessment = models.ForeignKey(
+        ReadingPlanAssessment,
+        on_delete=models.CASCADE,
+        related_name="responses",
+    )
+    user_plan = models.ForeignKey(
+        UserReadingPlan,
+        on_delete=models.CASCADE,
+        related_name="assessment_responses",
+    )
+
+    # Responses stored as JSON: {"1": 3, "2": 5, "3": 2, ...}
+    responses = models.JSONField(
+        default=dict,
+        help_text="Question ID to score mapping",
+    )
+
+    # Calculated total score
+    total_score = models.PositiveIntegerField(
+        default=0,
+        help_text="Sum of all response scores",
+    )
+
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-completed_at"]
+        unique_together = ["user", "assessment", "user_plan"]
+        verbose_name = "assessment response"
+        verbose_name_plural = "assessment responses"
+
+    def __str__(self):
+        return f"{self.user.email}: {self.assessment.title} - Score: {self.total_score}"
+
+    def calculate_score(self):
+        """Calculate and save the total score from responses."""
+        self.total_score = sum(self.responses.values())
+        return self.total_score
+
+    def save(self, *args, **kwargs):
+        # Auto-calculate score on save
+        if self.responses:
+            self.total_score = sum(int(v) for v in self.responses.values())
+        super().save(*args, **kwargs)
+
+    @property
+    def interpretation(self):
+        """Get score interpretation from the assessment."""
+        return self.assessment.get_score_interpretation(self.total_score)
+
+
+# =============================================================================
 # BIBLE STUDY TOOLS - Highlights, Bookmarks, Notes
 # =============================================================================
 

@@ -14,6 +14,69 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-18 Changes
+
+### Reading Plan Assessments - Interactive Self-Assessments
+
+**Feature:** Added interactive assessments to Reading Plans, allowing users to take scored self-assessments with dropdowns and see interpreted results.
+
+**Implementation:**
+
+**Models (`apps/faith/models.py`):**
+- `ReadingPlanAssessment` - Stores assessment definition linked to a ReadingPlanDay
+  - `questions` (JSONField) - Array of questions with id, text, min_label, mid_label, max_label
+  - `score_ranges` (JSONField) - Score interpretation ranges with min, max, label, description
+  - `min_score_per_question`, `max_score_per_question` - Scoring configuration
+  - `max_possible_score` property and `get_score_interpretation()` method
+- `UserAssessmentResponse` - Stores user's responses and calculated score
+  - `responses` (JSONField) - Question ID to score mapping
+  - `total_score` - Auto-calculated on save
+  - `interpretation` property for retrieving result label/description
+
+**Views (`apps/faith/views.py`):**
+- Updated `ReadingPlanProgressView` to include assessment data with user responses
+- Added `SaveAssessmentResponseView` - AJAX endpoint to save assessment responses
+
+**URLs (`apps/faith/urls.py`):**
+- `/faith/reading-plans/progress/<plan_pk>/assessment/<assessment_pk>/save/` - Save assessment response
+
+**Templates (`templates/faith/reading_plans/progress.html`):**
+- Added assessment rendering with dropdown selects for each question (1-5 scale)
+- JavaScript for collecting responses, calculating score, and displaying results
+- CSS for responsive assessment styling (mobile-friendly)
+- Saved responses are restored when returning to the page
+
+**Template Tags (`apps/core/templatetags/json_filters.py`):**
+- Added `jsonify` filter for safely encoding Python dicts to JSON in data attributes
+
+**Admin (`apps/faith/admin.py`):**
+- `ReadingPlanAssessmentAdmin` - Manage assessments with question count display
+- `UserAssessmentResponseAdmin` - View user responses with score interpretation
+
+**Fixture (`apps/faith/fixtures/blind_spots_reading_plan.json`):**
+- "Surrendering My Blind Spots" - 6-day reading plan based on SHCC sermon
+- Day 1 includes Control Freak Assessment with 10 questions
+- Score interpretations: Control Freak (40-50), Control Issues (30-39), Live and Let Live (20-29), Very Laid Back (10-19)
+
+**Migration:** `apps/faith/migrations/0010_reading_plan_assessments.py`
+
+**Tests (`apps/faith/tests/test_reading_plans.py`):**
+- `ReadingPlanAssessmentModelTest` - Model tests for scoring and interpretation
+- `UserAssessmentResponseModelTest` - Tests for auto-calculation and interpretation
+- `SaveAssessmentResponseViewTest` - View tests for AJAX save endpoint
+
+**Files Changed:**
+- `apps/faith/models.py` - Added ReadingPlanAssessment and UserAssessmentResponse
+- `apps/faith/views.py` - Updated progress view, added save assessment view
+- `apps/faith/urls.py` - Added assessment save endpoint
+- `apps/faith/admin.py` - Added admin for assessment models
+- `templates/faith/reading_plans/progress.html` - Assessment UI with JS
+- `apps/core/templatetags/json_filters.py` - New jsonify filter
+- `apps/faith/fixtures/blind_spots_reading_plan.json` - New fixture
+- `apps/faith/tests/test_reading_plans.py` - Assessment tests
+
+---
+
 ## 2026-01-17 Changes
 
 ### Gmail Integration - Auto-Create Tasks from Email Action Items

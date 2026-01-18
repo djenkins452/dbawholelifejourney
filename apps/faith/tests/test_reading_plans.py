@@ -487,3 +487,242 @@ class DeleteReadingPlanViewTest(ReadingPlanTestMixin, TestCase):
 
         # Plan should still exist
         self.assertTrue(UserReadingPlan.objects.filter(pk=self.user_plan.pk).exists())
+
+
+# =============================================================================
+# 5. READING PLAN ASSESSMENT TESTS
+# =============================================================================
+
+
+class ReadingPlanAssessmentModelTest(ReadingPlanTestMixin, TestCase):
+    """Tests for ReadingPlanAssessment model."""
+
+    def setUp(self):
+        from apps.faith.models import ReadingPlanAssessment
+
+        self.user = self.create_user()
+        self.template = self.create_reading_plan_template(duration_days=3)
+        self.day_1 = self.template.days.get(day_number=1)
+
+        # Create an assessment for day 1
+        self.assessment = ReadingPlanAssessment.objects.create(
+            plan_day=self.day_1,
+            title="Control Assessment",
+            description="Rate yourself on control tendencies",
+            questions=[
+                {"id": "1", "text": "Question 1", "min_label": "Never", "max_label": "Always"},
+                {"id": "2", "text": "Question 2", "min_label": "Never", "max_label": "Always"},
+                {"id": "3", "text": "Question 3", "min_label": "Never", "max_label": "Always"},
+            ],
+            score_ranges=[
+                {"min": 12, "max": 15, "label": "High", "description": "High control"},
+                {"min": 8, "max": 11, "label": "Medium", "description": "Medium control"},
+                {"min": 3, "max": 7, "label": "Low", "description": "Low control"},
+            ],
+            min_score_per_question=1,
+            max_score_per_question=5,
+        )
+
+    def test_max_possible_score(self):
+        """Max possible score should be questions * max_score."""
+        self.assertEqual(self.assessment.max_possible_score, 15)  # 3 questions * 5
+
+    def test_get_score_interpretation_high(self):
+        """High score returns correct interpretation."""
+        interp = self.assessment.get_score_interpretation(14)
+        self.assertEqual(interp["label"], "High")
+        self.assertEqual(interp["description"], "High control")
+
+    def test_get_score_interpretation_medium(self):
+        """Medium score returns correct interpretation."""
+        interp = self.assessment.get_score_interpretation(10)
+        self.assertEqual(interp["label"], "Medium")
+
+    def test_get_score_interpretation_low(self):
+        """Low score returns correct interpretation."""
+        interp = self.assessment.get_score_interpretation(5)
+        self.assertEqual(interp["label"], "Low")
+
+    def test_get_score_interpretation_out_of_range(self):
+        """Out of range score returns None."""
+        interp = self.assessment.get_score_interpretation(100)
+        self.assertIsNone(interp)
+
+
+class UserAssessmentResponseModelTest(ReadingPlanTestMixin, TestCase):
+    """Tests for UserAssessmentResponse model."""
+
+    def setUp(self):
+        from apps.faith.models import ReadingPlanAssessment, UserAssessmentResponse
+
+        self.user = self.create_user()
+        self.template = self.create_reading_plan_template(duration_days=3)
+        self.user_plan = self.start_reading_plan(self.user, self.template)
+        self.day_1 = self.template.days.get(day_number=1)
+
+        self.assessment = ReadingPlanAssessment.objects.create(
+            plan_day=self.day_1,
+            title="Test Assessment",
+            questions=[
+                {"id": "1", "text": "Q1"},
+                {"id": "2", "text": "Q2"},
+            ],
+            score_ranges=[
+                {"min": 7, "max": 10, "label": "High", "description": "High score"},
+                {"min": 2, "max": 6, "label": "Low", "description": "Low score"},
+            ],
+        )
+
+    def test_auto_calculate_score_on_save(self):
+        """Total score is auto-calculated when responses are saved."""
+        from apps.faith.models import UserAssessmentResponse
+
+        response = UserAssessmentResponse.objects.create(
+            user=self.user,
+            assessment=self.assessment,
+            user_plan=self.user_plan,
+            responses={"1": 3, "2": 4},
+        )
+        self.assertEqual(response.total_score, 7)
+
+    def test_interpretation_property(self):
+        """Interpretation property returns correct result."""
+        from apps.faith.models import UserAssessmentResponse
+
+        response = UserAssessmentResponse.objects.create(
+            user=self.user,
+            assessment=self.assessment,
+            user_plan=self.user_plan,
+            responses={"1": 4, "2": 5},
+        )
+        self.assertEqual(response.total_score, 9)
+        self.assertEqual(response.interpretation["label"], "High")
+
+
+class SaveAssessmentResponseViewTest(ReadingPlanTestMixin, TestCase):
+    """Tests for saving assessment responses via AJAX."""
+
+    def setUp(self):
+        import json
+        from apps.faith.models import ReadingPlanAssessment
+
+        self.client = Client()
+        self.user = self.create_user()
+        self.template = self.create_reading_plan_template(duration_days=3)
+        self.user_plan = self.start_reading_plan(self.user, self.template)
+        self.day_1 = self.template.days.get(day_number=1)
+
+        self.assessment = ReadingPlanAssessment.objects.create(
+            plan_day=self.day_1,
+            title="Test Assessment",
+            questions=[
+                {"id": "1", "text": "Q1"},
+                {"id": "2", "text": "Q2"},
+            ],
+            score_ranges=[
+                {"min": 7, "max": 10, "label": "High", "description": "High score"},
+                {"min": 2, "max": 6, "label": "Low", "description": "Low score"},
+            ],
+        )
+
+        self.login_user()
+
+    def test_save_assessment_response(self):
+        """Can save assessment response via POST."""
+        import json
+        from apps.faith.models import UserAssessmentResponse
+
+        url = reverse('faith:save_assessment_response', kwargs={
+            'plan_pk': self.user_plan.pk,
+            'assessment_pk': self.assessment.pk,
+        })
+        data = {"responses": {"1": 3, "2": 4}}
+
+        response = self.client.post(
+            url,
+            json.dumps(data),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertTrue(result['success'])
+        self.assertEqual(result['total_score'], 7)
+        self.assertEqual(result['interpretation']['label'], 'High')
+
+        # Verify saved in database
+        saved = UserAssessmentResponse.objects.get(
+            user=self.user,
+            assessment=self.assessment,
+        )
+        self.assertEqual(saved.total_score, 7)
+
+    def test_update_existing_response(self):
+        """Can update an existing assessment response."""
+        import json
+        from apps.faith.models import UserAssessmentResponse
+
+        # Create initial response
+        UserAssessmentResponse.objects.create(
+            user=self.user,
+            assessment=self.assessment,
+            user_plan=self.user_plan,
+            responses={"1": 1, "2": 1},
+        )
+
+        url = reverse('faith:save_assessment_response', kwargs={
+            'plan_pk': self.user_plan.pk,
+            'assessment_pk': self.assessment.pk,
+        })
+        data = {"responses": {"1": 5, "2": 5}}
+
+        response = self.client.post(
+            url,
+            json.dumps(data),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertEqual(result['total_score'], 10)
+
+        # Verify only one response exists
+        count = UserAssessmentResponse.objects.filter(
+            user=self.user,
+            assessment=self.assessment,
+        ).count()
+        self.assertEqual(count, 1)
+
+    def test_requires_login(self):
+        """Saving assessment requires authentication."""
+        import json
+
+        self.client.logout()
+
+        url = reverse('faith:save_assessment_response', kwargs={
+            'plan_pk': self.user_plan.pk,
+            'assessment_pk': self.assessment.pk,
+        })
+        response = self.client.post(
+            url,
+            json.dumps({"responses": {"1": 1}}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('login', response.url.lower())
+
+    def test_invalid_json_returns_error(self):
+        """Invalid JSON returns error response."""
+        url = reverse('faith:save_assessment_response', kwargs={
+            'plan_pk': self.user_plan.pk,
+            'assessment_pk': self.assessment.pk,
+        })
+
+        response = self.client.post(
+            url,
+            "not valid json",
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)

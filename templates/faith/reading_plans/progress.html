@@ -84,6 +84,59 @@
                 </div>
                 {% endif %}
 
+                {% for item in assessments %}
+                {% load json_filters %}
+                <div class="assessment-section" data-assessment-id="{{ item.assessment.pk }}" data-plan-id="{{ user_plan.pk }}"
+                     {% if item.user_response %}data-saved-responses='{{ item.user_response.responses|jsonify }}'{% endif %}>
+                    <h4>{{ item.assessment.title }}</h4>
+                    {% if item.assessment.description %}
+                    <p class="assessment-description">{{ item.assessment.description }}</p>
+                    {% endif %}
+
+                    <div class="assessment-questions">
+                        {% for question in item.assessment.questions %}
+                        <div class="assessment-question">
+                            <label class="question-text">{{ forloop.counter }}. {{ question.text }}</label>
+                            <select class="form-select assessment-response" data-question-id="{{ question.id }}">
+                                <option value="">-- Select --</option>
+                                <option value="1">1 - {{ question.min_label|default:"Never" }}</option>
+                                <option value="2">2</option>
+                                <option value="3">3 - {{ question.mid_label|default:"Sometimes" }}</option>
+                                <option value="4">4</option>
+                                <option value="5">5 - {{ question.max_label|default:"Always" }}</option>
+                            </select>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="assessment-actions">
+                        <button type="button" class="btn btn-primary calculate-score-btn">Calculate My Score</button>
+                    </div>
+
+                    <div class="assessment-results" style="display: none;">
+                        <div class="score-display">
+                            <span class="score-value">--</span>
+                            <span class="score-max">/ {{ item.assessment.max_possible_score }}</span>
+                        </div>
+                        <div class="score-label"></div>
+                        <div class="score-description"></div>
+                    </div>
+
+                    {% if item.user_response %}
+                    <div class="assessment-saved-results">
+                        <div class="score-display">
+                            <span class="score-value">{{ item.user_response.total_score }}</span>
+                            <span class="score-max">/ {{ item.assessment.max_possible_score }}</span>
+                        </div>
+                        {% if item.user_response.interpretation %}
+                        <div class="score-label">{{ item.user_response.interpretation.label }}</div>
+                        <div class="score-description">{{ item.user_response.interpretation.description }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
                 {% if not current_progress.is_completed %}
                 <form method="post" action="{% url 'faith:mark_day_complete' pk=user_plan.pk day_pk=current_day.pk %}"
                       class="completion-form">
@@ -312,5 +365,221 @@
 .text-error {
     color: var(--color-error);
 }
+
+/* Assessment Styles */
+.assessment-section {
+    margin-top: var(--space-6);
+    padding: var(--space-6);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+}
+
+.assessment-section h4 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+    color: var(--color-primary);
+}
+
+.assessment-description {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.assessment-questions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.assessment-question {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.question-text {
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.assessment-response {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+    font-size: var(--font-size-base);
+    min-width: 200px;
+    max-width: 300px;
+}
+
+.assessment-actions {
+    margin-top: var(--space-6);
+    text-align: center;
+}
+
+.assessment-results,
+.assessment-saved-results {
+    margin-top: var(--space-6);
+    padding: var(--space-6);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-accent) 10%, transparent));
+    border-radius: var(--radius-lg);
+    text-align: center;
+}
+
+.score-display {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    margin-bottom: var(--space-2);
+}
+
+.score-value {
+    color: var(--color-primary);
+}
+
+.score-max {
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+
+.score-label {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-accent);
+    margin-bottom: var(--space-2);
+}
+
+.score-description {
+    color: var(--color-text);
+    line-height: 1.6;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+/* Mobile responsiveness for assessments */
+@media (max-width: 480px) {
+    .assessment-section {
+        padding: var(--space-4);
+    }
+
+    .assessment-response {
+        width: 100%;
+        max-width: none;
+    }
+
+    .score-display {
+        font-size: var(--font-size-2xl);
+    }
+}
 </style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle assessment scoring
+    document.querySelectorAll('.calculate-score-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const section = this.closest('.assessment-section');
+            const assessmentId = section.dataset.assessmentId;
+            const planId = section.dataset.planId;
+            const selects = section.querySelectorAll('.assessment-response');
+
+            // Collect responses
+            const responses = {};
+            let allAnswered = true;
+
+            selects.forEach(function(select) {
+                const questionId = select.dataset.questionId;
+                const value = select.value;
+                if (!value) {
+                    allAnswered = false;
+                    select.style.borderColor = 'var(--color-error)';
+                } else {
+                    select.style.borderColor = '';
+                    responses[questionId] = parseInt(value);
+                }
+            });
+
+            if (!allAnswered) {
+                alert('Please answer all questions before calculating your score.');
+                return;
+            }
+
+            // Save to server
+            fetch(`/faith/reading-plans/progress/${planId}/assessment/${assessmentId}/save/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken')
+                },
+                body: JSON.stringify({ responses: responses })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Hide any existing saved results
+                    const savedResults = section.querySelector('.assessment-saved-results');
+                    if (savedResults) {
+                        savedResults.style.display = 'none';
+                    }
+
+                    // Show results
+                    const resultsDiv = section.querySelector('.assessment-results');
+                    resultsDiv.querySelector('.score-value').textContent = data.total_score;
+
+                    if (data.interpretation) {
+                        resultsDiv.querySelector('.score-label').textContent = data.interpretation.label || '';
+                        resultsDiv.querySelector('.score-description').textContent = data.interpretation.description || '';
+                    }
+
+                    resultsDiv.style.display = 'block';
+
+                    // Scroll to results
+                    resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            })
+            .catch(error => {
+                console.error('Error saving assessment:', error);
+                alert('There was an error saving your assessment. Please try again.');
+            });
+        });
+    });
+
+    // Restore saved responses
+    document.querySelectorAll('.assessment-section').forEach(function(section) {
+        const savedResponsesStr = section.dataset.savedResponses;
+        if (savedResponsesStr) {
+            try {
+                const savedResponses = JSON.parse(savedResponsesStr);
+                // Restore each select value
+                Object.keys(savedResponses).forEach(function(questionId) {
+                    const select = section.querySelector(`select[data-question-id="${questionId}"]`);
+                    if (select) {
+                        select.value = savedResponses[questionId];
+                    }
+                });
+            } catch (e) {
+                console.error('Error parsing saved responses:', e);
+            }
+        }
+    });
+
+    // Helper function to get CSRF token from cookie
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
 {% endblock %}

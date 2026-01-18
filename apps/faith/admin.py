@@ -20,10 +20,12 @@ from .models import (
     DailyVerse,
     FaithMilestone,
     PrayerRequest,
+    ReadingPlanAssessment,
     ReadingPlanDay,
     ReadingPlanTemplate,
     SavedVerse,
     ScriptureVerse,
+    UserAssessmentResponse,
     UserReadingPlan,
     UserReadingProgress,
 )
@@ -212,6 +214,48 @@ class UserReadingProgressAdmin(admin.ModelAdmin):
     list_filter = ["is_completed"]
     search_fields = ["user_plan__user__email", "user_plan__template__title"]
     raw_id_fields = ["user", "user_plan", "plan_day"]
+
+
+# =============================================================================
+# READING PLAN ASSESSMENTS ADMIN
+# =============================================================================
+
+
+@admin.register(ReadingPlanAssessment)
+class ReadingPlanAssessmentAdmin(admin.ModelAdmin):
+    list_display = [
+        "title",
+        "plan_day",
+        "question_count",
+        "created_at",
+    ]
+    list_filter = ["plan_day__plan"]
+    search_fields = ["title", "description", "plan_day__plan__title"]
+    raw_id_fields = ["plan_day"]
+
+    @admin.display(description="Questions")
+    def question_count(self, obj):
+        return len(obj.questions)
+
+
+@admin.register(UserAssessmentResponse)
+class UserAssessmentResponseAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "assessment",
+        "total_score",
+        "interpretation_label",
+        "completed_at",
+    ]
+    list_filter = ["assessment"]
+    search_fields = ["user__email", "assessment__title"]
+    raw_id_fields = ["user", "assessment", "user_plan"]
+    readonly_fields = ["total_score"]
+
+    @admin.display(description="Result")
+    def interpretation_label(self, obj):
+        interp = obj.interpretation
+        return interp.get("label", "N/A") if interp else "N/A"
 
 
 # =============================================================================

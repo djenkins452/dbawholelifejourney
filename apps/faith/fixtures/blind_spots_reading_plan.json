@@ -1,0 +1,123 @@
+[
+  {
+    "model": "faith.readingplantemplate",
+    "pk": 100,
+    "fields": {
+      "title": "Surrendering My Blind Spots",
+      "slug": "surrendering-blind-spots",
+      "description": "A 6-day journey to identify and surrender your blind spots to God. Based on SHCC's sermon series on Blind Spots, focusing on the control issue and learning to trust God with every area of your life.",
+      "category": "devotional",
+      "difficulty": "beginner",
+      "duration_days": 6,
+      "image_url": "",
+      "topics": ["control", "trust", "worry", "surrender", "faith"],
+      "is_active": true,
+      "is_featured": true,
+      "created_at": "2026-01-18T00:00:00Z",
+      "updated_at": "2026-01-18T00:00:00Z"
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 601,
+    "fields": {
+      "plan": 100,
+      "day_number": 1,
+      "title": "Do I Have a Control Problem?",
+      "scripture_references": ["Genesis 2:15-25", "Genesis 3:1-7"],
+      "reflection_prompt": "Where did you score highest on the assessment? What areas of your life are you gripping tightly, afraid to release? What does your desire for control reveal about where you're struggling to trust God?",
+      "devotional_text": "**Theme: Awareness - seeing what we've been missing**\n\nBefore we can address a blind spot, we have to see it. Just like we can't see the car in our blind spot without intentionally looking, we often can't see our control issues without honest examination.\n\nAdam and Eve lived in perfect harmony with God—no shame, no fear, no need to control. Then the serpent introduced a lie: \"You will be like God.\" The first blind spot was born from the desire to control what only God should control.\n\nIn Genesis 3, the serpent's temptation was fundamentally about control. Our desire to control is, at its root, our desire to be God. We don't think of it that way—but that's the blind spot.\n\n**Prayer Focus:** Ask God to reveal blind spots you can't see on your own. Be willing to see what you haven't wanted to see."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 602,
+    "fields": {
+      "plan": 100,
+      "day_number": 2,
+      "title": "The Root of Control - Worry",
+      "scripture_references": ["Matthew 6:25-27"],
+      "reflection_prompt": "What am I currently worrying about? How has worry divided my focus and stolen my joy? What joyful thing in my life has worry fragmented?",
+      "devotional_text": "**Theme: Understanding what feeds the blind spot**\n\n*\"The blind spot of control is fed by a mindset of worry.\"*\n\nThe Greek word for \"worry\" means \"to divide into fragments.\" That's exactly what worry does—it takes your focused mind and fragments it like a grenade, splintering your attention into dozens of \"what-ifs.\"\n\nJesus asks a piercing question: \"Can any one of you by worrying add a single hour to your life?\" Worry is the engine that drives our need to control. We worry because we don't trust. We control because we're afraid.\n\n**Why Jesus is against worry:**\n- Worry **divides our minds** (fragments our focus)\n- Worry is **unproductive** (can't change past or future—only messes up today)\n- Worry **robs our joy** (turns blessings into burdens)\n- Worry is **unhealthy** (acid reflux, high blood pressure, sleep disorders)\n- Worry is **unchristian** (it's a trust issue disguised as responsibility)\n\n**Prayer Focus:** Name your worries out loud to God. Don't try to solve them—just name them."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 603,
+    "fields": {
+      "plan": 100,
+      "day_number": 3,
+      "title": "The Illusion of Control",
+      "scripture_references": ["Matthew 6:28-32"],
+      "reflection_prompt": "What are you trying hardest to control right now? What does that reveal about where you're struggling to trust God? Where have you confused \"being responsible\" with \"being in control\"?",
+      "devotional_text": "**Theme: Exposing the lie we believe**\n\n**The Illusion:** We think we will have peace if we have control over our health, our marriage, our finances, our co-workers, our neighbors, the ministry team we lead.\n\n**The Truth:** That's as deceiving as the serpent's lie in the garden.\n\nConsider what we actually can't control:\n- **Our health future** — We might be diagnosed with cancer, Alzheimer's, or MS. We can make good decisions, get our check-ups, eat healthy—but we can't control outcomes.\n- **Our family's future** — Our parents, spouse, or kids might make bad choices. We can pray, support, forgive, and love—but we can't control their choices.\n- **Our financial future** — Do you control the stock market? Your Roth IRA? Things can change in a heartbeat.\n- **Our country's future** — We can vote, be good citizens—but we can't control the political climate.\n\n*\"When we try to control everything, we enjoy nothing.\"*\n\n*\"What we attempt to control the most often reveals where we trust God the least.\"*\n\n**Prayer Focus:** Ask God to show you the illusion you've been believing—that control brings peace."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 604,
+    "fields": {
+      "plan": 100,
+      "day_number": 4,
+      "title": "Control's Ugly Tools",
+      "scripture_references": ["James 4:1-10"],
+      "reflection_prompt": "Which of these three tools do you tend to reach for: spiritualizing, punishing, or disconnecting? Who have you tried to control using these methods?",
+      "devotional_text": "**Theme: Recognizing how control shows up in behavior**\n\nWhen Christians try to control things, we typically use one of three tools:\n\n**1. Spiritualizing**\n\"I think God wants you to date this young man.\"\n\"I think God wants you to take this job.\"\nUsing God as the trump card sounds spiritual—but it can be manipulation dressed in religious language.\n\n**2. Punishing**\n\"If you can't get better than a B, you don't deserve to have friends over.\"\nWe throw out punishment to control behavior.\n\n**3. Disconnecting**\n\"I'm not yelling. I'm not screaming. I just won't talk.\"\n\"I'm going to unfriend you.\"\n\"I'm not coming to church until you acknowledge I'm right.\"\n\nAs Pastor said: *\"It's easy to feel quite righteous about this because I'm not yelling or screaming at anybody. Oh, you're angry. You're just doing it in a different form.\"*\n\n**Prayer Focus:** Confess specific instances where you've used these tools. Ask God to replace control with trust."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 605,
+    "fields": {
+      "plan": 100,
+      "day_number": 5,
+      "title": "Trust - The Opposite of Control",
+      "scripture_references": ["Matthew 6:25-34"],
+      "reflection_prompt": "Read through the passage and speak each trust statement out loud. Which one is hardest for you to believe? Why?",
+      "devotional_text": "**Theme: Replacing control with dependence on God**\n\nToday, read Matthew 6:25-34 as a responsive reading. After each section, speak the trust statement out loud:\n\n*\"Therefore I tell you, do not worry about your life...\"*\n**Say:** \"I trust that God will meet my needs—financially, physically, and emotionally.\"\n\n*\"Look at the birds of the air... Are you not much more valuable than they?\"*\n**Say:** \"I trust that God cares for me and loves me.\"\n\n*\"Can any one of you by worrying add a single hour to your life?\"*\n**Say:** \"I trust that God has numbered my days.\"\n\n*\"See how the flowers of the field grow...\"*\n**Say:** \"I trust that doing my best is enough.\"\n\n*\"But seek first his kingdom and his righteousness...\"*\n**Say:** \"I trust that God and His kingdom are the best way to win over worry.\"\n\n*\"Therefore do not worry about tomorrow...\"*\n**Say:** \"I trust God to take care of tomorrow.\"\n\n**The key truth:** *\"The opposite of control is not chaos. The opposite of control is trust.\"*\n\n**Prayer Focus:** Pray through each trust statement again, personalizing it for your specific situation."
+    }
+  },
+  {
+    "model": "faith.readingplanday",
+    "pk": 606,
+    "fields": {
+      "plan": 100,
+      "day_number": 6,
+      "title": "Waving the White Flag",
+      "scripture_references": ["1 Peter 5:6-11", "Psalm 37:1-9"],
+      "reflection_prompt": "What specific white flag do you need to wave today? What would it look like to trust God with that area the same way you trust Him for your salvation?",
+      "devotional_text": "**Theme: Surrender and freedom**\n\n*\"Cast all your anxiety on him because he cares for you.\"* — 1 Peter 5:7\n\nThe Jerusalem Bible translates it: *\"Unload all your worries on him, since he's looking after you.\"*\n\n**Four Steps to Freedom:**\n\n**1. Admit you have a problem with control.**\nFor some of us, this is the hardest step. Are you trying to control things? Be honest.\n\n**2. Surrender.**\nWave the white flag. Say out loud: \"God, I can't control this. I'm handing it to you.\"\n\n**3. Remember: the opposite of control is not chaos—it's trust.**\nWhen we remember we belong to God, it's easier to surrender. Letting go is actually freeing.\n\n**4. Live one day at a time.**\nThere are two days we should never worry about: yesterday and tomorrow.\n\n**The ultimate proof of God's care:**\nIf we trust Jesus to carry away our sin and make us right with God—can't we trust Him with our finances? Our marriage? Our children? Our work?\n\n*\"If we can trust in God's hands for our salvation, can't we put all these other things in his hands? God's like, 'That's small potatoes.' Because He did the greatest thing by laying down His life for us.\"*\n\n**Prayer Focus:** Name the specific thing you're surrendering. Wave your white flag. Ask God for grace to trust Him one day at a time—starting today."
+    }
+  },
+  {
+    "model": "faith.readingplanassessment",
+    "pk": 1,
+    "fields": {
+      "plan_day": 601,
+      "title": "Control Freak Assessment",
+      "description": "Rate yourself on a scale of 1-5 for each question. 1 = Never, 3 = Sometimes, 5 = That's definitely me. Be honest with yourself!",
+      "questions": [
+        {"id": "1", "text": "Do you help other people drive—telling them what route to take, when to turn, where to park, that the traffic light changed?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"},
+        {"id": "2", "text": "Do you devote a lot of attention and energy to keeping your personal environment organized?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"},
+        {"id": "3", "text": "Do you give people lots of 'shoulds' and 'oughts'—unsolicited advice, suggestions, and constructive criticism?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"},
+        {"id": "4", "text": "Do you have lots of personal rules, routines, rituals, and ceremonies?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"},
+        {"id": "5", "text": "Are you the one who takes over and orders other people around when the situation seems confusing?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"},
+        {"id": "6", "text": "Do you dislike depending on others, accepting help from them, or allowing them to do things for you?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"},
+        {"id": "7", "text": "Do you insist on being right, having things done your way, or having the final word?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"},
+        {"id": "8", "text": "Do you over-plan simple activities?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"},
+        {"id": "9", "text": "Do you find it difficult to admit making mistakes, being wrong or misinformed, or acknowledging that you've changed your mind?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"},
+        {"id": "10", "text": "Do you become angry, irritable, or anxious when someone or something makes you late, when things don't start on time, or when things don't go according to plan?", "min_label": "Never", "mid_label": "Sometimes", "max_label": "That's me"}
+      ],
+      "score_ranges": [
+        {"min": 40, "max": 50, "label": "Control Freak", "description": "You have significant control issues that are likely affecting your relationships and your walk with God. The good news? Recognizing it is the first step. This reading plan is exactly what you need. God wants to set you free from the burden of trying to control everything."},
+        {"min": 30, "max": 39, "label": "Control Issues", "description": "You have some control tendencies that are worth examining. You may not think of yourself as controlling, but there are areas where you're holding on too tightly. Ask God to reveal the specific areas where you need to surrender."},
+        {"min": 20, "max": 29, "label": "Live and Let Live", "description": "You have a relatively healthy relationship with control. You're able to let go of things that aren't in your power. Continue to grow in trust, and be aware of situations that might trigger control behaviors."},
+        {"min": 10, "max": 19, "label": "Very Laid Back", "description": "You scored very low on control tendencies. Make sure you're being honest with yourself! If this score is accurate, thank God for the freedom you experience. Use this plan to deepen your trust in Him even more."}
+      ],
+      "min_score_per_question": 1,
+      "max_score_per_question": 5,
+      "created_at": "2026-01-18T00:00:00Z",
+      "updated_at": "2026-01-18T00:00:00Z"
+    }
+  }
+]

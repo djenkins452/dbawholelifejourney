@@ -16,6 +16,21 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-18 Changes
 
+### Reading Plan Completion Badge on Browse Cards
+
+**Feature:** Added completion badge indicator on the "All Reading Plans" browse grid to show which plans a user has previously completed.
+
+**Files Modified:**
+- `apps/faith/views.py` - Added `completed_template_ids` set to context in `ReadingPlanListView`
+- `templates/faith/reading_plans/list.html` - Added "Completed" badge and green border on plan cards for completed plans
+
+**Behavior:**
+- When browsing "All Reading Plans", cards for plans the user has completed now show a green "Completed" badge
+- Cards also have a green border to distinguish them visually
+- Users can still click "Learn More" to restart the plan if desired
+
+---
+
 ### Reading Plan Assessments - Interactive Self-Assessments
 
 **Feature:** Added interactive assessments to Reading Plans, allowing users to take scored self-assessments with dropdowns and see interpreted results.

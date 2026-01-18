@@ -97,9 +97,14 @@
         {% if all_plans %}
         <div class="card-grid">
             {% for plan in all_plans %}
-            <div class="card reading-plan-card">
+            <div class="card reading-plan-card {% if plan.pk in completed_template_ids %}completed-card{% endif %}">
                 <div class="card-body">
-                    <span class="badge badge-{{ plan.category }} mb-2">{{ plan.get_category_display }}</span>
+                    <div class="badge-row">
+                        <span class="badge badge-{{ plan.category }}">{{ plan.get_category_display }}</span>
+                        {% if plan.pk in completed_template_ids %}
+                        <span class="badge badge-completed">Completed</span>
+                        {% endif %}
+                    </div>
                     <h3 class="card-title">{{ plan.title }}</h3>
                     <p class="card-text">{{ plan.description|truncatewords:20 }}</p>
                     <div class="plan-meta">
@@ -179,6 +184,22 @@
 
 .reading-plan-card.featured {
     border-color: var(--color-accent);
+}
+
+.reading-plan-card.completed-card {
+    border-color: var(--color-success);
+}
+
+.badge-row {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-2);
+}
+
+.badge-completed {
+    background: var(--color-success);
+    color: white;
 }
 
 .progress-bar-container {

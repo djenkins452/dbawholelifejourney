@@ -1059,6 +1059,13 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
             user=user, plan_status="completed"
         ).select_related("template")[:5]
 
+        # Set of completed template IDs for badge display on browse cards
+        context["completed_template_ids"] = set(
+            UserReadingPlan.objects.filter(
+                user=user, plan_status="completed"
+            ).values_list("template_id", flat=True)
+        )
+
         # Filter by topic if requested
         topic = self.request.GET.get("topic")
         if topic:

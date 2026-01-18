@@ -16,6 +16,62 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-18 Changes
 
+### Faith Only Plan - Free Ministry Tier
+
+**Feature:** Added "Faith Only" plan that gives users permanent free access to the Faith module after their 7-day trial expires, as part of Whole Life Journey's ministry.
+
+**Behavior:**
+- After trial expires, users see Faith Only option on trial-expired page
+- Selecting Faith Only grants permanent free access to all `/faith/` paths
+- Faith Only users are blocked from Journal, Health, Life, Purpose, Dashboard
+- Dashboard redirects Faith Only users to Faith Home
+- Upgrade prompts shown at: Week 1, Month 2, Month 3, then stop forever
+
+**Models Added:**
+- `BillingProfile.TIER_FAITH_ONLY` - New pricing tier constant
+- `BillingProfile.STATUS_FAITH_ONLY` - New subscription status constant
+- `BillingProfile.is_faith_only` - Property to check tier
+- `BillingProfile.has_faith_access` - Property to check Faith module access
+- `UserPreferences.faith_only_selected_at` - When user selected Faith Only
+- `UserPreferences.faith_only_upgrade_week1_shown` / `_shown_at` - Week 1 prompt tracking
+- `UserPreferences.faith_only_upgrade_month2_shown` / `_shown_at` - Month 2 prompt tracking
+- `UserPreferences.faith_only_upgrade_month3_shown` / `_shown_at` - Month 3 prompt tracking
+
+**Views Added:**
+- `select_faith_only` (POST) - Selects Faith Only plan, redirects to Faith Home
+- `faith_only_upgrade` - Page shown when Faith Only users try restricted features
+- `faith_upgrade_prompt_check` (GET API) - Check if upgrade modal should show
+- `faith_upgrade_prompt_dismiss` (POST API) - Record prompt was dismissed
+
+**URLs Added:**
+- `/billing/select-faith-only/`
+- `/billing/faith-only-upgrade/`
+- `/billing/api/faith-upgrade/check/`
+- `/billing/api/faith-upgrade/dismiss/`
+
+**Templates Created:**
+- `templates/billing/faith_only_upgrade.html` - Upgrade page for restricted features
+- `templates/components/faith_only_upgrade_modal.html` - Periodic upgrade prompt modal
+
+**Templates Modified:**
+- `templates/billing/trial_expired.html` - Added Faith Only option section
+- `templates/faith/home.html` - Included upgrade modal for Faith Only users
+
+**Middleware Modified:**
+- `apps/users/middleware.py` - SubscriptionRequiredMiddleware now allows `/faith/` paths for Faith Only users, redirects other paths to faith_only_upgrade
+
+**Dashboard Modified:**
+- `apps/dashboard/views.py` - DashboardView.dispatch redirects Faith Only users to Faith Home
+
+**Migrations:**
+- `apps/billing/migrations/0006_add_faith_only_tier.py` - Adds TIER_FAITH_ONLY and STATUS_FAITH_ONLY to choices
+- `apps/users/migrations/0038_add_faith_only_tracking.py` - Adds upgrade prompt tracking fields
+
+**Tests Added:**
+- `apps/billing/tests/test_faith_only.py` - 24 tests covering selection, access control, upgrade prompts
+
+---
+
 ### Blind Spots Week 1 Reading Plan - "Opening Your Eyes"
 
 **Feature:** Created 6-day reading plan for Week 1 of the Blind Spots sermon series at Seymour Heights Christian Church.

@@ -6,12 +6,15 @@ Handles plan selection, checkout, success/cancel pages, and customer portal.
 
 import logging
 
+import json
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .models import BillingProfile
@@ -365,3 +368,168 @@ def trial_expired(request):
     }
 
     return render(request, 'billing/trial_expired.html', context)
+
+
+@login_required
+@require_POST
+def select_faith_only(request):
+    """
+    User selects the free Faith Only plan after trial expires.
+
+    Sets the billing profile to FAITH_ONLY tier/status and records the selection date.
+    Faith Only gives permanent free access to the Faith module only.
+    """
+    profile = get_or_create_billing_profile(request.user)
+    prefs = request.user.preferences
+
+    # Set Faith Only status
+    profile.pricing_tier = BillingProfile.TIER_FAITH_ONLY
+    profile.subscription_status = BillingProfile.STATUS_FAITH_ONLY
+    profile.save(update_fields=['pricing_tier', 'subscription_status', 'updated_at'])
+
+    # Record when Faith Only was selected (for upgrade prompt scheduling)
+    prefs.faith_only_selected_at = timezone.now()
+    prefs.save(update_fields=['faith_only_selected_at', 'updated_at'])
+
+    messages.success(
+        request,
+        "Welcome to Faith Only! You now have permanent free access to Scripture, "
+        "prayers, reading plans, and Bible study tools."
+    )
+
+    return redirect("faith:home")
+
+
+@login_required
+def faith_only_upgrade(request):
+    """
+    Display upgrade page for Faith Only users trying to access restricted features.
+
+    Shows what features they're missing and subscription options to upgrade.
+    """
+    profile = get_or_create_billing_profile(request.user)
+
+    # If user has full access, redirect to dashboard
+    if profile.has_access:
+        return redirect('dashboard:home')
+
+    # If not Faith Only (e.g., trial expired, no subscription), redirect to trial_expired
+    if not profile.is_faith_only:
+        return redirect('billing:trial_expired')
+
+    # Determine which tier the user qualifies for
+    eligible_tier = determine_tier_by_age(request.user.date_of_birth)
+
+    context = {
+        'profile': profile,
+        'eligible_tier': eligible_tier,
+        'is_student_eligible': eligible_tier == BillingProfile.TIER_STUDENT,
+        'stripe_public_key': settings.STRIPE_PUBLIC_KEY,
+    }
+
+    return render(request, 'billing/faith_only_upgrade.html', context)
+
+
+@login_required
+@require_GET
+def faith_upgrade_prompt_check(request):
+    """
+    Check if the Faith Only upgrade prompt should be shown.
+
+    Prompt Schedule (from faith_only_selected_at):
+    - Week 1: Days 7-13 (show once)
+    - Month 2: Days 30-44 (show once)
+    - Month 3: Days 60-74 (show once, final)
+    - After Day 75: No more prompts
+
+    Returns JSON:
+        should_show: bool
+        prompt_type: 'week1' | 'month2' | 'month3' | null
+        days_on_plan: int
+    """
+    profile = get_or_create_billing_profile(request.user)
+    prefs = request.user.preferences
+
+    # Only show prompts for Faith Only users
+    if not profile.is_faith_only:
+        return JsonResponse({'should_show': False})
+
+    selected_at = prefs.faith_only_selected_at
+    if not selected_at:
+        return JsonResponse({'should_show': False})
+
+    days_since_selection = (timezone.now() - selected_at).days
+
+    # Week 1 prompt (days 7-13)
+    if 7 <= days_since_selection < 14 and not prefs.faith_only_upgrade_week1_shown:
+        return JsonResponse({
+            'should_show': True,
+            'prompt_type': 'week1',
+            'days_on_plan': days_since_selection
+        })
+
+    # Month 2 prompt (days 30-44)
+    if 30 <= days_since_selection < 45 and not prefs.faith_only_upgrade_month2_shown:
+        return JsonResponse({
+            'should_show': True,
+            'prompt_type': 'month2',
+            'days_on_plan': days_since_selection
+        })
+
+    # Month 3 prompt (days 60-74) - FINAL prompt
+    if 60 <= days_since_selection < 75 and not prefs.faith_only_upgrade_month3_shown:
+        return JsonResponse({
+            'should_show': True,
+            'prompt_type': 'month3',
+            'days_on_plan': days_since_selection
+        })
+
+    return JsonResponse({'should_show': False})
+
+
+@login_required
+@require_POST
+def faith_upgrade_prompt_dismiss(request):
+    """
+    Record that the upgrade prompt was shown/dismissed.
+
+    POST body (JSON):
+        prompt_type: 'week1' | 'month2' | 'month3'
+
+    Updates the appropriate tracking field in UserPreferences.
+    """
+    prefs = request.user.preferences
+    now = timezone.now()
+
+    try:
+        data = json.loads(request.body)
+        prompt_type = data.get('prompt_type')
+    except json.JSONDecodeError:
+        prompt_type = request.POST.get('prompt_type')
+
+    if prompt_type == 'week1':
+        prefs.faith_only_upgrade_week1_shown = True
+        prefs.faith_only_upgrade_week1_shown_at = now
+        prefs.save(update_fields=[
+            'faith_only_upgrade_week1_shown',
+            'faith_only_upgrade_week1_shown_at',
+            'updated_at'
+        ])
+    elif prompt_type == 'month2':
+        prefs.faith_only_upgrade_month2_shown = True
+        prefs.faith_only_upgrade_month2_shown_at = now
+        prefs.save(update_fields=[
+            'faith_only_upgrade_month2_shown',
+            'faith_only_upgrade_month2_shown_at',
+            'updated_at'
+        ])
+    elif prompt_type == 'month3':
+        prefs.faith_only_upgrade_month3_shown = True
+        prefs.faith_only_upgrade_month3_shown_at = now
+        prefs.save(update_fields=[
+            'faith_only_upgrade_month3_shown',
+            'faith_only_upgrade_month3_shown_at',
+            'updated_at'
+        ])
+
+    return JsonResponse({'success': True})

@@ -12,6 +12,12 @@ urlpatterns = [
     # Trial expired page
     path('trial-expired/', views.trial_expired, name='trial_expired'),
 
+    # Faith Only plan (free, Faith module only)
+    path('select-faith-only/', views.select_faith_only, name='select_faith_only'),
+    path('faith-only-upgrade/', views.faith_only_upgrade, name='faith_only_upgrade'),
+    path('api/faith-upgrade/check/', views.faith_upgrade_prompt_check, name='faith_upgrade_check'),
+    path('api/faith-upgrade/dismiss/', views.faith_upgrade_prompt_dismiss, name='faith_upgrade_dismiss'),
+
     # Plan selection and checkout
     path('plans/', views.select_plan, name='select_plan'),
     path('checkout/', views.create_checkout_session, name='create_checkout'),

@@ -109,9 +109,37 @@
         </div>
     </div>
 
+    <!-- Faith Only Option -->
+    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-6 mb-8">
+        <div class="flex items-start gap-4">
+            <div class="flex-shrink-0">
+                <svg class="w-10 h-10 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                </svg>
+            </div>
+            <div class="flex-1">
+                <h3 class="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">
+                    Just here for the Faith journey?
+                </h3>
+                <p class="text-amber-700 dark:text-amber-300 mb-4">
+                    As part of Whole Life Journey's ministry, you can continue using Scripture reading,
+                    prayers, reading plans, and Bible study tools <strong>completely free, forever</strong>.
+                    You can always upgrade later to unlock journaling, health tracking, AI features, and more.
+                </p>
+                <form method="post" action="{% url 'billing:select_faith_only' %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="px-6 py-3 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition shadow-sm">
+                        Continue with Faith Only (Free Forever)
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Features List -->
     <div class="bg-white dark:bg-gray-800 rounded-xl p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Continue enjoying:</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">With a subscription, continue enjoying:</h3>
         <ul class="space-y-3 text-gray-600 dark:text-gray-400">
             <li class="flex items-center">
                 <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">

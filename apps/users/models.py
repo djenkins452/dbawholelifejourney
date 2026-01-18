@@ -787,6 +787,45 @@ class UserPreferences(models.Model):
         help_text="Your preferred fasting schedule. This will be pre-selected when starting a new fast.",
     )
 
+    # ===================
+    # FAITH ONLY PLAN TRACKING
+    # ===================
+    # Tracks when user selected Faith Only plan and upgrade prompt schedule
+    faith_only_selected_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the user selected the Faith Only plan (used for upgrade prompt scheduling)",
+    )
+
+    # Upgrade prompt schedule tracking (Week 1, Month 2, Month 3, then stop)
+    faith_only_upgrade_week1_shown = models.BooleanField(
+        default=False,
+        help_text="Has the Week 1 upgrade prompt been shown?",
+    )
+    faith_only_upgrade_week1_shown_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the Week 1 upgrade prompt was shown",
+    )
+    faith_only_upgrade_month2_shown = models.BooleanField(
+        default=False,
+        help_text="Has the Month 2 upgrade prompt been shown?",
+    )
+    faith_only_upgrade_month2_shown_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the Month 2 upgrade prompt was shown",
+    )
+    faith_only_upgrade_month3_shown = models.BooleanField(
+        default=False,
+        help_text="Has the Month 3 (final) upgrade prompt been shown?",
+    )
+    faith_only_upgrade_month3_shown_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the Month 3 upgrade prompt was shown",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

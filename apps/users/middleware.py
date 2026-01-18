@@ -113,6 +113,9 @@ class SubscriptionRequiredMiddleware:
     If the user's trial has expired and they don't have an active subscription,
     they are redirected to the subscription page.
 
+    Faith Only users (free tier with Faith module access only) are allowed
+    to access /faith/ paths but are redirected to an upgrade page for other paths.
+
     Exempt paths:
     - Same as TermsAcceptanceMiddleware, plus:
     - Billing/subscription pages (so users can subscribe)
@@ -133,6 +136,11 @@ class SubscriptionRequiredMiddleware:
         "/__debug__/",  # Django debug toolbar
     ]
 
+    # Paths allowed for Faith Only users (free tier with Faith module only)
+    FAITH_ONLY_ALLOWED_PATHS = [
+        "/faith/",
+    ]
+
     def __init__(self, get_response):
         self.get_response = get_response
 
@@ -144,8 +152,20 @@ class SubscriptionRequiredMiddleware:
                 # Skip for staff/superusers (admins always have access)
                 if not request.user.is_staff:
                     try:
-                        # Check if user has access (subscription or trial)
-                        if not request.user.billing_profile.has_access:
+                        billing_profile = request.user.billing_profile
+
+                        # Full access users (subscription or trial) proceed normally
+                        if billing_profile.has_access:
+                            pass  # Allow through
+                        # Faith Only users get restricted access
+                        elif billing_profile.is_faith_only:
+                            # Allow faith paths
+                            if any(request.path.startswith(path) for path in self.FAITH_ONLY_ALLOWED_PATHS):
+                                pass  # Allow through to Faith module
+                            else:
+                                # Block other paths - redirect to Faith Only upgrade page
+                                return redirect("billing:faith_only_upgrade")
+                        else:
                             # User's trial has expired and no active subscription
                             return redirect("billing:trial_expired")
                     except AttributeError:

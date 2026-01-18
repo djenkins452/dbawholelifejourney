@@ -1,0 +1,313 @@
+{% comment %}
+Faith Only Upgrade Prompt Modal Component
+
+Shows periodic upgrade prompts for Faith Only users:
+- Week 1: 7 days after selecting Faith Only
+- Month 2: 30 days after selecting Faith Only
+- Month 3: 60 days after selecting Faith Only (final prompt)
+
+Include this in faith/home.html for Faith Only users.
+{% endcomment %}
+
+<!-- Faith Only Upgrade Prompt Modal -->
+<dialog id="faith-upgrade-modal" class="faith-upgrade-modal">
+    <div class="faith-upgrade-modal-content">
+        <header class="faith-upgrade-modal-header">
+            <div class="faith-upgrade-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                </svg>
+            </div>
+            <h2 id="faith-upgrade-title">Enjoying Your Faith Journey?</h2>
+            <button type="button" class="faith-upgrade-modal-close" onclick="dismissFaithUpgrade()" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </header>
+
+        <div class="faith-upgrade-modal-body">
+            <p id="faith-upgrade-message" class="faith-upgrade-main">
+                You've been growing in your faith with us. Consider upgrading to unlock the complete Whole Life Journey experience.
+            </p>
+
+            <div class="faith-upgrade-features">
+                <h4>Unlock with a subscription:</h4>
+                <ul>
+                    <li>
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        Daily Journaling with AI Insights
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        Health &amp; Wellness Tracking
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        Life Organization &amp; Goals
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <footer class="faith-upgrade-modal-footer">
+            <a href="{% url 'billing:select_plan' %}" class="btn btn-primary">View Plans</a>
+            <button type="button" class="btn btn-ghost" onclick="dismissFaithUpgrade()">
+                Maybe Later
+            </button>
+        </footer>
+    </div>
+</dialog>
+
+<style nonce="{{ csp_nonce }}">
+/* Faith Only Upgrade Modal Styles */
+.faith-upgrade-modal {
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: 0;
+    max-width: 440px;
+    width: 90%;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    background: var(--color-background);
+}
+
+.faith-upgrade-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.faith-upgrade-modal-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.faith-upgrade-modal-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-6) var(--space-5) var(--space-4);
+    position: relative;
+    text-align: center;
+}
+
+.faith-upgrade-modal-header h2 {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin: var(--space-3) 0 0 0;
+    color: var(--color-text);
+}
+
+.faith-upgrade-icon {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: var(--radius-full);
+    color: white;
+}
+
+.faith-upgrade-icon svg {
+    width: 28px;
+    height: 28px;
+}
+
+.faith-upgrade-modal-close {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-2);
+    color: var(--color-text-muted);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.faith-upgrade-modal-close:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.faith-upgrade-modal-close svg {
+    width: 20px;
+    height: 20px;
+}
+
+.faith-upgrade-modal-body {
+    padding: 0 var(--space-5) var(--space-4);
+}
+
+.faith-upgrade-main {
+    font-size: var(--font-size-base);
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    margin: 0 0 var(--space-4) 0;
+    text-align: center;
+}
+
+.faith-upgrade-features {
+    padding: var(--space-4);
+    background: color-mix(in srgb, #6366f1 6%, transparent);
+    border: 1px solid color-mix(in srgb, #6366f1 15%, transparent);
+    border-radius: var(--radius-md);
+}
+
+.faith-upgrade-features h4 {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 var(--space-3) 0;
+}
+
+.faith-upgrade-features ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.faith-upgrade-features li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.faith-upgrade-features li svg {
+    width: 18px;
+    height: 18px;
+    color: #6366f1;
+    flex-shrink: 0;
+}
+
+.faith-upgrade-modal-footer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.faith-upgrade-modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.faith-upgrade-modal-footer .btn-ghost {
+    background: transparent;
+    color: var(--color-text-muted);
+}
+
+.faith-upgrade-modal-footer .btn-ghost:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+@media (max-width: 640px) {
+    .faith-upgrade-modal {
+        width: 95%;
+    }
+
+    .faith-upgrade-modal-header,
+    .faith-upgrade-modal-body,
+    .faith-upgrade-modal-footer {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const modal = document.getElementById('faith-upgrade-modal');
+    if (!modal) return;
+
+    let currentPromptType = null;
+
+    // Customize message based on prompt stage
+    function setPromptMessage(promptType, daysOnPlan) {
+        const titleEl = document.getElementById('faith-upgrade-title');
+        const messageEl = document.getElementById('faith-upgrade-message');
+
+        if (promptType === 'week1') {
+            titleEl.textContent = "How's Your Faith Journey Going?";
+            messageEl.textContent = "You've been using Faith Only for about a week. Consider upgrading to track your whole life journey - journaling, health, goals, and more.";
+        } else if (promptType === 'month2') {
+            titleEl.textContent = "Ready for More?";
+            messageEl.textContent = "A month in and growing! Upgrade to capture your daily reflections, track health goals, and organize your life alongside your faith journey.";
+        } else if (promptType === 'month3') {
+            titleEl.textContent = "Unlock Your Full Potential";
+            messageEl.textContent = "You've been faithful for two months! This is our last reminder - upgrade anytime to access journaling, health tracking, and AI-powered insights.";
+        }
+    }
+
+    // Check if we should show the upgrade prompt
+    async function checkAndShowUpgradePrompt() {
+        try {
+            const response = await fetch('/billing/api/faith-upgrade/check/');
+            const data = await response.json();
+
+            if (data.should_show) {
+                currentPromptType = data.prompt_type;
+                setPromptMessage(data.prompt_type, data.days_on_plan);
+                modal.showModal();
+            }
+        } catch (error) {
+            console.error('Error checking upgrade prompt:', error);
+        }
+    }
+
+    // Dismiss the modal and record it
+    window.dismissFaithUpgrade = async function() {
+        if (currentPromptType) {
+            try {
+                // Get CSRF token
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                                 document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+
+                await fetch('/billing/api/faith-upgrade/dismiss/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ prompt_type: currentPromptType })
+                });
+            } catch (error) {
+                console.error('Error dismissing upgrade prompt:', error);
+            }
+        }
+
+        modal.close();
+    };
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            dismissFaithUpgrade();
+        }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.open) {
+            dismissFaithUpgrade();
+        }
+    });
+
+    // Check on page load (with delay to not block rendering)
+    setTimeout(checkAndShowUpgradePrompt, 1500);
+})();
+</script>

@@ -49,6 +49,8 @@ from django.views.generic import TemplateView, View
 from django.http import HttpResponse, JsonResponse
 from django.conf import settings
 
+from django.shortcuts import redirect
+
 from .models import DailyEncouragement
 from apps.help.mixins import HelpContextMixin
 
@@ -59,6 +61,21 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     template_name = "dashboard/home.html"
     help_context_id = "DASHBOARD_HOME"
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Redirect Faith Only users to Faith Home.
+
+        Faith Only users have access only to the Faith module and should not
+        see the full dashboard. They are redirected to their Faith home page.
+        """
+        if request.user.is_authenticated:
+            try:
+                if request.user.billing_profile.is_faith_only:
+                    return redirect('faith:home')
+            except AttributeError:
+                pass
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         import logging

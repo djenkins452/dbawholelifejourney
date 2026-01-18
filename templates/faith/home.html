@@ -180,6 +180,14 @@
     </div>
 </div>
 
+{% comment %}
+Faith Only Upgrade Prompt Modal - Shows periodic upgrade prompts for Faith Only users.
+Only included for users on the Faith Only plan.
+{% endcomment %}
+{% if request.user.billing_profile.is_faith_only %}
+    {% include "components/faith_only_upgrade_modal.html" %}
+{% endif %}
+
 <style nonce="{{ csp_nonce }}">
 /* AI Insight Card */
 .ai-insight-card {

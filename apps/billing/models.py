@@ -284,12 +284,14 @@ class BillingProfile(TimeStampedModel):
 
     # Pricing tier choices
     TIER_FREE = 'free'
+    TIER_FAITH_ONLY = 'faith_only'
     TIER_STUDENT = 'student'
     TIER_ADULT = 'adult'
     TIER_FOUNDING = 'founding'
 
     TIER_CHOICES = [
         (TIER_FREE, 'Free'),
+        (TIER_FAITH_ONLY, 'Faith Only (Free)'),
         (TIER_STUDENT, 'Student ($3.99/mo)'),
         (TIER_ADULT, 'Adult ($7.99/mo)'),
         (TIER_FOUNDING, 'Founding Member (Lifetime)'),
@@ -299,6 +301,7 @@ class BillingProfile(TimeStampedModel):
     STATUS_NONE = 'none'
     STATUS_TRIALING = 'trialing'
     STATUS_ACTIVE = 'active'
+    STATUS_FAITH_ONLY = 'faith_only'
     STATUS_PAST_DUE = 'past_due'
     STATUS_CANCELED = 'canceled'
     STATUS_LIFETIME = 'lifetime'
@@ -307,6 +310,7 @@ class BillingProfile(TimeStampedModel):
         (STATUS_NONE, 'No Subscription'),
         (STATUS_TRIALING, 'Trialing'),
         (STATUS_ACTIVE, 'Active'),
+        (STATUS_FAITH_ONLY, 'Faith Only (Free)'),
         (STATUS_PAST_DUE, 'Past Due'),
         (STATUS_CANCELED, 'Canceled'),
         (STATUS_LIFETIME, 'Lifetime (Founding Member)'),
@@ -501,6 +505,20 @@ class BillingProfile(TimeStampedModel):
     def is_student(self):
         """Check if user is on Student tier."""
         return self.pricing_tier == self.TIER_STUDENT
+
+    @property
+    def is_faith_only(self):
+        """Check if user is on Faith Only plan (free, Faith module only)."""
+        return self.pricing_tier == self.TIER_FAITH_ONLY
+
+    @property
+    def has_faith_access(self):
+        """
+        Check if user has access to the Faith module.
+
+        Returns True if user has full access (subscribed/trial) OR is on Faith Only plan.
+        """
+        return self.has_access or self.is_faith_only
 
     @property
     def days_until_graduation(self):

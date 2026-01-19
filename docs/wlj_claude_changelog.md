@@ -14,6 +14,34 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-19 Changes
+
+### Dashboard Weather Widget
+
+**Feature:** Add weather widget to dashboard displaying current conditions and 3-day forecast using Open-Meteo API. Includes prominent alerts for extreme weather conditions.
+
+**Features:**
+- Current temperature, condition, humidity, and wind speed
+- 3-day forecast with high/low temps and precipitation indicators
+- Extreme weather alerts for:
+  - Heat warnings (>100°F)
+  - Cold alerts (<20°F)
+  - High wind warnings (>30 mph)
+  - Severe weather (thunderstorms, heavy rain/snow)
+- Widget only displays if user has `location_city` set in preferences
+- 30-minute cache for weather data, 24-hour cache for geocoding
+
+**Files Created:**
+- `apps/dashboard/services/__init__.py`
+- `apps/dashboard/services/weather.py` - WeatherService class using Open-Meteo API
+
+**Files Modified:**
+- `apps/dashboard/views.py` - Added `_get_weather_data()` method and weather context
+- `templates/dashboard/home.html` - Added weather section with alert and normal display modes
+- `static/css/dashboard.css` - Added weather widget styles with responsive design
+
+---
+
 ## 2026-01-18 Changes
 
 ### Fix AdminTask created_by Validation for 404 Reporter

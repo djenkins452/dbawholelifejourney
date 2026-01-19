@@ -108,6 +108,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Quick stats for the header
             context["quick_stats"] = self._get_quick_stats(user_data)
 
+            # Weather data (if user has location set)
+            context["weather"] = self._get_weather_data(user)
+
             # Module enabled flags for conditional display
             context["journal_enabled"] = prefs.journal_enabled
             context["health_enabled"] = prefs.health_enabled
@@ -1042,6 +1045,20 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 return False
 
         return True
+
+    def _get_weather_data(self, user):
+        """Get weather data for user's location."""
+        try:
+            location_city = user.preferences.location_city
+            if not location_city:
+                return None
+
+            from apps.dashboard.services.weather import weather_service
+            return weather_service.get_weather_data(location_city)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Weather data error: {e}")
+            return None
 
     def _get_quick_stats(self, user_data):
         """Get quick stats for the header."""

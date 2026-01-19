@@ -56,6 +56,70 @@
         </div>
     </header>
 
+    <!-- Weather Widget (if user has location set) -->
+    {% if weather %}
+    <section class="weather-section {% if weather.has_alerts %}weather-alert{% endif %}">
+        {% if weather.has_alerts %}
+        <!-- Alert Mode: Prominent warning card -->
+        <div class="weather-alert-card">
+            <div class="weather-alert-header">
+                <span class="weather-alert-icon">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                </span>
+                <div class="weather-alert-title">Weather Alert</div>
+            </div>
+            <div class="weather-alert-messages">
+                {% for alert in weather.alerts %}
+                <div class="weather-alert-message">{{ alert }}</div>
+                {% endfor %}
+            </div>
+            <div class="weather-current-compact">
+                <span class="weather-location">{{ weather.location }}</span>
+                <span class="weather-temp">{{ weather.current_temp|floatformat:0 }}°F</span>
+                <span class="weather-condition">{{ weather.current_condition }}</span>
+            </div>
+        </div>
+        {% else %}
+        <!-- Normal Mode: Compact current + forecast -->
+        <div class="weather-card">
+            <div class="weather-current">
+                <div class="weather-main">
+                    <span class="weather-temp-large">{{ weather.current_temp|floatformat:0 }}°</span>
+                    <div class="weather-details">
+                        <span class="weather-condition">{{ weather.current_condition }}</span>
+                        <span class="weather-location">{{ weather.location }}</span>
+                    </div>
+                </div>
+                <div class="weather-stats">
+                    <span class="weather-stat" title="Humidity">💧 {{ weather.humidity }}%</span>
+                    <span class="weather-stat" title="Wind">💨 {{ weather.wind_speed|floatformat:0 }} mph</span>
+                </div>
+            </div>
+            {% if weather.forecast %}
+            <div class="weather-forecast">
+                {% for day in weather.forecast %}
+                <div class="weather-forecast-day">
+                    <span class="forecast-day-name">{{ day.day_name }}</span>
+                    <span class="forecast-temps">
+                        <span class="forecast-high">{{ day.high|floatformat:0 }}°</span>
+                        <span class="forecast-low">{{ day.low|floatformat:0 }}°</span>
+                    </span>
+                    {% if day.precip_chance > 20 %}
+                    <span class="forecast-precip" title="{{ day.precip_chance }}% chance of precipitation">🌧️</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
     <!-- Memory Verse (if faith enabled and user has one set) -->
     {% if faith_enabled and user_data.memory_verse %}
     <section class="memory-verse-section">

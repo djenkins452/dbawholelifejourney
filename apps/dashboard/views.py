@@ -1048,16 +1048,26 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
     def _get_weather_data(self, user):
         """Get weather data for user's location."""
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
             location_city = user.preferences.location_city
             if not location_city:
+                logger.debug("No location_city set for user")
                 return None
 
             from apps.dashboard.services.weather import weather_service
-            return weather_service.get_weather_data(location_city)
+            weather_data = weather_service.get_weather_data(location_city)
+
+            if weather_data:
+                # Convert dataclass to dict for template compatibility
+                return weather_data.to_dict()
+            else:
+                logger.warning(f"Weather service returned None for {location_city}")
+                return None
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"Weather data error: {e}")
+            logger.warning(f"Weather data error: {e}")
             return None
 
     def _get_quick_stats(self, user_data):

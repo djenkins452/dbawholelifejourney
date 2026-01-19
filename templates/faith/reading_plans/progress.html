@@ -63,9 +63,19 @@
                     <h4>Scriptures to Read:</h4>
                     <div class="scripture-list">
                         {% for ref in current_day.scripture_references %}
-                        <a href="{% url 'faith:scripture_list' %}?lookup={{ ref|urlencode }}" class="scripture-ref-link">
-                            {{ ref }}
-                        </a>
+                        <div class="scripture-item">
+                            <button type="button" class="scripture-ref-btn" data-reference="{{ ref }}" aria-expanded="false">
+                                <span class="scripture-ref-text">{{ ref }}</span>
+                                <span class="scripture-toggle-icon">+</span>
+                            </button>
+                            <div class="scripture-content" style="display: none;">
+                                <div class="scripture-loading" style="display: none;">
+                                    <span class="loading-spinner"></span> Loading scripture...
+                                </div>
+                                <div class="scripture-text"></div>
+                                <div class="scripture-error" style="display: none;"></div>
+                            </div>
+                        </div>
                         {% endfor %}
                     </div>
                 </div>
@@ -275,23 +285,113 @@
 
 .scripture-list {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
+    flex-direction: column;
+    gap: var(--space-3);
 }
 
-.scripture-ref-link {
-    display: inline-block;
+.scripture-item {
+    width: 100%;
+}
+
+.scripture-ref-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
     background: color-mix(in srgb, var(--color-primary) 15%, transparent);
     color: var(--color-primary);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
     border-radius: var(--radius-md);
-    text-decoration: none;
-    transition: background 0.2s ease;
-    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: var(--font-size-base);
+    font-weight: 500;
 }
 
-.scripture-ref-link:hover {
+.scripture-ref-btn:hover {
     background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+.scripture-ref-btn[aria-expanded="true"] {
+    background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-bottom-color: transparent;
+}
+
+.scripture-toggle-icon {
+    font-size: var(--font-size-lg);
+    font-weight: 400;
+    transition: transform 0.2s ease;
+}
+
+.scripture-ref-btn[aria-expanded="true"] .scripture-toggle-icon {
+    transform: rotate(45deg);
+}
+
+.scripture-content {
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    margin-bottom: var(--space-2);
+}
+
+.scripture-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.scripture-text {
+    line-height: 1.8;
+    font-size: var(--font-size-base);
+}
+
+.scripture-text .verse-num {
+    font-weight: 600;
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+    vertical-align: super;
+    margin-right: 2px;
+}
+
+.scripture-text .verse-text {
+    margin-right: var(--space-1);
+}
+
+.scripture-copyright {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.scripture-error {
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+}
+
+.scripture-error a {
+    color: var(--color-primary);
+    text-decoration: underline;
 }
 
 .devotional-text p,
@@ -581,6 +681,231 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return cookieValue;
     }
+
+    // ===================================
+    // Scripture Inline Expansion
+    // ===================================
+    const API_PROXY_BASE = '/faith/api/bible';
+
+    // Book name to API ID mapping
+    const BOOK_IDS = {
+        'genesis': 'GEN', 'gen': 'GEN',
+        'exodus': 'EXO', 'exod': 'EXO', 'ex': 'EXO',
+        'leviticus': 'LEV', 'lev': 'LEV',
+        'numbers': 'NUM', 'num': 'NUM',
+        'deuteronomy': 'DEU', 'deut': 'DEU',
+        'joshua': 'JOS', 'josh': 'JOS',
+        'judges': 'JDG', 'judg': 'JDG',
+        'ruth': 'RUT',
+        '1 samuel': '1SA', '1samuel': '1SA', '1 sam': '1SA', '1sam': '1SA',
+        '2 samuel': '2SA', '2samuel': '2SA', '2 sam': '2SA', '2sam': '2SA',
+        '1 kings': '1KI', '1kings': '1KI', '1 kgs': '1KI', '1kgs': '1KI',
+        '2 kings': '2KI', '2kings': '2KI', '2 kgs': '2KI', '2kgs': '2KI',
+        '1 chronicles': '1CH', '1chronicles': '1CH', '1 chr': '1CH', '1chr': '1CH',
+        '2 chronicles': '2CH', '2chronicles': '2CH', '2 chr': '2CH', '2chr': '2CH',
+        'ezra': 'EZR',
+        'nehemiah': 'NEH', 'neh': 'NEH',
+        'esther': 'EST', 'esth': 'EST',
+        'job': 'JOB',
+        'psalms': 'PSA', 'psalm': 'PSA', 'ps': 'PSA', 'psa': 'PSA',
+        'proverbs': 'PRO', 'prov': 'PRO', 'pr': 'PRO',
+        'ecclesiastes': 'ECC', 'eccl': 'ECC', 'eccles': 'ECC',
+        'song of solomon': 'SNG', 'song of songs': 'SNG', 'songs': 'SNG', 'song': 'SNG', 'sos': 'SNG',
+        'isaiah': 'ISA', 'isa': 'ISA',
+        'jeremiah': 'JER', 'jer': 'JER',
+        'lamentations': 'LAM', 'lam': 'LAM',
+        'ezekiel': 'EZK', 'ezek': 'EZK',
+        'daniel': 'DAN', 'dan': 'DAN',
+        'hosea': 'HOS', 'hos': 'HOS',
+        'joel': 'JOL',
+        'amos': 'AMO', 'am': 'AMO',
+        'obadiah': 'OBA', 'obad': 'OBA',
+        'jonah': 'JON',
+        'micah': 'MIC', 'mic': 'MIC',
+        'nahum': 'NAM', 'nah': 'NAM',
+        'habakkuk': 'HAB', 'hab': 'HAB',
+        'zephaniah': 'ZEP', 'zeph': 'ZEP',
+        'haggai': 'HAG', 'hag': 'HAG',
+        'zechariah': 'ZEC', 'zech': 'ZEC',
+        'malachi': 'MAL', 'mal': 'MAL',
+        'matthew': 'MAT', 'matt': 'MAT', 'mt': 'MAT',
+        'mark': 'MRK', 'mk': 'MRK',
+        'luke': 'LUK', 'lk': 'LUK',
+        'john': 'JHN', 'jn': 'JHN',
+        'acts': 'ACT',
+        'romans': 'ROM', 'rom': 'ROM',
+        '1 corinthians': '1CO', '1corinthians': '1CO', '1 cor': '1CO', '1cor': '1CO',
+        '2 corinthians': '2CO', '2corinthians': '2CO', '2 cor': '2CO', '2cor': '2CO',
+        'galatians': 'GAL', 'gal': 'GAL',
+        'ephesians': 'EPH', 'eph': 'EPH',
+        'philippians': 'PHP', 'phil': 'PHP',
+        'colossians': 'COL', 'col': 'COL',
+        '1 thessalonians': '1TH', '1thessalonians': '1TH', '1 thess': '1TH', '1thess': '1TH',
+        '2 thessalonians': '2TH', '2thessalonians': '2TH', '2 thess': '2TH', '2thess': '2TH',
+        '1 timothy': '1TI', '1timothy': '1TI', '1 tim': '1TI', '1tim': '1TI',
+        '2 timothy': '2TI', '2timothy': '2TI', '2 tim': '2TI', '2tim': '2TI',
+        'titus': 'TIT', 'tit': 'TIT',
+        'philemon': 'PHM', 'phlm': 'PHM',
+        'hebrews': 'HEB', 'heb': 'HEB',
+        'james': 'JAS', 'jas': 'JAS',
+        '1 peter': '1PE', '1peter': '1PE', '1 pet': '1PE', '1pet': '1PE',
+        '2 peter': '2PE', '2peter': '2PE', '2 pet': '2PE', '2pet': '2PE',
+        '1 john': '1JN', '1john': '1JN', '1 jn': '1JN', '1jn': '1JN',
+        '2 john': '2JN', '2john': '2JN', '2 jn': '2JN', '2jn': '2JN',
+        '3 john': '3JN', '3john': '3JN', '3 jn': '3JN', '3jn': '3JN',
+        'jude': 'JUD',
+        'revelation': 'REV', 'rev': 'REV'
+    };
+
+    // Parse scripture reference like "Matthew 6:28-32" or "Genesis 1:1"
+    function parseScriptureRef(reference) {
+        // Match patterns like "Luke 18:1-8", "2 Timothy 1:7", "Genesis 1", "Proverbs 3:5-6"
+        const match = reference.match(/^(\d?\s*[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/i);
+        if (!match) return null;
+
+        const bookName = match[1].trim().toLowerCase();
+        const bookId = BOOK_IDS[bookName];
+        if (!bookId) return null;
+
+        return {
+            bookId: bookId,
+            chapter: parseInt(match[2]),
+            verseStart: match[3] ? parseInt(match[3]) : null,
+            verseEnd: match[4] ? parseInt(match[4]) : null
+        };
+    }
+
+    // Build passage ID for API
+    function buildPassageId(parsed) {
+        const base = `${parsed.bookId}.${parsed.chapter}`;
+        if (!parsed.verseStart) {
+            return base; // Whole chapter
+        }
+        if (!parsed.verseEnd || parsed.verseEnd === parsed.verseStart) {
+            return `${base}.${parsed.verseStart}`; // Single verse
+        }
+        return `${base}.${parsed.verseStart}-${base}.${parsed.verseEnd}`; // Verse range
+    }
+
+    // Default Bible ID (BSB - Berean Standard Bible is a common default)
+    let defaultBibleId = null;
+
+    // Fetch default Bible ID
+    async function getDefaultBibleId() {
+        if (defaultBibleId) return defaultBibleId;
+
+        try {
+            const response = await fetch(`${API_PROXY_BASE}/bibles/`);
+            if (!response.ok) throw new Error('Failed to fetch Bibles');
+
+            const data = await response.json();
+            const bibles = data.data || [];
+
+            // Prefer BSB (Berean Standard Bible), then ESV, then KJV, then first available
+            const preferred = ['BSB', 'ESV', 'KJV', 'NIV', 'NLT'];
+            for (const abbr of preferred) {
+                const found = bibles.find(b => b.abbreviation === abbr);
+                if (found) {
+                    defaultBibleId = found.id;
+                    return defaultBibleId;
+                }
+            }
+
+            // Just use the first one
+            if (bibles.length > 0) {
+                defaultBibleId = bibles[0].id;
+                return defaultBibleId;
+            }
+        } catch (error) {
+            console.error('Error fetching Bibles:', error);
+        }
+        return null;
+    }
+
+    // Fetch and display scripture
+    async function fetchScripture(btn) {
+        const reference = btn.dataset.reference;
+        const item = btn.closest('.scripture-item');
+        const contentDiv = item.querySelector('.scripture-content');
+        const loadingDiv = item.querySelector('.scripture-loading');
+        const textDiv = item.querySelector('.scripture-text');
+        const errorDiv = item.querySelector('.scripture-error');
+
+        // Toggle collapse if already expanded
+        if (btn.getAttribute('aria-expanded') === 'true') {
+            btn.setAttribute('aria-expanded', 'false');
+            contentDiv.style.display = 'none';
+            return;
+        }
+
+        // Parse reference
+        const parsed = parseScriptureRef(reference);
+        if (!parsed) {
+            errorDiv.innerHTML = `Could not parse "${reference}". <a href="{% url 'faith:scripture_list' %}?lookup=${encodeURIComponent(reference)}">Open in Scripture Library</a>`;
+            errorDiv.style.display = 'block';
+            loadingDiv.style.display = 'none';
+            textDiv.innerHTML = '';
+            contentDiv.style.display = 'block';
+            btn.setAttribute('aria-expanded', 'true');
+            return;
+        }
+
+        // Show loading
+        btn.setAttribute('aria-expanded', 'true');
+        contentDiv.style.display = 'block';
+        loadingDiv.style.display = 'flex';
+        textDiv.innerHTML = '';
+        errorDiv.style.display = 'none';
+
+        try {
+            const bibleId = await getDefaultBibleId();
+            if (!bibleId) throw new Error('No Bible translation available');
+
+            const passageId = buildPassageId(parsed);
+            const params = 'content-type=text&include-verse-numbers=true&include-titles=false';
+            const response = await fetch(`${API_PROXY_BASE}/bibles/${bibleId}/passages/${passageId}/?${params}`);
+
+            if (!response.ok) throw new Error(`API returned ${response.status}`);
+
+            const data = await response.json();
+
+            if (data.data) {
+                let text = data.data.content || '';
+                // Clean up whitespace
+                text = text.replace(/\s+/g, ' ').trim();
+                // Style verse numbers
+                text = text.replace(/\[(\d+)\]/g, '<span class="verse-num">$1</span><span class="verse-text">');
+                // Close verse-text spans (add before each new verse num)
+                text = text.replace(/<span class="verse-num">/g, '</span><span class="verse-num">');
+                // Remove first empty close tag
+                text = text.replace(/^<\/span>/, '');
+                // Add final close tag
+                text += '</span>';
+
+                textDiv.innerHTML = text;
+
+                // Add copyright if available
+                if (data.data.copyright) {
+                    textDiv.innerHTML += `<div class="scripture-copyright">${data.data.copyright}</div>`;
+                }
+            } else {
+                throw new Error('No scripture data returned');
+            }
+        } catch (error) {
+            console.error('Error fetching scripture:', error);
+            errorDiv.innerHTML = `Could not load scripture. <a href="{% url 'faith:scripture_list' %}?lookup=${encodeURIComponent(reference)}">Open in Scripture Library</a>`;
+            errorDiv.style.display = 'block';
+        } finally {
+            loadingDiv.style.display = 'none';
+        }
+    }
+
+    // Add click handlers to scripture buttons
+    document.querySelectorAll('.scripture-ref-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            fetchScripture(this);
+        });
+    });
 });
 </script>
 {% endblock %}

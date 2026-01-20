@@ -1,0 +1,64 @@
+{% comment %}
+Dashboard Tile: Nutrition Progress
+Shows daily calorie and macro tracking with progress toward goals
+{% endcomment %}
+
+{% if health_enabled and user_data.nutrition_progress %}
+<section class="nutrition-progress-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="nutrition_progress">
+    <div class="section-header">
+        <h2 class="section-title">Today's Nutrition</h2>
+        <a href="{% url 'health:food_entry_create' %}" class="section-link">Log Food</a>
+    </div>
+    <div class="nutrition-progress-card">
+        <div class="calorie-summary">
+            <div class="calorie-value">{{ user_data.nutrition_progress.calories.current|default:0 }}</div>
+            <div class="calorie-goal">of {{ user_data.nutrition_progress.calories.goal }} calories</div>
+            {% if user_data.nutrition_progress.calories.remaining > 0 %}
+            <div class="calorie-remaining">{{ user_data.nutrition_progress.calories.remaining }} remaining</div>
+            {% elif user_data.nutrition_progress.calories.remaining < 0 %}
+            <div class="calorie-remaining" style="color: var(--color-error, #ef4444);">{{ user_data.nutrition_progress.calories.remaining|slice:"1:" }} over</div>
+            {% else %}
+            <div class="calorie-remaining">Goal reached!</div>
+            {% endif %}
+        </div>
+
+        <div class="macro-progress-grid">
+            <div class="macro-progress-item">
+                <div class="macro-progress-label">
+                    <span>🥩</span> Protein
+                </div>
+                <div class="macro-progress-bar">
+                    <div class="macro-progress-fill protein" style="width: {{ user_data.nutrition_progress.protein.progress_percent|default:0|floatformat:0 }}%"></div>
+                </div>
+                <div class="macro-progress-value">
+                    {{ user_data.nutrition_progress.protein.current_g|floatformat:0 }}g / {{ user_data.nutrition_progress.protein.goal_g|default:"-" }}g
+                </div>
+            </div>
+
+            <div class="macro-progress-item">
+                <div class="macro-progress-label">
+                    <span>🍞</span> Carbs
+                </div>
+                <div class="macro-progress-bar">
+                    <div class="macro-progress-fill carbs" style="width: {{ user_data.nutrition_progress.carbs.progress_percent|default:0|floatformat:0 }}%"></div>
+                </div>
+                <div class="macro-progress-value">
+                    {{ user_data.nutrition_progress.carbs.current_g|floatformat:0 }}g / {{ user_data.nutrition_progress.carbs.goal_g|default:"-" }}g
+                </div>
+            </div>
+
+            <div class="macro-progress-item">
+                <div class="macro-progress-label">
+                    <span>🥑</span> Fat
+                </div>
+                <div class="macro-progress-bar">
+                    <div class="macro-progress-fill fat" style="width: {{ user_data.nutrition_progress.fat.progress_percent|default:0|floatformat:0 }}%"></div>
+                </div>
+                <div class="macro-progress-value">
+                    {{ user_data.nutrition_progress.fat.current_g|floatformat:0 }}g / {{ user_data.nutrition_progress.fat.goal_g|default:"-" }}g
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}

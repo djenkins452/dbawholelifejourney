@@ -16,6 +16,74 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Customizable Dashboard (Task 6 from Improvement Backlog)
+
+**New Feature:** User-configurable dashboard with drag-and-drop tile reordering, show/hide toggles, and tile sizing.
+
+**What's Included:**
+
+1. **DashboardConfigService** (`apps/dashboard/services/config_service.py`)
+   - 19 configurable tiles with metadata (name, description, icon, module dependency)
+   - Methods: get_available_tiles(), get_default_config(), get_visible_tiles()
+   - Tile updates: update_tile(), reorder_tiles(), reset_to_defaults()
+   - Supports 3 sizes: small, medium, large
+   - AI Insights tile marked as mandatory (cannot be hidden)
+
+2. **Dashboard Configuration UI** (`templates/dashboard/configure.html`)
+   - Full-page configuration interface
+   - Drag-and-drop reordering with visual feedback
+   - Checkboxes for show/hide toggles
+   - Size selector buttons (S/M/L) per tile
+   - Auto-save on changes
+   - Reset to defaults button
+
+3. **Setup Banner** (`templates/dashboard/home.html`)
+   - Displays for users who haven't customized yet
+   - "Customize Now" button links to configure page
+   - "Maybe Later" dismisses temporarily
+   - Attractive gradient styling
+
+4. **API Endpoints** (`apps/dashboard/urls.py`, `apps/dashboard/views.py`)
+   - GET/POST `/dashboard/api/config/` - Full config read/write
+   - POST `/dashboard/api/config/reorder/` - Reorder tiles
+   - POST `/dashboard/api/config/tile/<id>/` - Update single tile
+   - POST `/dashboard/api/setup-banner/dismiss/` - Dismiss banner
+
+5. **Tile Partials** (`templates/dashboard/tiles/`)
+   - 19 tile partial templates for modular rendering
+   - Each tile supports size classes via `tile-size-{size}`
+   - Data attributes for JavaScript interaction
+
+6. **User Preferences** (`apps/users/models.py`)
+   - `dashboard_setup_complete` field to track if user completed setup
+
+**Migrations:**
+- `apps/users/migrations/0042_dashboard_setup_complete.py` - Setup tracking field
+- `apps/core/migrations/0049_configurable_dashboard_release_note.py` - What's New entry
+
+**Teaching Tool Updates:**
+- Added "Customize Dashboard" destination
+
+**Configurable Tiles:**
+- Quick Stats, Weather, Memory Verse, AI Insights (mandatory)
+- Celebrations, Nudges, Weekly Summary, Daily Encouragement
+- Current Fast, Cycle Tracking, Quick Actions, Module Cards
+- Medicine Schedule, Nutrition Progress, Recent Workouts
+- Goal Progress, Upcoming Events, Upcoming Celebrations, Upcoming Bills
+
+**Files Modified:**
+- `apps/dashboard/views.py` - Updated ConfigureDashboardView, added API views
+- `apps/dashboard/urls.py` - Added configuration API routes
+- `templates/dashboard/home.html` - Added setup banner
+
+**New Files:**
+- `apps/dashboard/services/__init__.py`
+- `apps/dashboard/services/config_service.py`
+- `templates/dashboard/configure.html`
+- `templates/dashboard/tiles/*.html` (19 tile partials)
+
+---
+
 ### In-App Notification System (Task 4 from Improvement Backlog)
 
 **New Feature:** Comprehensive notification system with in-app bell notifications and email digest support.

@@ -1,0 +1,26 @@
+{% comment %}
+Dashboard Tile: Upcoming Events
+Shows calendar events for the next 7 days
+{% endcomment %}
+
+{% if life_enabled and user_data.upcoming_events %}
+<section class="upcoming-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="upcoming_events">
+    <h2 class="section-title">Coming Up</h2>
+    <div class="upcoming-list">
+        {% for event in user_data.upcoming_events %}
+        <div class="upcoming-item">
+            <div class="upcoming-date">
+                <span class="date-month">{{ event.start_date|date:"M" }}</span>
+                <span class="date-day">{{ event.start_date|date:"j" }}</span>
+            </div>
+            <div class="upcoming-info">
+                <span class="upcoming-title">{{ event.title }}</span>
+                {% if event.start_time %}
+                <span class="upcoming-time">{{ event.start_time|time:"g:i A" }}</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

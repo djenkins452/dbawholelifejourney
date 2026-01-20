@@ -1,0 +1,599 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Customize Dashboard - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+<style nonce="{{ csp_nonce }}">
+.configure-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+.configure-header {
+    margin-bottom: 2rem;
+}
+
+.configure-header h1 {
+    font-size: 1.75rem;
+    margin: 0 0 0.5rem 0;
+}
+
+.configure-header p {
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+.configure-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.tiles-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.tile-config-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    cursor: grab;
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.tile-config-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.tile-config-card.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.tile-config-card.drag-over {
+    border-color: var(--color-accent);
+    background: var(--color-accent-light, #e0f2fe);
+}
+
+.tile-config-card.mandatory {
+    background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-accent-light, #e0f2fe) 100%);
+}
+
+.tile-drag-handle {
+    cursor: grab;
+    color: var(--color-text-secondary);
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.tile-drag-handle:hover {
+    color: var(--color-text);
+}
+
+.tile-visibility {
+    flex-shrink: 0;
+}
+
+.tile-visibility input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--color-accent);
+}
+
+.tile-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.tile-name {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tile-name .mandatory-badge {
+    font-size: 0.7rem;
+    padding: 0.125rem 0.375rem;
+    background: var(--color-accent);
+    color: white;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.tile-description {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    margin-top: 0.25rem;
+}
+
+.tile-size-selector {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.size-btn {
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.size-btn:hover {
+    border-color: var(--color-accent);
+}
+
+.size-btn.active {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+.save-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    transition: opacity 0.3s;
+}
+
+.save-status.saving {
+    background: var(--color-info-light, #dbeafe);
+    color: var(--color-info, #2563eb);
+}
+
+.save-status.saved {
+    background: var(--color-success-light, #dcfce7);
+    color: var(--color-success, #16a34a);
+}
+
+.save-status.error {
+    background: var(--color-error-light, #fee2e2);
+    color: var(--color-error, #dc2626);
+}
+
+.save-status.hidden {
+    opacity: 0;
+}
+
+/* Wizard Modal */
+.wizard-modal {
+    border: none;
+    border-radius: 16px;
+    padding: 0;
+    max-width: 600px;
+    width: 95%;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.wizard-modal::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.wizard-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.wizard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.wizard-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.wizard-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    padding: 0.25rem 0.5rem;
+    line-height: 1;
+}
+
+.wizard-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    max-height: 60vh;
+}
+
+.wizard-intro {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.wizard-intro h3 {
+    margin: 0 0 0.5rem 0;
+}
+
+.wizard-intro p {
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+.wizard-tiles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.wizard-tile {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.wizard-tile:hover {
+    border-color: var(--color-accent);
+}
+
+.wizard-tile.selected {
+    background: var(--color-accent-light, #e0f2fe);
+    border-color: var(--color-accent);
+}
+
+.wizard-tile.mandatory {
+    background: var(--color-accent-light, #e0f2fe);
+    border-color: var(--color-accent);
+    cursor: not-allowed;
+}
+
+.wizard-tile-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+}
+
+.wizard-tile-info {
+    flex: 1;
+}
+
+.wizard-tile-name {
+    font-weight: 500;
+}
+
+.wizard-tile-desc {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+}
+
+.wizard-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+
+.wizard-progress {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.wizard-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-border);
+}
+
+.wizard-dot.active {
+    background: var(--color-accent);
+}
+
+@media (max-width: 600px) {
+    .configure-page {
+        padding: 1rem;
+    }
+
+    .tile-config-card {
+        flex-wrap: wrap;
+    }
+
+    .tile-size-selector {
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: 0.5rem;
+    }
+
+    .tile-drag-handle {
+        padding: 0.25rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="configure-page">
+    <header class="configure-header">
+        <h1>Customize Your Dashboard</h1>
+        <p>Drag to reorder tiles, toggle visibility, and choose sizes to make your dashboard work for you.</p>
+    </header>
+
+    <div class="configure-actions">
+        <a href="{% url 'dashboard:home' %}" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.25rem;">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Dashboard
+        </a>
+        <button type="button" class="btn btn-outline" onclick="resetToDefaults()">
+            Reset to Defaults
+        </button>
+        <div class="save-status hidden" id="save-status">
+            <span class="status-text">Saved</span>
+        </div>
+    </div>
+
+    <div class="tiles-container" id="tiles-container">
+        {% for tile in current_config.tiles %}
+        <div class="tile-config-card {% if tile.mandatory %}mandatory{% endif %}"
+             data-tile-id="{{ tile.id }}"
+             draggable="true">
+            <div class="tile-drag-handle" title="Drag to reorder">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="4" y1="8" x2="20" y2="8"/>
+                    <line x1="4" y1="16" x2="20" y2="16"/>
+                </svg>
+            </div>
+
+            <div class="tile-visibility">
+                {% if tile.mandatory %}
+                <input type="checkbox" checked disabled title="This tile cannot be hidden">
+                {% else %}
+                <input type="checkbox"
+                       {% if tile.visible %}checked{% endif %}
+                       onchange="toggleTileVisibility('{{ tile.id }}', this.checked)"
+                       title="Show/hide this tile">
+                {% endif %}
+            </div>
+
+            <div class="tile-info">
+                <div class="tile-name">
+                    {{ tile.name }}
+                    {% if tile.mandatory %}
+                    <span class="mandatory-badge">Required</span>
+                    {% endif %}
+                </div>
+                <div class="tile-description">{{ tile.description }}</div>
+            </div>
+
+            <div class="tile-size-selector">
+                <button type="button"
+                        class="size-btn {% if tile.size == 'small' %}active{% endif %}"
+                        onclick="setTileSize('{{ tile.id }}', 'small')"
+                        title="Small">S</button>
+                <button type="button"
+                        class="size-btn {% if tile.size == 'medium' %}active{% endif %}"
+                        onclick="setTileSize('{{ tile.id }}', 'medium')"
+                        title="Medium">M</button>
+                <button type="button"
+                        class="size-btn {% if tile.size == 'large' %}active{% endif %}"
+                        onclick="setTileSize('{{ tile.id }}', 'large')"
+                        title="Large">L</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    const container = document.getElementById('tiles-container');
+    const statusEl = document.getElementById('save-status');
+    let draggedEl = null;
+    let saveTimeout = null;
+
+    // ==================================
+    // Drag and Drop
+    // ==================================
+    container.addEventListener('dragstart', function(e) {
+        if (e.target.classList.contains('tile-config-card')) {
+            draggedEl = e.target;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+    });
+
+    container.addEventListener('dragend', function(e) {
+        if (e.target.classList.contains('tile-config-card')) {
+            e.target.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            draggedEl = null;
+            saveReorder();
+        }
+    });
+
+    container.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        const card = e.target.closest('.tile-config-card');
+        if (card && card !== draggedEl) {
+            const cards = [...container.querySelectorAll('.tile-config-card')];
+            const draggedIdx = cards.indexOf(draggedEl);
+            const targetIdx = cards.indexOf(card);
+
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            card.classList.add('drag-over');
+
+            if (draggedIdx < targetIdx) {
+                card.parentNode.insertBefore(draggedEl, card.nextSibling);
+            } else {
+                card.parentNode.insertBefore(draggedEl, card);
+            }
+        }
+    });
+
+    container.addEventListener('dragleave', function(e) {
+        const card = e.target.closest('.tile-config-card');
+        if (card) {
+            card.classList.remove('drag-over');
+        }
+    });
+
+    // ==================================
+    // Tile Configuration Functions
+    // ==================================
+    window.toggleTileVisibility = function(tileId, visible) {
+        updateTile(tileId, { visible: visible });
+    };
+
+    window.setTileSize = function(tileId, size) {
+        // Update UI
+        const card = container.querySelector(`[data-tile-id="${tileId}"]`);
+        if (card) {
+            card.querySelectorAll('.size-btn').forEach(btn => btn.classList.remove('active'));
+            card.querySelector(`.size-btn[onclick*="'${size}'"]`).classList.add('active');
+        }
+
+        updateTile(tileId, { size: size });
+    };
+
+    window.resetToDefaults = async function() {
+        if (!confirm('Reset your dashboard to the default layout?')) return;
+
+        showStatus('saving', 'Resetting...');
+
+        try {
+            const response = await fetch('{% url "dashboard:config_api" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ reset: true })
+            });
+
+            if (response.ok) {
+                showStatus('saved', 'Reset complete');
+                setTimeout(() => window.location.reload(), 500);
+            } else {
+                showStatus('error', 'Reset failed');
+            }
+        } catch (error) {
+            console.error('Reset error:', error);
+            showStatus('error', 'Reset failed');
+        }
+    };
+
+    // ==================================
+    // Save Functions
+    // ==================================
+    function saveReorder() {
+        const tileIds = [...container.querySelectorAll('.tile-config-card')]
+            .map(card => card.dataset.tileId);
+
+        saveConfig({ reorder: tileIds });
+    }
+
+    async function updateTile(tileId, updates) {
+        showStatus('saving', 'Saving...');
+
+        try {
+            const response = await fetch(`{% url "dashboard:tile_config_api" tile_id="TILEID" %}`.replace('TILEID', tileId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify(updates)
+            });
+
+            if (response.ok) {
+                showStatus('saved', 'Saved');
+            } else {
+                showStatus('error', 'Save failed');
+            }
+        } catch (error) {
+            console.error('Update error:', error);
+            showStatus('error', 'Save failed');
+        }
+    }
+
+    async function saveConfig(config) {
+        showStatus('saving', 'Saving...');
+
+        // Debounce saves
+        if (saveTimeout) clearTimeout(saveTimeout);
+
+        saveTimeout = setTimeout(async () => {
+            try {
+                let url = '{% url "dashboard:config_api" %}';
+                let body = config;
+
+                if (config.reorder) {
+                    url = '{% url "dashboard:config_reorder" %}';
+                    body = { tile_ids: config.reorder };
+                }
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok) {
+                    showStatus('saved', 'Saved');
+                } else {
+                    showStatus('error', 'Save failed');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                showStatus('error', 'Save failed');
+            }
+        }, 300);
+    }
+
+    function showStatus(type, text) {
+        statusEl.className = `save-status ${type}`;
+        statusEl.querySelector('.status-text').textContent = text;
+
+        if (type === 'saved' || type === 'error') {
+            setTimeout(() => statusEl.classList.add('hidden'), 2000);
+        }
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% comment %}
+Dashboard Tile: Cycle Tracking
+Shows menstrual cycle phase and quick logging buttons
+{% endcomment %}
+
+{% if health_enabled and user_data.cycle_tracking_enabled and user_data.cycle_data %}
+<section class="cycle-tracking-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="cycle_tracking">
+    <div class="cycle-card">
+        <div class="cycle-header">
+            <div class="cycle-icon-wrapper">
+                {% if user_data.cycle_data.phase %}
+                <span class="cycle-phase-dot" style="background-color: {{ user_data.cycle_data.phase.color }};"></span>
+                {% else %}
+                <span class="cycle-icon">🌸</span>
+                {% endif %}
+            </div>
+            <div class="cycle-title-area">
+                {% if user_data.cycle_data.phase %}
+                <span class="cycle-badge">Day {{ user_data.cycle_data.cycle_day }}</span>
+                <span class="cycle-phase-name">{{ user_data.cycle_data.phase.display_name }} Phase</span>
+                {% else %}
+                <span class="cycle-badge">Cycle Tracking</span>
+                <span class="cycle-phase-name">No active cycle</span>
+                {% endif %}
+            </div>
+            <a href="{% url 'health:cycle_dashboard' %}" class="cycle-link" title="Open Cycle Dashboard">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </a>
+        </div>
+
+        <!-- Quick Period Toggle -->
+        <div class="cycle-quick-actions" id="cycle-quick-actions">
+            {% if user_data.cycle_data.is_period_day %}
+            <div class="period-status period-active">
+                <span class="period-indicator"></span>
+                <span>Period logged today</span>
+            </div>
+            {% else %}
+            <div class="period-toggle-group">
+                <button type="button"
+                        class="period-toggle-btn"
+                        id="period-start-btn"
+                        hx-post="{% url 'health:cycle_period_toggle' %}"
+                        hx-vals='{"action": "start"}'
+                        hx-target="#cycle-quick-actions"
+                        hx-swap="outerHTML">
+                    Period started
+                </button>
+                {% if user_data.cycle_data.current_cycle and user_data.cycle_data.phase.name == 'menstrual' %}
+                <button type="button"
+                        class="period-toggle-btn period-end"
+                        id="period-end-btn"
+                        hx-post="{% url 'health:cycle_period_toggle' %}"
+                        hx-vals='{"action": "end"}'
+                        hx-target="#cycle-quick-actions"
+                        hx-swap="outerHTML">
+                    Period ended
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="cycle-footer">
+            <a href="{% url 'health:cycle_dashboard' %}" class="btn btn-secondary btn-sm">
+                Log Details
+            </a>
+        </div>
+    </div>
+</section>
+{% endif %}

@@ -597,6 +597,12 @@ class UserPreferences(models.Model):
     # Onboarding status
     has_completed_onboarding = models.BooleanField(default=False)
 
+    # Dashboard setup status - tracks if user has gone through dashboard customization
+    dashboard_setup_complete = models.BooleanField(
+        default=False,
+        help_text="Whether user has completed dashboard tile customization setup",
+    )
+
     # Dismissed intro banners (tracks which module intros user has dismissed)
     # Format: ["journal", "health", "organize", "goals", "faith", "dashboard"]
     dismissed_intro_banners = models.JSONField(

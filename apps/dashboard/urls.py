@@ -40,4 +40,10 @@ urlpatterns = [
 
     # Quarterly review
     path("api/quarterly-review/dismiss/", views.DismissQuarterlyReviewView.as_view(), name="dismiss_quarterly_review"),
+
+    # Dashboard configuration API
+    path("api/setup-banner/dismiss/", views.DismissSetupBannerView.as_view(), name="dismiss_setup_banner"),
+    path("api/config/", views.DashboardConfigAPIView.as_view(), name="config_api"),
+    path("api/config/reorder/", views.DashboardReorderAPIView.as_view(), name="config_reorder"),
+    path("api/config/tile/<str:tile_id>/", views.DashboardTileConfigAPIView.as_view(), name="tile_config_api"),
 ]

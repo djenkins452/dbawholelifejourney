@@ -9,6 +9,30 @@
 
 {% block content %}
 <div class="container">
+    <!-- Dashboard Setup Banner (for users who haven't customized yet) -->
+    {% if show_dashboard_setup_banner %}
+    <section class="dashboard-setup-banner" id="dashboard-setup-banner">
+        <div class="setup-banner-content">
+            <div class="setup-banner-icon">
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+            </div>
+            <div class="setup-banner-text">
+                <h3>Customize Your Dashboard</h3>
+                <p>Arrange tiles, choose what to see, and make this space yours.</p>
+            </div>
+            <div class="setup-banner-actions">
+                <a href="{% url 'dashboard:configure' %}" class="btn btn-primary">Customize Now</a>
+                <button type="button" class="btn btn-link setup-dismiss" onclick="dismissDashboardSetup()">Maybe Later</button>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Header -->
     <header class="dashboard-header">
         <div class="greeting">
@@ -2244,9 +2268,101 @@ button.quick-action-card {
 </script>
 {% endif %}
 
+<!-- Dashboard Setup Banner dismiss script -->
+{% if show_dashboard_setup_banner %}
+<script nonce="{{ csp_nonce }}">
+async function dismissDashboardSetup() {
+    const banner = document.getElementById('dashboard-setup-banner');
+    if (!banner) return;
+
+    try {
+        const response = await fetch('{% url "dashboard:dismiss_setup_banner" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+
+        if (response.ok) {
+            // Animate removal
+            banner.style.transition = 'opacity 0.3s, transform 0.3s';
+            banner.style.opacity = '0';
+            banner.style.transform = 'translateY(-10px)';
+            setTimeout(() => banner.remove(), 300);
+        }
+    } catch (error) {
+        console.error('Failed to dismiss setup banner:', error);
+    }
+}
+</script>
+<style nonce="{{ csp_nonce }}">
+.dashboard-setup-banner {
+    background: linear-gradient(135deg, var(--color-accent-light, #e0f2fe) 0%, var(--color-surface, #fff) 100%);
+    border: 1px solid var(--color-accent, #3b82f6);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.setup-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.setup-banner-icon {
+    flex-shrink: 0;
+    color: var(--color-accent, #3b82f6);
+}
+
+.setup-banner-text {
+    flex: 1;
+    min-width: 200px;
+}
+
+.setup-banner-text h3 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.1rem;
+    color: var(--color-text, #1f2937);
+}
+
+.setup-banner-text p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--color-text-secondary, #6b7280);
+}
+
+.setup-banner-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.setup-banner-actions .btn-link {
+    color: var(--color-text-secondary, #6b7280);
+    font-size: 0.875rem;
+}
+
+@media (max-width: 600px) {
+    .setup-banner-content {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .setup-banner-actions {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
+{% endif %}
+
 <!-- Quarterly Review dismiss script -->
 {% if quarterly_review %}
-<script>
+<script nonce="{{ csp_nonce }}">
 async function dismissQuarterlyReview(quarterId) {
     const tile = document.getElementById('quarterly-review-tile');
     if (!tile) return;

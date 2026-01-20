@@ -1,0 +1,49 @@
+{% comment %}
+Dashboard Tile: Goal Progress
+Shows active goals with milestone progress bars
+{% endcomment %}
+
+{% if purpose_enabled and user_data.active_goals_list %}
+<section class="goal-progress-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="goal_progress">
+    <div class="section-header">
+        <h2 class="section-title">Goal Progress</h2>
+        <a href="{% url 'purpose:goal_list' %}" class="section-link">View All</a>
+    </div>
+    <div class="goals-progress-list">
+        {% for item in user_data.active_goals_list %}
+        <a href="{% url 'purpose:goal_detail' item.goal.pk %}" class="goal-progress-item">
+            <div class="goal-progress-content">
+                <div class="goal-progress-header">
+                    <span class="goal-progress-title">{{ item.goal.title }}</span>
+                    {% if item.has_milestones %}
+                    <span class="goal-progress-count">{{ item.completed_count }}/{{ item.total_count }}</span>
+                    {% endif %}
+                </div>
+                {% if item.has_milestones %}
+                <div class="goal-progress-bar-container">
+                    <div class="progress-bar-mini">
+                        <div class="progress-fill-mini {% if item.progress_percent == 100 %}complete{% endif %}" style="width: {{ item.progress_percent }}%"></div>
+                    </div>
+                </div>
+                {% if item.next_milestone %}
+                <div class="goal-next-milestone">
+                    <span class="next-label">Next:</span> {{ item.next_milestone.title }}
+                    {% if item.next_milestone.target_date %}
+                    <span class="next-date">{% if item.next_milestone.is_overdue %}<span class="overdue">overdue</span>{% else %}due {{ item.next_milestone.target_date|date:"M j" }}{% endif %}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="goal-no-milestones">
+                    <span class="add-milestone-hint">Add milestones to track progress</span>
+                </div>
+                {% endif %}
+            </div>
+            <svg class="goal-progress-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

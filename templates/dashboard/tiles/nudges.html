@@ -1,0 +1,78 @@
+{% comment %}
+Dashboard Tile: Accountability Nudges
+Shows gentle reminders about overdue tasks, journal gaps, etc.
+{% endcomment %}
+
+{% if ai_enabled and ai_insights.nudges %}
+<section class="nudges-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="nudges">
+    {% for nudge in ai_insights.nudges %}
+    <div class="nudge-card nudge-{{ nudge.type }}">
+        {% if nudge.type == 'journal' %}
+        <div class="nudge-content">
+            <span class="nudge-icon">📝</span>
+            <div class="nudge-text">
+                <span class="nudge-message">It's been {{ nudge.days }} days since you journaled.</span>
+            </div>
+        </div>
+        <a href="{{ nudge.action_url }}" class="btn btn-primary btn-sm">{{ nudge.action_text }}</a>
+        {% elif nudge.type == 'tasks' %}
+        <div class="nudge-content">
+            <span class="nudge-icon">⚠️</span>
+            <div class="nudge-text">
+                <span class="nudge-message">You have {{ nudge.count }} overdue task{{ nudge.count|pluralize }}.</span>
+            </div>
+        </div>
+        <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+        {% elif nudge.type == 'goals' %}
+        <div class="nudge-content">
+            <span class="nudge-icon">🎯</span>
+            <div class="nudge-text">
+                <span class="nudge-message">No active goals set. What are you working toward?</span>
+            </div>
+        </div>
+        <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+        {% elif nudge.type == 'medicine' %}
+        <div class="nudge-content">
+            <span class="nudge-icon">💊</span>
+            <div class="nudge-text">
+                <span class="nudge-message">{{ nudge.count }} medicine dose{{ nudge.count|pluralize }} pending today.</span>
+            </div>
+        </div>
+        <a href="{{ nudge.action_url }}" class="btn btn-primary btn-sm">{{ nudge.action_text }}</a>
+        {% elif nudge.type == 'medicine_adherence' %}
+        <div class="nudge-content">
+            <span class="nudge-icon">📉</span>
+            <div class="nudge-text">
+                <span class="nudge-message">Medicine adherence at {{ nudge.adherence }}% this week.</span>
+            </div>
+        </div>
+        <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+        {% elif nudge.type == 'refill_requested' %}
+        <div class="nudge-content">
+            <span class="nudge-icon">📋</span>
+            <div class="nudge-text">
+                <span class="nudge-message">Refill requested for {{ nudge.count }} medicine{{ nudge.count|pluralize }}.</span>
+            </div>
+        </div>
+        <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+        {% elif nudge.type == 'refill' %}
+        <div class="nudge-content">
+            <span class="nudge-icon">🔔</span>
+            <div class="nudge-text">
+                <span class="nudge-message">{{ nudge.count }} medicine{{ nudge.count|pluralize }} need{{ nudge.count|pluralize:"s," }} refill.</span>
+            </div>
+        </div>
+        <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+        {% elif nudge.type == 'workout' %}
+        <div class="nudge-content">
+            <span class="nudge-icon">🏋️</span>
+            <div class="nudge-text">
+                <span class="nudge-message">It's been {{ nudge.days }} days since your last workout.</span>
+            </div>
+        </div>
+        <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</section>
+{% endif %}

@@ -1,0 +1,52 @@
+{% comment %}
+Dashboard Tile: Current Fast
+Shows live countdown timer for active fasting session
+{% endcomment %}
+
+{% if health_enabled and user_data.active_fast %}
+<section class="current-fast-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="current_fast">
+    <div class="fast-card">
+        <div class="fast-header">
+            <div class="fast-icon-wrapper">
+                <span class="fast-icon">🕐</span>
+            </div>
+            <div class="fast-title-area">
+                <span class="fast-badge">Fasting Now</span>
+                <span class="fast-type">{{ user_data.active_fast.get_fasting_type_display }}</span>
+            </div>
+        </div>
+        <div class="fast-timer-container">
+            <div class="fast-timer"
+                 id="fast-timer"
+                 data-started="{{ user_data.active_fast.started_at|date:'c' }}"
+                 data-target="{{ user_data.active_fast.target_hours|default:'0' }}">
+                <span class="timer-value" id="timer-hours">--</span>
+                <span class="timer-separator">:</span>
+                <span class="timer-value" id="timer-minutes">--</span>
+                <span class="timer-separator">:</span>
+                <span class="timer-value" id="timer-seconds">--</span>
+            </div>
+            <span class="timer-label">hours : minutes : seconds</span>
+        </div>
+        {% if user_data.active_fast.target_hours %}
+        <div class="fast-progress-container">
+            <div class="fast-progress-bar">
+                <div class="fast-progress-fill" id="fast-progress" style="width: {{ user_data.active_fast.progress_percent|floatformat:0 }}%"></div>
+            </div>
+            <div class="fast-progress-labels">
+                <span class="progress-current" id="progress-hours">{{ user_data.active_fast.duration_display }}</span>
+                <span class="progress-target">Target: {{ user_data.active_fast.target_hours }}h</span>
+            </div>
+        </div>
+        {% endif %}
+        <div class="fast-actions">
+            <form method="post" action="{% url 'health:fasting_end' user_data.active_fast.pk %}" class="inline-form"
+                  onsubmit="return confirm('End your fast now?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary btn-sm fast-end-btn">End Fast</button>
+            </form>
+            <a href="{% url 'health:fasting_list' %}" class="btn btn-secondary btn-sm">View Details</a>
+        </div>
+    </div>
+</section>
+{% endif %}

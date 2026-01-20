@@ -1,0 +1,19 @@
+{% comment %}
+Dashboard Tile: Daily Encouragement
+Shows uplifting messages and optional scripture (fallback when AI disabled)
+{% endcomment %}
+
+{% if not ai_enabled %}
+<section class="encouragement-card tile-size-{{ tile.size|default:'medium' }}" data-tile-id="daily_encouragement">
+    {% if encouragement %}
+        <p class="encouragement-message">{{ encouragement.message }}</p>
+        {% if encouragement.scripture_reference and faith_enabled %}
+            <p class="scripture-reference">— {{ encouragement.scripture_reference }}</p>
+        {% endif %}
+    {% else %}
+        <p class="encouragement-message">
+            Take a moment to breathe. You're exactly where you need to be.
+        </p>
+    {% endif %}
+</section>
+{% endif %}

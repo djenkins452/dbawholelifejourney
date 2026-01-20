@@ -1,0 +1,103 @@
+{% comment %}
+Dashboard Tile: Module Cards
+Navigation cards with summary stats for each enabled module
+{% endcomment %}
+
+<section class="modules-section tile-size-{{ tile.size|default:'large' }}" data-tile-id="module_cards">
+    <h2 class="section-title">Your Modules</h2>
+    <div class="modules-grid">
+        {% if journal_enabled %}
+        <a href="{% url 'journal:entry_list' %}" class="module-nav-card">
+            <div class="module-icon">📝</div>
+            <div class="module-info">
+                <h3>Journal</h3>
+                <p>{{ user_data.journal_total|default:0 }} entries</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+        {% endif %}
+
+        {% if faith_enabled %}
+        <a href="{% url 'faith:home' %}" class="module-nav-card">
+            <div class="module-icon">✝️</div>
+            <div class="module-info">
+                <h3>Faith</h3>
+                <p>{{ user_data.active_prayers|default:0 }} active prayers</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+        {% endif %}
+
+        {% if health_enabled %}
+        <a href="{% url 'health:home' %}" class="module-nav-card {% if user_data.weight_progress or user_data.nutrition_progress %}has-goals{% endif %}">
+            <div class="module-icon">❤️</div>
+            <div class="module-info">
+                <h3>Health</h3>
+                <p>{% if user_data.latest_weight %}{{ user_data.latest_weight.value }} {{ user_data.latest_weight.unit }}{% else %}Start tracking{% endif %}</p>
+                {% if user_data.weight_progress %}
+                <div class="goal-progress-mini">
+                    <div class="progress-bar-mini">
+                        <div class="progress-fill-mini" style="width: {{ user_data.weight_progress.progress_percent|floatformat:0 }}%"></div>
+                    </div>
+                    <span class="progress-label-mini">
+                        {% if user_data.weight_progress.remaining > 0 %}
+                            {{ user_data.weight_progress.remaining|floatformat:1 }} {{ user_data.weight_progress.unit }} to go
+                        {% elif user_data.weight_progress.remaining < 0 %}
+                            {{ user_data.weight_progress.remaining|floatformat:1|slice:"1:" }} {{ user_data.weight_progress.unit }} to gain
+                        {% else %}
+                            Goal reached!
+                        {% endif %}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+        {% endif %}
+
+        {% if life_enabled %}
+        <a href="{% url 'life:home' %}" class="module-nav-card">
+            <div class="module-icon">🏠</div>
+            <div class="module-info">
+                <h3>Organize</h3>
+                <p>{{ user_data.incomplete_tasks|default:0 }} tasks</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+        {% endif %}
+
+        {% if purpose_enabled %}
+        <a href="{% url 'purpose:home' %}" class="module-nav-card">
+            <div class="module-icon">🧭</div>
+            <div class="module-info">
+                <h3>Goals</h3>
+                <p>{% if user_data.annual_direction %}{{ user_data.word_of_year|default:"Direction set" }}{% else %}Set your direction{% endif %}</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+        {% endif %}
+
+        {% if capture_enabled %}
+        <a href="{% url 'capture:list' %}" class="module-nav-card">
+            <div class="module-icon">🎙️</div>
+            <div class="module-info">
+                <h3>Capture</h3>
+                <p>{{ user_data.capture_count|default:0 }} recording{{ user_data.capture_count|default:0|pluralize }}</p>
+            </div>
+            <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+        {% endif %}
+    </div>
+</section>

@@ -1,0 +1,38 @@
+{% comment %}
+Dashboard Tile: Recurring Transactions / Upcoming Bills
+Shows recurring transactions due in the next 7 days
+{% endcomment %}
+
+{% if finances_enabled and user_data.upcoming_recurring_transactions %}
+<section class="recurring-transactions-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="recurring_transactions">
+    <div class="section-header">
+        <h2 class="section-title">Upcoming Bills</h2>
+        <a href="{% url 'finance:recurring_list' %}" class="section-link">View All</a>
+    </div>
+    <div class="recurring-transactions-list">
+        {% for item in user_data.upcoming_recurring_transactions %}
+        <a href="{% url 'finance:recurring_detail' item.pk %}" class="recurring-item {% if item.days_until == 0 %}due-today{% elif item.days_until <= 2 %}due-soon{% endif %}">
+            <div class="recurring-date">
+                <span class="date-month">{{ item.next_due_date|date:"M" }}</span>
+                <span class="date-day">{{ item.next_due_date|date:"j" }}</span>
+            </div>
+            <div class="recurring-info">
+                <span class="recurring-name">{{ item.name }}</span>
+                <span class="recurring-amount {% if item.is_expense %}expense{% else %}income{% endif %}">
+                    {% if item.is_expense %}-{% else %}+{% endif %}${{ item.amount|floatformat:2 }}
+                </span>
+            </div>
+            <div class="recurring-countdown">
+                {% if item.days_until == 0 %}
+                <span class="countdown-badge due-today">Today</span>
+                {% elif item.days_until == 1 %}
+                <span class="countdown-badge due-tomorrow">Tomorrow</span>
+                {% else %}
+                <span class="countdown-text">{{ item.days_until }} days</span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

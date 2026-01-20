@@ -52,6 +52,7 @@ from django.conf import settings
 from django.shortcuts import redirect
 
 from .models import DailyEncouragement
+from .services import DashboardConfigService
 from apps.help.mixins import HelpContextMixin
 
 
@@ -123,6 +124,15 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
             # Quarterly Review tile - shows at start of each quarter
             context["quarterly_review"] = self._get_quarterly_review(user, prefs, user_data)
+
+            # Dashboard tile configuration
+            config_service = DashboardConfigService(user)
+            context["dashboard_tiles"] = config_service.get_visible_tiles()
+            context["dashboard_setup_complete"] = prefs.dashboard_setup_complete
+            context["show_dashboard_setup_banner"] = not prefs.dashboard_setup_complete
+
+            # Finance module flag
+            context["finances_enabled"] = prefs.finances_enabled
 
             return context
         except Exception as e:
@@ -1214,59 +1224,40 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 class ConfigureDashboardView(LoginRequiredMixin, TemplateView):
     """
     Dashboard configuration view.
-    
+
     Allows users to:
     - Show/hide tiles
-    - Reorder tiles
-    - Choose tile sizes (future)
+    - Reorder tiles via drag-and-drop
+    - Choose tile sizes (small/medium/large)
     """
     template_name = "dashboard/configure.html"
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        prefs = self.request.user.preferences
-        context["current_config"] = prefs.dashboard_config or {}
-        context["available_tiles"] = self.get_available_tiles()
+
+        config_service = DashboardConfigService(self.request.user)
+        context["current_config"] = config_service.get_config()
+        context["available_tiles"] = config_service.get_available_tiles()
+        context["tile_definitions"] = config_service.get_all_tile_definitions()
+
         return context
-    
-    def get_available_tiles(self):
-        """Get list of available tile types."""
-        tiles = [
-            {
-                "type": "encouragement",
-                "name": "Daily Encouragement",
-                "description": "An uplifting message to start your day",
-            },
-            {
-                "type": "journal_summary",
-                "name": "Journal Summary",
-                "description": "Recent journal activity and quick entry",
-            },
-            {
-                "type": "quick_actions",
-                "name": "Quick Actions",
-                "description": "Fast access to common tasks",
-            },
-        ]
-        
-        # Add faith-specific tiles if enabled
-        if self.request.user.preferences.faith_enabled:
-            tiles.append({
-                "type": "scripture",
-                "name": "Daily Scripture",
-                "description": "A verse to reflect on today",
-            })
-        
-        return tiles
-    
+
     def post(self, request, *args, **kwargs):
         """Save dashboard configuration."""
         try:
             config = json.loads(request.body)
-            prefs = request.user.preferences
-            prefs.dashboard_config = config
-            prefs.save(update_fields=["dashboard_config", "updated_at"])
-            return HttpResponse(status=200)
+            config_service = DashboardConfigService(request.user)
+
+            if config_service.update_config(config):
+                # Mark setup as complete
+                prefs = request.user.preferences
+                if not prefs.dashboard_setup_complete:
+                    prefs.dashboard_setup_complete = True
+                    prefs.save(update_fields=['dashboard_setup_complete', 'updated_at'])
+
+                return HttpResponse(status=200)
+            else:
+                return HttpResponse(status=400)
         except (json.JSONDecodeError, KeyError):
             return HttpResponse(status=400)
 
@@ -1505,6 +1496,104 @@ class DismissQuarterlyReviewView(LoginRequiredMixin, View):
                 prefs.save(update_fields=['dismissed_quarterly_reviews', 'updated_at'])
 
             return JsonResponse({'status': 'ok'})
+
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+
+class DismissSetupBannerView(LoginRequiredMixin, View):
+    """Dismiss the dashboard setup banner."""
+
+    def post(self, request, *args, **kwargs):
+        """Mark that user has dismissed the dashboard setup banner (temporarily)."""
+        # For now, we don't permanently dismiss - they can always access configure later
+        # We could add a field to track this if needed
+        return JsonResponse({'status': 'ok'})
+
+
+class DashboardConfigAPIView(LoginRequiredMixin, View):
+    """API to get/update full dashboard configuration."""
+
+    def get(self, request, *args, **kwargs):
+        """Get current dashboard configuration."""
+        config_service = DashboardConfigService(request.user)
+        config = config_service.get_config()
+        available = config_service.get_available_tiles()
+
+        return JsonResponse({
+            'config': config,
+            'available_tiles': available,
+        })
+
+    def post(self, request, *args, **kwargs):
+        """Update full dashboard configuration."""
+        import json
+
+        try:
+            data = json.loads(request.body)
+            config_service = DashboardConfigService(request.user)
+
+            if config_service.update_config(data):
+                # Mark setup as complete
+                prefs = request.user.preferences
+                if not prefs.dashboard_setup_complete:
+                    prefs.dashboard_setup_complete = True
+                    prefs.save(update_fields=['dashboard_setup_complete', 'updated_at'])
+
+                return JsonResponse({'status': 'ok'})
+            else:
+                return JsonResponse({'error': 'Invalid configuration'}, status=400)
+
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+
+class DashboardReorderAPIView(LoginRequiredMixin, View):
+    """API to reorder dashboard tiles."""
+
+    def post(self, request, *args, **kwargs):
+        """Reorder tiles based on provided list."""
+        import json
+
+        try:
+            data = json.loads(request.body)
+            tile_ids = data.get('tile_ids', [])
+
+            if not isinstance(tile_ids, list):
+                return JsonResponse({'error': 'tile_ids must be a list'}, status=400)
+
+            config_service = DashboardConfigService(request.user)
+            if config_service.reorder_tiles(tile_ids):
+                return JsonResponse({'status': 'ok'})
+            else:
+                return JsonResponse({'error': 'Reorder failed'}, status=400)
+
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+
+class DashboardTileConfigAPIView(LoginRequiredMixin, View):
+    """API to update a single tile's configuration."""
+
+    def post(self, request, tile_id, *args, **kwargs):
+        """Update a single tile."""
+        import json
+
+        try:
+            data = json.loads(request.body)
+
+            config_service = DashboardConfigService(request.user)
+            success = config_service.update_tile(
+                tile_id=tile_id,
+                visible=data.get('visible'),
+                size=data.get('size'),
+                order=data.get('order'),
+            )
+
+            if success:
+                return JsonResponse({'status': 'ok'})
+            else:
+                return JsonResponse({'error': 'Update failed'}, status=400)
 
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)

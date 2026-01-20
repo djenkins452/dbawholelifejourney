@@ -46,7 +46,7 @@
 **Impact:** High - Model fields exist but aren't being used
 
 ### Task 5: Add Quick-Capture Journal Mode
-**Status:** ⚪ Pending
+**Status:** ⏸️ On Hold (revisit after 2026-01-27)
 **Impact:** High - Current entry flow has too much friction
 
 ### Task 6: Add "Today's Focus" Priority Section to Dashboard

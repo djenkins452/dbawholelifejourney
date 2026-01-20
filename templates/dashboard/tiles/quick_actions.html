@@ -1,0 +1,69 @@
+{% comment %}
+Dashboard Tile: Quick Actions
+Fast links to common actions like new journal entry, log weight, etc.
+{% endcomment %}
+
+<section class="quick-actions-section tile-size-{{ tile.size|default:'large' }}" data-tile-id="quick_actions">
+    <h2 class="section-title">Quick Actions</h2>
+    <div class="quick-actions-grid">
+        {% if journal_enabled %}
+        <a href="{% url 'journal:entry_create' %}" class="quick-action-card">
+            <span class="action-icon">📝</span>
+            <span class="action-label">New Journal Entry</span>
+        </a>
+        {% endif %}
+
+        {% if faith_enabled %}
+        <a href="{% url 'faith:prayer_create' %}" class="quick-action-card">
+            <span class="action-icon">🙏</span>
+            <span class="action-label">Add Prayer</span>
+        </a>
+        {% endif %}
+
+        {% if health_enabled %}
+        <a href="{% url 'health:weight_create' %}" class="quick-action-card">
+            <span class="action-icon">⚖️</span>
+            <span class="action-label">Log Weight</span>
+        </a>
+        {% if not user_data.fasting_active %}
+        <a href="{% url 'health:fasting_start' %}" class="quick-action-card">
+            <span class="action-icon">🕐</span>
+            <span class="action-label">Start Fast</span>
+        </a>
+        {% else %}
+        <a href="{% url 'health:fasting_list' %}" class="quick-action-card action-active">
+            <span class="action-icon">🕐</span>
+            <span class="action-label">Fasting Now</span>
+        </a>
+        {% endif %}
+        {% endif %}
+
+        {% if life_enabled %}
+        <a href="{% url 'life:task_create' %}" class="quick-action-card">
+            <span class="action-icon">✓</span>
+            <span class="action-label">Add Task</span>
+        </a>
+        {% endif %}
+
+        {% if purpose_enabled %}
+        <a href="{% url 'purpose:goal_create' %}" class="quick-action-card">
+            <span class="action-icon">🎯</span>
+            <span class="action-label">Add Goal</span>
+        </a>
+        {% endif %}
+
+        {% if ai_enabled %}
+        <button type="button" class="quick-action-card" id="quick-scan-btn" onclick="openQuickScan()">
+            <span class="action-icon">📷</span>
+            <span class="action-label">Scan Item</span>
+        </button>
+        {% endif %}
+
+        {% if capture_enabled %}
+        <a href="{% url 'capture:record' %}" class="quick-action-card">
+            <span class="action-icon">🎙️</span>
+            <span class="action-label">Record Audio</span>
+        </a>
+        {% endif %}
+    </div>
+</section>

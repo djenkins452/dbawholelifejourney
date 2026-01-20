@@ -1,0 +1,43 @@
+{% comment %}
+Dashboard Tile: Recent Workouts
+Shows latest workout sessions and personal records
+{% endcomment %}
+
+{% if health_enabled and user_data.recent_workouts %}
+<section class="recent-workouts-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="recent_workouts">
+    <div class="section-header">
+        <h2 class="section-title">Recent Workouts</h2>
+        <a href="{% url 'health:workout_list' %}" class="section-link">View All</a>
+    </div>
+    <div class="workouts-list">
+        {% for workout in user_data.recent_workouts %}
+        <a href="{% url 'health:workout_detail' workout.pk %}" class="workout-item">
+            <div class="workout-date">
+                <span class="date-month">{{ workout.date|date:"M" }}</span>
+                <span class="date-day">{{ workout.date|date:"j" }}</span>
+            </div>
+            <div class="workout-info">
+                <span class="workout-name">{% if workout.name %}{{ workout.name }}{% else %}Workout{% endif %}</span>
+                <span class="workout-meta">
+                    {{ workout.exercise_count }} exercise{{ workout.exercise_count|pluralize }}
+                    {% if workout.duration_minutes %} • {{ workout.duration_minutes }} min{% endif %}
+                </span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% if user_data.recent_prs %}
+    <div class="recent-prs">
+        <h3 class="subsection-title">Recent PRs</h3>
+        {% for pr in user_data.recent_prs %}
+        <div class="pr-item">
+            <span class="pr-icon">🏆</span>
+            <span class="pr-exercise">{{ pr.exercise.name }}</span>
+            <span class="pr-details">{{ pr.weight }}lbs × {{ pr.reps }}</span>
+            <span class="pr-date">{{ pr.achieved_date|date:"M j" }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+{% endif %}

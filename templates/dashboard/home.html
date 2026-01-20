@@ -640,7 +640,7 @@ body.edit-mode .tile-name-label {
 
         showScanState('loading');
 
-        fetch('{% url "scan:quick_analyze" %}', {
+        fetch('{% url "scan:analyze" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

@@ -42,8 +42,16 @@
 - **3C:** Management command + Dashboard widget for upcoming recurring
 
 ### Task 4: Implement Daily Reminders for Faith Module
-**Status:** ⚪ Pending
+**Status:** ✅ Complete
 **Impact:** High - Model fields exist but aren't being used
+**Completed:** 2026-01-20
+
+**Scope (completed):**
+- Added `generate_faith_reminders` scheduled job to wsgi.py (daily at 6 AM UTC)
+- Job calls existing `generate_daily_reminders` management command
+- Creates in-app/email notifications for prayers with `remind_daily=True`
+- Creates notifications for active reading plans not yet completed
+- Respects all user preference toggles
 
 ### Task 5: Add Quick-Capture Journal Mode
 **Status:** ⏸️ On Hold (revisit after 2026-01-27)

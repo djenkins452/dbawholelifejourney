@@ -16,6 +16,33 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Daily Faith Reminders Scheduled Job (Task 4 from Improvement Backlog)
+
+**New Feature:** Scheduled job to generate in-app and email notifications for prayer and reading plan reminders.
+
+**What's Included:**
+
+1. **New Background Job** (`apps/core/jobs.py`)
+   - `generate_faith_reminders()` function calls the management command
+   - Logs job start, completion, and any errors
+
+2. **Scheduler Registration** (`config/wsgi.py`)
+   - Added Job 7: `generate_faith_reminders` running daily at 6:00 AM UTC (1:00 AM EST)
+   - Updated logging to show 7 jobs total, marked SMS jobs as "on hold"
+
+**How It Works:**
+- Runs daily at 6 AM UTC
+- Creates notifications for prayers with `remind_daily=True` (consolidated per user)
+- Creates notifications for active reading plans not yet completed today
+- Respects user preferences: `notify_inapp_prayer`, `notify_email_prayer`, `notify_inapp_reading_plan`, `notify_email_reading_plan`
+- Email delivery follows user's `email_notification_frequency` setting (immediate or daily_digest)
+
+**Files Modified:**
+- `apps/core/jobs.py` - Added generate_faith_reminders function
+- `config/wsgi.py` - Added scheduled job, updated job count and logging
+
+---
+
 ### Customizable Dashboard (Task 6 from Improvement Backlog)
 
 **New Feature:** User-configurable dashboard with drag-and-drop tile reordering, show/hide toggles, and tile sizing.

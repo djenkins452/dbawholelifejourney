@@ -134,6 +134,20 @@ def start_scheduler():
         )
 
         # =====================================================================
+        # Faith Module Jobs
+        # =====================================================================
+
+        # Job 7: Generate faith reminders at 6:00 AM UTC (1:00 AM EST)
+        # Creates in-app/email notifications for prayers and reading plans
+        scheduler.add_job(
+            'apps.core.jobs:generate_faith_reminders',
+            trigger=CronTrigger(hour=6, minute=0),
+            id="generate_faith_reminders",
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # =====================================================================
         # Capture Jobs
         # =====================================================================
 
@@ -149,12 +163,13 @@ def start_scheduler():
 
         scheduler.start()
         logger.info("=" * 60)
-        logger.info("APScheduler STARTED successfully with 6 jobs:")
-        logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC)")
-        logger.info("  - SMS: send_pending_sms (every 5 minutes)")
+        logger.info("APScheduler STARTED successfully with 7 jobs:")
+        logger.info("  - SMS: schedule_daily_sms_reminders (daily at 00:00 UTC) [on hold]")
+        logger.info("  - SMS: send_pending_sms (every 5 minutes) [on hold]")
         logger.info("  - Life: recalculate_task_priorities (daily at 06:00 UTC / 01:00 EST)")
         logger.info("  - Life: process_recurring_tasks (daily at 06:05 UTC / 01:05 EST)")
         logger.info("  - Core: cleanup_soft_deletes (weekly on Sunday at 03:00 UTC)")
+        logger.info("  - Core: generate_faith_reminders (daily at 06:00 UTC / 01:00 EST)")
         logger.info("  - Capture: send_expiration_reminders (daily at 08:00 UTC / 03:00 EST)")
         logger.info("=" * 60)
 

@@ -38,16 +38,56 @@
     border-color: var(--color-accent);
 }
 
-/* Tile container with edit mode */
+/* Tile container - CSS Grid for flexible layouts */
 .dashboard-tiles {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
     gap: 1rem;
 }
 
 /* Tile wrapper for edit mode */
 .tile-wrapper {
     position: relative;
+    min-height: 100px;
+}
+
+/* Size-based grid spans */
+.tile-wrapper[data-tile-size="small"] {
+    grid-column: span 2;
+}
+
+.tile-wrapper[data-tile-size="medium"] {
+    grid-column: span 3;
+}
+
+.tile-wrapper[data-tile-size="large"] {
+    grid-column: span 6;
+}
+
+/* Mobile: stack everything */
+@media (max-width: 768px) {
+    .dashboard-tiles {
+        grid-template-columns: 1fr;
+    }
+    .tile-wrapper[data-tile-size="small"],
+    .tile-wrapper[data-tile-size="medium"],
+    .tile-wrapper[data-tile-size="large"] {
+        grid-column: span 1;
+    }
+}
+
+/* Tablet: 2 columns */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .dashboard-tiles {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .tile-wrapper[data-tile-size="small"] {
+        grid-column: span 1;
+    }
+    .tile-wrapper[data-tile-size="medium"],
+    .tile-wrapper[data-tile-size="large"] {
+        grid-column: span 2;
+    }
 }
 
 .tile-wrapper.hidden-tile {
@@ -57,6 +97,21 @@
 body.edit-mode .tile-wrapper.hidden-tile {
     display: block;
     opacity: 0.5;
+}
+
+/* Drag and drop styles */
+.tile-wrapper.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.tile-wrapper.drag-over {
+    border: 2px dashed var(--color-accent);
+    border-radius: 12px;
+}
+
+body.edit-mode .tile-wrapper {
+    cursor: grab;
 }
 
 /* Edit overlay on each tile */
@@ -97,6 +152,23 @@ body.edit-mode .tile-edit-overlay {
     color: white;
 }
 
+.tile-drag-handle {
+    cursor: grab;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    background: white;
+    border-radius: 4px;
+}
+
+.tile-drag-handle:hover {
+    background: var(--color-accent-light, #e0f2fe);
+}
+
+.tile-drag-handle:active {
+    cursor: grabbing;
+}
+
 .tile-visibility-toggle {
     display: flex;
     align-items: center;
@@ -109,17 +181,10 @@ body.edit-mode .tile-edit-overlay {
     height: 16px;
 }
 
-/* Size classes */
-.tile-size-small {
-    max-width: 300px;
-}
-
-.tile-size-medium {
-    max-width: 100%;
-}
-
-.tile-size-large {
-    max-width: 100%;
+/* Tile content should fill wrapper */
+.tile-wrapper > section,
+.tile-wrapper > div:not(.tile-edit-overlay):not(.tile-name-label) {
+    height: 100%;
 }
 
 /* Edit mode indicator */
@@ -261,6 +326,12 @@ body.edit-mode .tile-name-label {
 
             <!-- Edit overlay -->
             <div class="tile-edit-overlay">
+                <div class="tile-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="4" y1="8" x2="20" y2="8"/>
+                        <line x1="4" y1="16" x2="20" y2="16"/>
+                    </svg>
+                </div>
                 <label class="tile-visibility-toggle" title="Show/Hide">
                     <input type="checkbox"
                            {% if tile.visible %}checked{% endif %}
@@ -512,6 +583,94 @@ body.edit-mode .tile-name-label {
 
         if (status !== 'saving') {
             setTimeout(() => el.classList.remove('visible'), 1500);
+        }
+    }
+
+    // =====================================
+    // Drag and Drop Reordering
+    // =====================================
+    const container = document.getElementById('dashboard-tiles');
+    let draggedEl = null;
+
+    container.addEventListener('dragstart', function(e) {
+        const wrapper = e.target.closest('.tile-wrapper');
+        if (wrapper && isEditMode) {
+            draggedEl = wrapper;
+            wrapper.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', wrapper.dataset.tileId);
+        }
+    });
+
+    container.addEventListener('dragend', function(e) {
+        const wrapper = e.target.closest('.tile-wrapper');
+        if (wrapper) {
+            wrapper.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            if (draggedEl) {
+                saveReorder();
+            }
+            draggedEl = null;
+        }
+    });
+
+    container.addEventListener('dragover', function(e) {
+        if (!isEditMode || !draggedEl) return;
+        e.preventDefault();
+
+        const wrapper = e.target.closest('.tile-wrapper');
+        if (wrapper && wrapper !== draggedEl) {
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            wrapper.classList.add('drag-over');
+
+            const wrappers = [...container.querySelectorAll('.tile-wrapper')];
+            const draggedIdx = wrappers.indexOf(draggedEl);
+            const targetIdx = wrappers.indexOf(wrapper);
+
+            if (draggedIdx < targetIdx) {
+                wrapper.parentNode.insertBefore(draggedEl, wrapper.nextSibling);
+            } else {
+                wrapper.parentNode.insertBefore(draggedEl, wrapper);
+            }
+        }
+    });
+
+    container.addEventListener('dragleave', function(e) {
+        const wrapper = e.target.closest('.tile-wrapper');
+        if (wrapper) {
+            wrapper.classList.remove('drag-over');
+        }
+    });
+
+    // Make tiles draggable in edit mode
+    document.querySelectorAll('.tile-wrapper').forEach(wrapper => {
+        wrapper.setAttribute('draggable', 'true');
+    });
+
+    async function saveReorder() {
+        const tileIds = [...container.querySelectorAll('.tile-wrapper')]
+            .map(wrapper => wrapper.dataset.tileId);
+
+        showSaveStatus('saving');
+
+        try {
+            const response = await fetch('{% url "dashboard:config_reorder" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ tile_ids: tileIds })
+            });
+
+            if (response.ok) {
+                showSaveStatus('saved');
+            } else {
+                showSaveStatus('error');
+            }
+        } catch (error) {
+            console.error('Reorder error:', error);
+            showSaveStatus('error');
         }
     }
 

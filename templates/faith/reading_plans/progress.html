@@ -686,6 +686,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Scripture Inline Expansion
     // ===================================
     const API_PROXY_BASE = '/faith/api/bible';
+    const USER_DEFAULT_TRANSLATION = '{{ default_translation|escapejs }}';
 
     // Book name to API ID mapping
     const BOOK_IDS = {
@@ -787,39 +788,32 @@ document.addEventListener('DOMContentLoaded', function() {
         return `${base}.${parsed.verseStart}-${base}.${parsed.verseEnd}`; // Verse range
     }
 
-    // Default Bible ID (BSB - Berean Standard Bible is a common default)
-    let defaultBibleId = null;
+    // Cached Bible ID
+    let cachedBibleId = null;
 
-    // Fetch default Bible ID
-    async function getDefaultBibleId() {
-        if (defaultBibleId) return defaultBibleId;
+    // Known English Bible IDs for fallback
+    const ENGLISH_BIBLE_IDS = {
+        'BSB': 'bba9f40183526463-01',  // Berean Standard Bible
+        'KJV': 'de4e12af7f28f599-02',  // King James Version
+        'ESV': '9879dbb7cfe39e4d-04',  // English Standard Version (if available)
+        'NIV': '78a9f6124f344018-01',  // NIV 2011
+        'NLT': '65eec8e0b60e656b-01',  // New Living Translation
+    };
 
-        try {
-            const response = await fetch(`${API_PROXY_BASE}/bibles/`);
-            if (!response.ok) throw new Error('Failed to fetch Bibles');
+    // Get user's Bible translation (or find a default)
+    async function getBibleId() {
+        if (cachedBibleId) return cachedBibleId;
 
-            const data = await response.json();
-            const bibles = data.data || [];
-
-            // Prefer BSB (Berean Standard Bible), then ESV, then KJV, then first available
-            const preferred = ['BSB', 'ESV', 'KJV', 'NIV', 'NLT'];
-            for (const abbr of preferred) {
-                const found = bibles.find(b => b.abbreviation === abbr);
-                if (found) {
-                    defaultBibleId = found.id;
-                    return defaultBibleId;
-                }
-            }
-
-            // Just use the first one
-            if (bibles.length > 0) {
-                defaultBibleId = bibles[0].id;
-                return defaultBibleId;
-            }
-        } catch (error) {
-            console.error('Error fetching Bibles:', error);
+        // Use user's saved preference if available
+        if (USER_DEFAULT_TRANSLATION) {
+            cachedBibleId = USER_DEFAULT_TRANSLATION;
+            return cachedBibleId;
         }
-        return null;
+
+        // No user preference - use KJV as reliable default (most common, always available)
+        // This prevents accidentally loading non-English translations
+        cachedBibleId = ENGLISH_BIBLE_IDS['KJV'];
+        return cachedBibleId;
     }
 
     // Fetch and display scripture
@@ -858,7 +852,7 @@ document.addEventListener('DOMContentLoaded', function() {
         errorDiv.style.display = 'none';
 
         try {
-            const bibleId = await getDefaultBibleId();
+            const bibleId = await getBibleId();
             if (!bibleId) throw new Error('No Bible translation available');
 
             const passageId = buildPassageId(parsed);

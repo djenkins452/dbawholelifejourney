@@ -42,6 +42,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Inline Scripture Expansion in Reading Plans
+
+**Feature:** Add inline scripture expansion to reading plans - clicking scripture references now expands verse text inline instead of navigating away to the Scripture Library.
+
+**Improvements:**
+- Click scripture button to expand, click again to collapse
+- Fetches scripture via secure Bible API proxy
+- Shows loading spinner while fetching
+- Formats verse numbers with styling
+- Falls back to "Open in Scripture Library" link on error
+- Supports all 66 Bible books with comprehensive ID mapping
+
+**UX Benefit:** User never loses their place in the reading plan when looking up verses.
+
+**Files Modified:**
+- `templates/faith/reading_plans/progress.html` - Added scripture expansion UI, CSS, and JavaScript
+
+---
+
 ## 2026-01-18 Changes
 
 ### Fix AdminTask created_by Validation for 404 Reporter

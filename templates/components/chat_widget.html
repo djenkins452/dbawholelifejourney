@@ -750,10 +750,10 @@
                 content.reading_title = readingTitle.textContent.trim();
             }
 
-            // Get scripture references
-            const scriptureLinks = document.querySelectorAll('.scripture-ref-link');
-            if (scriptureLinks.length > 0) {
-                content.scriptures = Array.from(scriptureLinks).map(el => el.textContent.trim());
+            // Get scripture references (supports both old link style and new button style)
+            const scriptureElements = document.querySelectorAll('.scripture-ref-btn .scripture-ref-text, .scripture-ref-link');
+            if (scriptureElements.length > 0) {
+                content.scriptures = Array.from(scriptureElements).map(el => el.textContent.trim());
             }
 
             // Get devotional text

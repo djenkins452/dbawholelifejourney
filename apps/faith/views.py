@@ -1253,6 +1253,9 @@ class ReadingPlanProgressView(LoginRequiredMixin, FaithRequiredMixin, DetailView
             "plan_day"
         ).order_by("plan_day__day_number")
 
+        # User's default Bible translation for scripture lookups
+        context["default_translation"] = self.request.user.preferences.default_bible_translation
+
         return context
 
 

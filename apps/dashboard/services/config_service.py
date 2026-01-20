@@ -306,16 +306,33 @@ class DashboardConfigService:
         """
         Get user's dashboard configuration, or defaults if not set.
 
+        Returns full tile definitions merged with user config for display.
+
         Returns:
-            Dashboard configuration dict.
+            Dashboard configuration dict with full tile metadata.
         """
         stored_config = self.prefs.dashboard_config
 
         if not stored_config or 'tiles' not in stored_config:
-            return self.get_default_config()
+            base_config = self.get_default_config()
+        else:
+            # Merge stored config with available tiles (in case new tiles were added)
+            base_config = self._merge_config_with_available(stored_config)
 
-        # Merge stored config with available tiles (in case new tiles were added)
-        return self._merge_config_with_available(stored_config)
+        # Merge in full tile definitions for display
+        available_tiles = {t['id']: t for t in self.get_available_tiles()}
+        enriched_tiles = []
+
+        for tile_config in base_config.get('tiles', []):
+            tile_id = tile_config['id']
+            tile_def = available_tiles.get(tile_id)
+
+            if tile_def:
+                # Merge definition with config (config takes precedence)
+                merged = {**tile_def, **tile_config}
+                enriched_tiles.append(merged)
+
+        return {'tiles': enriched_tiles, 'version': base_config.get('version', 1)}
 
     def _merge_config_with_available(self, stored_config: dict) -> dict:
         """

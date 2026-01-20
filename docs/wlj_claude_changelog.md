@@ -43,6 +43,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Dashboard Configure Page Fix - Missing Tile Names
+
+**Bug Fix:** Tile names and descriptions were not displaying on the dashboard configuration page.
+
+**Root Cause:** `DashboardConfigService.get_config()` was returning only basic config fields (`id`, `visible`, `size`, `order`) without merging in the full tile definitions (`name`, `description`, `icon`, etc.).
+
+**Fix:** Modified `get_config()` to merge tile definitions with user config, similar to how `get_visible_tiles()` already does.
+
+**Files Modified:**
+- `apps/dashboard/services/config_service.py` - `get_config()` now enriches tiles with full definitions
+
+---
+
 ### Customizable Dashboard (Task 6 from Improvement Backlog)
 
 **New Feature:** User-configurable dashboard with drag-and-drop tile reordering, show/hide toggles, and tile sizing.

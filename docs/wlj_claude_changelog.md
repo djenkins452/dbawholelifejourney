@@ -57,8 +57,15 @@ For active development context, see `CLAUDE.md` (project root).
 
 **Fix:** Modified `update_config()` to strip tiles down to only config fields (`id`, `visible`, `size`, `order`) before saving to the database.
 
+**Bug Fix #3:** Reset to Defaults button was not working.
+
+**Root Cause:** The API endpoint received `{ reset: true }` but didn't handle the `reset` flag - it just passed the data to `update_config()` which failed validation (no `tiles` key).
+
+**Fix:** Added reset flag handling in `DashboardConfigAPIView.post()` to call `reset_to_defaults()`.
+
 **Files Modified:**
 - `apps/dashboard/services/config_service.py` - `get_config()` enriches tiles for display, `update_config()` strips to config fields for storage
+- `apps/dashboard/views.py` - Handle `reset` flag in config API
 
 ---
 

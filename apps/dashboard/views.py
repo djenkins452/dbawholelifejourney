@@ -1533,6 +1533,11 @@ class DashboardConfigAPIView(LoginRequiredMixin, View):
             data = json.loads(request.body)
             config_service = DashboardConfigService(request.user)
 
+            # Handle reset request
+            if data.get('reset'):
+                config_service.reset_to_defaults()
+                return JsonResponse({'status': 'ok'})
+
             if config_service.update_config(data):
                 # Mark setup as complete
                 prefs = request.user.preferences

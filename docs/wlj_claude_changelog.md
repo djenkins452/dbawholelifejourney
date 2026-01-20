@@ -16,6 +16,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Completed Reading Plans Moved to Bottom
+
+**Enhancement:** Completed reading plans are now excluded from the Featured Plans section and all other browse sections. They only appear in the "Completed Plans" section at the bottom of the page.
+
+**Behavior:**
+- Featured Plans no longer shows plans the user has already completed
+- Grouped plans (by source/series) exclude completed plans
+- Public/All Plans section excludes completed plans
+- Completed Plans section at bottom now shows all completed plans (removed 5 item limit)
+- Completed Plans ordered by most recently completed first
+
+**Files Modified:**
+- `apps/faith/views.py` - Updated `ReadingPlanListView.get_context_data()` to exclude completed template IDs from featured_plans, grouped_plans, and public_plans
+
+---
+
 ### Chat Widget Mobile Viewport Fix
 
 **Bug Fix:** Chat assistant input box was not visible on mobile devices when opening the chat drawer on the reading plan page.

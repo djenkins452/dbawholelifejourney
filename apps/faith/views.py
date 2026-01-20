@@ -1059,26 +1059,30 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
         # Get plans accessible to this user
         accessible_plans = self.get_accessible_plans(user)
 
-        # Available reading plan templates (filtered by access)
-        context["featured_plans"] = accessible_plans.filter(is_featured=True)
-        context["all_plans"] = accessible_plans
-
         # User's active plans
         context["active_plans"] = UserReadingPlan.objects.filter(
             user=user, plan_status="active"
         ).select_related("template")
 
-        # User's completed plans
+        # User's completed plans (for the Completed section at bottom)
         context["completed_plans"] = UserReadingPlan.objects.filter(
             user=user, plan_status="completed"
-        ).select_related("template")[:5]
+        ).select_related("template").order_by("-completed_at")
 
-        # Set of completed template IDs for badge display on browse cards
-        context["completed_template_ids"] = set(
+        # Set of completed template IDs - used to exclude from featured and show badge
+        completed_template_ids = set(
             UserReadingPlan.objects.filter(
                 user=user, plan_status="completed"
             ).values_list("template_id", flat=True)
         )
+        context["completed_template_ids"] = completed_template_ids
+
+        # Featured plans - exclude completed ones (they appear in Completed section)
+        context["featured_plans"] = accessible_plans.filter(
+            is_featured=True
+        ).exclude(pk__in=completed_template_ids)
+
+        context["all_plans"] = accessible_plans
 
         # Filter by topic if requested
         topic = self.request.GET.get("topic")
@@ -1095,10 +1099,15 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
 
         # Group plans by source and series for organized display
         # Structure: {source_abbrev: {series_name: [plans], ...}, ...}
+        # Completed plans are excluded - they appear in the Completed section
         grouped_plans = {}
         public_plans = []
 
         for plan in accessible_plans.order_by("source", "series", "series_order"):
+            # Skip completed plans - they go in the Completed section at bottom
+            if plan.pk in completed_template_ids:
+                continue
+
             if plan.source:
                 source_key = plan.source_abbreviation or plan.source
                 if source_key not in grouped_plans:

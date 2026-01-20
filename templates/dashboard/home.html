@@ -154,11 +154,14 @@ body.edit-mode .tile-edit-overlay {
 
 .tile-drag-handle {
     cursor: grab;
-    padding: 0.25rem;
+    padding: 0.375rem 0.5rem;
     display: flex;
     align-items: center;
+    justify-content: center;
     background: white;
     border-radius: 4px;
+    min-width: 28px;
+    min-height: 28px;
 }
 
 .tile-drag-handle:hover {
@@ -167,6 +170,11 @@ body.edit-mode .tile-edit-overlay {
 
 .tile-drag-handle:active {
     cursor: grabbing;
+    background: var(--color-accent);
+}
+
+.tile-drag-handle:active svg {
+    stroke: white;
 }
 
 .tile-visibility-toggle {
@@ -327,9 +335,9 @@ body.edit-mode .tile-name-label {
             <!-- Edit overlay -->
             <div class="tile-edit-overlay">
                 <div class="tile-drag-handle" title="Drag to reorder">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="4" y1="8" x2="20" y2="8"/>
-                        <line x1="4" y1="16" x2="20" y2="16"/>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#666" stroke-width="2">
+                        <line x1="4" y1="9" x2="20" y2="9"/>
+                        <line x1="4" y1="15" x2="20" y2="15"/>
                     </svg>
                 </div>
                 <label class="tile-visibility-toggle" title="Show/Hide">

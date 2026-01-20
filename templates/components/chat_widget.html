@@ -171,6 +171,7 @@
     width: 420px;
     max-width: 100vw;
     height: 100vh;
+    height: 100dvh; /* Dynamic viewport height - accounts for mobile browser chrome */
     background: var(--color-background, #fff);
     box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
     display: flex;
@@ -669,6 +670,30 @@
     let isLoaded = false;
     let hasMessages = false;
 
+    // =========================================================================
+    // MOBILE VIEWPORT HEIGHT FIX
+    // On mobile browsers, 100vh includes the browser chrome (URL bar, etc.)
+    // This fixes the drawer height to use the actual visible viewport
+    // =========================================================================
+    function setMobileViewportHeight() {
+        // Only apply fix on mobile (touch devices or narrow screens)
+        if (window.innerWidth <= 768 || 'ontouchstart' in window) {
+            const vh = window.innerHeight;
+            drawer.style.height = vh + 'px';
+        } else {
+            // Reset to CSS default on desktop
+            drawer.style.height = '';
+        }
+    }
+
+    // Set on load and resize
+    setMobileViewportHeight();
+    window.addEventListener('resize', setMobileViewportHeight);
+    window.addEventListener('orientationchange', function() {
+        // Small delay to let the browser finish orientation change
+        setTimeout(setMobileViewportHeight, 100);
+    });
+
     // Current attached image data
     let attachedImage = null;  // { data: base64, mimeType: string }
 
@@ -1046,6 +1071,8 @@
     // Open drawer
     function openDrawer(skipSave = false) {
         isOpen = true;
+        // Recalculate viewport height when opening (browser chrome may have changed)
+        setMobileViewportHeight();
         // Enable transition animation on first open (not on page load)
         drawer.classList.add('animate');
         drawer.classList.add('open');

@@ -14,6 +14,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-20 Changes
+
+### Chat Widget Mobile Viewport Fix
+
+**Bug Fix:** Chat assistant input box was not visible on mobile devices when opening the chat drawer on the reading plan page.
+
+**Root Cause:** The chat drawer used `height: 100vh` which on mobile browsers (iOS Safari, Chrome) includes the space behind the browser chrome (URL bar, bottom navigation). This pushed the input area below the visible viewport.
+
+**Solution:**
+- Added CSS `100dvh` (dynamic viewport height) as modern fallback with `100vh` for older browsers
+- Added JavaScript viewport height calculator that sets explicit pixel height on mobile/touch devices
+- Recalculates height when drawer opens, on resize, and on orientation change
+
+**Files Modified:**
+- `templates/components/chat_widget.html` - Added `100dvh` CSS and JavaScript mobile viewport height fix
+
+---
+
 ## 2026-01-19 Changes
 
 ### Dashboard Weather Widget

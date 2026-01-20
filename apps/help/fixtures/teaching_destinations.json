@@ -984,5 +984,39 @@
             "created_at": "2026-01-20T00:00:00Z",
             "updated_at": "2026-01-20T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 58,
+        "fields": {
+            "destination_id": "notification-center",
+            "name": "Notification Center",
+            "path_description": "Notifications",
+            "explanation": "View all your notifications including reminders, alerts, and updates.",
+            "url": "/notifications/",
+            "keywords": "notifications, alerts, reminders, notification center, notification history, bell, unread notifications, view notifications",
+            "module": "core",
+            "sort_order": 58,
+            "is_active": true,
+            "created_at": "2026-01-20T00:00:00Z",
+            "updated_at": "2026-01-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 59,
+        "fields": {
+            "destination_id": "notification-preferences",
+            "name": "Notification Preferences",
+            "path_description": "Settings - Preferences - Notifications",
+            "explanation": "Configure which notifications you receive via in-app, email, or SMS.",
+            "url": "/settings/preferences/#notifications",
+            "keywords": "notification settings, notification preferences, turn off notifications, disable notifications, email notifications, sms notifications, configure alerts, notification options",
+            "module": "settings",
+            "sort_order": 59,
+            "is_active": true,
+            "created_at": "2026-01-20T00:00:00Z",
+            "updated_at": "2026-01-20T00:00:00Z"
+        }
     }
 ]

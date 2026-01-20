@@ -61,4 +61,17 @@ urlpatterns = [
 
     # 404 Reporting API
     path("api/report-404/", views.Report404View.as_view(), name="report_404"),
+
+    # Notification Center
+    path("notifications/", views.NotificationListView.as_view(), name="notifications"),
+
+    # Notification API
+    path("api/notifications/unread/", views.NotificationUnreadView.as_view(), name="notifications_unread"),
+    path("api/notifications/<int:pk>/read/", views.NotificationMarkReadView.as_view(), name="notification_mark_read"),
+    path("api/notifications/mark-all-read/", views.NotificationMarkAllReadView.as_view(), name="notifications_mark_all_read"),
+    path("api/notifications/count/", views.NotificationCountView.as_view(), name="notifications_count"),
+
+    # Notification Setup Popup API
+    path("api/notification-setup/check/", views.NotificationSetupCheckView.as_view(), name="notification_setup_check"),
+    path("api/notification-setup/dismiss/", views.NotificationSetupDismissView.as_view(), name="notification_setup_dismiss"),
 ]

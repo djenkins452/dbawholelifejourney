@@ -239,6 +239,9 @@ class PreferencesViewTest(TestCase):
             'weight_goal_unit': 'lb',
             'sms_quiet_start': '22:00',
             'sms_quiet_end': '08:00',
+            # Required notification fields
+            'notification_reminder_time': '07:00',
+            'email_notification_frequency': 'daily_digest',
         }, follow=True)  # Follow redirects
 
         # Verify change was saved

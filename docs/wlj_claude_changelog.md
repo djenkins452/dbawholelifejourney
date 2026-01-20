@@ -16,6 +16,98 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### In-App Notification System (Task 4 from Improvement Backlog)
+
+**New Feature:** Comprehensive notification system with in-app bell notifications and email digest support.
+
+**What's Included:**
+
+1. **Notification Model** (`apps/core/models.py`)
+   - Core model with categories: medicine, task, event, prayer, reading_plan, fasting, significant_event, milestone, finance, journal, system
+   - Generic foreign key linking to source objects (ContentType + object_id)
+   - Status tracking: is_read, created_at
+   - Methods: mark_read(), get_unread_for_user(), mark_all_read(), cleanup_old_notifications()
+
+2. **EmailNotificationTemplate Model** (`apps/admin_console/models.py`)
+   - Admin-configurable email templates per category
+   - Django template syntax support for subject and body
+   - Methods: render_subject(), render_body(), get_template_for_category()
+
+3. **User Preferences** (`apps/users/models.py`)
+   - Master toggles: notifications_enabled, email_notifications_enabled
+   - Per-category toggles for both in-app and email: notify_inapp_*, notify_email_*
+   - email_notification_frequency: immediate or daily_digest
+   - notification_reminder_time: single time for reading plan reminders
+   - notification_setup_shown: tracks if user saw the one-time notification intro
+
+4. **Notification Service** (`apps/core/services/notification_service.py`)
+   - NotificationService class for creating notifications and sending emails
+   - Methods: create_notification(), send_immediate_email(), send_daily_digest()
+   - Reminder generators: create_prayer_reminders(), create_reading_plan_reminders()
+   - Module-aware preference checking (only sends for enabled modules)
+
+5. **Views and URLs** (`apps/core/views.py`, `apps/core/urls.py`)
+   - NotificationListView: Full page notification center with pagination
+   - API endpoints: unread notifications, mark read, mark all read, count
+   - Setup check/dismiss endpoints for one-time intro popup
+
+6. **UI Components**
+   - `templates/components/notification_bell.html`: Bell icon with unread badge, dropdown list
+   - `templates/core/notifications.html`: Full notification center page
+   - `static/js/notifications.js`: JS for bell functionality, auto-refresh every 60 seconds
+
+7. **Email Templates**
+   - `templates/core/email/notification_digest.html`: Daily digest email template
+   - `apps/admin_console/fixtures/email_notification_templates.json`: Fixture for all category templates
+
+8. **Management Commands**
+   - `send_notification_digest`: Sends daily digest emails (intended for 4:45 AM)
+   - `generate_daily_reminders`: Creates in-app notifications for prayer/reading plan reminders
+
+9. **Updated Preferences Page** (`templates/users/preferences.html`)
+   - In-App Notifications section with master toggle and per-category toggles
+   - Email Notifications section with frequency selector and per-category toggles
+   - Module-aware: only shows categories for user's enabled modules
+
+**Migrations:**
+- `apps/core/migrations/0047_notification_system.py`: Notification model
+- `apps/core/migrations/0048_notification_system_release_note.py`: What's New entry
+- `apps/admin_console/migrations/0021_notification_system.py`: EmailNotificationTemplate model
+- `apps/users/migrations/0041_notification_system.py`: User notification preferences
+- `apps/sms/migrations/0003_notification_system.py`: Added milestone category
+
+**Teaching Tool Updates:**
+- Added "Notification Center" and "Notification Preferences" destinations
+
+**Test Fixes:**
+- `apps/core/tests/test_core_comprehensive.py`: Added required notification fields to preferences test
+- `apps/users/tests/test_users.py`: Added required notification fields to preferences POST data
+
+**Files Modified:**
+- `apps/core/models.py` - Added Notification model
+- `apps/admin_console/models.py` - Added EmailNotificationTemplate model
+- `apps/users/models.py` - Added notification preference fields
+- `apps/users/forms.py` - Added notification fields to PreferencesForm
+- `apps/core/urls.py` - Added notification URL routes
+- `apps/core/views.py` - Added notification views
+- `templates/components/navigation.html` - Added notification bell include
+- `templates/base.html` - Added notifications.js script
+- `templates/users/preferences.html` - Added notification preferences sections
+- `apps/core/management/commands/load_initial_data.py` - Added email templates fixture
+
+**New Files:**
+- `apps/core/services/notification_service.py`
+- `templates/components/notification_bell.html`
+- `templates/core/notifications.html`
+- `static/js/notifications.js`
+- `templates/core/email/notification_digest.html`
+- `apps/admin_console/fixtures/email_notification_templates.json`
+- `apps/core/management/commands/send_notification_digest.py`
+- `apps/core/management/commands/generate_daily_reminders.py`
+- `apps/help/fixtures/teaching_destinations.json` (updated)
+
+---
+
 ### Recurring Transactions Feature (Task 3 from Improvement Backlog)
 
 **New Feature:** Recurring transactions added to the Finance module allowing users to track subscriptions, bills, and regular income automatically.

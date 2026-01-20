@@ -952,3 +952,150 @@ class Report404View(View):
         except Exception as e:
             logger.error(f"Error in Report404View: {e}")
             return JsonResponse({'success': False, 'error': 'Server error'}, status=500)
+
+
+# =============================================================================
+# NOTIFICATION VIEWS
+# =============================================================================
+
+
+class NotificationListView(LoginRequiredMixin, ListView):
+    """
+    Full page notification center.
+
+    Shows all notifications with filtering and mark-as-read functionality.
+    """
+    template_name = 'core/notifications.html'
+    context_object_name = 'notifications'
+    paginate_by = 25
+
+    def get_queryset(self):
+        from .models import Notification
+        return Notification.objects.filter(
+            user=self.request.user
+        ).order_by('-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .models import Notification
+        context['unread_count'] = Notification.get_unread_count(self.request.user)
+        return context
+
+
+class NotificationUnreadView(LoginRequiredMixin, View):
+    """
+    API endpoint to get unread notifications for the bell dropdown.
+
+    GET returns JSON with:
+    - notifications: list of unread notifications (max 10)
+    - unread_count: total unread count
+    """
+
+    def get(self, request, *args, **kwargs):
+        from .models import Notification
+
+        notifications = Notification.get_unread_for_user(request.user, limit=10)
+        unread_count = Notification.get_unread_count(request.user)
+
+        return JsonResponse({
+            'notifications': [
+                {
+                    'id': n.id,
+                    'category': n.category,
+                    'title': n.title,
+                    'message': n.message[:100] + '...' if len(n.message) > 100 else n.message,
+                    'action_url': n.action_url,
+                    'icon': n.get_icon(),
+                    'created_at': n.created_at.isoformat(),
+                    'is_read': n.is_read,
+                }
+                for n in notifications
+            ],
+            'unread_count': unread_count,
+        })
+
+
+class NotificationMarkReadView(LoginRequiredMixin, View):
+    """
+    API endpoint to mark a notification as read.
+
+    POST to /notifications/<pk>/read/
+    """
+
+    def post(self, request, pk, *args, **kwargs):
+        from .models import Notification
+
+        try:
+            notification = Notification.objects.get(pk=pk, user=request.user)
+            notification.mark_read()
+            return JsonResponse({'success': True})
+        except Notification.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Not found'}, status=404)
+
+
+class NotificationMarkAllReadView(LoginRequiredMixin, View):
+    """
+    API endpoint to mark all notifications as read.
+
+    POST to /notifications/mark-all-read/
+    """
+
+    def post(self, request, *args, **kwargs):
+        from .models import Notification
+
+        count = Notification.mark_all_read(request.user)
+        return JsonResponse({
+            'success': True,
+            'marked_count': count,
+        })
+
+
+class NotificationCountView(LoginRequiredMixin, View):
+    """
+    API endpoint to get unread notification count.
+
+    GET returns JSON with:
+    - unread_count: number of unread notifications
+    """
+
+    def get(self, request, *args, **kwargs):
+        from .models import Notification
+
+        unread_count = Notification.get_unread_count(request.user)
+        return JsonResponse({'unread_count': unread_count})
+
+
+class NotificationSetupCheckView(LoginRequiredMixin, View):
+    """
+    API endpoint to check if notification setup popup should be shown.
+
+    GET returns JSON with:
+    - should_show: boolean indicating if popup should be shown
+    """
+
+    def get(self, request, *args, **kwargs):
+        try:
+            prefs = request.user.preferences
+            should_show = not prefs.notification_setup_shown
+        except Exception:
+            should_show = False
+
+        return JsonResponse({'should_show': should_show})
+
+
+class NotificationSetupDismissView(LoginRequiredMixin, View):
+    """
+    API endpoint to dismiss the notification setup popup.
+
+    POST marks the popup as shown.
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            prefs = request.user.preferences
+            prefs.notification_setup_shown = True
+            prefs.save(update_fields=['notification_setup_shown'])
+            return JsonResponse({'success': True})
+        except Exception as e:
+            logger.error(f"Error dismissing notification setup: {e}")
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)

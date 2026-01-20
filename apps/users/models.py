@@ -722,6 +722,119 @@ class UserPreferences(models.Model):
         help_text="End of quiet hours",
     )
 
+    # =============================
+    # IN-APP & EMAIL NOTIFICATIONS
+    # =============================
+    # Master toggles
+    notifications_enabled = models.BooleanField(
+        default=True,
+        help_text="Master toggle for in-app notifications",
+    )
+    email_notifications_enabled = models.BooleanField(
+        default=True,
+        help_text="Master toggle for email notifications",
+    )
+
+    # Email notification frequency
+    EMAIL_FREQUENCY_CHOICES = [
+        ("immediate", "Immediate (as they occur)"),
+        ("daily_digest", "Daily Digest"),
+    ]
+    email_notification_frequency = models.CharField(
+        max_length=20,
+        choices=EMAIL_FREQUENCY_CHOICES,
+        default="daily_digest",
+        help_text="How often to receive email notifications",
+    )
+
+    # Global reminder time for reading plans
+    notification_reminder_time = models.TimeField(
+        default=datetime.time(7, 0),
+        help_text="Daily reminder time for reading plans and other scheduled notifications",
+    )
+
+    # One-time notification setup popup
+    notification_setup_shown = models.BooleanField(
+        default=False,
+        help_text="Has the notification setup popup been shown to this user?",
+    )
+
+    # Per-category in-app notification toggles (default: ON for new users)
+    notify_inapp_medicine = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for medicine reminders",
+    )
+    notify_inapp_task = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for task due dates",
+    )
+    notify_inapp_event = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for calendar events",
+    )
+    notify_inapp_prayer = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for prayer reminders",
+    )
+    notify_inapp_reading_plan = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for reading plan reminders",
+    )
+    notify_inapp_milestone = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for goal milestones",
+    )
+    notify_inapp_significant_event = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for significant events",
+    )
+    notify_inapp_finance = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for finance alerts",
+    )
+    notify_inapp_journal = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for journal prompts",
+    )
+
+    # Per-category email notification toggles (default: ON for new users)
+    notify_email_medicine = models.BooleanField(
+        default=True,
+        help_text="Email notifications for medicine reminders",
+    )
+    notify_email_task = models.BooleanField(
+        default=True,
+        help_text="Email notifications for task due dates",
+    )
+    notify_email_event = models.BooleanField(
+        default=True,
+        help_text="Email notifications for calendar events",
+    )
+    notify_email_prayer = models.BooleanField(
+        default=True,
+        help_text="Email notifications for prayer reminders",
+    )
+    notify_email_reading_plan = models.BooleanField(
+        default=True,
+        help_text="Email notifications for reading plan reminders",
+    )
+    notify_email_milestone = models.BooleanField(
+        default=True,
+        help_text="Email notifications for goal milestones",
+    )
+    notify_email_significant_event = models.BooleanField(
+        default=True,
+        help_text="Email notifications for significant events",
+    )
+    notify_email_finance = models.BooleanField(
+        default=True,
+        help_text="Email notifications for finance alerts",
+    )
+    notify_email_journal = models.BooleanField(
+        default=True,
+        help_text="Email notifications for journal prompts",
+    )
+
     # ===================
     # WEIGHT GOALS
     # ===================

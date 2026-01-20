@@ -1696,3 +1696,252 @@ class APIRequestLog(models.Model):
         cutoff = timezone.now() - timezone.timedelta(days=days)
         deleted, _ = cls.objects.filter(created_at__lt=cutoff).delete()
         return deleted
+
+
+# =============================================================================
+# IN-APP NOTIFICATION SYSTEM
+# =============================================================================
+
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+
+
+class Notification(TimeStampedModel):
+    """
+    In-app notification for users.
+
+    Notifications appear in the notification bell dropdown and notification
+    center. They can be linked to a source object (prayer request, task, etc.)
+    via a generic foreign key.
+
+    Categories match the SMS notification categories for consistency.
+    """
+
+    # Category choices - matches SMS categories
+    CATEGORY_MEDICINE = 'medicine'
+    CATEGORY_MEDICINE_REFILL = 'medicine_refill'
+    CATEGORY_TASK = 'task'
+    CATEGORY_EVENT = 'event'
+    CATEGORY_PRAYER = 'prayer'
+    CATEGORY_READING_PLAN = 'reading_plan'
+    CATEGORY_FASTING = 'fasting'
+    CATEGORY_SIGNIFICANT_EVENT = 'significant_event'
+    CATEGORY_MILESTONE = 'milestone'
+    CATEGORY_FINANCE = 'finance'
+    CATEGORY_JOURNAL = 'journal'
+    CATEGORY_SYSTEM = 'system'
+
+    CATEGORY_CHOICES = [
+        (CATEGORY_MEDICINE, 'Medicine Reminder'),
+        (CATEGORY_MEDICINE_REFILL, 'Medicine Refill'),
+        (CATEGORY_TASK, 'Task Due'),
+        (CATEGORY_EVENT, 'Calendar Event'),
+        (CATEGORY_PRAYER, 'Prayer Reminder'),
+        (CATEGORY_READING_PLAN, 'Reading Plan'),
+        (CATEGORY_FASTING, 'Fasting Reminder'),
+        (CATEGORY_SIGNIFICANT_EVENT, 'Significant Event'),
+        (CATEGORY_MILESTONE, 'Goal Milestone'),
+        (CATEGORY_FINANCE, 'Finance Alert'),
+        (CATEGORY_JOURNAL, 'Journal Prompt'),
+        (CATEGORY_SYSTEM, 'System'),
+    ]
+
+    # Map categories to module preference fields
+    CATEGORY_MODULE_MAP = {
+        CATEGORY_MEDICINE: 'health_enabled',
+        CATEGORY_MEDICINE_REFILL: 'health_enabled',
+        CATEGORY_TASK: 'life_enabled',
+        CATEGORY_EVENT: 'life_enabled',
+        CATEGORY_PRAYER: 'faith_enabled',
+        CATEGORY_READING_PLAN: 'faith_enabled',
+        CATEGORY_FASTING: 'health_enabled',
+        CATEGORY_SIGNIFICANT_EVENT: 'life_enabled',
+        CATEGORY_MILESTONE: 'purpose_enabled',
+        CATEGORY_FINANCE: 'finances_enabled',
+        CATEGORY_JOURNAL: 'journal_enabled',
+        CATEGORY_SYSTEM: None,  # Always show system notifications
+    }
+
+    # Fields
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        help_text="User this notification is for"
+    )
+
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default=CATEGORY_SYSTEM,
+        db_index=True,
+        help_text="Type of notification"
+    )
+
+    title = models.CharField(
+        max_length=200,
+        help_text="Short notification title"
+    )
+
+    message = models.TextField(
+        help_text="Notification message body"
+    )
+
+    action_url = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="URL to navigate to when notification is clicked"
+    )
+
+    icon = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Icon class or emoji for the notification"
+    )
+
+    is_read = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether the user has read this notification"
+    )
+
+    read_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the notification was marked as read"
+    )
+
+    # Generic foreign key to source object (optional)
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Type of the source object"
+    )
+    object_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="ID of the source object"
+    )
+    source_object = GenericForeignKey('content_type', 'object_id')
+
+    # For scheduled notifications (e.g., daily reminders)
+    scheduled_for = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="When this notification should be shown (null = immediate)"
+    )
+
+    # Email tracking
+    email_sent = models.BooleanField(
+        default=False,
+        help_text="Whether an email was sent for this notification"
+    )
+    email_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the email was sent"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Notification"
+        verbose_name_plural = "Notifications"
+        indexes = [
+            models.Index(fields=['user', 'is_read', '-created_at']),
+            models.Index(fields=['user', 'category', '-created_at']),
+            models.Index(fields=['scheduled_for', 'is_read']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email}: {self.title}"
+
+    def mark_read(self):
+        """Mark this notification as read."""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=['is_read', 'read_at', 'updated_at'])
+
+    def mark_email_sent(self):
+        """Mark that an email was sent for this notification."""
+        self.email_sent = True
+        self.email_sent_at = timezone.now()
+        self.save(update_fields=['email_sent', 'email_sent_at', 'updated_at'])
+
+    @classmethod
+    def get_unread_for_user(cls, user, limit=None):
+        """Get unread notifications for a user."""
+        qs = cls.objects.filter(
+            user=user,
+            is_read=False
+        ).filter(
+            models.Q(scheduled_for__isnull=True) |
+            models.Q(scheduled_for__lte=timezone.now())
+        ).order_by('-created_at')
+
+        if limit:
+            qs = qs[:limit]
+        return qs
+
+    @classmethod
+    def get_unread_count(cls, user):
+        """Get count of unread notifications for a user."""
+        return cls.objects.filter(
+            user=user,
+            is_read=False
+        ).filter(
+            models.Q(scheduled_for__isnull=True) |
+            models.Q(scheduled_for__lte=timezone.now())
+        ).count()
+
+    @classmethod
+    def mark_all_read(cls, user):
+        """Mark all notifications as read for a user."""
+        now = timezone.now()
+        return cls.objects.filter(
+            user=user,
+            is_read=False
+        ).update(is_read=True, read_at=now, updated_at=now)
+
+    @classmethod
+    def get_pending_email_notifications(cls, user):
+        """Get notifications that need to be sent via email."""
+        return cls.objects.filter(
+            user=user,
+            email_sent=False,
+            is_read=False
+        ).filter(
+            models.Q(scheduled_for__isnull=True) |
+            models.Q(scheduled_for__lte=timezone.now())
+        ).order_by('-created_at')
+
+    @classmethod
+    def cleanup_old_notifications(cls, days=90):
+        """Delete read notifications older than specified days."""
+        cutoff = timezone.now() - timezone.timedelta(days=days)
+        deleted, _ = cls.objects.filter(
+            is_read=True,
+            created_at__lt=cutoff
+        ).delete()
+        return deleted
+
+    def get_icon(self):
+        """Return an icon for this notification based on category."""
+        icons = {
+            self.CATEGORY_MEDICINE: '💊',
+            self.CATEGORY_MEDICINE_REFILL: '💊',
+            self.CATEGORY_TASK: '✅',
+            self.CATEGORY_EVENT: '📅',
+            self.CATEGORY_PRAYER: '🙏',
+            self.CATEGORY_READING_PLAN: '📖',
+            self.CATEGORY_FASTING: '🍽️',
+            self.CATEGORY_SIGNIFICANT_EVENT: '🎂',
+            self.CATEGORY_MILESTONE: '🎯',
+            self.CATEGORY_FINANCE: '💰',
+            self.CATEGORY_JOURNAL: '📝',
+            self.CATEGORY_SYSTEM: '🔔',
+        }
+        return self.icon or icons.get(self.category, '🔔')

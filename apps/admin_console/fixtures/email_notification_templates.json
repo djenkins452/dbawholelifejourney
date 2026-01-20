@@ -1,0 +1,101 @@
+[
+    {
+        "model": "admin_console.emailnotificationtemplate",
+        "pk": 1,
+        "fields": {
+            "category": "digest",
+            "display_name": "Daily Digest",
+            "subject_template": "{{ site_name }} - Your Daily Digest ({{ notification_count }} notifications)",
+            "body_template": "{% include 'core/email/notification_digest.html' %}",
+            "is_active": true
+        }
+    },
+    {
+        "model": "admin_console.emailnotificationtemplate",
+        "pk": 2,
+        "fields": {
+            "category": "prayer",
+            "display_name": "Prayer Reminder",
+            "subject_template": "{{ site_name }} - Prayer Reminder",
+            "body_template": "<!DOCTYPE html><html><body><p>Hi {{ user.first_name|default:'there' }},</p><p>This is a reminder for your prayer: <strong>{{ notification.title }}</strong></p><p>{{ notification.message }}</p><p><a href=\"{{ notification.action_url }}\">View Prayer</a></p><p>Blessings,<br>{{ site_name }}</p><hr><small><a href=\"{{ preferences_url }}\">Manage notification preferences</a></small></body></html>",
+            "is_active": true
+        }
+    },
+    {
+        "model": "admin_console.emailnotificationtemplate",
+        "pk": 3,
+        "fields": {
+            "category": "reading_plan",
+            "display_name": "Reading Plan Reminder",
+            "subject_template": "{{ site_name }} - Time for Your Daily Reading",
+            "body_template": "<!DOCTYPE html><html><body><p>Hi {{ user.first_name|default:'there' }},</p><p>{{ notification.title }}</p><p>{{ notification.message }}</p><p><a href=\"{{ notification.action_url }}\">Start Reading</a></p><p>Keep growing,<br>{{ site_name }}</p><hr><small><a href=\"{{ preferences_url }}\">Manage notification preferences</a></small></body></html>",
+            "is_active": true
+        }
+    },
+    {
+        "model": "admin_console.emailnotificationtemplate",
+        "pk": 4,
+        "fields": {
+            "category": "task",
+            "display_name": "Task Due Reminder",
+            "subject_template": "{{ site_name }} - Task Due: {{ notification.title }}",
+            "body_template": "<!DOCTYPE html><html><body><p>Hi {{ user.first_name|default:'there' }},</p><p>You have a task due: <strong>{{ notification.title }}</strong></p><p>{{ notification.message }}</p><p><a href=\"{{ notification.action_url }}\">View Task</a></p><p>{{ site_name }}</p><hr><small><a href=\"{{ preferences_url }}\">Manage notification preferences</a></small></body></html>",
+            "is_active": true
+        }
+    },
+    {
+        "model": "admin_console.emailnotificationtemplate",
+        "pk": 5,
+        "fields": {
+            "category": "event",
+            "display_name": "Event Reminder",
+            "subject_template": "{{ site_name }} - Upcoming: {{ notification.title }}",
+            "body_template": "<!DOCTYPE html><html><body><p>Hi {{ user.first_name|default:'there' }},</p><p>You have an upcoming event: <strong>{{ notification.title }}</strong></p><p>{{ notification.message }}</p><p><a href=\"{{ notification.action_url }}\">View Event</a></p><p>{{ site_name }}</p><hr><small><a href=\"{{ preferences_url }}\">Manage notification preferences</a></small></body></html>",
+            "is_active": true
+        }
+    },
+    {
+        "model": "admin_console.emailnotificationtemplate",
+        "pk": 6,
+        "fields": {
+            "category": "milestone",
+            "display_name": "Goal Milestone",
+            "subject_template": "{{ site_name }} - Milestone: {{ notification.title }}",
+            "body_template": "<!DOCTYPE html><html><body><p>Hi {{ user.first_name|default:'there' }},</p><p>{{ notification.title }}</p><p>{{ notification.message }}</p><p><a href=\"{{ notification.action_url }}\">View Goal</a></p><p>Keep it up!<br>{{ site_name }}</p><hr><small><a href=\"{{ preferences_url }}\">Manage notification preferences</a></small></body></html>",
+            "is_active": true
+        }
+    },
+    {
+        "model": "admin_console.emailnotificationtemplate",
+        "pk": 7,
+        "fields": {
+            "category": "medicine",
+            "display_name": "Medicine Reminder",
+            "subject_template": "{{ site_name }} - Medicine Reminder: {{ notification.title }}",
+            "body_template": "<!DOCTYPE html><html><body><p>Hi {{ user.first_name|default:'there' }},</p><p>This is a reminder to take your medicine: <strong>{{ notification.title }}</strong></p><p>{{ notification.message }}</p><p><a href=\"{{ notification.action_url }}\">View Medicine</a></p><p>Stay healthy,<br>{{ site_name }}</p><hr><small><a href=\"{{ preferences_url }}\">Manage notification preferences</a></small></body></html>",
+            "is_active": true
+        }
+    },
+    {
+        "model": "admin_console.emailnotificationtemplate",
+        "pk": 8,
+        "fields": {
+            "category": "significant_event",
+            "display_name": "Significant Event Reminder",
+            "subject_template": "{{ site_name }} - {{ notification.title }}",
+            "body_template": "<!DOCTYPE html><html><body><p>Hi {{ user.first_name|default:'there' }},</p><p>{{ notification.title }}</p><p>{{ notification.message }}</p><p><a href=\"{{ notification.action_url }}\">View Details</a></p><p>{{ site_name }}</p><hr><small><a href=\"{{ preferences_url }}\">Manage notification preferences</a></small></body></html>",
+            "is_active": true
+        }
+    },
+    {
+        "model": "admin_console.emailnotificationtemplate",
+        "pk": 9,
+        "fields": {
+            "category": "finance",
+            "display_name": "Finance Alert",
+            "subject_template": "{{ site_name }} - Finance Alert: {{ notification.title }}",
+            "body_template": "<!DOCTYPE html><html><body><p>Hi {{ user.first_name|default:'there' }},</p><p>{{ notification.title }}</p><p>{{ notification.message }}</p><p><a href=\"{{ notification.action_url }}\">View Details</a></p><p>{{ site_name }}</p><hr><small><a href=\"{{ preferences_url }}\">Manage notification preferences</a></small></body></html>",
+            "is_active": true
+        }
+    }
+]

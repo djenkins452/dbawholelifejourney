@@ -364,6 +364,29 @@ class PreferencesForm(forms.ModelForm):
             "sms_quiet_hours_enabled",
             "sms_quiet_start",
             "sms_quiet_end",
+            # In-App & Email Notifications
+            "notifications_enabled",
+            "email_notifications_enabled",
+            "email_notification_frequency",
+            "notification_reminder_time",
+            "notify_inapp_medicine",
+            "notify_inapp_task",
+            "notify_inapp_event",
+            "notify_inapp_prayer",
+            "notify_inapp_reading_plan",
+            "notify_inapp_milestone",
+            "notify_inapp_significant_event",
+            "notify_inapp_finance",
+            "notify_inapp_journal",
+            "notify_email_medicine",
+            "notify_email_task",
+            "notify_email_event",
+            "notify_email_prayer",
+            "notify_email_reading_plan",
+            "notify_email_milestone",
+            "notify_email_significant_event",
+            "notify_email_finance",
+            "notify_email_journal",
         ]
         widgets = {
             "theme": forms.Select(attrs={
@@ -530,6 +553,74 @@ class PreferencesForm(forms.ModelForm):
             "sms_quiet_end": forms.TimeInput(attrs={
                 "class": "form-input",
                 "type": "time",
+            }),
+            # In-App & Email Notifications
+            "notifications_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "email_notifications_enabled": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "email_notification_frequency": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "notification_reminder_time": forms.TimeInput(attrs={
+                "class": "form-input",
+                "type": "time",
+            }),
+            "notify_inapp_medicine": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_inapp_task": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_inapp_event": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_inapp_prayer": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_inapp_reading_plan": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_inapp_milestone": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_inapp_significant_event": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_inapp_finance": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_inapp_journal": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_email_medicine": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_email_task": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_email_event": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_email_prayer": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_email_reading_plan": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_email_milestone": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_email_significant_event": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_email_finance": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
+            }),
+            "notify_email_journal": forms.CheckboxInput(attrs={
+                "class": "form-checkbox",
             }),
         }
 

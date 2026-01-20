@@ -867,3 +867,115 @@ class DataLoadConfig(models.Model):
             }
         )
         return config
+
+
+class EmailNotificationTemplate(models.Model):
+    """
+    Admin-editable email notification templates.
+
+    Each category can have a custom email template that administrators can
+    modify without code changes. Templates use Django template syntax with
+    predefined context variables.
+
+    Available context variables:
+    - user: The User object
+    - notification: The Notification object
+    - notifications: List of notifications (for digest emails)
+    - site_name: From SiteConfiguration
+    - current_year: Current year for footer
+    """
+
+    # Category choices - matches Notification categories
+    CATEGORY_MEDICINE = 'medicine'
+    CATEGORY_MEDICINE_REFILL = 'medicine_refill'
+    CATEGORY_TASK = 'task'
+    CATEGORY_EVENT = 'event'
+    CATEGORY_PRAYER = 'prayer'
+    CATEGORY_READING_PLAN = 'reading_plan'
+    CATEGORY_FASTING = 'fasting'
+    CATEGORY_SIGNIFICANT_EVENT = 'significant_event'
+    CATEGORY_MILESTONE = 'milestone'
+    CATEGORY_FINANCE = 'finance'
+    CATEGORY_JOURNAL = 'journal'
+    CATEGORY_SYSTEM = 'system'
+    CATEGORY_DIGEST = 'digest'  # Special category for daily digest
+
+    CATEGORY_CHOICES = [
+        (CATEGORY_MEDICINE, 'Medicine Reminder'),
+        (CATEGORY_MEDICINE_REFILL, 'Medicine Refill'),
+        (CATEGORY_TASK, 'Task Due'),
+        (CATEGORY_EVENT, 'Calendar Event'),
+        (CATEGORY_PRAYER, 'Prayer Reminder'),
+        (CATEGORY_READING_PLAN, 'Reading Plan'),
+        (CATEGORY_FASTING, 'Fasting Reminder'),
+        (CATEGORY_SIGNIFICANT_EVENT, 'Significant Event'),
+        (CATEGORY_MILESTONE, 'Goal Milestone'),
+        (CATEGORY_FINANCE, 'Finance Alert'),
+        (CATEGORY_JOURNAL, 'Journal Prompt'),
+        (CATEGORY_SYSTEM, 'System'),
+        (CATEGORY_DIGEST, 'Daily Digest'),
+    ]
+
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        unique=True,
+        help_text="Notification category this template applies to"
+    )
+
+    display_name = models.CharField(
+        max_length=100,
+        help_text="Human-readable name for admin interface"
+    )
+
+    subject_template = models.CharField(
+        max_length=200,
+        help_text="Email subject line. Supports Django template syntax: {{ notification.title }}"
+    )
+
+    body_template = models.TextField(
+        help_text=(
+            "Email body in HTML format. Supports Django template syntax.\n"
+            "Available variables: user, notification, notifications (for digest), "
+            "site_name, current_year, preferences_url"
+        )
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="If disabled, emails for this category won't be sent"
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category']
+        verbose_name = 'Email Notification Template'
+        verbose_name_plural = 'Email Notification Templates'
+
+    def __str__(self):
+        status = "✓" if self.is_active else "○"
+        return f"{status} {self.display_name}"
+
+    def render_subject(self, context):
+        """Render the subject template with the given context."""
+        from django.template import Template, Context
+        template = Template(self.subject_template)
+        return template.render(Context(context))
+
+    def render_body(self, context):
+        """Render the body template with the given context."""
+        from django.template import Template, Context
+        template = Template(self.body_template)
+        return template.render(Context(context))
+
+    @classmethod
+    def get_template_for_category(cls, category):
+        """Get the active template for a category, or None if not found/inactive."""
+        try:
+            template = cls.objects.get(category=category, is_active=True)
+            return template
+        except cls.DoesNotExist:
+            return None

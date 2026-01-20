@@ -937,21 +937,46 @@ Examples:
                     <div class="accordion" data-accordion-id="notifications-subsections">
 
                         <!-- In-App Notifications -->
-                        <div class="accordion-group is-open" data-accordion-key="in-app">
+                        <div class="accordion-group is-open" data-accordion-key="in-app" id="notifications">
                             <button type="button" class="accordion-header">
                                 <div class="accordion-header-content">
-                                    <span class="accordion-icon">📢</span>
+                                    <span class="accordion-icon">🔔</span>
                                     <div class="accordion-title-group">
                                         <h3 class="accordion-title">In-App Notifications</h3>
+                                        <p class="accordion-subtitle">Bell icon and notification center</p>
                                     </div>
                                 </div>
                                 <div class="accordion-header-right">
+                                    <div class="accordion-status">
+                                        {% if form.notifications_enabled.value %}
+                                            <span class="accordion-badge accordion-badge-active">Active</span>
+                                        {% endif %}
+                                    </div>
                                     <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="6 9 12 15 18 9"></polyline>
                                     </svg>
                                 </div>
                             </button>
                             <div class="accordion-body">
+                                <!-- Master Toggle -->
+                                <div class="toggle-option">
+                                    <div class="toggle-info">
+                                        <div class="module-header">
+                                            <span class="module-icon">🔔</span>
+                                            <h4>Enable In-App Notifications</h4>
+                                            {% if form.notifications_enabled.value %}<span class="module-status status-active">Active</span>{% endif %}
+                                        </div>
+                                        <p class="text-muted text-sm">
+                                            Show notifications in the bell icon dropdown and notification center.
+                                        </p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="notifications_enabled" id="notifications_enabled_toggle" {% if form.notifications_enabled.value %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+
+                                <!-- What's New -->
                                 <div class="toggle-option">
                                     <div class="toggle-info">
                                         <div class="module-header">
@@ -961,13 +986,358 @@ Examples:
                                         </div>
                                         <p class="text-muted text-sm">
                                             Show a popup when new features, improvements, or fixes are released.
-                                            You can always view all updates from the <a href="{% url 'core:whats_new_list' %}">What's New</a> page.
                                         </p>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" name="show_whats_new" {% if form.show_whats_new.value %}checked{% endif %}>
                                         <span class="toggle-slider"></span>
                                     </label>
+                                </div>
+
+                                <!-- Category Toggles (shown when master toggle is on) -->
+                                <div id="inapp-categories-section" {% if not form.notifications_enabled.value %}style="display: none;"{% endif %}>
+                                    <h4 class="accordion-section-title mt-4">What to notify about</h4>
+
+                                    {% if form.health_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">💊</span>
+                                                <h4>Medicine Reminders</h4>
+                                            </div>
+                                            <p class="text-muted text-sm">Notifications for medicine doses and refill alerts.</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_inapp_medicine" {% if form.notify_inapp_medicine.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.life_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">✅</span>
+                                                <h4>Task Due Dates</h4>
+                                            </div>
+                                            <p class="text-muted text-sm">Notifications when tasks are due.</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_inapp_task" {% if form.notify_inapp_task.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">📅</span>
+                                                <h4>Calendar Events</h4>
+                                            </div>
+                                            <p class="text-muted text-sm">Notifications for upcoming events.</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_inapp_event" {% if form.notify_inapp_event.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">🎂</span>
+                                                <h4>Significant Events</h4>
+                                            </div>
+                                            <p class="text-muted text-sm">Birthdays, anniversaries, and important dates.</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_inapp_significant_event" {% if form.notify_inapp_significant_event.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.faith_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">🙏</span>
+                                                <h4>Prayer Reminders</h4>
+                                            </div>
+                                            <p class="text-muted text-sm">Daily reminders for prayers marked as "remind daily".</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_inapp_prayer" {% if form.notify_inapp_prayer.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">📖</span>
+                                                <h4>Reading Plan Reminders</h4>
+                                            </div>
+                                            <p class="text-muted text-sm">Daily reminders for your active reading plans.</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_inapp_reading_plan" {% if form.notify_inapp_reading_plan.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.purpose_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">🎯</span>
+                                                <h4>Goal Milestones</h4>
+                                            </div>
+                                            <p class="text-muted text-sm">Notifications for approaching goal milestones.</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_inapp_milestone" {% if form.notify_inapp_milestone.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.finances_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">💰</span>
+                                                <h4>Finance Alerts</h4>
+                                            </div>
+                                            <p class="text-muted text-sm">Notifications for bills due and recurring transactions.</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_inapp_finance" {% if form.notify_inapp_finance.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.journal_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">📝</span>
+                                                <h4>Journal Prompts</h4>
+                                            </div>
+                                            <p class="text-muted text-sm">Daily journal writing prompts and reminders.</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_inapp_journal" {% if form.notify_inapp_journal.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Reminder Time Setting -->
+                                    <div class="form-group mt-4">
+                                        <label for="id_notification_reminder_time" class="form-label">
+                                            Daily Reminder Time
+                                            <span class="form-label-hint">— For reading plans and scheduled reminders</span>
+                                        </label>
+                                        <input
+                                            type="time"
+                                            name="notification_reminder_time"
+                                            id="id_notification_reminder_time"
+                                            class="form-input"
+                                            value="{{ form.notification_reminder_time.value|default:'07:00' }}"
+                                            style="max-width: 150px;"
+                                        >
+                                        <p class="form-help">The time you'd like to receive daily reminders (e.g., reading plans).</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Email Notifications -->
+                        <div class="accordion-group" data-accordion-key="email">
+                            <button type="button" class="accordion-header">
+                                <div class="accordion-header-content">
+                                    <span class="accordion-icon">📧</span>
+                                    <div class="accordion-title-group">
+                                        <h3 class="accordion-title">Email Notifications</h3>
+                                        <p class="accordion-subtitle">Daily digest and email reminders</p>
+                                    </div>
+                                </div>
+                                <div class="accordion-header-right">
+                                    <div class="accordion-status">
+                                        {% if form.email_notifications_enabled.value %}
+                                            <span class="accordion-badge accordion-badge-active">Active</span>
+                                        {% endif %}
+                                    </div>
+                                    <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </button>
+                            <div class="accordion-body">
+                                <!-- Master Toggle -->
+                                <div class="toggle-option">
+                                    <div class="toggle-info">
+                                        <div class="module-header">
+                                            <span class="module-icon">📧</span>
+                                            <h4>Enable Email Notifications</h4>
+                                            {% if form.email_notifications_enabled.value %}<span class="module-status status-active">Active</span>{% endif %}
+                                        </div>
+                                        <p class="text-muted text-sm">
+                                            Receive notifications via email. Emails are sent at 4:45 AM daily for digest mode.
+                                        </p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="email_notifications_enabled" id="email_notifications_enabled_toggle" {% if form.email_notifications_enabled.value %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+
+                                <!-- Email Settings (shown when master toggle is on) -->
+                                <div id="email-settings-section" {% if not form.email_notifications_enabled.value %}style="display: none;"{% endif %}>
+                                    <!-- Frequency -->
+                                    <div class="form-group mt-4">
+                                        <label for="id_email_notification_frequency" class="form-label">Email Frequency</label>
+                                        <select name="email_notification_frequency" id="id_email_notification_frequency" class="form-select" style="max-width: 250px;">
+                                            <option value="daily_digest" {% if form.email_notification_frequency.value == 'daily_digest' %}selected{% endif %}>Daily Digest (recommended)</option>
+                                            <option value="immediate" {% if form.email_notification_frequency.value == 'immediate' %}selected{% endif %}>Immediate (as they occur)</option>
+                                        </select>
+                                        <p class="form-help">Daily digest sends one email in the morning with all your notifications.</p>
+                                    </div>
+
+                                    <h4 class="accordion-section-title mt-4">What to email about</h4>
+
+                                    {% if form.health_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">💊</span>
+                                                <h4>Medicine Reminders</h4>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_email_medicine" {% if form.notify_email_medicine.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.life_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">✅</span>
+                                                <h4>Task Due Dates</h4>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_email_task" {% if form.notify_email_task.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">📅</span>
+                                                <h4>Calendar Events</h4>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_email_event" {% if form.notify_email_event.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">🎂</span>
+                                                <h4>Significant Events</h4>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_email_significant_event" {% if form.notify_email_significant_event.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.faith_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">🙏</span>
+                                                <h4>Prayer Reminders</h4>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_email_prayer" {% if form.notify_email_prayer.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">📖</span>
+                                                <h4>Reading Plan Reminders</h4>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_email_reading_plan" {% if form.notify_email_reading_plan.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.purpose_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">🎯</span>
+                                                <h4>Goal Milestones</h4>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_email_milestone" {% if form.notify_email_milestone.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.finances_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">💰</span>
+                                                <h4>Finance Alerts</h4>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_email_finance" {% if form.notify_email_finance.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if form.journal_enabled.value %}
+                                    <div class="toggle-option">
+                                        <div class="toggle-info">
+                                            <div class="module-header">
+                                                <span class="module-icon">📝</span>
+                                                <h4>Journal Prompts</h4>
+                                            </div>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="notify_email_journal" {% if form.notify_email_journal.value %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -2852,6 +3222,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// In-App Notifications toggle logic
+const notificationsEnabledToggle = document.getElementById('notifications_enabled_toggle');
+const inappCategoriesSection = document.getElementById('inapp-categories-section');
+
+if (notificationsEnabledToggle && inappCategoriesSection) {
+    notificationsEnabledToggle.addEventListener('change', function() {
+        inappCategoriesSection.style.display = this.checked ? 'block' : 'none';
+    });
+}
+
+// Email Notifications toggle logic
+const emailNotificationsEnabledToggle = document.getElementById('email_notifications_enabled_toggle');
+const emailSettingsSection = document.getElementById('email-settings-section');
+
+if (emailNotificationsEnabledToggle && emailSettingsSection) {
+    emailNotificationsEnabledToggle.addEventListener('change', function() {
+        emailSettingsSection.style.display = this.checked ? 'block' : 'none';
+    });
+}
 
 // SMS Notifications toggle logic
 const smsEnabledToggle = document.getElementById('sms_enabled_toggle');

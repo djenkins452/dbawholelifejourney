@@ -101,6 +101,11 @@ FIXTURE_LOADERS = [
         'display': 'Blind Spots Reading Plan (Week 1)',
         'description': 'Opening Your Eyes 6-day reading plan with self-assessment',
     },
+    {
+        'name': 'email_notification_templates',
+        'display': 'Email Notification Templates',
+        'description': 'Admin-editable templates for notification emails',
+    },
 ]
 
 COMMAND_LOADERS = [

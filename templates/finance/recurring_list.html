@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+
+{% block title %}Recurring Transactions - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <span>Recurring</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Recurring Transactions {% include "components/favorite_toggle.html" with page_title="Recurring Transactions" %}</h1>
+            <p class="page-subtitle">Manage your subscriptions, bills, and regular income</p>
+        </div>
+        <a href="{% url 'finance:recurring_create' %}" class="btn btn-primary">Add Recurring</a>
+    </div>
+
+    <!-- Monthly Summary -->
+    <div class="recurring-summary mb-6">
+        <div class="summary-card">
+            <span class="summary-label">Monthly Income</span>
+            <span class="summary-value income">+${{ monthly_recurring_income|floatformat:0 }}</span>
+        </div>
+        <div class="summary-card">
+            <span class="summary-label">Monthly Expenses</span>
+            <span class="summary-value expense">-${{ monthly_recurring_expenses|floatformat:0 }}</span>
+        </div>
+        <div class="summary-card">
+            <span class="summary-label">Net Recurring</span>
+            <span class="summary-value {% if monthly_recurring_net >= 0 %}income{% else %}expense{% endif %}">
+                {% if monthly_recurring_net >= 0 %}+{% endif %}${{ monthly_recurring_net|floatformat:0 }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Upcoming This Week -->
+    {% if upcoming_this_week %}
+    <div class="recurring-section mb-6">
+        <h2 class="section-title">Due This Week</h2>
+        <div class="recurring-list upcoming">
+            {% for recurring in upcoming_this_week %}
+            <a href="{% url 'finance:recurring_detail' recurring.pk %}" class="recurring-item {% if recurring.next_due_date < today %}overdue{% endif %}">
+                <div class="recurring-info">
+                    <span class="recurring-name">{{ recurring.name }}</span>
+                    <span class="recurring-meta">
+                        {{ recurring.account.name }}
+                        {% if recurring.category %} &middot; {{ recurring.category.name }}{% endif %}
+                    </span>
+                </div>
+                <div class="recurring-right">
+                    <span class="recurring-amount {% if recurring.is_expense %}expense{% else %}income{% endif %}">
+                        {% if recurring.is_expense %}-{% else %}+{% endif %}${{ recurring.amount|floatformat:2 }}
+                    </span>
+                    <span class="recurring-date">
+                        {{ recurring.next_due_date|date:"M j" }}
+                    </span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Filter Tabs -->
+    <div class="filter-tabs mb-4">
+        <a href="{% url 'finance:recurring_list' %}" class="tab {% if not current_status %}active{% endif %}">All</a>
+        <a href="?status=active" class="tab {% if current_status == 'active' %}active{% endif %}">Active</a>
+        <a href="?status=inactive" class="tab {% if current_status == 'inactive' %}active{% endif %}">Paused</a>
+    </div>
+
+    <!-- Income Section -->
+    {% if income_recurring %}
+    <div class="recurring-section mb-6">
+        <h2 class="section-title">Regular Income</h2>
+        <div class="recurring-grid">
+            {% for recurring in income_recurring %}
+            <a href="{% url 'finance:recurring_detail' recurring.pk %}" class="recurring-card income">
+                <div class="card-header">
+                    <span class="recurring-name">{{ recurring.name }}</span>
+                    <span class="recurring-frequency">{{ recurring.get_frequency_display }}</span>
+                </div>
+                <div class="card-amount income">+${{ recurring.amount|floatformat:2 }}</div>
+                <div class="card-meta">
+                    <span>{{ recurring.account.name }}</span>
+                    <span>Next: {{ recurring.next_due_date|date:"M j" }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Expenses Section -->
+    {% if expense_recurring %}
+    <div class="recurring-section mb-6">
+        <h2 class="section-title">Regular Expenses</h2>
+        <div class="recurring-grid">
+            {% for recurring in expense_recurring %}
+            <a href="{% url 'finance:recurring_detail' recurring.pk %}" class="recurring-card expense">
+                <div class="card-header">
+                    <span class="recurring-name">{{ recurring.name }}</span>
+                    <span class="recurring-frequency">{{ recurring.get_frequency_display }}</span>
+                </div>
+                <div class="card-amount expense">-${{ recurring.amount|floatformat:2 }}</div>
+                <div class="card-meta">
+                    <span>{{ recurring.account.name }}</span>
+                    <span>Next: {{ recurring.next_due_date|date:"M j" }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Inactive Section -->
+    {% if inactive_recurring %}
+    <div class="recurring-section mb-6">
+        <h2 class="section-title">Paused</h2>
+        <div class="recurring-grid">
+            {% for recurring in inactive_recurring %}
+            <a href="{% url 'finance:recurring_detail' recurring.pk %}" class="recurring-card inactive">
+                <div class="card-header">
+                    <span class="recurring-name">{{ recurring.name }}</span>
+                    <span class="recurring-frequency">{{ recurring.get_frequency_display }}</span>
+                </div>
+                <div class="card-amount">${{ recurring.amount|floatformat:2 }}</div>
+                <div class="card-meta">
+                    <span>{{ recurring.account.name }}</span>
+                    <span class="paused-badge">Paused</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not income_recurring and not expense_recurring and not inactive_recurring %}
+    <div class="empty-state">
+        <p>No recurring transactions yet.</p>
+        <p class="empty-hint">Add subscriptions, bills, and regular income to track them automatically.</p>
+        <a href="{% url 'finance:recurring_create' %}" class="btn btn-primary">Add Your First Recurring</a>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.recurring-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-4);
+}
+
+.summary-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-align: center;
+}
+
+.summary-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.summary-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.summary-value.income {
+    color: var(--color-success, #10b981);
+}
+
+.summary-value.expense {
+    color: var(--color-error, #ef4444);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.filter-tabs {
+    display: flex;
+    gap: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-2);
+}
+
+.filter-tabs .tab {
+    padding: var(--space-2) var(--space-4);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s;
+}
+
+.filter-tabs .tab:hover {
+    background: var(--color-surface);
+}
+
+.filter-tabs .tab.active {
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.recurring-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.recurring-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s;
+}
+
+.recurring-item:hover {
+    border-color: var(--color-accent);
+}
+
+.recurring-item.overdue {
+    border-left: 4px solid var(--color-error, #ef4444);
+}
+
+.recurring-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.recurring-name {
+    font-weight: 500;
+}
+
+.recurring-meta {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.recurring-right {
+    text-align: right;
+}
+
+.recurring-amount {
+    display: block;
+    font-weight: 600;
+}
+
+.recurring-amount.expense {
+    color: var(--color-error, #ef4444);
+}
+
+.recurring-amount.income {
+    color: var(--color-success, #10b981);
+}
+
+.recurring-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.recurring-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+
+.recurring-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.recurring-card:hover {
+    border-color: var(--color-accent);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.recurring-card.income {
+    border-left: 4px solid var(--color-success, #10b981);
+}
+
+.recurring-card.expense {
+    border-left: 4px solid var(--color-error, #ef4444);
+}
+
+.recurring-card.inactive {
+    opacity: 0.6;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.recurring-frequency {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+}
+
+.card-amount {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+}
+
+.card-amount.income {
+    color: var(--color-success, #10b981);
+}
+
+.card-amount.expense {
+    color: var(--color-error, #ef4444);
+}
+
+.card-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.paused-badge {
+    color: var(--color-warning, #f59e0b);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.empty-hint {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+@media (max-width: 480px) {
+    .recurring-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .recurring-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+    }
+
+    .recurring-right {
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

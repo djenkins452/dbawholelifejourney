@@ -41,6 +41,17 @@ urlpatterns = [
     path('budgets/<int:pk>/edit/', views.BudgetUpdateView.as_view(), name='budget_update'),
     path('budgets/<int:pk>/delete/', views.BudgetDeleteView.as_view(), name='budget_delete'),
 
+    # Recurring Transactions
+    path('recurring/', views.RecurringTransactionListView.as_view(), name='recurring_list'),
+    path('recurring/new/', views.RecurringTransactionCreateView.as_view(), name='recurring_create'),
+    path('recurring/<int:pk>/', views.RecurringTransactionDetailView.as_view(), name='recurring_detail'),
+    path('recurring/<int:pk>/edit/', views.RecurringTransactionUpdateView.as_view(), name='recurring_update'),
+    path('recurring/<int:pk>/delete/', views.RecurringTransactionDeleteView.as_view(), name='recurring_delete'),
+    path('recurring/<int:pk>/post/', views.recurring_post_now, name='recurring_post'),
+    path('recurring/<int:pk>/skip/', views.recurring_skip, name='recurring_skip'),
+    path('recurring/<int:pk>/toggle/', views.recurring_toggle_active, name='recurring_toggle'),
+    path('api/recurring/upcoming/', views.api_upcoming_recurring, name='api_recurring_upcoming'),
+
     # Goals
     path('goals/', views.GoalListView.as_view(), name='goal_list'),
     path('goals/new/', views.GoalCreateView.as_view(), name='goal_create'),

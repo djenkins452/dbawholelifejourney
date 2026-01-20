@@ -19,6 +19,7 @@ from .models import (
     Budget,
     FinancialGoal,
     TransactionImport,
+    RecurringTransaction,
 )
 
 
@@ -616,3 +617,145 @@ class TransactionImportForm(forms.Form):
         )
 
         return import_record
+
+
+class RecurringTransactionForm(forms.ModelForm):
+    """Form for creating and editing recurring transactions."""
+
+    DAY_OF_WEEK_CHOICES = [
+        (0, 'Monday'),
+        (1, 'Tuesday'),
+        (2, 'Wednesday'),
+        (3, 'Thursday'),
+        (4, 'Friday'),
+        (5, 'Saturday'),
+        (6, 'Sunday'),
+    ]
+
+    class Meta:
+        model = RecurringTransaction
+        fields = [
+            'name', 'transaction_type', 'amount', 'account', 'category',
+            'payee', 'notes', 'frequency', 'custom_pattern', 'day_of_month',
+            'day_of_week', 'start_date', 'end_date', 'is_auto_post',
+            'remind_days_before'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'e.g., Netflix, Rent, Paycheck'
+            }),
+            'amount': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'step': '0.01',
+                'min': '0.01',
+                'placeholder': '0.00'
+            }),
+            'payee': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Who receives/sends the money'
+            }),
+            'notes': forms.Textarea(attrs={
+                'class': 'form-textarea',
+                'rows': 2,
+                'placeholder': 'Optional notes...'
+            }),
+            'custom_pattern': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'e.g., every_3_weeks, monthly:15'
+            }),
+            'day_of_month': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'min': '1',
+                'max': '31',
+                'placeholder': '1-31'
+            }),
+            'start_date': forms.DateInput(attrs={
+                'class': 'form-input',
+                'type': 'date'
+            }),
+            'end_date': forms.DateInput(attrs={
+                'class': 'form-input',
+                'type': 'date'
+            }),
+            'remind_days_before': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'min': '0',
+                'max': '30',
+                'placeholder': '0 = no reminder'
+            }),
+        }
+
+    def __init__(self, user, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+        # Filter accounts to user's accounts
+        self.fields['account'].queryset = FinancialAccount.objects.filter(
+            user=user, status='active'
+        )
+        self.fields['account'].widget.attrs['class'] = 'form-select'
+
+        # Filter categories to user's + system categories
+        self.fields['category'].queryset = TransactionCategory.get_for_user(user)
+        self.fields['category'].widget.attrs['class'] = 'form-select'
+        self.fields['category'].required = False
+
+        # Style other select fields
+        self.fields['transaction_type'].widget.attrs['class'] = 'form-select'
+        self.fields['frequency'].widget.attrs['class'] = 'form-select'
+
+        # Day of week dropdown
+        self.fields['day_of_week'] = forms.ChoiceField(
+            choices=[('', '-- Select day --')] + self.DAY_OF_WEEK_CHOICES,
+            required=False,
+            widget=forms.Select(attrs={'class': 'form-select'})
+        )
+
+        # Set defaults for new instances
+        if not self.instance.pk:
+            self.fields['start_date'].initial = timezone.now().date()
+            self.fields['remind_days_before'].initial = 0
+
+    def clean(self):
+        cleaned_data = super().clean()
+        frequency = cleaned_data.get('frequency')
+        day_of_month = cleaned_data.get('day_of_month')
+        day_of_week = cleaned_data.get('day_of_week')
+        custom_pattern = cleaned_data.get('custom_pattern')
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+
+        # Validate day_of_month for monthly
+        if frequency == 'monthly' and day_of_month:
+            if day_of_month < 1 or day_of_month > 31:
+                self.add_error('day_of_month', 'Day must be between 1 and 31.')
+
+        # Validate custom pattern is provided for custom frequency
+        if frequency == 'custom' and not custom_pattern:
+            self.add_error('custom_pattern', 'Please specify a custom pattern.')
+
+        # Validate end date is after start date
+        if start_date and end_date and end_date <= start_date:
+            self.add_error('end_date', 'End date must be after start date.')
+
+        # Convert day_of_week to integer if provided
+        if day_of_week:
+            try:
+                cleaned_data['day_of_week'] = int(day_of_week)
+            except (ValueError, TypeError):
+                cleaned_data['day_of_week'] = None
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.user = self.user
+
+        # Set next_due_date to start_date initially
+        if not instance.pk:
+            instance.next_due_date = instance.start_date
+
+        if commit:
+            instance.save()
+        return instance

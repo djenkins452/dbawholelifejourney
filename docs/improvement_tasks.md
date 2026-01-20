@@ -13,12 +13,13 @@
 **Completed:** 2026-01-20
 
 ### Task 2: Add Goal Progress/Milestones to Purpose Module
-**Status:** 🔵 In Progress
+**Status:** ✅ Complete
 **Impact:** High - Goals feel abandoned without visible progress
+**Completed:** 2026-01-20
 
-**Scope (agreed 2026-01-20):**
-- **2A:** Core milestone model + progress visuals + encouragement stat + auto-complete prompt + celebration modal
-- **2B:** Dashboard goal progress widget with visual treatment + Quarterly Review tile
+**Scope (completed):**
+- **2A:** Core milestone model + progress visuals + encouragement stat + auto-complete prompt + celebration modal + SMS reminders
+- **2B:** Dashboard goal progress widget with visual treatment + Quarterly Review dismissible tile
 - **2C:** AI integration - journal/milestone cross-referencing and proactive coaching
 
 **Deferred to Future Task:**
@@ -31,8 +32,14 @@
   - Consider: exportable summary, shareable achievements, goal-setting wizard for new year
 
 ### Task 3: Add Recurring Transactions to Finance Module
-**Status:** ⚪ Pending
+**Status:** ✅ Complete
 **Impact:** High - All finance entry is manual
+**Completed:** 2026-01-20
+
+**Scope (completed):**
+- **3A:** RecurringTransaction model + RecurringTransactionService for generating instances
+- **3B:** Forms + Views + Templates for managing recurring transactions
+- **3C:** Management command + Dashboard widget for upcoming recurring
 
 ### Task 4: Implement Daily Reminders for Faith Module
 **Status:** ⚪ Pending

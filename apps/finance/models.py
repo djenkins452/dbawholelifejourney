@@ -1643,3 +1643,312 @@ class Payee(UserOwnedModel):
         self.use_count += 1
         self.last_used_at = timezone.now()
         self.save(update_fields=['use_count', 'last_used_at', 'updated_at'])
+
+
+# =============================================================================
+# Recurring Transaction
+# =============================================================================
+
+class RecurringTransaction(UserOwnedModel):
+    """
+    Template for recurring financial transactions (subscriptions, bills, income).
+
+    Defines a pattern for automatic transaction generation. The service generates
+    actual Transaction records based on this template.
+
+    Example use cases:
+    - Monthly subscriptions (Netflix, Spotify)
+    - Bi-weekly paychecks
+    - Quarterly insurance payments
+    - Annual fees
+    - Monthly rent/mortgage
+    """
+
+    # Frequency choices
+    FREQUENCY_DAILY = 'daily'
+    FREQUENCY_WEEKLY = 'weekly'
+    FREQUENCY_BIWEEKLY = 'biweekly'
+    FREQUENCY_MONTHLY = 'monthly'
+    FREQUENCY_QUARTERLY = 'quarterly'
+    FREQUENCY_YEARLY = 'yearly'
+    FREQUENCY_CUSTOM = 'custom'
+
+    FREQUENCY_CHOICES = [
+        (FREQUENCY_DAILY, 'Daily'),
+        (FREQUENCY_WEEKLY, 'Weekly'),
+        (FREQUENCY_BIWEEKLY, 'Every Two Weeks'),
+        (FREQUENCY_MONTHLY, 'Monthly'),
+        (FREQUENCY_QUARTERLY, 'Quarterly'),
+        (FREQUENCY_YEARLY, 'Yearly'),
+        (FREQUENCY_CUSTOM, 'Custom'),
+    ]
+
+    # Transaction type
+    TYPE_EXPENSE = 'expense'
+    TYPE_INCOME = 'income'
+
+    TYPE_CHOICES = [
+        (TYPE_EXPENSE, 'Expense'),
+        (TYPE_INCOME, 'Income'),
+    ]
+
+    # Core fields
+    name = models.CharField(
+        max_length=200,
+        help_text="Name of the recurring transaction (e.g., 'Netflix', 'Paycheck')"
+    )
+    transaction_type = models.CharField(
+        max_length=10,
+        choices=TYPE_CHOICES,
+        default=TYPE_EXPENSE,
+        help_text="Whether this is income or expense"
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        help_text="Transaction amount (always positive, type determines sign)"
+    )
+
+    # Categorization
+    account = models.ForeignKey(
+        FinancialAccount,
+        on_delete=models.CASCADE,
+        related_name='recurring_transactions',
+        help_text="Account for this recurring transaction"
+    )
+    category = models.ForeignKey(
+        TransactionCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recurring_transactions',
+        help_text="Category for generated transactions"
+    )
+    payee = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Who receives or sends the money"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes for generated transactions"
+    )
+
+    # Schedule
+    frequency = models.CharField(
+        max_length=20,
+        choices=FREQUENCY_CHOICES,
+        default=FREQUENCY_MONTHLY
+    )
+    custom_pattern = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Custom recurrence pattern (e.g., 'every_3_weeks', 'monthly:15')"
+    )
+    day_of_month = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1)],
+        help_text="Day of month for monthly transactions (1-31)"
+    )
+    day_of_week = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Day of week for weekly transactions (0=Monday, 6=Sunday)"
+    )
+
+    # Date range
+    start_date = models.DateField(
+        help_text="When this recurring transaction starts"
+    )
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When this recurring transaction ends (optional)"
+    )
+    next_due_date = models.DateField(
+        help_text="Next scheduled occurrence"
+    )
+
+    # Generation tracking
+    last_generated_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date of last generated transaction"
+    )
+    total_generated = models.PositiveIntegerField(
+        default=0,
+        help_text="Total transactions generated from this template"
+    )
+
+    # Status
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this recurring transaction is active"
+    )
+    is_auto_post = models.BooleanField(
+        default=False,
+        help_text="Automatically create transactions (vs. reminder only)"
+    )
+
+    # Notification settings
+    remind_days_before = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Days before due date to send reminder (0 = no reminder)"
+    )
+
+    class Meta:
+        ordering = ['next_due_date', 'name']
+        verbose_name = "Recurring Transaction"
+        verbose_name_plural = "Recurring Transactions"
+        indexes = [
+            models.Index(fields=['user', 'is_active', 'next_due_date']),
+            models.Index(fields=['next_due_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_frequency_display()})"
+
+    def get_absolute_url(self):
+        return reverse('finance:recurring_detail', kwargs={'pk': self.pk})
+
+    @property
+    def signed_amount(self):
+        """Return amount with correct sign based on type."""
+        if self.transaction_type == self.TYPE_EXPENSE:
+            return -abs(self.amount)
+        return abs(self.amount)
+
+    @property
+    def is_expense(self):
+        """Check if this is an expense."""
+        return self.transaction_type == self.TYPE_EXPENSE
+
+    @property
+    def is_income(self):
+        """Check if this is income."""
+        return self.transaction_type == self.TYPE_INCOME
+
+    @property
+    def recurrence_pattern(self):
+        """Return the recurrence pattern string for the recurrence service."""
+        if self.frequency == self.FREQUENCY_CUSTOM and self.custom_pattern:
+            return self.custom_pattern
+
+        pattern_map = {
+            self.FREQUENCY_DAILY: 'daily',
+            self.FREQUENCY_WEEKLY: 'weekly',
+            self.FREQUENCY_BIWEEKLY: 'biweekly',
+            self.FREQUENCY_MONTHLY: 'monthly',
+            self.FREQUENCY_QUARTERLY: 'every_3_months',
+            self.FREQUENCY_YEARLY: 'yearly',
+        }
+
+        base_pattern = pattern_map.get(self.frequency, 'monthly')
+
+        # Add specifics for monthly
+        if self.frequency == self.FREQUENCY_MONTHLY and self.day_of_month:
+            return f"monthly:{self.day_of_month}"
+
+        return base_pattern
+
+    def calculate_next_due_date(self, from_date=None):
+        """
+        Calculate the next due date after the given date.
+
+        Args:
+            from_date: The reference date (defaults to next_due_date)
+
+        Returns:
+            The next due date
+        """
+        from apps.life.services.recurrence import RecurrencePattern
+
+        if from_date is None:
+            from_date = self.next_due_date
+
+        pattern = RecurrencePattern(self.recurrence_pattern)
+        next_date = pattern.get_next_occurrence(from_date)
+
+        # Check if past end_date
+        if self.end_date and next_date and next_date > self.end_date:
+            return None
+
+        return next_date
+
+    def advance_to_next(self):
+        """
+        Move next_due_date to the next occurrence.
+
+        Called after generating a transaction.
+        """
+        next_date = self.calculate_next_due_date()
+        if next_date:
+            self.next_due_date = next_date
+            self.save(update_fields=['next_due_date', 'updated_at'])
+        else:
+            # No more occurrences, deactivate
+            self.is_active = False
+            self.save(update_fields=['is_active', 'updated_at'])
+
+    def generate_transaction(self, transaction_date=None):
+        """
+        Generate a Transaction from this recurring template.
+
+        Args:
+            transaction_date: Date for the transaction (defaults to next_due_date)
+
+        Returns:
+            The created Transaction instance
+        """
+        if transaction_date is None:
+            transaction_date = self.next_due_date
+
+        transaction = Transaction.objects.create(
+            user=self.user,
+            account=self.account,
+            date=transaction_date,
+            amount=self.signed_amount,
+            description=self.name,
+            category=self.category,
+            payee=self.payee,
+            notes=self.notes,
+            is_recurring=True,
+        )
+
+        # Update tracking
+        self.last_generated_date = transaction_date
+        self.total_generated += 1
+        self.save(update_fields=['last_generated_date', 'total_generated', 'updated_at'])
+
+        # Move to next occurrence
+        self.advance_to_next()
+
+        return transaction
+
+    def get_upcoming_occurrences(self, count=5):
+        """
+        Get the next N upcoming occurrence dates.
+
+        Args:
+            count: Number of occurrences to return
+
+        Returns:
+            List of dates
+        """
+        from apps.life.services.recurrence import RecurrencePattern
+
+        pattern = RecurrencePattern(self.recurrence_pattern)
+        occurrences = []
+        current = self.next_due_date
+
+        for _ in range(count):
+            if current is None:
+                break
+            if self.end_date and current > self.end_date:
+                break
+            occurrences.append(current)
+            current = pattern.get_next_occurrence(current)
+
+        return occurrences

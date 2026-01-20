@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Recurring Transaction - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container container-sm">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:recurring_list' %}">Recurring</a>
+        <span>/</span>
+        <span>Delete</span>
+    </nav>
+
+    <div class="delete-card">
+        <div class="delete-icon">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+        </div>
+
+        <h1 class="delete-title">Delete Recurring Transaction?</h1>
+
+        <p class="delete-message">
+            Are you sure you want to delete <strong>"{{ object.name }}"</strong>?
+        </p>
+
+        <div class="delete-details">
+            <div class="detail-row">
+                <span class="detail-label">Amount</span>
+                <span class="detail-value">
+                    {% if object.is_expense %}-{% else %}+{% endif %}${{ object.amount|floatformat:2 }}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Frequency</span>
+                <span class="detail-value">{{ object.get_frequency_display }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Account</span>
+                <span class="detail-value">{{ object.account.name }}</span>
+            </div>
+        </div>
+
+        <p class="delete-warning">
+            This will stop future transactions from being generated. Previously posted transactions will not be affected.
+        </p>
+
+        <form method="post" class="delete-actions">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-error">Delete Recurring</button>
+            <a href="{% url 'finance:recurring_detail' object.pk %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.container-sm { max-width: 500px; }
+
+.delete-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+    text-align: center;
+}
+
+.delete-icon {
+    color: var(--color-error, #ef4444);
+    margin-bottom: var(--space-4);
+}
+
+.delete-title {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-4);
+}
+
+.delete-message {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+
+.delete-details {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    text-align: left;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+}
+
+.detail-row + .detail-row {
+    border-top: 1px solid var(--color-border);
+}
+
+.detail-label {
+    color: var(--color-text-muted);
+}
+
+.detail-value {
+    font-weight: 500;
+}
+
+.delete-warning {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+
+.delete-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+}
+
+.btn-error {
+    background: var(--color-error, #ef4444);
+    color: white;
+}
+
+.btn-error:hover {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 85%, black);
+}
+</style>
+{% endblock %}

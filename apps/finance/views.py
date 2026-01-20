@@ -40,6 +40,7 @@ from .models import (
     TransactionImport,
     BankConnection,
     BankIntegrationLog,
+    RecurringTransaction,
 )
 from .forms import (
     FinancialAccountForm,
@@ -50,6 +51,7 @@ from .forms import (
     TransactionFilterForm,
     TransferForm,
     TransactionImportForm,
+    RecurringTransactionForm,
 )
 
 
@@ -301,6 +303,17 @@ class FinanceDashboardView(LoginRequiredMixin, TemplateView):
 
         # Quick add form
         context['quick_form'] = QuickTransactionForm(user)
+
+        # Upcoming recurring transactions
+        from datetime import timedelta
+        upcoming_end = today + timedelta(days=14)
+        upcoming_recurring = RecurringTransaction.objects.filter(
+            user=user,
+            status='active',
+            is_active=True,
+            next_due_date__lte=upcoming_end,
+        ).select_related('account', 'category').order_by('next_due_date')[:5]
+        context['upcoming_recurring'] = upcoming_recurring
 
         return context
 
@@ -1649,3 +1662,259 @@ class BulkDeleteTransactionsView(LoginRequiredMixin, View):
             'message': f'{count} transaction{"" if count == 1 else "s"} deleted',
             'count': count
         })
+
+
+# =============================================================================
+# Recurring Transactions
+# =============================================================================
+
+class RecurringTransactionListView(FinanceUserMixin, ListView):
+    """List all recurring transactions."""
+
+    model = RecurringTransaction
+    template_name = 'finance/recurring_list.html'
+    context_object_name = 'recurring_transactions'
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related('account', 'category')
+        # Filter by status if provided
+        status_filter = self.request.GET.get('status')
+        if status_filter == 'active':
+            queryset = queryset.filter(is_active=True)
+        elif status_filter == 'inactive':
+            queryset = queryset.filter(is_active=False)
+        return queryset.order_by('next_due_date', 'name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        today = get_user_today(user)
+
+        recurring = context['recurring_transactions']
+
+        # Categorize by income/expense
+        context['income_recurring'] = [r for r in recurring if r.is_income and r.is_active]
+        context['expense_recurring'] = [r for r in recurring if r.is_expense and r.is_active]
+        context['inactive_recurring'] = [r for r in recurring if not r.is_active]
+
+        # Calculate totals
+        monthly_income = sum(
+            r.amount for r in recurring
+            if r.is_income and r.is_active and r.frequency == 'monthly'
+        )
+        monthly_expenses = sum(
+            r.amount for r in recurring
+            if r.is_expense and r.is_active and r.frequency == 'monthly'
+        )
+
+        context['monthly_recurring_income'] = monthly_income
+        context['monthly_recurring_expenses'] = monthly_expenses
+        context['monthly_recurring_net'] = monthly_income - monthly_expenses
+
+        # Upcoming this week
+        from datetime import timedelta
+        week_end = today + timedelta(days=7)
+        context['upcoming_this_week'] = [
+            r for r in recurring
+            if r.is_active and r.next_due_date <= week_end
+        ]
+
+        # Status filter
+        context['current_status'] = self.request.GET.get('status', '')
+
+        return context
+
+
+class RecurringTransactionDetailView(FinanceUserMixin, DetailView):
+    """View recurring transaction details."""
+
+    model = RecurringTransaction
+    template_name = 'finance/recurring_detail.html'
+    context_object_name = 'recurring'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        recurring = self.object
+
+        # Get upcoming occurrences
+        context['upcoming_dates'] = recurring.get_upcoming_occurrences(count=10)
+
+        # Get generated transactions
+        context['generated_transactions'] = Transaction.objects.filter(
+            user=self.request.user,
+            description=recurring.name,
+            is_recurring=True,
+            status='active'
+        ).order_by('-date')[:20]
+
+        return context
+
+
+class RecurringTransactionCreateView(FinanceAuditMixin, LoginRequiredMixin, CreateView):
+    """Create a new recurring transaction."""
+
+    model = RecurringTransaction
+    template_name = 'finance/recurring_form.html'
+    success_url = reverse_lazy('finance:recurring_list')
+    audit_entity_type = 'recurring_transaction'
+
+    def get_form(self, form_class=None):
+        return RecurringTransactionForm(self.request.user, **self.get_form_kwargs())
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Recurring transaction "{form.instance.name}" created.')
+        return super().form_valid(form)
+
+
+class RecurringTransactionUpdateView(FinanceAuditMixin, FinanceUserMixin, UpdateView):
+    """Edit a recurring transaction."""
+
+    model = RecurringTransaction
+    template_name = 'finance/recurring_form.html'
+    success_url = reverse_lazy('finance:recurring_list')
+    audit_entity_type = 'recurring_transaction'
+
+    def get_form(self, form_class=None):
+        return RecurringTransactionForm(self.request.user, **self.get_form_kwargs())
+
+    def form_valid(self, form):
+        messages.success(self.request, f'Recurring transaction "{form.instance.name}" updated.')
+        return super().form_valid(form)
+
+
+class RecurringTransactionDeleteView(FinanceAuditMixin, FinanceUserMixin, DeleteView):
+    """Delete (soft delete) a recurring transaction."""
+
+    model = RecurringTransaction
+    template_name = 'finance/recurring_confirm_delete.html'
+    success_url = reverse_lazy('finance:recurring_list')
+    audit_entity_type = 'recurring_transaction'
+
+    def form_valid(self, form):
+        self.object.soft_delete()
+        messages.success(self.request, f'Recurring transaction "{self.object.name}" deleted.')
+        return redirect(self.success_url)
+
+
+@login_required
+@require_POST
+def recurring_post_now(request, pk):
+    """Manually post a recurring transaction now."""
+    recurring = get_object_or_404(
+        RecurringTransaction, pk=pk, user=request.user, status='active'
+    )
+
+    try:
+        from .services.recurring import RecurringTransactionService
+
+        transaction = RecurringTransactionService.post_now(recurring)
+
+        messages.success(
+            request,
+            f'Posted "{recurring.name}" - ${abs(transaction.amount):,.2f}'
+        )
+
+        return JsonResponse({
+            'success': True,
+            'transaction_id': transaction.id,
+            'next_due_date': recurring.next_due_date.isoformat() if recurring.next_due_date else None,
+        })
+
+    except Exception as e:
+        logger.error(f"Error posting recurring transaction: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def recurring_skip(request, pk):
+    """Skip the next occurrence of a recurring transaction."""
+    recurring = get_object_or_404(
+        RecurringTransaction, pk=pk, user=request.user, status='active'
+    )
+
+    try:
+        from .services.recurring import RecurringTransactionService
+
+        new_date = RecurringTransactionService.skip_occurrence(recurring)
+
+        if new_date:
+            messages.success(
+                request,
+                f'Skipped occurrence. Next due: {new_date.strftime("%b %d, %Y")}'
+            )
+            return JsonResponse({
+                'success': True,
+                'next_due_date': new_date.isoformat(),
+            })
+        else:
+            messages.info(request, f'No more occurrences for "{recurring.name}".')
+            return JsonResponse({
+                'success': True,
+                'next_due_date': None,
+                'deactivated': True,
+            })
+
+    except Exception as e:
+        logger.error(f"Error skipping recurring transaction: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def recurring_toggle_active(request, pk):
+    """Toggle the active status of a recurring transaction."""
+    recurring = get_object_or_404(
+        RecurringTransaction, pk=pk, user=request.user, status='active'
+    )
+
+    recurring.is_active = not recurring.is_active
+    recurring.save(update_fields=['is_active', 'updated_at'])
+
+    status = 'activated' if recurring.is_active else 'paused'
+    messages.success(request, f'Recurring transaction "{recurring.name}" {status}.')
+
+    return JsonResponse({
+        'success': True,
+        'is_active': recurring.is_active,
+    })
+
+
+@login_required
+def api_upcoming_recurring(request):
+    """Get upcoming recurring transactions for dashboard widget."""
+    from .services.recurring import RecurringTransactionService
+
+    days_ahead = int(request.GET.get('days', 14))
+
+    upcoming = RecurringTransactionService.get_upcoming_transactions(
+        request.user, days_ahead=days_ahead
+    )
+
+    return JsonResponse({
+        'success': True,
+        'upcoming': [
+            {
+                'id': item['recurring'].id,
+                'name': item['recurring'].name,
+                'amount': float(item['amount']),
+                'signed_amount': float(item['signed_amount']),
+                'is_expense': item['is_expense'],
+                'is_income': item['is_income'],
+                'next_due_date': item['next_due_date'].isoformat(),
+                'days_until': item['days_until'],
+                'is_overdue': item['is_overdue'],
+                'is_due_today': item['is_due_today'],
+                'account_name': item['recurring'].account.name,
+                'category_name': item['recurring'].category.name if item['recurring'].category else None,
+            }
+            for item in upcoming
+        ],
+        'count': len(upcoming),
+    })

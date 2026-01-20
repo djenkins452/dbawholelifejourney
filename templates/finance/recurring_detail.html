@@ -1,0 +1,414 @@
+{% extends "base.html" %}
+
+{% block title %}{{ recurring.name }} - Recurring - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:recurring_list' %}">Recurring</a>
+        <span>/</span>
+        <span>{{ recurring.name|truncatewords:5 }}</span>
+    </nav>
+
+    <div class="recurring-detail">
+        <header class="detail-header">
+            <div class="header-main">
+                <h1 class="detail-title">{{ recurring.name }}</h1>
+                <div class="header-badges">
+                    <span class="type-badge {% if recurring.is_expense %}expense{% else %}income{% endif %}">
+                        {{ recurring.get_transaction_type_display }}
+                    </span>
+                    <span class="frequency-badge">{{ recurring.get_frequency_display }}</span>
+                    {% if not recurring.is_active %}
+                    <span class="status-badge paused">Paused</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="{% url 'finance:recurring_update' recurring.pk %}" class="btn btn-secondary">Edit</a>
+                <a href="{% url 'finance:recurring_delete' recurring.pk %}" class="btn btn-ghost text-error">Delete</a>
+            </div>
+        </header>
+
+        <div class="detail-grid">
+            <!-- Amount Card -->
+            <div class="detail-card amount-card">
+                <span class="card-label">Amount</span>
+                <span class="card-value {% if recurring.is_expense %}expense{% else %}income{% endif %}">
+                    {% if recurring.is_expense %}-{% else %}+{% endif %}${{ recurring.amount|floatformat:2 }}
+                </span>
+            </div>
+
+            <!-- Next Due Card -->
+            <div class="detail-card next-due-card">
+                <span class="card-label">Next Due</span>
+                <span class="card-value">{{ recurring.next_due_date|date:"M j, Y" }}</span>
+                <span class="card-meta">
+                    {% with days=recurring.next_due_date|timeuntil %}
+                    {% if "day" in days %}{{ days }}{% else %}Due today{% endif %}
+                    {% endwith %}
+                </span>
+            </div>
+
+            <!-- Account Card -->
+            <div class="detail-card">
+                <span class="card-label">Account</span>
+                <span class="card-value">{{ recurring.account.name }}</span>
+            </div>
+
+            <!-- Category Card -->
+            <div class="detail-card">
+                <span class="card-label">Category</span>
+                <span class="card-value">{{ recurring.category.name|default:"Uncategorized" }}</span>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions mb-6">
+            {% if recurring.is_active %}
+            <form method="post" action="{% url 'finance:recurring_post' recurring.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Post Now</button>
+            </form>
+            <form method="post" action="{% url 'finance:recurring_skip' recurring.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary">Skip Next</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{% url 'finance:recurring_toggle' recurring.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost">
+                    {% if recurring.is_active %}Pause{% else %}Resume{% endif %}
+                </button>
+            </form>
+        </div>
+
+        <!-- Additional Details -->
+        <div class="detail-section mb-6">
+            <h2 class="section-title">Details</h2>
+            <div class="detail-list">
+                {% if recurring.payee %}
+                <div class="detail-row">
+                    <span class="detail-label">Payee</span>
+                    <span class="detail-value">{{ recurring.payee }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-row">
+                    <span class="detail-label">Started</span>
+                    <span class="detail-value">{{ recurring.start_date|date:"M j, Y" }}</span>
+                </div>
+                {% if recurring.end_date %}
+                <div class="detail-row">
+                    <span class="detail-label">Ends</span>
+                    <span class="detail-value">{{ recurring.end_date|date:"M j, Y" }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-row">
+                    <span class="detail-label">Auto-Post</span>
+                    <span class="detail-value">{% if recurring.is_auto_post %}Yes{% else %}No (reminder only){% endif %}</span>
+                </div>
+                {% if recurring.remind_days_before > 0 %}
+                <div class="detail-row">
+                    <span class="detail-label">Reminder</span>
+                    <span class="detail-value">{{ recurring.remind_days_before }} day{{ recurring.remind_days_before|pluralize }} before</span>
+                </div>
+                {% endif %}
+                <div class="detail-row">
+                    <span class="detail-label">Total Posted</span>
+                    <span class="detail-value">{{ recurring.total_generated }} transaction{{ recurring.total_generated|pluralize }}</span>
+                </div>
+            </div>
+        </div>
+
+        {% if recurring.notes %}
+        <div class="detail-section mb-6">
+            <h2 class="section-title">Notes</h2>
+            <p class="detail-notes">{{ recurring.notes }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Upcoming Dates -->
+        {% if upcoming_dates %}
+        <div class="detail-section mb-6">
+            <h2 class="section-title">Upcoming Occurrences</h2>
+            <div class="upcoming-list">
+                {% for date in upcoming_dates %}
+                <div class="upcoming-item">
+                    <span class="upcoming-date">{{ date|date:"l, M j, Y" }}</span>
+                    <span class="upcoming-amount {% if recurring.is_expense %}expense{% else %}income{% endif %}">
+                        {% if recurring.is_expense %}-{% else %}+{% endif %}${{ recurring.amount|floatformat:2 }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Generated Transactions -->
+        {% if generated_transactions %}
+        <div class="detail-section">
+            <h2 class="section-title">Transaction History</h2>
+            <div class="transaction-list">
+                {% for transaction in generated_transactions %}
+                <a href="{% url 'finance:transaction_detail' transaction.pk %}" class="transaction-item">
+                    <div class="transaction-info">
+                        <span class="transaction-date">{{ transaction.date|date:"M j, Y" }}</span>
+                        <span class="transaction-account">{{ transaction.account.name }}</span>
+                    </div>
+                    <span class="transaction-amount {% if transaction.amount < 0 %}expense{% else %}income{% endif %}">
+                        ${{ transaction.amount|floatformat:2 }}
+                    </span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.recurring-detail {
+    max-width: 800px;
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+}
+
+.detail-title {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--space-2);
+}
+
+.header-badges {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.type-badge, .frequency-badge, .status-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.type-badge.expense {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent);
+    color: var(--color-error, #ef4444);
+}
+
+.type-badge.income {
+    background: color-mix(in srgb, var(--color-success, #10b981) 15%, transparent);
+    color: var(--color-success, #10b981);
+}
+
+.frequency-badge {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.status-badge.paused {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+    color: var(--color-warning, #f59e0b);
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.detail-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.card-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.card-value {
+    display: block;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.card-value.expense {
+    color: var(--color-error, #ef4444);
+}
+
+.card-value.income {
+    color: var(--color-success, #10b981);
+}
+
+.card-meta {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+
+.quick-actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.inline-form {
+    display: inline;
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.detail-list {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    color: var(--color-text-muted);
+}
+
+.detail-value {
+    font-weight: 500;
+}
+
+.detail-notes {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    white-space: pre-wrap;
+}
+
+.upcoming-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.upcoming-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+}
+
+.upcoming-date {
+    color: var(--color-text-muted);
+}
+
+.upcoming-amount {
+    font-weight: 500;
+}
+
+.upcoming-amount.expense {
+    color: var(--color-error, #ef4444);
+}
+
+.upcoming-amount.income {
+    color: var(--color-success, #10b981);
+}
+
+.transaction-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.transaction-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.2s;
+}
+
+.transaction-item:hover {
+    background: var(--color-border);
+}
+
+.transaction-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.transaction-date {
+    font-weight: 500;
+}
+
+.transaction-account {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.transaction-amount {
+    font-weight: 500;
+}
+
+.transaction-amount.expense {
+    color: var(--color-error, #ef4444);
+}
+
+.transaction-amount.income {
+    color: var(--color-success, #10b981);
+}
+
+.text-error {
+    color: var(--color-error, #ef4444);
+}
+
+@media (max-width: 640px) {
+    .detail-header {
+        flex-direction: column;
+    }
+
+    .header-actions {
+        width: 100%;
+    }
+
+    .detail-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+</style>
+{% endblock %}

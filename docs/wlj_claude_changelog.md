@@ -16,6 +16,74 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Recurring Transactions Feature (Task 3 from Improvement Backlog)
+
+**New Feature:** Recurring transactions added to the Finance module allowing users to track subscriptions, bills, and regular income automatically.
+
+**What's Included:**
+
+1. **RecurringTransaction Model** (`apps/finance/models.py`)
+   - Fields: name, transaction_type (income/expense), amount, account, category, payee, notes
+   - Schedule: frequency (daily/weekly/biweekly/monthly/quarterly/yearly/custom), day_of_month, day_of_week, custom_pattern
+   - Date range: start_date, end_date, next_due_date
+   - Tracking: last_generated_date, total_generated, is_active, is_auto_post
+   - Reminders: remind_days_before
+   - Properties: signed_amount, is_expense, is_income, recurrence_pattern
+   - Methods: calculate_next_due_date, advance_to_next, generate_transaction, get_upcoming_occurrences
+   - Uses Life module's RecurrencePattern for consistent pattern handling
+
+2. **RecurringTransactionService** (`apps/finance/services/recurring.py`)
+   - get_due_recurring_transactions: Find transactions ready to post
+   - process_due_transactions: Batch generate transactions
+   - get_upcoming_transactions: Preview upcoming bills/income
+   - get_monthly_recurring_summary: Monthly projection
+   - skip_occurrence: Skip next instance without posting
+   - post_now: Immediate manual posting
+   - get_reminders_for_date: Find reminders due today
+
+3. **Views** (`apps/finance/views.py`)
+   - RecurringTransactionListView: Filter by active/inactive, shows income/expense sections
+   - RecurringTransactionDetailView: Shows upcoming dates, transaction history
+   - RecurringTransactionCreateView/UpdateView: CRUD with user-filtered accounts/categories
+   - RecurringTransactionDeleteView: Soft delete
+   - API endpoints: recurring_post_now, recurring_skip, recurring_toggle_active, api_upcoming_recurring
+
+4. **Templates** (`templates/finance/`)
+   - recurring_list.html: Monthly summary, due this week section, income/expense grids
+   - recurring_detail.html: Amount card, quick actions, upcoming dates, history
+   - recurring_form.html: Dynamic fields based on frequency selection
+   - recurring_confirm_delete.html: Confirmation with summary
+
+5. **Dashboard Integration** (`templates/finance/dashboard.html`, `apps/finance/views.py`)
+   - "Upcoming Bills & Income" section showing next 14 days
+   - Quick action link to recurring management
+   - CSS for recurring list styling
+
+6. **Management Command** (`apps/finance/management/commands/process_recurring_transactions.py`)
+   - Daily job to auto-post due transactions
+   - Supports --dry-run, --user, --date options
+   - Processes reminders for upcoming transactions
+
+**Files Modified:**
+- apps/finance/models.py - RecurringTransaction model (lines 1647-1954)
+- apps/finance/forms.py - RecurringTransactionForm (lines 622-761)
+- apps/finance/views.py - CRUD views and API endpoints (lines 1655-1909)
+- apps/finance/urls.py - 9 new URL patterns for recurring
+- apps/finance/services/recurring.py - Service layer (new file)
+- templates/finance/recurring_list.html (new file)
+- templates/finance/recurring_detail.html (new file)
+- templates/finance/recurring_form.html (new file)
+- templates/finance/recurring_confirm_delete.html (new file)
+- templates/finance/dashboard.html - Recurring section and quick action
+- apps/finance/management/commands/process_recurring_transactions.py (new file)
+
+**Migration:**
+- apps/finance/migrations/0015_add_recurring_transaction.py
+
+**Tests:** All 28 finance tests passing
+
+---
+
 ### Goal Milestones Feature (Task 2 from Improvement Backlog)
 
 **New Feature:** Goal Progress/Milestones added to the Purpose module allowing users to track incremental progress toward their life goals.

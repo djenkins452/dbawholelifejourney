@@ -43,16 +43,22 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
-### Dashboard Configure Page Fix - Missing Tile Names
+### Dashboard Configure Page Fix - Missing Tile Names & Save Issues
 
-**Bug Fix:** Tile names and descriptions were not displaying on the dashboard configuration page.
+**Bug Fix #1:** Tile names and descriptions were not displaying on the dashboard configuration page.
 
 **Root Cause:** `DashboardConfigService.get_config()` was returning only basic config fields (`id`, `visible`, `size`, `order`) without merging in the full tile definitions (`name`, `description`, `icon`, etc.).
 
-**Fix:** Modified `get_config()` to merge tile definitions with user config, similar to how `get_visible_tiles()` already does.
+**Fix:** Modified `get_config()` to merge tile definitions with user config.
+
+**Bug Fix #2:** Changes made on the configure page were not being saved correctly.
+
+**Root Cause:** After fixing #1, `get_config()` returned enriched tiles with all definition fields. When `update_tile()` or `reorder_tiles()` called `update_config()`, it was saving all those extra fields to the database, which caused issues on subsequent loads.
+
+**Fix:** Modified `update_config()` to strip tiles down to only config fields (`id`, `visible`, `size`, `order`) before saving to the database.
 
 **Files Modified:**
-- `apps/dashboard/services/config_service.py` - `get_config()` now enriches tiles with full definitions
+- `apps/dashboard/services/config_service.py` - `get_config()` enriches tiles for display, `update_config()` strips to config fields for storage
 
 ---
 

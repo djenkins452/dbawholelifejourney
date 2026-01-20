@@ -409,15 +409,28 @@ class DashboardConfigService:
         if not self._validate_config(new_config):
             return False
 
-        # Ensure mandatory tiles remain visible
+        # Strip down to only config fields (not full definitions)
+        # This is important because get_config() returns enriched tiles
+        config_fields = {'id', 'visible', 'size', 'order'}
+        cleaned_tiles = []
+
         available_tiles = {t['id']: t for t in self.get_available_tiles()}
+
         for tile_config in new_config.get('tiles', []):
             tile_id = tile_config['id']
+
+            # Only keep config fields
+            cleaned_tile = {k: v for k, v in tile_config.items() if k in config_fields}
+
+            # Ensure mandatory tiles remain visible
             tile_def = available_tiles.get(tile_id)
             if tile_def and tile_def.get('mandatory'):
-                tile_config['visible'] = True
+                cleaned_tile['visible'] = True
 
-        self.prefs.dashboard_config = new_config
+            cleaned_tiles.append(cleaned_tile)
+
+        storage_config = {'tiles': cleaned_tiles, 'version': new_config.get('version', 1)}
+        self.prefs.dashboard_config = storage_config
         self.prefs.save(update_fields=['dashboard_config', 'updated_at'])
         return True
 

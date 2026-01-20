@@ -5,34 +5,192 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+<style nonce="{{ csp_nonce }}">
+/* Edit Mode Styles */
+.dashboard-edit-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.5rem 0;
+    margin-bottom: 1rem;
+}
+
+.btn-customize {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn-customize:hover {
+    border-color: var(--color-accent);
+    background: var(--color-accent-light, #e0f2fe);
+}
+
+.btn-customize.active {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+/* Tile container with edit mode */
+.dashboard-tiles {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Tile wrapper for edit mode */
+.tile-wrapper {
+    position: relative;
+}
+
+.tile-wrapper.hidden-tile {
+    display: none;
+}
+
+body.edit-mode .tile-wrapper.hidden-tile {
+    display: block;
+    opacity: 0.5;
+}
+
+/* Edit overlay on each tile */
+.tile-edit-overlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 0 10px 0 10px;
+    z-index: 10;
+    gap: 0.5rem;
+}
+
+body.edit-mode .tile-edit-overlay {
+    display: flex;
+}
+
+.tile-edit-overlay button,
+.tile-edit-overlay label {
+    background: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.tile-edit-overlay button:hover,
+.tile-edit-overlay label:hover {
+    background: var(--color-accent-light, #e0f2fe);
+}
+
+.tile-edit-overlay .size-btn.active {
+    background: var(--color-accent);
+    color: white;
+}
+
+.tile-visibility-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.tile-visibility-toggle input {
+    width: 16px;
+    height: 16px;
+}
+
+/* Size classes */
+.tile-size-small {
+    max-width: 300px;
+}
+
+.tile-size-medium {
+    max-width: 100%;
+}
+
+.tile-size-large {
+    max-width: 100%;
+}
+
+/* Edit mode indicator */
+body.edit-mode .dashboard-tiles {
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(59, 130, 246, 0.03) 10px,
+        rgba(59, 130, 246, 0.03) 20px
+    );
+    padding: 1rem;
+    border-radius: 12px;
+    border: 2px dashed var(--color-accent);
+}
+
+/* Save status indicator */
+.edit-save-status {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 1000;
+}
+
+.edit-save-status.visible {
+    opacity: 1;
+}
+
+.edit-save-status.saving {
+    background: var(--color-info-light, #dbeafe);
+    color: var(--color-info, #2563eb);
+}
+
+.edit-save-status.saved {
+    background: var(--color-success-light, #dcfce7);
+    color: var(--color-success, #16a34a);
+}
+
+.edit-save-status.error {
+    background: var(--color-error-light, #fee2e2);
+    color: var(--color-error, #dc2626);
+}
+
+/* Tile name label in edit mode */
+.tile-name-label {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0.25rem 0.75rem;
+    background: var(--color-accent);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 10px 0 10px 0;
+    z-index: 9;
+}
+
+body.edit-mode .tile-name-label {
+    display: block;
+}
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="container">
-    <!-- Dashboard Setup Banner (for users who haven't customized yet) -->
-    {% if show_dashboard_setup_banner %}
-    <section class="dashboard-setup-banner" id="dashboard-setup-banner">
-        <div class="setup-banner-content">
-            <div class="setup-banner-icon">
-                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="7" height="7"/>
-                    <rect x="14" y="3" width="7" height="7"/>
-                    <rect x="14" y="14" width="7" height="7"/>
-                    <rect x="3" y="14" width="7" height="7"/>
-                </svg>
-            </div>
-            <div class="setup-banner-text">
-                <h3>Customize Your Dashboard</h3>
-                <p>Arrange tiles, choose what to see, and make this space yours.</p>
-            </div>
-            <div class="setup-banner-actions">
-                <a href="{% url 'dashboard:configure' %}" class="btn btn-primary">Customize Now</a>
-                <button type="button" class="btn btn-link setup-dismiss" onclick="dismissDashboardSetup()">Maybe Later</button>
-            </div>
-        </div>
-    </section>
-    {% endif %}
-
     <!-- Header -->
     <header class="dashboard-header">
         <div class="greeting">
@@ -44,8 +202,8 @@
             </a>
             {% endif %}
         </div>
-        
-        <!-- Quick Stats -->
+
+        <!-- Quick Stats (always in header) -->
         <div class="quick-stats">
             {% if journal_enabled and quick_stats.journal_streak > 0 %}
             <a href="{% url 'journal:entry_list' %}" class="quick-stat quick-stat-link" title="Journal Streak - Click to view entries">
@@ -80,861 +238,98 @@
         </div>
     </header>
 
-    <!-- Weather Widget (if user has location set) -->
-    {% if weather %}
-    <section class="weather-section {% if weather.has_alerts %}weather-alert{% endif %}">
-        {% if weather.has_alerts %}
-        <!-- Alert Mode: Prominent warning card -->
-        <div class="weather-alert-card">
-            <div class="weather-alert-header">
-                <span class="weather-alert-icon">
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                        <line x1="12" y1="9" x2="12" y2="13"/>
-                        <line x1="12" y1="17" x2="12.01" y2="17"/>
-                    </svg>
-                </span>
-                <div class="weather-alert-title">Weather Alert</div>
-            </div>
-            <div class="weather-alert-messages">
-                {% for alert in weather.alerts %}
-                <div class="weather-alert-message">{{ alert }}</div>
-                {% endfor %}
-            </div>
-            <div class="weather-current-compact">
-                <span class="weather-location">{{ weather.location }}</span>
-                <span class="weather-temp">{{ weather.current_temp|floatformat:0 }}°F</span>
-                <span class="weather-condition">{{ weather.current_condition }}</span>
-            </div>
-        </div>
-        {% else %}
-        <!-- Normal Mode: Compact current + forecast -->
-        <div class="weather-card">
-            <div class="weather-current">
-                <div class="weather-main">
-                    <span class="weather-temp-large">{{ weather.current_temp|floatformat:0 }}°</span>
-                    <div class="weather-details">
-                        <span class="weather-condition">{{ weather.current_condition }}</span>
-                        <span class="weather-location">{{ weather.location }}</span>
-                    </div>
-                </div>
-                <div class="weather-stats">
-                    <span class="weather-stat" title="Humidity">💧 {{ weather.humidity }}%</span>
-                    <span class="weather-stat" title="Wind">💨 {{ weather.wind_speed|floatformat:0 }} mph</span>
-                </div>
-            </div>
-            {% if weather.forecast %}
-            <div class="weather-forecast">
-                {% for day in weather.forecast %}
-                <div class="weather-forecast-day">
-                    <span class="forecast-day-name">{{ day.day_name }}</span>
-                    <span class="forecast-temps">
-                        <span class="forecast-high">{{ day.high|floatformat:0 }}°</span>
-                        <span class="forecast-low">{{ day.low|floatformat:0 }}°</span>
-                    </span>
-                    {% if day.precip_chance > 20 %}
-                    <span class="forecast-precip" title="{{ day.precip_chance }}% chance of precipitation">🌧️</span>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-        {% endif %}
-    </section>
-    {% endif %}
+    <!-- Edit Mode Bar -->
+    <div class="dashboard-edit-bar">
+        <button type="button" class="btn-customize" id="customize-btn" onclick="toggleEditMode()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            <span id="customize-btn-text">Customize</span>
+        </button>
+    </div>
 
-    <!-- Memory Verse (if faith enabled and user has one set) -->
-    {% if faith_enabled and user_data.memory_verse %}
-    <section class="memory-verse-section">
-        <div class="memory-verse-card">
-            <div class="memory-verse-header">
-                <div class="memory-verse-badge">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
-                    </svg>
-                    Memory Verse
-                </div>
-                <a href="{% url 'faith:scripture_list' %}" class="memory-verse-link" title="Manage Scripture">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 18l6-6-6-6"/>
-                    </svg>
-                </a>
-            </div>
-            <blockquote class="memory-verse-text">{{ user_data.memory_verse.text }}</blockquote>
-            <p class="memory-verse-reference">— {{ user_data.memory_verse.reference }}</p>
-        </div>
-    </section>
-    {% endif %}
+    <!-- Dynamic Tiles Container -->
+    <div class="dashboard-tiles" id="dashboard-tiles">
+        {% for tile in dashboard_tiles %}
+        <div class="tile-wrapper {% if not tile.visible %}hidden-tile{% endif %}"
+             data-tile-id="{{ tile.id }}"
+             data-tile-visible="{{ tile.visible|yesno:'true,false' }}"
+             data-tile-size="{{ tile.size }}">
 
-    <!-- AI Profile Setup Nudge -->
-    {% if show_ai_profile_nudge %}
-    <section class="ai-profile-nudge-section" id="ai-profile-nudge">
-        <div class="ai-profile-nudge-card">
-            <div class="nudge-header">
-                <span class="nudge-icon">🤖</span>
-                <div class="nudge-title-area">
-                    <h3>Personalize Your AI Experience</h3>
-                    <p>Help the AI understand you better for more relevant insights and coaching.</p>
-                </div>
-                <button type="button" class="nudge-close" onclick="handleProfileNudgeAction('snooze')" title="Remind me later">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
+            <!-- Edit overlay -->
+            <div class="tile-edit-overlay">
+                <label class="tile-visibility-toggle" title="Show/Hide">
+                    <input type="checkbox"
+                           {% if tile.visible %}checked{% endif %}
+                           {% if tile.mandatory %}disabled{% endif %}
+                           onchange="setTileVisibility('{{ tile.id }}', this.checked)">
+                    {% if tile.mandatory %}<span>Required</span>{% endif %}
+                </label>
+                <button type="button" class="size-btn {% if tile.size == 'small' %}active{% endif %}"
+                        onclick="setTileSize('{{ tile.id }}', 'small')">S</button>
+                <button type="button" class="size-btn {% if tile.size == 'medium' %}active{% endif %}"
+                        onclick="setTileSize('{{ tile.id }}', 'medium')">M</button>
+                <button type="button" class="size-btn {% if tile.size == 'large' %}active{% endif %}"
+                        onclick="setTileSize('{{ tile.id }}', 'large')">L</button>
             </div>
-            <div class="nudge-actions">
-                <button type="button" class="btn btn-primary" onclick="openProfileBuilder()">
-                    Help Me Set It Up
-                </button>
-                <a href="{% url 'users:preferences' %}#ai-profile" class="btn btn-secondary">
-                    I'll Do It Myself
-                </a>
-                <button type="button" class="btn btn-link" onclick="handleProfileNudgeAction('dismiss')">
-                    Don't Show Again
-                </button>
-            </div>
-        </div>
-    </section>
-    {% endif %}
 
-    {% if ai_enabled and ai_insights %}
-    <!-- AI Insight Card (Main Focus) -->
-    <section class="ai-insight-hero">
-        <div class="ai-insight-content">
-            <div class="ai-badge">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
-                    <path d="M12 6v6l4 2"/>
-                </svg>
-                Today's Insight
-            </div>
-            <p class="ai-insight-text">{{ ai_insights.daily_insight }}</p>
-        </div>
-    </section>
-    
-    <!-- Celebrations (if any) -->
-    {% if ai_insights.celebrations %}
-    <section class="celebrations-section">
-        <div class="celebrations-grid">
-            {% for celebration in ai_insights.celebrations %}
-            {% if celebration.type == 'streak' %}
-            <a href="{% url 'journal:entry_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view journal entries">
-            {% elif celebration.type == 'tasks' %}
-            <a href="{% url 'life:task_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view tasks">
-            {% elif celebration.type == 'medicine' %}
-            <a href="{% url 'health:medicine_home' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view medicines">
-            {% elif celebration.type == 'workout' %}
-            <a href="{% url 'health:workout_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view workouts">
-            {% elif celebration.type == 'faith' %}
-            <a href="{% url 'faith:prayer_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view prayers">
-            {% elif celebration.type == 'health' %}
-            <a href="{% url 'health:weight_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view weight history">
-            {% elif celebration.type == 'scan' %}
-            <a href="{% url 'scan:home' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to open camera scan">
-            {% else %}
-            <div class="celebration-card celebration-{{ celebration.type }}">
+            <!-- Tile name label for edit mode -->
+            <div class="tile-name-label">{{ tile.name }}</div>
+
+            <!-- Tile content -->
+            {% with tile_id=tile.id %}
+            {% if tile_id == 'quick_stats' %}
+                {% include "dashboard/tiles/quick_stats.html" with tile=tile %}
+            {% elif tile_id == 'weather' %}
+                {% include "dashboard/tiles/weather.html" with tile=tile %}
+            {% elif tile_id == 'memory_verse' %}
+                {% include "dashboard/tiles/memory_verse.html" with tile=tile %}
+            {% elif tile_id == 'ai_insights' %}
+                {% include "dashboard/tiles/ai_insights.html" with tile=tile %}
+            {% elif tile_id == 'celebrations' %}
+                {% include "dashboard/tiles/celebrations.html" with tile=tile %}
+            {% elif tile_id == 'nudges' %}
+                {% include "dashboard/tiles/nudges.html" with tile=tile %}
+            {% elif tile_id == 'weekly_summary' %}
+                {% include "dashboard/tiles/weekly_summary.html" with tile=tile %}
+            {% elif tile_id == 'daily_encouragement' %}
+                {% include "dashboard/tiles/daily_encouragement.html" with tile=tile %}
+            {% elif tile_id == 'current_fast' %}
+                {% include "dashboard/tiles/current_fast.html" with tile=tile %}
+            {% elif tile_id == 'cycle_tracking' %}
+                {% include "dashboard/tiles/cycle_tracking.html" with tile=tile %}
+            {% elif tile_id == 'quick_actions' %}
+                {% include "dashboard/tiles/quick_actions.html" with tile=tile %}
+            {% elif tile_id == 'module_cards' %}
+                {% include "dashboard/tiles/module_cards.html" with tile=tile %}
+            {% elif tile_id == 'medicine_schedule' %}
+                {% include "dashboard/tiles/medicine_schedule.html" with tile=tile %}
+            {% elif tile_id == 'nutrition_progress' %}
+                {% include "dashboard/tiles/nutrition_progress.html" with tile=tile %}
+            {% elif tile_id == 'recent_workouts' %}
+                {% include "dashboard/tiles/recent_workouts.html" with tile=tile %}
+            {% elif tile_id == 'goal_progress' %}
+                {% include "dashboard/tiles/goal_progress.html" with tile=tile %}
+            {% elif tile_id == 'upcoming_events' %}
+                {% include "dashboard/tiles/upcoming_events.html" with tile=tile %}
+            {% elif tile_id == 'upcoming_celebrations' %}
+                {% include "dashboard/tiles/upcoming_celebrations.html" with tile=tile %}
+            {% elif tile_id == 'recurring_transactions' %}
+                {% include "dashboard/tiles/recurring_transactions.html" with tile=tile %}
             {% endif %}
-                <div class="celebration-title">{{ celebration.title }}</div>
-                <div class="celebration-detail">{{ celebration.detail }}</div>
-            {% if celebration.type == 'streak' or celebration.type == 'tasks' or celebration.type == 'medicine' or celebration.type == 'workout' or celebration.type == 'faith' or celebration.type == 'health' or celebration.type == 'scan' %}
-            </a>
-            {% else %}
-            </div>
-            {% endif %}
-            {% endfor %}
+            {% endwith %}
         </div>
-    </section>
-    {% endif %}
-    
-    <!-- Accountability Nudges (if any) -->
-    {% if ai_insights.nudges %}
-    <section class="nudges-section">
-        {% for nudge in ai_insights.nudges %}
-        <div class="nudge-card nudge-{{ nudge.type }}">
-            {% if nudge.type == 'journal' %}
-            <div class="nudge-content">
-                <span class="nudge-icon">📝</span>
-                <div class="nudge-text">
-                    <span class="nudge-message">It's been {{ nudge.days }} days since you journaled.</span>
-                </div>
-            </div>
-            <a href="{{ nudge.action_url }}" class="btn btn-primary btn-sm">{{ nudge.action_text }}</a>
-            {% elif nudge.type == 'tasks' %}
-            <div class="nudge-content">
-                <span class="nudge-icon">⚠️</span>
-                <div class="nudge-text">
-                    <span class="nudge-message">You have {{ nudge.count }} overdue task{{ nudge.count|pluralize }}.</span>
-                </div>
-            </div>
-            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
-            {% elif nudge.type == 'goals' %}
-            <div class="nudge-content">
-                <span class="nudge-icon">🎯</span>
-                <div class="nudge-text">
-                    <span class="nudge-message">No active goals set. What are you working toward?</span>
-                </div>
-            </div>
-            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
-            {% elif nudge.type == 'medicine' %}
-            <div class="nudge-content">
-                <span class="nudge-icon">💊</span>
-                <div class="nudge-text">
-                    <span class="nudge-message">{{ nudge.count }} medicine dose{{ nudge.count|pluralize }} pending today.</span>
-                </div>
-            </div>
-            <a href="{{ nudge.action_url }}" class="btn btn-primary btn-sm">{{ nudge.action_text }}</a>
-            {% elif nudge.type == 'medicine_adherence' %}
-            <div class="nudge-content">
-                <span class="nudge-icon">📉</span>
-                <div class="nudge-text">
-                    <span class="nudge-message">Medicine adherence at {{ nudge.adherence }}% this week.</span>
-                </div>
-            </div>
-            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
-            {% elif nudge.type == 'refill_requested' %}
-            <div class="nudge-content">
-                <span class="nudge-icon">📋</span>
-                <div class="nudge-text">
-                    <span class="nudge-message">Refill requested for {{ nudge.count }} medicine{{ nudge.count|pluralize }}.</span>
-                </div>
-            </div>
-            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
-            {% elif nudge.type == 'refill' %}
-            <div class="nudge-content">
-                <span class="nudge-icon">🔔</span>
-                <div class="nudge-text">
-                    <span class="nudge-message">{{ nudge.count }} medicine{{ nudge.count|pluralize }} need{{ nudge.count|pluralize:"s," }} refill.</span>
-                </div>
-            </div>
-            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
-            {% elif nudge.type == 'workout' %}
-            <div class="nudge-content">
-                <span class="nudge-icon">🏋️</span>
-                <div class="nudge-text">
-                    <span class="nudge-message">It's been {{ nudge.days }} days since your last workout.</span>
-                </div>
-            </div>
-            <a href="{{ nudge.action_url }}" class="btn btn-secondary btn-sm">{{ nudge.action_text }}</a>
-            {% endif %}
-        </div>
+        {% empty %}
+        <!-- Fallback when no tiles configured - should not happen -->
+        <p>Loading dashboard tiles...</p>
         {% endfor %}
-    </section>
-    {% endif %}
+    </div>
 
-    <!-- Quarterly Review (shows at start of each quarter) -->
-    {% if quarterly_review %}
-    <section class="quarterly-review-section" id="quarterly-review-tile">
-        <div class="quarterly-review-card">
-            <button class="quarterly-review-dismiss" aria-label="Dismiss review" onclick="dismissQuarterlyReview('{{ quarterly_review.quarter_id }}')">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-            </button>
-            <div class="quarterly-review-header">
-                <span class="quarterly-icon">📊</span>
-                <h3>Q{{ quarterly_review.quarter_num }} {{ quarterly_review.quarter_year }} Review</h3>
-            </div>
-            <p class="quarterly-period">{{ quarterly_review.quarter_display }}</p>
-            {% if quarterly_review.has_activity %}
-            <div class="quarterly-stats">
-                {% if quarterly_review.goals_completed > 0 %}
-                <div class="quarterly-stat">
-                    <span class="stat-value">{{ quarterly_review.goals_completed }}</span>
-                    <span class="stat-label">goal{{ quarterly_review.goals_completed|pluralize }} completed</span>
-                </div>
-                {% endif %}
-                {% if quarterly_review.milestones_completed > 0 %}
-                <div class="quarterly-stat">
-                    <span class="stat-value">{{ quarterly_review.milestones_completed }}</span>
-                    <span class="stat-label">milestone{{ quarterly_review.milestones_completed|pluralize }} achieved</span>
-                </div>
-                {% endif %}
-                {% if quarterly_review.goals_started > 0 %}
-                <div class="quarterly-stat">
-                    <span class="stat-value">{{ quarterly_review.goals_started }}</span>
-                    <span class="stat-label">new goal{{ quarterly_review.goals_started|pluralize }} started</span>
-                </div>
-                {% endif %}
-            </div>
-            <p class="quarterly-encouragement">Great progress! Keep the momentum going this quarter.</p>
-            {% else %}
-            <div class="quarterly-empty">
-                <p>No goal activity recorded last quarter. This is a fresh start!</p>
-                <a href="{% url 'purpose:goal_create' %}" class="btn btn-primary btn-sm">Set a Goal</a>
-            </div>
-            {% endif %}
-            <div class="quarterly-cta">
-                <a href="{% url 'purpose:goal_list' %}" class="btn btn-outline btn-sm">View Goals</a>
-            </div>
-        </div>
-    </section>
-    {% endif %}
-
-    <!-- Weekly Summary (if available) -->
-    {% if ai_insights.weekly_summary %}
-    <section class="weekly-summary-section">
-        <div class="summary-header">
-            <h3>
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                    <line x1="16" y1="2" x2="16" y2="6"/>
-                    <line x1="8" y1="2" x2="8" y2="6"/>
-                    <line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-                Your Week
-            </h3>
-        </div>
-        <p class="summary-text">{{ ai_insights.weekly_summary }}</p>
-    </section>
-    {% endif %}
-    
-    {% else %}
-    <!-- Fallback: Daily Encouragement (when AI disabled) -->
-    <section class="encouragement-card">
-        {% if encouragement %}
-            <p class="encouragement-message">{{ encouragement.message }}</p>
-            {% if encouragement.scripture_reference and faith_enabled %}
-                <p class="scripture-reference">— {{ encouragement.scripture_reference }}</p>
-            {% endif %}
-        {% else %}
-            <p class="encouragement-message">
-                Take a moment to breathe. You're exactly where you need to be.
-            </p>
-        {% endif %}
-    </section>
-    {% endif %}
-
-    <!-- Current Fast Widget (if active) -->
-    {% if health_enabled and user_data.active_fast %}
-    <section class="current-fast-section">
-        <div class="fast-card">
-            <div class="fast-header">
-                <div class="fast-icon-wrapper">
-                    <span class="fast-icon">🕐</span>
-                </div>
-                <div class="fast-title-area">
-                    <span class="fast-badge">Fasting Now</span>
-                    <span class="fast-type">{{ user_data.active_fast.get_fasting_type_display }}</span>
-                </div>
-            </div>
-            <div class="fast-timer-container">
-                <div class="fast-timer"
-                     id="fast-timer"
-                     data-started="{{ user_data.active_fast.started_at|date:'c' }}"
-                     data-target="{{ user_data.active_fast.target_hours|default:'0' }}">
-                    <span class="timer-value" id="timer-hours">--</span>
-                    <span class="timer-separator">:</span>
-                    <span class="timer-value" id="timer-minutes">--</span>
-                    <span class="timer-separator">:</span>
-                    <span class="timer-value" id="timer-seconds">--</span>
-                </div>
-                <span class="timer-label">hours : minutes : seconds</span>
-            </div>
-            {% if user_data.active_fast.target_hours %}
-            <div class="fast-progress-container">
-                <div class="fast-progress-bar">
-                    <div class="fast-progress-fill" id="fast-progress" style="width: {{ user_data.active_fast.progress_percent|floatformat:0 }}%"></div>
-                </div>
-                <div class="fast-progress-labels">
-                    <span class="progress-current" id="progress-hours">{{ user_data.active_fast.duration_display }}</span>
-                    <span class="progress-target">Target: {{ user_data.active_fast.target_hours }}h</span>
-                </div>
-            </div>
-            {% endif %}
-            <div class="fast-actions">
-                <form method="post" action="{% url 'health:fasting_end' user_data.active_fast.pk %}" class="inline-form"
-                      onsubmit="return confirm('End your fast now?');">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-primary btn-sm fast-end-btn">End Fast</button>
-                </form>
-                <a href="{% url 'health:fasting_list' %}" class="btn btn-secondary btn-sm">View Details</a>
-            </div>
-        </div>
-    </section>
-    {% endif %}
-
-    <!-- Cycle Tracking Widget (if enabled) -->
-    {% if health_enabled and user_data.cycle_tracking_enabled and user_data.cycle_data %}
-    <section class="cycle-tracking-section">
-        <div class="cycle-card">
-            <div class="cycle-header">
-                <div class="cycle-icon-wrapper">
-                    {% if user_data.cycle_data.phase %}
-                    <span class="cycle-phase-dot" style="background-color: {{ user_data.cycle_data.phase.color }};"></span>
-                    {% else %}
-                    <span class="cycle-icon">🌸</span>
-                    {% endif %}
-                </div>
-                <div class="cycle-title-area">
-                    {% if user_data.cycle_data.phase %}
-                    <span class="cycle-badge">Day {{ user_data.cycle_data.cycle_day }}</span>
-                    <span class="cycle-phase-name">{{ user_data.cycle_data.phase.display_name }} Phase</span>
-                    {% else %}
-                    <span class="cycle-badge">Cycle Tracking</span>
-                    <span class="cycle-phase-name">No active cycle</span>
-                    {% endif %}
-                </div>
-                <a href="{% url 'health:cycle_dashboard' %}" class="cycle-link" title="Open Cycle Dashboard">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 18l6-6-6-6"/>
-                    </svg>
-                </a>
-            </div>
-
-            <!-- Quick Period Toggle -->
-            <div class="cycle-quick-actions" id="cycle-quick-actions">
-                {% if user_data.cycle_data.is_period_day %}
-                <div class="period-status period-active">
-                    <span class="period-indicator"></span>
-                    <span>Period logged today</span>
-                </div>
-                {% else %}
-                <div class="period-toggle-group">
-                    <button type="button"
-                            class="period-toggle-btn"
-                            id="period-start-btn"
-                            hx-post="{% url 'health:cycle_period_toggle' %}"
-                            hx-vals='{"action": "start"}'
-                            hx-target="#cycle-quick-actions"
-                            hx-swap="outerHTML">
-                        Period started
-                    </button>
-                    {% if user_data.cycle_data.current_cycle and user_data.cycle_data.phase.name == 'menstrual' %}
-                    <button type="button"
-                            class="period-toggle-btn period-end"
-                            id="period-end-btn"
-                            hx-post="{% url 'health:cycle_period_toggle' %}"
-                            hx-vals='{"action": "end"}'
-                            hx-target="#cycle-quick-actions"
-                            hx-swap="outerHTML">
-                        Period ended
-                    </button>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
-
-            <div class="cycle-footer">
-                <a href="{% url 'health:cycle_dashboard' %}" class="btn btn-secondary btn-sm">
-                    Log Details
-                </a>
-            </div>
-        </div>
-    </section>
-    {% endif %}
-
-    <!-- Quick Actions Grid -->
-    <section class="quick-actions-section">
-        <h2 class="section-title">Quick Actions</h2>
-        <div class="quick-actions-grid">
-            {% if journal_enabled %}
-            <a href="{% url 'journal:entry_create' %}" class="quick-action-card">
-                <span class="action-icon">📝</span>
-                <span class="action-label">New Journal Entry</span>
-            </a>
-            {% endif %}
-            
-            {% if faith_enabled %}
-            <a href="{% url 'faith:prayer_create' %}" class="quick-action-card">
-                <span class="action-icon">🙏</span>
-                <span class="action-label">Add Prayer</span>
-            </a>
-            {% endif %}
-            
-            {% if health_enabled %}
-            <a href="{% url 'health:weight_create' %}" class="quick-action-card">
-                <span class="action-icon">⚖️</span>
-                <span class="action-label">Log Weight</span>
-            </a>
-            {% if not user_data.fasting_active %}
-            <a href="{% url 'health:fasting_start' %}" class="quick-action-card">
-                <span class="action-icon">🕐</span>
-                <span class="action-label">Start Fast</span>
-            </a>
-            {% else %}
-            <a href="{% url 'health:fasting_list' %}" class="quick-action-card action-active">
-                <span class="action-icon">🕐</span>
-                <span class="action-label">Fasting Now</span>
-            </a>
-            {% endif %}
-            {% endif %}
-            
-            {% if life_enabled %}
-            <a href="{% url 'life:task_create' %}" class="quick-action-card">
-                <span class="action-icon">✓</span>
-                <span class="action-label">Add Task</span>
-            </a>
-            {% endif %}
-            
-            {% if purpose_enabled %}
-            <a href="{% url 'purpose:goal_create' %}" class="quick-action-card">
-                <span class="action-icon">🎯</span>
-                <span class="action-label">Add Goal</span>
-            </a>
-            {% endif %}
-
-            {% if ai_enabled %}
-            <button type="button" class="quick-action-card" id="quick-scan-btn" onclick="openQuickScan()">
-                <span class="action-icon">📷</span>
-                <span class="action-label">Scan Item</span>
-            </button>
-            {% endif %}
-
-            {% if capture_enabled %}
-            <a href="{% url 'capture:record' %}" class="quick-action-card">
-                <span class="action-icon">🎙️</span>
-                <span class="action-label">Record Audio</span>
-            </a>
-            {% endif %}
-        </div>
-    </section>
-    
-    <!-- Module Navigation Cards -->
-    <section class="modules-section">
-        <h2 class="section-title">Your Modules</h2>
-        <div class="modules-grid">
-            {% if journal_enabled %}
-            <a href="{% url 'journal:entry_list' %}" class="module-nav-card">
-                <div class="module-icon">📝</div>
-                <div class="module-info">
-                    <h3>Journal</h3>
-                    <p>{{ user_data.journal_total|default:0 }} entries</p>
-                </div>
-                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
-            </a>
-            {% endif %}
-            
-            {% if faith_enabled %}
-            <a href="{% url 'faith:home' %}" class="module-nav-card">
-                <div class="module-icon">✝️</div>
-                <div class="module-info">
-                    <h3>Faith</h3>
-                    <p>{{ user_data.active_prayers|default:0 }} active prayers</p>
-                </div>
-                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
-            </a>
-            {% endif %}
-            
-            {% if health_enabled %}
-            <a href="{% url 'health:home' %}" class="module-nav-card {% if user_data.weight_progress or user_data.nutrition_progress %}has-goals{% endif %}">
-                <div class="module-icon">❤️</div>
-                <div class="module-info">
-                    <h3>Health</h3>
-                    <p>{% if user_data.latest_weight %}{{ user_data.latest_weight.value }} {{ user_data.latest_weight.unit }}{% else %}Start tracking{% endif %}</p>
-                    {% if user_data.weight_progress %}
-                    <div class="goal-progress-mini">
-                        <div class="progress-bar-mini">
-                            <div class="progress-fill-mini" style="width: {{ user_data.weight_progress.progress_percent|floatformat:0 }}%"></div>
-                        </div>
-                        <span class="progress-label-mini">
-                            {% if user_data.weight_progress.remaining > 0 %}
-                                {{ user_data.weight_progress.remaining|floatformat:1 }} {{ user_data.weight_progress.unit }} to go
-                            {% elif user_data.weight_progress.remaining < 0 %}
-                                {{ user_data.weight_progress.remaining|floatformat:1|slice:"1:" }} {{ user_data.weight_progress.unit }} to gain
-                            {% else %}
-                                Goal reached!
-                            {% endif %}
-                        </span>
-                    </div>
-                    {% endif %}
-                </div>
-                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
-            </a>
-            {% endif %}
-            
-            {% if life_enabled %}
-            <a href="{% url 'life:home' %}" class="module-nav-card">
-                <div class="module-icon">🏠</div>
-                <div class="module-info">
-                    <h3>Organize</h3>
-                    <p>{{ user_data.incomplete_tasks|default:0 }} tasks</p>
-                </div>
-                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
-            </a>
-            {% endif %}
-
-            {% if purpose_enabled %}
-            <a href="{% url 'purpose:home' %}" class="module-nav-card">
-                <div class="module-icon">🧭</div>
-                <div class="module-info">
-                    <h3>Goals</h3>
-                    <p>{% if user_data.annual_direction %}{{ user_data.word_of_year|default:"Direction set" }}{% else %}Set your direction{% endif %}</p>
-                </div>
-                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
-            </a>
-            {% endif %}
-
-            {% if capture_enabled %}
-            <a href="{% url 'capture:list' %}" class="module-nav-card">
-                <div class="module-icon">🎙️</div>
-                <div class="module-info">
-                    <h3>Capture</h3>
-                    <p>{{ user_data.capture_count|default:0 }} recording{{ user_data.capture_count|default:0|pluralize }}</p>
-                </div>
-                <svg class="module-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
-            </a>
-            {% endif %}
-        </div>
-    </section>
-
-    <!-- Today's Medicine Schedule (if health enabled and has medicines) -->
-    {% if health_enabled and user_data.todays_medicine_schedule %}
-    <section class="medicine-schedule-section">
-        <div class="section-header">
-            <h2 class="section-title">Today's Medicines</h2>
-            <a href="{% url 'health:medicine_home' %}" class="section-link">Open Tracker</a>
-        </div>
-        <div class="medicine-schedule-list">
-            {% for item in user_data.todays_medicine_schedule %}
-            <div class="medicine-schedule-item {% if item.taken %}taken{% elif item.missed %}missed{% elif item.skipped %}skipped{% endif %}">
-                <div class="medicine-time">{{ item.schedule.scheduled_time|time:"g:i A" }}</div>
-                <div class="medicine-info">
-                    <span class="medicine-name">{{ item.medicine.name }}</span>
-                    <span class="medicine-dose">{{ item.medicine.dose }}</span>
-                </div>
-                <div class="medicine-status">
-                    {% if item.taken %}
-                    <span class="status-badge status-taken">✓ Taken</span>
-                    {% elif item.missed %}
-                    <span class="status-badge status-missed">✗ Missed</span>
-                    {% elif item.skipped %}
-                    <span class="status-badge status-skipped">— Skipped</span>
-                    {% else %}
-                    <span class="status-badge status-pending">Pending</span>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-
-    <!-- Today's Nutrition Progress (if health enabled and has nutrition goals) -->
-    {% if health_enabled and user_data.nutrition_progress %}
-    <section class="nutrition-progress-section">
-        <div class="section-header">
-            <h2 class="section-title">Today's Nutrition</h2>
-            <a href="{% url 'health:food_entry_create' %}" class="section-link">Log Food</a>
-        </div>
-        <div class="nutrition-progress-card">
-            <div class="calorie-summary">
-                <div class="calorie-value">{{ user_data.nutrition_progress.calories.current|default:0 }}</div>
-                <div class="calorie-goal">of {{ user_data.nutrition_progress.calories.goal }} calories</div>
-                {% if user_data.nutrition_progress.calories.remaining > 0 %}
-                <div class="calorie-remaining">{{ user_data.nutrition_progress.calories.remaining }} remaining</div>
-                {% elif user_data.nutrition_progress.calories.remaining < 0 %}
-                <div class="calorie-remaining" style="color: var(--color-error, #ef4444);">{{ user_data.nutrition_progress.calories.remaining|slice:"1:" }} over</div>
-                {% else %}
-                <div class="calorie-remaining">Goal reached!</div>
-                {% endif %}
-            </div>
-
-            <div class="macro-progress-grid">
-                <div class="macro-progress-item">
-                    <div class="macro-progress-label">
-                        <span>🥩</span> Protein
-                    </div>
-                    <div class="macro-progress-bar">
-                        <div class="macro-progress-fill protein" style="width: {{ user_data.nutrition_progress.protein.progress_percent|default:0|floatformat:0 }}%"></div>
-                    </div>
-                    <div class="macro-progress-value">
-                        {{ user_data.nutrition_progress.protein.current_g|floatformat:0 }}g / {{ user_data.nutrition_progress.protein.goal_g|default:"-" }}g
-                    </div>
-                </div>
-
-                <div class="macro-progress-item">
-                    <div class="macro-progress-label">
-                        <span>🍞</span> Carbs
-                    </div>
-                    <div class="macro-progress-bar">
-                        <div class="macro-progress-fill carbs" style="width: {{ user_data.nutrition_progress.carbs.progress_percent|default:0|floatformat:0 }}%"></div>
-                    </div>
-                    <div class="macro-progress-value">
-                        {{ user_data.nutrition_progress.carbs.current_g|floatformat:0 }}g / {{ user_data.nutrition_progress.carbs.goal_g|default:"-" }}g
-                    </div>
-                </div>
-
-                <div class="macro-progress-item">
-                    <div class="macro-progress-label">
-                        <span>🥑</span> Fat
-                    </div>
-                    <div class="macro-progress-bar">
-                        <div class="macro-progress-fill fat" style="width: {{ user_data.nutrition_progress.fat.progress_percent|default:0|floatformat:0 }}%"></div>
-                    </div>
-                    <div class="macro-progress-value">
-                        {{ user_data.nutrition_progress.fat.current_g|floatformat:0 }}g / {{ user_data.nutrition_progress.fat.goal_g|default:"-" }}g
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-    {% endif %}
-
-    <!-- Recent Workouts (if health enabled and has workouts) -->
-    {% if health_enabled and user_data.recent_workouts %}
-    <section class="recent-workouts-section">
-        <div class="section-header">
-            <h2 class="section-title">Recent Workouts</h2>
-            <a href="{% url 'health:workout_list' %}" class="section-link">View All</a>
-        </div>
-        <div class="workouts-list">
-            {% for workout in user_data.recent_workouts %}
-            <a href="{% url 'health:workout_detail' workout.pk %}" class="workout-item">
-                <div class="workout-date">
-                    <span class="date-month">{{ workout.date|date:"M" }}</span>
-                    <span class="date-day">{{ workout.date|date:"j" }}</span>
-                </div>
-                <div class="workout-info">
-                    <span class="workout-name">{% if workout.name %}{{ workout.name }}{% else %}Workout{% endif %}</span>
-                    <span class="workout-meta">
-                        {{ workout.exercise_count }} exercise{{ workout.exercise_count|pluralize }}
-                        {% if workout.duration_minutes %} • {{ workout.duration_minutes }} min{% endif %}
-                    </span>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        {% if user_data.recent_prs %}
-        <div class="recent-prs">
-            <h3 class="subsection-title">Recent PRs</h3>
-            {% for pr in user_data.recent_prs %}
-            <div class="pr-item">
-                <span class="pr-icon">🏆</span>
-                <span class="pr-exercise">{{ pr.exercise.name }}</span>
-                <span class="pr-details">{{ pr.weight }}lbs × {{ pr.reps }}</span>
-                <span class="pr-date">{{ pr.achieved_date|date:"M j" }}</span>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-    </section>
-    {% endif %}
-
-    <!-- Goal Progress (if purpose enabled and has active goals) -->
-    {% if purpose_enabled and user_data.active_goals_list %}
-    <section class="goal-progress-section">
-        <div class="section-header">
-            <h2 class="section-title">Goal Progress</h2>
-            <a href="{% url 'purpose:goal_list' %}" class="section-link">View All</a>
-        </div>
-        <div class="goals-progress-list">
-            {% for item in user_data.active_goals_list %}
-            <a href="{% url 'purpose:goal_detail' item.goal.pk %}" class="goal-progress-item">
-                <div class="goal-progress-content">
-                    <div class="goal-progress-header">
-                        <span class="goal-progress-title">{{ item.goal.title }}</span>
-                        {% if item.has_milestones %}
-                        <span class="goal-progress-count">{{ item.completed_count }}/{{ item.total_count }}</span>
-                        {% endif %}
-                    </div>
-                    {% if item.has_milestones %}
-                    <div class="goal-progress-bar-container">
-                        <div class="progress-bar-mini">
-                            <div class="progress-fill-mini {% if item.progress_percent == 100 %}complete{% endif %}" style="width: {{ item.progress_percent }}%"></div>
-                        </div>
-                    </div>
-                    {% if item.next_milestone %}
-                    <div class="goal-next-milestone">
-                        <span class="next-label">Next:</span> {{ item.next_milestone.title }}
-                        {% if item.next_milestone.target_date %}
-                        <span class="next-date">{% if item.next_milestone.is_overdue %}<span class="overdue">overdue</span>{% else %}due {{ item.next_milestone.target_date|date:"M j" }}{% endif %}</span>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                    {% else %}
-                    <div class="goal-no-milestones">
-                        <span class="add-milestone-hint">Add milestones to track progress</span>
-                    </div>
-                    {% endif %}
-                </div>
-                <svg class="goal-progress-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18l6-6-6-6"/>
-                </svg>
-            </a>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-
-    <!-- Upcoming Events (if any) -->
-    {% if life_enabled and user_data.upcoming_events %}
-    <section class="upcoming-section">
-        <h2 class="section-title">Coming Up</h2>
-        <div class="upcoming-list">
-            {% for event in user_data.upcoming_events %}
-            <div class="upcoming-item">
-                <div class="upcoming-date">
-                    <span class="date-month">{{ event.start_date|date:"M" }}</span>
-                    <span class="date-day">{{ event.start_date|date:"j" }}</span>
-                </div>
-                <div class="upcoming-info">
-                    <span class="upcoming-title">{{ event.title }}</span>
-                    {% if event.start_time %}
-                    <span class="upcoming-time">{{ event.start_time|time:"g:i A" }}</span>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-
-    <!-- Upcoming Celebrations (Significant Events) -->
-    {% if life_enabled and user_data.upcoming_significant_events %}
-    <section class="celebrations-section">
-        <div class="section-header-with-link">
-            <h2 class="section-title">Upcoming Celebrations</h2>
-            <a href="{% url 'life:significant_event_list' %}" class="section-link">View All</a>
-        </div>
-        <div class="celebrations-list">
-            {% for event in user_data.upcoming_significant_events %}
-            <a href="{{ event.get_absolute_url }}" class="celebration-item {% if event.days_until == 0 %}today{% elif event.days_until <= 7 %}soon{% endif %}">
-                <span class="celebration-icon">
-                    {% if event.event_type == 'birthday' %}🎂
-                    {% elif event.event_type == 'anniversary' %}💍
-                    {% elif event.event_type == 'memorial' %}🕯️
-                    {% elif event.event_type == 'milestone' %}🏆
-                    {% elif event.event_type == 'holiday' %}🎉
-                    {% else %}📅{% endif %}
-                </span>
-                <div class="celebration-info">
-                    <span class="celebration-title">{{ event.title }}</span>
-                    {% if event.person_name %}
-                    <span class="celebration-person">{{ event.person_name }}</span>
-                    {% endif %}
-                </div>
-                <div class="celebration-countdown">
-                    {% if event.days_until == 0 %}
-                    <span class="countdown-badge today">Today!</span>
-                    {% elif event.days_until == 1 %}
-                    <span class="countdown-badge tomorrow">Tomorrow</span>
-                    {% else %}
-                    <span class="countdown-text">{{ event.days_until }} days</span>
-                    {% endif %}
-                    {% if event.years_display %}
-                    <span class="years-badge">{{ event.years_display }}</span>
-                    {% endif %}
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
+    <!-- Save Status Indicator -->
+    <div class="edit-save-status" id="edit-save-status">Saved</div>
 </div>
 {% endblock %}
 
@@ -1022,8 +417,320 @@
         </div>
     </div>
 </dialog>
+{% endif %}
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+
+    let isEditMode = false;
+    const csrfToken = '{{ csrf_token }}';
+
+    // Auto-enable edit mode if ?edit=1 in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('edit') === '1') {
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleEditMode();
+            // Clean up the URL
+            window.history.replaceState({}, '', window.location.pathname);
+        });
+    }
+
+    // =====================================
+    // Edit Mode Functions
+    // =====================================
+    window.toggleEditMode = function() {
+        isEditMode = !isEditMode;
+        document.body.classList.toggle('edit-mode', isEditMode);
+
+        const btn = document.getElementById('customize-btn');
+        const btnText = document.getElementById('customize-btn-text');
+
+        btn.classList.toggle('active', isEditMode);
+        btnText.textContent = isEditMode ? 'Done' : 'Customize';
+    };
+
+    window.setTileVisibility = function(tileId, visible) {
+        const wrapper = document.querySelector(`[data-tile-id="${tileId}"]`);
+        if (wrapper) {
+            wrapper.classList.toggle('hidden-tile', !visible);
+            wrapper.dataset.tileVisible = visible ? 'true' : 'false';
+        }
+        saveTileConfig(tileId, { visible: visible });
+    };
+
+    window.setTileSize = function(tileId, size) {
+        const wrapper = document.querySelector(`[data-tile-id="${tileId}"]`);
+        if (wrapper) {
+            // Update data attribute
+            wrapper.dataset.tileSize = size;
+
+            // Update size buttons
+            const buttons = wrapper.querySelectorAll('.size-btn');
+            buttons.forEach(btn => {
+                btn.classList.toggle('active', btn.textContent === size.charAt(0).toUpperCase());
+            });
+
+            // Update tile section class
+            const section = wrapper.querySelector('section, div.tile-size-small, div.tile-size-medium, div.tile-size-large');
+            if (section) {
+                section.classList.remove('tile-size-small', 'tile-size-medium', 'tile-size-large');
+                section.classList.add(`tile-size-${size}`);
+            }
+        }
+        saveTileConfig(tileId, { size: size });
+    };
+
+    async function saveTileConfig(tileId, updates) {
+        showSaveStatus('saving');
+
+        try {
+            const response = await fetch(`{% url "dashboard:tile_config_api" tile_id="TILEID" %}`.replace('TILEID', tileId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(updates)
+            });
+
+            if (response.ok) {
+                showSaveStatus('saved');
+            } else {
+                showSaveStatus('error');
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+            showSaveStatus('error');
+        }
+    }
+
+    function showSaveStatus(status) {
+        const el = document.getElementById('edit-save-status');
+        el.className = `edit-save-status visible ${status}`;
+        el.textContent = status === 'saving' ? 'Saving...' : status === 'saved' ? 'Saved!' : 'Error saving';
+
+        if (status !== 'saving') {
+            setTimeout(() => el.classList.remove('visible'), 1500);
+        }
+    }
+
+    // =====================================
+    // Fast Timer Functions
+    // =====================================
+    const timerEl = document.getElementById('fast-timer');
+    if (timerEl) {
+        const startedAt = new Date(timerEl.dataset.started);
+        const targetHours = parseFloat(timerEl.dataset.target) || 0;
+
+        function updateTimer() {
+            const now = new Date();
+            const elapsed = Math.floor((now - startedAt) / 1000);
+
+            const hours = Math.floor(elapsed / 3600);
+            const minutes = Math.floor((elapsed % 3600) / 60);
+            const seconds = elapsed % 60;
+
+            document.getElementById('timer-hours').textContent = String(hours).padStart(2, '0');
+            document.getElementById('timer-minutes').textContent = String(minutes).padStart(2, '0');
+            document.getElementById('timer-seconds').textContent = String(seconds).padStart(2, '0');
+
+            // Update progress bar if target set
+            if (targetHours > 0) {
+                const progressEl = document.getElementById('fast-progress');
+                const progressHoursEl = document.getElementById('progress-hours');
+                if (progressEl) {
+                    const percent = Math.min(100, (elapsed / (targetHours * 3600)) * 100);
+                    progressEl.style.width = percent + '%';
+                }
+                if (progressHoursEl) {
+                    progressHoursEl.textContent = `${hours}h ${minutes}m`;
+                }
+            }
+        }
+
+        updateTimer();
+        setInterval(updateTimer, 1000);
+    }
+
+{% if ai_enabled %}
+    // =====================================
+    // Quick Scan Functions
+    // =====================================
+    let stream = null;
+    let capturedImageData = null;
+
+    window.openQuickScan = function() {
+        const modal = document.getElementById('quick-scan-modal');
+        modal.showModal();
+        startCamera();
+    };
+
+    window.closeQuickScan = function() {
+        const modal = document.getElementById('quick-scan-modal');
+        modal.close();
+        stopCamera();
+        resetScanState();
+    };
+
+    function startCamera() {
+        const video = document.getElementById('quick-scan-video');
+        const overlay = document.getElementById('camera-overlay');
+        const captureBtn = document.getElementById('capture-btn');
+
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' },
+            audio: false
+        })
+        .then(function(mediaStream) {
+            stream = mediaStream;
+            video.srcObject = stream;
+            overlay.classList.add('hidden');
+            captureBtn.disabled = false;
+        })
+        .catch(function(err) {
+            console.error('Camera error:', err);
+            overlay.innerHTML = '<span>Camera access denied</span>';
+        });
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+    }
+
+    window.captureImage = function() {
+        const video = document.getElementById('quick-scan-video');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+
+        capturedImageData = canvas.toDataURL('image/jpeg', 0.8);
+
+        document.getElementById('preview-image').src = capturedImageData;
+        showScanState('preview');
+        stopCamera();
+    };
+
+    window.handleFileUpload = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            capturedImageData = e.target.result;
+            document.getElementById('preview-image').src = capturedImageData;
+            showScanState('preview');
+            stopCamera();
+        };
+        reader.readAsDataURL(file);
+    };
+
+    window.retakePhoto = function() {
+        capturedImageData = null;
+        showScanState('camera');
+        startCamera();
+    };
+
+    window.analyzeImage = function() {
+        if (!capturedImageData) return;
+
+        showScanState('loading');
+
+        fetch('{% url "scan:quick_analyze" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ image: capturedImageData })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showError('Analysis Failed', data.error);
+            } else {
+                showResults(data);
+            }
+        })
+        .catch(err => {
+            console.error('Analysis error:', err);
+            showError('Network Error', 'Could not connect to server.');
+        });
+    };
+
+    function showResults(data) {
+        document.getElementById('result-icon').textContent = data.icon || '📦';
+        document.getElementById('result-category').textContent = data.category || 'Item';
+        document.getElementById('result-confidence').textContent =
+            (data.confidence ? Math.round(data.confidence * 100) + '% confidence' : '');
+
+        const itemsContainer = document.getElementById('result-items');
+        itemsContainer.innerHTML = '';
+        if (data.items && data.items.length) {
+            data.items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = `<strong>${item.name}</strong>` +
+                    (item.details ? `<span class="result-item-details">${item.details}</span>` : '');
+                itemsContainer.appendChild(div);
+            });
+        }
+
+        const questionContainer = document.getElementById('result-question');
+        questionContainer.textContent = data.question || '';
+
+        const actionsContainer = document.getElementById('result-actions');
+        actionsContainer.innerHTML = '';
+        if (data.actions && data.actions.length) {
+            data.actions.forEach(action => {
+                const btn = document.createElement('a');
+                btn.className = 'btn btn-primary btn-sm';
+                btn.href = action.url;
+                btn.textContent = action.label;
+                actionsContainer.appendChild(btn);
+            });
+        }
+
+        const retakeBtn = document.createElement('button');
+        retakeBtn.type = 'button';
+        retakeBtn.className = 'btn btn-secondary btn-sm';
+        retakeBtn.textContent = 'Scan Another';
+        retakeBtn.onclick = retakePhoto;
+        actionsContainer.appendChild(retakeBtn);
+
+        showScanState('results');
+    }
+
+    function showError(title, message) {
+        document.getElementById('error-title').textContent = title;
+        document.getElementById('error-message').textContent = message;
+        showScanState('error');
+    }
+
+    function showScanState(state) {
+        document.querySelectorAll('.scan-state').forEach(el => el.classList.remove('active'));
+        document.getElementById('scan-state-' + state).classList.add('active');
+    }
+
+    function resetScanState() {
+        capturedImageData = null;
+        showScanState('camera');
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('quick-scan-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeQuickScan();
+    });
+{% endif %}
+})();
+</script>
 
 <style nonce="{{ csp_nonce }}">
+{% if ai_enabled %}
 /* Quick Scan Modal Styles */
 .quick-scan-modal {
     border: none;
@@ -1067,10 +774,6 @@
     color: var(--color-text-secondary);
     padding: 0.25rem 0.5rem;
     line-height: 1;
-}
-
-.quick-scan-close:hover {
-    color: var(--color-text);
 }
 
 .scan-state {
@@ -1138,18 +841,12 @@
 
 .preview-image {
     width: 100%;
-    max-height: 300px;
-    object-fit: contain;
-    background: #000;
+    display: block;
 }
 
 .loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    text-align: center;
     padding: 3rem 1rem;
-    gap: 1rem;
 }
 
 .loading-spinner {
@@ -1159,6 +856,7 @@
     border-top-color: var(--color-accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
 }
 
 @keyframes spin {
@@ -1172,28 +870,21 @@
 .result-header {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
     margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--color-border);
 }
 
 .result-icon {
-    font-size: 2.5rem;
-}
-
-.result-info {
-    display: flex;
-    flex-direction: column;
+    font-size: 2rem;
 }
 
 .result-category {
-    font-size: 1.25rem;
     font-weight: 600;
+    display: block;
 }
 
 .result-confidence {
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     color: var(--color-text-secondary);
 }
 
@@ -1202,45 +893,30 @@
 }
 
 .result-item {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--color-border);
 }
 
-.result-item-label {
-    font-weight: 500;
-    margin-bottom: 0.25rem;
+.result-item:last-child {
+    border-bottom: none;
 }
 
 .result-item-details {
-    font-size: 0.85rem;
+    display: block;
+    font-size: 0.875rem;
     color: var(--color-text-secondary);
 }
 
 .result-question {
-    font-size: 1rem;
-    font-weight: 500;
-    margin-bottom: 0.75rem;
-    text-align: center;
+    font-style: italic;
+    color: var(--color-text-secondary);
+    margin-bottom: 1rem;
 }
 
 .result-actions {
     display: flex;
-    flex-direction: column;
     gap: 0.5rem;
-}
-
-.result-actions .btn {
-    width: 100%;
-    padding: 0.875rem 1rem;
-    font-size: 1rem;
-}
-
-.result-actions .btn-primary {
-    background: var(--color-accent);
-    color: white;
+    flex-wrap: wrap;
 }
 
 .error-container {
@@ -1250,1144 +926,25 @@
 
 .error-icon {
     font-size: 3rem;
-    margin-bottom: 1rem;
     display: block;
-}
-
-.error-container h3 {
-    margin: 0 0 0.5rem;
-}
-
-.error-container p {
-    color: var(--color-text-secondary);
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
 }
 
 .quick-scan-footer {
     padding: 0.75rem 1rem;
-    text-align: center;
     border-top: 1px solid var(--color-border);
-    background: var(--color-surface);
+    text-align: center;
 }
 
 .advanced-link {
     font-size: 0.875rem;
-    color: var(--color-text-secondary);
+    color: var(--color-accent);
     text-decoration: none;
 }
 
 .advanced-link:hover {
-    color: var(--color-accent);
-}
-
-/* Button styling for quick-action-card as button */
-button.quick-action-card {
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-    text-align: center;
-}
-</style>
-
-<script nonce="{{ csp_nonce }}">
-(function() {
-    'use strict';
-
-    const categoryIcons = {
-        food: '🍽️',
-        medicine: '💊',
-        supplement: '💊',
-        receipt: '🧾',
-        document: '📄',
-        workout_equipment: '🏋️',
-        inventory_item: '📦',
-        recipe: '📖',
-        pet: '🐾',
-        maintenance: '🔧',
-        barcode: '📊',
-        unknown: '❓'
-    };
-
-    let modal, videoEl, overlayEl, captureBtn, previewImg;
-    let stream = null;
-    let capturedImageData = null;
-    let currentRequestId = null;
-    let currentScanImageKey = null;
-
-    function initElements() {
-        modal = document.getElementById('quick-scan-modal');
-        videoEl = document.getElementById('quick-scan-video');
-        overlayEl = document.getElementById('camera-overlay');
-        captureBtn = document.getElementById('capture-btn');
-        previewImg = document.getElementById('preview-image');
-    }
-
-    window.openQuickScan = async function() {
-        initElements();
-        if (!modal) return;
-
-        modal.showModal();
-        setState('camera');
-        await startCamera();
-    };
-
-    window.closeQuickScan = function() {
-        stopCamera();
-        capturedImageData = null;
-        currentRequestId = null;
-        if (modal) modal.close();
-    };
-
-    async function startCamera() {
-        try {
-            overlayEl.classList.remove('hidden');
-            overlayEl.querySelector('span').textContent = 'Starting camera...';
-
-            stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-            });
-
-            videoEl.srcObject = stream;
-            await videoEl.play();
-
-            overlayEl.classList.add('hidden');
-            captureBtn.disabled = false;
-        } catch (err) {
-            console.error('Camera error:', err);
-            overlayEl.querySelector('span').textContent = 'Camera not available. Use upload instead.';
-            captureBtn.disabled = true;
-        }
-    }
-
-    function stopCamera() {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            stream = null;
-        }
-        if (videoEl) videoEl.srcObject = null;
-    }
-
-    window.captureImage = function() {
-        if (!videoEl || !videoEl.srcObject) return;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = videoEl.videoWidth;
-        canvas.height = videoEl.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoEl, 0, 0);
-
-        capturedImageData = canvas.toDataURL('image/jpeg', 0.85);
-        previewImg.src = capturedImageData;
-
-        stopCamera();
-        setState('preview');
-    };
-
-    window.handleFileUpload = function(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            capturedImageData = e.target.result;
-            previewImg.src = capturedImageData;
-            stopCamera();
-            setState('preview');
-        };
-        reader.readAsDataURL(file);
-        event.target.value = '';
-    };
-
-    window.retakePhoto = function() {
-        capturedImageData = null;
-        setState('camera');
-        startCamera();
-    };
-
-    window.analyzeImage = async function() {
-        if (!capturedImageData) return;
-
-        setState('loading');
-
-        try {
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
-                || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
-
-            const response = await fetch('{% url "scan:analyze" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify({ image: capturedImageData })
-            });
-
-            const data = await response.json();
-            currentRequestId = data.request_id;
-            currentScanImageKey = data.scan_image_key || null;
-
-            if (!response.ok || data.error) {
-                throw new Error(data.error || 'Analysis failed');
-            }
-
-            showResults(data);
-        } catch (err) {
-            console.error('Analysis error:', err);
-            showError('Analysis Failed', err.message || 'Please try again.');
-        }
-    };
-
-    function showResults(data) {
-        document.getElementById('result-icon').textContent = categoryIcons[data.top_category] || categoryIcons.unknown;
-        document.getElementById('result-category').textContent = formatCategory(data.top_category);
-        document.getElementById('result-confidence').textContent = Math.round(data.confidence * 100) + '% confidence';
-
-        // Show items
-        const itemsEl = document.getElementById('result-items');
-        if (data.items && data.items.length > 0) {
-            itemsEl.innerHTML = data.items.map(item => `
-                <div class="result-item">
-                    <div class="result-item-label">${escapeHtml(item.label)}</div>
-                    ${item.details ? `<div class="result-item-details">${formatDetails(item.details)}</div>` : ''}
-                </div>
-            `).join('');
-            itemsEl.style.display = 'block';
-        } else {
-            itemsEl.style.display = 'none';
-        }
-
-        // Show actions
-        const questionEl = document.getElementById('result-question');
-        const actionsEl = document.getElementById('result-actions');
-
-        if (data.next_best_actions && data.next_best_actions.length > 0) {
-            const firstAction = data.next_best_actions[0];
-            questionEl.textContent = firstAction.question;
-
-            actionsEl.innerHTML = firstAction.actions.map((action, idx) => {
-                if (action.id === 'skip') {
-                    return `<button type="button" class="btn btn-secondary" onclick="closeQuickScan()">${escapeHtml(action.label)}</button>`;
-                }
-                let url = action.url;
-                if (currentScanImageKey && url) {
-                    url += (url.includes('?') ? '&' : '?') + 'scan_image_key=' + encodeURIComponent(currentScanImageKey);
-                }
-                return `<a href="${escapeHtml(url)}" class="btn ${idx === 0 ? 'btn-primary' : 'btn-secondary'}">${escapeHtml(action.label)}</a>`;
-            }).join('');
-        }
-
-        setState('results');
-    }
-
-    function showError(title, message) {
-        document.getElementById('error-title').textContent = title;
-        document.getElementById('error-message').textContent = message;
-        setState('error');
-    }
-
-    function setState(state) {
-        ['camera', 'preview', 'loading', 'results', 'error'].forEach(s => {
-            const el = document.getElementById('scan-state-' + s);
-            if (el) el.classList.toggle('active', s === state);
-        });
-
-        // Update modal title based on state
-        const titleEl = document.getElementById('quick-scan-title');
-        if (titleEl) {
-            const titles = {
-                camera: '📷 Quick Scan',
-                preview: '📷 Preview',
-                loading: '🔍 Analyzing...',
-                results: '✨ Results',
-                error: '⚠️ Error'
-            };
-            titleEl.textContent = titles[state] || '📷 Quick Scan';
-        }
-    }
-
-    function formatCategory(cat) {
-        const names = {
-            food: 'Food',
-            medicine: 'Medicine',
-            supplement: 'Supplement',
-            receipt: 'Receipt',
-            document: 'Document',
-            workout_equipment: 'Workout Equipment',
-            inventory_item: 'Inventory Item',
-            recipe: 'Recipe',
-            pet: 'Pet',
-            maintenance: 'Maintenance Item',
-            barcode: 'Barcode',
-            unknown: 'Unknown'
-        };
-        return names[cat] || cat;
-    }
-
-    function formatDetails(details) {
-        const items = [];
-        if (details.brand) items.push(details.brand);
-        if (details.category) items.push(details.category);
-        if (details.calories) items.push(details.calories + ' cal');
-        if (details.protein_g) items.push(details.protein_g + 'g protein');
-        if (details.dosage) items.push(details.dosage);
-        if (details.purpose) items.push(details.purpose);
-        return items.map(i => escapeHtml(String(i))).join(' • ');
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // Close on Escape
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && modal && modal.open) {
-            closeQuickScan();
-        }
-    });
-
-    // Close on backdrop click
-    document.addEventListener('click', function(e) {
-        if (e.target === modal) {
-            closeQuickScan();
-        }
-    });
-})();
-</script>
-{% endif %}
-
-{% if health_enabled and user_data.active_fast %}
-<script nonce="{{ csp_nonce }}">
-// ==============================================================================
-// File: dashboard fast timer (inline)
-// Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-// Description: Real-time updating timer for active fasting display on dashboard
-// Owner: Danny Jenkins (admin@wholelifejourney.com)
-// Created: 2025-12-29
-// Last Updated: 2025-12-29
-// ==============================================================================
-
-(function() {
-    'use strict';
-
-    const timerEl = document.getElementById('fast-timer');
-    if (!timerEl) return;
-
-    const startedAt = new Date(timerEl.dataset.started);
-    const targetHours = parseFloat(timerEl.dataset.target) || 0;
-
-    const hoursEl = document.getElementById('timer-hours');
-    const minutesEl = document.getElementById('timer-minutes');
-    const secondsEl = document.getElementById('timer-seconds');
-    const progressEl = document.getElementById('fast-progress');
-    const progressHoursEl = document.getElementById('progress-hours');
-
-    function pad(num) {
-        return String(num).padStart(2, '0');
-    }
-
-    function formatDuration(hours) {
-        if (hours < 1) {
-            return Math.floor(hours * 60) + ' min';
-        }
-        return hours.toFixed(1) + ' hours';
-    }
-
-    function updateTimer() {
-        const now = new Date();
-        const diffMs = now - startedAt;
-        const diffSeconds = Math.floor(diffMs / 1000);
-
-        const hours = Math.floor(diffSeconds / 3600);
-        const minutes = Math.floor((diffSeconds % 3600) / 60);
-        const seconds = diffSeconds % 60;
-
-        hoursEl.textContent = pad(hours);
-        minutesEl.textContent = pad(minutes);
-        secondsEl.textContent = pad(seconds);
-
-        // Update progress bar if target exists
-        if (targetHours > 0 && progressEl) {
-            const currentHours = diffSeconds / 3600;
-            const percent = Math.min(100, (currentHours / targetHours) * 100);
-            progressEl.style.width = percent.toFixed(1) + '%';
-
-            if (progressHoursEl) {
-                progressHoursEl.textContent = formatDuration(currentHours);
-            }
-        }
-    }
-
-    // Initial update
-    updateTimer();
-
-    // Update every second
-    setInterval(updateTimer, 1000);
-})();
-</script>
-{% endif %}
-
-{% if show_ai_profile_nudge %}
-<!-- AI Profile Builder Modal -->
-<dialog id="profile-builder-modal" class="profile-builder-modal">
-    <div class="profile-builder-content">
-        <div class="profile-builder-header">
-            <h2>Let's Build Your Profile</h2>
-            <button type="button" class="modal-close" onclick="closeProfileBuilder()">&times;</button>
-        </div>
-
-        <div class="profile-builder-body">
-            <p class="intro-text">Answer a few questions to help personalize your AI experience. Skip any you'd prefer not to answer.</p>
-
-            <!-- Step 1: Life Stage -->
-            <div class="builder-step" data-step="1">
-                <h3>About You</h3>
-
-                <div class="form-group">
-                    <label>What year were you born? (optional)</label>
-                    <input type="number" id="pb-birth-year" class="form-input" min="1920" max="2020" placeholder="e.g., 1971">
-                </div>
-
-                <div class="form-group">
-                    <label>What best describes your current life stage?</label>
-                    <select id="pb-life-stage" class="form-select">
-                        <option value="">Select...</option>
-                        <option value="student">Student</option>
-                        <option value="young_professional">Young Professional</option>
-                        <option value="mid_career">Mid-Career</option>
-                        <option value="parent_young_kids">Parent with Young Children</option>
-                        <option value="parent_teens">Parent with Teenagers</option>
-                        <option value="empty_nester">Empty Nester</option>
-                        <option value="retired">Retired</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Step 2: Family -->
-            <div class="builder-step" data-step="2">
-                <h3>Family</h3>
-
-                <div class="form-group">
-                    <label>Relationship Status</label>
-                    <select id="pb-family-status" class="form-select">
-                        <option value="">Prefer not to say</option>
-                        <option value="single">Single</option>
-                        <option value="dating">In a Relationship</option>
-                        <option value="married">Married</option>
-                        <option value="divorced">Divorced</option>
-                        <option value="widowed">Widowed</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Tell us about your spouse/partner (optional)</label>
-                    <input type="text" id="pb-spouse-info" class="form-input" placeholder="e.g., Married since 1997 to my best friend">
-                </div>
-
-                <div class="form-group">
-                    <label>Children (optional)</label>
-                    <input type="text" id="pb-children-info" class="form-input" placeholder="e.g., One daughter (born 2002), now married">
-                </div>
-            </div>
-
-            <!-- Step 3: Faith -->
-            <div class="builder-step" data-step="3">
-                <h3>Faith</h3>
-
-                <div class="form-group">
-                    <label>How important is faith in your life?</label>
-                    <select id="pb-faith-importance" class="form-select">
-                        <option value="">Prefer not to say</option>
-                        <option value="central">Central to everything I do</option>
-                        <option value="important">Important to me</option>
-                        <option value="exploring">I'm exploring my faith</option>
-                        <option value="private">It's private</option>
-                        <option value="not_applicable">Not applicable</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Anything else about your faith journey? (optional)</label>
-                    <input type="text" id="pb-faith-details" class="form-input" placeholder="e.g., My spouse has a strong heart for God">
-                </div>
-            </div>
-
-            <!-- Step 4: Work -->
-            <div class="builder-step" data-step="4">
-                <h3>Work & Career</h3>
-
-                <div class="form-group">
-                    <label>What type of work do you do?</label>
-                    <select id="pb-work-life" class="form-select">
-                        <option value="">Prefer not to say</option>
-                        <option value="professional">Professional/Corporate</option>
-                        <option value="entrepreneur">Entrepreneur/Business Owner</option>
-                        <option value="creative">Creative/Arts</option>
-                        <option value="service">Service Industry</option>
-                        <option value="healthcare">Healthcare</option>
-                        <option value="education">Education</option>
-                        <option value="stay_at_home">Stay-at-Home Parent/Caregiver</option>
-                        <option value="retired">Retired</option>
-                        <option value="student">Student</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Tell us more about your work (optional)</label>
-                    <textarea id="pb-job-details" class="form-textarea" rows="2" placeholder="e.g., Director of Payroll at UT Medical Center. My biggest stress is paying people accurately and on time."></textarea>
-                </div>
-            </div>
-
-            <!-- Step 5: Health -->
-            <div class="builder-step" data-step="5">
-                <h3>Health Focus</h3>
-
-                <div class="form-group">
-                    <label>What health areas are you focused on? (select all that apply)</label>
-                    <div class="checkbox-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="health_focus" value="weight"> Weight Management
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="health_focus" value="fitness"> Physical Fitness
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="health_focus" value="nutrition"> Nutrition
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="health_focus" value="sleep"> Better Sleep
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="health_focus" value="stress"> Stress Management
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="health_focus" value="chronic"> Managing a Condition
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="health_focus" value="mental"> Mental Wellness
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="health_focus" value="energy"> More Energy
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Step 6: Communication & Goals -->
-            <div class="builder-step" data-step="6">
-                <h3>Communication & Goals</h3>
-
-                <div class="form-group">
-                    <label>How do you prefer to receive feedback?</label>
-                    <select id="pb-communication-style" class="form-select">
-                        <option value="">No preference</option>
-                        <option value="direct">Direct and honest</option>
-                        <option value="encouraging">Encouraging and supportive</option>
-                        <option value="analytical">Data-driven and analytical</option>
-                        <option value="gentle">Gentle and nurturing</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>What are your current goals or priorities? (optional)</label>
-                    <textarea id="pb-goals" class="form-textarea" rows="2" placeholder="e.g., Lose 20 lbs, build Whole Life Journey, be a servant leader"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label>Anything else you'd like the AI to know? (optional)</label>
-                    <textarea id="pb-other" class="form-textarea" rows="2" placeholder="Hobbies, interests, challenges, dreams..."></textarea>
-                </div>
-            </div>
-        </div>
-
-        <div class="profile-builder-footer">
-            <div class="step-indicator">
-                <span class="step-dot active"></span>
-                <span class="step-dot"></span>
-                <span class="step-dot"></span>
-                <span class="step-dot"></span>
-                <span class="step-dot"></span>
-                <span class="step-dot"></span>
-            </div>
-            <div class="builder-actions">
-                <button type="button" class="btn btn-secondary" id="pb-prev-btn" onclick="prevBuilderStep()" disabled>Back</button>
-                <button type="button" class="btn btn-primary" id="pb-next-btn" onclick="nextBuilderStep()">Next</button>
-                <button type="button" class="btn btn-primary" id="pb-submit-btn" onclick="submitProfile()" style="display: none;">Create My Profile</button>
-            </div>
-        </div>
-    </div>
-</dialog>
-
-<style nonce="{{ csp_nonce }}">
-/* AI Profile Nudge Card */
-.ai-profile-nudge-section {
-    margin-bottom: 1.5rem;
-}
-
-.ai-profile-nudge-card {
-    background: linear-gradient(135deg, var(--color-accent-light, #e0f2fe) 0%, var(--color-surface) 100%);
-    border: 1px solid var(--color-accent, #0ea5e9);
-    border-radius: 12px;
-    padding: 1.25rem;
-}
-
-.nudge-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.nudge-header .nudge-icon {
-    font-size: 2rem;
-    flex-shrink: 0;
-}
-
-.nudge-title-area {
-    flex: 1;
-}
-
-.nudge-title-area h3 {
-    margin: 0 0 0.25rem 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--color-text);
-}
-
-.nudge-title-area p {
-    margin: 0;
-    font-size: 0.9rem;
-    color: var(--color-text-secondary);
-}
-
-.nudge-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0.25rem;
-    color: var(--color-text-secondary);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-}
-
-.nudge-close:hover {
-    opacity: 1;
-}
-
-.nudge-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    align-items: center;
-}
-
-.nudge-actions .btn {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-}
-
-.nudge-actions .btn-link {
-    background: none;
-    border: none;
-    color: var(--color-text-secondary);
     text-decoration: underline;
-    cursor: pointer;
-    padding: 0.5rem;
-    font-size: 0.85rem;
 }
-
-.nudge-actions .btn-link:hover {
-    color: var(--color-text);
-}
-
-/* Profile Builder Modal */
-.profile-builder-modal {
-    border: none;
-    border-radius: 16px;
-    padding: 0;
-    max-width: 540px;
-    width: 95%;
-    max-height: 90vh;
-    overflow: hidden;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-
-.profile-builder-modal::backdrop {
-    background: rgba(0, 0, 0, 0.6);
-}
-
-.profile-builder-content {
-    display: flex;
-    flex-direction: column;
-    max-height: 90vh;
-}
-
-.profile-builder-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.25rem;
-    border-bottom: 1px solid var(--color-border);
-    background: var(--color-surface);
-}
-
-.profile-builder-header h2 {
-    margin: 0;
-    font-size: 1.25rem;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: var(--color-text-secondary);
-    padding: 0.25rem 0.5rem;
-    line-height: 1;
-}
-
-.modal-close:hover {
-    color: var(--color-text);
-}
-
-.profile-builder-body {
-    padding: 1.25rem;
-    overflow-y: auto;
-    flex: 1;
-}
-
-.intro-text {
-    color: var(--color-text-secondary);
-    margin-bottom: 1.5rem;
-    font-size: 0.95rem;
-}
-
-.builder-step {
-    display: none;
-}
-
-.builder-step.active {
-    display: block;
-}
-
-.builder-step h3 {
-    margin: 0 0 1rem 0;
-    font-size: 1.1rem;
-    color: var(--color-accent);
-}
-
-.form-group {
-    margin-bottom: 1rem;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    font-size: 0.95rem;
-}
-
-.form-input,
-.form-select,
-.form-textarea {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    font-size: 1rem;
-    background: var(--color-surface);
-    color: var(--color-text);
-}
-
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
-    outline: none;
-    border-color: var(--color-accent);
-    box-shadow: 0 0 0 2px var(--color-accent-light, rgba(14, 165, 233, 0.2));
-}
-
-.checkbox-group {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: normal;
-    font-size: 0.9rem;
-    cursor: pointer;
-}
-
-.checkbox-label input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--color-accent);
-}
-
-.profile-builder-footer {
-    padding: 1rem 1.25rem;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-surface);
-}
-
-.step-indicator {
-    display: flex;
-    justify-content: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.step-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--color-border);
-    transition: background 0.2s;
-}
-
-.step-dot.active {
-    background: var(--color-accent);
-}
-
-.step-dot.completed {
-    background: var(--color-success, #22c55e);
-}
-
-.builder-actions {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.75rem;
-}
-
-.builder-actions .btn {
-    flex: 1;
-    padding: 0.75rem 1rem;
-}
-
-@media (max-width: 480px) {
-    .checkbox-group {
-        grid-template-columns: 1fr;
-    }
-
-    .nudge-actions {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .nudge-actions .btn {
-        text-align: center;
-    }
-}
+{% endif %}
 </style>
-
-<script nonce="{{ csp_nonce }}">
-(function() {
-    'use strict';
-
-    let modal, currentStep = 1;
-    const totalSteps = 6;
-
-    function initProfileBuilder() {
-        modal = document.getElementById('profile-builder-modal');
-    }
-
-    window.openProfileBuilder = function() {
-        initProfileBuilder();
-        if (!modal) return;
-
-        currentStep = 1;
-        updateStepDisplay();
-        modal.showModal();
-    };
-
-    window.closeProfileBuilder = function() {
-        if (modal) modal.close();
-    };
-
-    function updateStepDisplay() {
-        // Hide all steps, show current
-        document.querySelectorAll('.builder-step').forEach((step, idx) => {
-            step.classList.toggle('active', idx + 1 === currentStep);
-        });
-
-        // Update step dots
-        document.querySelectorAll('.step-dot').forEach((dot, idx) => {
-            dot.classList.remove('active', 'completed');
-            if (idx + 1 === currentStep) {
-                dot.classList.add('active');
-            } else if (idx + 1 < currentStep) {
-                dot.classList.add('completed');
-            }
-        });
-
-        // Update buttons
-        const prevBtn = document.getElementById('pb-prev-btn');
-        const nextBtn = document.getElementById('pb-next-btn');
-        const submitBtn = document.getElementById('pb-submit-btn');
-
-        prevBtn.disabled = currentStep === 1;
-
-        if (currentStep === totalSteps) {
-            nextBtn.style.display = 'none';
-            submitBtn.style.display = 'block';
-        } else {
-            nextBtn.style.display = 'block';
-            submitBtn.style.display = 'none';
-        }
-    }
-
-    window.nextBuilderStep = function() {
-        if (currentStep < totalSteps) {
-            currentStep++;
-            updateStepDisplay();
-        }
-    };
-
-    window.prevBuilderStep = function() {
-        if (currentStep > 1) {
-            currentStep--;
-            updateStepDisplay();
-        }
-    };
-
-    window.submitProfile = async function() {
-        const submitBtn = document.getElementById('pb-submit-btn');
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Creating...';
-
-        // Gather all answers
-        const answers = {
-            birth_year: document.getElementById('pb-birth-year')?.value || '',
-            life_stage: document.getElementById('pb-life-stage')?.value || '',
-            family_status: document.getElementById('pb-family-status')?.value || '',
-            spouse_info: document.getElementById('pb-spouse-info')?.value || '',
-            children_info: document.getElementById('pb-children-info')?.value || '',
-            faith_importance: document.getElementById('pb-faith-importance')?.value || '',
-            faith_details: document.getElementById('pb-faith-details')?.value || '',
-            work_life: document.getElementById('pb-work-life')?.value || '',
-            job_details: document.getElementById('pb-job-details')?.value || '',
-            health_focus: Array.from(document.querySelectorAll('input[name="health_focus"]:checked')).map(cb => cb.value),
-            communication_style: document.getElementById('pb-communication-style')?.value || '',
-            goals: document.getElementById('pb-goals')?.value || '',
-            other: document.getElementById('pb-other')?.value || ''
-        };
-
-        try {
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
-                || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
-
-            const response = await fetch('{% url "users:ai_profile_builder" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify({ answers })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                // Close modal and hide nudge
-                closeProfileBuilder();
-                const nudgeSection = document.getElementById('ai-profile-nudge');
-                if (nudgeSection) {
-                    nudgeSection.style.display = 'none';
-                }
-
-                // Show success message
-                alert('Your AI profile has been created! The AI will now provide more personalized insights.');
-
-                // Optionally reload to show updated insights
-                // window.location.reload();
-            } else {
-                throw new Error(data.error || 'Failed to create profile');
-            }
-        } catch (err) {
-            console.error('Profile builder error:', err);
-            alert('Something went wrong. Please try again or fill out the profile manually in Settings.');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Create My Profile';
-        }
-    };
-
-    window.handleProfileNudgeAction = async function(action) {
-        try {
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
-                || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
-
-            const response = await fetch('{% url "users:ai_profile_nudge" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify({ action })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                // Hide the nudge card
-                const nudgeSection = document.getElementById('ai-profile-nudge');
-                if (nudgeSection) {
-                    nudgeSection.style.opacity = '0';
-                    nudgeSection.style.transform = 'translateY(-10px)';
-                    nudgeSection.style.transition = 'opacity 0.3s, transform 0.3s';
-                    setTimeout(() => {
-                        nudgeSection.style.display = 'none';
-                    }, 300);
-                }
-            }
-        } catch (err) {
-            console.error('Nudge action error:', err);
-        }
-    };
-
-    // Close modal on Escape
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && modal && modal.open) {
-            closeProfileBuilder();
-        }
-    });
-
-    // Close on backdrop click
-    document.addEventListener('click', function(e) {
-        if (e.target === modal) {
-            closeProfileBuilder();
-        }
-    });
-})();
-</script>
-{% endif %}
-
-<!-- Dashboard Setup Banner dismiss script -->
-{% if show_dashboard_setup_banner %}
-<script nonce="{{ csp_nonce }}">
-async function dismissDashboardSetup() {
-    const banner = document.getElementById('dashboard-setup-banner');
-    if (!banner) return;
-
-    try {
-        const response = await fetch('{% url "dashboard:dismiss_setup_banner" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
-        });
-
-        if (response.ok) {
-            // Animate removal
-            banner.style.transition = 'opacity 0.3s, transform 0.3s';
-            banner.style.opacity = '0';
-            banner.style.transform = 'translateY(-10px)';
-            setTimeout(() => banner.remove(), 300);
-        }
-    } catch (error) {
-        console.error('Failed to dismiss setup banner:', error);
-    }
-}
-</script>
-<style nonce="{{ csp_nonce }}">
-.dashboard-setup-banner {
-    background: linear-gradient(135deg, var(--color-accent-light, #e0f2fe) 0%, var(--color-surface, #fff) 100%);
-    border: 1px solid var(--color-accent, #3b82f6);
-    border-radius: 12px;
-    padding: 1.25rem;
-    margin-bottom: 1.5rem;
-}
-
-.setup-banner-content {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.setup-banner-icon {
-    flex-shrink: 0;
-    color: var(--color-accent, #3b82f6);
-}
-
-.setup-banner-text {
-    flex: 1;
-    min-width: 200px;
-}
-
-.setup-banner-text h3 {
-    margin: 0 0 0.25rem 0;
-    font-size: 1.1rem;
-    color: var(--color-text, #1f2937);
-}
-
-.setup-banner-text p {
-    margin: 0;
-    font-size: 0.9rem;
-    color: var(--color-text-secondary, #6b7280);
-}
-
-.setup-banner-actions {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.setup-banner-actions .btn-link {
-    color: var(--color-text-secondary, #6b7280);
-    font-size: 0.875rem;
-}
-
-@media (max-width: 600px) {
-    .setup-banner-content {
-        flex-direction: column;
-        text-align: center;
-    }
-
-    .setup-banner-actions {
-        width: 100%;
-        justify-content: center;
-    }
-}
-</style>
-{% endif %}
-
-<!-- Quarterly Review dismiss script -->
-{% if quarterly_review %}
-<script nonce="{{ csp_nonce }}">
-async function dismissQuarterlyReview(quarterId) {
-    const tile = document.getElementById('quarterly-review-tile');
-    if (!tile) return;
-
-    try {
-        const response = await fetch('{% url "dashboard:dismiss_quarterly_review" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}'
-            },
-            body: JSON.stringify({ quarter_id: quarterId })
-        });
-
-        if (response.ok) {
-            // Animate removal
-            tile.style.transition = 'opacity 0.3s, transform 0.3s';
-            tile.style.opacity = '0';
-            tile.style.transform = 'translateY(-10px)';
-            setTimeout(() => tile.remove(), 300);
-        }
-    } catch (error) {
-        console.error('Failed to dismiss quarterly review:', error);
-    }
-}
-</script>
-{% endif %}
 {% endblock %}

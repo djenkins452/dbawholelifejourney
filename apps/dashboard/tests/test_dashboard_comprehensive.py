@@ -231,24 +231,12 @@ class DashboardViewBasicTest(DashboardTestMixin, TestCase):
         response = self.client.get(reverse('dashboard:home'))
         self.assertEqual(response.status_code, 200)
     
-    def test_configure_loads_for_authenticated_user(self):
-        """Configure page loads for authenticated user (if template exists)."""
-        import os
-        from django.conf import settings
-        
-        # Check if template exists in any template directory
-        template_exists = False
-        for template_dir in settings.TEMPLATES[0].get('DIRS', []):
-            if os.path.exists(os.path.join(template_dir, 'dashboard/configure.html')):
-                template_exists = True
-                break
-        
-        if not template_exists:
-            self.skipTest("configure.html template not yet created")
-        
+    def test_configure_redirects_to_dashboard_with_edit_mode(self):
+        """Configure page redirects to dashboard with edit mode enabled."""
         self.login_user()
         response = self.client.get(reverse('dashboard:configure'))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, '/dashboard/?edit=1')
     
     # --- Template Used ---
     
@@ -557,18 +545,21 @@ class DashboardPermissionTest(DashboardTestMixin, TestCase):
         user_data = response.context.get('user_data', {})
         self.assertEqual(user_data.get('journal_total', 0), 1)  # Key is 'total'
     
-    def test_configure_only_affects_own_settings(self):
-        """Configure only changes the logged-in user's settings."""
+    def test_tile_config_only_affects_own_settings(self):
+        """Tile configuration only changes the logged-in user's settings."""
+        import json
         self.client.login(email='usera@example.com', password='testpass123')
-        
-        # Post configuration change
-        response = self.client.post(reverse('dashboard:configure'), {
-            'visible_tiles': ['journal', 'life']
-        })
-        
+
+        # Post tile configuration change via API
+        response = self.client.post(
+            reverse('dashboard:tile_config_api', kwargs={'tile_id': 'weather'}),
+            data=json.dumps({'visible': False}),
+            content_type='application/json'
+        )
+
         # User B's settings should be unchanged
         self.user_b.preferences.refresh_from_db()
-        # Default config should remain for user B
+        # Default config should remain for user B (no dashboard_config set means defaults)
 
 
 # =============================================================================

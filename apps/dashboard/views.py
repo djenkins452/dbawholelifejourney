@@ -1221,45 +1221,18 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         }
 
 
-class ConfigureDashboardView(LoginRequiredMixin, TemplateView):
+class ConfigureDashboardView(LoginRequiredMixin, View):
     """
-    Dashboard configuration view.
+    Dashboard configuration view - redirects to dashboard with edit mode enabled.
 
-    Allows users to:
-    - Show/hide tiles
-    - Reorder tiles via drag-and-drop
-    - Choose tile sizes (small/medium/large)
+    The dashboard now has inline WYSIWYG editing, so this view simply redirects
+    to the dashboard with the ?edit=1 query parameter to enable edit mode.
     """
-    template_name = "dashboard/configure.html"
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        config_service = DashboardConfigService(self.request.user)
-        context["current_config"] = config_service.get_config()
-        context["available_tiles"] = config_service.get_available_tiles()
-        context["tile_definitions"] = config_service.get_all_tile_definitions()
-
-        return context
-
-    def post(self, request, *args, **kwargs):
-        """Save dashboard configuration."""
-        try:
-            config = json.loads(request.body)
-            config_service = DashboardConfigService(request.user)
-
-            if config_service.update_config(config):
-                # Mark setup as complete
-                prefs = request.user.preferences
-                if not prefs.dashboard_setup_complete:
-                    prefs.dashboard_setup_complete = True
-                    prefs.save(update_fields=['dashboard_setup_complete', 'updated_at'])
-
-                return HttpResponse(status=200)
-            else:
-                return HttpResponse(status=400)
-        except (json.JSONDecodeError, KeyError):
-            return HttpResponse(status=400)
+    def get(self, request, *args, **kwargs):
+        """Redirect to dashboard with edit mode enabled."""
+        from django.shortcuts import redirect
+        return redirect('/dashboard/?edit=1')
 
 
 class DashboardDebugView(LoginRequiredMixin, View):

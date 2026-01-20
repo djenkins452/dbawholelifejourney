@@ -69,6 +69,46 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### WYSIWYG Dashboard Customization Refactor
+
+**Enhancement:** Replaced separate dashboard configuration page with inline WYSIWYG editing directly on the dashboard.
+
+**What Changed:**
+
+1. **Dashboard Home Template Refactor** (`templates/dashboard/home.html`)
+   - Tiles now render dynamically from `dashboard_tiles` (from `get_visible_tiles()`)
+   - Each tile wrapped in `.tile-wrapper` div with data attributes for JavaScript
+   - Added "Customize" button in header that toggles edit mode
+   - Edit mode shows overlay on each tile with:
+     - Visibility checkbox (disabled for mandatory tiles like AI Insights)
+     - Size buttons (S/M/L)
+     - Tile name label for identification
+   - Hidden tiles appear faded in edit mode
+   - Changes auto-save via AJAX to tile config API
+   - Visual feedback: striped background, dashed border when in edit mode
+   - Fixed save status indicator in bottom-right corner
+
+2. **Configure Page Redirect** (`apps/dashboard/views.py`)
+   - `ConfigureDashboardView` now redirects to `/dashboard/?edit=1`
+   - Dashboard auto-enables edit mode when `?edit=1` in URL
+   - URL cleaned up after enabling edit mode
+
+3. **Tile Include for Quick Stats**
+   - Added missing `quick_stats` tile to the include chain
+
+**Benefits:**
+- WYSIWYG experience - see changes immediately as you make them
+- No context switching between configure page and dashboard
+- Faster workflow for adjusting layout
+- Clearer understanding of what each tile looks like
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Complete refactor for dynamic tile rendering with inline edit mode
+- `apps/dashboard/views.py` - ConfigureDashboardView now redirects to dashboard
+- `apps/dashboard/tests/test_dashboard_comprehensive.py` - Updated tests for new redirect behavior
+
+---
+
 ### Customizable Dashboard (Task 6 from Improvement Backlog)
 
 **New Feature:** User-configurable dashboard with drag-and-drop tile reordering, show/hide toggles, and tile sizing.

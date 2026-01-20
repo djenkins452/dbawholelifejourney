@@ -12,15 +12,21 @@
 - Running tests or migrations
 - Making commits when task is complete
 - Deploying (changelog → commit → merge → push)
-- Proceeding to next steps
 
 **Still ask permission for:**
 - Destructive operations (deleting files, dropping tables)
 - Genuinely ambiguous or risky actions
 
+**⚠️ IMPORTANT: Task Discussion Flow**
+When fetching a new task from the improvement backlog:
+1. **Present the task** - Show what's next and explore the codebase as needed
+2. **Discuss scope** - Talk through the approach and implementation details with the user
+3. **Wait for "go"** - Do NOT start implementation until the user explicitly says "go"
+4. Only after "go" → proceed with implementation
+
 **Communication style:**
 - Be direct - skip "Would you like me to..."
-- Execute, don't propose
+- Execute (after "go"), don't propose
 - If something fails, fix it and move on
 - Summarize results, not intentions
 

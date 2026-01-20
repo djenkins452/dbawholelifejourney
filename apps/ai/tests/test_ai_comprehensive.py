@@ -1442,6 +1442,8 @@ class AIProfilePreferencesTest(AITestMixin, TestCase):
                 'weight_goal_unit': 'lb',  # Required field
                 'sms_quiet_start': '22:00',  # Required SMS field
                 'sms_quiet_end': '08:00',  # Required SMS field
+                'email_notification_frequency': 'immediate',  # Required notification field
+                'notification_reminder_time': '09:00',  # Required notification field
             }
         )
 

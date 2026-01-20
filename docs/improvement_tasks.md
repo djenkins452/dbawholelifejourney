@@ -49,9 +49,17 @@
 **Status:** ⏸️ On Hold (revisit after 2026-01-27)
 **Impact:** High - Current entry flow has too much friction
 
-### Task 6: Add "Today's Focus" Priority Section to Dashboard
-**Status:** ⚪ Pending
-**Impact:** Medium - Reduces dashboard overwhelm
+### Task 6: Customizable Dashboard
+**Status:** ✅ Complete
+**Impact:** Medium - User controls their dashboard experience
+**Completed:** 2026-01-20
+
+**Scope (completed):**
+- Drag-and-drop tile reordering
+- Show/hide toggles for each tile (AI Insights mandatory)
+- Tile sizing (small/medium/large)
+- Setup banner for new/existing users
+- 19 configurable tiles with module dependencies
 
 ### Task 7: Add Deadline Badges for Goals
 **Status:** ⚪ Pending

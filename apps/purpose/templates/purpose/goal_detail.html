@@ -91,8 +91,131 @@
             <p>{{ goal.reflection }}</p>
         </div>
         {% endif %}
+
+        <!-- Milestones Section -->
+        <div class="content-section milestones-section">
+            <div class="milestones-header">
+                <h3>Milestones</h3>
+                {% if goal.status == 'active' %}
+                <button type="button" class="btn btn-ghost btn-sm" onclick="toggleMilestoneForm()">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add
+                </button>
+                {% endif %}
+            </div>
+
+            {% if goal.has_milestones %}
+            <div class="milestone-progress">
+                <div class="progress-stats">
+                    <span class="progress-percent">{{ goal.milestone_progress_percent }}%</span>
+                    <span class="progress-count">{{ goal.completed_milestone_count }} of {{ goal.milestone_count }} milestones complete</span>
+                </div>
+                <div class="progress-bar-large">
+                    <div class="progress-fill {% if goal.all_milestones_complete %}complete{% endif %}" style="width: {{ goal.milestone_progress_percent }}%"></div>
+                </div>
+            </div>
+
+            <div class="milestone-list">
+                {% for milestone in goal.milestones.all %}
+                <div class="milestone-item {% if milestone.completed %}completed{% endif %} {% if milestone.is_overdue %}overdue{% endif %}">
+                    <div class="milestone-checkbox">
+                        {% if goal.status == 'active' %}
+                        <form method="post" action="{% url 'purpose:milestone_toggle' milestone.pk %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" class="checkbox-btn {% if milestone.completed %}checked{% endif %}" title="{% if milestone.completed %}Mark incomplete{% else %}Mark complete{% endif %}">
+                                {% if milestone.completed %}
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                {% endif %}
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="checkbox-btn disabled {% if milestone.completed %}checked{% endif %}">
+                            {% if milestone.completed %}
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            {% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="milestone-content">
+                        <div class="milestone-title">{{ milestone.title }}</div>
+                        {% if milestone.description %}
+                        <div class="milestone-description">{{ milestone.description }}</div>
+                        {% endif %}
+                        <div class="milestone-meta">
+                            {% if milestone.target_date %}
+                            <span class="milestone-date {% if milestone.is_overdue %}overdue{% endif %}">
+                                {% if milestone.is_overdue %}
+                                Overdue: {{ milestone.target_date|date:"M j" }}
+                                {% elif milestone.completed %}
+                                Completed: {{ milestone.completed_date|date:"M j, Y" }}
+                                {% else %}
+                                Due: {{ milestone.target_date|date:"M j, Y" }}
+                                {% endif %}
+                            </span>
+                            {% elif milestone.completed and milestone.completed_date %}
+                            <span class="milestone-date">Completed: {{ milestone.completed_date|date:"M j, Y" }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if goal.status == 'active' %}
+                    <div class="milestone-actions">
+                        <form method="post" action="{% url 'purpose:milestone_delete' milestone.pk %}" class="inline" data-confirm-delete="Delete this milestone?">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-ghost btn-sm text-danger" title="Delete milestone">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="milestone-empty">
+                <p class="milestone-stat">Studies show that breaking goals into milestones makes you <strong>42% more likely</strong> to achieve them.</p>
+                <p class="milestone-hint">Add milestones to track your progress toward this goal.</p>
+            </div>
+            {% endif %}
+
+            <!-- Add Milestone Form (hidden by default) -->
+            {% if goal.status == 'active' %}
+            <div id="milestoneForm" class="milestone-form" style="display: none;">
+                <form method="post" action="{% url 'purpose:milestone_create' goal.pk %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="milestone-title">Milestone</label>
+                        <input type="text" id="milestone-title" name="title" required placeholder="What's the next step?" class="form-input">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="milestone-date">Target Date (optional)</label>
+                            <input type="date" id="milestone-date" name="target_date" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="milestone-description">Description (optional)</label>
+                        <textarea id="milestone-description" name="description" rows="2" placeholder="Any additional details..." class="form-input"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-ghost" onclick="toggleMilestoneForm()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Milestone</button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
     </div>
-    
+
     <div class="page-footer">
         <form method="post" action="{% url 'purpose:goal_delete' goal.pk %}" class="inline-form" data-confirm-delete="Delete this goal? This action cannot be undone.">
             {% csrf_token %}
@@ -203,5 +326,418 @@
 .text-danger {
     color: var(--color-error);
 }
+
+/* Milestones Section */
+.milestones-section {
+    margin-top: var(--space-4);
+}
+
+.milestones-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.milestones-header h3 {
+    margin: 0;
+}
+
+.milestone-progress {
+    margin-bottom: var(--space-6);
+}
+
+.progress-stats {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+}
+
+.progress-percent {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.progress-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.progress-bar-large {
+    height: 12px;
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-bar-large .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 80%, white));
+    border-radius: var(--radius-full);
+    transition: width 0.5s ease-out;
+}
+
+.progress-bar-large .progress-fill.complete {
+    background: linear-gradient(90deg, var(--color-success), #34d399);
+}
+
+/* Milestone List */
+.milestone-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.milestone-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    transition: all var(--transition-fast);
+}
+
+.milestone-item:hover {
+    background: color-mix(in srgb, var(--color-surface) 80%, var(--color-accent) 20%);
+}
+
+.milestone-item.completed {
+    opacity: 0.7;
+}
+
+.milestone-item.completed .milestone-title {
+    text-decoration: line-through;
+    color: var(--color-text-muted);
+}
+
+.milestone-item.overdue:not(.completed) {
+    background: color-mix(in srgb, var(--color-error) 10%, var(--color-surface));
+    border-left: 3px solid var(--color-error);
+}
+
+.checkbox-btn {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-background);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.checkbox-btn:hover:not(.disabled) {
+    border-color: var(--color-accent);
+}
+
+.checkbox-btn.checked {
+    background: var(--color-success);
+    border-color: var(--color-success);
+    color: white;
+}
+
+.checkbox-btn.disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.milestone-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.milestone-title {
+    font-weight: 500;
+    margin-bottom: var(--space-1);
+}
+
+.milestone-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.milestone-meta {
+    font-size: var(--font-size-xs);
+}
+
+.milestone-date {
+    color: var(--color-text-muted);
+}
+
+.milestone-date.overdue {
+    color: var(--color-error);
+    font-weight: 500;
+}
+
+.milestone-actions {
+    flex-shrink: 0;
+}
+
+/* Empty State */
+.milestone-empty {
+    text-align: center;
+    padding: var(--space-6);
+}
+
+.milestone-stat {
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+    margin-bottom: var(--space-2);
+}
+
+.milestone-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* Add Milestone Form */
+.milestone-form {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--color-border);
+}
+
+.milestone-form .form-group {
+    margin-bottom: var(--space-3);
+}
+
+.milestone-form label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-1);
+}
+
+.milestone-form .form-input {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+    font-size: 16px; /* Prevent iOS zoom */
+}
+
+.milestone-form .form-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.milestone-form .form-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+.milestone-form .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+@media (max-width: 480px) {
+    .milestone-item {
+        flex-wrap: wrap;
+    }
+
+    .milestone-actions {
+        width: 100%;
+        margin-top: var(--space-2);
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .progress-stats {
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+}
 </style>
+
+<!-- Celebration Modal -->
+{% if show_completion_modal %}
+<dialog id="celebrationModal" class="celebration-modal">
+    <div class="celebration-content">
+        <div class="celebration-confetti">
+            <span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="celebration-icon">🎉</div>
+        <h2>All Milestones Complete!</h2>
+        <p class="celebration-message">
+            You've accomplished every milestone for <strong>"{{ goal.title }}"</strong>.
+            This is a huge achievement!
+        </p>
+        <p class="celebration-stat">
+            You completed {{ goal.milestone_count }} milestone{{ goal.milestone_count|pluralize }} on your journey.
+        </p>
+        <div class="celebration-actions">
+            <button type="button" class="btn btn-ghost" onclick="closeCelebrationModal()">Keep Working</button>
+            <form method="post" action="{% url 'purpose:goal_toggle_status' goal.pk %}" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="complete">
+                <button type="submit" class="btn btn-success">Complete This Goal</button>
+            </form>
+        </div>
+    </div>
+</dialog>
+
+<style>
+.celebration-modal {
+    border: none;
+    border-radius: var(--radius-xl);
+    padding: 0;
+    max-width: 450px;
+    width: 90%;
+    background: var(--color-background);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.celebration-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.celebration-content {
+    padding: var(--space-8);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.celebration-confetti {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.celebration-confetti span {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--color-accent);
+    border-radius: 50%;
+    animation: confetti-fall 3s ease-in-out infinite;
+}
+
+.celebration-confetti span:nth-child(1) { left: 10%; background: #f59e0b; animation-delay: 0s; }
+.celebration-confetti span:nth-child(2) { left: 20%; background: #10b981; animation-delay: 0.2s; }
+.celebration-confetti span:nth-child(3) { left: 30%; background: #3b82f6; animation-delay: 0.4s; }
+.celebration-confetti span:nth-child(4) { left: 40%; background: #8b5cf6; animation-delay: 0.1s; }
+.celebration-confetti span:nth-child(5) { left: 50%; background: #ef4444; animation-delay: 0.3s; }
+.celebration-confetti span:nth-child(6) { left: 60%; background: #f59e0b; animation-delay: 0.5s; }
+.celebration-confetti span:nth-child(7) { left: 70%; background: #10b981; animation-delay: 0.15s; }
+.celebration-confetti span:nth-child(8) { left: 80%; background: #3b82f6; animation-delay: 0.35s; }
+.celebration-confetti span:nth-child(9) { left: 90%; background: #8b5cf6; animation-delay: 0.25s; }
+.celebration-confetti span:nth-child(10) { left: 95%; background: #ef4444; animation-delay: 0.45s; }
+
+@keyframes confetti-fall {
+    0% {
+        transform: translateY(-20px) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(150px) rotate(720deg);
+        opacity: 0;
+    }
+}
+
+.celebration-icon {
+    font-size: 4rem;
+    margin-bottom: var(--space-4);
+    animation: bounce 0.6s ease-in-out;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+
+.celebration-content h2 {
+    font-size: var(--font-size-xl);
+    margin: 0 0 var(--space-3) 0;
+    color: var(--color-success);
+}
+
+.celebration-message {
+    color: var(--color-text);
+    margin-bottom: var(--space-2);
+    line-height: 1.6;
+}
+
+.celebration-stat {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-6);
+}
+
+.celebration-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-success {
+    background: var(--color-success);
+    color: white;
+}
+
+.btn-success:hover {
+    background: color-mix(in srgb, var(--color-success) 85%, black);
+}
+</style>
+
+<script>
+// Open modal automatically when triggered
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('celebrationModal');
+    if (modal) {
+        modal.showModal();
+    }
+});
+
+function closeCelebrationModal() {
+    const modal = document.getElementById('celebrationModal');
+    if (modal) {
+        modal.close();
+    }
+}
+
+// Close on click outside
+document.getElementById('celebrationModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeCelebrationModal();
+    }
+});
+</script>
+{% endif %}
+
+<script>
+function toggleMilestoneForm() {
+    const form = document.getElementById('milestoneForm');
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+        form.querySelector('input[name="title"]').focus();
+    } else {
+        form.style.display = 'none';
+    }
+}
+</script>
 {% endblock %}

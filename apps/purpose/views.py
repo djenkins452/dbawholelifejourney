@@ -32,6 +32,7 @@ from .models import (
     ReflectionPrompt,
     AnnualDirection,
     LifeGoal,
+    GoalMilestone,
     ChangeIntention,
     Reflection,
     ReflectionResponse,
@@ -288,9 +289,22 @@ class GoalDetailView(PurposeAccessMixin, DetailView):
     model = LifeGoal
     template_name = "purpose/goal_detail.html"
     context_object_name = "goal"
-    
+
     def get_queryset(self):
-        return LifeGoal.objects.filter(user=self.request.user)
+        return LifeGoal.objects.filter(user=self.request.user).prefetch_related('milestones')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Check if this goal is ready to be completed (all milestones done)
+        goal_ready_pk = self.request.session.pop('goal_ready_to_complete', None)
+        context['show_completion_modal'] = (
+            goal_ready_pk == self.object.pk and
+            self.object.all_milestones_complete and
+            self.object.status == 'active'
+        )
+
+        return context
 
 
 class GoalCreateView(SaveAddAnotherMixin, PurposeAccessMixin, CreateView):
@@ -897,6 +911,102 @@ class HabitLogDateView(PurposeAccessMixin, View):
                 'current_streak': goal.current_streak,
             }
         })
+
+
+# =============================================================================
+# Goal Milestones
+# =============================================================================
+
+class MilestoneCreateView(PurposeAccessMixin, View):
+    """Create a milestone for a goal."""
+
+    def post(self, request, goal_pk):
+        goal = get_object_or_404(LifeGoal, pk=goal_pk, user=request.user)
+
+        # Only allow adding milestones to active goals
+        if goal.status != 'active':
+            messages.error(request, "Cannot add milestones to inactive goals.")
+            return redirect('purpose:goal_detail', pk=goal_pk)
+
+        title = request.POST.get('title', '').strip()
+        if not title:
+            messages.error(request, "Milestone title is required.")
+            return redirect('purpose:goal_detail', pk=goal_pk)
+
+        target_date_str = request.POST.get('target_date', '').strip()
+        target_date = None
+        if target_date_str:
+            try:
+                from datetime import datetime
+                target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        description = request.POST.get('description', '').strip()
+
+        # Get next sort order
+        max_order = goal.milestones.aggregate(
+            max_order=models.Max('sort_order')
+        )['max_order'] or 0
+
+        GoalMilestone.objects.create(
+            goal=goal,
+            title=title,
+            description=description,
+            target_date=target_date,
+            sort_order=max_order + 1
+        )
+
+        messages.success(request, f"Milestone '{title}' added.")
+        return redirect('purpose:goal_detail', pk=goal_pk)
+
+
+class MilestoneToggleView(PurposeAccessMixin, View):
+    """Toggle milestone completion status."""
+
+    def post(self, request, pk):
+        milestone = get_object_or_404(GoalMilestone, pk=pk, goal__user=request.user)
+
+        # Only allow toggling on active goals
+        if milestone.goal.status != 'active':
+            messages.error(request, "Cannot modify milestones on inactive goals.")
+            return redirect('purpose:goal_detail', pk=milestone.goal.pk)
+
+        if milestone.completed:
+            milestone.mark_incomplete()
+            messages.info(request, f"Milestone '{milestone.title}' marked incomplete.")
+        else:
+            milestone.mark_complete()
+            messages.success(request, f"Milestone '{milestone.title}' completed!")
+
+            # Check if all milestones are now complete
+            if milestone.goal.all_milestones_complete:
+                # Add a special session flag for the celebration modal
+                request.session['goal_ready_to_complete'] = milestone.goal.pk
+                messages.info(
+                    request,
+                    f"All milestones complete! Consider marking the goal as complete."
+                )
+
+        return redirect('purpose:goal_detail', pk=milestone.goal.pk)
+
+
+class MilestoneDeleteView(PurposeAccessMixin, View):
+    """Delete a milestone."""
+
+    def post(self, request, pk):
+        milestone = get_object_or_404(GoalMilestone, pk=pk, goal__user=request.user)
+        goal_pk = milestone.goal.pk
+        title = milestone.title
+
+        # Only allow deleting milestones on active goals
+        if milestone.goal.status != 'active':
+            messages.error(request, "Cannot delete milestones on inactive goals.")
+            return redirect('purpose:goal_detail', pk=goal_pk)
+
+        milestone.delete()
+        messages.success(request, f"Milestone '{title}' deleted.")
+        return redirect('purpose:goal_detail', pk=goal_pk)
 
 
 # =============================================================================

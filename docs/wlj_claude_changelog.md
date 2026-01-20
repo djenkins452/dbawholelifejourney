@@ -16,6 +16,93 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Goal Milestones Feature (Task 2 from Improvement Backlog)
+
+**New Feature:** Goal Progress/Milestones added to the Purpose module allowing users to track incremental progress toward their life goals.
+
+**What's Included:**
+
+1. **GoalMilestone Model** (`apps/purpose/models.py`)
+   - Fields: title, description, target_date, completed, completed_date, sort_order
+   - ForeignKey to LifeGoal with related_name='milestones'
+   - Properties: is_overdue for date-aware urgency
+   - Added to LifeGoal: milestone_count, completed_milestone_count, milestone_progress_percent, has_milestones, all_milestones_complete, next_milestone, upcoming_milestones, overdue_milestones
+
+2. **Progress Bar Visuals**
+   - Goal list view shows progress bar for goals with milestones
+   - Goal detail view shows full milestone section with visual progress
+   - Encouragement statistic: "42% more likely to complete" messaging
+   - CSS animations for progress fill
+
+3. **Milestone Management**
+   - MilestoneCreateView: Add milestones from goal detail page
+   - MilestoneToggleView: Toggle completion with celebration trigger
+   - MilestoneDeleteView: Remove milestones
+   - Admin integration: inline and standalone GoalMilestoneAdmin
+
+4. **Celebration Modal**
+   - Auto-triggers when all milestones are completed
+   - Confetti animation
+   - Prompts user to mark goal as complete
+   - Session-based trigger for one-time display
+
+5. **SMS Milestone Reminders** (`apps/sms/scheduler.py`)
+   - New CATEGORY_MILESTONE in SMSNotification
+   - schedule_milestone_reminders() sends reminders for milestones due today or tomorrow
+   - User preference: sms_milestone_reminders (default enabled)
+
+6. **Dashboard Goal Progress Widget** (`templates/dashboard/home.html`)
+   - New "Goal Progress" section showing active goals with progress bars
+   - Shows next milestone and due dates
+   - Links to goal detail pages
+   - CSS in `static/css/dashboard.css`
+
+7. **Quarterly Review Dismissible Tile**
+   - Appears Jan 1-14, Apr 1-14, Jul 1-14, Oct 1-14
+   - Shows previous quarter's stats: goals completed, milestones achieved, goals started
+   - Dismissible with X button (stored in UserPreferences.dismissed_quarterly_reviews)
+   - API endpoint: dismiss_quarterly_review
+
+8. **AI Integration** (`apps/ai/dashboard_ai.py`, `apps/ai/personal_assistant.py`)
+   - _gather_user_data now includes milestone progress, next milestones, overdue count
+   - _generate_purpose_priorities shows overdue milestones as highest priority
+   - Priority suggestions include specific next milestone context with due dates
+
+9. **Journal-Milestone Cross-Reference**
+   - AIService.detect_milestone_completion analyzes journal entries
+   - EntryCreateView._check_milestone_completion triggers on save
+   - EntryDetailView shows suggestion banner if AI detects potential completion
+   - User can confirm with "Yes, mark complete" button
+
+**Files Modified:**
+- apps/purpose/models.py - GoalMilestone model, LifeGoal properties
+- apps/purpose/admin.py - GoalMilestoneInline, GoalMilestoneAdmin
+- apps/purpose/views.py - Milestone CRUD views, GoalDetailView updates
+- apps/purpose/urls.py - Milestone URL patterns
+- apps/purpose/templates/purpose/goal_list.html - Progress bar
+- apps/purpose/templates/purpose/goal_detail.html - Milestones section, celebration modal
+- apps/users/models.py - sms_milestone_reminders, dismissed_quarterly_reviews
+- apps/sms/models.py - CATEGORY_MILESTONE
+- apps/sms/scheduler.py - schedule_milestone_reminders
+- apps/dashboard/views.py - _get_purpose_data, _get_quarterly_review, DismissQuarterlyReviewView
+- apps/dashboard/urls.py - dismiss_quarterly_review endpoint
+- templates/dashboard/home.html - Goal Progress section, Quarterly Review tile
+- static/css/dashboard.css - Goal progress and quarterly review styles
+- apps/ai/dashboard_ai.py - Milestone data in context gathering
+- apps/ai/personal_assistant.py - Milestone-aware priority generation
+- apps/ai/services.py - detect_milestone_completion method
+- apps/journal/views.py - Milestone detection in EntryCreateView, EntryDetailView
+- templates/journal/entry_detail.html - Milestone suggestion banner
+
+**Migrations:**
+- apps/purpose/migrations/0004_add_goal_milestones.py
+- apps/users/migrations/0040_add_dismissed_quarterly_reviews.py
+
+**Documented for Future:**
+- Year in Review feature request (end of year comprehensive review) - see docs/improvement_tasks.md
+
+---
+
 ### Sleep Tracking Feature (Task 1 from Improvement Backlog)
 
 **New Feature:** Comprehensive sleep tracking added to the Health module with wearable-ready architecture for future iOS app integration.

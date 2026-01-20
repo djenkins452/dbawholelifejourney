@@ -67,6 +67,7 @@ class SMSScheduler:
             'prayer': 0,
             'fasting': 0,
             'significant_event': 0,
+            'milestone': 0,
         }
 
         try:
@@ -99,6 +100,9 @@ class SMSScheduler:
         if prefs.sms_significant_event_reminders:
             results['significant_event'] = self.schedule_significant_event_reminders(user, date)
 
+        if prefs.sms_milestone_reminders:
+            results['milestone'] = self.schedule_milestone_reminders(user, date)
+
         return results
 
     def schedule_for_all_users(self, date=None) -> dict:
@@ -129,6 +133,7 @@ class SMSScheduler:
             'prayer': 0,
             'fasting': 0,
             'significant_event': 0,
+            'milestone': 0,
         }
 
         for pref in enabled_prefs:
@@ -553,6 +558,61 @@ class SMSScheduler:
             return f"{base} {custom}"
 
         return base
+
+    def schedule_milestone_reminders(self, user, date) -> int:
+        """
+        Schedule reminders for upcoming goal milestones.
+
+        Sends a reminder at 9 AM for milestones due today or tomorrow.
+
+        Returns:
+            Number of notifications scheduled
+        """
+        from apps.purpose.models import GoalMilestone
+
+        count = 0
+        tomorrow = date + timedelta(days=1)
+
+        # Get incomplete milestones due today or tomorrow for active goals
+        milestones = GoalMilestone.objects.filter(
+            goal__user=user,
+            goal__status='active',
+            completed=False,
+            target_date__in=[date, tomorrow]
+        ).select_related('goal')
+
+        for milestone in milestones:
+            # Schedule for 9 AM in user's timezone
+            scheduled_datetime = self._combine_date_time(date, time(9, 0), user)
+
+            # Don't schedule if it's in the past
+            if scheduled_datetime < timezone.now():
+                continue
+
+            # Check if notification already exists
+            if self._notification_exists(user, SMSNotification.CATEGORY_MILESTONE, milestone, scheduled_datetime):
+                continue
+
+            # Build message
+            if milestone.target_date == date:
+                time_ref = "due today"
+            else:
+                time_ref = "due tomorrow"
+
+            message = f"Milestone {time_ref}: {milestone.title} (Goal: {milestone.goal.title})"
+
+            notification = self.service.schedule_notification(
+                user=user,
+                category=SMSNotification.CATEGORY_MILESTONE,
+                message=message,
+                scheduled_for=scheduled_datetime,
+                source_object=milestone
+            )
+
+            if notification:
+                count += 1
+
+        return count
 
     def _significant_event_notification_exists(self, user, event, scheduled_for) -> bool:
         """

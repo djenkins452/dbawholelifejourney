@@ -211,18 +211,52 @@ class DashboardAI:
         # ===================
         if self.prefs.purpose_enabled:
             try:
-                from apps.purpose.models import LifeGoal, AnnualDirection, ChangeIntention
+                from apps.purpose.models import LifeGoal, AnnualDirection, ChangeIntention, GoalMilestone
 
                 # Goals count
-                active_goals = LifeGoal.objects.filter(user=self.user, status='active')
+                active_goals = LifeGoal.objects.filter(user=self.user, status='active').prefetch_related('milestones')
                 data['active_goals'] = active_goals.count()
 
-                # Get goal details for context (max 3 most important)
-                goals_list = list(active_goals.order_by('sort_order')[:3].values(
-                    'title', 'why_it_matters', 'domain__name'
-                ))
-                if goals_list:
-                    data['goals_list'] = goals_list
+                # Get goal details for context with milestone progress (max 3 most important)
+                goals_with_milestones = []
+                for goal in active_goals.order_by('sort_order')[:3]:
+                    goal_data = {
+                        'title': goal.title,
+                        'why_it_matters': goal.why_it_matters,
+                        'domain': goal.domain.name if goal.domain else None,
+                        'milestone_progress': goal.milestone_progress_percent,
+                        'total_milestones': goal.milestone_count,
+                        'completed_milestones': goal.completed_milestone_count,
+                    }
+                    # Include next milestone if available
+                    next_milestone = goal.next_milestone
+                    if next_milestone:
+                        goal_data['next_milestone'] = {
+                            'title': next_milestone.title,
+                            'target_date': next_milestone.target_date.isoformat() if next_milestone.target_date else None,
+                            'is_overdue': next_milestone.is_overdue,
+                        }
+                    # Include upcoming milestones
+                    upcoming = goal.upcoming_milestones[:2]
+                    if upcoming:
+                        goal_data['upcoming_milestones'] = [
+                            {'title': m.title, 'target_date': m.target_date.isoformat() if m.target_date else None}
+                            for m in upcoming
+                        ]
+                    goals_with_milestones.append(goal_data)
+
+                if goals_with_milestones:
+                    data['goals_list'] = goals_with_milestones
+
+                # Count overdue milestones for urgency awareness
+                overdue_milestone_count = GoalMilestone.objects.filter(
+                    goal__user=self.user,
+                    goal__status='active',
+                    completed=False,
+                    target_date__lt=today
+                ).count()
+                if overdue_milestone_count > 0:
+                    data['overdue_milestones'] = overdue_milestone_count
 
                 # Annual Direction - Word of Year and Theme
                 direction = AnnualDirection.objects.filter(

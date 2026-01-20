@@ -121,6 +121,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # AI Profile nudge - shown when AI is enabled but profile is empty/short
             context["show_ai_profile_nudge"] = self._should_show_ai_profile_nudge(prefs)
 
+            # Quarterly Review tile - shows at start of each quarter
+            context["quarterly_review"] = self._get_quarterly_review(user, prefs, user_data)
+
             return context
         except Exception as e:
             logger.error(f"Dashboard error for user {self.request.user.email}: {e}", exc_info=True)
@@ -750,16 +753,29 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         direction = AnnualDirection.objects.filter(
             user=user, year__in=[current_year, current_year + 1]
         ).order_by('-year').first()
-        
+
         goals = LifeGoal.objects.filter(user=user)
-        active_goals = goals.filter(status='active')
-        
+        active_goals = goals.filter(status='active').prefetch_related('milestones')
+
         intentions = ChangeIntention.objects.filter(user=user, status='active')
-        
+
+        # Get active goals with progress for dashboard display (limit to 5)
+        goals_with_progress = []
+        for goal in active_goals[:5]:
+            goals_with_progress.append({
+                'goal': goal,
+                'has_milestones': goal.has_milestones,
+                'progress_percent': goal.milestone_progress_percent,
+                'completed_count': goal.completed_milestone_count,
+                'total_count': goal.milestone_count,
+                'next_milestone': goal.next_milestone,
+            })
+
         return {
             "word_of_year": direction.word_of_year if direction else None,
             "annual_direction": direction,
             "active_goals": active_goals.count(),
+            "active_goals_list": goals_with_progress,
             "completed_goals": goals.filter(status='completed').count(),
             "active_intentions": intentions.count(),
         }
@@ -1045,6 +1061,114 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 return False
 
         return True
+
+    def _get_quarterly_review(self, user, prefs, user_data):
+        """
+        Get quarterly review data if a new quarter just started.
+
+        Shows a dismissible tile on 4/1, 7/1, 10/1, and 1/1 summarizing
+        the previous quarter's progress. User can dismiss until next quarter.
+        """
+        from datetime import date
+        from apps.purpose.models import LifeGoal, GoalMilestone
+
+        today = timezone.now().date()
+
+        # Determine if we're at the start of a quarter (first 14 days)
+        # Q1 review shows Jan 1-14 (covers Q4 of previous year)
+        # Q2 review shows Apr 1-14 (covers Q1)
+        # Q3 review shows Jul 1-14 (covers Q2)
+        # Q4 review shows Oct 1-14 (covers Q3)
+        quarter_review_windows = {
+            1: (date(today.year, 1, 1), date(today.year, 1, 14), f"{today.year - 1}-Q4"),
+            4: (date(today.year, 4, 1), date(today.year, 4, 14), f"{today.year}-Q1"),
+            7: (date(today.year, 7, 1), date(today.year, 7, 14), f"{today.year}-Q2"),
+            10: (date(today.year, 10, 1), date(today.year, 10, 14), f"{today.year}-Q3"),
+        }
+
+        current_review = None
+        review_quarter = None
+
+        for month, (start, end, quarter_id) in quarter_review_windows.items():
+            if start <= today <= end:
+                current_review = (start, end)
+                review_quarter = quarter_id
+                break
+
+        if not current_review or not review_quarter:
+            return None
+
+        # Check if user has dismissed this quarter's review
+        dismissed_reviews = prefs.dismissed_quarterly_reviews or []
+        if review_quarter in dismissed_reviews:
+            return None
+
+        # Only show if purpose module is enabled
+        if not prefs.purpose_enabled:
+            return None
+
+        # Calculate the date range for the previous quarter
+        quarter_parts = review_quarter.split('-')
+        quarter_year = int(quarter_parts[0])
+        quarter_num = int(quarter_parts[1][1])  # Q1 -> 1, Q2 -> 2, etc.
+
+        quarter_start_months = {1: 1, 2: 4, 3: 7, 4: 10}
+        quarter_end_months = {1: 3, 2: 6, 3: 9, 4: 12}
+
+        quarter_start = date(quarter_year, quarter_start_months[quarter_num], 1)
+        if quarter_num == 4:
+            quarter_end = date(quarter_year, 12, 31)
+        else:
+            next_quarter_start = date(quarter_year, quarter_end_months[quarter_num] + 1, 1)
+            quarter_end = next_quarter_start - timedelta(days=1)
+
+        # Gather quarter statistics
+        # Goals completed in the quarter
+        goals_completed = LifeGoal.objects.filter(
+            user=user,
+            status='completed',
+            completed_date__gte=quarter_start,
+            completed_date__lte=quarter_end
+        ).count()
+
+        # Milestones completed in the quarter
+        milestones_completed = GoalMilestone.objects.filter(
+            goal__user=user,
+            completed=True,
+            completed_date__gte=quarter_start,
+            completed_date__lte=quarter_end
+        ).count()
+
+        # Active goals at end of quarter
+        active_goals_count = user_data.get('active_goals', 0)
+
+        # Goals started in the quarter
+        goals_started = LifeGoal.objects.filter(
+            user=user,
+            created_at__date__gte=quarter_start,
+            created_at__date__lte=quarter_end
+        ).count()
+
+        # Format quarter name for display
+        quarter_names = {
+            'Q1': 'January - March',
+            'Q2': 'April - June',
+            'Q3': 'July - September',
+            'Q4': 'October - December'
+        }
+        quarter_display = quarter_names.get(f"Q{quarter_num}", f"Q{quarter_num}")
+
+        return {
+            'quarter_id': review_quarter,
+            'quarter_display': quarter_display,
+            'quarter_year': quarter_year,
+            'quarter_num': quarter_num,
+            'goals_completed': goals_completed,
+            'goals_started': goals_started,
+            'milestones_completed': milestones_completed,
+            'active_goals_count': active_goals_count,
+            'has_activity': goals_completed > 0 or milestones_completed > 0 or goals_started > 0,
+        }
 
     def _get_weather_data(self, user):
         """Get weather data for user's location."""
@@ -1355,5 +1479,32 @@ class EncouragementTileView(LoginRequiredMixin, TemplateView):
             context["encouragement"] = {
                 "message": "Take a moment to breathe. You're exactly where you need to be.",
             }
-        
+
         return context
+
+
+class DismissQuarterlyReviewView(LoginRequiredMixin, View):
+    """API endpoint to dismiss the quarterly review tile."""
+
+    def post(self, request, *args, **kwargs):
+        import json
+
+        try:
+            data = json.loads(request.body)
+            quarter_id = data.get('quarter_id')
+
+            if not quarter_id:
+                return JsonResponse({'error': 'quarter_id required'}, status=400)
+
+            prefs = request.user.preferences
+            dismissed = prefs.dismissed_quarterly_reviews or []
+
+            if quarter_id not in dismissed:
+                dismissed.append(quarter_id)
+                prefs.dismissed_quarterly_reviews = dismissed
+                prefs.save(update_fields=['dismissed_quarterly_reviews', 'updated_at'])
+
+            return JsonResponse({'status': 'ok'})
+
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)

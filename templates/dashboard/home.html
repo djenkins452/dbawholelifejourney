@@ -298,7 +298,57 @@
         {% endfor %}
     </section>
     {% endif %}
-    
+
+    <!-- Quarterly Review (shows at start of each quarter) -->
+    {% if quarterly_review %}
+    <section class="quarterly-review-section" id="quarterly-review-tile">
+        <div class="quarterly-review-card">
+            <button class="quarterly-review-dismiss" aria-label="Dismiss review" onclick="dismissQuarterlyReview('{{ quarterly_review.quarter_id }}')">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+            <div class="quarterly-review-header">
+                <span class="quarterly-icon">📊</span>
+                <h3>Q{{ quarterly_review.quarter_num }} {{ quarterly_review.quarter_year }} Review</h3>
+            </div>
+            <p class="quarterly-period">{{ quarterly_review.quarter_display }}</p>
+            {% if quarterly_review.has_activity %}
+            <div class="quarterly-stats">
+                {% if quarterly_review.goals_completed > 0 %}
+                <div class="quarterly-stat">
+                    <span class="stat-value">{{ quarterly_review.goals_completed }}</span>
+                    <span class="stat-label">goal{{ quarterly_review.goals_completed|pluralize }} completed</span>
+                </div>
+                {% endif %}
+                {% if quarterly_review.milestones_completed > 0 %}
+                <div class="quarterly-stat">
+                    <span class="stat-value">{{ quarterly_review.milestones_completed }}</span>
+                    <span class="stat-label">milestone{{ quarterly_review.milestones_completed|pluralize }} achieved</span>
+                </div>
+                {% endif %}
+                {% if quarterly_review.goals_started > 0 %}
+                <div class="quarterly-stat">
+                    <span class="stat-value">{{ quarterly_review.goals_started }}</span>
+                    <span class="stat-label">new goal{{ quarterly_review.goals_started|pluralize }} started</span>
+                </div>
+                {% endif %}
+            </div>
+            <p class="quarterly-encouragement">Great progress! Keep the momentum going this quarter.</p>
+            {% else %}
+            <div class="quarterly-empty">
+                <p>No goal activity recorded last quarter. This is a fresh start!</p>
+                <a href="{% url 'purpose:goal_create' %}" class="btn btn-primary btn-sm">Set a Goal</a>
+            </div>
+            {% endif %}
+            <div class="quarterly-cta">
+                <a href="{% url 'purpose:goal_list' %}" class="btn btn-outline btn-sm">View Goals</a>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Weekly Summary (if available) -->
     {% if ai_insights.weekly_summary %}
     <section class="weekly-summary-section">
@@ -748,6 +798,52 @@
             {% endfor %}
         </div>
         {% endif %}
+    </section>
+    {% endif %}
+
+    <!-- Goal Progress (if purpose enabled and has active goals) -->
+    {% if purpose_enabled and user_data.active_goals_list %}
+    <section class="goal-progress-section">
+        <div class="section-header">
+            <h2 class="section-title">Goal Progress</h2>
+            <a href="{% url 'purpose:goal_list' %}" class="section-link">View All</a>
+        </div>
+        <div class="goals-progress-list">
+            {% for item in user_data.active_goals_list %}
+            <a href="{% url 'purpose:goal_detail' item.goal.pk %}" class="goal-progress-item">
+                <div class="goal-progress-content">
+                    <div class="goal-progress-header">
+                        <span class="goal-progress-title">{{ item.goal.title }}</span>
+                        {% if item.has_milestones %}
+                        <span class="goal-progress-count">{{ item.completed_count }}/{{ item.total_count }}</span>
+                        {% endif %}
+                    </div>
+                    {% if item.has_milestones %}
+                    <div class="goal-progress-bar-container">
+                        <div class="progress-bar-mini">
+                            <div class="progress-fill-mini {% if item.progress_percent == 100 %}complete{% endif %}" style="width: {{ item.progress_percent }}%"></div>
+                        </div>
+                    </div>
+                    {% if item.next_milestone %}
+                    <div class="goal-next-milestone">
+                        <span class="next-label">Next:</span> {{ item.next_milestone.title }}
+                        {% if item.next_milestone.target_date %}
+                        <span class="next-date">{% if item.next_milestone.is_overdue %}<span class="overdue">overdue</span>{% else %}due {{ item.next_milestone.target_date|date:"M j" }}{% endif %}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="goal-no-milestones">
+                        <span class="add-milestone-hint">Add milestones to track progress</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <svg class="goal-progress-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </a>
+            {% endfor %}
+        </div>
     </section>
     {% endif %}
 
@@ -2145,6 +2241,37 @@ button.quick-action-card {
         }
     });
 })();
+</script>
+{% endif %}
+
+<!-- Quarterly Review dismiss script -->
+{% if quarterly_review %}
+<script>
+async function dismissQuarterlyReview(quarterId) {
+    const tile = document.getElementById('quarterly-review-tile');
+    if (!tile) return;
+
+    try {
+        const response = await fetch('{% url "dashboard:dismiss_quarterly_review" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ quarter_id: quarterId })
+        });
+
+        if (response.ok) {
+            // Animate removal
+            tile.style.transition = 'opacity 0.3s, transform 0.3s';
+            tile.style.opacity = '0';
+            tile.style.transform = 'translateY(-10px)';
+            setTimeout(() => tile.remove(), 300);
+        }
+    } catch (error) {
+        console.error('Failed to dismiss quarterly review:', error);
+    }
+}
 </script>
 {% endif %}
 {% endblock %}

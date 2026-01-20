@@ -335,6 +335,78 @@ and offer encouragement or insight appropriate to your coaching style."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
 
+    def detect_milestone_completion(self, entry_text: str, milestones: list,
+                                     coaching_style: str = 'supportive') -> Optional[dict]:
+        """
+        Analyze a journal entry to detect if user may have completed a milestone.
+
+        Args:
+            entry_text: The journal entry content
+            milestones: List of dicts with milestone data (title, description, goal_title)
+
+        Returns:
+            Dict with 'detected' (bool), 'milestone_index' (int), 'confidence' (str),
+            'explanation' (str) if a match is detected, else None
+        """
+        if not milestones or not entry_text:
+            return None
+
+        # Format milestones for the prompt
+        milestone_list = []
+        for i, m in enumerate(milestones):
+            milestone_info = f"{i+1}. \"{m['title']}\" (Goal: {m['goal_title']})"
+            if m.get('description'):
+                milestone_info += f" - {m['description'][:100]}"
+            milestone_list.append(milestone_info)
+
+        system = """You are an AI assistant helping users track their goal milestones.
+Your job is to read a journal entry and determine if the user seems to have completed
+one of their active milestones. Be reasonably confident before suggesting a match -
+the user mentioned specific actions or accomplishments that align with a milestone.
+
+Respond with JSON in this exact format:
+{
+    "detected": true/false,
+    "milestone_index": <number 1-N or null if not detected>,
+    "confidence": "high"/"medium"/"low",
+    "explanation": "Brief explanation of why you think this milestone was completed"
+}
+
+Only return "detected": true if there's a clear indication the user accomplished
+something related to a milestone. Generic mentions or intentions don't count."""
+
+        prompt = f"""Journal entry:
+"{entry_text[:2000]}"
+
+Active milestones to check against:
+{chr(10).join(milestone_list)}
+
+Did this journal entry indicate completion of any of these milestones?
+Respond with JSON only."""
+
+        response = self._call_api(system, prompt, max_tokens=200)
+
+        if not response:
+            return None
+
+        try:
+            import json
+            # Try to extract JSON from response
+            response = response.strip()
+            if response.startswith('```'):
+                response = response.split('```')[1]
+                if response.startswith('json'):
+                    response = response[4:]
+            result = json.loads(response)
+            if result.get('detected') and result.get('milestone_index'):
+                # Adjust to 0-based index
+                result['milestone_index'] = result['milestone_index'] - 1
+                return result
+        except (json.JSONDecodeError, KeyError, IndexError):
+            pass
+
+        return None
+
     def generate_journal_summary(self, entries: list, period: str = "week",
                                   faith_enabled: bool = False,
                                   coaching_style: str = 'supportive') -> Optional[str]:

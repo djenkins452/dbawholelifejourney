@@ -8,12 +8,27 @@
 ## Task List (Priority Order)
 
 ### Task 1: Add Sleep Tracking to Health Module
-**Status:** 🔵 Ready for Discussion
+**Status:** ✅ Complete
 **Impact:** High - Sleep is a fundamental health metric
+**Completed:** 2026-01-20
 
 ### Task 2: Add Goal Progress/Milestones to Purpose Module
-**Status:** ⚪ Pending
+**Status:** 🔵 In Progress
 **Impact:** High - Goals feel abandoned without visible progress
+
+**Scope (agreed 2026-01-20):**
+- **2A:** Core milestone model + progress visuals + encouragement stat + auto-complete prompt + celebration modal
+- **2B:** Dashboard goal progress widget with visual treatment + Quarterly Review tile
+- **2C:** AI integration - journal/milestone cross-referencing and proactive coaching
+
+**Deferred to Future Task:**
+- **Year in Review Feature** - Comprehensive annual review appearing Dec 31/Jan 1 with:
+  - In-depth analysis of the year's accomplishments across all modules
+  - Goals completed, milestones achieved, journal insights
+  - Health trends, faith journey, purpose progress
+  - Prompts user for next year's planning and annual direction
+  - Should be a rich, celebratory, reflective experience
+  - Consider: exportable summary, shareable achievements, goal-setting wizard for new year
 
 ### Task 3: Add Recurring Transactions to Finance Module
 **Status:** ⚪ Pending

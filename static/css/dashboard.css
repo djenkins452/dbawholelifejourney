@@ -1778,3 +1778,248 @@
         gap: var(--space-2);
     }
 }
+
+/* ============================================
+   Goal Progress Section
+   ============================================ */
+
+.goal-progress-section {
+    margin-bottom: var(--space-6);
+}
+
+.goals-progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.goal-progress-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.goal-progress-item:hover {
+    border-color: var(--color-accent);
+    background: var(--color-background);
+}
+
+.goal-progress-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.goal-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.goal-progress-title {
+    font-weight: 500;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.goal-progress-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    margin-left: var(--space-2);
+}
+
+.goal-progress-bar-container {
+    margin-bottom: var(--space-2);
+}
+
+.goal-progress-bar-container .progress-bar-mini {
+    height: 8px;
+}
+
+.goal-progress-bar-container .progress-fill-mini.complete {
+    background: linear-gradient(90deg, #22c55e, #10b981);
+}
+
+.goal-next-milestone {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.goal-next-milestone .next-label {
+    color: var(--color-text-muted);
+}
+
+.goal-next-milestone .next-date {
+    margin-left: var(--space-2);
+    color: var(--color-accent);
+}
+
+.goal-next-milestone .next-date .overdue {
+    color: var(--color-danger, #ef4444);
+}
+
+.goal-no-milestones {
+    font-size: var(--font-size-sm);
+}
+
+.add-milestone-hint {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.goal-progress-arrow {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 480px) {
+    .goal-progress-item {
+        padding: var(--space-3);
+    }
+
+    .goal-progress-title {
+        font-size: var(--font-size-sm);
+    }
+
+    .goal-next-milestone {
+        font-size: var(--font-size-xs);
+    }
+}
+
+/* ============================================
+   Quarterly Review Section
+   ============================================ */
+
+.quarterly-review-section {
+    margin-bottom: var(--space-6);
+}
+
+.quarterly-review-card {
+    position: relative;
+    background: linear-gradient(135deg, var(--color-surface) 0%, color-mix(in srgb, var(--color-accent) 5%, var(--color-surface)) 100%);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.quarterly-review-dismiss {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: var(--space-1);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.quarterly-review-dismiss:hover {
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+.quarterly-review-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+}
+
+.quarterly-icon {
+    font-size: var(--font-size-xl);
+}
+
+.quarterly-review-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.quarterly-period {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-4);
+}
+
+.quarterly-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.quarterly-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 80px;
+}
+
+.quarterly-stat .stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.quarterly-stat .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+.quarterly-encouragement {
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-4);
+}
+
+.quarterly-empty {
+    text-align: center;
+    padding: var(--space-4) 0;
+}
+
+.quarterly-empty p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-4);
+}
+
+.quarterly-cta {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .quarterly-review-card {
+        padding: var(--space-4);
+    }
+
+    .quarterly-stats {
+        justify-content: space-around;
+    }
+
+    .quarterly-stat {
+        min-width: 70px;
+    }
+
+    .quarterly-stat .stat-value {
+        font-size: var(--font-size-xl);
+    }
+}

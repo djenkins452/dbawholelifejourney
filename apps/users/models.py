@@ -605,6 +605,14 @@ class UserPreferences(models.Model):
         help_text="List of module intro banners the user has dismissed",
     )
 
+    # Dismissed quarterly reviews
+    # Format: ["2026-Q1", "2026-Q2", ...] - quarters that user has dismissed the review for
+    dismissed_quarterly_reviews = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of quarterly reviews the user has dismissed (e.g., '2026-Q1')",
+    )
+
     # Development notice modal
     # Shows after 48 hours to remind users we're still building
     development_notice_seen_at = models.DateTimeField(
@@ -694,6 +702,10 @@ class UserPreferences(models.Model):
     sms_significant_event_reminders = models.BooleanField(
         default=True,
         help_text="Send SMS reminders for significant events (birthdays, anniversaries)",
+    )
+    sms_milestone_reminders = models.BooleanField(
+        default=True,
+        help_text="Send SMS reminders for approaching goal milestones",
     )
 
     # Quiet hours

@@ -92,7 +92,19 @@
                         <span class="why-text">{{ goal.why_it_matters|truncatewords:15 }}</span>
                     </div>
                     {% endif %}
-                    
+
+                    {% if goal.has_milestones %}
+                    <div class="goal-progress">
+                        <div class="progress-header">
+                            <span class="progress-label">Progress</span>
+                            <span class="progress-count">{{ goal.completed_milestone_count }}/{{ goal.milestone_count }} milestones</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill {% if goal.all_milestones_complete %}complete{% endif %}" style="width: {{ goal.milestone_progress_percent }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <div class="goal-footer">
                         <span class="goal-status status-{{ goal.status }}">{{ goal.get_status_display }}</span>
                         <div class="goal-actions">
@@ -324,6 +336,47 @@
 .empty-state p {
     color: var(--color-text-muted);
     margin-bottom: var(--space-6);
+}
+
+/* Progress Bar Styles */
+.goal-progress {
+    margin-bottom: var(--space-3);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.progress-label {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.progress-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.progress-bar {
+    height: 8px;
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-accent), var(--color-accent-light, var(--color-accent)));
+    border-radius: var(--radius-full);
+    transition: width var(--transition-normal);
+}
+
+.progress-fill.complete {
+    background: linear-gradient(90deg, var(--color-success), #34d399);
 }
 
 @media (max-width: 768px) {

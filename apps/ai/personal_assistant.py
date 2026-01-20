@@ -1317,14 +1317,15 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
     def _generate_purpose_priorities(self, state: Dict, context: Dict) -> List[Dict]:
         """
-        Generate priorities based on goals and intentions.
+        Generate priorities based on goals, milestones, and intentions.
 
         Uses smart rotation to ensure all goals get attention:
-        1. Goals that haven't been shown recently are prioritized
-        2. Goals shown but not completed (user not making progress) are prioritized
-        3. Goals recently shown AND completed are deprioritized (already being worked on)
+        1. Goals with overdue milestones are highest priority
+        2. Goals that haven't been shown recently are prioritized
+        3. Goals shown but not completed (user not making progress) are prioritized
+        4. Goals recently shown AND completed are deprioritized (already being worked on)
         """
-        from apps.purpose.models import LifeGoal, ChangeIntention
+        from apps.purpose.models import LifeGoal, ChangeIntention, GoalMilestone
         from apps.core.utils import get_user_today
         from datetime import timedelta
 
@@ -1332,16 +1333,35 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         today = get_user_today(self.user)
         lookback_days = 7  # Consider last 7 days of priorities
 
-        # Get all active goals
+        # Get all active goals with their milestones
         all_goals = list(LifeGoal.objects.filter(
             user=self.user,
             status='active'
-        ))
+        ).prefetch_related('milestones'))
 
         if not all_goals:
             # No goals - fall through to intentions
             pass
         else:
+            # First, check for overdue milestones (highest priority)
+            overdue_milestones = GoalMilestone.objects.filter(
+                goal__user=self.user,
+                goal__status='active',
+                completed=False,
+                target_date__lt=today
+            ).select_related('goal').order_by('target_date')[:2]
+
+            for milestone in overdue_milestones:
+                days_overdue = (today - milestone.target_date).days
+                priorities.append({
+                    'priority_type': 'milestone_overdue',
+                    'title': f'Overdue milestone: {milestone.title[:40]}',
+                    'description': f'Goal: {milestone.goal.title}',
+                    'why_important': f'This milestone is {days_overdue} day{"s" if days_overdue != 1 else ""} overdue. Consider completing it or adjusting the date.',
+                    'linked_goal_id': milestone.goal.id,
+                    'linked_milestone_id': milestone.id,
+                })
+
             # Get recent priorities linked to goals (last 7 days)
             recent_goal_priorities = DailyPriority.objects.filter(
                 user=self.user,
@@ -1363,11 +1383,16 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
 
             # Score each goal - lower score = higher priority
             # Scoring logic:
+            # - Has overdue milestone: score = -1 (absolute highest)
             # - Never shown (shown=0): score = 0 (highest priority)
             # - Shown but never completed: score = 1 (needs attention)
             # - Shown and partially completed: score = 2 (making some progress)
             # - Shown many times and completed many times: score = 3 (doing well)
             def goal_priority_score(goal):
+                # Check for overdue milestones
+                if goal.overdue_milestones:
+                    return (-1, goal.sort_order)
+
                 activity = goal_activity.get(goal.id, {'shown': 0, 'completed': 0, 'last_shown': None})
                 shown = activity['shown']
                 completed = activity['completed']
@@ -1388,12 +1413,37 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             # Sort goals by priority score
             sorted_goals = sorted(all_goals, key=goal_priority_score)
 
-            # Take top 3 goals based on need
-            for goal in sorted_goals[:3]:
+            # Track goals already mentioned in overdue priorities
+            overdue_goal_ids = {p.get('linked_goal_id') for p in priorities}
+
+            # Take top 3 goals based on need (excluding those with overdue milestones already shown)
+            for goal in sorted_goals[:5]:
+                if len(priorities) >= 4:  # Leave room for intentions
+                    break
+                if goal.id in overdue_goal_ids:
+                    continue
+
+                # Build priority with milestone context
+                next_milestone = goal.next_milestone
+                if next_milestone:
+                    title = f'{goal.title[:30]}: {next_milestone.title[:30]}'
+                    description = f'{goal.completed_milestone_count}/{goal.milestone_count} milestones done'
+                    if next_milestone.target_date:
+                        days_until = (next_milestone.target_date - today).days
+                        if days_until == 0:
+                            description += ' - milestone due today!'
+                        elif days_until == 1:
+                            description += ' - milestone due tomorrow'
+                        elif 0 < days_until <= 7:
+                            description += f' - milestone due in {days_until} days'
+                else:
+                    title = f'Progress on: {goal.title[:50]}'
+                    description = goal.description[:200] if goal.description else ''
+
                 priorities.append({
                     'priority_type': 'purpose',
-                    'title': f'Progress on: {goal.title[:50]}',
-                    'description': goal.description[:200] if goal.description else '',
+                    'title': title,
+                    'description': description,
                     'why_important': goal.why_it_matters[:200] if goal.why_it_matters else 'This is one of your stated life goals.',
                     'linked_goal_id': goal.id,
                 })

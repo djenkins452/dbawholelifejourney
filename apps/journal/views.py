@@ -308,6 +308,16 @@ class EntryDetailView(HelpContextMixin, LoginRequiredMixin, DetailView):
         # Allow viewing archived entries too
         return JournalEntry.objects.include_archived().filter(user=self.request.user)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Check for milestone suggestion in session
+        suggestion = self.request.session.pop('milestone_suggestion', None)
+        if suggestion and suggestion.get('entry_id') == self.object.id:
+            context['milestone_suggestion'] = suggestion
+
+        return context
+
 
 class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
@@ -367,7 +377,75 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
         # (the mixin handles the message for that case)
         if 'save_add_another' not in self.request.POST:
             messages.success(self.request, "Journal entry created.")
-        return super().form_valid(form)
+
+        response = super().form_valid(form)
+
+        # Check for potential milestone completion (async-safe, non-blocking)
+        self._check_milestone_completion(form.instance)
+
+        return response
+
+    def _check_milestone_completion(self, entry):
+        """
+        Check if journal entry indicates a milestone might be completed.
+        Stores suggestion in session for display on entry detail page.
+        """
+        try:
+            prefs = self.request.user.preferences
+            if not prefs.purpose_enabled or not prefs.ai_enabled:
+                return
+
+            from apps.purpose.models import GoalMilestone
+
+            # Get active milestones for the user
+            active_milestones = GoalMilestone.objects.filter(
+                goal__user=self.request.user,
+                goal__status='active',
+                completed=False
+            ).select_related('goal')[:10]
+
+            if not active_milestones:
+                return
+
+            # Prepare milestone data for AI
+            milestones_data = [
+                {
+                    'id': m.id,
+                    'title': m.title,
+                    'description': m.description,
+                    'goal_title': m.goal.title,
+                }
+                for m in active_milestones
+            ]
+
+            # Get entry content
+            entry_text = f"{entry.title}\n\n{entry.body}" if entry.body else entry.title
+
+            # Use AI service to detect milestone completion
+            from apps.ai.services import AIService
+            ai_service = AIService()
+            result = ai_service.detect_milestone_completion(
+                entry_text=entry_text,
+                milestones=milestones_data,
+                coaching_style=prefs.coaching_style
+            )
+
+            if result and result.get('detected'):
+                milestone_index = result.get('milestone_index', 0)
+                if 0 <= milestone_index < len(milestones_data):
+                    matched_milestone = milestones_data[milestone_index]
+                    self.request.session['milestone_suggestion'] = {
+                        'entry_id': entry.id,
+                        'milestone_id': matched_milestone['id'],
+                        'milestone_title': matched_milestone['title'],
+                        'goal_title': matched_milestone['goal_title'],
+                        'confidence': result.get('confidence', 'medium'),
+                        'explanation': result.get('explanation', ''),
+                    }
+        except Exception:
+            # Don't let milestone detection errors break journal creation
+            import logging
+            logging.getLogger(__name__).exception("Error in milestone detection")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

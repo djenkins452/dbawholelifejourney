@@ -11,6 +11,7 @@ from .models import (
     ReflectionPrompt,
     AnnualDirection,
     LifeGoal,
+    GoalMilestone,
     ChangeIntention,
     Reflection,
     ReflectionResponse,
@@ -61,14 +62,44 @@ class AnnualDirectionAdmin(admin.ModelAdmin):
     raw_id_fields = ['user']
 
 
+class GoalMilestoneInline(admin.TabularInline):
+    """Inline for Goal Milestones."""
+    model = GoalMilestone
+    extra = 0
+    fields = ['title', 'target_date', 'completed', 'completed_date', 'sort_order']
+    readonly_fields = ['completed_date']
+
+
 @admin.register(LifeGoal)
 class LifeGoalAdmin(admin.ModelAdmin):
     """Admin for Life Goals."""
-    list_display = ['title', 'user', 'domain', 'timeframe', 'status', 'target_date']
+    list_display = ['title', 'user', 'domain', 'timeframe', 'status', 'target_date', 'milestone_progress']
     list_filter = ['status', 'domain', 'timeframe']
     search_fields = ['title', 'description', 'user__email']
     ordering = ['-created_at']
     raw_id_fields = ['user', 'annual_direction']
+    inlines = [GoalMilestoneInline]
+
+    def milestone_progress(self, obj):
+        if not obj.has_milestones:
+            return '-'
+        return f"{obj.completed_milestone_count}/{obj.milestone_count}"
+    milestone_progress.short_description = 'Milestones'
+
+
+@admin.register(GoalMilestone)
+class GoalMilestoneAdmin(admin.ModelAdmin):
+    """Admin for Goal Milestones."""
+    list_display = ['title', 'goal', 'target_date', 'completed', 'completed_date', 'is_overdue']
+    list_filter = ['completed', 'goal__user']
+    search_fields = ['title', 'description', 'goal__title']
+    ordering = ['-created_at']
+    raw_id_fields = ['goal']
+
+    def is_overdue(self, obj):
+        return obj.is_overdue
+    is_overdue.boolean = True
+    is_overdue.short_description = 'Overdue'
 
 
 @admin.register(ChangeIntention)

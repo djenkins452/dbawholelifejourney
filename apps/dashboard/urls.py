@@ -37,4 +37,7 @@ urlpatterns = [
     # HTMX tile endpoints
     path("tiles/journal/", views.JournalSummaryTileView.as_view(), name="tile_journal"),
     path("tiles/encouragement/", views.EncouragementTileView.as_view(), name="tile_encouragement"),
+
+    # Quarterly review
+    path("api/quarterly-review/dismiss/", views.DismissQuarterlyReviewView.as_view(), name="dismiss_quarterly_review"),
 ]

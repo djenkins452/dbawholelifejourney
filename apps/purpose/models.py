@@ -299,6 +299,154 @@ class LifeGoal(UserOwnedModel):
         self.status = 'released'
         self.save(update_fields=['status', 'updated_at'])
 
+    # =========================================================================
+    # Milestone Progress Properties
+    # =========================================================================
+
+    @property
+    def milestone_count(self):
+        """Total number of milestones for this goal."""
+        return self.milestones.count()
+
+    @property
+    def completed_milestone_count(self):
+        """Number of completed milestones."""
+        return self.milestones.filter(completed=True).count()
+
+    @property
+    def milestone_progress_percent(self):
+        """Progress percentage based on completed milestones (0-100)."""
+        total = self.milestone_count
+        if total == 0:
+            return 0
+        return int((self.completed_milestone_count / total) * 100)
+
+    @property
+    def has_milestones(self):
+        """Whether this goal has any milestones defined."""
+        return self.milestone_count > 0
+
+    @property
+    def all_milestones_complete(self):
+        """Whether all milestones are completed."""
+        return self.has_milestones and self.completed_milestone_count == self.milestone_count
+
+    @property
+    def next_milestone(self):
+        """Get the next incomplete milestone by target date, then sort order."""
+        return self.milestones.filter(completed=False).order_by(
+            models.F('target_date').asc(nulls_last=True),
+            'sort_order'
+        ).first()
+
+    @property
+    def upcoming_milestones(self):
+        """Get incomplete milestones due in the next 7 days."""
+        today = timezone.now().date()
+        week_from_now = today + timezone.timedelta(days=7)
+        return self.milestones.filter(
+            completed=False,
+            target_date__isnull=False,
+            target_date__gte=today,
+            target_date__lte=week_from_now
+        ).order_by('target_date')
+
+    @property
+    def overdue_milestones(self):
+        """Get incomplete milestones past their target date."""
+        today = timezone.now().date()
+        return self.milestones.filter(
+            completed=False,
+            target_date__isnull=False,
+            target_date__lt=today
+        ).order_by('target_date')
+
+
+# =============================================================================
+# Goal Milestones
+# =============================================================================
+
+class GoalMilestone(models.Model):
+    """
+    Milestone checkpoints for LifeGoal progress tracking.
+
+    Milestones are optional intermediate steps toward completing a goal.
+    Research shows people who break goals into milestones are 42% more likely
+    to achieve them (Dominican University study).
+    """
+    goal = models.ForeignKey(
+        LifeGoal,
+        on_delete=models.CASCADE,
+        related_name='milestones'
+    )
+
+    # Core fields
+    title = models.CharField(
+        max_length=200,
+        help_text="What needs to be accomplished?"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Additional details about this milestone"
+    )
+
+    # Target date (optional)
+    target_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When do you want to complete this milestone?"
+    )
+
+    # Completion tracking
+    completed = models.BooleanField(default=False)
+    completed_date = models.DateField(null=True, blank=True)
+
+    # Ordering
+    sort_order = models.PositiveIntegerField(default=0)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = [
+            models.F('target_date').asc(nulls_last=True),
+            'sort_order',
+            'created_at'
+        ]
+        verbose_name = "Goal Milestone"
+        verbose_name_plural = "Goal Milestones"
+
+    def __str__(self):
+        status = "✓" if self.completed else "○"
+        return f"{status} {self.title}"
+
+    def mark_complete(self):
+        """Mark milestone as completed."""
+        self.completed = True
+        self.completed_date = timezone.now().date()
+        self.save(update_fields=['completed', 'completed_date', 'updated_at'])
+
+    def mark_incomplete(self):
+        """Mark milestone as incomplete."""
+        self.completed = False
+        self.completed_date = None
+        self.save(update_fields=['completed', 'completed_date', 'updated_at'])
+
+    @property
+    def is_overdue(self):
+        """Check if milestone is past due date and not completed."""
+        if self.completed or not self.target_date:
+            return False
+        return self.target_date < timezone.now().date()
+
+    @property
+    def days_until_due(self):
+        """Days until target date (negative if overdue)."""
+        if not self.target_date:
+            return None
+        return (self.target_date - timezone.now().date()).days
+
 
 # =============================================================================
 # Change Intentions (Identity-Based)

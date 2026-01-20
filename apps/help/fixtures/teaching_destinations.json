@@ -528,6 +528,23 @@
     },
     {
         "model": "help.teachingdestination",
+        "pk": 58,
+        "fields": {
+            "destination_id": "finance-recurring",
+            "name": "Recurring Transactions",
+            "path_description": "Finance - Recurring",
+            "explanation": "Manage subscriptions, bills, and regular income. Set up auto-posting or reminders for recurring expenses.",
+            "url": "/finance/recurring/",
+            "keywords": "recurring, subscription, subscriptions, bills, monthly bills, rent, netflix, automatic payments, auto pay, regular income, paycheck",
+            "module": "finance",
+            "sort_order": 32,
+            "is_active": true,
+            "created_at": "2026-01-20T00:00:00Z",
+            "updated_at": "2026-01-20T00:00:00Z"
+        }
+    },
+    {
+        "model": "help.teachingdestination",
         "pk": 32,
         "fields": {
             "destination_id": "inventory",
@@ -537,7 +554,7 @@
             "url": "/life/inventory/",
             "keywords": "inventory, belongings, valuables, home inventory, insurance, items, possessions, household items, track items",
             "module": "life",
-            "sort_order": 32,
+            "sort_order": 33,
             "is_active": true,
             "created_at": "2026-01-16T00:00:00Z",
             "updated_at": "2026-01-16T00:00:00Z"

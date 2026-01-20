@@ -109,6 +109,35 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+### Dashboard Grid Layout and Drag-Drop Reordering
+
+**Enhancement:** Added CSS grid layout for meaningful tile sizes and drag-and-drop reordering.
+
+**What Changed:**
+
+1. **CSS Grid Layout**
+   - 6-column grid on desktop
+   - Small tiles span 2 columns (1/3 width) - two can fit side-by-side
+   - Medium tiles span 3 columns (1/2 width)
+   - Large tiles span 6 columns (full width)
+   - Responsive: stacks on mobile, 2-col on tablet
+
+2. **Drag and Drop**
+   - Drag handle (≡) added to edit overlay
+   - Tiles can be reordered by dragging
+   - Order saves automatically via `config_reorder` API
+
+3. **Bug Fixes**
+   - Fixed `scan:quick_analyze` URL (should be `scan:analyze`)
+   - Fixed drag handle visibility (SVG stroke color)
+   - Fixed AI profile form test missing notification fields
+
+**Files Modified:**
+- `templates/dashboard/home.html` - Grid layout CSS, drag-drop JavaScript, drag handle SVG
+- `apps/ai/tests/test_ai_comprehensive.py` - Added required notification fields to test
+
+---
+
 ### Customizable Dashboard (Task 6 from Improvement Backlog)
 
 **New Feature:** User-configurable dashboard with drag-and-drop tile reordering, show/hide toggles, and tile sizing.

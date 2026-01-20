@@ -1,6 +1,34 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 19,
+        "fields": {
+            "title": "Dashboard Weather Widget",
+            "description": "Your dashboard now shows current weather conditions and a 3-day forecast. Get prominent alerts for extreme heat, cold, high winds, or severe weather. Set your location in Preferences to enable this feature.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-01-19",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": ""
+        }
+    },
+    {
+        "model": "core.releasenote",
+        "pk": 18,
+        "fields": {
+            "title": "Inline Scripture in Reading Plans",
+            "description": "Scripture references in reading plans now expand inline when clicked. Read verses without leaving your current page. Click again to collapse. Uses your preferred Bible translation from settings.",
+            "entry_type": "enhancement",
+            "version": "",
+            "release_date": "2026-01-19",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": ""
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 17,
         "fields": {
             "title": "Menstrual Cycle Tracking",

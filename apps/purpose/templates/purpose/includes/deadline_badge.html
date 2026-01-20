@@ -1,0 +1,24 @@
+{% comment %}
+Deadline Badge for Goals
+
+Displays an encouraging deadline indicator based on goal's target_date.
+Only renders if:
+1. User has show_goal_deadline_badges preference enabled
+2. Goal has a deadline_urgency value (completed, overdue, urgent, soon, approaching)
+
+Usage:
+    {% include "purpose/includes/deadline_badge.html" with goal=goal %}
+
+Badge Types:
+- completed: Green celebratory badge
+- overdue: Soft orange (past target date - encouraging, not shaming)
+- urgent: Orange (0-7 days)
+- soon: Blue (8-14 days)
+- approaching: Gray (15-30 days)
+{% endcomment %}
+
+{% if request.user.preferences.show_goal_deadline_badges and goal.deadline_urgency %}
+<span class="deadline-badge deadline-badge-{{ goal.deadline_urgency }}">
+    {{ goal.deadline_badge_text }}
+</span>
+{% endif %}

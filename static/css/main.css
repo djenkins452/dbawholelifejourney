@@ -1498,3 +1498,56 @@ a:hover {
         display: none;
     }
 }
+
+/* ============================================================================
+   DEADLINE BADGES - Goal Target Date Indicators
+   ============================================================================ */
+
+.deadline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    border-radius: var(--radius-full);
+    white-space: nowrap;
+}
+
+/* Completed - Celebratory green */
+.deadline-badge-completed {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+/* Overdue - Soft orange (encouraging, not shaming) */
+.deadline-badge-overdue {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+/* Urgent - 0-7 days, orange */
+.deadline-badge-urgent {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+/* Soon - 8-14 days, blue (informational) */
+.deadline-badge-soon {
+    background: color-mix(in srgb, var(--color-info) 15%, transparent);
+    color: var(--color-info);
+}
+
+/* Approaching - 15-30 days, muted gray */
+.deadline-badge-approaching {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+/* Responsive: ensure badges stay readable on mobile */
+@media (max-width: 480px) {
+    .deadline-badge {
+        font-size: var(--font-size-xs);
+        padding: 2px var(--space-1);
+    }
+}

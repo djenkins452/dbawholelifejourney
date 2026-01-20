@@ -106,7 +106,10 @@
                     {% endif %}
 
                     <div class="goal-footer">
-                        <span class="goal-status status-{{ goal.status }}">{{ goal.get_status_display }}</span>
+                        <div class="goal-status-badges">
+                            <span class="goal-status status-{{ goal.status }}">{{ goal.get_status_display }}</span>
+                            {% include "purpose/includes/deadline_badge.html" with goal=goal %}
+                        </div>
                         <div class="goal-actions">
                             <a href="{% url 'purpose:goal_update' goal.pk %}" class="btn btn-ghost btn-sm">Edit</a>
                             {% if goal.status == 'active' %}
@@ -300,6 +303,13 @@
 
 .goal-status.status-released {
     color: var(--color-text-muted);
+}
+
+.goal-status-badges {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
 }
 
 .goal-actions {

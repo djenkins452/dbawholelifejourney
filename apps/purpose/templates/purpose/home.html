@@ -114,7 +114,10 @@
                         {% for goal in goals|slice:":3" %}
                         <li>
                             <a href="{% url 'purpose:goal_detail' goal.pk %}">{{ goal.title }}</a>
-                            <span class="goal-timeframe">{{ goal.get_timeframe_display }}</span>
+                            <div class="goal-meta">
+                                {% include "purpose/includes/deadline_badge.html" with goal=goal %}
+                                <span class="goal-timeframe">{{ goal.get_timeframe_display }}</span>
+                            </div>
                         </li>
                         {% endfor %}
                     </ul>
@@ -492,6 +495,13 @@
 .goal-timeframe {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
+}
+
+.goal-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
 }
 
 .intention-list {

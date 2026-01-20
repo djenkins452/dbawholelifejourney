@@ -16,6 +16,59 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Goal Deadline Badges (Task 7 from Improvement Backlog)
+
+**Feature:** Add encouraging deadline badges for goals showing date awareness on goal cards.
+
+**What's Included:**
+
+1. **Model Properties** (`apps/purpose/models.py`)
+   - `is_overdue` - Check if goal is past target date
+   - `days_until_due` - Days until target date (negative if overdue)
+   - `deadline_urgency` - Returns urgency level: 'completed', 'overdue', 'urgent', 'soon', 'approaching', or None
+   - `deadline_badge_text` - Human-friendly text for badge display
+
+2. **User Preference** (`apps/users/models.py`)
+   - `show_goal_deadline_badges` (default: True) - Toggle badge visibility
+   - Migration: `0043_add_show_goal_deadline_badges`
+
+3. **CSS Classes** (`static/css/main.css`)
+   - `.deadline-badge` base class
+   - `.deadline-badge-completed` - Green celebratory
+   - `.deadline-badge-overdue` - Soft orange (encouraging, not shaming)
+   - `.deadline-badge-urgent` - Orange (0-7 days)
+   - `.deadline-badge-soon` - Blue (8-14 days)
+   - `.deadline-badge-approaching` - Gray (15-30 days)
+
+4. **Template Partial** (`apps/purpose/templates/purpose/includes/deadline_badge.html`)
+   - Reusable include that respects user preference
+   - Renders appropriate badge based on urgency level
+
+5. **Template Updates**
+   - `purpose/goal_list.html` - Badge in goal card footer
+   - `purpose/home.html` - Badge in goal list items
+   - `purpose/goal_detail.html` - Badge in meta section
+   - `dashboard/tiles/goal_progress.html` - Badge alongside milestone info
+
+**Badge Text (Encouraging Tone):**
+- "🎉 Completed!" - Celebratory
+- "Past target date" - Neutral reminder (not "late" or "failed")
+- "Due today" / "Due tomorrow" / "Due in X days"
+
+**Files Modified:**
+- `apps/purpose/models.py` - Added deadline properties to LifeGoal
+- `apps/users/models.py` - Added show_goal_deadline_badges preference
+- `apps/users/migrations/0043_add_show_goal_deadline_badges.py` - New migration
+- `static/css/main.css` - Added deadline badge CSS classes
+- `static/css/dashboard.css` - Added goal-progress-badges container
+- `apps/purpose/templates/purpose/includes/deadline_badge.html` - New partial
+- `apps/purpose/templates/purpose/goal_list.html` - Added badge include
+- `apps/purpose/templates/purpose/home.html` - Added badge include
+- `apps/purpose/templates/purpose/goal_detail.html` - Added badge include
+- `templates/dashboard/tiles/goal_progress.html` - Added badge include
+
+---
+
 ### Daily Faith Reminders Scheduled Job (Task 4 from Improvement Backlog)
 
 **New Feature:** Scheduled job to generate in-app and email notifications for prayer and reading plan reminders.

@@ -20,6 +20,7 @@
                 <span class="badge">{{ goal.domain.icon }} {{ goal.domain.name }}</span>
                 {% endif %}
                 <span class="badge badge-{{ goal.status }}">{{ goal.get_status_display }}</span>
+                {% include "purpose/includes/deadline_badge.html" with goal=goal %}
                 <span class="badge">{{ goal.get_timeframe_display }}</span>
             </div>
         </div>

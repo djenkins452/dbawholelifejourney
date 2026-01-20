@@ -1830,11 +1830,17 @@
     text-overflow: ellipsis;
 }
 
+.goal-progress-badges {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
 .goal-progress-count {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     flex-shrink: 0;
-    margin-left: var(--space-2);
 }
 
 .goal-progress-bar-container {

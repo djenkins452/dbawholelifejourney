@@ -340,6 +340,19 @@ class UserPreferences(models.Model):
         help_text="Sub-feature toggles for Faith module",
     )
 
+    # Reading plan difficulty level preference
+    READING_PLAN_DIFFICULTY_CHOICES = [
+        ("beginner", "Beginner - New to Bible study"),
+        ("intermediate", "Intermediate - Familiar but want more context"),
+        ("advanced", "Advanced - Deep dive with scholarly insights"),
+    ]
+    reading_plan_difficulty = models.CharField(
+        max_length=20,
+        choices=READING_PLAN_DIFFICULTY_CHOICES,
+        default="intermediate",
+        help_text="Preferred difficulty level for reading plan commentary",
+    )
+
     # Journal sub-features: mood_tracking, tags, ai_reflections
     journal_features = models.JSONField(
         default=dict,
@@ -631,6 +644,12 @@ class UserPreferences(models.Model):
     show_whats_new = models.BooleanField(
         default=True,
         help_text="Show 'What's New' popup when new features are released",
+    )
+
+    # Goal deadline badges preference
+    show_goal_deadline_badges = models.BooleanField(
+        default=True,
+        help_text="Show deadline badges on goals (Due in X days, Past target date, etc.)",
     )
 
     # Search history for suggestions

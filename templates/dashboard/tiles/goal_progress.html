@@ -15,9 +15,12 @@ Shows active goals with milestone progress bars
             <div class="goal-progress-content">
                 <div class="goal-progress-header">
                     <span class="goal-progress-title">{{ item.goal.title }}</span>
-                    {% if item.has_milestones %}
-                    <span class="goal-progress-count">{{ item.completed_count }}/{{ item.total_count }}</span>
-                    {% endif %}
+                    <div class="goal-progress-badges">
+                        {% include "purpose/includes/deadline_badge.html" with goal=item.goal %}
+                        {% if item.has_milestones %}
+                        <span class="goal-progress-count">{{ item.completed_count }}/{{ item.total_count }}</span>
+                        {% endif %}
+                    </div>
                 </div>
                 {% if item.has_milestones %}
                 <div class="goal-progress-bar-container">

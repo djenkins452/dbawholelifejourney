@@ -361,6 +361,80 @@ class LifeGoal(UserOwnedModel):
             target_date__lt=today
         ).order_by('target_date')
 
+    # =========================================================================
+    # Deadline Properties (for goal-level target_date)
+    # =========================================================================
+
+    @property
+    def is_overdue(self):
+        """Check if goal is past target date and not completed."""
+        if self.status == 'completed' or not self.target_date:
+            return False
+        return self.target_date < timezone.now().date()
+
+    @property
+    def days_until_due(self):
+        """Days until target date (negative if overdue). None if no target date."""
+        if not self.target_date:
+            return None
+        return (self.target_date - timezone.now().date()).days
+
+    @property
+    def deadline_urgency(self):
+        """
+        Get deadline urgency level for badge display.
+
+        Returns:
+            - 'completed': Goal is completed (celebrate!)
+            - 'overdue': Past target date (gentle reminder)
+            - 'urgent': 0-7 days remaining
+            - 'soon': 8-14 days remaining
+            - 'approaching': 15-30 days remaining
+            - None: No target date or 30+ days away
+        """
+        if self.status == 'completed':
+            return 'completed'
+
+        if not self.target_date:
+            return None
+
+        days = self.days_until_due
+
+        if days < 0:
+            return 'overdue'
+        elif days <= 7:
+            return 'urgent'
+        elif days <= 14:
+            return 'soon'
+        elif days <= 30:
+            return 'approaching'
+        else:
+            return None
+
+    @property
+    def deadline_badge_text(self):
+        """
+        Get human-friendly text for deadline badge.
+
+        Returns encouraging, non-shaming text.
+        """
+        urgency = self.deadline_urgency
+
+        if urgency == 'completed':
+            return "🎉 Completed!"
+        elif urgency == 'overdue':
+            return "Past target date"
+        elif urgency is None:
+            return None
+
+        days = self.days_until_due
+        if days == 0:
+            return "Due today"
+        elif days == 1:
+            return "Due tomorrow"
+        else:
+            return f"Due in {days} days"
+
 
 # =============================================================================
 # Goal Milestones

@@ -3170,3 +3170,359 @@ class DexcomCredential(models.Model):
             'last_sync', 'last_sync_status', 'last_sync_message',
             'last_sync_count', 'updated_at'
         ])
+
+
+# =============================================================================
+# Sleep Tracking
+# =============================================================================
+
+
+class SleepEntry(UserOwnedModel):
+    """
+    Sleep tracking entry with wearable-grade data support.
+
+    Designed to capture both manual entries and synced data from:
+    - Apple HealthKit (via iOS app)
+    - Google Fit (via Android app)
+    - Fitbit, Garmin, Oura, etc.
+
+    Sleep stages follow Apple Health conventions:
+    - awake: Time spent awake during sleep session
+    - rem: REM (rapid eye movement) sleep - dreams, memory consolidation
+    - light: Light/Core sleep - transition sleep
+    - deep: Deep/Slow-wave sleep - physical restoration
+
+    Quality score is calculated from:
+    - Sleep efficiency (time asleep / time in bed)
+    - Stage distribution (enough deep & REM)
+    - Interruption count
+    """
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("apple_health", "Apple Health"),
+        ("google_fit", "Google Fit"),
+        ("fitbit", "Fitbit"),
+        ("garmin", "Garmin"),
+        ("oura", "Oura Ring"),
+        ("samsung_health", "Samsung Health"),
+        ("whoop", "WHOOP"),
+        ("other", "Other App/Device"),
+    ]
+
+    QUALITY_CHOICES = [
+        ("excellent", "Excellent - Woke refreshed"),
+        ("good", "Good - Felt rested"),
+        ("fair", "Fair - Okay"),
+        ("poor", "Poor - Tired"),
+        ("terrible", "Terrible - Exhausted"),
+    ]
+
+    # Core sleep times
+    sleep_date = models.DateField(
+        help_text="Date of sleep (the night of - e.g., sleep on Jan 5 night is Jan 5)",
+    )
+    bedtime = models.DateTimeField(
+        help_text="When you went to bed / sleep session started",
+    )
+    wake_time = models.DateTimeField(
+        help_text="When you woke up / sleep session ended",
+    )
+
+    # Duration metrics (in minutes for precision)
+    total_duration_minutes = models.PositiveIntegerField(
+        help_text="Total time in bed (bedtime to wake_time) in minutes",
+    )
+    asleep_duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Actual time asleep in minutes (excludes awake periods)",
+    )
+
+    # Sleep stages (in minutes) - populated by wearables, optional for manual
+    stage_awake_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Time spent awake during sleep session",
+    )
+    stage_rem_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Time in REM sleep (dreams, memory consolidation)",
+    )
+    stage_light_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Time in light/core sleep",
+    )
+    stage_deep_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Time in deep/slow-wave sleep (physical restoration)",
+    )
+
+    # Quality indicators
+    quality_rating = models.CharField(
+        max_length=20,
+        choices=QUALITY_CHOICES,
+        blank=True,
+        help_text="Subjective quality rating (manual entry or morning check-in)",
+    )
+    quality_score = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Calculated quality score 0-100 (from stages, efficiency, etc.)",
+    )
+    sleep_efficiency = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Sleep efficiency percentage (time asleep / time in bed * 100)",
+    )
+
+    # Interruptions
+    interruption_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of times woken during the night",
+    )
+    total_awake_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Total time spent awake after initially falling asleep",
+    )
+
+    # Heart rate during sleep (from wearables)
+    heart_rate_avg = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Average heart rate during sleep (BPM)",
+    )
+    heart_rate_min = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Minimum heart rate during sleep (BPM)",
+    )
+    heart_rate_max = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum heart rate during sleep (BPM)",
+    )
+
+    # Respiratory rate (some wearables track this)
+    respiratory_rate = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        help_text="Average breaths per minute during sleep",
+    )
+
+    # Source tracking for wearable sync
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="manual",
+    )
+    sync_id = models.CharField(
+        max_length=255,
+        blank=True,
+        db_index=True,
+        help_text="External ID from synced source to prevent duplicates",
+    )
+    recorded_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When this entry was recorded/synced",
+    )
+
+    # User notes for context
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about sleep (e.g., 'took melatonin', 'stressed about work')",
+    )
+
+    # Factors that may have affected sleep
+    factors = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Factors affecting sleep: caffeine, alcohol, exercise, stress, etc.",
+    )
+
+    class Meta:
+        ordering = ["-sleep_date", "-bedtime"]
+        verbose_name = "sleep entry"
+        verbose_name_plural = "sleep entries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "sleep_date", "source", "sync_id"],
+                name="unique_sleep_per_night_per_source",
+                condition=models.Q(sync_id__gt=""),
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "sleep_date"]),
+            models.Index(fields=["source", "sync_id"]),
+        ]
+
+    def __str__(self):
+        hours = self.total_duration_minutes / 60 if self.total_duration_minutes else 0
+        return f"{hours:.1f}h sleep on {self.sleep_date}"
+
+    def save(self, *args, **kwargs):
+        """Calculate derived fields before saving."""
+        # Calculate total duration from times if not set
+        if self.bedtime and self.wake_time and not self.total_duration_minutes:
+            delta = self.wake_time - self.bedtime
+            self.total_duration_minutes = int(delta.total_seconds() / 60)
+
+        # Calculate sleep efficiency if we have the data
+        if self.asleep_duration_minutes and self.total_duration_minutes:
+            self.sleep_efficiency = (
+                self.asleep_duration_minutes / self.total_duration_minutes
+            ) * 100
+
+        # Calculate quality score if we have stage data
+        if self.has_stage_data:
+            self.quality_score = self._calculate_quality_score()
+
+        super().save(*args, **kwargs)
+
+    @property
+    def has_stage_data(self):
+        """Check if sleep stage data is available."""
+        return any([
+            self.stage_rem_minutes,
+            self.stage_light_minutes,
+            self.stage_deep_minutes,
+        ])
+
+    @property
+    def total_hours(self):
+        """Total time in bed in hours."""
+        if self.total_duration_minutes:
+            return round(self.total_duration_minutes / 60, 1)
+        return None
+
+    @property
+    def asleep_hours(self):
+        """Actual time asleep in hours."""
+        if self.asleep_duration_minutes:
+            return round(self.asleep_duration_minutes / 60, 1)
+        return None
+
+    @property
+    def deep_sleep_percentage(self):
+        """Percentage of sleep spent in deep sleep."""
+        if self.stage_deep_minutes and self.asleep_duration_minutes:
+            return round((self.stage_deep_minutes / self.asleep_duration_minutes) * 100, 1)
+        return None
+
+    @property
+    def rem_percentage(self):
+        """Percentage of sleep spent in REM."""
+        if self.stage_rem_minutes and self.asleep_duration_minutes:
+            return round((self.stage_rem_minutes / self.asleep_duration_minutes) * 100, 1)
+        return None
+
+    @property
+    def quality_display(self):
+        """Human-readable quality description."""
+        if self.quality_rating:
+            return dict(self.QUALITY_CHOICES).get(self.quality_rating, self.quality_rating)
+        if self.quality_score:
+            if self.quality_score >= 85:
+                return "Excellent"
+            elif self.quality_score >= 70:
+                return "Good"
+            elif self.quality_score >= 50:
+                return "Fair"
+            else:
+                return "Poor"
+        return "Not rated"
+
+    @property
+    def source_display(self):
+        """Human-readable source name."""
+        return dict(self.SOURCE_CHOICES).get(self.source, self.source)
+
+    def _calculate_quality_score(self):
+        """
+        Calculate sleep quality score (0-100) based on:
+        - Sleep efficiency (40% weight)
+        - Deep sleep percentage (25% weight) - target 15-20%
+        - REM percentage (25% weight) - target 20-25%
+        - Interruptions (10% weight)
+        """
+        score = 0
+
+        # Efficiency component (40 points max)
+        if self.sleep_efficiency:
+            # 85%+ efficiency is excellent
+            efficiency_score = min(100, float(self.sleep_efficiency)) / 100 * 40
+            score += efficiency_score
+
+        # Deep sleep component (25 points max)
+        if self.deep_sleep_percentage:
+            # Target: 15-20% deep sleep
+            deep_pct = self.deep_sleep_percentage
+            if deep_pct >= 15:
+                deep_score = 25
+            elif deep_pct >= 10:
+                deep_score = 20
+            elif deep_pct >= 5:
+                deep_score = 15
+            else:
+                deep_score = 10
+            score += deep_score
+
+        # REM component (25 points max)
+        if self.rem_percentage:
+            # Target: 20-25% REM
+            rem_pct = self.rem_percentage
+            if rem_pct >= 20:
+                rem_score = 25
+            elif rem_pct >= 15:
+                rem_score = 20
+            elif rem_pct >= 10:
+                rem_score = 15
+            else:
+                rem_score = 10
+            score += rem_score
+
+        # Interruption penalty (10 points max, lose points for interruptions)
+        interruption_score = max(0, 10 - (self.interruption_count * 2))
+        score += interruption_score
+
+        return min(100, int(score))
+
+
+# Sleep factor choices for the factors JSONField
+SLEEP_FACTOR_CHOICES = [
+    ("caffeine", "Had caffeine"),
+    ("alcohol", "Had alcohol"),
+    ("late_meal", "Ate late"),
+    ("exercise", "Exercised"),
+    ("stress", "Stressed/anxious"),
+    ("screen_time", "Late screen time"),
+    ("nap", "Took a nap"),
+    ("travel", "Traveled/jet lag"),
+    ("medication", "Took sleep aid"),
+    ("illness", "Feeling unwell"),
+    ("noise", "Noisy environment"),
+    ("temperature", "Too hot/cold"),
+]
+
+SLEEP_FACTOR_EMOJIS = {
+    "caffeine": "☕",
+    "alcohol": "🍷",
+    "late_meal": "🍽️",
+    "exercise": "🏃",
+    "stress": "😰",
+    "screen_time": "📱",
+    "nap": "😴",
+    "travel": "✈️",
+    "medication": "💊",
+    "illness": "🤒",
+    "noise": "🔊",
+    "temperature": "🌡️",
+}

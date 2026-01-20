@@ -44,7 +44,9 @@ from .forms import (
     MedicineLogForm,
     MedicineScheduleForm,
     PRNDoseForm,
+    QuickSleepForm,
     QuickWeightForm,
+    SleepEntryForm,
     StepsEntryForm,
     UpdateSupplyForm,
     WeightEntryForm,
@@ -66,6 +68,7 @@ from .models import (
     MedicineSchedule,
     NutritionGoals,
     PersonalRecord,
+    SleepEntry,
     StepsEntry,
     TemplateExercise,
     TemplateExerciseSet,
@@ -143,6 +146,36 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if week_steps.exists():
                 avg = week_steps.aggregate(avg=Avg("count"))["avg"]
                 context["avg_steps"] = round(avg) if avg else None
+
+        # Sleep summary
+        sleep_entries = SleepEntry.objects.filter(user=user)
+        if sleep_entries.exists():
+            context["latest_sleep"] = sleep_entries.first()
+            context["sleep_count"] = sleep_entries.count()
+            # 7-day average
+            week_sleep = sleep_entries.filter(sleep_date__gte=week_ago.date())
+            if week_sleep.exists():
+                total_minutes = sum(e.total_duration_minutes or 0 for e in week_sleep)
+                avg_hours = total_minutes / week_sleep.count() / 60
+                context["avg_sleep_hours"] = round(avg_hours, 1)
+
+                # Average sleep quality (for entries that have it)
+                quality_map = {'excellent': 5, 'good': 4, 'fair': 3, 'poor': 2, 'terrible': 1}
+                quality_labels = {'excellent': 'Excellent', 'good': 'Good', 'fair': 'Fair', 'poor': 'Poor', 'terrible': 'Terrible'}
+                entries_with_quality = [e for e in week_sleep if e.quality_rating]
+                if entries_with_quality:
+                    avg_score = sum(quality_map.get(e.quality_rating, 3) for e in entries_with_quality) / len(entries_with_quality)
+                    # Map back to label
+                    if avg_score >= 4.5:
+                        context["avg_sleep_quality"] = "Excellent"
+                    elif avg_score >= 3.5:
+                        context["avg_sleep_quality"] = "Good"
+                    elif avg_score >= 2.5:
+                        context["avg_sleep_quality"] = "Fair"
+                    elif avg_score >= 1.5:
+                        context["avg_sleep_quality"] = "Poor"
+                    else:
+                        context["avg_sleep_quality"] = "Terrible"
 
         # Water/Hydration summary
         today = get_user_today(user)
@@ -376,6 +409,9 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                     'has_heart_rate': 'latest_heart_rate' in context,
                     'has_glucose': 'latest_glucose' in context,
                     'has_blood_pressure': 'latest_blood_pressure' in context,
+                    'sleep_count': context.get('sleep_count', 0),
+                    'avg_sleep_hours': context.get('avg_sleep_hours'),
+                    'avg_sleep_quality': context.get('avg_sleep_quality'),
                 }
                 context['ai_insight'] = ai_service.generate_health_home_insight(
                     health_data,
@@ -4954,4 +4990,211 @@ class BulkDeleteFastingView(LoginRequiredMixin, View):
             'message': f'{count} fast{"" if count == 1 else "s"} deleted',
             'count': count,
             'item_type': 'health.fastingwindow',
+        })
+
+
+# =============================================================================
+# Sleep Tracking Views
+# =============================================================================
+
+
+class SleepListView(HelpContextMixin, LoginRequiredMixin, ListView):
+    """
+    List sleep entries with stats and trends.
+    """
+
+    model = SleepEntry
+    template_name = "health/sleep_list.html"
+    context_object_name = "entries"
+    paginate_by = 30
+    help_context_id = "HEALTH_SLEEP"
+
+    def get_queryset(self):
+        return SleepEntry.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        entries = self.get_queryset()
+        user = self.request.user
+
+        if entries.exists():
+            context["latest"] = entries.first()
+            context["total_count"] = entries.count()
+
+            # Stats for past 7 days
+            week_ago = timezone.now() - timedelta(days=7)
+            week_entries = entries.filter(sleep_date__gte=week_ago.date())
+            if week_entries.exists():
+                # Calculate averages
+                total_minutes = sum(e.total_duration_minutes or 0 for e in week_entries)
+                context["week_avg_hours"] = round(total_minutes / week_entries.count() / 60, 1)
+                context["week_count"] = week_entries.count()
+
+                # Quality distribution
+                quality_counts = {}
+                for entry in week_entries:
+                    if entry.quality_rating:
+                        quality_counts[entry.quality_rating] = quality_counts.get(entry.quality_rating, 0) + 1
+                context["quality_counts"] = quality_counts
+
+                # Average quality score if available
+                scores = [e.quality_score for e in week_entries if e.quality_score]
+                if scores:
+                    context["week_avg_score"] = round(sum(scores) / len(scores))
+
+            # 30-day average
+            month_ago = timezone.now() - timedelta(days=30)
+            month_entries = entries.filter(sleep_date__gte=month_ago.date())
+            if month_entries.exists():
+                total_minutes = sum(e.total_duration_minutes or 0 for e in month_entries)
+                context["month_avg_hours"] = round(total_minutes / month_entries.count() / 60, 1)
+
+            # Chart data for last 14 days
+            two_weeks_ago = timezone.now() - timedelta(days=14)
+            chart_entries = list(entries.filter(
+                sleep_date__gte=two_weeks_ago.date()
+            ).order_by("sleep_date"))
+
+            if chart_entries:
+                context["chart_labels"] = json.dumps([
+                    e.sleep_date.strftime("%m/%d") for e in chart_entries
+                ])
+                context["chart_data"] = json.dumps([
+                    round(e.total_duration_minutes / 60, 1) if e.total_duration_minutes else 0
+                    for e in chart_entries
+                ])
+                # Quality scores for chart (if available)
+                context["chart_quality"] = json.dumps([
+                    e.quality_score or 0 for e in chart_entries
+                ])
+
+            # Sleep stage averages (if data exists)
+            stage_entries = [e for e in month_entries if e.has_stage_data]
+            if stage_entries:
+                context["has_stage_data"] = True
+                context["avg_deep_pct"] = round(
+                    sum(e.deep_sleep_percentage or 0 for e in stage_entries) / len(stage_entries), 1
+                )
+                context["avg_rem_pct"] = round(
+                    sum(e.rem_percentage or 0 for e in stage_entries) / len(stage_entries), 1
+                )
+
+        return context
+
+
+class SleepCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
+    """
+    Log a new sleep entry.
+    """
+
+    model = SleepEntry
+    form_class = SleepEntryForm
+    template_name = "health/sleep_form.html"
+    success_url = reverse_lazy("health:sleep_list")
+    save_add_another_message = "Sleep logged. Add another!"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        if 'save_add_another' not in self.request.POST:
+            messages.success(self.request, "Sleep logged successfully.")
+        return super().form_valid(form)
+
+
+class SleepQuickCreateView(LoginRequiredMixin, CreateView):
+    """
+    Quick log sleep - simplified form.
+    """
+
+    model = SleepEntry
+    form_class = QuickSleepForm
+    template_name = "health/sleep_quick_form.html"
+    success_url = reverse_lazy("health:sleep_list")
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        messages.success(self.request, "Sleep logged.")
+        return super().form_valid(form)
+
+
+class SleepUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Edit a sleep entry.
+    """
+
+    model = SleepEntry
+    form_class = SleepEntryForm
+    template_name = "health/sleep_form.html"
+    success_url = reverse_lazy("health:sleep_list")
+
+    def get_queryset(self):
+        return SleepEntry.objects.filter(user=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, "Sleep entry updated.")
+        return super().form_valid(form)
+
+
+class SleepDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
+    """
+    Delete a sleep entry.
+    Supports undo via toast notification for AJAX requests.
+    """
+
+    model = SleepEntry
+    item_type = 'health.sleepentry'
+    item_name = 'sleep entry'
+    success_url = 'health:sleep_list'
+
+    def get_object(self):
+        return get_object_or_404(
+            SleepEntry.objects.filter(user=self.request.user),
+            pk=self.kwargs['pk']
+        )
+
+
+class BulkDeleteSleepView(LoginRequiredMixin, View):
+    """
+    Bulk delete sleep entries.
+    Accepts JSON body with 'ids' array.
+    """
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            ids = data.get('ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        if not ids:
+            return JsonResponse({'success': False, 'error': 'No items selected'}, status=400)
+
+        entries = SleepEntry.objects.filter(user=request.user, pk__in=ids)
+        count = entries.count()
+
+        if count == 0:
+            return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
+
+        for entry in entries:
+            entry.soft_delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{count} sleep entr{"y" if count == 1 else "ies"} deleted',
+            'count': count,
+            'item_type': 'health.sleepentry',
         })

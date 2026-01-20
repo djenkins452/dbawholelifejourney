@@ -6,6 +6,7 @@ from django.urls import path
 
 from . import views
 from . import views_cycle
+from . import views_sleep_api
 
 app_name = "health"
 
@@ -41,6 +42,20 @@ urlpatterns = [
     path("steps/<int:pk>/edit/", views.StepsUpdateView.as_view(), name="steps_update"),
     path("steps/<int:pk>/delete/", views.StepsDeleteView.as_view(), name="steps_delete"),
     path("steps/bulk/delete/", views.BulkDeleteStepsView.as_view(), name="steps_bulk_delete"),
+
+    # Sleep
+    path("sleep/", views.SleepListView.as_view(), name="sleep_list"),
+    path("sleep/log/", views.SleepCreateView.as_view(), name="sleep_create"),
+    path("sleep/quick/", views.SleepQuickCreateView.as_view(), name="sleep_quick"),
+    path("sleep/<int:pk>/edit/", views.SleepUpdateView.as_view(), name="sleep_update"),
+    path("sleep/<int:pk>/delete/", views.SleepDeleteView.as_view(), name="sleep_delete"),
+    path("sleep/bulk/delete/", views.BulkDeleteSleepView.as_view(), name="sleep_bulk_delete"),
+
+    # Sleep API (for native app / wearable sync)
+    path("api/sleep/", views_sleep_api.SleepEntryListCreateView.as_view(), name="sleep_api_list"),
+    path("api/sleep/<int:entry_id>/", views_sleep_api.SleepEntryDetailView.as_view(), name="sleep_api_detail"),
+    path("api/sleep/stats/", views_sleep_api.SleepStatsView.as_view(), name="sleep_api_stats"),
+    path("api/sleep/sync-status/", views_sleep_api.SleepSyncStatusView.as_view(), name="sleep_api_sync_status"),
 
     # Water / Hydration
     path("water/", views.WaterListView.as_view(), name="water_list"),

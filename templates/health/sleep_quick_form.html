@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Quick Log Sleep - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container content-narrow">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:sleep_list' %}">Sleep</a>
+        <span>/</span>
+        <span>Quick Log</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Quick Log Sleep</h1>
+        <p class="page-subtitle">Just the essentials - how long and how well?</p>
+    </div>
+
+    <form method="post" class="card quick-form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="id_sleep_date" class="form-label">Night of</label>
+            {{ form.sleep_date }}
+        </div>
+
+        <div class="form-group">
+            <label for="id_hours_slept" class="form-label">Hours Slept</label>
+            <div class="hours-input-group">
+                <input
+                    type="number"
+                    name="hours_slept"
+                    id="id_hours_slept"
+                    class="form-input hours-input"
+                    value="{{ form.hours_slept.value|default:'7.0' }}"
+                    min="0"
+                    max="24"
+                    step="0.5"
+                    required
+                    autofocus
+                >
+                <span class="hours-suffix">hours</span>
+            </div>
+            <div class="hours-presets">
+                <button type="button" class="preset-btn" data-hours="5">5h</button>
+                <button type="button" class="preset-btn" data-hours="6">6h</button>
+                <button type="button" class="preset-btn" data-hours="7">7h</button>
+                <button type="button" class="preset-btn" data-hours="8">8h</button>
+                <button type="button" class="preset-btn" data-hours="9">9h</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">How Do You Feel?</label>
+            <div class="quality-options">
+                {% for value, label in form.quality_rating.field.choices %}
+                {% if value %}
+                <label class="quality-option">
+                    <input type="radio" name="quality_rating" value="{{ value }}"
+                        {% if form.quality_rating.value == value %}checked{% endif %}>
+                    <span class="quality-card {{ value }}">
+                        <span class="quality-emoji">
+                            {% if value == 'excellent' %}{{ "sun"|default:"☀️" }}
+                            {% elif value == 'good' %}{{ "smile"|default:"🙂" }}
+                            {% elif value == 'fair' %}{{ "neutral"|default:"😐" }}
+                            {% elif value == 'poor' %}{{ "tired"|default:"😴" }}
+                            {% elif value == 'terrible' %}{{ "exhausted"|default:"😵" }}
+                            {% endif %}
+                        </span>
+                        <span class="quality-label">{{ label|cut:" - "|first }}</span>
+                    </span>
+                </label>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if form.errors %}
+        <div class="form-errors">
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <p class="error-message">{{ error }}</p>
+                {% endfor %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg">Log Sleep</button>
+        </div>
+
+        <div class="form-footer">
+            <a href="{% url 'health:sleep_create' %}" class="text-link">
+                Need to add more details? Use the full form &rarr;
+            </a>
+        </div>
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.content-narrow {
+    max-width: 480px;
+}
+
+.quick-form {
+    padding: var(--space-6);
+}
+
+.hours-input-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.hours-input {
+    width: 100px;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    text-align: center;
+}
+
+.hours-suffix {
+    color: var(--color-text-muted);
+}
+
+.hours-presets {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.preset-btn {
+    flex: 1;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    transition: all 0.15s;
+}
+
+.preset-btn:hover {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.quality-options {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--space-2);
+}
+
+@media (max-width: 480px) {
+    .quality-options {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.quality-option {
+    cursor: pointer;
+}
+
+.quality-option input {
+    display: none;
+}
+
+.quality-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-3);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    transition: all 0.15s;
+}
+
+.quality-option input:checked + .quality-card {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.quality-emoji {
+    font-size: 1.5rem;
+    margin-bottom: var(--space-1);
+}
+
+.quality-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+.form-errors {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.error-message {
+    color: var(--color-error);
+    margin: 0;
+}
+
+.form-actions {
+    margin-top: var(--space-6);
+}
+
+.btn-lg {
+    width: 100%;
+    padding: var(--space-4);
+    font-size: var(--font-size-lg);
+}
+
+.form-footer {
+    margin-top: var(--space-4);
+    text-align: center;
+}
+
+.text-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.text-link:hover {
+    color: var(--color-accent);
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    // Hours preset buttons
+    const hoursInput = document.getElementById('id_hours_slept');
+    const presetBtns = document.querySelectorAll('.preset-btn');
+
+    presetBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            hoursInput.value = this.dataset.hours;
+        });
+    });
+});
+</script>
+{% endblock %}

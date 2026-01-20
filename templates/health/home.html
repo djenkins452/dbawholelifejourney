@@ -190,6 +190,45 @@
             {% endif %}
         </div>
 
+        <!-- Sleep Card -->
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    Sleep
+                </h2>
+                <a href="{% url 'health:sleep_quick' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_sleep %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_sleep.total_hours }}</span>
+                    <span class="metric-unit">hours</span>
+                </div>
+                <p class="metric-context">{{ latest_sleep.quality_display }}</p>
+                <p class="metric-date">{{ latest_sleep.sleep_date|date:"M j" }}</p>
+
+                {% if avg_sleep_hours %}
+                    <p class="metric-avg">7-day avg: {{ avg_sleep_hours }}h</p>
+                {% endif %}
+
+                {% if latest_sleep.quality_score %}
+                    <p class="metric-score {% if latest_sleep.quality_score >= 70 %}score-good{% elif latest_sleep.quality_score < 50 %}score-poor{% endif %}">
+                        Quality: {{ latest_sleep.quality_score }}
+                    </p>
+                {% endif %}
+
+                <a href="{% url 'health:sleep_list' %}" class="card-link">View history{% if sleep_count %} ({{ sleep_count }}){% endif %}</a>
+            {% else %}
+                <p class="text-muted">No sleep logged yet.</p>
+                <a href="{% url 'health:sleep_quick' %}" class="btn btn-secondary btn-sm mt-4">
+                    Log last night
+                </a>
+            {% endif %}
+        </div>
+
         <!-- Water Card -->
         <div class="health-card water-card">
             <div class="card-header">

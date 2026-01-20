@@ -32,6 +32,8 @@ from .models import (
     MedicineSchedule,
     NutritionGoals,
     ProviderStaff,
+    SleepEntry,
+    SLEEP_FACTOR_CHOICES,
     StepsEntry,
     WeightEntry,
 )
@@ -1423,6 +1425,292 @@ class ProviderStaffForm(forms.ModelForm):
             instance.provider = self.provider
         if self.user and not instance.user_id:
             instance.user = self.user
+        if commit:
+            instance.save()
+        return instance
+
+
+class SleepEntryForm(forms.ModelForm):
+    """
+    Form for logging sleep - supports both simple and detailed entry.
+
+    Simple mode: bedtime, wake_time, quality_rating, notes
+    Detailed mode: adds sleep stages, interruptions, heart rate, factors
+    """
+
+    # Custom field for sleep factors (checkboxes)
+    sleep_factors = forms.MultipleChoiceField(
+        choices=SLEEP_FACTOR_CHOICES,
+        widget=forms.CheckboxSelectMultiple(attrs={
+            "class": "sleep-factor-checkbox",
+        }),
+        required=False,
+        label="Factors that may have affected your sleep",
+    )
+
+    class Meta:
+        model = SleepEntry
+        fields = [
+            "sleep_date",
+            "bedtime",
+            "wake_time",
+            "quality_rating",
+            "interruption_count",
+            "stage_deep_minutes",
+            "stage_rem_minutes",
+            "stage_light_minutes",
+            "stage_awake_minutes",
+            "heart_rate_avg",
+            "notes",
+        ]
+        widgets = {
+            "sleep_date": forms.DateInput(attrs={
+                "class": "form-input",
+                "type": "date",
+            }),
+            "bedtime": forms.DateTimeInput(attrs={
+                "class": "form-input",
+                "type": "datetime-local",
+            }),
+            "wake_time": forms.DateTimeInput(attrs={
+                "class": "form-input",
+                "type": "datetime-local",
+            }),
+            "quality_rating": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "interruption_count": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Times woken",
+                "min": 0,
+                "max": 20,
+            }),
+            "stage_deep_minutes": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Deep sleep (min)",
+                "min": 0,
+                "max": 600,
+            }),
+            "stage_rem_minutes": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "REM sleep (min)",
+                "min": 0,
+                "max": 600,
+            }),
+            "stage_light_minutes": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Light sleep (min)",
+                "min": 0,
+                "max": 600,
+            }),
+            "stage_awake_minutes": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Awake time (min)",
+                "min": 0,
+                "max": 300,
+            }),
+            "heart_rate_avg": forms.NumberInput(attrs={
+                "class": "form-input",
+                "placeholder": "Avg BPM",
+                "min": 30,
+                "max": 150,
+            }),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "placeholder": "Notes about your sleep (optional)",
+                "rows": 2,
+            }),
+        }
+        labels = {
+            "sleep_date": "Night of",
+            "bedtime": "Went to bed",
+            "wake_time": "Woke up",
+            "quality_rating": "How did you feel?",
+            "interruption_count": "Times woken",
+            "stage_deep_minutes": "Deep sleep",
+            "stage_rem_minutes": "REM sleep",
+            "stage_light_minutes": "Light sleep",
+            "stage_awake_minutes": "Time awake",
+            "heart_rate_avg": "Avg heart rate",
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+        # Set optional fields
+        optional_fields = [
+            "quality_rating", "interruption_count", "stage_deep_minutes",
+            "stage_rem_minutes", "stage_light_minutes", "stage_awake_minutes",
+            "heart_rate_avg", "notes",
+        ]
+        for field_name in optional_fields:
+            if field_name in self.fields:
+                self.fields[field_name].required = False
+
+        if self.instance.pk:
+            # Editing existing - convert UTC times to user's local timezone for display
+            user_tz = get_user_timezone(user)
+            if self.instance.bedtime:
+                local_bedtime = self.instance.bedtime.astimezone(user_tz)
+                self.initial["bedtime"] = local_bedtime.strftime("%Y-%m-%dT%H:%M")
+            if self.instance.wake_time:
+                local_wake = self.instance.wake_time.astimezone(user_tz)
+                self.initial["wake_time"] = local_wake.strftime("%Y-%m-%dT%H:%M")
+            # Load factors
+            if self.instance.factors:
+                self.initial["sleep_factors"] = self.instance.factors
+        else:
+            # New entry - set defaults for last night
+            today = get_user_today(user) if user else timezone.now().date()
+            self.initial["sleep_date"] = today
+            # Default bedtime to last night at 10pm
+            user_tz = get_user_timezone(user)
+            from datetime import datetime, timedelta
+            yesterday = today - timedelta(days=1)
+            default_bedtime = datetime(yesterday.year, yesterday.month, yesterday.day, 22, 0)
+            default_wake = datetime(today.year, today.month, today.day, 6, 0)
+            self.initial["bedtime"] = default_bedtime.strftime("%Y-%m-%dT%H:%M")
+            self.initial["wake_time"] = default_wake.strftime("%Y-%m-%dT%H:%M")
+
+    def clean_bedtime(self):
+        """Convert datetime from user's timezone to UTC."""
+        bedtime = self.cleaned_data.get('bedtime')
+        return interpret_as_user_timezone(bedtime, self.user)
+
+    def clean_wake_time(self):
+        """Convert datetime from user's timezone to UTC."""
+        wake_time = self.cleaned_data.get('wake_time')
+        return interpret_as_user_timezone(wake_time, self.user)
+
+    def clean(self):
+        """Validate that wake_time is after bedtime."""
+        cleaned_data = super().clean()
+        bedtime = cleaned_data.get('bedtime')
+        wake_time = cleaned_data.get('wake_time')
+
+        if bedtime and wake_time:
+            if wake_time <= bedtime:
+                raise forms.ValidationError(
+                    "Wake time must be after bedtime."
+                )
+            # Check for reasonable sleep duration (max 24 hours)
+            duration = wake_time - bedtime
+            if duration.total_seconds() > 24 * 60 * 60:
+                raise forms.ValidationError(
+                    "Sleep duration cannot exceed 24 hours. Please check your times."
+                )
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+
+        # Set user
+        if self.user and not instance.user_id:
+            instance.user = self.user
+
+        # Calculate total duration
+        if instance.bedtime and instance.wake_time:
+            delta = instance.wake_time - instance.bedtime
+            instance.total_duration_minutes = int(delta.total_seconds() / 60)
+
+        # Calculate asleep duration if we have stage data
+        stages_total = sum(filter(None, [
+            instance.stage_deep_minutes,
+            instance.stage_rem_minutes,
+            instance.stage_light_minutes,
+        ]))
+        if stages_total > 0:
+            instance.asleep_duration_minutes = stages_total
+            # If awake time is also recorded, factor that in
+            if instance.stage_awake_minutes:
+                instance.total_awake_minutes = instance.stage_awake_minutes
+
+        # Store factors from checkbox field
+        if 'sleep_factors' in self.cleaned_data:
+            instance.factors = self.cleaned_data['sleep_factors']
+
+        # Source is manual for this form
+        instance.source = "manual"
+
+        if commit:
+            instance.save()
+        return instance
+
+
+class QuickSleepForm(forms.ModelForm):
+    """
+    Simplified sleep form for quick morning logging.
+    Just: how long did you sleep and how do you feel?
+    """
+
+    hours_slept = forms.DecimalField(
+        min_value=0,
+        max_value=24,
+        decimal_places=1,
+        widget=forms.NumberInput(attrs={
+            "class": "form-input",
+            "placeholder": "Hours",
+            "step": "0.5",
+        }),
+        label="Hours slept",
+    )
+
+    class Meta:
+        model = SleepEntry
+        fields = ["sleep_date", "quality_rating"]
+        widgets = {
+            "sleep_date": forms.DateInput(attrs={
+                "class": "form-input",
+                "type": "date",
+            }),
+            "quality_rating": forms.Select(attrs={
+                "class": "form-select",
+            }),
+        }
+        labels = {
+            "sleep_date": "Night of",
+            "quality_rating": "How do you feel?",
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.fields["quality_rating"].required = False
+
+        # Default to last night
+        if not self.instance.pk:
+            today = get_user_today(user) if user else timezone.now().date()
+            self.initial["sleep_date"] = today
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+
+        if self.user and not instance.user_id:
+            instance.user = self.user
+
+        # Convert hours to duration and set approximate times
+        hours = self.cleaned_data.get('hours_slept', 0)
+        instance.total_duration_minutes = int(float(hours) * 60)
+
+        # Set approximate bed/wake times based on sleep_date
+        # Assume wake time was 7am on sleep_date + 1 day (morning after)
+        from datetime import datetime, timedelta
+        sleep_date = instance.sleep_date
+        user_tz = get_user_timezone(self.user)
+
+        # Wake time: 7am on the morning after sleep_date
+        next_day = sleep_date + timedelta(days=1)
+        wake_naive = datetime(next_day.year, next_day.month, next_day.day, 7, 0)
+        wake_local = user_tz.localize(wake_naive)
+        instance.wake_time = wake_local.astimezone(pytz.UTC)
+
+        # Bedtime: wake_time minus hours slept
+        instance.bedtime = instance.wake_time - timedelta(hours=float(hours))
+
+        instance.source = "manual"
+
         if commit:
             instance.save()
         return instance

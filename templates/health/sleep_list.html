@@ -1,0 +1,522 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Sleep History - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Sleep</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Sleep {% include "components/favorite_toggle.html" with page_title="Sleep" %}</h1>
+            <p class="page-subtitle">Track your sleep patterns and quality</p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'health:sleep_quick' %}" class="btn btn-secondary">Quick Log</a>
+            <a href="{% url 'health:sleep_create' %}" class="btn btn-primary">Log Sleep</a>
+        </div>
+    </div>
+
+    {% if entries %}
+        <!-- Stats Summary -->
+        <div class="stats-bar mb-6">
+            {% if latest %}
+            <div class="stat-item">
+                <span class="stat-label">Last Night</span>
+                <span class="stat-value">{{ latest.total_hours }}h</span>
+                <span class="stat-detail">{{ latest.quality_display }}</span>
+            </div>
+            {% endif %}
+            {% if week_avg_hours %}
+            <div class="stat-item">
+                <span class="stat-label">7-Day Avg</span>
+                <span class="stat-value">{{ week_avg_hours }}h</span>
+            </div>
+            {% endif %}
+            {% if month_avg_hours %}
+            <div class="stat-item">
+                <span class="stat-label">30-Day Avg</span>
+                <span class="stat-value">{{ month_avg_hours }}h</span>
+            </div>
+            {% endif %}
+            {% if week_avg_score %}
+            <div class="stat-item">
+                <span class="stat-label">Avg Quality</span>
+                <span class="stat-value {% if week_avg_score >= 70 %}stat-success{% elif week_avg_score < 50 %}stat-warning{% endif %}">
+                    {{ week_avg_score }}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sleep Insights -->
+        {% if has_stage_data %}
+        <div class="insight-card mb-6">
+            <h3>Sleep Composition (30-Day Avg)</h3>
+            <div class="stage-bars">
+                <div class="stage-bar">
+                    <span class="stage-label">Deep Sleep</span>
+                    <div class="stage-progress">
+                        <div class="stage-fill deep" style="width: {{ avg_deep_pct }}%"></div>
+                    </div>
+                    <span class="stage-value">{{ avg_deep_pct }}%</span>
+                    <span class="stage-target">(target: 15-20%)</span>
+                </div>
+                <div class="stage-bar">
+                    <span class="stage-label">REM Sleep</span>
+                    <div class="stage-progress">
+                        <div class="stage-fill rem" style="width: {{ avg_rem_pct }}%"></div>
+                    </div>
+                    <span class="stage-value">{{ avg_rem_pct }}%</span>
+                    <span class="stage-target">(target: 20-25%)</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Chart -->
+        {% if chart_data %}
+        <div class="chart-container mb-6">
+            <canvas id="sleepChart"></canvas>
+        </div>
+        {% endif %}
+
+        <!-- Entry List -->
+        <div class="entry-list">
+            {% for entry in entries %}
+            <div class="sleep-entry">
+                <div class="entry-main">
+                    <div class="entry-date">
+                        <span class="date-primary">{{ entry.sleep_date|date:"M j" }}</span>
+                        <span class="date-year">{{ entry.sleep_date|date:"Y" }}</span>
+                    </div>
+                    <div class="entry-duration">
+                        <span class="duration-value">{{ entry.total_hours }}h</span>
+                        {% if entry.asleep_hours and entry.asleep_hours != entry.total_hours %}
+                        <span class="duration-asleep">({{ entry.asleep_hours }}h asleep)</span>
+                        {% endif %}
+                    </div>
+                    <div class="entry-quality">
+                        {% if entry.quality_score %}
+                        <span class="quality-score {% if entry.quality_score >= 70 %}good{% elif entry.quality_score < 50 %}poor{% endif %}">
+                            {{ entry.quality_score }}
+                        </span>
+                        {% elif entry.quality_rating %}
+                        <span class="quality-badge {{ entry.quality_rating }}">
+                            {{ entry.quality_display }}
+                        </span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </div>
+                    <div class="entry-times">
+                        <span class="time-bed">{{ entry.bedtime|time:"g:i A" }}</span>
+                        <span class="time-arrow">&rarr;</span>
+                        <span class="time-wake">{{ entry.wake_time|time:"g:i A" }}</span>
+                    </div>
+                    {% if entry.source != 'manual' %}
+                    <div class="entry-source">
+                        <span class="source-badge">{{ entry.source_display }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if entry.has_stage_data or entry.notes %}
+                <div class="entry-details">
+                    {% if entry.has_stage_data %}
+                    <div class="stage-summary">
+                        {% if entry.stage_deep_minutes %}<span class="stage deep">Deep: {{ entry.stage_deep_minutes }}m</span>{% endif %}
+                        {% if entry.stage_rem_minutes %}<span class="stage rem">REM: {{ entry.stage_rem_minutes }}m</span>{% endif %}
+                        {% if entry.stage_light_minutes %}<span class="stage light">Light: {{ entry.stage_light_minutes }}m</span>{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if entry.notes %}
+                    <div class="entry-notes">{{ entry.notes|truncatewords:15 }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div class="entry-actions">
+                    <a href="{% url 'health:sleep_update' entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
+                    <form method="post" action="{% url 'health:sleep_delete' entry.pk %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost btn-sm text-error">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if page_obj.has_other_pages %}
+        <nav class="pagination mt-6">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">&larr; Previous</a>
+            {% endif %}
+            <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Next &rarr;</a>
+            {% endif %}
+        </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">{{ "moon"|default:"🌙" }}</div>
+            <h2 class="empty-state-title">No sleep logged yet</h2>
+            <p class="empty-state-text">Start tracking your sleep to understand your patterns and improve your rest.</p>
+            <div class="empty-actions">
+                <a href="{% url 'health:sleep_quick' %}" class="btn btn-secondary">Quick Log</a>
+                <a href="{% url 'health:sleep_create' %}" class="btn btn-primary">Log Detailed Sleep</a>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="mt-8 text-center">
+        <a href="{% url 'health:home' %}" class="btn btn-ghost">&larr; Back to Health</a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.header-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.stats-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-item .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-item .stat-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.stat-item .stat-detail {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.stat-success { color: var(--color-success); }
+.stat-warning { color: var(--color-warning); }
+
+.insight-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.insight-card h3 {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.stage-bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.stage-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.stage-label {
+    width: 80px;
+    font-size: var(--font-size-sm);
+}
+
+.stage-progress {
+    flex: 1;
+    height: 8px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.stage-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+}
+
+.stage-fill.deep { background: #6366f1; }
+.stage-fill.rem { background: #8b5cf6; }
+
+.stage-value {
+    font-weight: 600;
+    width: 40px;
+}
+
+.stage-target {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.chart-container {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    height: 250px;
+}
+
+.entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.sleep-entry {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.entry-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.entry-date {
+    display: flex;
+    flex-direction: column;
+    min-width: 60px;
+}
+
+.date-primary {
+    font-weight: 600;
+}
+
+.date-year {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.entry-duration {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+}
+
+.duration-value {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+}
+
+.duration-asleep {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.entry-quality {
+    min-width: 60px;
+}
+
+.quality-score {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    font-weight: 600;
+    background: var(--color-border);
+}
+
+.quality-score.good {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+.quality-score.poor {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+}
+
+.quality-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    background: var(--color-border);
+}
+
+.quality-badge.excellent { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
+.quality-badge.good { background: color-mix(in srgb, var(--color-success) 10%, transparent); color: var(--color-success); }
+.quality-badge.poor { background: color-mix(in srgb, var(--color-warning) 15%, transparent); color: var(--color-warning); }
+.quality-badge.terrible { background: color-mix(in srgb, var(--color-error) 15%, transparent); color: var(--color-error); }
+
+.entry-times {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.time-arrow {
+    opacity: 0.5;
+}
+
+.entry-source {
+    margin-left: auto;
+}
+
+.source-badge {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    background: var(--color-border);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.entry-details {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.stage-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+}
+
+.stage-summary .stage {
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.stage.deep { background: color-mix(in srgb, #6366f1 15%, transparent); color: #6366f1; }
+.stage.rem { background: color-mix(in srgb, #8b5cf6 15%, transparent); color: #8b5cf6; }
+.stage.light { background: color-mix(in srgb, #06b6d4 15%, transparent); color: #06b6d4; }
+
+.entry-notes {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.entry-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+    margin-top: var(--space-3);
+}
+
+.inline-form { display: inline; }
+.text-muted { color: var(--color-text-muted); }
+.text-error { color: var(--color-error); }
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: var(--space-4);
+}
+
+.empty-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .header-actions {
+        flex-direction: column;
+    }
+
+    .entry-main {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .entry-source {
+        margin-left: 0;
+    }
+
+    .stage-bar {
+        flex-wrap: wrap;
+    }
+
+    .stage-target {
+        width: 100%;
+        margin-left: calc(80px + var(--space-3));
+    }
+}
+</style>
+
+{% if chart_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('sleepChart').getContext('2d');
+    const labels = {{ chart_labels|safe }};
+    const data = {{ chart_data|safe }};
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Hours Slept',
+                data: data,
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    min: 4,
+                    max: 12,
+                    ticks: {
+                        callback: function(value) {
+                            return value + 'h';
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -659,6 +659,12 @@ Match your coaching style."""
             context.append(f"Completed {health_data['fasts_completed_month']} fasts this month")
         if health_data.get('avg_fast_hours'):
             context.append(f"Average fast length: {health_data['avg_fast_hours']} hours")
+        if health_data.get('sleep_entries_month', 0) > 0:
+            context.append(f"Logged sleep {health_data['sleep_entries_month']} times this month")
+        if health_data.get('avg_sleep_hours_month'):
+            context.append(f"Averaging {health_data['avg_sleep_hours_month']} hours of sleep per night")
+        if health_data.get('avg_sleep_quality_month'):
+            context.append(f"Sleep quality rating: {health_data['avg_sleep_quality_month']}")
 
         if not context:
             return None
@@ -889,6 +895,7 @@ Keep it to 2-3 sentences. Match your coaching style."""
             health_data.get('has_heart_rate'),
             health_data.get('has_glucose'),
             health_data.get('has_blood_pressure'),
+            health_data.get('sleep_count', 0) > 0,
         ])
 
         if not has_data:
@@ -919,6 +926,15 @@ Keep it to 2-3 sentences. Match your coaching style."""
 
         if health_data.get('avg_blood_pressure'):
             context.append(f"Average blood pressure: {health_data['avg_blood_pressure']}")
+
+        if health_data.get('sleep_count', 0) > 0:
+            context.append(f"Sleep entries (7 days): {health_data['sleep_count']}")
+            if health_data.get('avg_sleep_hours'):
+                context.append(f"Average sleep: {health_data['avg_sleep_hours']} hours/night")
+            if health_data.get('avg_sleep_quality'):
+                context.append(f"Average sleep quality: {health_data['avg_sleep_quality']}")
+            if health_data.get('sleep_trend'):
+                context.append(f"Sleep trend: {health_data['sleep_trend']}")
 
         prompt = f"""User's health overview:
 {chr(10).join('- ' + c for c in context)}

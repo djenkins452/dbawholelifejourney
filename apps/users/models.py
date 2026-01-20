@@ -358,6 +358,7 @@ class UserPreferences(models.Model):
         'medicine': {'label': 'Medicine Tracker', 'default': True, 'icon': '💊'},
         'workouts': {'label': 'Workouts & Fitness', 'default': True, 'icon': '🏋️'},
         'steps': {'label': 'Steps Tracking', 'default': True, 'icon': '👟'},
+        'sleep': {'label': 'Sleep Tracking', 'default': True, 'icon': '😴'},
         'nutrition': {'label': 'Nutrition & Food', 'default': True, 'icon': '🥗'},
         'fasting': {'label': 'Fasting', 'default': True, 'icon': '🍽️'},
         'providers': {'label': 'Medical Providers', 'default': True, 'icon': '🏥'},

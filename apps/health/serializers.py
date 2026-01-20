@@ -26,6 +26,7 @@ from .models import (
     CycleDailyLog,
     CyclePrediction,
     CycleSettings,
+    SleepEntry,
     CYCLE_MOOD_CHOICES,
     CYCLE_SYMPTOM_CHOICES,
     FLOW_LEVEL_CHOICES,
@@ -507,5 +508,203 @@ class CyclePredictionSerializer(BaseSerializer):
         if start and end and end < start:
             raise ValidationError({
                 "predicted_period_end": "Predicted period end must be after start"
+            })
+        return data
+
+
+class SleepEntrySerializer(BaseSerializer):
+    """
+    Serializer for SleepEntry model.
+
+    Handles sleep tracking data from manual entry and wearable sync.
+    Designed to support Apple HealthKit, Google Fit, Fitbit, etc.
+    """
+
+    model = SleepEntry
+    fields = {
+        "id": "int",
+        "sleep_date": "date",
+        "bedtime": "datetime",
+        "wake_time": "datetime",
+        "total_duration_minutes": "int",
+        "asleep_duration_minutes": "int",
+        # Sleep stages
+        "stage_awake_minutes": "int",
+        "stage_rem_minutes": "int",
+        "stage_light_minutes": "int",
+        "stage_deep_minutes": "int",
+        # Quality indicators
+        "quality_rating": "choice",
+        "quality_score": "int",
+        "sleep_efficiency": "decimal",
+        # Interruptions
+        "interruption_count": "int",
+        "total_awake_minutes": "int",
+        # Heart rate during sleep
+        "heart_rate_avg": "int",
+        "heart_rate_min": "int",
+        "heart_rate_max": "int",
+        # Source tracking
+        "source": "choice",
+        "sync_id": "str",
+        # Notes
+        "notes": "str",
+        "factors": "list",
+        # Computed fields
+        "total_hours": "decimal",
+        "asleep_hours": "decimal",
+        "quality_display": "str",
+        "source_display": "str",
+        "has_stage_data": "bool",
+    }
+    read_only_fields = [
+        "id", "total_hours", "asleep_hours", "quality_display",
+        "source_display", "has_stage_data"
+    ]
+
+    VALID_QUALITY_RATINGS = ["excellent", "good", "fair", "poor", "terrible"]
+    VALID_SOURCES = [
+        "manual", "apple_health", "google_fit", "fitbit",
+        "garmin", "oura", "samsung_health", "whoop", "other"
+    ]
+
+    def _serialize(self, instance):
+        """Override to include computed properties."""
+        data = super()._serialize(instance)
+
+        # Add computed properties
+        data["total_hours"] = instance.total_hours
+        data["asleep_hours"] = instance.asleep_hours
+        data["quality_display"] = instance.quality_display
+        data["source_display"] = instance.source_display
+        data["has_stage_data"] = instance.has_stage_data
+
+        return data
+
+    def _serialize_value(self, value):
+        """Extended to handle datetime."""
+        from datetime import datetime
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return super()._serialize_value(value)
+
+    def validate_sleep_date(self, value):
+        """Validate date format."""
+        if value is None:
+            return date.today()
+        if isinstance(value, str):
+            try:
+                from datetime import datetime
+                value = datetime.strptime(value, "%Y-%m-%d").date()
+            except ValueError:
+                raise ValidationError("Invalid date format. Use YYYY-MM-DD")
+        return value
+
+    def validate_bedtime(self, value):
+        """Validate bedtime datetime."""
+        if value is None:
+            raise ValidationError("Bedtime is required")
+        if isinstance(value, str):
+            try:
+                from datetime import datetime
+                value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                raise ValidationError("Invalid datetime format. Use ISO 8601")
+        return value
+
+    def validate_wake_time(self, value):
+        """Validate wake time datetime."""
+        if value is None:
+            raise ValidationError("Wake time is required")
+        if isinstance(value, str):
+            try:
+                from datetime import datetime
+                value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                raise ValidationError("Invalid datetime format. Use ISO 8601")
+        return value
+
+    def validate_total_duration_minutes(self, value):
+        """Validate duration is positive and reasonable."""
+        if value is None:
+            raise ValidationError("Total duration is required")
+        if not isinstance(value, int):
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                raise ValidationError("Duration must be a number")
+        if value < 0 or value > 1440:  # 24 hours max
+            raise ValidationError("Duration must be between 0 and 1440 minutes (24 hours)")
+        return value
+
+    def validate_quality_rating(self, value):
+        """Validate quality rating is a valid choice."""
+        if not value:
+            return ""
+        if value not in self.VALID_QUALITY_RATINGS:
+            raise ValidationError(
+                f"Invalid quality rating: {value}. "
+                f"Valid options: {', '.join(self.VALID_QUALITY_RATINGS)}"
+            )
+        return value
+
+    def validate_source(self, value):
+        """Validate source is a valid choice."""
+        if not value:
+            return "manual"
+        if value not in self.VALID_SOURCES:
+            raise ValidationError(
+                f"Invalid source: {value}. "
+                f"Valid options: {', '.join(self.VALID_SOURCES)}"
+            )
+        return value
+
+    def validate_quality_score(self, value):
+        """Validate quality score is 0-100."""
+        if value is None:
+            return None
+        if not isinstance(value, int):
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                raise ValidationError("Quality score must be a number")
+        if value < 0 or value > 100:
+            raise ValidationError("Quality score must be between 0 and 100")
+        return value
+
+    def validate_sleep_efficiency(self, value):
+        """Validate sleep efficiency is 0-100."""
+        if value is None:
+            return None
+        if not isinstance(value, (int, float, Decimal)):
+            try:
+                value = Decimal(str(value))
+            except:
+                raise ValidationError("Sleep efficiency must be a number")
+        if value < 0 or value > 100:
+            raise ValidationError("Sleep efficiency must be between 0 and 100")
+        return Decimal(str(value))
+
+    def validate_factors(self, value):
+        """Validate factors list."""
+        if value is None:
+            return []
+        if isinstance(value, str):
+            import json
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                value = [value]
+        if not isinstance(value, list):
+            raise ValidationError("Factors must be a list")
+        return value
+
+    def validate(self, data):
+        """Ensure wake_time is after bedtime."""
+        bedtime = data.get("bedtime")
+        wake_time = data.get("wake_time")
+        if bedtime and wake_time and wake_time <= bedtime:
+            raise ValidationError({
+                "wake_time": "Wake time must be after bedtime"
             })
         return data

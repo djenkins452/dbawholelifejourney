@@ -16,6 +16,63 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Sleep Tracking Feature (Task 1 from Improvement Backlog)
+
+**New Feature:** Comprehensive sleep tracking added to the Health module with wearable-ready architecture for future iOS app integration.
+
+**What's Included:**
+
+1. **SleepEntry Model** (`apps/health/models.py`)
+   - Full wearable-grade fields: stages (deep, REM, light, awake), heart rate during sleep, efficiency
+   - Quality indicators: subjective rating (excellent/good/fair/poor/terrible) and computed score
+   - Source tracking for future wearable sync (Apple Health, Google Fit, Fitbit, Garmin, Oura, WHOOP, Samsung Health)
+   - sync_id field for deduplication when syncing from wearables
+   - Sleep factors (caffeine, alcohol, stress, etc.)
+
+2. **Web Views**
+   - SleepListView: Sleep history with stats summary, 30-day chart, sleep composition insights
+   - SleepCreateView: Full detailed entry form with all fields
+   - SleepQuickCreateView: Quick log form (just hours + quality rating)
+   - SleepUpdateView, SleepDeleteView, BulkDeleteSleepView
+
+3. **API Endpoints** (for future native app)
+   - `GET/POST /health/api/sleep/` - List entries, create new, bulk sync
+   - `GET/PUT/PATCH/DELETE /health/api/sleep/<id>/` - Single entry operations
+   - `GET /health/api/sleep/stats/` - Aggregated statistics with trends
+   - `GET /health/api/sleep/sync-status/` - Wearable sync status per source
+   - Upsert by sync_id to prevent duplicates during wearable sync
+
+4. **AI Integration**
+   - Sleep data now included in Health home AI insights
+   - Passes avg sleep hours, quality, and count to AI coaching
+
+5. **User Preferences**
+   - Added 'sleep' sub-feature toggle to HEALTH_FEATURES in UserPreferences
+
+6. **Tests**
+   - 34 tests covering model, views, API endpoints, and serializer
+   - Located at `apps/health/tests/test_sleep.py`
+
+**Files Created:**
+- `apps/health/views_sleep_api.py` - Sleep API views
+- `apps/health/tests/test_sleep.py` - Sleep tests
+- `apps/health/migrations/0027_sleepentry_and_more.py` - Database migration
+- `templates/health/sleep_list.html` - Sleep history template
+- `templates/health/sleep_form.html` - Detailed entry form
+- `templates/health/sleep_quick_form.html` - Quick log form
+
+**Files Modified:**
+- `apps/health/models.py` - Added SleepEntry model
+- `apps/health/forms.py` - Added SleepEntryForm, QuickSleepForm
+- `apps/health/views.py` - Added Sleep views and AI data integration
+- `apps/health/urls.py` - Added Sleep web and API URLs
+- `apps/health/serializers.py` - Added SleepEntrySerializer
+- `apps/users/models.py` - Added sleep sub-feature toggle
+- `apps/ai/services.py` - Added sleep data to health insights
+- `templates/health/home.html` - Added Sleep card to Health dashboard
+
+---
+
 ### Completed Reading Plans Moved to Bottom
 
 **Enhancement:** Completed reading plans are now excluded from the Featured Plans section and all other browse sections. They only appear in the "Completed Plans" section at the bottom of the page.

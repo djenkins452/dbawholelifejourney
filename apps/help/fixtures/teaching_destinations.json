@@ -950,5 +950,22 @@
             "created_at": "2026-01-17T00:00:00Z",
             "updated_at": "2026-01-17T00:00:00Z"
         }
+    },
+    {
+        "model": "help.teachingdestination",
+        "pk": 57,
+        "fields": {
+            "destination_id": "sleep-tracking",
+            "name": "Sleep Tracking",
+            "path_description": "Health - Sleep",
+            "explanation": "Log and track your sleep patterns, including bedtime, wake time, quality, and sleep stages.",
+            "url": "/health/sleep/",
+            "keywords": "sleep, track sleep, log sleep, sleep history, bedtime, wake time, sleep quality, hours slept, insomnia, rest, sleep patterns, sleep stages, rem sleep, deep sleep",
+            "module": "health",
+            "sort_order": 57,
+            "is_active": true,
+            "created_at": "2026-01-20T00:00:00Z",
+            "updated_at": "2026-01-20T00:00:00Z"
+        }
     }
 ]

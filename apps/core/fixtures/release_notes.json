@@ -1,6 +1,20 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 20,
+        "fields": {
+            "title": "Sleep Tracking",
+            "description": "Track your sleep with detailed logging or quick entry. Log bedtime, wake time, quality rating, and sleep stages. View your sleep history with charts and averages. Designed for future wearable sync with Apple Health, Fitbit, and more. Find it under Health > Sleep.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-01-20",
+            "is_published": true,
+            "is_major": true,
+            "learn_more_url": ""
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 19,
         "fields": {
             "title": "Dashboard Weather Widget",

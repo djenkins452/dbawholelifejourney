@@ -16,6 +16,49 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-21 Changes
 
+### Task 9.3: WLJ Values Guardrails
+
+**Feature:** Content filtering for AI Assistant aligned with WLJ culture (faith-positive, wellness-focused, encouraging, protective of user dignity).
+
+**Approach:**
+- Simple ALLOWED/BLOCKED filtering with appeal option
+- When blocked: "I'm sorry, that request falls outside of the content we provide. If you feel you have reached this in error, please respond 'yes' and I will notify our support team."
+- User can appeal by saying "yes" → email sent to admin with blocked content for review
+
+**Admin-configurable models:**
+- `ValuesGuardrailPattern` - Regex patterns with categories (injection, explicit, violence, hate, off_topic, etc.)
+- `ValuesRedirectSuggestion` - Module-specific redirect suggestions (for future use)
+
+**Initial patterns (12 total) detect:**
+- Prompt injection (ignore instructions, jailbreak, role change, reveal system)
+- Explicit/adult content
+- Violence and self-harm (includes crisis helpline info)
+- Illegal activities
+- Hate speech/slurs
+- Political arguments
+- Religious debates
+- Strong profanity
+
+**AssistantMessage tracking fields:**
+- `is_flagged_inappropriate` - Whether message was blocked
+- `flagged_pattern_name` - Which pattern matched
+- `user_appealed` - Whether user appealed
+- `appeal_email_sent` - Whether admin was notified
+
+**Files Changed:**
+- `apps/ai/models.py` - Added ValuesGuardrailPattern, ValuesRedirectSuggestion models
+- `apps/ai/admin.py` - Admin interface for managing patterns
+- `apps/ai/values_filter.py` - FilterService with filter_input(), filter_output(), appeal detection
+- `apps/ai/fixtures/values_guardrail_patterns.json` - 12 initial patterns
+- `apps/ai/fixtures/values_redirect_suggestions.json` - 8 module suggestions
+- `apps/ai/tests/test_values_filter.py` - 30 tests
+- `apps/ai/migrations/0017_add_values_guardrail_models.py`
+- `apps/ai/migrations/0018_add_flagging_fields_to_assistant_message.py`
+- `apps/core/management/commands/load_initial_data.py` - Register fixtures
+- `docs/task9_ai_assistant_search.md` - Updated progress
+
+---
+
 ### The Ten Commandments Reading Plan
 
 **Feature:** Added "The Ten Commandments" - first plan in the Bible Foundations series. Begins Phase 2 of reading plans roadmap.

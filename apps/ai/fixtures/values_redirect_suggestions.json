@@ -1,0 +1,114 @@
+[
+    {
+        "model": "ai.valuesredirectsuggestion",
+        "pk": 1,
+        "fields": {
+            "module": "journal",
+            "trigger_keywords": "stressed, stress, anxious, anxiety, worried, worry, upset, frustrated, angry, sad, depressed, depression, overwhelmed, burnout, exhausted, tired, can't sleep, insomnia",
+            "suggestion_text": "It sounds like you're carrying a lot right now. Writing about your feelings can be really helpful. Would you like to create a journal entry to process what you're experiencing?",
+            "follow_up_prompt": "What's weighing most heavily on your mind right now?",
+            "is_active": true,
+            "sort_order": 1,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesredirectsuggestion",
+        "pk": 2,
+        "fields": {
+            "module": "faith",
+            "trigger_keywords": "pray, prayer, god, jesus, bible, scripture, faith, spiritual, church, worship, hopeless, hope, meaning, purpose, lost, guidance, wisdom",
+            "suggestion_text": "The Faith module might be a great place to explore. You can record prayer requests, save meaningful scriptures, or follow a Bible reading plan that speaks to your heart.",
+            "follow_up_prompt": "Would you like me to help you find a reading plan or add a prayer request?",
+            "is_active": true,
+            "sort_order": 2,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesredirectsuggestion",
+        "pk": 3,
+        "fields": {
+            "module": "health",
+            "trigger_keywords": "weight, diet, exercise, workout, fitness, health, eating, food, calories, sleep, fasting, medicine, medication, blood pressure, glucose, steps",
+            "suggestion_text": "Your Health module can help you track and understand your wellness journey. You can log weight, workouts, sleep, meals, and more - and see your progress over time.",
+            "follow_up_prompt": "What aspect of your health would you like to focus on?",
+            "is_active": true,
+            "sort_order": 3,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesredirectsuggestion",
+        "pk": 4,
+        "fields": {
+            "module": "purpose",
+            "trigger_keywords": "goal, goals, dream, dreams, ambition, achieve, achievement, success, purpose, vision, future, plan, planning, milestone, progress",
+            "suggestion_text": "The Purpose module is perfect for defining and tracking your life goals. You can set meaningful goals, break them into milestones, and track your progress.",
+            "follow_up_prompt": "What's a goal that's been on your heart lately?",
+            "is_active": true,
+            "sort_order": 4,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesredirectsuggestion",
+        "pk": 5,
+        "fields": {
+            "module": "life",
+            "trigger_keywords": "task, tasks, todo, to-do, organize, organized, project, projects, event, events, calendar, schedule, busy, productive, productivity, inventory, stuff, belongings",
+            "suggestion_text": "The Organize module can help you stay on top of things. You can manage tasks, projects, events, and even keep track of important belongings.",
+            "follow_up_prompt": "What do you need to get organized?",
+            "is_active": true,
+            "sort_order": 5,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesredirectsuggestion",
+        "pk": 6,
+        "fields": {
+            "module": "finance",
+            "trigger_keywords": "money, budget, budgeting, spend, spending, save, saving, savings, expense, expenses, income, financial, finances, debt, bills, transaction",
+            "suggestion_text": "The Finance module can help you track your spending and work toward your financial goals. Understanding your money flow is an important part of wellness.",
+            "follow_up_prompt": "Would you like to log a transaction or review your spending?",
+            "is_active": true,
+            "sort_order": 6,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesredirectsuggestion",
+        "pk": 7,
+        "fields": {
+            "module": "capture",
+            "trigger_keywords": "idea, ideas, thought, thoughts, remember, reminder, voice, memo, record, recording, note, notes, capture, quick",
+            "suggestion_text": "The Capture feature lets you quickly record ideas and thoughts by voice. They're automatically transcribed and organized so you never lose an important insight.",
+            "follow_up_prompt": "Do you have something you'd like to capture right now?",
+            "is_active": true,
+            "sort_order": 7,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesredirectsuggestion",
+        "pk": 8,
+        "fields": {
+            "module": "general",
+            "trigger_keywords": "help, confused, lost, don't know, not sure, what can you do, what do you do, how does this work",
+            "suggestion_text": "I'm here to help you on your wellness journey! I can help you explore your Journal, track Health metrics, set Goals, nurture your Faith, stay Organized, manage Finances, or capture quick thoughts.",
+            "follow_up_prompt": "What area of your life would you like to focus on today?",
+            "is_active": true,
+            "sort_order": 10,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    }
+]

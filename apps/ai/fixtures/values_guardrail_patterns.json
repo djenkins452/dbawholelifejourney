@@ -1,0 +1,393 @@
+[
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 1,
+        "fields": {
+            "name": "Prompt Injection - Ignore Instructions",
+            "pattern": "\\b(ignore|disregard|forget)\\s+(all\\s+)?(previous|above|prior|your)\\s+(instructions?|prompts?|rules?)\\b",
+            "category": "injection",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": false,
+            "sort_order": 1,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 2,
+        "fields": {
+            "name": "Prompt Injection - Role Change",
+            "pattern": "\\b(you\\s+are\\s+now|act\\s+as|pretend\\s+(to\\s+be|you'?re)|roleplay\\s+as)\\b",
+            "category": "injection",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": false,
+            "sort_order": 2,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 3,
+        "fields": {
+            "name": "Prompt Injection - Jailbreak Terms",
+            "pattern": "\\b(jailbreak|DAN|bypass\\s+(safety|filter|restriction)|override\\s+(system|instruction)|developer\\s+mode|admin\\s+mode|debug\\s+mode)\\b",
+            "category": "injection",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": false,
+            "sort_order": 3,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 4,
+        "fields": {
+            "name": "Prompt Injection - Reveal System",
+            "pattern": "\\b(reveal|show|tell\\s+me|what\\s+(is|are))\\s+(your|the)\\s+(system\\s+)?prompts?\\b",
+            "category": "injection",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": false,
+            "sort_order": 4,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 5,
+        "fields": {
+            "name": "Explicit Content - Pornographic",
+            "pattern": "\\b(porn(o|ography)?|xxx|nsfw|nude(s)?|naked\\s*(pics?|photos?|images?)|sex\\s*(ual)?\\s*(content|pics?|videos?|stories?|acts?)|erotic(a|ism)?|hentai|onlyfans)\\b",
+            "category": "explicit",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 10,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 6,
+        "fields": {
+            "name": "Violence - Harm Instructions",
+            "pattern": "\\b(how\\s+to\\s+(kill|hurt|harm|attack|murder|poison)|make\\s+(a\\s+)?(bomb|weapon|explosive|poison)|instructions?\\s+(for|to)\\s+(violence|harm|killing))\\b",
+            "category": "violence",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 11,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 7,
+        "fields": {
+            "name": "Self-Harm Mentions",
+            "pattern": "\\b(want\\s+to\\s+(kill|hurt|harm)\\s+(myself|yourself)|suicid(e|al)\\s*(thoughts?|ideation|plan)?|self[- ]?harm(ing)?|end\\s+(my|it\\s+all))\\b",
+            "category": "violence",
+            "severity": "refuse",
+            "refusal_message": "I'm really concerned about what you've shared. You matter, and there are people who want to help. Please reach out to a crisis helpline: National Suicide Prevention Lifeline: 988 (US), Crisis Text Line: Text HOME to 741741. Would you like to talk about what's going on?",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 12,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 8,
+        "fields": {
+            "name": "Illegal Activities",
+            "pattern": "\\b(how\\s+to\\s+(hack|steal|break\\s+into|commit\\s+fraud|launder)|buy\\s+(drugs|illegal)|get\\s+away\\s+with|forge\\s+(documents?|signatures?))\\b",
+            "category": "illegal",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 20,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 9,
+        "fields": {
+            "name": "Hate Speech - Racial Slurs",
+            "pattern": "\\bn[i!1]gg[ae3]r|\\bsp[i!1]c\\b|\\bch[i!1]nk\\b|\\bwet[- ]?back\\b|\\bgook\\b|\\btowel[- ]?head\\b|\\bcamel[- ]?jockey\\b|\\brag[- ]?head\\b",
+            "category": "hate",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 21,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 10,
+        "fields": {
+            "name": "Hate Speech - Anti-Semitic Slurs",
+            "pattern": "\\bk[i!1]ke\\b|\\bheeb\\b|\\bjew[- ]?(boy|nose)",
+            "category": "hate",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 22,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 11,
+        "fields": {
+            "name": "Hate Speech - Anti-LGBTQ Slurs",
+            "pattern": "\\bf[a@]gg?[o0]t\\b|\\bd[yi]ke\\b|\\btranny\\b|\\bshemale\\b",
+            "category": "hate",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 23,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 12,
+        "fields": {
+            "name": "Profanity - F-word Variations",
+            "pattern": "\\bf+[u\\*]+c+k+\\b|\\bf+[u\\*]+c+k+(ing|ed|er|ers|s)?\\b|\\bfuk+\\b|\\bfvck\\b|\\bphuck\\b|\\bfck\\b|\\bwtf\\b|\\bstfu\\b",
+            "category": "other",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 40,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 13,
+        "fields": {
+            "name": "Profanity - S-word Variations",
+            "pattern": "\\bsh[i!1\\*]+t+\\b|\\bsh[i!1\\*]+t+(ty|head|face|hole|s)?\\b|\\bsh1t\\b|\\bsht\\b|\\bbullsh[i!1\\*]+t\\b",
+            "category": "other",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 41,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 14,
+        "fields": {
+            "name": "Profanity - A-word Variations",
+            "pattern": "\\bass+h[o0]+le+s?\\b|\\bass+wipe\\b|\\bjack+ass+\\b|\\bdumb+ass+\\b|\\bsmart+ass+\\b|\\bbad+ass+\\b",
+            "category": "other",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 42,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 15,
+        "fields": {
+            "name": "Profanity - B-word Variations",
+            "pattern": "\\bb[i!1]+t+c+h+\\b|\\bb[i!1]+t+c+h+(es|y|ing)?\\b|\\bson\\s+of\\s+a\\s+b[i!1]+t+c+h\\b",
+            "category": "other",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 43,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 16,
+        "fields": {
+            "name": "Profanity - C-word",
+            "pattern": "\\bc+u+n+t+s?\\b",
+            "category": "other",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 44,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 17,
+        "fields": {
+            "name": "Profanity - D-word Variations",
+            "pattern": "\\bd[i!1]+c+k+\\b|\\bd[i!1]+c+k+(head|wad|face|s)?\\b|\\bdck\\b",
+            "category": "other",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 45,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 18,
+        "fields": {
+            "name": "Profanity - Other Vulgar Terms",
+            "pattern": "\\bdamn+\\b|\\bhell+\\b(?!o)|\\bcrap+\\b|\\bpiss+(ed|ing|er)?\\b|\\bbastard+s?\\b|\\bwhore+s?\\b|\\bslut+s?\\b|\\bdouche(bag)?s?\\b",
+            "category": "other",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 46,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 19,
+        "fields": {
+            "name": "Explicit Sexual Terms",
+            "pattern": "\\bcock\\b|\\bpussy\\b|\\btits?\\b|\\bboob(s|ies)?\\b|\\bass\\b(?!ist|ess|et)|\\bboner\\b|\\bcum(ming|shot)?\\b|\\bjizz\\b|\\bblowjob\\b|\\bhandjob\\b",
+            "category": "explicit",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 47,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 20,
+        "fields": {
+            "name": "Drug Abuse Promotion",
+            "pattern": "\\bget\\s+(high|stoned|wasted|blazed|baked)\\b|\\bsmoke\\s+(weed|pot|crack|meth)\\b|\\bsnort\\s+(coke|cocaine|lines?)\\b|\\bshoot\\s+(up|heroin)\\b",
+            "category": "illegal",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 50,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 21,
+        "fields": {
+            "name": "Off-Topic - Write My Assignment",
+            "pattern": "\\bwrite\\s+(my|this|an?)\\s+(essay|paper|homework|assignment|thesis|dissertation)\\b|\\bdo\\s+(my|this)\\s+(homework|assignment)\\b",
+            "category": "off_topic",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": false,
+            "sort_order": 60,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 22,
+        "fields": {
+            "name": "Profanity - God's Name in Vain",
+            "pattern": "\\bgod\\s*damn(it)?\\b|\\bjesus\\s*(christ|h\\.?\\s*christ)?\\s*!\\b|\\bchrist\\s*!\\b|\\bomg\\b|\\bomfg\\b",
+            "category": "other",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 48,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    },
+    {
+        "model": "ai.valuesguardrailpattern",
+        "pk": 23,
+        "fields": {
+            "name": "Scam/Phishing Patterns",
+            "pattern": "\\b(send\\s+(me\\s+)?your\\s+(password|credit\\s+card|ssn|social\\s+security)|click\\s+this\\s+link|verify\\s+your\\s+account|won\\s+a\\s+prize)\\b",
+            "category": "illegal",
+            "severity": "refuse",
+            "refusal_message": "",
+            "is_active": true,
+            "applies_to_input": true,
+            "applies_to_output": true,
+            "sort_order": 25,
+            "created_at": "2026-01-21T00:00:00Z",
+            "updated_at": "2026-01-21T00:00:00Z"
+        }
+    }
+]

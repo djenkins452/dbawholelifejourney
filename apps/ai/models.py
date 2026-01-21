@@ -660,6 +660,25 @@ class AssistantMessage(models.Model):
     # User feedback
     was_helpful = models.BooleanField(null=True, blank=True)
 
+    # Values guardrails flagging
+    is_flagged_inappropriate = models.BooleanField(
+        default=False,
+        help_text="Whether this message was flagged by the values filter"
+    )
+    flagged_pattern_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Name of the pattern that triggered the flag"
+    )
+    user_appealed = models.BooleanField(
+        default=False,
+        help_text="Whether the user responded 'yes' to appeal the flag"
+    )
+    appeal_email_sent = models.BooleanField(
+        default=False,
+        help_text="Whether the appeal email was sent to admin"
+    )
+
     # Image attachment (for user messages)
     image_data = models.TextField(
         blank=True,
@@ -1105,3 +1124,244 @@ class ReflectionPromptQueue(models.Model):
         self.is_used = True
         self.used_at = timezone.now()
         self.save(update_fields=['is_used', 'used_at'])
+
+
+# =============================================================================
+# VALUES GUARDRAILS (Task 9.3)
+# =============================================================================
+
+class ValuesGuardrailPattern(models.Model):
+    """
+    Admin-configurable patterns for content filtering.
+
+    Detects inappropriate content in user messages and AI responses.
+    Patterns are regex-based for flexibility.
+    """
+    SEVERITY_CHOICES = [
+        ('refuse', 'Refuse - Block completely'),
+        ('redirect', 'Redirect - Gentle redirection'),
+    ]
+
+    CATEGORY_CHOICES = [
+        ('explicit', 'Explicit/Adult Content'),
+        ('violence', 'Violence/Harm'),
+        ('illegal', 'Illegal Activity'),
+        ('injection', 'Prompt Injection'),
+        ('hate', 'Hate Speech'),
+        ('off_topic', 'Off-Topic/Controversial'),
+        ('negative', 'Excessive Negativity'),
+        ('other', 'Other'),
+    ]
+
+    name = models.CharField(
+        max_length=100,
+        help_text="Descriptive name for this pattern"
+    )
+    pattern = models.TextField(
+        help_text="Regex pattern to match (case-insensitive). Use \\b for word boundaries."
+    )
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default='other',
+        help_text="Category of content this pattern detects"
+    )
+    severity = models.CharField(
+        max_length=10,
+        choices=SEVERITY_CHOICES,
+        default='redirect',
+        help_text="How to handle matches: refuse blocks, redirect suggests alternatives"
+    )
+    refusal_message = models.TextField(
+        blank=True,
+        help_text="Custom message for refusals. Leave blank for default."
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this pattern is currently active"
+    )
+    applies_to_input = models.BooleanField(
+        default=True,
+        help_text="Apply to user messages"
+    )
+    applies_to_output = models.BooleanField(
+        default=True,
+        help_text="Apply to AI responses"
+    )
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Patterns with lower numbers are checked first"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'category', 'name']
+        verbose_name = "Values Guardrail Pattern"
+        verbose_name_plural = "Values Guardrail Patterns"
+
+    def __str__(self):
+        status = "" if self.is_active else " (inactive)"
+        return f"{self.name} [{self.get_severity_display()}]{status}"
+
+    def save(self, *args, **kwargs):
+        # Clear cache when pattern is updated
+        cache.delete('values_guardrail_patterns_input')
+        cache.delete('values_guardrail_patterns_output')
+        cache.delete('values_guardrail_patterns_all')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        # Clear cache when pattern is deleted
+        cache.delete('values_guardrail_patterns_input')
+        cache.delete('values_guardrail_patterns_output')
+        cache.delete('values_guardrail_patterns_all')
+        super().delete(*args, **kwargs)
+
+    @classmethod
+    def get_input_patterns(cls):
+        """Get all active patterns for input filtering, with caching."""
+        cache_key = 'values_guardrail_patterns_input'
+        patterns = cache.get(cache_key)
+        if patterns is None:
+            patterns = list(cls.objects.filter(
+                is_active=True,
+                applies_to_input=True
+            ).order_by('sort_order', 'category'))
+            cache.set(cache_key, patterns, 3600)  # Cache for 1 hour
+        return patterns
+
+    @classmethod
+    def get_output_patterns(cls):
+        """Get all active patterns for output filtering, with caching."""
+        cache_key = 'values_guardrail_patterns_output'
+        patterns = cache.get(cache_key)
+        if patterns is None:
+            patterns = list(cls.objects.filter(
+                is_active=True,
+                applies_to_output=True
+            ).order_by('sort_order', 'category'))
+            cache.set(cache_key, patterns, 3600)  # Cache for 1 hour
+        return patterns
+
+
+class ValuesRedirectSuggestion(models.Model):
+    """
+    Module-specific redirect suggestions for when content is redirected.
+
+    When a user's message triggers a redirect, the AI can suggest
+    relevant WLJ modules based on keywords detected in the message.
+    """
+    MODULE_CHOICES = [
+        ('journal', 'Journal'),
+        ('faith', 'Faith'),
+        ('health', 'Health'),
+        ('purpose', 'Purpose/Goals'),
+        ('life', 'Organize/Life'),
+        ('finance', 'Finance'),
+        ('capture', 'Capture'),
+        ('general', 'General Wellness'),
+    ]
+
+    module = models.CharField(
+        max_length=20,
+        choices=MODULE_CHOICES,
+        help_text="Which WLJ module this suggestion relates to"
+    )
+    trigger_keywords = models.TextField(
+        help_text="Comma-separated keywords that trigger this suggestion (case-insensitive)"
+    )
+    suggestion_text = models.TextField(
+        help_text="The redirect message to show. Can use {module_name} placeholder."
+    )
+    follow_up_prompt = models.TextField(
+        blank=True,
+        help_text="Optional follow-up question to guide the user"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this suggestion is currently active"
+    )
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Suggestions with lower numbers are preferred"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'module']
+        verbose_name = "Values Redirect Suggestion"
+        verbose_name_plural = "Values Redirect Suggestions"
+
+    def __str__(self):
+        status = "" if self.is_active else " (inactive)"
+        return f"{self.get_module_display()} - {self.trigger_keywords[:50]}{status}"
+
+    def save(self, *args, **kwargs):
+        # Clear cache when suggestion is updated
+        cache.delete('values_redirect_suggestions')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        # Clear cache when suggestion is deleted
+        cache.delete('values_redirect_suggestions')
+        super().delete(*args, **kwargs)
+
+    def get_keywords_list(self):
+        """Parse trigger_keywords into a list."""
+        return [kw.strip().lower() for kw in self.trigger_keywords.split(',') if kw.strip()]
+
+    def format_suggestion(self):
+        """Format suggestion with module name."""
+        module_names = {
+            'journal': 'Journal',
+            'faith': 'Faith',
+            'health': 'Health',
+            'purpose': 'Purpose & Goals',
+            'life': 'Organize',
+            'finance': 'Finance',
+            'capture': 'Capture',
+            'general': 'wellness tools',
+        }
+        return self.suggestion_text.format(
+            module_name=module_names.get(self.module, self.module)
+        )
+
+    @classmethod
+    def get_all_active(cls):
+        """Get all active suggestions, with caching."""
+        cache_key = 'values_redirect_suggestions'
+        suggestions = cache.get(cache_key)
+        if suggestions is None:
+            suggestions = list(cls.objects.filter(is_active=True).order_by('sort_order'))
+            cache.set(cache_key, suggestions, 3600)  # Cache for 1 hour
+        return suggestions
+
+    @classmethod
+    def find_matching_suggestions(cls, text, limit=2):
+        """
+        Find suggestions matching keywords in the given text.
+
+        Args:
+            text: The user's message text
+            limit: Maximum number of suggestions to return
+
+        Returns:
+            List of matching ValuesRedirectSuggestion objects
+        """
+        text_lower = text.lower()
+        suggestions = cls.get_all_active()
+        matches = []
+
+        for suggestion in suggestions:
+            keywords = suggestion.get_keywords_list()
+            for keyword in keywords:
+                if keyword in text_lower:
+                    matches.append(suggestion)
+                    break  # Only add each suggestion once
+
+            if len(matches) >= limit:
+                break
+
+        return matches

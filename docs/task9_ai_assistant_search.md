@@ -86,29 +86,41 @@ Create `apps/ai/services/intent_service.py`:
 ---
 
 ### Sub-Task 9.3: WLJ Values Guardrails
-**Status:** Pending
+**Status:** ✅ Complete
 **Scope:** Content filtering aligned with WLJ culture
 
-Create `apps/ai/services/values_filter.py`:
+Created `apps/ai/values_filter.py`:
 
-**Input Filtering:**
-- Detect inappropriate requests (explicit content, harmful intent)
-- Categorize: `ALLOWED`, `REDIRECT`, `REFUSE`
+**Filtering approach:**
+- `ALLOWED`: Content passes through unchanged
+- `BLOCKED`: Content blocked with honest message + option to appeal
 
-**Redirect responses:**
-- Gentle, non-judgmental tone
-- Suggest positive alternatives
-- "Have you explored our Faith module? We have some wonderful reading plans."
-- "I'm here to support your wellness journey. How can I help with that?"
+**When blocked, user sees:**
+> "I'm sorry, that request falls outside of the content we provide. If you feel you have reached this in error, please respond 'yes' and I will notify our support team."
 
-**Output Filtering:**
-- Ensure AI responses align with WLJ values
-- Remove/modify content that conflicts with faith-positive, wellness focus
+**Appeal flow:**
+- If user responds "yes", email sent to admin with user info and blocked content
+- Message marked as appealed in database for review
 
-**Configurable via admin:**
-- Blocked keywords/patterns
-- Redirect suggestions
-- Severity levels
+**Admin-configurable via models:**
+- `ValuesGuardrailPattern` - Regex patterns with categories (injection, explicit, violence, hate, off_topic, etc.)
+- `ValuesRedirectSuggestion` - Module-specific suggestions (kept for future use if needed)
+
+**Initial fixtures include patterns for:**
+- Prompt injection attempts (ignore instructions, jailbreak, role change)
+- Explicit/adult content
+- Violence and self-harm (with crisis helpline info)
+- Illegal activities
+- Hate speech
+- Political arguments
+- Religious debates
+- Profanity
+
+**AssistantMessage fields added:**
+- `is_flagged_inappropriate` - Whether message was blocked
+- `flagged_pattern_name` - Which pattern matched
+- `user_appealed` - Whether user appealed
+- `appeal_email_sent` - Whether admin was notified
 
 ---
 
@@ -216,6 +228,19 @@ The AI should present results naturally:
   - Standardized result format with id, title, snippet, date, url, metadata
 - Next: Sub-Task 9.3 (WLJ Values Guardrails)
 
+### 2026-01-21
+- Completed Sub-Task 9.3: WLJ Values Guardrails
+  - Created `ValuesGuardrailPattern` model for admin-configurable content patterns
+  - Created `ValuesRedirectSuggestion` model for module-specific suggestions
+  - Created `apps/ai/values_filter.py` with simplified ALLOWED/BLOCKED approach
+  - Added appeal functionality (user can respond "yes" to appeal, email sent to admin)
+  - Created initial fixtures with 12 guardrail patterns and 8 redirect suggestions
+  - Added flagging fields to `AssistantMessage` model
+  - Added admin interface for managing patterns and suggestions
+  - Registered fixtures in `load_initial_data.py`
+  - Created comprehensive test suite (30 tests passing)
+- Next: Sub-Task 9.2 (Intent Detection & Query Parsing)
+
 ---
 
 ## Files Modified/Created
@@ -224,8 +249,14 @@ The AI should present results naturally:
 |------|---------|----------|
 | `apps/ai/search_service.py` | Module search methods | 9.1 ✅ |
 | `apps/ai/tests/test_search_service.py` | Search service tests | 9.1 ✅ |
+| `apps/ai/values_filter.py` | WLJ culture guardrails | 9.3 ✅ |
+| `apps/ai/tests/test_values_filter.py` | Filter tests | 9.3 ✅ |
+| `apps/ai/models.py` | ValuesGuardrailPattern, ValuesRedirectSuggestion models | 9.3 ✅ |
+| `apps/ai/admin.py` | Admin interface for guardrails | 9.3 ✅ |
+| `apps/ai/fixtures/values_guardrail_patterns.json` | Initial filter patterns | 9.3 ✅ |
+| `apps/ai/fixtures/values_redirect_suggestions.json` | Module suggestions | 9.3 ✅ |
+| `apps/ai/migrations/0017_add_values_guardrail_models.py` | Guardrail tables | 9.3 ✅ |
+| `apps/ai/migrations/0018_add_flagging_fields_to_assistant_message.py` | Message flagging | 9.3 ✅ |
 | `apps/ai/intent_service.py` | Intent detection & parsing | 9.2 |
-| `apps/ai/values_filter.py` | WLJ culture guardrails | 9.3 |
 | `apps/ai/personal_assistant.py` | Enhanced message flow | 9.4 |
 | `templates/components/chat_widget.html` | Result rendering | 9.5 |
-| `apps/ai/tests/test_values_filter.py` | Filter tests | 9.6 |

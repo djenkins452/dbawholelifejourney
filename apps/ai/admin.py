@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import CoachingStyle, AIInsight, AIUsageLog, AIPromptConfig
+from .models import (
+    CoachingStyle, AIInsight, AIUsageLog, AIPromptConfig,
+    ValuesGuardrailPattern, ValuesRedirectSuggestion
+)
 
 
 @admin.register(CoachingStyle)
@@ -84,3 +87,77 @@ class AIPromptConfigAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(ValuesGuardrailPattern)
+class ValuesGuardrailPatternAdmin(admin.ModelAdmin):
+    list_display = [
+        'name', 'category', 'severity', 'is_active',
+        'applies_to_input', 'applies_to_output', 'sort_order'
+    ]
+    list_filter = ['category', 'severity', 'is_active', 'applies_to_input', 'applies_to_output']
+    list_editable = ['is_active', 'sort_order']
+    search_fields = ['name', 'pattern', 'refusal_message']
+    ordering = ['sort_order', 'category', 'name']
+    readonly_fields = ['created_at', 'updated_at']
+
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'category', 'severity')
+        }),
+        ('Pattern', {
+            'fields': ('pattern',),
+            'description': 'Regex pattern to match. Case-insensitive. Use \\b for word boundaries.'
+        }),
+        ('Response', {
+            'fields': ('refusal_message',),
+            'description': 'Custom message for refusals. Leave blank for default.'
+        }),
+        ('Scope', {
+            'fields': (('applies_to_input', 'applies_to_output'),),
+            'description': 'Where this pattern should be applied.'
+        }),
+        ('Settings', {
+            'fields': ('is_active', 'sort_order')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(ValuesRedirectSuggestion)
+class ValuesRedirectSuggestionAdmin(admin.ModelAdmin):
+    list_display = ['module', 'trigger_keywords_preview', 'is_active', 'sort_order']
+    list_filter = ['module', 'is_active']
+    list_editable = ['is_active', 'sort_order']
+    search_fields = ['trigger_keywords', 'suggestion_text', 'follow_up_prompt']
+    ordering = ['sort_order', 'module']
+    readonly_fields = ['created_at', 'updated_at']
+
+    fieldsets = (
+        (None, {
+            'fields': ('module',)
+        }),
+        ('Triggers', {
+            'fields': ('trigger_keywords',),
+            'description': 'Comma-separated keywords that trigger this suggestion (case-insensitive).'
+        }),
+        ('Response', {
+            'fields': ('suggestion_text', 'follow_up_prompt'),
+            'description': 'The redirect message. Use {module_name} placeholder for module name.'
+        }),
+        ('Settings', {
+            'fields': ('is_active', 'sort_order')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def trigger_keywords_preview(self, obj):
+        """Show first 50 chars of keywords."""
+        return obj.trigger_keywords[:50] + ('...' if len(obj.trigger_keywords) > 50 else '')
+    trigger_keywords_preview.short_description = 'Keywords'

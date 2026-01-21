@@ -52,11 +52,13 @@ class Command(BaseCommand):
                 "difficulty": "intermediate",
                 "duration_days": 28,
                 "topics": ["gospel", "matthew", "messiah", "kingdom", "prophecy", "jesus"],
-                "series": "The Gospels",
+                "source": "The Four Gospels",
+                "source_abbreviation": "Gospels",
+                "series": "Matthew",
                 "series_order": 1,
                 "allowed_emails": [],
                 "is_active": True,
-                "is_featured": True,
+                "is_featured": False,
             }
         )
 
@@ -378,11 +380,13 @@ class Command(BaseCommand):
                 "difficulty": "beginner",
                 "duration_days": 16,
                 "topics": ["gospel", "mark", "servant", "action", "miracles", "jesus"],
-                "series": "The Gospels",
+                "source": "The Four Gospels",
+                "source_abbreviation": "Gospels",
+                "series": "Mark",
                 "series_order": 2,
                 "allowed_emails": [],
                 "is_active": True,
-                "is_featured": True,
+                "is_featured": False,
             }
         )
 
@@ -580,11 +584,13 @@ class Command(BaseCommand):
                 "difficulty": "intermediate",
                 "duration_days": 24,
                 "topics": ["gospel", "luke", "son-of-man", "compassion", "salvation", "jesus"],
-                "series": "The Gospels",
+                "source": "The Four Gospels",
+                "source_abbreviation": "Gospels",
+                "series": "Luke",
                 "series_order": 3,
                 "allowed_emails": [],
                 "is_active": True,
-                "is_featured": True,
+                "is_featured": False,
             }
         )
 
@@ -863,11 +869,13 @@ class Command(BaseCommand):
                 "difficulty": "intermediate",
                 "duration_days": 21,
                 "topics": ["gospel", "john", "son-of-god", "eternal-life", "believe", "jesus"],
-                "series": "The Gospels",
+                "source": "The Four Gospels",
+                "source_abbreviation": "Gospels",
+                "series": "John",
                 "series_order": 4,
                 "allowed_emails": [],
                 "is_active": True,
-                "is_featured": True,
+                "is_featured": False,
             }
         )
 

@@ -16,6 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-21 Changes
 
+### Gospel Reading Plans - Complete & Grouped Display
+
+**Enhancement:** Completed all Gospel reading plan content and added visual grouping similar to SHCC plans.
+
+**What's Included:**
+- **Luke**: Added days 6-24 (19 days of content)
+- **John**: Added days 6-21 (16 days of content)
+- **Visual Grouping**: All four Gospels now display in a "Gospels" tile with separate series for each Gospel book
+
+**Plan Summary:**
+- Matthew: 28 days
+- Mark: 16 days
+- Luke: 24 days
+- John: 21 days
+- **Total: 89 days** of Gospel reading content
+
+**Files Changed:**
+- `apps/faith/management/commands/load_gospel_plans.py` - Added remaining Luke/John content, updated source/series grouping
+- `apps/faith/migrations/0015_update_gospel_plans_grouping.py` - Data migration to update existing plans with grouping fields
+
+---
+
 ### Fix Heart Rate Contextual Help Loading
 
 **Fix:** Heart Rate help now shows specific content instead of falling back to generic health help.

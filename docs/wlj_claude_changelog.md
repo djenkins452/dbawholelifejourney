@@ -31,6 +31,7 @@ For active development context, see `CLAUDE.md` (project root).
 - `apps/faith/management/commands/load_daniel_plan.py` (new)
 - `apps/core/management/commands/load_initial_data.py` (updated - added Daniel loader)
 - `docs/reading_plans_roadmap.md` (updated - Phase 1 complete)
+- `apps/core/migrations/0050_daniel_reading_plan_release_note.py` (new - What's New entry)
 
 ---
 

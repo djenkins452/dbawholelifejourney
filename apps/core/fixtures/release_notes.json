@@ -1,6 +1,20 @@
 [
     {
         "model": "core.releasenote",
+        "pk": 22,
+        "fields": {
+            "title": "New Character Study: Daniel",
+            "description": "Explore Daniel: Faith in Exile - a 12-day journey through the Book of Daniel. Study Daniel's faithfulness in Babylon, the fiery furnace, the lions' den, and prophetic visions. Available in Beginner, Intermediate, and Advanced levels. Find it under Faith > Reading Plans.",
+            "entry_type": "feature",
+            "version": "",
+            "release_date": "2026-01-21",
+            "is_published": true,
+            "is_major": false,
+            "learn_more_url": ""
+        }
+    },
+    {
+        "model": "core.releasenote",
         "pk": 21,
         "fields": {
             "title": "Recurring Transactions",

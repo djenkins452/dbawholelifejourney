@@ -150,6 +150,11 @@ COMMAND_LOADERS = [
         'description': 'Ruth & Naomi: Loyalty and Redemption (People of the Bible series)',
     },
     {
+        'name': 'load_noah_plan',
+        'display': 'Noah Reading Plan',
+        'description': 'Noah: Righteous in His Generation (People of the Bible series)',
+    },
+    {
         'name': 'load_phase1_data',
         'display': 'Project Phases (1-20)',
         'description': 'AdminProjectPhase records for task management',

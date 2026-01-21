@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Noah Reading Plan
+
+**Feature:** Added third "People of the Bible" character study - Noah: Righteous in His Generation.
+
+**What's Included:**
+- 7-day reading plan through Noah's story
+- Day 1: A World Gone Wrong (Genesis 5:28-6:8)
+- Day 2: Building by Faith (Genesis 6:9-22)
+- Day 3: The Flood Begins (Genesis 7:1-24)
+- Day 4: The Waters Recede (Genesis 8:1-22)
+- Day 5: God's Covenant with Noah (Genesis 9:1-17)
+- Day 6: After the Flood (Genesis 9:18-10:32)
+- Day 7: Noah in the New Testament (Hebrews 11:7, 1 Peter 3, 2 Peter 2, Matthew 24)
+- Three difficulty levels with appropriate depth
+- Covers judgment, salvation, covenant, faith, and NT typology
+
+**Files Changed:**
+- `apps/faith/management/commands/load_noah_plan.py` (new)
+- `apps/core/management/commands/load_initial_data.py` (updated - added Noah loader)
+- `docs/reading_plans_roadmap.md` (updated - status)
+
+---
+
 ### Ruth & Naomi Reading Plan
 
 **Feature:** Added second "People of the Bible" character study - Ruth & Naomi: Loyalty and Redemption.

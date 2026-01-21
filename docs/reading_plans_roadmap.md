@@ -2,7 +2,7 @@
 
 **Created:** 2026-01-20
 **Status:** In Progress
-**Last Updated:** 2026-01-20 (Noah deployed)
+**Last Updated:** 2026-01-20 (Daniel deployed - Phase 1 Complete!)
 
 This document tracks the development of Bible reading plans for the Whole Life Journey app. Each plan follows the established structure with three difficulty levels (Beginner, Intermediate, Advanced) and includes context summaries, commentary at each level, and reflection prompts.
 
@@ -79,7 +79,7 @@ All reading plans MUST meet these standards before deployment:
 | Plan | Key Passages | Est. Days | Status | File |
 |------|--------------|-----------|--------|------|
 | King David: Shepherd to King | 1 Sam 16-31, 2 Sam, 1 Kings 1-2, selected Psalms | 21-28 | [ ] | `load_david_plan.py` |
-| Daniel: Faith in Exile | Daniel 1-12 | 12 | [ ] | `load_daniel_plan.py` |
+| Daniel: Faith in Exile | Daniel 1-12 | 12 | [x] | `load_daniel_plan.py` |
 | Noah: Righteous in His Generation | Gen 5:28-10:32, Heb 11:7, 1 Pet 3:20, 2 Pet 2:5 | 7 | [x] | `load_noah_plan.py` |
 | Moses: Deliverer and Lawgiver | Exodus, selected Numbers/Deuteronomy | 28-35 | [ ] | `load_moses_plan.py` |
 | Isaiah: Prophet of the Messiah | Isaiah (selected), 2 Kings 19-20 | 21 | [ ] | `load_isaiah_plan.py` |
@@ -167,7 +167,7 @@ The following order is recommended to provide variety across categories:
 1. [x] **Jonah: The Reluctant Prophet** (5 days) - Short, powerful narrative - DEPLOYED 2026-01-20
 2. [x] **Ruth & Naomi: Loyalty and Redemption** (4 days) - Short, beloved story - DEPLOYED 2026-01-20
 3. [x] **Noah: Righteous in His Generation** (7 days) - Foundational story - DEPLOYED 2026-01-20
-4. [ ] **Daniel: Faith in Exile** (12 days) - Popular, clear narrative
+4. [x] **Daniel: Faith in Exile** (12 days) - Popular, clear narrative - DEPLOYED 2026-01-20
 
 ### Phase 2: Foundational Topics
 5. [ ] **The Ten Commandments** (10-12 days) - Core teaching
@@ -196,11 +196,11 @@ Continue with remaining plans based on user interest and feedback.
 
 ## Current Work
 
-**Last Completed:** Noah: Righteous in His Generation (2026-01-20)
+**Last Completed:** Daniel: Faith in Exile (2026-01-20) - Phase 1 Complete!
 
-**Next Plan to Implement:** Daniel: Faith in Exile
+**Next Plan to Implement:** The Ten Commandments (Phase 2)
 
-**Command file:** `apps/faith/management/commands/load_daniel_plan.py`
+**Command file:** `apps/faith/management/commands/load_ten_commandments_plan.py`
 
 ---
 

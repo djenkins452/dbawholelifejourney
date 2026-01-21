@@ -2,7 +2,7 @@
 
 **Created:** 2026-01-20
 **Status:** In Progress
-**Last Updated:** 2026-01-20 (Jonah deployed)
+**Last Updated:** 2026-01-20 (Ruth deployed)
 
 This document tracks the development of Bible reading plans for the Whole Life Journey app. Each plan follows the established structure with three difficulty levels (Beginner, Intermediate, Advanced) and includes context summaries, commentary at each level, and reflection prompts.
 
@@ -88,7 +88,7 @@ All reading plans MUST meet these standards before deployment:
 | Abraham: Father of Faith | Gen 11:27-25:11, Rom 4, Gal 3, Heb 11 | 14-21 | [ ] | `load_abraham_plan.py` |
 | Joseph: From Pit to Palace | Gen 37-50 | 14 | [ ] | `load_joseph_plan.py` |
 | Elijah & Elisha: Prophets of Power | 1 Kings 17-2 Kings 13 | 14 | [ ] | `load_elijah_elisha_plan.py` |
-| Ruth & Naomi: Loyalty and Redemption | Ruth 1-4 | 4 | [ ] | `load_ruth_plan.py` |
+| Ruth & Naomi: Loyalty and Redemption | Ruth 1-4 | 4 | [x] | `load_ruth_plan.py` |
 | Esther: Courage in the Kingdom | Esther 1-10 | 10 | [ ] | `load_esther_plan.py` |
 | Peter: From Fisherman to Rock | Gospels, Acts, 1-2 Peter | 14 | [ ] | `load_peter_plan.py` |
 | Paul: Apostle to the Nations | Acts 9-28, epistles intro | 21 | [ ] | `load_paul_plan.py` |
@@ -165,7 +165,7 @@ The following order is recommended to provide variety across categories:
 
 ### Phase 1: Character Studies (Quick Wins)
 1. [x] **Jonah: The Reluctant Prophet** (5 days) - Short, powerful narrative - DEPLOYED 2026-01-20
-2. [ ] **Ruth & Naomi: Loyalty and Redemption** (4 days) - Short, beloved story
+2. [x] **Ruth & Naomi: Loyalty and Redemption** (4 days) - Short, beloved story - DEPLOYED 2026-01-20
 3. [ ] **Noah: Righteous in His Generation** (7 days) - Foundational story
 4. [ ] **Daniel: Faith in Exile** (12 days) - Popular, clear narrative
 
@@ -196,11 +196,11 @@ Continue with remaining plans based on user interest and feedback.
 
 ## Current Work
 
-**Last Completed:** Jonah: The Reluctant Prophet (2026-01-20)
+**Last Completed:** Ruth & Naomi: Loyalty and Redemption (2026-01-20)
 
-**Next Plan to Implement:** Ruth & Naomi: Loyalty and Redemption
+**Next Plan to Implement:** Noah: Righteous in His Generation
 
-**Command file:** `apps/faith/management/commands/load_ruth_plan.py`
+**Command file:** `apps/faith/management/commands/load_noah_plan.py`
 
 ---
 

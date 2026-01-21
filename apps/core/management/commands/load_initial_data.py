@@ -67,6 +67,16 @@ FIXTURE_LOADERS = [
         'description': 'System prompts for AI features',
     },
     {
+        'name': 'values_guardrail_patterns',
+        'display': 'Values Guardrail Patterns',
+        'description': 'Content filtering patterns for AI safety (Task 9.3)',
+    },
+    {
+        'name': 'values_redirect_suggestions',
+        'display': 'Values Redirect Suggestions',
+        'description': 'Module-specific redirect messages for AI (Task 9.3)',
+    },
+    {
         'name': 'help_topics',
         'display': 'Help Topics',
         'description': 'User help documentation topics',
@@ -158,6 +168,11 @@ COMMAND_LOADERS = [
         'name': 'load_daniel_plan',
         'display': 'Daniel Reading Plan',
         'description': 'Daniel: Faith in Exile (People of the Bible series)',
+    },
+    {
+        'name': 'load_ten_commandments_plan',
+        'display': 'Ten Commandments Reading Plan',
+        'description': 'The Ten Commandments (Bible Foundations series)',
     },
     {
         'name': 'load_phase1_data',

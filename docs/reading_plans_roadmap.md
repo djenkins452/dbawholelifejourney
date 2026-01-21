@@ -116,7 +116,7 @@ All reading plans MUST meet these standards before deployment:
 
 | Plan | Content | Est. Days | Status | File |
 |------|---------|-----------|--------|------|
-| The Ten Commandments | Exodus 20, Deut 5, Jesus' teaching on each | 10-12 | [ ] | `load_ten_commandments_plan.py` |
+| The Ten Commandments | Exodus 20, Deut 5, Jesus' teaching on each | 10 | [x] | `load_ten_commandments_plan.py` |
 | Creation, Fall & Redemption | Gen 1-3, Rom 5, Rev 21-22 | 7-10 | [ ] | `load_creation_fall_redemption_plan.py` |
 | The Lineage of Christ | Key genealogies & their significance | 7-10 | [ ] | `load_lineage_of_christ_plan.py` |
 | Covenants of the Bible | Noah, Abraham, Moses, David, New Covenant | 7-10 | [ ] | `load_covenants_plan.py` |
@@ -170,7 +170,7 @@ The following order is recommended to provide variety across categories:
 4. [x] **Daniel: Faith in Exile** (12 days) - Popular, clear narrative - DEPLOYED 2026-01-20
 
 ### Phase 2: Foundational Topics
-5. [ ] **The Ten Commandments** (10-12 days) - Core teaching
+5. [x] **The Ten Commandments** (10 days) - Core teaching - DEPLOYED 2026-01-21
 6. [ ] **Creation, Fall & Redemption** (7-10 days) - Essential foundation
 
 ### Phase 3: Paul's Shorter Letters
@@ -196,11 +196,11 @@ Continue with remaining plans based on user interest and feedback.
 
 ## Current Work
 
-**Last Completed:** Daniel: Faith in Exile (2026-01-20) - Phase 1 Complete!
+**Last Completed:** The Ten Commandments (2026-01-21) - Phase 2 started!
 
-**Next Plan to Implement:** The Ten Commandments (Phase 2)
+**Next Plan to Implement:** Creation, Fall & Redemption (Phase 2)
 
-**Command file:** `apps/faith/management/commands/load_ten_commandments_plan.py`
+**Command file:** `apps/faith/management/commands/load_creation_fall_redemption_plan.py`
 
 ---
 
@@ -213,4 +213,4 @@ Continue with remaining plans based on user interest and feedback.
 
 ---
 
-*Last updated: 2026-01-20*
+*Last updated: 2026-01-21*

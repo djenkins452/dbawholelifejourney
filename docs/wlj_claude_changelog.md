@@ -16,6 +16,37 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-21 Changes
 
+### The Ten Commandments Reading Plan
+
+**Feature:** Added "The Ten Commandments" - first plan in the Bible Foundations series. Begins Phase 2 of reading plans roadmap.
+
+**What's Included:**
+- 10-day reading plan (one commandment per day)
+- Primary texts: Exodus 20 and Deuteronomy 5
+- Jesus' teaching on each commandment included where applicable
+- Three difficulty levels (Beginner, Intermediate, Advanced)
+- Thorough commentary with Hebrew terms, historical context, and NT connections
+- Reflection prompts for personal application
+
+**Topics Covered:**
+1. No Other Gods - Foundation of exclusive worship
+2. No Idols - How God is (not) to be worshiped
+3. God's Name - Protecting the sacred name
+4. The Sabbath - Rhythm of work and rest
+5. Honor Parents - Bridge between God and neighbor duties
+6. Do Not Murder - Sanctity of life
+7. Do Not Commit Adultery - Marriage covenant
+8. Do Not Steal - Property and generosity
+9. Do Not Bear False Witness - Truth-telling
+10. Do Not Covet - The heart beneath behavior
+
+**Files Changed:**
+- `apps/faith/management/commands/load_ten_commandments_plan.py` (new)
+- `apps/core/management/commands/load_initial_data.py` (updated - added Ten Commandments loader)
+- `docs/reading_plans_roadmap.md` (updated - Phase 2 started)
+
+---
+
 ### Fix: AI Personal Context Release Note Migration
 
 **Bug:** Migration `0051_ai_personal_context_release_note.py` failed in production with `DataError: value too long for type character varying(20)`.

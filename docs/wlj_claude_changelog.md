@@ -16,6 +16,43 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Bible Reading Plans Roadmap & Jonah Plan
+
+**Feature:** Established a comprehensive Bible reading plans project with roadmap and first "People of the Bible" character study.
+
+**What's Included:**
+
+1. **Roadmap Document** (`docs/reading_plans_roadmap.md`)
+   - Comprehensive listing of 40+ planned reading plans
+   - Organized into 8 categories: Gospels, Paul's Letters, Character Studies, Wisdom/Poetry, Foundational Topics, Jesus' Teachings, Christian Living, Church History
+   - Quality standards for biblical accuracy, difficulty levels, readability
+   - Implementation priority order (Phase 1-6)
+   - Status tracking for each plan
+
+2. **Jonah: The Reluctant Prophet** (`apps/faith/management/commands/load_jonah_plan.py`)
+   - 5-day reading plan through the book of Jonah
+   - Day 1: Running from God (Jonah 1:1-16)
+   - Day 2: Prayer from the Depths (Jonah 1:17-2:10)
+   - Day 3: Nineveh Repents (Jonah 3:1-10)
+   - Day 4: God's Compassion Revealed (Jonah 4:1-11)
+   - Day 5: Lessons from Jonah (review + Matthew 12:38-41)
+   - Three difficulty levels with appropriate depth
+   - Non-denominational, Bible-based content
+   - Registered in `load_initial_data.py` for auto-deploy
+
+3. **CLAUDE.md Updates**
+   - Added "Bible Reading Plans Project" section
+   - Links to roadmap document
+   - Instructions for continuing the project
+
+**Files Changed:**
+- `docs/reading_plans_roadmap.md` (new)
+- `apps/faith/management/commands/load_jonah_plan.py` (new)
+- `apps/core/management/commands/load_initial_data.py` (updated - added Jonah loader)
+- `CLAUDE.md` (updated - added project section)
+
+---
+
 ### Gospel Reading Plans with Difficulty Levels
 
 **Feature:** Create "The Gospels" reading plan series (Matthew, Mark, Luke, John) with three difficulty levels and enhanced AI context.

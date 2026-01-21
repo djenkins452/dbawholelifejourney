@@ -140,6 +140,11 @@ COMMAND_LOADERS = [
         'description': 'The Gospels series (Matthew, Mark, Luke, John)',
     },
     {
+        'name': 'load_jonah_plan',
+        'display': 'Jonah Reading Plan',
+        'description': 'Jonah: The Reluctant Prophet (People of the Bible series)',
+    },
+    {
         'name': 'load_phase1_data',
         'display': 'Project Phases (1-20)',
         'description': 'AdminProjectPhase records for task management',

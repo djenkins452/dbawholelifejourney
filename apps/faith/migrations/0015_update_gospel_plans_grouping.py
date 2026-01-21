@@ -7,18 +7,19 @@ def update_gospel_plans(apps, schema_editor):
     """Update Gospel reading plans to use source/series grouping."""
     ReadingPlanTemplate = apps.get_model('faith', 'ReadingPlanTemplate')
 
+    # All Gospels go in same series "The Four Gospels" so they display in one grid
     gospel_updates = {
-        'journey-through-matthew': {'series': 'Matthew', 'series_order': 1},
-        'journey-through-mark': {'series': 'Mark', 'series_order': 2},
-        'journey-through-luke': {'series': 'Luke', 'series_order': 3},
-        'journey-through-john': {'series': 'John', 'series_order': 4},
+        'journey-through-matthew': {'series_order': 1},
+        'journey-through-mark': {'series_order': 2},
+        'journey-through-luke': {'series_order': 3},
+        'journey-through-john': {'series_order': 4},
     }
 
     for slug, updates in gospel_updates.items():
         ReadingPlanTemplate.objects.filter(slug=slug).update(
             source='The Four Gospels',
             source_abbreviation='Gospels',
-            series=updates['series'],
+            series='The Four Gospels',
             series_order=updates['series_order'],
             is_featured=False,
         )

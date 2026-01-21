@@ -97,7 +97,7 @@
                     <div class="card-body">
                         <div class="badge-row">
                             <span class="badge badge-{{ plan.category }}">{{ plan.get_category_display }}</span>
-                            {% if plan.series_order %}
+                            {% if plan.series_order and plan.category == 'devotional' %}
                             <span class="badge badge-series-order">Week {{ plan.series_order }}</span>
                             {% endif %}
                             {% if plan.pk in completed_template_ids %}

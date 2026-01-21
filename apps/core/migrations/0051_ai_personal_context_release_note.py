@@ -9,11 +9,11 @@ def create_release_note(apps, schema_editor):
     ReleaseNote = apps.get_model('core', 'ReleaseNote')
 
     # Check if already exists
-    if ReleaseNote.objects.filter(version='2026.01.20-ai-context').exists():
+    if ReleaseNote.objects.filter(version='2026.01.20-memory').exists():
         return
 
     ReleaseNote.objects.create(
-        version='2026.01.20-ai-context',
+        version='2026.01.20-memory',
         title='AI Now Remembers You',
         description=(
             'Your AI assistant now learns and remembers personal facts from your conversations '
@@ -36,7 +36,7 @@ def create_release_note(apps, schema_editor):
 def reverse_release_note(apps, schema_editor):
     """Remove the release note."""
     ReleaseNote = apps.get_model('core', 'ReleaseNote')
-    ReleaseNote.objects.filter(version='2026.01.20-ai-context').delete()
+    ReleaseNote.objects.filter(version='2026.01.20-memory').delete()
 
 
 class Migration(migrations.Migration):

@@ -16,6 +16,19 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-21 Changes
 
+### Fix: AI Personal Context Release Note Migration
+
+**Bug:** Migration `0051_ai_personal_context_release_note.py` failed in production with `DataError: value too long for type character varying(20)`.
+
+**Cause:** The `version` field in `ReleaseNote` model has `max_length=20`, but the version string `'2026.01.20-ai-context'` was 21 characters.
+
+**Fix:** Shortened version string from `'2026.01.20-ai-context'` to `'2026.01.20-memory'` (18 characters).
+
+**Files Changed:**
+- `apps/core/migrations/0051_ai_personal_context_release_note.py`
+
+---
+
 ### Daniel Reading Plan
 
 **Feature:** Added fourth "People of the Bible" character study - Daniel: Faith in Exile. Completes Phase 1 of reading plans roadmap.

@@ -242,6 +242,15 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         except Exception:
             context['cycle_tracking_enabled'] = False
 
+        # AI Personal Context (learned facts from conversations)
+        ai_personal_context = prefs.ai_personal_context or ''
+        context['ai_personal_context'] = ai_personal_context
+        # Count facts (non-empty lines)
+        context['ai_personal_context_count'] = len([
+            line for line in ai_personal_context.split('\n')
+            if line.strip()
+        ]) if ai_personal_context else 0
+
         return context
 
     def form_valid(self, form):
@@ -273,6 +282,10 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         # If SMS is disabled, clear consent
         if not instance.sms_enabled:
             instance.sms_consent = False
+
+        # Handle AI Personal Context (not a form field due to encryption)
+        ai_personal_context = self.request.POST.get('ai_personal_context', '').strip()
+        instance.ai_personal_context = ai_personal_context
 
         messages.success(self.request, "Preferences saved successfully.")
         return super().form_valid(form)

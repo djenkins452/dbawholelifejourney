@@ -51,6 +51,8 @@ class DashboardAI:
         self.faith_enabled = self.prefs.faith_enabled
         self.coaching_style = getattr(self.prefs, 'ai_coaching_style', 'supportive')
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
+        # AI-learned personal context for empathetic responses
+        self.personal_context = getattr(self.prefs, 'ai_personal_context', '') or ''
     
     def get_daily_insight(self, force_refresh: bool = False) -> str:
         """

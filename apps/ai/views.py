@@ -391,10 +391,16 @@ class ClearConversationView(LoginRequiredMixin, View):
     Clear the active conversation, starting fresh.
 
     This allows users to clear their chat history and start a new conversation.
+    Before clearing, we extract any personal context from the conversation
+    to help the AI respond more empathetically in the future.
     """
 
     def post(self, request, *args, **kwargs):
         try:
+            # Extract personal context before clearing the conversation
+            # This captures valuable personal facts the user shared
+            self._extract_personal_context_before_clear(request.user)
+
             conversation = AssistantConversation.clear_active_conversation(request.user)
 
             return JsonResponse({
@@ -409,6 +415,40 @@ class ClearConversationView(LoginRequiredMixin, View):
                 'success': False,
                 'error': 'Failed to clear conversation',
             }, status=500)
+
+    def _extract_personal_context_before_clear(self, user):
+        """
+        Extract personal context from the active conversation before clearing it.
+
+        This runs asynchronously-ish (we don't wait for it to complete) to avoid
+        slowing down the clear operation for the user.
+        """
+        try:
+            from .personal_context import update_user_personal_context
+
+            # Get the active conversation
+            conversation = AssistantConversation.objects.filter(
+                user=user,
+                is_active=True
+            ).first()
+
+            if not conversation:
+                return
+
+            # Get all messages from the conversation
+            messages = list(conversation.messages.order_by('created_at').values(
+                'role', 'content'
+            ))
+
+            if not messages:
+                return
+
+            # Extract and update personal context
+            update_user_personal_context(user, messages)
+
+        except Exception as e:
+            # Log but don't fail the clear operation
+            logger.warning(f"Personal context extraction failed: {e}", exc_info=True)
 
 
 # =============================================================================

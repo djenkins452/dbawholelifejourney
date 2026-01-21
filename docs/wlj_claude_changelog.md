@@ -16,6 +16,46 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### AI Personal Context Memory
+
+**Feature:** AI assistant now learns and remembers personal facts about users from conversations to provide more empathetic, contextually-aware responses.
+
+**What's Included:**
+- **Encrypted storage:** New `ai_personal_context` field in UserPreferences, encrypted at rest
+- **Automatic extraction:** Personal facts are extracted before conversation is cleared
+- **Opt-out support:** Users can say "don't save that" during a conversation to prevent specific info from being stored
+- **Full user control:** Users can view, edit, or clear their learned context in Settings
+- **AI integration:** Context is injected into AI system prompts for sensitivity (never brought up unprompted)
+- **Truth principle:** When user asks for hard truths, AI gives unfiltered honesty regardless of context
+
+**How it works:**
+1. User chats with AI and shares personal info (e.g., "My parents divorced when I was 8")
+2. Before conversation is cleared, facts are extracted and stored
+3. Later, AI knows to avoid insensitive comments about "intact families"
+4. User can always view/edit what the AI knows in Settings > What I Know About You
+
+**Files Changed:**
+- `apps/core/encryption.py` - Added personal data encryption functions
+- `apps/users/models.py` - Added `ai_personal_context` encrypted field with property accessors
+- `apps/users/migrations/0045_add_ai_personal_context.py` - Database migration
+- `apps/ai/personal_context.py` - New extraction service (opt-out detection, merging, prompt building)
+- `apps/ai/views.py` - Hook extraction into conversation clear
+- `apps/ai/personal_assistant.py` - Include personal context in system prompts
+- `apps/ai/services.py` - Include personal context in AI service prompts
+- `apps/ai/dashboard_ai.py` - Load personal context in dashboard AI
+- `apps/users/views.py` - Add context to preferences view and handle saving
+- `templates/users/preferences.html` - "What I Know About You" settings section
+- `apps/ai/tests/test_personal_context.py` - Test coverage for opt-out detection, merging, removal
+
+---
+
+### Task 9.1: Search Service Infrastructure
+
+- **Feature:** Task 9.1: Search Service Infrastructure - created SearchService class with unified search across all 7 WLJ modules (Journal, Health, Goals, Faith, Organize, Finance, Capture)
+  - Files: apps/ai/search_service.py, apps/ai/tests/test_search_service.py, docs/task9_ai_assistant_search.md
+
+---
+
 ### Noah Reading Plan
 
 **Feature:** Added third "People of the Bible" character study - Noah: Righteous in His Generation.

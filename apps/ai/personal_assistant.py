@@ -266,15 +266,17 @@ def get_coaching_style_for_assistant(coaching_style: str) -> str:
 
 
 def build_personal_assistant_prompt(coaching_style: str, faith_enabled: bool,
-                                     user_profile: str = None, time_context: dict = None) -> str:
+                                     user_profile: str = None, time_context: dict = None,
+                                     personal_context: str = None) -> str:
     """
     Build the complete Personal Assistant system prompt with coaching style.
 
     Args:
         coaching_style: User's selected coaching style (e.g., 'supportive', 'direct')
         faith_enabled: Whether faith module is enabled
-        user_profile: User's personal AI profile
+        user_profile: User's personal AI profile (user-written)
         time_context: Dict with current_time, hours_remaining, day_status, urgency_message
+        personal_context: AI-learned personal facts about the user
     """
     prompt = PERSONAL_ASSISTANT_BASE_PROMPT
 
@@ -319,12 +321,19 @@ Your user prefers SUPPORTIVE communication:
     if faith_enabled:
         prompt += "\n" + FAITH_INTEGRATION_PROMPT
 
-    # Add user profile context if provided
+    # Add user profile context if provided (user-written description)
     if user_profile:
         from .profile_moderation import build_safe_profile_context
         profile_context = build_safe_profile_context(user_profile)
         if profile_context:
             prompt += "\n\nUSER CONTEXT:\n" + profile_context
+
+    # Add AI-learned personal context if available
+    if personal_context:
+        from .personal_context import build_personal_context_prompt
+        context_prompt = build_personal_context_prompt(personal_context)
+        if context_prompt:
+            prompt += context_prompt
 
     return prompt
 
@@ -431,6 +440,8 @@ class PersonalAssistant:
         self.faith_enabled = self.prefs.faith_enabled
         self.coaching_style = getattr(self.prefs, 'ai_coaching_style', 'supportive')
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
+        # AI-learned personal context for empathetic responses
+        self.personal_context = getattr(self.prefs, 'ai_personal_context', '') or ''
         # For data visibility confirmation flow
         self._data_visibility_response = None
 
@@ -497,7 +508,8 @@ class PersonalAssistant:
             coaching_style=self.coaching_style,
             faith_enabled=self.faith_enabled,
             user_profile=self.user_profile,
-            time_context=time_context
+            time_context=time_context,
+            personal_context=self.personal_context
         )
 
     # =========================================================================

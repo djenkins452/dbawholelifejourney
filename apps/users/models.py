@@ -547,6 +547,34 @@ class UserPreferences(models.Model):
         help_text="If set, hide the AI profile nudge until this datetime (for 'remind me later')",
     )
 
+    # AI Personal Context - automatically learned facts about the user from conversations
+    # This is encrypted at rest for privacy. Users can view and edit this in settings.
+    # Format: Human-readable text, one fact per line (e.g., "Your parents divorced when you were young")
+    _ai_personal_context = models.TextField(
+        blank=True,
+        default='',
+        db_column='ai_personal_context',
+        help_text='Encrypted: Facts learned about the user from AI conversations for personalized responses',
+    )
+
+    @property
+    def ai_personal_context(self) -> str:
+        """Get decrypted personal context."""
+        if not self._ai_personal_context:
+            return ''
+        from apps.core.encryption import decrypt_personal_data_safe
+        decrypted, success = decrypt_personal_data_safe(self._ai_personal_context)
+        return decrypted if success else ''
+
+    @ai_personal_context.setter
+    def ai_personal_context(self, value: str):
+        """Set and encrypt personal context."""
+        if not value:
+            self._ai_personal_context = ''
+            return
+        from apps.core.encryption import encrypt_personal_data
+        self._ai_personal_context = encrypt_personal_data(value)
+
     # ===================
     # PERSONAL ASSISTANT MODULE
     # ===================

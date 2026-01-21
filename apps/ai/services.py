@@ -161,7 +161,8 @@ class AIService:
     def _get_system_prompt(self, faith_enabled: bool = False,
                            coaching_style: str = 'supportive',
                            prompt_type: str = None,
-                           user_profile: str = None) -> str:
+                           user_profile: str = None,
+                           personal_context: str = None) -> str:
         """Get the base system prompt for AI interactions.
 
         If prompt_type is provided and exists in database, uses that config.
@@ -177,8 +178,9 @@ class AIService:
             coaching_style: The user's preferred coaching style
             prompt_type: Specific prompt type for database lookup
             user_profile: User's personal AI profile for personalization
+            personal_context: AI-learned personal facts about the user
         """
-        # Try to get cached base prompt (without user profile)
+        # Try to get cached base prompt (without user profile or personal context)
         cache_key = f'system_prompt_{coaching_style}_{faith_enabled}'
         base = cache.get(cache_key)
 
@@ -213,6 +215,13 @@ class AIService:
             if profile_context:
                 base += "\n\n" + profile_context
                 base += "\n" + PROFILE_SAFETY_INSTRUCTIONS
+
+        # Add AI-learned personal context if provided (not cached - varies per user)
+        if personal_context:
+            from .personal_context import build_personal_context_prompt
+            context_prompt = build_personal_context_prompt(personal_context)
+            if context_prompt:
+                base += context_prompt
 
         return base
 

@@ -262,3 +262,147 @@ def generate_oauth_encryption_key() -> str:
     """
     from cryptography.fernet import Fernet
     return Fernet.generate_key().decode()
+
+
+# =============================================================================
+# USER PERSONAL DATA ENCRYPTION
+# =============================================================================
+# Separate encryption key for user personal data (AI personal context, etc.)
+# This keeps user personal data separate from OAuth tokens for security isolation.
+
+
+def get_personal_data_fernet():
+    """
+    Get a Fernet instance using the configured personal data encryption key.
+
+    Falls back to OAUTH_TOKEN_ENCRYPTION_KEY if PERSONAL_DATA_ENCRYPTION_KEY
+    is not set (for backwards compatibility during transition).
+
+    Returns:
+        Fernet instance or None if not configured
+    """
+    # Try dedicated personal data key first, fall back to OAuth key
+    key = getattr(settings, 'PERSONAL_DATA_ENCRYPTION_KEY', None)
+    if not key:
+        key = getattr(settings, 'OAUTH_TOKEN_ENCRYPTION_KEY', None)
+
+    if not key:
+        logger.warning(
+            "PERSONAL_DATA_ENCRYPTION_KEY not configured. "
+            "Personal data encryption is disabled."
+        )
+        return None
+
+    try:
+        from cryptography.fernet import Fernet
+        return Fernet(key.encode() if isinstance(key, str) else key)
+    except Exception as e:
+        logger.error(f"Invalid personal data encryption key: {e}")
+        raise ValueError(
+            "Personal data encryption key is invalid. "
+            "Generate a new key with: Fernet.generate_key()"
+        )
+
+
+def encrypt_personal_data(plaintext: str) -> str:
+    """
+    Encrypt personal user data for secure database storage.
+
+    Used for sensitive user information like AI personal context that
+    should be encrypted at rest.
+
+    Args:
+        plaintext: The data to encrypt
+
+    Returns:
+        Encrypted data as a string, or plaintext if encryption not configured
+    """
+    if not plaintext:
+        return ''
+
+    fernet = get_personal_data_fernet()
+
+    if fernet is None:
+        # Development fallback - NOT for production
+        logger.warning("Storing personal data WITHOUT encryption (dev mode only)")
+        return f"UNENCRYPTED:{plaintext}"
+
+    try:
+        encrypted = fernet.encrypt(plaintext.encode())
+        return encrypted.decode()
+    except Exception as e:
+        logger.error(f"Personal data encryption failed: {e}")
+        raise
+
+
+def decrypt_personal_data(ciphertext: str) -> str:
+    """
+    Decrypt personal user data retrieved from the database.
+
+    Args:
+        ciphertext: The encrypted data string
+
+    Returns:
+        Decrypted plaintext
+
+    Raises:
+        ValueError: If decryption fails (invalid key or corrupted data)
+    """
+    if not ciphertext:
+        return ''
+
+    # Handle unencrypted development data
+    if ciphertext.startswith('UNENCRYPTED:'):
+        logger.warning("Reading unencrypted personal data (dev mode only)")
+        return ciphertext[12:]  # Remove prefix
+
+    fernet = get_personal_data_fernet()
+
+    if fernet is None:
+        raise ValueError(
+            "Cannot decrypt personal data: encryption key not configured"
+        )
+
+    try:
+        decrypted = fernet.decrypt(ciphertext.encode())
+        return decrypted.decode()
+    except Exception as e:
+        logger.error(f"Personal data decryption failed: {e}")
+        raise ValueError("Personal data decryption failed. Key may have changed.")
+
+
+def decrypt_personal_data_safe(ciphertext: str) -> tuple[str, bool]:
+    """
+    Safely decrypt personal data, returning status instead of raising.
+
+    This is used by model properties to gracefully handle decryption failures
+    without crashing the application.
+
+    Args:
+        ciphertext: The encrypted data string
+
+    Returns:
+        Tuple of (decrypted_value, success_bool)
+        - On success: (plaintext, True)
+        - On failure: ('', False)
+    """
+    if not ciphertext:
+        return ('', True)
+
+    # Handle unencrypted development data
+    if ciphertext.startswith('UNENCRYPTED:'):
+        logger.warning("Reading unencrypted personal data (dev mode only)")
+        return (ciphertext[12:], True)
+
+    fernet = get_personal_data_fernet()
+
+    if fernet is None:
+        logger.error("Cannot decrypt personal data: encryption key not configured")
+        return ('', False)
+
+    try:
+        decrypted = fernet.decrypt(ciphertext.encode())
+        return (decrypted.decode(), True)
+    except Exception as e:
+        logger.error(f"Personal data decryption failed: {e}")
+        return ('', False)

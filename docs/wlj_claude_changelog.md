@@ -14,6 +14,32 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-21 Changes
+
+### Fix Heart Rate Contextual Help Loading
+
+**Fix:** Heart Rate help now shows specific content instead of falling back to generic health help.
+
+**Problem:**
+- The `help_topics` fixture was loaded to production BEFORE the Heart Rate specific content was added
+- The `DataLoadConfig` system tracks loaded fixtures and skips them on subsequent deploys
+- When the fixture was updated with `HEALTH_HEART_RATE` content, it wasn't reloaded
+- Result: Heart Rate help fell back to `HEALTH_HOME` instead of showing specific content
+
+**Solution:**
+Created a data migration to reset the `help_topics` loader, which will cause the fixture to reload on next deploy with all specific health sub-page help topics.
+
+**Files Changed:**
+- `apps/admin_console/migrations/0022_reset_help_topics_loader.py` - Migration to reset help_topics loader
+
+**Auto-reload:** Migration resets the loader, so `load_initial_data` will reload the `help_topics.json` fixture automatically on next Railway deploy. This will load:
+- `HEALTH_HEART_RATE` - Heart Rate specific help
+- `HEALTH_WEIGHT` - Weight tracking help
+- `HEALTH_FASTING` - Fasting tracking help
+- `HEALTH_FITNESS` - Fitness/workout help
+
+---
+
 ## 2026-01-20 Changes
 
 ### Contextual Help System

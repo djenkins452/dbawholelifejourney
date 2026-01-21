@@ -16,6 +16,70 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Gospel Reading Plans with Difficulty Levels
+
+**Feature:** Create "The Gospels" reading plan series (Matthew, Mark, Luke, John) with three difficulty levels and enhanced AI context.
+
+**What's Included:**
+
+1. **Model Changes** (`apps/faith/models.py`)
+   - `ReadingPlanDay` new fields:
+     - `context_summary` - Who is speaking, audience, timeframe, key takeaway
+     - `scripture_content` - Inline scripture with red letter ranges (JSON)
+     - `commentary_beginner` - Simple explanations for new Bible readers
+     - `commentary_intermediate` - Deeper context for familiar readers
+     - `commentary_advanced` - Scholarly insights, word studies, cross-references
+     - `get_commentary_for_level()` method for difficulty-based content
+   - Migration: `0014_add_difficulty_level_content`
+
+2. **User Preference** (`apps/users/models.py`)
+   - `reading_plan_difficulty` field (beginner/intermediate/advanced, default: intermediate)
+   - Migration: `0044_add_reading_plan_difficulty`
+
+3. **Views & URLs** (`apps/faith/views.py`, `apps/faith/urls.py`)
+   - `UpdateReadingDifficultyView` - AJAX endpoint to save difficulty preference
+   - `ReadingPlanProgressView` passes difficulty level to template
+   - URL: `/faith/reading-plans/difficulty/`
+
+4. **Template Updates** (`templates/faith/reading_plans/progress.html`)
+   - Difficulty level toggle dropdown in reading header
+   - Context summary section before scripture
+   - Commentary section with dynamic difficulty-based content
+   - CSS for difficulty toggle, context summary, and red letter text
+   - JavaScript for AJAX difficulty preference saving
+
+5. **AI Context Enhancement** (`apps/ai/personal_assistant.py`, `templates/components/chat_widget.html`)
+   - Chat widget extracts new fields: context_summary, commentary, user_notes, difficulty_level
+   - AI assistant now receives enhanced reading plan context for page-aware responses
+
+6. **Gospel Plans Command** (`apps/faith/management/commands/load_gospel_plans.py`)
+   - Creates 4 reading plans in "The Gospels" series:
+     - Journey Through Matthew (28 days, intermediate)
+     - Journey Through Mark (16 days, beginner)
+     - Journey Through Luke (24 days, intermediate)
+     - Journey Through John (21 days, intermediate)
+   - Full commentary at all 3 difficulty levels for Matthew (28 days)
+   - Sample days for Mark (2 days) - to be expanded
+   - Templates for Luke and John - days to be added
+   - Registered in `load_initial_data.py` for automatic deploy
+
+**Files Modified:**
+- `apps/faith/models.py`
+- `apps/faith/views.py`
+- `apps/faith/urls.py`
+- `apps/users/models.py`
+- `apps/ai/personal_assistant.py`
+- `apps/core/management/commands/load_initial_data.py`
+- `templates/faith/reading_plans/progress.html`
+- `templates/components/chat_widget.html`
+
+**New Files:**
+- `apps/faith/migrations/0014_add_difficulty_level_content.py`
+- `apps/users/migrations/0044_add_reading_plan_difficulty.py`
+- `apps/faith/management/commands/load_gospel_plans.py`
+
+---
+
 ### Goal Deadline Badges (Task 7 from Improvement Backlog)
 
 **Feature:** Add encouraging deadline badges for goals showing date awareness on goal cards.

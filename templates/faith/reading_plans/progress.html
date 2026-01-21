@@ -53,10 +53,27 @@
         </div>
         {% elif current_day %}
         <section class="current-reading mb-8">
-            <h2 class="section-title">Today's Reading - Day {{ current_day.day_number }}</h2>
+            <div class="reading-header-row">
+                <h2 class="section-title">Today's Reading - Day {{ current_day.day_number }}</h2>
+                <div class="difficulty-toggle">
+                    <label for="difficulty-select" class="difficulty-label">Level:</label>
+                    <select id="difficulty-select" class="difficulty-select" data-url="{% url 'faith:update_reading_difficulty' %}">
+                        {% for value, label in difficulty_choices %}
+                        <option value="{{ value }}" {% if reading_difficulty == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
             <div class="reading-card">
                 {% if current_day.title %}
                 <h3 class="reading-title">{{ current_day.title }}</h3>
+                {% endif %}
+
+                {% if current_day.context_summary %}
+                <div class="context-summary">
+                    <h4>Context</h4>
+                    <div class="context-content">{{ current_day.context_summary|linebreaks }}</div>
+                </div>
                 {% endif %}
 
                 <div class="scripture-passages">
@@ -80,12 +97,31 @@
                     </div>
                 </div>
 
-                {% if current_day.devotional_text %}
-                <div class="devotional-text">
-                    <h4>Devotional</h4>
-                    {{ current_day.devotional_text|linebreaks }}
+                {% comment %}
+                Show difficulty-specific commentary if available, falling back to devotional_text
+                {% endcomment %}
+                <div class="commentary-section"
+                     data-beginner="{{ current_day.commentary_beginner }}"
+                     data-intermediate="{{ current_day.commentary_intermediate }}"
+                     data-advanced="{{ current_day.commentary_advanced }}"
+                     data-devotional="{{ current_day.devotional_text }}">
+                    {% if current_day.commentary_beginner or current_day.commentary_intermediate or current_day.commentary_advanced or current_day.devotional_text %}
+                    <div class="devotional-text">
+                        <h4>Commentary</h4>
+                        <div class="commentary-content">
+                            {% if reading_difficulty == 'beginner' and current_day.commentary_beginner %}
+                                {{ current_day.commentary_beginner|linebreaks }}
+                            {% elif reading_difficulty == 'advanced' and current_day.commentary_advanced %}
+                                {{ current_day.commentary_advanced|linebreaks }}
+                            {% elif current_day.commentary_intermediate %}
+                                {{ current_day.commentary_intermediate|linebreaks }}
+                            {% else %}
+                                {{ current_day.devotional_text|linebreaks }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
 
                 {% if current_day.reflection_prompt %}
                 <div class="reflection-prompt">
@@ -194,6 +230,101 @@
 .reading-progress-page {
     max-width: 800px;
     margin: 0 auto;
+}
+
+/* Difficulty Toggle */
+.reading-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.reading-header-row .section-title {
+    margin-bottom: 0;
+}
+
+.difficulty-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.difficulty-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.difficulty-select {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-background);
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.difficulty-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+/* Context Summary */
+.context-summary {
+    background: color-mix(in srgb, var(--color-info) 10%, transparent);
+    border-left: 4px solid var(--color-info);
+    padding: var(--space-4);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    margin-bottom: var(--space-4);
+}
+
+.context-summary h4 {
+    font-size: var(--font-size-sm);
+    color: var(--color-info);
+    margin-bottom: var(--space-2);
+    font-weight: 600;
+}
+
+.context-content {
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    color: var(--color-text);
+}
+
+.context-content p {
+    margin-bottom: var(--space-2);
+}
+
+.context-content p:last-child {
+    margin-bottom: 0;
+}
+
+/* Red Letter Text - Jesus' Words */
+.red-letter {
+    color: #c41e3a;
+    font-weight: 500;
+}
+
+/* Dark mode red letter adjustment */
+@media (prefers-color-scheme: dark) {
+    .red-letter {
+        color: #ff6b6b;
+    }
+}
+
+/* For explicit dark theme class */
+.dark .red-letter,
+[data-theme="dark"] .red-letter {
+    color: #ff6b6b;
+}
+
+/* Commentary section styles */
+.commentary-content {
+    line-height: 1.7;
 }
 
 .progress-header {
@@ -559,8 +690,21 @@
     margin: 0 auto;
 }
 
-/* Mobile responsiveness for assessments */
+/* Mobile responsiveness */
 @media (max-width: 480px) {
+    .reading-header-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .difficulty-toggle {
+        width: 100%;
+    }
+
+    .difficulty-select {
+        flex: 1;
+    }
+
     .assessment-section {
         padding: var(--space-4);
     }
@@ -573,11 +717,74 @@
     .score-display {
         font-size: var(--font-size-2xl);
     }
+
+    .context-summary {
+        padding: var(--space-3);
+    }
 }
 </style>
 
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
+    // ===================================
+    // Difficulty Level Toggle
+    // ===================================
+    const difficultySelect = document.getElementById('difficulty-select');
+    if (difficultySelect) {
+        difficultySelect.addEventListener('change', function() {
+            const newDifficulty = this.value;
+            const url = this.dataset.url;
+
+            // Save preference to server
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken')
+                },
+                body: JSON.stringify({ difficulty: newDifficulty })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update commentary content dynamically
+                    updateCommentaryForDifficulty(newDifficulty);
+                }
+            })
+            .catch(error => {
+                console.error('Error saving difficulty preference:', error);
+            });
+        });
+    }
+
+    // Update commentary content based on selected difficulty
+    function updateCommentaryForDifficulty(difficulty) {
+        const commentarySection = document.querySelector('.commentary-section');
+        if (!commentarySection) return;
+
+        const beginner = commentarySection.dataset.beginner || '';
+        const intermediate = commentarySection.dataset.intermediate || '';
+        const advanced = commentarySection.dataset.advanced || '';
+        const devotional = commentarySection.dataset.devotional || '';
+
+        let content = '';
+        if (difficulty === 'beginner' && beginner) {
+            content = beginner;
+        } else if (difficulty === 'advanced' && advanced) {
+            content = advanced;
+        } else if (intermediate) {
+            content = intermediate;
+        } else {
+            content = devotional;
+        }
+
+        const contentDiv = commentarySection.querySelector('.commentary-content');
+        if (contentDiv && content) {
+            // Convert newlines to paragraphs
+            contentDiv.innerHTML = content.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+        }
+    }
+
     // Handle assessment scoring
     document.querySelectorAll('.calculate-score-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {

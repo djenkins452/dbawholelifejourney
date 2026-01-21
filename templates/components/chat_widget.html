@@ -781,10 +781,22 @@
                 content.scriptures = Array.from(scriptureElements).map(el => el.textContent.trim());
             }
 
-            // Get devotional text
-            const devotional = document.querySelector('.devotional-text p');
-            if (devotional) {
-                content.devotional = devotional.textContent.trim();
+            // Get context summary (who is speaking, time frame, key takeaway)
+            const contextContent = document.querySelector('.context-content');
+            if (contextContent) {
+                content.context_summary = contextContent.textContent.trim().substring(0, 500);
+            }
+
+            // Get devotional/commentary text
+            const commentary = document.querySelector('.commentary-content');
+            if (commentary) {
+                content.commentary = commentary.textContent.trim().substring(0, 800);
+            } else {
+                // Fallback to old devotional text
+                const devotional = document.querySelector('.devotional-text p');
+                if (devotional) {
+                    content.devotional = devotional.textContent.trim();
+                }
             }
 
             // Get reflection prompt
@@ -793,10 +805,22 @@
                 content.reflection_prompt = reflection.textContent.trim();
             }
 
+            // Get user's notes if present
+            const userNotes = document.querySelector('#notes');
+            if (userNotes && userNotes.value) {
+                content.user_notes = userNotes.value.trim().substring(0, 500);
+            }
+
             // Get progress stats
             const progressText = document.querySelector('.progress-text');
             if (progressText) {
                 content.progress = progressText.textContent.trim();
+            }
+
+            // Get current difficulty level
+            const difficultySelect = document.getElementById('difficulty-select');
+            if (difficultySelect) {
+                content.difficulty_level = difficultySelect.value;
             }
         }
 

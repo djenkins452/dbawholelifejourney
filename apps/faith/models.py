@@ -424,7 +424,9 @@ class ReadingPlanDay(models.Model):
     A single day's readings within a reading plan template.
 
     Each day can have multiple Scripture passages to read,
-    along with optional reflection prompts.
+    along with optional reflection prompts. Supports three difficulty
+    levels (beginner, intermediate, advanced) with different content
+    depth for each level.
     """
 
     plan = models.ForeignKey(
@@ -448,7 +450,40 @@ class ReadingPlanDay(models.Model):
         help_text="List of Scripture references for this day",
     )
 
-    # Optional devotional content
+    # Inline scripture content with red letter support
+    # JSON structure: [{"reference": "Matthew 5:1-12", "text": "...", "red_letter_ranges": [[start, end], ...]}]
+    # red_letter_ranges are character positions in the text where Jesus is speaking
+    scripture_content = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Inline scripture with text and red letter ranges for Jesus' words",
+    )
+
+    # Context summary shown before scripture
+    # Who is speaking, who they're speaking to, time frame, what to get from reading
+    context_summary = models.TextField(
+        blank=True,
+        help_text="High-level context: who is speaking, audience, time frame, key takeaway",
+    )
+
+    # Difficulty-specific commentary content
+    # Beginner: Simple explanations for those new to the Bible
+    commentary_beginner = models.TextField(
+        blank=True,
+        help_text="Simple explanations for those new to Bible study",
+    )
+    # Intermediate: More depth for regular Bible readers who want explanation
+    commentary_intermediate = models.TextField(
+        blank=True,
+        help_text="Deeper context for those familiar with the Bible but wanting more understanding",
+    )
+    # Advanced: Scholarly insights, Greek/Hebrew, historical context, cross-references
+    commentary_advanced = models.TextField(
+        blank=True,
+        help_text="Scholarly depth: word studies, historical context, cross-references",
+    )
+
+    # Optional devotional content (legacy field, still supported)
     reflection_prompt = models.TextField(
         blank=True,
         help_text="Reflection question or prompt for this day",
@@ -466,6 +501,15 @@ class ReadingPlanDay(models.Model):
 
     def __str__(self):
         return f"{self.plan.title} - Day {self.day_number}"
+
+    def get_commentary_for_level(self, level):
+        """Return the appropriate commentary based on difficulty level."""
+        if level == "beginner":
+            return self.commentary_beginner or self.devotional_text
+        elif level == "advanced":
+            return self.commentary_advanced or self.devotional_text
+        else:  # intermediate is default
+            return self.commentary_intermediate or self.devotional_text
 
 
 class UserReadingPlan(UserOwnedModel):

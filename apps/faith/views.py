@@ -1265,6 +1265,14 @@ class ReadingPlanProgressView(LoginRequiredMixin, FaithRequiredMixin, DetailView
         # User's default Bible translation for scripture lookups
         context["default_translation"] = self.request.user.preferences.default_bible_translation
 
+        # User's reading plan difficulty level preference
+        context["reading_difficulty"] = self.request.user.preferences.reading_plan_difficulty
+        context["difficulty_choices"] = [
+            ("beginner", "Beginner"),
+            ("intermediate", "Intermediate"),
+            ("advanced", "Advanced"),
+        ]
+
         return context
 
 
@@ -1349,6 +1357,41 @@ class AbandonReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
         user_plan.save(update_fields=["plan_status", "updated_at"])
         messages.info(request, f"'{user_plan.template.title}' has been removed from your active plans.")
         return redirect("faith:reading_plans")
+
+
+class UpdateReadingDifficultyView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """
+    Update user's reading plan difficulty preference via AJAX.
+
+    Expects POST with JSON body:
+    {
+        "difficulty": "beginner" | "intermediate" | "advanced"
+    }
+    """
+
+    def post(self, request):
+        import json
+        try:
+            data = json.loads(request.body)
+            difficulty = data.get("difficulty")
+
+            valid_choices = ["beginner", "intermediate", "advanced"]
+            if difficulty not in valid_choices:
+                return JsonResponse(
+                    {"success": False, "error": "Invalid difficulty level"},
+                    status=400
+                )
+
+            prefs = request.user.preferences
+            prefs.reading_plan_difficulty = difficulty
+            prefs.save(update_fields=["reading_plan_difficulty"])
+
+            return JsonResponse({"success": True, "difficulty": difficulty})
+        except json.JSONDecodeError:
+            return JsonResponse(
+                {"success": False, "error": "Invalid JSON"},
+                status=400
+            )
 
 
 class DeleteReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):

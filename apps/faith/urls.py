@@ -64,6 +64,7 @@ urlpatterns = [
     path("reading-plans/progress/<int:pk>/abandon/", views.AbandonReadingPlanView.as_view(), name="abandon_reading_plan"),
     path("reading-plans/progress/<int:pk>/delete/", views.DeleteReadingPlanView.as_view(), name="delete_reading_plan"),
     path("reading-plans/progress/<int:plan_pk>/assessment/<int:assessment_pk>/save/", views.SaveAssessmentResponseView.as_view(), name="save_assessment_response"),
+    path("reading-plans/difficulty/", views.UpdateReadingDifficultyView.as_view(), name="update_reading_difficulty"),
 
     # ==========================================================================
     # BIBLE STUDY TOOLS

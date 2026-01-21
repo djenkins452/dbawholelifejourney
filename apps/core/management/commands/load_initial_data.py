@@ -135,6 +135,11 @@ COMMAND_LOADERS = [
         'description': 'Bible reading plan templates',
     },
     {
+        'name': 'load_gospel_plans',
+        'display': 'Gospel Reading Plans',
+        'description': 'The Gospels series (Matthew, Mark, Luke, John)',
+    },
+    {
         'name': 'load_phase1_data',
         'display': 'Project Phases (1-20)',
         'description': 'AdminProjectPhase records for task management',

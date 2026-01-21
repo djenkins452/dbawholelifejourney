@@ -2295,12 +2295,20 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
                         content_description += f"- {page_content['current_day']}\n"
                     if page_content.get('reading_title'):
                         content_description += f"- Theme: {page_content['reading_title']}\n"
+                    if page_content.get('difficulty_level'):
+                        content_description += f"- Study Level: {page_content['difficulty_level']}\n"
                     if page_content.get('scriptures'):
                         content_description += f"- Scriptures: {', '.join(page_content['scriptures'])}\n"
-                    if page_content.get('devotional'):
+                    if page_content.get('context_summary'):
+                        content_description += f"- Context (who/when/setting): {page_content['context_summary'][:400]}...\n" if len(page_content.get('context_summary', '')) > 400 else f"- Context: {page_content['context_summary']}\n"
+                    if page_content.get('commentary'):
+                        content_description += f"- Commentary: {page_content['commentary'][:500]}...\n" if len(page_content.get('commentary', '')) > 500 else f"- Commentary: {page_content['commentary']}\n"
+                    elif page_content.get('devotional'):
                         content_description += f"- Devotional: {page_content['devotional'][:300]}...\n" if len(page_content.get('devotional', '')) > 300 else f"- Devotional: {page_content['devotional']}\n"
                     if page_content.get('reflection_prompt'):
                         content_description += f"- Reflection Question: {page_content['reflection_prompt']}\n"
+                    if page_content.get('user_notes'):
+                        content_description += f"- User's Notes/Reflections: {page_content['user_notes']}\n"
                     if page_content.get('progress'):
                         content_description += f"- Progress: {page_content['progress']}\n"
 

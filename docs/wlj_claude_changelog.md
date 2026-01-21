@@ -16,6 +16,27 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Gospel Reading Plans - Complete Content
+
+**Enhancement:** Completed all content for the Gospel reading plans (Luke and John).
+
+**What's Included:**
+- **Luke**: Added days 6-24 (19 days of content)
+- **John**: Added days 6-21 (16 days of content)
+- Each day includes context summary, three difficulty levels of commentary, and reflection prompts
+
+**Plan Summary:**
+- Matthew: 28 days (complete)
+- Mark: 16 days (complete)
+- Luke: 24 days (complete)
+- John: 21 days (complete)
+- Total: 89 days of Gospel reading content
+
+**Files Changed:**
+- `apps/faith/management/commands/load_gospel_plans.py` - Added all remaining Luke and John days
+
+---
+
 ### AI Personal Context Memory
 
 **Feature:** AI assistant now learns and remembers personal facts about users from conversations to provide more empathetic, contextually-aware responses.

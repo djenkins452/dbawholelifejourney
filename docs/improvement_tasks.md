@@ -84,9 +84,29 @@
 **Status:** ⏸️ On Hold (revisit after 2026-02-03)
 **Impact:** Medium - Proactive financial guidance
 
-### Task 9: Add Global Search for Life Module
+### Task 9: Enhanced AI Assistant - Intelligent Search & Query Gateway
 **Status:** ⚪ Pending
-**Impact:** Medium - Currently can't search across all 8 subsystems
+**Impact:** HIGH - Core feature that makes the Assistant the single search tool for all of WLJ
+
+**Vision:** The AI Assistant becomes the intelligent gateway to everything - personal data first, external APIs second, general knowledge third - all filtered through WLJ values.
+
+**Query Resolution Hierarchy:**
+1. **Personal Data (WLJ)** - Journal, Health, Goals, Faith, Organize, Finance, Capture
+2. **External APIs** - Connected data sources (future: calendar, fitness trackers, etc.)
+3. **OpenAI with Context** - General questions answered within WLJ culture/values
+
+**WLJ Culture Filter:**
+- Faith-positive, wellness-focused, encouraging tone
+- Refuse inappropriate content (pornography, harmful content, crude humor)
+- Redirect to positive alternatives: "Have you explored our Faith module or Reading Plans?"
+- Protect user privacy and dignity
+
+**Technical Components:**
+1. Intent detection - Is this a search? What type?
+2. Query parsing - Extract module, keywords, date ranges
+3. Search execution - Query appropriate models/APIs
+4. Result injection - Feed results into AI context
+5. Values guardrails - Filter requests and responses through WLJ culture
 
 ### Task 10: Add Real-Time Processing Status for Capture
 **Status:** ⚪ Pending

@@ -144,6 +144,8 @@ python manage.py migrate
 | `docs/wlj_claude_features.md` | Feature documentation (AI, scan, health) |
 | `docs/wlj_claude_changelog.md` | Historical changes and fixes |
 | `docs/wlj_third_party_services.md` | External service inventory |
+| `docs/improvement_tasks.md` | **Improvement backlog** - prioritized feature tasks |
+| `docs/task9_ai_assistant_search.md` | **Active:** AI Assistant search gateway design & sub-tasks |
 
 ## Slash Commands
 

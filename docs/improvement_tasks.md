@@ -70,11 +70,18 @@
 - 19 configurable tiles with module dependencies
 
 ### Task 7: Add Deadline Badges for Goals
-**Status:** ⚪ Pending
+**Status:** ✅ Complete
 **Impact:** Medium - Creates urgency for approaching deadlines
+**Completed:** 2026-01-20
+
+**Scope (completed):**
+- Deadline properties on LifeGoal model (is_overdue, days_until_due, deadline_urgency, deadline_badge_text)
+- User preference toggle (show_goal_deadline_badges, default: True)
+- Encouraging badge language: "Due in X days", "Past target date", "🎉 Completed!"
+- Badges on goal_list, home, goal_detail, dashboard widget
 
 ### Task 8: Add Bill Due Date Reminders to Finance
-**Status:** ⚪ Pending
+**Status:** ⏸️ On Hold (revisit after 2026-02-03)
 **Impact:** Medium - Proactive financial guidance
 
 ### Task 9: Add Global Search for Life Module

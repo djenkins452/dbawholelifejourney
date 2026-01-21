@@ -16,6 +16,24 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-21 Changes
 
+### Daniel Reading Plan
+
+**Feature:** Added fourth "People of the Bible" character study - Daniel: Faith in Exile. Completes Phase 1 of reading plans roadmap.
+
+**What's Included:**
+- 12-day reading plan through the book of Daniel
+- Days 1-6: Narrative section (tested faith, dreams, fiery furnace, lions' den)
+- Days 7-12: Apocalyptic visions (four beasts, ram/goat, seventy weeks, spiritual warfare)
+- Three difficulty levels with appropriate depth
+- Covers faithfulness in exile, prophecy, apocalyptic literature, and NT connections
+
+**Files Changed:**
+- `apps/faith/management/commands/load_daniel_plan.py` (new)
+- `apps/core/management/commands/load_initial_data.py` (updated - added Daniel loader)
+- `docs/reading_plans_roadmap.md` (updated - Phase 1 complete)
+
+---
+
 ### Gospel Reading Plans - Complete & Grouped Display
 
 **Enhancement:** Completed all Gospel reading plan content and added visual grouping similar to SHCC plans.

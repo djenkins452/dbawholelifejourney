@@ -155,6 +155,11 @@ COMMAND_LOADERS = [
         'description': 'Noah: Righteous in His Generation (People of the Bible series)',
     },
     {
+        'name': 'load_daniel_plan',
+        'display': 'Daniel Reading Plan',
+        'description': 'Daniel: Faith in Exile (People of the Bible series)',
+    },
+    {
         'name': 'load_phase1_data',
         'display': 'Project Phases (1-20)',
         'description': 'AdminProjectPhase records for task management',

@@ -54,6 +54,8 @@ For active development context, see `CLAUDE.md` (project root).
 **Files Changed:**
 - `apps/faith/management/commands/load_gospel_plans.py` - Added remaining Luke/John content, updated source/series grouping
 - `apps/faith/migrations/0015_update_gospel_plans_grouping.py` - Data migration to update existing plans with grouping fields
+- `apps/faith/migrations/0016_fix_gospel_plans_single_series.py` - Fix to put all Gospels in single series for 2x2 grid display
+- `templates/faith/reading_plans/list.html` - Only show "Week X" badge for devotional category plans
 
 ---
 

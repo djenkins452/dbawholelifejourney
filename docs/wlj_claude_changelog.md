@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Ruth & Naomi Reading Plan
+
+**Feature:** Added second "People of the Bible" character study - Ruth & Naomi: Loyalty and Redemption.
+
+**What's Included:**
+- 4-day reading plan through the book of Ruth
+- Day 1: Tragedy and Loyalty (Ruth 1)
+- Day 2: Gleaning and Grace (Ruth 2)
+- Day 3: The Threshing Floor (Ruth 3)
+- Day 4: Redemption and Legacy (Ruth 4)
+- Three difficulty levels with appropriate depth
+- Covers chesed (covenant loyalty), kinsman-redeemer concept, and Davidic lineage
+
+**Files Changed:**
+- `apps/faith/management/commands/load_ruth_plan.py` (new)
+- `apps/core/management/commands/load_initial_data.py` (updated - added Ruth loader)
+- `docs/reading_plans_roadmap.md` (updated - status)
+
+---
+
 ### Bible Reading Plans Roadmap & Jonah Plan
 
 **Feature:** Established a comprehensive Bible reading plans project with roadmap and first "People of the Bible" character study.

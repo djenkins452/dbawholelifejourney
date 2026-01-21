@@ -145,6 +145,11 @@ COMMAND_LOADERS = [
         'description': 'Jonah: The Reluctant Prophet (People of the Bible series)',
     },
     {
+        'name': 'load_ruth_plan',
+        'display': 'Ruth Reading Plan',
+        'description': 'Ruth & Naomi: Loyalty and Redemption (People of the Bible series)',
+    },
+    {
         'name': 'load_phase1_data',
         'display': 'Project Phases (1-20)',
         'description': 'AdminProjectPhase records for task management',

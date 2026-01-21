@@ -2,7 +2,7 @@
 
 **Created:** 2026-01-20
 **Status:** In Progress
-**Last Updated:** 2026-01-20
+**Last Updated:** 2026-01-20 (Jonah deployed)
 
 This document tracks the development of Bible reading plans for the Whole Life Journey app. Each plan follows the established structure with three difficulty levels (Beginner, Intermediate, Advanced) and includes context summaries, commentary at each level, and reflection prompts.
 
@@ -84,7 +84,7 @@ All reading plans MUST meet these standards before deployment:
 | Moses: Deliverer and Lawgiver | Exodus, selected Numbers/Deuteronomy | 28-35 | [ ] | `load_moses_plan.py` |
 | Isaiah: Prophet of the Messiah | Isaiah (selected), 2 Kings 19-20 | 21 | [ ] | `load_isaiah_plan.py` |
 | Job: Suffering and Sovereignty | Job 1-42 | 14-21 | [ ] | `load_job_plan.py` |
-| Jonah: The Reluctant Prophet | Jonah 1-4 | 4-5 | [ ] | `load_jonah_plan.py` |
+| Jonah: The Reluctant Prophet | Jonah 1-4 | 5 | [x] | `load_jonah_plan.py` |
 | Abraham: Father of Faith | Gen 11:27-25:11, Rom 4, Gal 3, Heb 11 | 14-21 | [ ] | `load_abraham_plan.py` |
 | Joseph: From Pit to Palace | Gen 37-50 | 14 | [ ] | `load_joseph_plan.py` |
 | Elijah & Elisha: Prophets of Power | 1 Kings 17-2 Kings 13 | 14 | [ ] | `load_elijah_elisha_plan.py` |
@@ -164,7 +164,7 @@ All reading plans MUST meet these standards before deployment:
 The following order is recommended to provide variety across categories:
 
 ### Phase 1: Character Studies (Quick Wins)
-1. [ ] **Jonah: The Reluctant Prophet** (4-5 days) - Short, powerful narrative
+1. [x] **Jonah: The Reluctant Prophet** (5 days) - Short, powerful narrative - DEPLOYED 2026-01-20
 2. [ ] **Ruth & Naomi: Loyalty and Redemption** (4 days) - Short, beloved story
 3. [ ] **Noah: Righteous in His Generation** (7 days) - Foundational story
 4. [ ] **Daniel: Faith in Exile** (12 days) - Popular, clear narrative
@@ -196,9 +196,11 @@ Continue with remaining plans based on user interest and feedback.
 
 ## Current Work
 
-**Next Plan to Implement:** Jonah: The Reluctant Prophet
+**Last Completed:** Jonah: The Reluctant Prophet (2026-01-20)
 
-**Command file:** `apps/faith/management/commands/load_jonah_plan.py`
+**Next Plan to Implement:** Ruth & Naomi: Loyalty and Redemption
+
+**Command file:** `apps/faith/management/commands/load_ruth_plan.py`
 
 ---
 

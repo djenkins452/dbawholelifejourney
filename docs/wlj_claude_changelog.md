@@ -16,6 +16,36 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-20 Changes
 
+### Contextual Help System
+
+**Fix:** Help modal now shows context-relevant content instead of generic navigation help.
+
+**Problem:**
+- Clicking the help button (?) on any page would show the generic "Navigating Your Whole Life Journey" content
+- Health sub-pages (Heart Rate, Weight, Blood Pressure, etc.) had no specific help context
+- Users saw irrelevant help regardless of what page they were viewing
+
+**Solution:**
+1. **Module-based fallback logic** - When a specific help topic doesn't exist (e.g., `HEALTH_HEART_RATE`), the API now falls back to the parent module's help (`HEALTH_HOME`) instead of showing generic content
+2. **Added `help_context_id` to health views** - Heart Rate, Weight, Fasting, Fitness, Blood Pressure, Blood Oxygen views now have proper context IDs
+3. **Created specific help topics** - Added help content for Heart Rate, Weight, Fasting, and Fitness tracking
+
+**Module Fallback Mapping:**
+- `HEALTH_*` → `HEALTH_HOME`
+- `JOURNAL_*` → `JOURNAL_HOME`
+- `FAITH_*` → `FAITH_HOME`
+- `LIFE_*` → `LIFE_HOME`
+- `PURPOSE_*` → `PURPOSE_HOME`
+- And similar for all modules
+
+**Files Changed:**
+- `apps/help/views.py` - Added `MODULE_FALLBACKS` dict and `_get_fallback_context()` method to `HelpTopicAPIView`
+- `apps/health/views.py` - Added `HelpContextMixin` and `help_context_id` to 15+ views
+- `apps/help/fixtures/help_topics.json` - Added 4 new help topics (Heart Rate, Weight, Fasting, Fitness)
+- `apps/help/tests/test_views.py` - Added tests for module fallback functionality
+
+---
+
 ### Gospel Reading Plans - Complete Content
 
 **Enhancement:** Completed all content for the Gospel reading plans (Luke and John).

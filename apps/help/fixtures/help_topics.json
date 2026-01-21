@@ -366,5 +366,69 @@
       "created_at": "2026-01-15T00:00:00Z",
       "updated_at": "2026-01-15T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 24,
+    "fields": {
+      "context_id": "HEALTH_HEART_RATE",
+      "help_id": "heart-rate-overview",
+      "title": "Heart Rate: Track Your Pulse",
+      "description": "Monitor your heart rate over time to understand your cardiovascular health and fitness level.",
+      "content": "## Why Track Heart Rate?\n\nYour heart rate tells a story about your cardiovascular health. Regular tracking helps you:\n\n- **Understand your baseline** - Know your resting heart rate for comparison\n- **Track fitness progress** - See how exercise improves your cardiovascular health\n- **Spot anomalies** - Notice unusual readings that might need attention\n- **Inform your doctor** - Provide accurate data at checkups\n\n### The Dashboard Connection\n\nYour heart rate data appears on:\n- **Health home page** - Latest reading with stats\n- **AI insights** - Patterns in your heart rate over time\n\n---\n\n## How to Log Heart Rate\n\n### Quick Entry\n1. Go to **Health > Heart Rate**\n2. Click **\"Log Heart Rate\"**\n3. Enter your BPM (beats per minute)\n4. Select the context (resting, morning, post-exercise, etc.)\n5. Add optional notes\n6. Save\n\n### Measurement Tips\n- **Resting heart rate** - Measure first thing in the morning, before getting out of bed\n- **Post-exercise** - Wait 2-3 minutes after stopping for recovery rate\n- **Consistent timing** - Measure at the same time daily for best comparisons\n\n---\n\n## Understanding Your Readings\n\n### Resting Heart Rate (Adults)\n\n| Category | BPM Range |\n|----------|----------|\n| Athlete | 40-60 |\n| Excellent | 60-65 |\n| Good | 65-70 |\n| Average | 70-75 |\n| Below Average | 75-80 |\n| Poor | 80+ |\n\n**Note:** Individual variation is normal. What matters most is YOUR trend over time.\n\n### Context Options\n- **Resting** - Sitting quietly for 5+ minutes\n- **Morning** - Just woken up, still in bed\n- **Post-Exercise** - After physical activity\n- **Stressed** - During emotional or physical stress\n- **Random** - Any other time\n\n---\n\n## Your Stats\n\nThe heart rate page shows:\n- **Latest reading** - Most recent BPM\n- **Resting average** - Mean of resting/morning readings\n- **Min/Max** - Your lowest and highest recorded values\n\n---\n\n## Tips for Effective Tracking\n\n1. **Log your resting heart rate daily** - Morning readings are most consistent\n2. **Note the context** - Context helps interpret your readings\n3. **Use the same method** - Wrist, chest, or device - stay consistent\n4. **Track over weeks** - Single readings matter less than trends\n5. **Compare to yourself** - Don't stress about \"normal\" ranges\n\n---\n\n## Related Features\n- **Health Home** - Overview of all health metrics\n- **Fitness** - Track workouts that affect heart rate\n- **Sleep** - Sleep quality impacts resting heart rate\n- **Dashboard** - AI insights about your health data",
+      "app_name": "health",
+      "order": 8,
+      "is_active": true,
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 25,
+    "fields": {
+      "context_id": "HEALTH_WEIGHT",
+      "help_id": "weight-overview",
+      "title": "Weight: Track Your Progress",
+      "description": "Log your weight to see trends over time and track progress toward your goals.",
+      "content": "## Why Track Weight?\n\nWeight tracking is most valuable when viewed as a **trend over time**, not individual daily readings. The scale fluctuates naturally—what matters is the direction you're heading.\n\n### The Dashboard Connection\n\nYour weight data powers:\n- **Health home page** - Latest weight and change indicator\n- **Progress charts** - Visual trends over weeks and months\n- **AI insights** - Pattern detection and encouragement\n- **Goal tracking** - Progress toward your target weight\n\n---\n\n## How to Log Weight\n\n### Quick Entry\n1. Go to **Health > Weight**\n2. Click **\"Log Weight\"**\n3. Enter your weight (pounds or kilograms)\n4. Add optional notes (e.g., \"after big meal\", \"morning weigh-in\")\n5. Save\n\n### Measurement Tips\n- **Same time daily** - Morning, after bathroom, before eating is most consistent\n- **Same conditions** - Same clothing (or none), same scale\n- **Don't over-weigh** - Once per day is enough; more can cause anxiety\n\n---\n\n## Understanding Your Stats\n\nThe weight page shows:\n- **Latest weight** - Your most recent entry\n- **Min/Max** - Lowest and highest recorded values\n- **Average** - Mean of recent entries\n- **Total change** - Difference from first to latest entry\n- **Trend chart** - Visual progress over time\n\n---\n\n## Setting a Goal\n\nIn **Preferences > Weight & Nutrition Goals**:\n1. Set your target weight\n2. Optionally set a target date\n3. Progress displays on Health home page\n\n**Healthy weight loss:** 0.5-2 pounds per week is sustainable.\n\n---\n\n## Tips for Successful Weight Tracking\n\n1. **Weigh at the same time daily** - Consistency matters more than the number\n2. **Don't react to single readings** - Look at 7-day trends instead\n3. **Note context** - Travel, holidays, illness affect weight\n4. **Celebrate non-scale wins** - Clothes fit better, more energy, etc.\n5. **Be patient** - Sustainable change happens slowly\n\n---\n\n## Related Features\n- **Nutrition Tracking** - What you eat affects your weight\n- **Fitness** - Exercise supports weight management\n- **Dashboard** - AI insights about your weight trend\n- **Preferences** - Set your weight goal",
+      "app_name": "health",
+      "order": 9,
+      "is_active": true,
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 26,
+    "fields": {
+      "context_id": "HEALTH_FASTING",
+      "help_id": "fasting-overview",
+      "title": "Fasting: Track Your Eating Windows",
+      "description": "Monitor intermittent fasting with simple start/stop tracking.",
+      "content": "## Why Track Fasting?\n\nIntermittent fasting can support weight management and metabolic health. Tracking helps you:\n\n- **Stay consistent** - Know exactly how long you've fasted\n- **Build streaks** - See your consistency over time\n- **Find your rhythm** - Discover what eating window works for you\n\n---\n\n## How Fasting Works Here\n\n### Starting a Fast\n1. Go to **Health > Fasting**\n2. Click **\"Start Fast\"**\n3. Your fast timer begins immediately\n4. Optionally add notes or planned duration\n\n### Ending a Fast\n1. Visit the fasting page\n2. Click **\"End Fast\"** on your active fast\n3. Duration is automatically calculated\n\n### One Active Fast at a Time\nYou can only have one active fast. End your current fast before starting a new one.\n\n---\n\n## Common Fasting Schedules\n\n| Method | Fast | Eat | Example |\n|--------|------|-----|--------|\n| 16:8 | 16 hours | 8 hours | Eat noon-8pm |\n| 18:6 | 18 hours | 6 hours | Eat 1pm-7pm |\n| 20:4 | 20 hours | 4 hours | Eat 2pm-6pm |\n| OMAD | ~23 hours | ~1 hour | One meal/day |\n\n**Start simple:** 16:8 is a good beginner schedule.\n\n---\n\n## Your Fasting Stats\n\nThe fasting page shows:\n- **Active fast** - Current timer if fasting\n- **Recent fasts** - Your history with durations\n- **Average duration** - Your typical fast length\n- **Streak** - Consecutive days with a completed fast\n\n---\n\n## Tips for Successful Fasting\n\n1. **Stay hydrated** - Water, black coffee, and plain tea are fine\n2. **Start gradually** - Begin with 12 hours and work up\n3. **Listen to your body** - End early if needed; don't force it\n4. **Be consistent** - Same eating window daily helps\n5. **Log every fast** - Even short ones build the habit\n\n---\n\n## Related Features\n- **Nutrition** - Track what you eat during your window\n- **Health Home** - Quick view of fasting status\n- **Dashboard** - Fasting patterns in AI insights",
+      "app_name": "health",
+      "order": 10,
+      "is_active": true,
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 27,
+    "fields": {
+      "context_id": "HEALTH_FITNESS",
+      "help_id": "fitness-overview",
+      "title": "Fitness: Log Your Workouts",
+      "description": "Track workouts, create templates, and monitor your exercise progress.",
+      "content": "## Why Track Fitness?\n\nConsistent exercise tracking helps you:\n\n- **Build accountability** - See your workout frequency\n- **Track progress** - Watch strength and endurance improve\n- **Stay motivated** - Celebrate your workout streaks\n- **Identify patterns** - Learn what works best for you\n\n---\n\n## Fitness Features\n\n### Workout Logging\n1. Go to **Health > Fitness**\n2. Click **\"New Workout\"**\n3. Select workout type (strength, cardio, etc.)\n4. Add exercises, sets, reps, and weights\n5. Log duration and notes\n6. Save your session\n\n### Workout Templates\nCreate reusable templates for common routines:\n1. Build once, use many times\n2. Quickly start a templated workout\n3. Modify on the fly if needed\n\n### Personal Records (PRs)\nThe system tracks your best lifts:\n- **1RM** - One rep max for strength exercises\n- **Volume PRs** - Best total weight moved\n- **Cardio PRs** - Longest distance or time\n\n---\n\n## Your Stats\n\nThe fitness home shows:\n- **Workouts this week** - Current week count\n- **Recent workouts** - Your latest sessions\n- **Your templates** - Quick access to routines\n- **Recent PRs** - Personal record celebrations\n\n---\n\n## Tips for Consistent Training\n\n1. **Schedule your workouts** - Treat them like appointments\n2. **Use templates** - Removes decision fatigue\n3. **Log immediately** - Don't rely on memory\n4. **Celebrate PRs** - Every personal record matters\n5. **Rest matters too** - Recovery is part of fitness\n\n---\n\n## Related Features\n- **Health Home** - Weekly workout count\n- **Heart Rate** - Track cardio intensity\n- **Dashboard** - AI insights on exercise patterns\n- **Weight** - See how exercise affects weight",
+      "app_name": "health",
+      "order": 11,
+      "is_active": true,
+      "created_at": "2026-01-20T00:00:00Z",
+      "updated_at": "2026-01-20T00:00:00Z"
+    }
   }
 ]

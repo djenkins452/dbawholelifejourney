@@ -116,6 +116,68 @@ class HelpTopicAPIViewTests(BaseHelpViewTest):
         self.assertEqual(len(data['related']), 1)
         self.assertEqual(data['related'][0]['title'], 'Related Topic')
 
+    def test_module_fallback_health(self):
+        """Test that unknown HEALTH_* context falls back to HEALTH_HOME."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        # Create the module home topic
+        HelpTopic.objects.create(
+            context_id="HEALTH_HOME",
+            help_id="health-home",
+            title="Health Module Help",
+            description="Health overview",
+            content="## Health\n\nThis is the health module help.",
+            app_name="health",
+            is_active=True
+        )
+
+        # Request a specific health page that doesn't have its own help topic
+        response = self.client.get(
+            reverse('help:api_topic', kwargs={'context_id': 'HEALTH_SOME_FEATURE'})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+
+        # Should fallback to HEALTH_HOME
+        self.assertTrue(data['found'])
+        self.assertEqual(data['context_id'], 'HEALTH_HOME')
+        self.assertEqual(data['title'], 'Health Module Help')
+
+    def test_module_fallback_journal(self):
+        """Test that unknown JOURNAL_* context falls back to JOURNAL_HOME."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        # Create the module home topic
+        HelpTopic.objects.create(
+            context_id="JOURNAL_HOME",
+            help_id="journal-home",
+            title="Journal Module Help",
+            content="## Journal\n\nThis is the journal module help.",
+            is_active=True
+        )
+
+        # Request a journal page without its own help
+        response = self.client.get(
+            reverse('help:api_topic', kwargs={'context_id': 'JOURNAL_SOME_PAGE'})
+        )
+
+        data = json.loads(response.content)
+        self.assertTrue(data['found'])
+        self.assertEqual(data['context_id'], 'JOURNAL_HOME')
+
+    def test_no_fallback_for_unknown_prefix(self):
+        """Test that unknown prefix does not get a fallback."""
+        self.client.login(email="test@example.com", password="testpass123")
+
+        response = self.client.get(
+            reverse('help:api_topic', kwargs={'context_id': 'RANDOM_UNKNOWN_CONTEXT'})
+        )
+
+        data = json.loads(response.content)
+        self.assertFalse(data['found'])
+        self.assertEqual(data['context_id'], 'RANDOM_UNKNOWN_CONTEXT')
+
 
 class AdminHelpTopicAPIViewTests(BaseHelpViewTest):
     """Tests for the admin help API endpoint."""

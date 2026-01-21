@@ -426,7 +426,7 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
 # Weight Views
 
-class WeightListView(LoginRequiredMixin, ListView):
+class WeightListView(HelpContextMixin, LoginRequiredMixin, ListView):
     """
     List weight entries with stats.
     """
@@ -435,6 +435,7 @@ class WeightListView(LoginRequiredMixin, ListView):
     template_name = "health/weight_list.html"
     context_object_name = "entries"
     paginate_by = 30
+    help_context_id = "HEALTH_WEIGHT"
 
     def get_queryset(self):
         return WeightEntry.objects.filter(user=self.request.user)
@@ -481,7 +482,7 @@ class WeightListView(LoginRequiredMixin, ListView):
         return context
 
 
-class WeightCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
+class WeightCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
     Log a new weight entry.
     """
@@ -491,6 +492,7 @@ class WeightCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     template_name = "health/weight_form.html"
     success_url = reverse_lazy("health:weight_list")
     save_add_another_message = "Weight logged. Add another!"
+    help_context_id = "HEALTH_WEIGHT"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -504,7 +506,7 @@ class WeightCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class WeightUpdateView(LoginRequiredMixin, UpdateView):
+class WeightUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
     """
     Edit a weight entry.
     """
@@ -513,6 +515,7 @@ class WeightUpdateView(LoginRequiredMixin, UpdateView):
     form_class = WeightEntryForm
     template_name = "health/weight_form.html"
     success_url = reverse_lazy("health:weight_list")
+    help_context_id = "HEALTH_WEIGHT"
 
     def get_queryset(self):
         return WeightEntry.objects.filter(user=self.request.user)
@@ -543,7 +546,7 @@ class WeightDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 
 # Fasting Views
 
-class FastingListView(LoginRequiredMixin, ListView):
+class FastingListView(HelpContextMixin, LoginRequiredMixin, ListView):
     """
     List fasting windows.
     """
@@ -552,6 +555,7 @@ class FastingListView(LoginRequiredMixin, ListView):
     template_name = "health/fasting_list.html"
     context_object_name = "fasts"
     paginate_by = 20
+    help_context_id = "HEALTH_FASTING"
 
     def get_queryset(self):
         return FastingWindow.objects.filter(user=self.request.user)
@@ -691,7 +695,7 @@ class FastingDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 
 # Heart Rate Views
 
-class HeartRateListView(LoginRequiredMixin, ListView):
+class HeartRateListView(HelpContextMixin, LoginRequiredMixin, ListView):
     """
     List heart rate entries.
     """
@@ -700,6 +704,7 @@ class HeartRateListView(LoginRequiredMixin, ListView):
     template_name = "health/heartrate_list.html"
     context_object_name = "entries"
     paginate_by = 30
+    help_context_id = "HEALTH_HEART_RATE"
 
     def get_queryset(self):
         return HeartRateEntry.objects.filter(user=self.request.user)
@@ -726,7 +731,7 @@ class HeartRateListView(LoginRequiredMixin, ListView):
         return context
 
 
-class HeartRateCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
+class HeartRateCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
     Log a new heart rate entry.
     """
@@ -736,6 +741,7 @@ class HeartRateCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     template_name = "health/heartrate_form.html"
     success_url = reverse_lazy("health:heartrate_list")
     save_add_another_message = "Heart rate logged. Add another!"
+    help_context_id = "HEALTH_HEART_RATE"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -749,7 +755,7 @@ class HeartRateCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class HeartRateUpdateView(LoginRequiredMixin, UpdateView):
+class HeartRateUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
     """
     Edit a heart rate entry.
     """
@@ -758,6 +764,7 @@ class HeartRateUpdateView(LoginRequiredMixin, UpdateView):
     form_class = HeartRateEntryForm
     template_name = "health/heartrate_form.html"
     success_url = reverse_lazy("health:heartrate_list")
+    help_context_id = "HEALTH_HEART_RATE"
 
     def get_queryset(self):
         return HeartRateEntry.objects.filter(user=self.request.user)
@@ -1138,12 +1145,13 @@ class QuickLogView(LoginRequiredMixin, TemplateView):
 # =============================================================================
 
 
-class FitnessHomeView(LoginRequiredMixin, TemplateView):
+class FitnessHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Fitness module home - overview of workouts and progress.
     """
 
     template_name = "health/fitness/home.html"
+    help_context_id = "HEALTH_FITNESS"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -3767,7 +3775,7 @@ class FoodSearchAPIView(LoginRequiredMixin, View):
 # =============================================================================
 
 
-class BloodPressureListView(LoginRequiredMixin, ListView):
+class BloodPressureListView(HelpContextMixin, LoginRequiredMixin, ListView):
     """
     List blood pressure entries.
     """
@@ -3776,6 +3784,7 @@ class BloodPressureListView(LoginRequiredMixin, ListView):
     template_name = "health/blood_pressure_list.html"
     context_object_name = "entries"
     paginate_by = 30
+    help_context_id = "HEALTH_VITALS"
 
     def get_queryset(self):
         return BloodPressureEntry.objects.filter(user=self.request.user)
@@ -3802,7 +3811,7 @@ class BloodPressureListView(LoginRequiredMixin, ListView):
         return context
 
 
-class BloodPressureCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
+class BloodPressureCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
     Log a new blood pressure entry.
     """
@@ -3812,6 +3821,7 @@ class BloodPressureCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateVie
     template_name = "health/blood_pressure_form.html"
     success_url = reverse_lazy("health:blood_pressure_list")
     save_add_another_message = "Blood pressure logged. Add another!"
+    help_context_id = "HEALTH_VITALS"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -3825,7 +3835,7 @@ class BloodPressureCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateVie
         return super().form_valid(form)
 
 
-class BloodPressureUpdateView(LoginRequiredMixin, UpdateView):
+class BloodPressureUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
     """
     Edit a blood pressure entry.
     """
@@ -3834,6 +3844,7 @@ class BloodPressureUpdateView(LoginRequiredMixin, UpdateView):
     form_class = BloodPressureEntryForm
     template_name = "health/blood_pressure_form.html"
     success_url = reverse_lazy("health:blood_pressure_list")
+    help_context_id = "HEALTH_VITALS"
 
     def get_queryset(self):
         return BloodPressureEntry.objects.filter(user=self.request.user)
@@ -3867,7 +3878,7 @@ class BloodPressureDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 # =============================================================================
 
 
-class BloodOxygenListView(LoginRequiredMixin, ListView):
+class BloodOxygenListView(HelpContextMixin, LoginRequiredMixin, ListView):
     """
     List blood oxygen (SpO2) entries.
     """
@@ -3876,6 +3887,7 @@ class BloodOxygenListView(LoginRequiredMixin, ListView):
     template_name = "health/blood_oxygen_list.html"
     context_object_name = "entries"
     paginate_by = 30
+    help_context_id = "HEALTH_VITALS"
 
     def get_queryset(self):
         return BloodOxygenEntry.objects.filter(user=self.request.user)
@@ -3900,7 +3912,7 @@ class BloodOxygenListView(LoginRequiredMixin, ListView):
         return context
 
 
-class BloodOxygenCreateView(LoginRequiredMixin, CreateView):
+class BloodOxygenCreateView(HelpContextMixin, LoginRequiredMixin, CreateView):
     """
     Log a new blood oxygen (SpO2) entry.
     """
@@ -3909,6 +3921,7 @@ class BloodOxygenCreateView(LoginRequiredMixin, CreateView):
     form_class = BloodOxygenEntryForm
     template_name = "health/blood_oxygen_form.html"
     success_url = reverse_lazy("health:blood_oxygen_list")
+    help_context_id = "HEALTH_VITALS"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -3921,7 +3934,7 @@ class BloodOxygenCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class BloodOxygenUpdateView(LoginRequiredMixin, UpdateView):
+class BloodOxygenUpdateView(HelpContextMixin, LoginRequiredMixin, UpdateView):
     """
     Edit a blood oxygen entry.
     """
@@ -3930,6 +3943,7 @@ class BloodOxygenUpdateView(LoginRequiredMixin, UpdateView):
     form_class = BloodOxygenEntryForm
     template_name = "health/blood_oxygen_form.html"
     success_url = reverse_lazy("health:blood_oxygen_list")
+    help_context_id = "HEALTH_VITALS"
 
     def get_queryset(self):
         return BloodOxygenEntry.objects.filter(user=self.request.user)

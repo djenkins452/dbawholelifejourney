@@ -29,10 +29,37 @@ class HelpTopicAPIView(View):
 
     GET /help/api/topic/<context_id>/
     Returns JSON with help content for the given context.
+
+    Contextual Fallback:
+    If a specific help topic doesn't exist (e.g., HEALTH_HEART_RATE),
+    the API will try to fall back to the module's home topic (e.g., HEALTH_HOME).
+    This ensures users always see relevant help for their current module.
     """
+
+    # Map context_id prefixes to their module home context_ids
+    MODULE_FALLBACKS = {
+        'HEALTH_': 'HEALTH_HOME',
+        'JOURNAL_': 'JOURNAL_HOME',
+        'FAITH_': 'FAITH_HOME',
+        'LIFE_': 'LIFE_HOME',
+        'PURPOSE_': 'PURPOSE_HOME',
+        'DASHBOARD_': 'DASHBOARD_HOME',
+        'SETTINGS_': 'SETTINGS_PREFERENCES',
+        'NUTRITION_': 'NUTRITION_HOME',
+        'GLUCOSE_': 'GLUCOSE_DASHBOARD',
+        'ADMIN_CONSOLE_': 'ADMIN_CONSOLE_HOME',
+        'SCAN_': 'SCAN_HOME',
+        'ASSISTANT_': 'ASSISTANT_HOME',
+    }
 
     def get(self, request, context_id):
         topic = HelpTopic.get_by_context(context_id)
+
+        # If specific topic not found, try module fallback
+        if topic is None:
+            fallback_context = self._get_fallback_context(context_id)
+            if fallback_context and fallback_context != context_id:
+                topic = HelpTopic.get_by_context(fallback_context)
 
         if topic is None:
             return JsonResponse({
@@ -65,6 +92,20 @@ class HelpTopicAPIView(View):
             'app_name': topic.app_name,
             'related': related
         })
+
+    def _get_fallback_context(self, context_id):
+        """
+        Get the fallback context_id for module-level help.
+
+        For example:
+        - HEALTH_HEART_RATE -> HEALTH_HOME
+        - JOURNAL_ENTRY_CREATE -> JOURNAL_HOME
+        - GLUCOSE_LIST -> GLUCOSE_DASHBOARD
+        """
+        for prefix, fallback in self.MODULE_FALLBACKS.items():
+            if context_id.startswith(prefix):
+                return fallback
+        return None
 
 
 @method_decorator(login_required, name='dispatch')

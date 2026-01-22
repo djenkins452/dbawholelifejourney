@@ -3236,18 +3236,33 @@ async function loadBibleTranslations() {
         const statusData = await statusResponse.json();
 
         if (!statusData.configured) {
-            select.innerHTML = '<option value="">API not configured</option>';
+            select.innerHTML = '<option value="">Bible API not configured - contact administrator</option>';
             return;
         }
 
         const response = await fetch(`${API_PROXY_BASE}/bibles/`);
 
         if (!response.ok) {
-            throw new Error('Failed to load translations');
+            // Try to get error message from response
+            let errorMessage = 'Failed to load translations';
+            try {
+                const errorData = await response.json();
+                if (errorData.error) {
+                    errorMessage = errorData.error;
+                }
+            } catch (e) {
+                // Ignore JSON parse errors
+            }
+            throw new Error(errorMessage);
         }
 
         const data = await response.json();
         const bibles = data.data || [];
+
+        if (bibles.length === 0) {
+            select.innerHTML = '<option value="">No translations available</option>';
+            return;
+        }
 
         const seen = new Set();
         const uniqueBibles = [];
@@ -3278,7 +3293,7 @@ async function loadBibleTranslations() {
 
     } catch (error) {
         console.error('Error loading Bible translations:', error);
-        select.innerHTML = '<option value="">Error loading translations</option>';
+        select.innerHTML = `<option value="">Error: ${error.message}</option>`;
     }
 }
 

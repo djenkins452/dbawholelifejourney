@@ -14,6 +14,36 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-22 Changes
+
+### Bug Fix Batch: Tasks 350, 351, 353, 354
+
+Four parallel bug fixes completed:
+
+**Task 350: Wrong Context Help**
+- **Issue:** Help button not showing page-specific context on Task list page
+- **Fix:** Added `HelpContextMixin` and `help_context_id = "LIFE_TASKS"` to `TaskListView`
+- **File:** `apps/life/views.py`
+
+**Task 351: Task Page Blinking**
+- **Issue:** Task page flashing/blinking when loading due to popup display state manipulation
+- **Fix:** Changed popup from inline `style="display: none"` to CSS class `.hidden`, prevents FOUC (Flash of Unstyled Content)
+- **File:** `templates/life/task_list.html`
+
+**Task 353: Audio Recording Local Persistence**
+- **Issue:** User wanted clearer feedback that recording is saved locally and won't be lost if upload fails
+- **Fix:** Added visual indicators showing recording is backed up locally, added download button in preview state, improved UX messaging
+- **Note:** IndexedDB backup was already implemented - this fix improves UX visibility
+- **File:** `templates/capture/capture_record.html`
+
+**Task 354: Scripture Not Loading**
+- **Issue:** Scripture expansion showing errors without specific messaging, Bible translations loading issues
+- **Fix:** Improved error handling in scripture expansion and preferences translation loading to show specific API error messages
+- **Note:** The API limitation (free tier with fewer translations) is documented in the UI
+- **Files:** `templates/faith/reading_plans/progress.html`, `templates/users/preferences.html`
+
+---
+
 ## 2026-01-21 Changes
 
 ### Task 9.3: WLJ Values Guardrails

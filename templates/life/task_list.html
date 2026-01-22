@@ -4,8 +4,8 @@
 {% block title %}Tasks - Organize{% endblock %}
 
 {% block content %}
-<!-- Task Completed Popup -->
-<div id="task-completed-popup" class="task-completed-popup" style="display: none;">
+<!-- Task Completed Popup - Hidden by default, shown via JS when task_completed=1 -->
+<div id="task-completed-popup" class="task-completed-popup hidden">
     <div class="popup-content">
         <div class="popup-checkmark">
             <svg viewBox="0 0 52 52" width="64" height="64">
@@ -611,6 +611,10 @@
     animation: fadeIn 0.2s ease-out;
 }
 
+.task-completed-popup.hidden {
+    display: none;
+}
+
 .popup-content {
     background: var(--color-background);
     border-radius: var(--radius-xl);
@@ -679,17 +683,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('task_completed') === '1') {
         const popup = document.getElementById('task-completed-popup');
-        popup.style.display = 'flex';
+        popup.classList.remove('hidden');
 
         // Remove the query param from URL without refresh
         const newUrl = window.location.pathname + window.location.search.replace(/[?&]task_completed=1/, '').replace(/^&/, '?');
         window.history.replaceState({}, '', newUrl || window.location.pathname);
 
-        // Hide popup after 3-5 seconds
+        // Hide popup after 3 seconds
         setTimeout(function() {
             popup.style.animation = 'fadeOut 0.3s ease-out forwards';
             setTimeout(function() {
-                popup.style.display = 'none';
+                popup.classList.add('hidden');
+                popup.style.animation = '';
             }, 300);
         }, 3000);
 
@@ -697,7 +702,8 @@ document.addEventListener('DOMContentLoaded', function() {
         popup.addEventListener('click', function() {
             popup.style.animation = 'fadeOut 0.3s ease-out forwards';
             setTimeout(function() {
-                popup.style.display = 'none';
+                popup.classList.add('hidden');
+                popup.style.animation = '';
             }, 300);
         });
     }

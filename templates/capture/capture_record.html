@@ -76,21 +76,36 @@
         <div id="state-preview" style="display: none;">
             <div style="font-size: 3rem; margin-bottom: 1rem;">&#9989;</div>
             <h2 style="margin-bottom: 0.75rem;">Recording Complete</h2>
-            <p id="preview-duration" style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
+            <p id="preview-duration" style="color: var(--color-text-secondary); margin-bottom: 0.5rem;">
                 Duration: --:--
+            </p>
+
+            <!-- Local backup indicator -->
+            <p id="local-backup-status" style="font-size: 0.875rem; color: #059669; margin-bottom: 1.5rem; display: none;">
+                &#128190; Recording saved locally - safe even if you close this page
             </p>
 
             <div style="margin-bottom: 2rem;">
                 <audio id="audio-preview" controls style="width: 100%; max-width: 400px;"></audio>
             </div>
 
-            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1rem;">
                 <button id="discard-recording" class="btn btn-ghost">
                     Discard & Re-record
                 </button>
                 <button id="submit-recording" class="btn btn-primary">
-                    Save Recording
+                    Upload Recording
                 </button>
+            </div>
+
+            <!-- Download option in preview state -->
+            <div style="margin-top: 1rem;">
+                <a id="preview-download-link" href="#" download="recording.webm" class="btn btn-secondary btn-sm" style="display: none;">
+                    &#128190; Download to Device
+                </a>
+                <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem;">
+                    You can download your recording for safekeeping before uploading
+                </p>
             </div>
         </div>
 
@@ -369,6 +384,19 @@
             return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
         }
 
+        // Set up download link for preview state
+        function setupDownloadLink(blob) {
+            const downloadLink = document.getElementById('preview-download-link');
+            if (downloadLink && blob) {
+                const downloadUrl = URL.createObjectURL(blob);
+                const extension = blob.type.split('/')[1]?.split(';')[0] || 'webm';
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+                downloadLink.href = downloadUrl;
+                downloadLink.download = `WLJ-Recording-${timestamp}.${extension}`;
+                downloadLink.style.display = 'inline-block';
+            }
+        }
+
         // Show state
         function showState(state) {
             stateIdle.style.display = state === 'idle' ? 'block' : 'none';
@@ -529,12 +557,20 @@
 
                     // CRITICAL: Backup recording to IndexedDB immediately
                     // This protects against page refresh, 502 errors, or retry failures
-                    await saveRecordingToIndexedDB(audioBlob, duration);
+                    const backupSuccess = await saveRecordingToIndexedDB(audioBlob, duration);
 
                     // Set up preview
                     const audioUrl = URL.createObjectURL(audioBlob);
                     audioPreview.src = audioUrl;
                     previewDuration.textContent = 'Duration: ' + formatTime(duration);
+
+                    // Show local backup indicator if backup succeeded
+                    if (backupSuccess) {
+                        document.getElementById('local-backup-status').style.display = 'block';
+                    }
+
+                    // Set up download link
+                    setupDownloadLink(audioBlob);
 
                     showState('preview');
                 };
@@ -573,14 +609,20 @@
             }
         }
 
-        // Discard recording
-        function discardRecording() {
+        // Discard recording (also clears IndexedDB backup)
+        async function discardRecording() {
             audioBlob = null;
             audioChunks = [];
+            savedDuration = null;
             if (audioPreview.src) {
                 URL.revokeObjectURL(audioPreview.src);
                 audioPreview.src = '';
             }
+            // Clear local backup when discarding
+            await clearRecordingFromIndexedDB();
+            // Hide local backup indicator and download link
+            document.getElementById('local-backup-status').style.display = 'none';
+            document.getElementById('preview-download-link').style.display = 'none';
             showState('idle');
         }
 
@@ -758,6 +800,9 @@
                 if (savedDuration) {
                     previewDuration.textContent = 'Duration: ' + formatTime(savedDuration);
                 }
+                // Show local backup indicator and download link
+                document.getElementById('local-backup-status').style.display = 'block';
+                setupDownloadLink(audioBlob);
                 showState('preview');
                 return;
             }
@@ -771,6 +816,9 @@
                 const audioUrl = URL.createObjectURL(audioBlob);
                 audioPreview.src = audioUrl;
                 previewDuration.textContent = 'Duration: ' + formatTime(savedRecording.duration);
+                // Show local backup indicator and download link
+                document.getElementById('local-backup-status').style.display = 'block';
+                setupDownloadLink(audioBlob);
                 showState('preview');
                 return;
             }
@@ -793,6 +841,11 @@
                     const audioUrl = URL.createObjectURL(audioBlob);
                     audioPreview.src = audioUrl;
                     previewDuration.textContent = 'Duration: ' + formatTime(savedRecording.duration);
+
+                    // Show local backup indicator
+                    document.getElementById('local-backup-status').style.display = 'block';
+                    // Set up download link
+                    setupDownloadLink(audioBlob);
 
                     recordingInterface.style.display = 'block';
                     showState('preview');

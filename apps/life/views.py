@@ -284,11 +284,12 @@ class ProjectDeleteView(LifeAccessMixin, DeleteView):
 # Tasks
 # =============================================================================
 
-class TaskListView(LifeAccessMixin, ListView):
+class TaskListView(HelpContextMixin, LifeAccessMixin, ListView):
     """List all tasks with search and filtering capabilities."""
     model = Task
     template_name = "life/task_list.html"
     context_object_name = "tasks"
+    help_context_id = "LIFE_TASKS"
 
     def get_queryset(self):
         from django.db.models import Q

@@ -1066,7 +1066,19 @@ document.addEventListener('DOMContentLoaded', function() {
             const params = 'content-type=text&include-verse-numbers=true&include-titles=false';
             const response = await fetch(`${API_PROXY_BASE}/bibles/${bibleId}/passages/${passageId}/?${params}`);
 
-            if (!response.ok) throw new Error(`API returned ${response.status}`);
+            if (!response.ok) {
+                // Try to get error message from response
+                let errorMessage = `API returned ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch (e) {
+                    // Ignore JSON parse errors
+                }
+                throw new Error(errorMessage);
+            }
 
             const data = await response.json();
 
@@ -1089,12 +1101,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.data.copyright) {
                     textDiv.innerHTML += `<div class="scripture-copyright">${data.data.copyright}</div>`;
                 }
+            } else if (data.error) {
+                throw new Error(data.error);
             } else {
                 throw new Error('No scripture data returned');
             }
         } catch (error) {
             console.error('Error fetching scripture:', error);
-            errorDiv.innerHTML = `Could not load scripture. <a href="{% url 'faith:scripture_list' %}?lookup=${encodeURIComponent(reference)}">Open in Scripture Library</a>`;
+            let errorHtml = 'Could not load scripture.';
+            // Show specific error message if available
+            if (error.message && error.message !== 'Could not load scripture') {
+                errorHtml = error.message;
+            }
+            errorDiv.innerHTML = `${errorHtml} <a href="{% url 'faith:scripture_list' %}?lookup=${encodeURIComponent(reference)}">Open in Scripture Library</a>`;
             errorDiv.style.display = 'block';
         } finally {
             loadingDiv.style.display = 'none';

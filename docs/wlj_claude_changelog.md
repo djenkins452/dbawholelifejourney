@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-22 Changes
 
+### Task 386: Pause/Resume Recording & iOS Download Messaging
+
+**Objective:** Add pause/resume functionality to audio recording and improve download messaging for iOS users
+
+**Changes:**
+
+1. **Pause/Resume Recording:**
+   - Added Pause button alongside Stop button during recording
+   - Pause freezes timer, changes indicator to pause icon with amber color
+   - Resume continues recording from where it left off
+   - Timer accurately reflects actual recording time (excludes paused time)
+   - Uses native MediaRecorder `pause()` and `resume()` methods
+
+2. **iOS Download Messaging:**
+   - Detect iOS devices via user agent
+   - On iOS: Button text shows "Save to Files" instead of "Download to Device"
+   - Helper text explains iOS requires tapping "Save to Files" in the share sheet
+   - Applied to both preview state and error state download buttons
+
+**File Modified:** `templates/capture/capture_record.html`
+
+---
+
 ### Bug Fix Batch: Tasks 350, 351, 353, 354
 
 Four parallel bug fixes completed:

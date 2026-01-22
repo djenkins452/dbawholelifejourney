@@ -60,16 +60,21 @@
                 <div class="pulse-circle"></div>
                 <div class="pulse-icon">&#128308;</div>
             </div>
-            <h2 style="margin-bottom: 0.5rem;">Recording...</h2>
+            <h2 id="recording-status-text" style="margin-bottom: 0.5rem;">Recording...</h2>
             <div id="recording-timer" style="font-size: 2.5rem; font-weight: 600; margin-bottom: 1.5rem; font-family: monospace;">
                 00:00
             </div>
             <p style="color: var(--color-text-secondary); margin-bottom: 2rem; font-size: 0.875rem;">
                 Maximum: 60 minutes
             </p>
-            <button id="stop-recording" class="btn btn-danger btn-lg">
-                Stop Recording
-            </button>
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                <button id="pause-recording" class="btn btn-warning btn-lg">
+                    Pause
+                </button>
+                <button id="stop-recording" class="btn btn-danger btn-lg">
+                    Stop Recording
+                </button>
+            </div>
         </div>
 
         <!-- Preview State -->
@@ -101,9 +106,9 @@
             <!-- Download option in preview state -->
             <div style="margin-top: 1rem;">
                 <a id="preview-download-link" href="#" download="recording.webm" class="btn btn-secondary btn-sm" style="display: none;">
-                    &#128190; Download to Device
+                    &#128190; <span id="preview-download-text">Download to Device</span>
                 </a>
-                <p style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem;">
+                <p id="preview-download-hint" style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem;">
                     You can download your recording for safekeeping before uploading
                 </p>
             </div>
@@ -151,9 +156,9 @@
             <div id="download-recording-container" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px; border: 1px solid #fbbf24;">
                 <p style="margin-bottom: 0.75rem; font-weight: 500; color: #92400e;">Your recording is still available!</p>
                 <a id="download-recording-link" href="#" download="recording.webm" class="btn btn-primary" style="background: #059669;">
-                    Download Recording to Device
+                    <span id="error-download-text">Download Recording to Device</span>
                 </a>
-                <p style="font-size: 0.75rem; color: #92400e; margin-top: 0.5rem;">Save your recording to your device, then you can upload it later.</p>
+                <p id="error-download-hint" style="font-size: 0.75rem; color: #92400e; margin-top: 0.5rem;">Save your recording to your device, then you can upload it later.</p>
             </div>
             <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
                 <a href="{% url 'capture:list' %}" class="btn btn-secondary">Back to Capture List</a>
@@ -232,6 +237,25 @@
         background: #dc2626;
     }
 
+    .btn-warning {
+        background: #f59e0b;
+        color: white;
+    }
+
+    .btn-warning:hover {
+        background: #d97706;
+    }
+
+    /* Paused state styles */
+    .recording-pulse.paused .pulse-circle {
+        background: rgba(245, 158, 11, 0.2);
+        animation: none;
+    }
+
+    .recording-pulse.paused .pulse-icon {
+        content: '';
+    }
+
     .processing-pulse {
         position: relative;
         width: 80px;
@@ -273,9 +297,15 @@
         let currentEntryId = null;
         let pollingInterval = null;
         let savedDuration = null;
+        let isPaused = false;
+        let pausedTime = 0; // Total time spent paused
+        let pauseStartTime = null; // When current pause started
 
         const MAX_DURATION_MS = 60 * 60 * 1000; // 60 minutes
         const POLLING_INTERVAL_MS = 2000; // Poll every 2 seconds
+
+        // iOS detection for download messaging
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         const DB_NAME = 'CaptureRecordingBackup';
         const DB_VERSION = 1;
         const STORE_NAME = 'recordings';
@@ -394,6 +424,34 @@
                 downloadLink.href = downloadUrl;
                 downloadLink.download = `WLJ-Recording-${timestamp}.${extension}`;
                 downloadLink.style.display = 'inline-block';
+
+                // Update text for iOS users
+                const downloadText = document.getElementById('preview-download-text');
+                const downloadHint = document.getElementById('preview-download-hint');
+                if (isIOS) {
+                    if (downloadText) downloadText.textContent = 'Save to Files';
+                    if (downloadHint) downloadHint.textContent = 'Tap the button, then choose "Save to Files" to save your recording';
+                }
+            }
+        }
+
+        // Set up error state download link with iOS messaging
+        function setupErrorDownloadLink(blob) {
+            const downloadLink = document.getElementById('download-recording-link');
+            if (downloadLink && blob) {
+                const downloadUrl = URL.createObjectURL(blob);
+                const extension = blob.type.split('/')[1]?.split(';')[0] || 'webm';
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+                downloadLink.href = downloadUrl;
+                downloadLink.download = `WLJ-Recording-${timestamp}.${extension}`;
+
+                // Update text for iOS users
+                const downloadText = document.getElementById('error-download-text');
+                const downloadHint = document.getElementById('error-download-hint');
+                if (isIOS) {
+                    if (downloadText) downloadText.textContent = 'Save Recording to Files';
+                    if (downloadHint) downloadHint.textContent = 'Tap the button, then choose "Save to Files" to save your recording. You can upload it later.';
+                }
             }
         }
 
@@ -413,15 +471,9 @@
 
             // Show download button if we have a recording to save
             const downloadContainer = document.getElementById('download-recording-container');
-            const downloadLink = document.getElementById('download-recording-link');
 
             if (audioBlob) {
-                // Create download URL for the recording
-                const downloadUrl = URL.createObjectURL(audioBlob);
-                const extension = audioBlob.type.split('/')[1]?.split(';')[0] || 'webm';
-                const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-                downloadLink.href = downloadUrl;
-                downloadLink.download = `WLJ-Recording-${timestamp}.${extension}`;
+                setupErrorDownloadLink(audioBlob);
                 downloadContainer.style.display = 'block';
             } else {
                 downloadContainer.style.display = 'none';
@@ -551,8 +603,8 @@
                     console.log('Recording completed with MIME type:', mimeTypeUsed);
                     audioBlob = new Blob(audioChunks, { type: mimeTypeUsed });
 
-                    // Calculate duration
-                    const duration = Date.now() - recordingStartTime;
+                    // Calculate duration (excluding paused time)
+                    const duration = Date.now() - recordingStartTime - pausedTime;
                     savedDuration = duration;
 
                     // CRITICAL: Backup recording to IndexedDB immediately
@@ -578,14 +630,22 @@
                 // Start recording
                 mediaRecorder.start(1000); // Collect data every second
                 recordingStartTime = Date.now();
+                pausedTime = 0; // Reset paused time for new recording
+                isPaused = false;
+                pauseStartTime = null;
                 showState('recording');
 
                 // Start timer
                 timerInterval = setInterval(() => {
-                    const elapsed = Date.now() - recordingStartTime;
+                    // Calculate elapsed time, excluding paused time
+                    let currentPausedTime = pausedTime;
+                    if (isPaused && pauseStartTime) {
+                        currentPausedTime += Date.now() - pauseStartTime;
+                    }
+                    const elapsed = Date.now() - recordingStartTime - currentPausedTime;
                     recordingTimer.textContent = formatTime(elapsed);
 
-                    // Auto-stop at max duration
+                    // Auto-stop at max duration (based on actual recording time)
                     if (elapsed >= MAX_DURATION_MS) {
                         stopRecording();
                     }
@@ -604,8 +664,71 @@
                 clearInterval(timerInterval);
                 timerInterval = null;
             }
+            // If paused, account for pause time before stopping
+            if (isPaused && pauseStartTime) {
+                pausedTime += Date.now() - pauseStartTime;
+            }
+            isPaused = false;
+            pauseStartTime = null;
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.stop();
+            }
+        }
+
+        // Pause recording
+        function pauseRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.pause();
+                isPaused = true;
+                pauseStartTime = Date.now();
+                updatePauseUI(true);
+            }
+        }
+
+        // Resume recording
+        function resumeRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'paused') {
+                // Add the paused duration to total paused time
+                if (pauseStartTime) {
+                    pausedTime += Date.now() - pauseStartTime;
+                    pauseStartTime = null;
+                }
+                mediaRecorder.resume();
+                isPaused = false;
+                updatePauseUI(false);
+            }
+        }
+
+        // Toggle pause/resume
+        function togglePause() {
+            if (isPaused) {
+                resumeRecording();
+            } else {
+                pauseRecording();
+            }
+        }
+
+        // Update UI for paused state
+        function updatePauseUI(paused) {
+            const indicator = document.getElementById('recording-indicator');
+            const statusText = document.getElementById('recording-status-text');
+            const pauseButton = document.getElementById('pause-recording');
+            const pulseIcon = indicator.querySelector('.pulse-icon');
+
+            if (paused) {
+                indicator.classList.add('paused');
+                statusText.textContent = 'Paused';
+                pauseButton.textContent = 'Resume';
+                pauseButton.classList.remove('btn-warning');
+                pauseButton.classList.add('btn-primary');
+                pulseIcon.innerHTML = '&#9208;'; // Pause icon (double vertical bar)
+            } else {
+                indicator.classList.remove('paused');
+                statusText.textContent = 'Recording...';
+                pauseButton.textContent = 'Pause';
+                pauseButton.classList.remove('btn-primary');
+                pauseButton.classList.add('btn-warning');
+                pulseIcon.innerHTML = '&#128308;'; // Red circle
             }
         }
 
@@ -614,6 +737,9 @@
             audioBlob = null;
             audioChunks = [];
             savedDuration = null;
+            isPaused = false;
+            pausedTime = 0;
+            pauseStartTime = null;
             if (audioPreview.src) {
                 URL.revokeObjectURL(audioPreview.src);
                 audioPreview.src = '';
@@ -863,6 +989,7 @@
         // Event listeners
         document.getElementById('start-recording').addEventListener('click', startRecording);
         document.getElementById('stop-recording').addEventListener('click', stopRecording);
+        document.getElementById('pause-recording').addEventListener('click', togglePause);
         document.getElementById('discard-recording').addEventListener('click', async function() {
             // Clear IndexedDB backup when user explicitly discards
             await clearRecordingFromIndexedDB();

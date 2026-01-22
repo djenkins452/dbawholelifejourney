@@ -1273,6 +1273,10 @@ class ReadingPlanProgressView(LoginRequiredMixin, FaithRequiredMixin, DetailView
             ("advanced", "Advanced"),
         ]
 
+        # Check if this is a Gospel plan (Matthew, Mark, Luke, John)
+        # Only Gospel plans show the difficulty selector per user request
+        context["is_gospel_plan"] = user_plan.template.source == "The Four Gospels"
+
         return context
 
 

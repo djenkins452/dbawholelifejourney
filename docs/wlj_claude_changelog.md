@@ -16,6 +16,26 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-22 Changes
 
+### Task 355: Gospel Reading Plans - Difficulty Level Selector
+
+**Objective:** Restrict the difficulty level selector (Beginner/Intermediate/Advanced) to only show on Gospel reading plans (Matthew, Mark, Luke, John).
+
+**Changes:**
+
+1. **View Update:**
+   - Added `is_gospel_plan` context variable to `ReadingPlanProgressView`
+   - Detects Gospel plans by checking `template.source == "The Four Gospels"`
+
+2. **Template Update:**
+   - Wrapped difficulty toggle dropdown with `{% if is_gospel_plan %}` conditional
+   - Non-Gospel plans no longer show the Level dropdown
+
+**Files Modified:**
+- `apps/faith/views.py` - Added `is_gospel_plan` context
+- `templates/faith/reading_plans/progress.html` - Conditional display of difficulty selector
+
+---
+
 ### Email Batch: Tasks 366-375 - JSON Import Fix & Bible Context False Positives
 
 **Processed 10 email intake tasks:**

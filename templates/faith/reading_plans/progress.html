@@ -55,6 +55,7 @@
         <section class="current-reading mb-8">
             <div class="reading-header-row">
                 <h2 class="section-title">Today's Reading - Day {{ current_day.day_number }}</h2>
+                {% if is_gospel_plan %}
                 <div class="difficulty-toggle">
                     <label for="difficulty-select" class="difficulty-label">Level:</label>
                     <select id="difficulty-select" class="difficulty-select" data-url="{% url 'faith:update_reading_difficulty' %}">
@@ -63,6 +64,7 @@
                         {% endfor %}
                     </select>
                 </div>
+                {% endif %}
             </div>
             <div class="reading-card">
                 {% if current_day.title %}

@@ -458,6 +458,8 @@ BIBLE_CHARACTERS: List[str] = [
     'james', 'matthew', 'mark', 'luke', 'andrew', 'philip', 'thomas', 'judas',
     'nicodemus', 'pilate', 'herod', 'barabbas', 'stephen', 'timothy', 'barnabas',
     'silas', 'apollos', 'priscilla', 'aquila', 'cornelius', 'lydia', 'phoebe',
+    # Groups/roles from Bible narratives
+    'wiseman', 'wise men', 'magi', 'shepherd', 'shepherds', 'pharaoh',
 ]
 
 # Bible study terms that indicate scriptural discussion
@@ -466,6 +468,10 @@ BIBLE_STUDY_TERMS: List[str] = [
     'verse', 'passage', 'gospel', 'epistle', 'testament', 'covenant', 'apostle',
     'disciple', 'pharisee', 'sadducee', 'sanhedrin', 'sabbath', 'resurrection',
     'crucifixion', 'salvation', 'baptism', 'communion', 'sermon', 'miracle',
+    # Marriage/cultural terms from Bible
+    'betrothed', 'betroth',
+    # Divine communication in Bible
+    'dream', 'dreams', 'vision', 'visions', 'angel', 'angels',
 ]
 
 

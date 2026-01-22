@@ -16,6 +16,29 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-22 Changes
 
+### Email Batch: Tasks 376-385 - Bible Study Context False Positives
+
+**Processed 10 email intake tasks:**
+
+#### Bug Fix: Expanded Bible Study Context Detection (Tasks 378, 381, 383, 385)
+
+**Issue:** Bible study questions were being flagged as personal data queries:
+- "How far did the Wiseman travel?" → flagged "wiseman" as data type
+- "What does betrothed mean" → flagged "betrothed" as data type
+- "God came to him in a dream" → flagged "dream" matching "sleep" data
+
+**Fix:** Expanded `BIBLE_CHARACTERS` and `BIBLE_STUDY_TERMS` lists in `assistant/intent_detector.py`:
+- Added: wiseman, wise men, magi, shepherd, shepherds, pharaoh (characters)
+- Added: betrothed, betroth, dream, dreams, vision, visions, angel, angels (terms)
+
+**File Modified:** `assistant/intent_detector.py`
+
+#### Already Resolved (Tasks 376, 377, 379, 380, 382, 384)
+
+- **Bible API 403/500 errors:** Known API tier limitation for certain passages
+
+---
+
 ### Task 355: Gospel Reading Plans - Difficulty Level Selector
 
 **Objective:** Restrict the difficulty level selector (Beginner/Intermediate/Advanced) to only show on Gospel reading plans (Matthew, Mark, Luke, John).

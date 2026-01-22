@@ -778,6 +778,62 @@ class TestRealFalsePositiveCases(unittest.TestCase):
         result = extract_potential_keywords("Is that based on our conversation?")
         self.assertNotIn('conversation', result)
 
+    def test_interesting_not_extracted_as_keyword(self):
+        """
+        'interesting' should not be extracted from conversational statements.
+        Real example: "Interesting. God's mercy and grace is almost unreal."
+        """
+        result = extract_potential_keywords(
+            "Interesting. God's mercy and grace is almost unreal. Yet he does it anyway"
+        )
+        self.assertNotIn('interesting', result)
+        self.assertNotIn('almost', result)
+        self.assertNotIn('anyway', result)
+        self.assertNotIn('unreal', result)
+
+    def test_never_not_extracted_as_keyword(self):
+        """
+        'never' should not be extracted from conversational statements.
+        Real example: "i've never heard this before."
+        """
+        result = extract_potential_keywords("i've never heard this before.")
+        self.assertNotIn('never', result)
+
+    def test_significant_not_extracted_as_keyword(self):
+        """
+        'significant' should not be extracted from conversational questions.
+        Real example: "Why is 14 significant?"
+        """
+        result = extract_potential_keywords("Why is 14 significant?")
+        self.assertNotIn('significant', result)
+
+    def test_conversational_reflections_no_gap(self):
+        """
+        Conversational/reflective statements should not trigger gap detection.
+        Even though they contain 'i' or 'i've', they are NOT personal data queries.
+        """
+        intent_result = {
+            'is_personal_query': False,
+            'data_types': [],
+            'has_date_context': False,
+            'is_meta_question': False,
+            'is_compound_query': False,
+        }
+
+        # These are real messages that previously triggered false positives
+        messages = [
+            "Interesting. God's mercy and grace is almost unreal. Yet he does it anyway",
+            "i've never heard this before.",
+            "Why is 14 significant?",
+        ]
+
+        for msg in messages:
+            result = detect_knowledge_gap(msg, intent_result=intent_result, data_result=None)
+            self.assertFalse(
+                result['gap_detected'],
+                f"Message '{msg[:40]}...' should NOT trigger gap detection"
+            )
+
 
 class TestLegitimateGapDetection(unittest.TestCase):
     """

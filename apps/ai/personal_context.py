@@ -155,12 +155,13 @@ Conversation to analyze:
 Extract personal facts (one per line, human-readable):"""
 
     try:
-        # Use a smaller model for extraction to save costs
+        # Use AIService for extraction
         service = AIService()
+        system_prompt = "You are an AI assistant that extracts personal facts from conversations. Be concise and focus only on meaningful, lasting personal details."
         response = service._call_api(
-            messages=[{"role": "user", "content": extraction_prompt}],
-            max_tokens=500,
-            temperature=0.3  # Lower temperature for more consistent extraction
+            system_prompt=system_prompt,
+            user_prompt=extraction_prompt,
+            max_tokens=500
         )
 
         if not response:

@@ -16,6 +16,49 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-22 Changes
 
+### Email Batch: Tasks 356-365 - Gap Detector False Positives & Personal Context Bug
+
+**Processed 10 email intake tasks addressing two root causes:**
+
+#### Bug Fix 1: Gap Detector False Positives (Tasks 357, 360, 361)
+
+**Issue:** The gap detector was flagging conversational phrases as potential "new data types", generating false approval emails like:
+- "Interesting. God's mercy and grace is almost unreal" → flagged "interesting"
+- "i've never heard this before" → flagged "never"
+- "Why is 14 significant?" → flagged "significant"
+
+**Root Causes:**
+1. Personal indicator check used substring matching, so "Interesting" matched "i" and "mercy" matched "me"
+2. Common adjectives/adverbs like "interesting", "never", "significant" weren't in the CONVERSATIONAL_WORDS exclusion list
+
+**Fixes:**
+1. Changed personal indicator check to use word boundary regex (`\bi\b` instead of `'i' in query`)
+2. Added extensive list of common adjectives and adverbs to CONVERSATIONAL_WORDS:
+   - Adjectives: interesting, amazing, significant, unreal, incredible, weird, strange, etc.
+   - Adverbs: never, always, sometimes, often, almost, anyway, really, actually, etc.
+
+**Files Modified:**
+- `assistant/gap_detector.py` - Fixed regex matching, expanded CONVERSATIONAL_WORDS
+- `assistant/tests/test_gap_detector.py` - Added test cases for real false positive scenarios
+
+#### Bug Fix 2: Personal Context Extraction Error (Task 356)
+
+**Issue:** Personal context extraction was failing with error:
+`AIService._call_api() got an unexpected keyword argument 'messages'`
+
+**Root Cause:** Code was calling `_call_api(messages=[...], temperature=0.3)` but the method signature is `_call_api(system_prompt, user_prompt, max_tokens)`
+
+**Fix:** Updated call to use correct parameters: `_call_api(system_prompt=..., user_prompt=..., max_tokens=500)`
+
+**File Modified:** `apps/ai/personal_context.py`
+
+#### Already Resolved (Tasks 358-359, 362-365)
+
+- **Bible API 403 errors:** Known API tier limitation, not a code bug
+- **Dashboard quick_analyze error:** Already fixed in prior changelog entry
+
+---
+
 ### Task 386: Pause/Resume Recording & iOS Download Messaging
 
 **Objective:** Add pause/resume functionality to audio recording and improve download messaging for iOS users

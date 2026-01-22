@@ -146,6 +146,18 @@ CONVERSATIONAL_WORDS = {
     'possible', 'able', 'late', 'early', 'hard', 'easy',
     'whole', 'full', 'empty', 'ready', 'clear', 'certain',
     'fine', 'free', 'strong', 'special', 'open', 'close',
+    # Adjectives commonly used in conversational/reflective statements
+    'interesting', 'amazing', 'awesome', 'wonderful', 'terrible', 'horrible',
+    'beautiful', 'ugly', 'funny', 'sad', 'happy', 'angry', 'upset',
+    'significant', 'insignificant', 'unreal', 'incredible', 'unbelievable',
+    'weird', 'strange', 'odd', 'normal', 'unusual', 'typical', 'unique',
+    'perfect', 'imperfect', 'complete', 'incomplete', 'obvious', 'simple',
+    'complex', 'complicated', 'confusing', 'surprising', 'shocking',
+    # Common adverbs that appear in conversational statements
+    'never', 'always', 'sometimes', 'often', 'rarely', 'usually', 'almost',
+    'nearly', 'quite', 'really', 'actually', 'probably', 'maybe', 'perhaps',
+    'certainly', 'definitely', 'absolutely', 'completely', 'totally', 'entirely',
+    'anyway', 'however', 'therefore', 'otherwise', 'instead', 'besides',
     # Discourse markers and fillers
     'well', 'now', 'also', 'still', 'even', 'back', 'yes', 'yeah', 'okay',
     'please', 'thanks', 'thank', 'sorry', 'hello', 'hey', 'hi',
@@ -449,9 +461,19 @@ def detect_knowledge_gap(
         return base_response
 
     # Check for query patterns that suggest it should be personal
+    # Use word boundary matching to avoid false positives like "Interesting" matching "i"
+    # or "mercy" matching "me"
+    import re
+    personal_patterns = [
+        r'\bmy\b',      # my (word boundary)
+        r'\bi\b',       # i (word boundary)
+        r'\bme\b',      # me (word boundary)
+        r"\bi've\b",    # i've (word boundary)
+        r"\bi'm\b",     # i'm (word boundary)
+    ]
     has_personal_indicators = any(
-        word in query_lower
-        for word in ['my', 'i', 'me', "i've", "i'm"]
+        re.search(pattern, query_lower)
+        for pattern in personal_patterns
     )
 
     if has_personal_indicators and not intent_result.get('is_personal_query'):

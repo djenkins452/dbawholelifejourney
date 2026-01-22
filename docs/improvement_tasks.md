@@ -152,6 +152,98 @@
 **Status:** ⚪ Pending
 **Impact:** Medium - Optimize for phone usage
 
+### Task 21: Migrate Bible API from API.Bible to Bolls Bible API
+**Status:** ⚪ Pending (Ready for implementation)
+**Impact:** HIGH - Fixes scripture loading failures, adds ESV/NIV support
+**Estimated Phases:** 3 phases, 7 subtasks
+**Created:** 2026-01-22
+
+**Problem:**
+- Current API.Bible free tier returns 403 Forbidden for popular translations (ESV, NIV)
+- Users seeing "Bible API HTTP error: 403" when expanding scripture in reading plans
+- Limited translation options available
+
+**Solution:**
+Migrate to Bolls Bible API (https://bolls.life/api/) which:
+- Provides ESV, NIV (1984 & 2011), KJV, NASB, NLT + 40 more English translations
+- No API key required
+- No rate limits
+- Completely free
+
+**Phase 1: Backend Migration (Priority: Critical)**
+
+| Sub-task | Description |
+|----------|-------------|
+| 21.1 | Create `BollsBibleService` class in `apps/faith/services.py` with methods: `get_translations()`, `get_books(trans)`, `get_chapter(trans, book, chapter)`, `get_verse(trans, book, chapter, verse)`, `get_verse_range(trans, book, chapter, start, end)`, `search(trans, query)` |
+| 21.2 | Create book ID mapping constant (Bolls uses numeric IDs: 1=Genesis, 40=Matthew, etc.) |
+| 21.3 | Update `BibleAPIProxyMixin` and all proxy views to call Bolls instead of API.Bible |
+| 21.4 | Update/add endpoint: `GET /faith/api/bible/translations/` to return Bolls format |
+| 21.5 | Remove `BIBLE_API_KEY` dependency (no longer needed) |
+
+**Phase 2: Frontend Migration (Priority: High)**
+
+| Sub-task | Description |
+|----------|-------------|
+| 21.6 | Update `templates/faith/scripture_list.html` JavaScript to use new API structure |
+| 21.7 | Update `templates/faith/reading_plans/progress.html` scripture expansion JavaScript |
+| 21.8 | Update `templates/users/preferences.html` Bible translation selector |
+
+**Phase 3: Data Migration (Priority: Medium)**
+
+| Sub-task | Description |
+|----------|-------------|
+| 21.9 | Create data migration to convert existing `UserPreferences.default_bible_translation` values from API.Bible IDs to Bolls codes |
+| 21.10 | Update help text on `default_bible_translation` field |
+
+**API Mapping Reference:**
+
+| Operation | API.Bible (Current) | Bolls (New) |
+|-----------|---------------------|-------------|
+| Translations | `GET /bibles` | `GET /static/bolls/app/views/languages.json` |
+| Books | `GET /bibles/{id}/books` | `GET /get-books/{trans}/` |
+| Chapter | `GET /bibles/{id}/chapters/{ref}` | `GET /get-text/{trans}/{book}/{chapter}/` |
+| Single Verse | `GET /bibles/{id}/verses/{ref}` | `GET /get-verse/{trans}/{book}/{chapter}/{verse}/` |
+| Verse Range | `GET /bibles/{id}/passages/{ref}` | `POST /get-verses/` with JSON body |
+| Search | `GET /bibles/{id}/search?query=X` | `GET /v2/find/{trans}?search=X` |
+
+**Translation ID Mapping (Key Translations):**
+
+| Translation | API.Bible ID | Bolls Code |
+|-------------|--------------|------------|
+| KJV | `de4e12af7f28f599-02` | `KJV` |
+| ESV | `9879dbb7cfe39e4d-01` (blocked) | `ESV` |
+| NIV 2011 | `78a9f6124f344018-01` (blocked) | `NIV2011` |
+| NIV 1984 | N/A | `NIV` |
+| NASB | N/A | `NASB` |
+| NLT | `65eec8e0b60e656b-01` | `NLT` |
+
+**Book ID Mapping (Bolls numeric IDs):**
+
+| Book | Bolls ID | Book | Bolls ID |
+|------|----------|------|----------|
+| Genesis | 1 | Matthew | 40 |
+| Exodus | 2 | Mark | 41 |
+| ... | ... | ... | ... |
+| Malachi | 39 | Revelation | 66 |
+
+**Files to Modify:**
+- `apps/faith/views.py` - Proxy views
+- `apps/faith/services.py` - New service class (create)
+- `apps/faith/urls.py` - May need new/updated endpoints
+- `templates/faith/scripture_list.html` - JS updates
+- `templates/faith/reading_plans/progress.html` - JS updates
+- `templates/users/preferences.html` - Translation selector
+- `apps/users/models.py` - Update help_text
+- `apps/users/migrations/` - Data migration for existing preferences
+- `config/settings.py` - Can remove BIBLE_API_KEY
+
+**Testing:**
+- Test all scripture lookup flows
+- Test reading plan scripture expansion
+- Test preference saving/loading
+- Test users with existing translation preferences
+- Verify KJV fallback works
+
 ---
 
 ## Progress Log

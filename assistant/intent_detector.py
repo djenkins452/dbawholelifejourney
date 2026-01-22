@@ -442,6 +442,64 @@ COMPOUND_CONNECTORS: List[str] = [
 
 
 # =============================================================================
+# BIBLE STUDY CONTEXT - Indicates message is about scripture, not personal data
+# =============================================================================
+
+# Bible characters that indicate the message is about scripture, not personal data
+# When these names appear, don't flag personal data keywords like "sleep"
+BIBLE_CHARACTERS: List[str] = [
+    # Old Testament figures
+    'abraham', 'isaac', 'jacob', 'joseph', 'moses', 'aaron', 'joshua', 'david',
+    'solomon', 'elijah', 'elisha', 'isaiah', 'jeremiah', 'ezekiel', 'daniel',
+    'jonah', 'ruth', 'esther', 'job', 'noah', 'adam', 'eve', 'sarah', 'rebecca',
+    'rachel', 'leah', 'samson', 'gideon', 'samuel', 'saul', 'goliath',
+    # New Testament figures
+    'jesus', 'christ', 'mary', 'martha', 'lazarus', 'peter', 'paul', 'john',
+    'james', 'matthew', 'mark', 'luke', 'andrew', 'philip', 'thomas', 'judas',
+    'nicodemus', 'pilate', 'herod', 'barabbas', 'stephen', 'timothy', 'barnabas',
+    'silas', 'apollos', 'priscilla', 'aquila', 'cornelius', 'lydia', 'phoebe',
+]
+
+# Bible study terms that indicate scriptural discussion
+BIBLE_STUDY_TERMS: List[str] = [
+    'metaphor', 'parable', 'allegory', 'symbolism', 'prophecy', 'scripture',
+    'verse', 'passage', 'gospel', 'epistle', 'testament', 'covenant', 'apostle',
+    'disciple', 'pharisee', 'sadducee', 'sanhedrin', 'sabbath', 'resurrection',
+    'crucifixion', 'salvation', 'baptism', 'communion', 'sermon', 'miracle',
+]
+
+
+def is_bible_study_context(message: str) -> bool:
+    """
+    Detect if a message is about Bible study/scripture rather than personal data.
+
+    This helps avoid false positives where words like "asleep" in
+    "Was Joseph asleep?" refer to Bible stories, not personal sleep data.
+
+    Args:
+        message: The user's message string.
+
+    Returns:
+        True if the message appears to be about Bible/scripture study.
+    """
+    message_lower = message.lower()
+
+    # Check for Bible character names
+    for character in BIBLE_CHARACTERS:
+        pattern = r'\b' + re.escape(character) + r'\b'
+        if re.search(pattern, message_lower):
+            return True
+
+    # Check for Bible study terms
+    for term in BIBLE_STUDY_TERMS:
+        pattern = r'\b' + re.escape(term) + r'\b'
+        if re.search(pattern, message_lower):
+            return True
+
+    return False
+
+
+# =============================================================================
 # AMBIGUOUS KEYWORDS - Need clarification before processing
 # =============================================================================
 
@@ -663,11 +721,17 @@ def detect_personal_data_intent(message: str) -> Dict:
     # - Must have detected at least one data type OR have an ambiguous keyword
     # - Must have either a personal pronoun OR a query pattern with data types
     # - Meta-questions about personal data are also personal queries
+    # - BUT NOT if it's a Bible study question (e.g., "Was Joseph asleep?")
     has_data_indicator = bool(detected_data_types) or ambiguous_keyword_found
+
+    # Check for Bible study context - if present, this is NOT a personal data query
+    # This prevents false positives like "Was Joseph asleep?" triggering sleep data
+    is_bible_context = is_bible_study_context(message)
+
     is_personal_query = has_data_indicator and (
         has_personal_pronoun or (has_query_pattern and has_data_indicator)
         or is_meta_question
-    )
+    ) and not is_bible_context
 
     return {
         'is_personal_query': is_personal_query,

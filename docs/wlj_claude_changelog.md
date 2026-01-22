@@ -16,6 +16,41 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-22 Changes
 
+### Email Batch: Tasks 366-375 - JSON Import Fix & Bible Context False Positives
+
+**Processed 10 email intake tasks:**
+
+#### Bug Fix 1: Missing JSON Import (Tasks 367, 368)
+
+**Issue:** Bulk task delete endpoint was returning 500 error:
+`NameError: name 'json' is not defined`
+
+**Fix:** Added missing `import json` at top of `apps/life/views.py` and added `JsonResponse` to django.http imports.
+
+**File Modified:** `apps/life/views.py`
+
+#### Bug Fix 2: Sleep False Positive from Bible Study Question (Task 372)
+
+**Issue:** Question "Was Joseph actually asleep or is that a metaphor some type?" was flagged as a personal sleep data query, generating an approval email.
+
+**Root Cause:** Intent detector matched "asleep" to sleep data type without recognizing the Bible study context.
+
+**Fix:** Added Bible study context detection to `assistant/intent_detector.py`:
+- Added `BIBLE_CHARACTERS` list (Abraham, Moses, Jesus, Joseph, David, etc.)
+- Added `BIBLE_STUDY_TERMS` list (metaphor, parable, prophecy, scripture, etc.)
+- Added `is_bible_study_context()` function to detect Bible study questions
+- Modified `detect_personal_data_intent()` to exclude Bible context from personal queries
+
+**File Modified:** `assistant/intent_detector.py`
+
+#### Already Resolved (Tasks 366, 369-371, 373-375)
+
+- **Task 366 "brief" data type:** Already fixed by gap detector word boundary changes
+- **Tasks 369, 373, 374, 375 Bible API 403:** Known API tier limitation
+- **Tasks 370, 371 Weather API timeout:** Transient external API issue
+
+---
+
 ### Email Batch: Tasks 356-365 - Gap Detector False Positives & Personal Context Bug
 
 **Processed 10 email intake tasks addressing two root causes:**

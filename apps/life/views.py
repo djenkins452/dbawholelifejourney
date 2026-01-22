@@ -13,6 +13,7 @@ The daily operating layer of a person's life.
 Calm, integrated, and quietly powerful.
 """
 
+import json
 import logging
 import secrets
 from datetime import timedelta
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Case, Count, Q, Sum, Value, When
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone

@@ -347,7 +347,30 @@
             </svg>
         </a>
     </div>
-    
+
+    <!-- Security Section -->
+    <div class="section-divider mt-8 mb-4">
+        <h2 class="section-title">Security</h2>
+    </div>
+
+    <div class="admin-grid">
+        <!-- Security Dashboard -->
+        <a href="{% url 'security:dashboard' %}" class="admin-card">
+            <div class="admin-card-icon" style="background: color-mix(in srgb, #ef4444 15%, transparent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Security Dashboard</h3>
+                <p>CISO-grade security assessment</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+    </div>
+
     <!-- Recent Users -->
     {% if recent_users %}
     <div class="recent-section mt-8">

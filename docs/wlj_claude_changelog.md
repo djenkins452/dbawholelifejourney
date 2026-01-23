@@ -16,6 +16,20 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-22 Changes
 
+### Security Dashboard Link in Admin Console
+
+Added a link to the Security Dashboard from the Admin Console page.
+
+**Changes:**
+- Added new "Security" section to Admin Console dashboard
+- Created link to Security Dashboard (`/security/dashboard/`) with shield icon and description
+- Placed after the Projects section for easy access
+
+**Files Modified:**
+- `templates/admin_console/dashboard.html`
+
+---
+
 ### Security Dashboard Improvements
 
 **Issue 1: Numbers Don't Add Up**

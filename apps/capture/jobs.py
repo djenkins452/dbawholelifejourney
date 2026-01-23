@@ -181,7 +181,7 @@ def send_pending_capture_reminders():
                 sent_count += 1
                 logger.info(
                     f"Sent pending capture reminder for {pending.id} "
-                    f"to {pending.user.email}"
+                    f"to {user_log_id(pending.user)}"
                 )
             else:
                 # Notification not sent (likely disabled)

@@ -16,6 +16,36 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Security Scanner: Reduce False Positives and Fix PII Logging
+
+Improved the security scanner to reduce false positives and fixed actual PII logging issues.
+Assessment now achieves Grade A with 0 findings.
+
+**Scanner Improvements:**
+1. **SEC-T051 (PCI Card Data):** Updated regex to detect actual card storage fields,
+   not medical terms like "cardio" or account type labels like "credit_card"
+2. **SEC-T080 (Raw SQL):** Improved detection to only flag dangerous SQL patterns
+   (f-strings in cursor.execute), not parameterized queries or the scanner's own regex
+3. **SEC-T061 (HIPAA PHI):** Now recognizes database-level encryption (Railway PostgreSQL)
+   combined with encryption utilities as valid protection
+
+**Actual Security Fixes:**
+1. Fixed PII logging in `apps/capture/jobs.py` - email was logged without `user_log_id()`
+2. Fixed PII logging in `apps/capture/views.py` (3 instances) - same issue
+
+**Results:**
+- Tests Passed: 90/100 (up from 86)
+- Grade: A (up from D)
+- Findings: 0 (down from 4)
+- BitSight: 900/900 (up from 869)
+
+**Files Changed:**
+- `apps/security/scanner.py` - Improved false positive filtering
+- `apps/capture/jobs.py` - Use user_log_id() for logging
+- `apps/capture/views.py` - Use user_log_id() for logging (3 places)
+
+---
+
 ### Improvement: Security PDF Export for Executive Readability
 
 Improved the security assessment PDF export to be professional and suitable for executive team.

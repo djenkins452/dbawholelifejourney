@@ -1189,7 +1189,7 @@ class PendingCaptureRegisterView(LoginRequiredMixin, View):
 
         logger.info(
             f"{'Created' if created else 'Updated'} pending capture {client_id[:8]}... "
-            f"for user {request.user.email}"
+            f"for user {user_log_id(request.user)}"
         )
 
         return JsonResponse({
@@ -1304,7 +1304,7 @@ class PendingCaptureAbandonView(LoginRequiredMixin, View):
 
         logger.info(
             f"Pending capture {pending.client_id[:8]}... abandoned "
-            f"by user {request.user.email}"
+            f"by user {user_log_id(request.user)}"
         )
 
         return JsonResponse({
@@ -1467,7 +1467,7 @@ class CaptureFileUploadView(LoginRequiredMixin, View):
             entry.save()
 
         logger.info(
-            f"File upload created entry {entry.id} for user {request.user.email}"
+            f"File upload created entry {entry.id} for user {user_log_id(request.user)}"
         )
 
         return JsonResponse({

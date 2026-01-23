@@ -301,7 +301,9 @@
       "Bash(pip-audit:*)",
       "Bash(git -C /Users/dannyjenkins/.claude-worktrees/dbawholelifejourney/flamboyant-mirzakhani ls-files:*)",
       "Bash(git -C /Users/dannyjenkins/.claude-worktrees/dbawholelifejourney/flamboyant-mirzakhani log:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd comprehensive CISO-grade security assessment dashboard\n\n- Create security app with 50 automated tests across 10 categories\n- Implement scoring engine \\(CVSS, Grade A-F, BitSight, Risk, Maturity\\)\n- Build encrypted models for findings and test results \\(Fernet AES-256\\)\n- Add dashboard with Chart.js trend graphs and clickable findings\n- Generate remediation prompt for copy-paste to Claude\n- Include audit logging for all security data access\n\nNew files:\n- apps/security/ \\(models, scanner, scoring, views, templates, migrations\\)\n\nModified:\n- config/settings.py - Added apps.security to INSTALLED_APPS\n- config/urls.py - Added /security/ URL pattern\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd comprehensive CISO-grade security assessment dashboard\n\n- Create security app with 50 automated tests across 10 categories\n- Implement scoring engine \\(CVSS, Grade A-F, BitSight, Risk, Maturity\\)\n- Build encrypted models for findings and test results \\(Fernet AES-256\\)\n- Add dashboard with Chart.js trend graphs and clickable findings\n- Generate remediation prompt for copy-paste to Claude\n- Include audit logging for all security data access\n\nNew files:\n- apps/security/ \\(models, scanner, scoring, views, templates, migrations\\)\n\nModified:\n- config/settings.py - Added apps.security to INSTALLED_APPS\n- config/urls.py - Added /security/ URL pattern\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(python manage.py run_security_assessment:*)",
+      "Bash(python3 manage.py run_security_assessment:*)"
     ]
   }
 }

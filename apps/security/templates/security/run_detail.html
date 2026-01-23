@@ -394,16 +394,23 @@
         <p style="font-size: 0.875rem; color: #4b5563; margin-bottom: 1rem;">
             This will permanently delete the assessment from <strong>{{ run.run_timestamp|date:"M d, Y H:i" }}</strong> including all tests, findings, and scores.
         </p>
-        <p style="font-size: 0.875rem; color: #dc2626; margin-bottom: 1.5rem;">
+        <p style="font-size: 0.875rem; color: #dc2626; margin-bottom: 1rem;">
             This action cannot be undone.
         </p>
-        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-            <button onclick="closeDeleteModal()" class="sec-btn" style="background: #6b7280;">Cancel</button>
-            <form method="post" action="{% url 'security:delete_run' run.pk %}" style="margin: 0;">
-                {% csrf_token %}
-                <button type="submit" class="sec-btn" style="background: #dc2626;">Delete</button>
-            </form>
-        </div>
+        <form id="deleteForm" method="post" action="{% url 'security:delete_run' run.pk %}">
+            {% csrf_token %}
+            <div style="margin-bottom: 1rem;">
+                <label for="deleteReason" style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                    Reason for deletion <span style="color: #dc2626;">*</span>
+                </label>
+                <textarea id="deleteReason" name="reason" rows="3" required placeholder="Why is this assessment being deleted? (e.g., duplicate run, test data, invalid results)" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; font-family: inherit; resize: vertical; box-sizing: border-box;"></textarea>
+                <p id="deleteReasonError" style="display: none; font-size: 0.75rem; color: #dc2626; margin-top: 0.25rem;">Please provide a reason for deletion.</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button type="button" onclick="closeDeleteModal()" class="sec-btn" style="background: #6b7280;">Cancel</button>
+                <button type="submit" id="deleteSubmitBtn" class="sec-btn" style="background: #dc2626;">Delete</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -553,14 +560,34 @@
     // Delete confirmation
     function showDeleteConfirm() {
         document.getElementById('deleteModal').style.display = 'flex';
+        document.getElementById('deleteReason').focus();
     }
 
     function closeDeleteModal() {
         document.getElementById('deleteModal').style.display = 'none';
+        document.getElementById('deleteReason').value = '';
+        document.getElementById('deleteReasonError').style.display = 'none';
     }
 
     document.getElementById('deleteModal').addEventListener('click', function(e) {
         if (e.target === this) closeDeleteModal();
+    });
+
+    // Delete form validation
+    document.getElementById('deleteForm').addEventListener('submit', function(e) {
+        const reason = document.getElementById('deleteReason').value.trim();
+        if (!reason) {
+            e.preventDefault();
+            document.getElementById('deleteReasonError').style.display = 'block';
+            document.getElementById('deleteReason').focus();
+            return false;
+        }
+    });
+
+    document.getElementById('deleteReason').addEventListener('input', function() {
+        if (this.value.trim()) {
+            document.getElementById('deleteReasonError').style.display = 'none';
+        }
     });
 
     // Notes editing

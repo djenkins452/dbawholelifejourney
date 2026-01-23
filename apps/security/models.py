@@ -771,6 +771,8 @@ class SecurityAuditLog(models.Model):
     ACTION_VIEW_FINDING = 'view_finding'
     ACTION_EXPORT = 'export'
     ACTION_RUN_ASSESSMENT = 'run_assessment'
+    ACTION_MODIFY = 'modify'
+    ACTION_DELETE = 'delete'
 
     ACTION_CHOICES = [
         (ACTION_VIEW_DASHBOARD, 'View Dashboard'),
@@ -778,6 +780,8 @@ class SecurityAuditLog(models.Model):
         (ACTION_VIEW_FINDING, 'View Finding'),
         (ACTION_EXPORT, 'Export Data'),
         (ACTION_RUN_ASSESSMENT, 'Run Assessment'),
+        (ACTION_MODIFY, 'Modify Data'),
+        (ACTION_DELETE, 'Delete Data'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

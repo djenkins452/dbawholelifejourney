@@ -878,24 +878,41 @@ class DeleteRunView(SecurityAccessMixin, View):
     """
     Delete a security assessment run.
 
+    Requires a reason for deletion (accountability).
     Deletes the run and all associated tests, findings, and scores.
-    Logs the deletion to audit log.
+    Logs the deletion with reason to audit log.
     """
 
     def post(self, request, pk):
         run = get_object_or_404(SecurityRun, pk=pk)
 
-        # Log the deletion
+        # Get deletion reason (required)
+        reason = request.POST.get('reason', '').strip()
+        if not reason:
+            # Return error - reason is required
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'error': 'Deletion reason is required'}, status=400)
+            # For form submission, redirect back (though modal should prevent this)
+            return redirect('security:run_detail', pk=pk)
+
+        # Capture run details before deletion for audit
+        run_details = {
+            'run_id': str(run.id),
+            'run_timestamp': run.run_timestamp.isoformat(),
+            'grade': run.score.securityscorecard_grade if hasattr(run, 'score') and run.score else 'N/A',
+            'total_tests': run.total_tests,
+            'total_findings': run.total_findings,
+            'deletion_reason': reason,
+        }
+
+        # Log the deletion with full details
         self.log_access(
             request,
-            SecurityAuditLog.ACTION_MODIFY,
+            SecurityAuditLog.ACTION_DELETE,
             resource_type='run',
-            resource_id=run.id,
-            details=f'Deleted run from {run.run_timestamp.strftime("%Y-%m-%d %H:%M")}',
+            resource_id=str(run.id),
+            details=run_details,
         )
-
-        # Store info for redirect message
-        run_date = run.run_timestamp.strftime("%Y-%m-%d %H:%M")
 
         # Delete the run (cascades to tests, findings, scores)
         run.delete()

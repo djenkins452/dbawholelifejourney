@@ -16,6 +16,23 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Security Assessment Deletion Accountability
+
+Added required reason field for assessment deletions to ensure audit accountability.
+
+**Changes:**
+- Delete modal now requires a reason before deletion can proceed
+- Reason is logged to SecurityAuditLog with full run details
+- Frontend validation prevents empty submissions
+- ACTION_DELETE added to SecurityAuditLog action choices
+
+**Files Changed:**
+- `apps/security/models.py` - Added ACTION_DELETE to audit log actions
+- `apps/security/views.py` - DeleteRunView now requires and logs deletion reason
+- `apps/security/templates/security/run_detail.html` - Delete modal includes required reason textarea with validation
+
+---
+
 ### Security Assessment: Delete and Notes Features
 
 Added ability to delete assessment runs and add notes/annotations.

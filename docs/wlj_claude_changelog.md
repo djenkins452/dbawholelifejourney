@@ -16,6 +16,86 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Enhancement: Comprehensive Industry-Specific Compliance Tests (SEC-T051-T100)
+
+Expanded security scanner from 50 to 100 tests by adding industry-specific compliance checks
+at the request of CISO-level security requirements.
+
+**New Test Categories Added:**
+
+1. **Financial/PCI DSS Compliance (SEC-T051-T060):**
+   - SEC-T051: PCI DSS Card Data Storage (no raw card numbers)
+   - SEC-T052: Payment Processor Tokenization (Stripe Elements, proper tokens)
+   - SEC-T053: Stripe Webhook Signature Verification
+   - SEC-T054: Plaid Access Token Security
+   - SEC-T055: Payment Audit Trail
+   - SEC-T056: Financial Data Access Controls
+   - SEC-T057: Financial Data Encryption
+   - SEC-T058: Transaction Fraud Detection
+   - SEC-T059: Payment Error Handling (no sensitive data in errors)
+   - SEC-T060: PCI Scope Isolation
+
+2. **Health/HIPAA Compliance (SEC-T061-T070):**
+   - SEC-T061: HIPAA PHI Encryption
+   - SEC-T062: Health Data Access Controls
+   - SEC-T063: HIPAA Audit Logging
+   - SEC-T064: PHI Data Minimization
+   - SEC-T065: PHI Transmission Security
+   - SEC-T066: Patient Rights (data portability)
+   - SEC-T067: Minimum Necessary Standard
+   - SEC-T068: Health Data Retention
+   - SEC-T069: PHI Incident Detection
+   - SEC-T070: Breach Notification Readiness
+
+3. **API Security (SEC-T071-T078):**
+   - SEC-T071: API Rate Limiting
+   - SEC-T072: API Pagination Limits
+   - SEC-T073: API Input Validation
+   - SEC-T074: API Error Information Disclosure
+   - SEC-T075: API Versioning
+   - SEC-T076: GraphQL Security (if applicable)
+   - SEC-T077: API Key Rotation
+   - SEC-T078: API Access Logging
+
+4. **Database Security (SEC-T079-T084):**
+   - SEC-T079: Database Connection Security
+   - SEC-T080: Raw SQL Usage Detection
+   - SEC-T081: Database Migration Security
+   - SEC-T082: Database Backup Encryption
+   - SEC-T083: Connection Pooling Security
+   - SEC-T084: Query Timeout Configuration
+
+5. **Third-Party Risk (SEC-T085-T090):**
+   - SEC-T085: Third-Party Webhook Security
+   - SEC-T086: OAuth Configuration Security
+   - SEC-T087: Third-Party Timeout Configuration
+   - SEC-T088: Third-Party Error Handling
+   - SEC-T089: Vendor Assessment Documentation
+   - SEC-T090: SLA Monitoring
+
+6. **Infrastructure Security (SEC-T091-T100):**
+   - SEC-T091: Container Security
+   - SEC-T092: Secret Management
+   - SEC-T093: Infrastructure Configuration
+   - SEC-T094: Backup Security
+   - SEC-T095: Disaster Recovery
+   - SEC-T096: Network Segmentation
+   - SEC-T097: Monitoring and Alerting
+   - SEC-T098: Incident Response
+   - SEC-T099: Security Logging
+   - SEC-T100: Security System Protection
+
+**Files Updated:**
+- `apps/security/scanner.py`: Added 50 new test methods and 6 new category runners
+
+**Test Results (Local):**
+- Total Tests: 100
+- Passed: 86 (86%)
+- Failed: 12 (new tests identifying real gaps for future remediation)
+- Findings: 4 (grouped by severity)
+
+---
+
 ### Security App Test Suite (Comprehensive)
 
 Added 184 comprehensive tests covering all security app functionality.

@@ -16,6 +16,54 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Security App Test Suite (Comprehensive)
+
+Added 184 comprehensive tests covering all security app functionality.
+
+**Test Files Created:**
+
+1. **`apps/security/tests/__init__.py`** - Test package initialization
+
+2. **`apps/security/tests/test_models.py`** - Model tests
+   - Encryption utilities (Fernet AES-256)
+   - All 6 model creation and field tests
+   - Encrypted field round-trips
+   - Status choices and relationships
+   - Default values and computed properties
+
+3. **`apps/security/tests/test_finding_tracker.py`** - Finding tracker tests
+   - Finding key generation (SHA-256 hash)
+   - Status analysis (new, recurring, fixed, regressed)
+   - Trend data generation
+   - 30-day improvement metrics
+
+4. **`apps/security/tests/test_quick_win_detector.py`** - Quick win detector tests
+   - Title pattern matching
+   - Recommendation keyword analysis
+   - Effort/CVSS heuristics
+   - Run processing
+
+5. **`apps/security/tests/test_views.py`** - View tests
+   - Access control (staff required)
+   - Dashboard, run detail views
+   - All API endpoints
+   - CSV and PDF exports
+   - Audit logging
+
+6. **`apps/security/tests/test_admin.py`** - Admin interface tests
+   - Model registration
+   - List displays and filters
+   - Readonly fields and permissions
+   - Custom display methods
+   - Bulk actions
+   - Inline admins
+
+**Fixes:**
+- Fixed `recommendations_display` in admin to properly escape HTML while preserving list markup
+- Updated quick win recommendation test to use proper keyword matching
+
+---
+
 ### Security Dashboard Enhancements (Major)
 
 Added comprehensive enhancements to the Security/CISO App including admin interface, cross-run tracking, exports, and quick win detection.

@@ -849,6 +849,10 @@ class UserPreferences(models.Model):
         default=True,
         help_text="In-app notifications for journal prompts",
     )
+    notify_inapp_capture = models.BooleanField(
+        default=True,
+        help_text="In-app notifications for capture processing completion",
+    )
 
     # Per-category email notification toggles (default: ON for new users)
     notify_email_medicine = models.BooleanField(
@@ -886,6 +890,10 @@ class UserPreferences(models.Model):
     notify_email_journal = models.BooleanField(
         default=True,
         help_text="Email notifications for journal prompts",
+    )
+    notify_email_capture = models.BooleanField(
+        default=True,
+        help_text="Email notifications for capture processing completion",
     )
 
     # ===================

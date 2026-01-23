@@ -85,8 +85,9 @@
     
     {% if user.is_authenticated %}
         {% include "components/navigation.html" %}
+        {% include "components/pending_capture_banner.html" %}
     {% endif %}
-    
+
     <!-- Messages -->
     {% if messages %}
     <div class="messages-container" role="alert">
@@ -122,6 +123,58 @@
         }
     });
     </script>
+
+    <!-- Service Worker Registration (for background capture sync) -->
+    {% if user.is_authenticated %}
+    <script nonce="{{ csp_nonce }}">
+    (function() {
+        'use strict';
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('{% static "js/service-worker.js" %}', {
+                    scope: '/'
+                }).then(function(registration) {
+                    console.log('[WLJ] Service Worker registered:', registration.scope);
+
+                    // Request notification permission if not already granted
+                    if ('Notification' in window && Notification.permission === 'default') {
+                        // Don't prompt immediately, wait for user action
+                        // This just checks the current state
+                    }
+
+                    // Listen for messages from Service Worker
+                    navigator.serviceWorker.addEventListener('message', function(event) {
+                        if (event.data?.type === 'QUEUE_PROCESSED') {
+                            // Refresh pending capture banner
+                            if (typeof window.updatePendingCaptureBanner === 'function') {
+                                window.updatePendingCaptureBanner();
+                            }
+                        }
+                    });
+
+                    // Register for background sync if supported
+                    if ('sync' in registration) {
+                        // Background sync is available
+                        window.wljBackgroundSyncSupported = true;
+                    }
+
+                    // Register for periodic background sync if supported
+                    if ('periodicSync' in registration) {
+                        registration.periodicSync.register('capture-upload-periodic', {
+                            minInterval: 15 * 60 * 1000 // 15 minutes
+                        }).catch(function(err) {
+                            // Periodic sync not permitted or not supported
+                            console.log('[WLJ] Periodic sync not available:', err);
+                        });
+                    }
+                }).catch(function(error) {
+                    console.log('[WLJ] Service Worker registration failed:', error);
+                });
+            });
+        }
+    })();
+    </script>
+    {% endif %}
 
     <!-- Scripts -->
     <script src="{% static 'js/main.js' %}?v=3"></script>

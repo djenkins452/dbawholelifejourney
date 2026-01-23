@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import DetailView, ListView, TemplateView
 
-from .models import CaptureEntry
+from .models import CaptureEntry, PendingCapture
 from .storage import (
     generate_upload_presigned_url,
     is_storage_configured,
@@ -1145,3 +1145,356 @@ class CaptureDeleteView(LoginRequiredMixin, View):
         from django.shortcuts import redirect
         messages.success(request, f'"{entry_title}" deleted.')
         return redirect('capture:list')
+
+
+# =============================================================================
+# Pending Capture API Views
+# =============================================================================
+
+
+class PendingCaptureRegisterView(LoginRequiredMixin, View):
+    """
+    Register a pending capture from the client.
+
+    Called when a recording starts or completes in the browser to track it
+    server-side for cross-device awareness and upload resilience.
+    """
+
+    def post(self, request):
+        """Register or update a pending capture."""
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        client_id = data.get('client_id')
+        if not client_id:
+            return JsonResponse({'error': 'client_id is required'}, status=400)
+
+        # Get or create pending capture
+        pending, created = PendingCapture.objects.update_or_create(
+            user=request.user,
+            client_id=client_id,
+            defaults={
+                'device_name': data.get('device_name', '')[:100],
+                'duration_seconds': data.get('duration_seconds'),
+                'file_size_bytes': data.get('file_size_bytes'),
+                'mime_type': data.get('mime_type', 'audio/webm')[:50],
+                'is_partial': data.get('is_partial', False),
+            }
+        )
+
+        # Update heartbeat
+        pending.update_heartbeat()
+
+        logger.info(
+            f"{'Created' if created else 'Updated'} pending capture {client_id[:8]}... "
+            f"for user {request.user.email}"
+        )
+
+        return JsonResponse({
+            'success': True,
+            'pending_id': str(pending.id),
+            'client_id': pending.client_id,
+            'created': created,
+        })
+
+
+class PendingCaptureHeartbeatView(LoginRequiredMixin, View):
+    """
+    Update heartbeat for a pending capture.
+
+    Called periodically by the client to indicate the recording is still active.
+    Helps detect stale/abandoned recordings.
+    """
+
+    def post(self, request):
+        """Update heartbeat timestamp."""
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        client_id = data.get('client_id')
+        if not client_id:
+            return JsonResponse({'error': 'client_id is required'}, status=400)
+
+        try:
+            pending = PendingCapture.objects.get(
+                user=request.user,
+                client_id=client_id
+            )
+            pending.update_heartbeat()
+
+            # Also update duration if provided (for partial backups)
+            if data.get('duration_seconds'):
+                pending.duration_seconds = data['duration_seconds']
+                pending.save(update_fields=['duration_seconds', 'updated_at'])
+
+            return JsonResponse({
+                'success': True,
+                'pending_id': str(pending.id),
+            })
+        except PendingCapture.DoesNotExist:
+            return JsonResponse({'error': 'Pending capture not found'}, status=404)
+
+
+class PendingCaptureListView(LoginRequiredMixin, View):
+    """
+    Get all pending captures for the current user.
+
+    Returns pending captures across all devices for cross-device awareness.
+    """
+
+    def get(self, request):
+        """Get list of pending captures."""
+        pending = PendingCapture.objects.filter(
+            user=request.user,
+            status__in=[
+                PendingCapture.STATUS_PENDING,
+                PendingCapture.STATUS_UPLOADING,
+                PendingCapture.STATUS_UPLOADED,
+                PendingCapture.STATUS_DOWNLOADED,
+            ]
+        ).order_by('-created_at')
+
+        # Get current device identifier (from query param or header)
+        current_device = request.GET.get('device_name', '')
+
+        pending_list = []
+        for p in pending:
+            pending_list.append({
+                'id': str(p.id),
+                'client_id': p.client_id,
+                'device_name': p.device_name,
+                'duration_seconds': p.duration_seconds,
+                'file_size_bytes': p.file_size_bytes,
+                'status': p.status,
+                'is_partial': p.is_partial,
+                'upload_attempts': p.upload_attempts,
+                'last_error': p.last_error,
+                'created_at': p.created_at.isoformat(),
+                'is_this_device': p.device_name == current_device if current_device else None,
+            })
+
+        return JsonResponse({
+            'pending': pending_list,
+            'count': len(pending_list),
+        })
+
+
+class PendingCaptureAbandonView(LoginRequiredMixin, View):
+    """
+    Mark a pending capture as abandoned.
+
+    Called when user discards a recording from the client.
+    """
+
+    def post(self, request, pk):
+        """Mark pending capture as abandoned."""
+        try:
+            pending = PendingCapture.objects.get(
+                id=pk,
+                user=request.user
+            )
+        except PendingCapture.DoesNotExist:
+            return JsonResponse({'error': 'Pending capture not found'}, status=404)
+
+        pending.mark_abandoned()
+
+        logger.info(
+            f"Pending capture {pending.client_id[:8]}... abandoned "
+            f"by user {request.user.email}"
+        )
+
+        return JsonResponse({
+            'success': True,
+            'pending_id': str(pending.id),
+            'status': pending.status,
+        })
+
+
+class PendingCaptureUpdateStatusView(LoginRequiredMixin, View):
+    """
+    Update the status of a pending capture.
+
+    Called by client to update status (e.g., mark as uploading, downloaded).
+    """
+
+    def post(self, request, pk):
+        """Update pending capture status."""
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        try:
+            pending = PendingCapture.objects.get(
+                id=pk,
+                user=request.user
+            )
+        except PendingCapture.DoesNotExist:
+            return JsonResponse({'error': 'Pending capture not found'}, status=404)
+
+        status = data.get('status')
+        valid_statuses = [
+            PendingCapture.STATUS_UPLOADING,
+            PendingCapture.STATUS_DOWNLOADED,
+        ]
+
+        if status not in valid_statuses:
+            return JsonResponse({
+                'error': f'Invalid status. Must be one of: {valid_statuses}'
+            }, status=400)
+
+        if status == PendingCapture.STATUS_UPLOADING:
+            pending.mark_uploading()
+        elif status == PendingCapture.STATUS_DOWNLOADED:
+            pending.mark_downloaded()
+
+        # Update error if provided
+        if data.get('error'):
+            pending.last_error = data['error'][:500]
+            pending.save(update_fields=['last_error', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'pending_id': str(pending.id),
+            'status': pending.status,
+        })
+
+
+class CaptureFileUploadView(LoginRequiredMixin, View):
+    """
+    Handle audio file uploads from device (for recovery scenarios).
+
+    Allows users to upload a previously downloaded recording file.
+    This is the recovery path when IndexedDB data is lost but user
+    saved the file locally.
+    """
+
+    MAX_FILE_SIZE = 60 * 1024 * 1024  # 60MB
+    ACCEPTED_MIME_TYPES = [
+        'audio/mpeg',
+        'audio/mp4',
+        'audio/wav',
+        'audio/webm',
+        'audio/x-m4a',
+        'audio/ogg',
+    ]
+
+    def post(self, request):
+        """Handle file upload."""
+        if 'audio' not in request.FILES:
+            return JsonResponse({'error': 'No audio file provided'}, status=400)
+
+        audio_file = request.FILES['audio']
+
+        # Validate file size
+        if audio_file.size > self.MAX_FILE_SIZE:
+            return JsonResponse({
+                'error': f'File too large. Maximum size is {self.MAX_FILE_SIZE // (1024*1024)}MB'
+            }, status=400)
+
+        # Validate MIME type
+        content_type = audio_file.content_type
+        if content_type not in self.ACCEPTED_MIME_TYPES:
+            return JsonResponse({
+                'error': f'Invalid file type. Accepted types: mp3, m4a, wav, webm, ogg'
+            }, status=400)
+
+        # Generate a client_id for tracking
+        client_id = str(uuid.uuid4())
+
+        # Create CaptureEntry
+        entry = CaptureEntry.objects.create(
+            user=request.user,
+            status=CaptureEntry.STATUS_UPLOADING,
+            pending_client_id=client_id,
+        )
+
+        # Check storage configuration
+        if is_storage_configured():
+            # Upload to S3
+            try:
+                from .storage import upload_audio_file
+                upload_result = upload_audio_file(
+                    audio_file,
+                    request.user.id,
+                    str(entry.id)
+                )
+                entry.audio_file_url = upload_result['url']
+                entry.audio_expires_at = upload_result.get('expires_at')
+                entry.status = CaptureEntry.STATUS_TRANSCRIBING
+                entry.save()
+
+                # Trigger processing
+                self._start_processing(entry)
+
+            except (CaptureStorageError, CaptureStorageNotConfiguredError) as e:
+                entry.status = CaptureEntry.STATUS_FAILED
+                entry.error_message = f"Upload failed: {str(e)}"
+                entry.save()
+                return JsonResponse({'error': str(e)}, status=500)
+
+        elif is_cloudinary_configured():
+            # Upload to Cloudinary
+            try:
+                result = cloudinary_upload_audio(
+                    audio_file,
+                    request.user.id,
+                    str(entry.id)
+                )
+                entry.audio_file_url = result['url']
+                entry.audio_expires_at = result.get('audio_expires_at')
+                entry.duration_seconds = result.get('duration_seconds')
+                entry.status = CaptureEntry.STATUS_TRANSCRIBING
+                entry.save()
+
+                # Trigger processing
+                self._start_processing(entry)
+
+            except CloudinaryStorageError as e:
+                entry.status = CaptureEntry.STATUS_FAILED
+                entry.error_message = f"Upload failed: {str(e)}"
+                entry.save()
+                return JsonResponse({'error': str(e)}, status=500)
+        else:
+            # No storage configured - mock mode
+            entry.status = CaptureEntry.STATUS_READY
+            entry.transcript = "[Mock mode - no storage configured]"
+            entry.summary = "[Mock mode - no storage configured]"
+            entry.save()
+
+        logger.info(
+            f"File upload created entry {entry.id} for user {request.user.email}"
+        )
+
+        return JsonResponse({
+            'success': True,
+            'entry_id': str(entry.id),
+            'status': entry.status,
+            'redirect_url': reverse('capture:detail', kwargs={'pk': entry.id}),
+            'poll_url': reverse('capture:status', kwargs={'entry_id': entry.id}),
+        })
+
+    def _start_processing(self, entry):
+        """Start async processing for the entry."""
+        from .tasks import process_capture_entry
+        import threading
+
+        def run_processing():
+            try:
+                result = process_capture_entry(str(entry.id))
+                if result['success']:
+                    logger.info(f"File upload processing for entry {entry.id} completed")
+                else:
+                    logger.warning(
+                        f"File upload processing for entry {entry.id} failed: "
+                        f"{result.get('message')}"
+                    )
+            except Exception as e:
+                logger.exception(f"Processing thread error for entry {entry.id}: {e}")
+
+        thread = threading.Thread(target=run_processing, daemon=True)
+        thread.start()

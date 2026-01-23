@@ -222,3 +222,50 @@ def favorites_context(request):
         pass
 
     return context
+
+
+def pending_captures_context(request):
+    """
+    Add pending captures count to template context for global reminder banner.
+
+    Provides:
+    - pending_captures_count: number of pending recordings awaiting upload
+    - pending_captures_this_device: whether any are from the current device
+    """
+    context = {
+        'pending_captures_count': 0,
+        'pending_captures_this_device': False,
+    }
+
+    if not request.user.is_authenticated:
+        return context
+
+    # Skip for API endpoints and non-HTML requests
+    path = request.path
+    if any(path.startswith(p) for p in ['/api/', '/static/', '/media/', '/admin/', '/capture/pending/']):
+        return context
+
+    try:
+        from apps.capture.models import PendingCapture
+
+        pending = PendingCapture.objects.filter(
+            user=request.user,
+            status__in=[
+                PendingCapture.STATUS_PENDING,
+                PendingCapture.STATUS_UPLOADING,
+                PendingCapture.STATUS_UPLOADED,
+                PendingCapture.STATUS_DOWNLOADED,
+            ]
+        )
+
+        context['pending_captures_count'] = pending.count()
+
+        # Check if any are from this device (based on user-agent fingerprint in cookie)
+        # For now, we assume any pending capture could be this device
+        # The JavaScript will check IndexedDB for the actual answer
+        context['pending_captures_this_device'] = context['pending_captures_count'] > 0
+
+    except Exception:
+        pass
+
+    return context

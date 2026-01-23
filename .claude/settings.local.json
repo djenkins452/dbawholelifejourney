@@ -311,7 +311,9 @@
       "Bash(SECRET_KEY=dev-test-key DATABASE_URL=sqlite:///./db.sqlite3 python3:*)",
       "Bash(for file in  apps/capture/services/expiration_reminder.py  apps/capture/services/email.py  apps/core/encryption.py  apps/health/services/fatsecret.py  apps/users/services/recaptcha.py  apps/finance/views.py  apps/finance/management/commands/process_recurring_transactions.py  apps/finance/services/encryption.py  apps/finance/services/sync_service.py  apps/admin_console/views.py  apps/billing/signals.py  apps/billing/management/commands/process_birthdays.py)",
       "Bash(do echo \"=== $file ===\" grep -n \"logger\\\\.\" \"$file\")",
-      "Bash(do echo \"=== $file ===\" grep -nE \"logger\\\\.\\\\w+\\\\\\([^\\)]*\\\\.email\" \"$file\")"
+      "Bash(do echo \"=== $file ===\" grep -nE \"logger\\\\.\\\\w+\\\\\\([^\\)]*\\\\.email\" \"$file\")",
+      "Bash(~/.zshrc)",
+      "Bash(export WLJ_CLAUDE_API_KEY=a3f8b2c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1)"
     ]
   }
 }

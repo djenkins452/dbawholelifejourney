@@ -3954,6 +3954,29 @@ class SecurityScanner:
 
         result = 'pass' if evidence['encrypted_fields_found'] else 'fail'
 
+        if result == 'fail':
+            finding = self._add_finding(
+                finding_key="financial_data_not_encrypted",
+                title="Financial Data Not Encrypted at Rest",
+                severity='medium',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:L/AC:L/PR:H/UI:N/S:U/C:H/I:N/A:N",
+                description="Financial models do not use encrypted fields for sensitive data like account numbers or tokens.",
+                risk_reasoning="Unencrypted financial data at rest can be exposed through database breaches, backups, or unauthorized access.",
+                evidence=evidence,
+                affected_components=['apps/finance/models.py', 'apps/billing/models.py'],
+                recommendations=[
+                    "Use django-encrypted-model-fields or similar for sensitive financial fields",
+                    "Encrypt access_token, account_number, routing_number fields",
+                    "Ensure encryption keys are stored securely in environment variables",
+                ],
+                validation_steps="Check finance/billing models for EncryptedTextField or EncryptedCharField usage",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
+
         self.results.append(TestResult(
             test_id=test_id,
             category='compliance',
@@ -4043,6 +4066,35 @@ class SecurityScanner:
                 pass
 
         result = 'pass' if evidence['generic_error_messages'] and evidence['no_stack_trace_exposure'] else 'fail'
+
+        if result == 'fail':
+            issues = []
+            if not evidence['generic_error_messages']:
+                issues.append("no generic error handling for payment exceptions")
+            if not evidence['no_stack_trace_exposure']:
+                issues.append("potential stack trace exposure in JSON responses")
+
+            finding = self._add_finding(
+                finding_key="payment_error_handling_unsafe",
+                title="Payment Error Handling May Expose Sensitive Information",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+                description=f"Payment error handling issues detected: {', '.join(issues)}.",
+                risk_reasoning="Improper error handling can expose stack traces, internal paths, or sensitive payment details to attackers.",
+                evidence=evidence,
+                affected_components=['apps/billing/', 'payment handling code'],
+                recommendations=[
+                    "Catch StripeError and PaymentError with generic user-facing messages",
+                    "Never expose traceback.format_exc() in API responses",
+                    "Log detailed errors server-side but return generic messages to clients",
+                ],
+                validation_steps="Review payment error handling for stack trace exposure",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
 
         self.results.append(TestResult(
             test_id=test_id,

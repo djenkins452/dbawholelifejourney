@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Add Missing Findings for Failed Security Tests
+
+Fixed security scanner tests that were failing but not generating findings for the remediation prompt.
+
+**Problem:**
+- SEC-T057 (Financial Data Encryption) and SEC-T059 (Payment Error Handling) tests were failing
+- But they never called `_add_finding()`, so no findings appeared in the remediation prompt
+- This caused a mismatch: 96/100 tests passing but "no actionable findings" in prompt
+
+**Fix:**
+- Added `_add_finding()` calls to SEC-T057 when financial data encryption is not detected
+- Added `_add_finding()` calls to SEC-T059 when payment error handling is unsafe
+- Findings now properly appear in remediation prompt when tests fail
+
+**Files Changed:**
+- `apps/security/scanner.py` - Added finding generation to SEC-T057 and SEC-T059
+
+---
+
 ### Fix .env Protection False Positive in Production
 
 Fixed security scanner `.env` file protection test (SEC-T003) failing in production deployments.

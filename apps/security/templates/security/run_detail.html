@@ -4,110 +4,291 @@
 {% block title %}Security Run {{ run.run_timestamp|date:"Y-m-d H:i" }} | Whole Life Journey{% endblock %}
 
 {% block extra_head %}
-<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    /* Security Run Detail Styles - scoped to avoid conflicts */
+    #security-run-detail {
+        max-width: 80rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem;
+    }
+    #security-run-detail .sec-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    #security-run-detail .sec-back-link {
+        color: #2563eb;
+        font-size: 0.875rem;
+        text-decoration: none;
+    }
+    #security-run-detail .sec-back-link:hover {
+        text-decoration: underline;
+    }
+    #security-run-detail h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #111827;
+        margin-top: 0.25rem;
+    }
+    #security-run-detail .sec-grid-5 {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    #security-run-detail .sec-grid-4 {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    @media (max-width: 768px) {
+        #security-run-detail .sec-grid-5,
+        #security-run-detail .sec-grid-4 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    #security-run-detail .sec-card {
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        padding: 1rem;
+        text-align: center;
+    }
+    #security-run-detail .sec-card-full {
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        margin-bottom: 1.5rem;
+    }
+    #security-run-detail .sec-card-header {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    #security-run-detail .sec-card-header-red {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #e5e7eb;
+        background: #fef2f2;
+    }
+    #security-run-detail .sec-card-body {
+        padding: 1rem;
+    }
+    #security-run-detail .sec-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    #security-run-detail .sec-value-lg {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    #security-run-detail .sec-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+    #security-run-detail .sec-green { color: #16a34a; }
+    #security-run-detail .sec-red { color: #dc2626; }
+    #security-run-detail .sec-orange { color: #ea580c; }
+    #security-run-detail .sec-yellow { color: #ca8a04; }
+    #security-run-detail .sec-blue { color: #2563eb; }
+    #security-run-detail .sec-gray { color: #111827; }
+    #security-run-detail .sec-btn {
+        padding: 0.5rem 1rem;
+        background: #2563eb;
+        color: white;
+        border-radius: 0.375rem;
+        border: none;
+        cursor: pointer;
+        font-size: 0.875rem;
+    }
+    #security-run-detail .sec-btn:hover {
+        background: #1d4ed8;
+    }
+    #security-run-detail h2 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    #security-run-detail h2.sec-red-header {
+        color: #991b1b;
+    }
+    #security-run-detail h3 {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+    }
+    #security-run-detail table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    #security-run-detail th {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #6b7280;
+        text-transform: uppercase;
+        background: #f9fafb;
+    }
+    #security-run-detail td {
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        border-top: 1px solid #e5e7eb;
+    }
+    #security-run-detail tr.clickable:hover {
+        background: #f9fafb;
+        cursor: pointer;
+    }
+    #security-run-detail .severity-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        border-radius: 9999px;
+    }
+    #security-run-detail .severity-critical { background: #fee2e2; color: #991b1b; }
+    #security-run-detail .severity-high { background: #ffedd5; color: #9a3412; }
+    #security-run-detail .severity-medium { background: #fef9c3; color: #854d0e; }
+    #security-run-detail .severity-low { background: #dbeafe; color: #1e40af; }
+    #security-run-detail .result-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        border-radius: 0.25rem;
+    }
+    #security-run-detail .result-pass { background: #dcfce7; color: #166534; }
+    #security-run-detail .result-fail { background: #fee2e2; color: #991b1b; }
+    #security-run-detail .result-skip { background: #f3f4f6; color: #4b5563; }
+    #security-run-detail .mono { font-family: monospace; }
+    #security-run-detail .text-muted { color: #6b7280; }
+    #security-run-detail pre {
+        white-space: pre-wrap;
+        font-size: 0.875rem;
+        color: #374151;
+        font-family: inherit;
+    }
+    #security-run-detail .category-section {
+        margin-bottom: 1rem;
+    }
+    #security-run-detail .test-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+    }
+    #security-run-detail .test-row:hover {
+        background: #f9fafb;
+        cursor: pointer;
+    }
+    #security-run-detail .test-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-6">
+<div id="security-run-detail">
     <!-- Header -->
-    <div class="flex justify-between items-center mb-6">
+    <div class="sec-header">
         <div>
-            <a href="{% url 'security:dashboard' %}" class="text-blue-600 hover:underline text-sm">&larr; Back to Dashboard</a>
-            <h1 class="text-2xl font-bold text-gray-900 mt-1">
-                Security Assessment - {{ run.run_timestamp|date:"M d, Y H:i" }}
-            </h1>
+            <a href="{% url 'security:dashboard' %}" class="sec-back-link">&larr; Back to Dashboard</a>
+            <h1>Security Assessment - {{ run.run_timestamp|date:"M d, Y H:i" }}</h1>
         </div>
-        <button onclick="copyRemediationPrompt()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+        <button onclick="copyRemediationPrompt()" class="sec-btn">
             Copy Remediation Prompt
         </button>
     </div>
 
     <!-- Score Cards -->
     {% if score %}
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-4xl font-bold {% if score.securityscorecard_grade == 'A' %}text-green-600{% elif score.securityscorecard_grade == 'B' %}text-blue-600{% elif score.securityscorecard_grade == 'C' %}text-yellow-600{% else %}text-red-600{% endif %}">
+    <div class="sec-grid-5">
+        <div class="sec-card">
+            <div class="sec-value-lg {% if score.securityscorecard_grade == 'A' %}sec-green{% elif score.securityscorecard_grade == 'B' %}sec-blue{% elif score.securityscorecard_grade == 'C' %}sec-yellow{% else %}sec-red{% endif %}">
                 {{ score.securityscorecard_grade }}
             </div>
-            <div class="text-sm text-gray-500">Grade</div>
+            <div class="sec-label">Grade</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-gray-900">{{ score.bitsight_score }}</div>
-            <div class="text-sm text-gray-500">BitSight Score</div>
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ score.bitsight_score }}</div>
+            <div class="sec-label">BitSight Score</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-gray-900">{{ score.cvss_avg }}</div>
-            <div class="text-sm text-gray-500">CVSS Avg</div>
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ score.cvss_avg }}</div>
+            <div class="sec-label">CVSS Avg</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-gray-900">{{ score.risk_score_0_100 }}</div>
-            <div class="text-sm text-gray-500">Risk Score</div>
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ score.risk_score_0_100 }}</div>
+            <div class="sec-label">Risk Score</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4 text-center">
-            <div class="text-3xl font-bold text-gray-900">{{ score.maturity_level }}</div>
-            <div class="text-sm text-gray-500">Maturity</div>
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ score.maturity_level }}</div>
+            <div class="sec-label">Maturity</div>
         </div>
     </div>
     {% endif %}
 
     <!-- Summary -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-2xl font-bold text-gray-900">{{ run.total_tests }}</div>
-            <div class="text-sm text-gray-500">Total Tests</div>
+    <div class="sec-grid-4">
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ run.total_tests }}</div>
+            <div class="sec-label">Total Tests</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-2xl font-bold text-green-600">{{ run.passed_tests }}</div>
-            <div class="text-sm text-gray-500">Passed</div>
+        <div class="sec-card">
+            <div class="sec-value sec-green">{{ run.passed_tests }}</div>
+            <div class="sec-label">Passed</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-2xl font-bold text-red-600">{{ run.failed_tests }}</div>
-            <div class="text-sm text-gray-500">Failed</div>
+        <div class="sec-card">
+            <div class="sec-value sec-red">{{ run.failed_tests }}</div>
+            <div class="sec-label">Failed</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-2xl font-bold text-gray-900">{{ run.total_findings }}</div>
-            <div class="text-sm text-gray-500">Findings</div>
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ run.total_findings }}</div>
+            <div class="sec-label">Findings</div>
         </div>
     </div>
 
     <!-- Findings Section -->
-    <div class="bg-white rounded-lg shadow mb-6">
-        <div class="px-4 py-3 border-b">
-            <h2 class="text-lg font-semibold">Findings ({{ findings|length }})</h2>
+    <div class="sec-card-full">
+        <div class="sec-card-header">
+            <h2>Findings ({{ findings|length }})</h2>
         </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CVSS</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Effort</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quick Win</th>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Severity</th>
+                        <th>CVSS</th>
+                        <th>Effort</th>
+                        <th>Quick Win</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody>
                     {% for finding in findings %}
-                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="showFinding('{{ finding.pk }}')">
-                        <td class="px-4 py-3 text-sm font-mono text-blue-600">{{ finding.finding_id }}</td>
-                        <td class="px-4 py-3 text-sm">{{ finding.title }}</td>
-                        <td class="px-4 py-3">
-                            <span class="px-2 py-1 text-xs rounded-full {% if finding.severity == 'critical' %}bg-red-100 text-red-800{% elif finding.severity == 'high' %}bg-orange-100 text-orange-800{% elif finding.severity == 'medium' %}bg-yellow-100 text-yellow-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                    <tr class="clickable" onclick="showFinding('{{ finding.pk }}')">
+                        <td class="mono sec-blue">{{ finding.finding_id }}</td>
+                        <td>{{ finding.title }}</td>
+                        <td>
+                            <span class="severity-badge severity-{{ finding.severity }}">
                                 {{ finding.severity|upper }}
                             </span>
                         </td>
-                        <td class="px-4 py-3 text-sm font-mono">{{ finding.cvss_score }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-500">{{ finding.remediation_effort }}</td>
-                        <td class="px-4 py-3 text-sm">
+                        <td class="mono">{{ finding.cvss_score }}</td>
+                        <td class="text-muted">{{ finding.remediation_effort }}</td>
+                        <td>
                             {% if finding.is_quick_win %}
-                            <span class="text-green-600 font-bold">✓</span>
+                            <span class="sec-green" style="font-weight: bold;">✓</span>
                             {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                        <td colspan="6" style="padding: 2rem 1rem; text-align: center; color: #6b7280;">
                             No findings - excellent!
                         </td>
                     </tr>
@@ -118,27 +299,25 @@
     </div>
 
     <!-- Tests by Category -->
-    <div class="bg-white rounded-lg shadow mb-6">
-        <div class="px-4 py-3 border-b">
-            <h2 class="text-lg font-semibold">Tests by Category</h2>
+    <div class="sec-card-full">
+        <div class="sec-card-header">
+            <h2>Tests by Category</h2>
         </div>
-        <div class="p-4">
+        <div class="sec-card-body">
             {% for category, tests_list in tests_by_category.items %}
-            <div class="mb-4">
-                <h3 class="font-semibold text-gray-700 mb-2">{{ category }}</h3>
-                <div class="space-y-1">
-                    {% for test in tests_list %}
-                    <div class="flex items-center justify-between p-2 rounded hover:bg-gray-50 cursor-pointer" onclick="showTest('{{ test.pk }}')">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-mono text-gray-500">{{ test.test_id }}</span>
-                            <span class="text-sm">{{ test.title }}</span>
-                        </div>
-                        <span class="px-2 py-1 text-xs rounded {% if test.result == 'pass' %}bg-green-100 text-green-800{% elif test.result == 'fail' %}bg-red-100 text-red-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                            {{ test.result|upper }}
-                        </span>
+            <div class="category-section">
+                <h3>{{ category }}</h3>
+                {% for test in tests_list %}
+                <div class="test-row" onclick="showTest('{{ test.pk }}')">
+                    <div class="test-info">
+                        <span class="mono text-muted" style="font-size: 0.875rem;">{{ test.test_id }}</span>
+                        <span style="font-size: 0.875rem;">{{ test.title }}</span>
                     </div>
-                    {% endfor %}
+                    <span class="result-badge result-{{ test.result }}">
+                        {{ test.result|upper }}
+                    </span>
                 </div>
+                {% endfor %}
             </div>
             {% endfor %}
         </div>
@@ -146,37 +325,37 @@
 
     <!-- Executive Summary -->
     {% if run.executive_summary %}
-    <div class="bg-white rounded-lg shadow mb-6">
-        <div class="px-4 py-3 border-b">
-            <h2 class="text-lg font-semibold">Executive Summary</h2>
+    <div class="sec-card-full">
+        <div class="sec-card-header">
+            <h2>Executive Summary</h2>
         </div>
-        <div class="p-4">
-            <pre class="whitespace-pre-wrap text-sm text-gray-700 font-sans">{{ run.executive_summary }}</pre>
+        <div class="sec-card-body">
+            <pre>{{ run.executive_summary }}</pre>
         </div>
     </div>
     {% endif %}
 
     <!-- CISO Sleep Test -->
     {% if run.ciso_sleep_test %}
-    <div class="bg-white rounded-lg shadow mb-6">
-        <div class="px-4 py-3 border-b bg-red-50">
-            <h2 class="text-lg font-semibold text-red-800">CISO Sleep Test</h2>
+    <div class="sec-card-full">
+        <div class="sec-card-header-red">
+            <h2 class="sec-red-header">CISO Sleep Test</h2>
         </div>
-        <div class="p-4">
-            <pre class="whitespace-pre-wrap text-sm text-gray-700 font-sans">{{ run.ciso_sleep_test }}</pre>
+        <div class="sec-card-body">
+            <pre>{{ run.ciso_sleep_test }}</pre>
         </div>
     </div>
     {% endif %}
 </div>
 
 <!-- Finding Detail Modal -->
-<div id="findingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="p-4 border-b flex justify-between items-center sticky top-0 bg-white">
-            <h3 id="modalTitle" class="text-lg font-semibold"></h3>
-            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+<div id="findingModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 50; justify-content: center; align-items: center;">
+    <div style="background: white; border-radius: 0.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); max-width: 42rem; width: 100%; margin: 1rem; max-height: 90vh; overflow-y: auto;">
+        <div style="padding: 1rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white;">
+            <h3 id="modalTitle" style="font-size: 1.125rem; font-weight: 600;"></h3>
+            <button onclick="closeModal()" style="color: #9ca3af; font-size: 1.5rem; background: none; border: none; cursor: pointer;">&times;</button>
         </div>
-        <div id="modalContent" class="p-4">
+        <div id="modalContent" style="padding: 1rem;">
             <!-- Content loaded via AJAX -->
         </div>
     </div>
@@ -188,53 +367,51 @@
             .then(r => r.json())
             .then(data => {
                 document.getElementById('modalTitle').textContent = `${data.finding_id}: ${data.title}`;
+                const severityStyle = data.severity === 'critical' ? 'background:#fee2e2;color:#991b1b;' :
+                    data.severity === 'high' ? 'background:#ffedd5;color:#9a3412;' :
+                    data.severity === 'medium' ? 'background:#fef9c3;color:#854d0e;' : 'background:#dbeafe;color:#1e40af;';
                 document.getElementById('modalContent').innerHTML = `
-                    <div class="space-y-4">
-                        <div class="flex gap-2 flex-wrap">
-                            <span class="px-2 py-1 text-xs rounded-full ${
-                                data.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                                data.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                                data.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-blue-100 text-blue-800'
-                            }">${data.severity.toUpperCase()}</span>
-                            <span class="text-sm text-gray-500">CVSS ${data.cvss_score}</span>
-                            <span class="text-xs font-mono text-gray-400">${data.cvss_vector}</span>
+                    <div style="display:flex;flex-direction:column;gap:1rem;">
+                        <div style="display:flex;gap:0.5rem;align-items:center;">
+                            <span style="padding:0.25rem 0.5rem;font-size:0.75rem;border-radius:9999px;${severityStyle}">${data.severity.toUpperCase()}</span>
+                            <span style="font-size:0.875rem;color:#6b7280;">CVSS ${data.cvss_score}</span>
+                            <span style="font-size:0.875rem;font-family:monospace;color:#9ca3af;">${data.cvss_vector}</span>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Description</h4>
-                            <p class="text-sm text-gray-600">${data.description}</p>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Description</h4>
+                            <p style="font-size:0.875rem;color:#4b5563;">${data.description}</p>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Risk Reasoning</h4>
-                            <p class="text-sm text-gray-600">${data.risk_reasoning}</p>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Risk Reasoning</h4>
+                            <p style="font-size:0.875rem;color:#4b5563;">${data.risk_reasoning}</p>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Affected Components</h4>
-                            <p class="text-sm text-gray-600">${(data.affected_components || []).join(', ') || 'N/A'}</p>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Affected Components</h4>
+                            <p style="font-size:0.875rem;color:#4b5563;">${(data.affected_components || []).join(', ') || 'N/A'}</p>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Recommendations</h4>
-                            <ul class="list-disc list-inside text-sm text-gray-600">
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Recommendations</h4>
+                            <ul style="list-style:disc;padding-left:1.5rem;font-size:0.875rem;color:#4b5563;">
                                 ${(data.recommendations || []).map(r => `<li>${r}</li>`).join('')}
                             </ul>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Validation Steps</h4>
-                            <code class="block text-xs bg-gray-100 p-2 rounded">${data.validation_steps}</code>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Validation Steps</h4>
+                            <code style="display:block;font-size:0.75rem;background:#f3f4f6;padding:0.5rem;border-radius:0.25rem;">${data.validation_steps}</code>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Evidence</h4>
-                            <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto max-h-48">${JSON.stringify(data.evidence, null, 2)}</pre>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Evidence</h4>
+                            <pre style="font-size:0.75rem;background:#f3f4f6;padding:0.5rem;border-radius:0.25rem;overflow-x:auto;">${JSON.stringify(data.evidence, null, 2)}</pre>
                         </div>
                     </div>
                 `;
-                document.getElementById('findingModal').classList.remove('hidden');
+                document.getElementById('findingModal').style.display = 'flex';
             });
     }
 
@@ -243,54 +420,52 @@
             .then(r => r.json())
             .then(data => {
                 document.getElementById('modalTitle').textContent = `${data.test_id}: ${data.title}`;
+                const resultStyle = data.result === 'pass' ? 'background:#dcfce7;color:#166534;' :
+                    data.result === 'fail' ? 'background:#fee2e2;color:#991b1b;' : 'background:#f3f4f6;color:#4b5563;';
                 document.getElementById('modalContent').innerHTML = `
-                    <div class="space-y-4">
-                        <div class="flex gap-2">
-                            <span class="px-2 py-1 text-xs rounded ${
-                                data.result === 'pass' ? 'bg-green-100 text-green-800' :
-                                data.result === 'fail' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                            }">${data.result.toUpperCase()}</span>
-                            <span class="text-sm text-gray-500">${data.category}</span>
-                            <span class="text-xs text-gray-400">${data.duration_ms}ms</span>
+                    <div style="display:flex;flex-direction:column;gap:1rem;">
+                        <div style="display:flex;gap:0.5rem;align-items:center;">
+                            <span style="padding:0.25rem 0.5rem;font-size:0.75rem;border-radius:0.25rem;${resultStyle}">${data.result.toUpperCase()}</span>
+                            <span style="font-size:0.875rem;color:#6b7280;">${data.category}</span>
+                            <span style="font-size:0.75rem;color:#9ca3af;">${data.duration_ms}ms</span>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Description</h4>
-                            <p class="text-sm text-gray-600">${data.description}</p>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Description</h4>
+                            <p style="font-size:0.875rem;color:#4b5563;">${data.description}</p>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Criteria (What "Pass" Means)</h4>
-                            <p class="text-sm text-gray-600">${data.criteria}</p>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Criteria (What "Pass" Means)</h4>
+                            <p style="font-size:0.875rem;color:#4b5563;">${data.criteria}</p>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Result Details</h4>
-                            <p class="text-sm text-gray-600">${data.result_details || 'N/A'}</p>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Result Details</h4>
+                            <p style="font-size:0.875rem;color:#4b5563;">${data.result_details || 'N/A'}</p>
                         </div>
 
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Evidence</h4>
-                            <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto max-h-48">${JSON.stringify(data.evidence, null, 2)}</pre>
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Evidence</h4>
+                            <pre style="font-size:0.75rem;background:#f3f4f6;padding:0.5rem;border-radius:0.25rem;overflow-x:auto;">${JSON.stringify(data.evidence, null, 2)}</pre>
                         </div>
 
                         ${data.findings.length > 0 ? `
                         <div>
-                            <h4 class="font-semibold text-sm text-gray-700">Related Findings</h4>
-                            <ul class="text-sm">
-                                ${data.findings.map(f => `<li class="text-blue-600">${f.finding_id}: ${f.title} (${f.severity})</li>`).join('')}
+                            <h4 style="font-weight:600;font-size:0.875rem;color:#374151;">Related Findings</h4>
+                            <ul style="font-size:0.875rem;">
+                                ${data.findings.map(f => `<li style="color:#2563eb;">${f.finding_id}: ${f.title} (${f.severity})</li>`).join('')}
                             </ul>
                         </div>
                         ` : ''}
                     </div>
                 `;
-                document.getElementById('findingModal').classList.remove('hidden');
+                document.getElementById('findingModal').style.display = 'flex';
             });
     }
 
     function closeModal() {
-        document.getElementById('findingModal').classList.add('hidden');
+        document.getElementById('findingModal').style.display = 'none';
     }
 
     function copyRemediationPrompt() {

@@ -5,146 +5,217 @@
 
 {% block extra_head %}
 <style>
-    .security-grid-5 {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 1rem;
-        margin-bottom: 1.5rem;
+    /* Security Dashboard Styles - scoped to avoid conflicts */
+    #security-dashboard {
+        max-width: 80rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem;
     }
-    .security-grid-2 {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1.5rem;
-        margin-bottom: 1.5rem;
+    #security-dashboard .sec-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 1.5rem !important;
+    }
+    #security-dashboard .sec-grid-5 {
+        display: grid !important;
+        grid-template-columns: repeat(5, 1fr) !important;
+        gap: 1rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+    #security-dashboard .sec-grid-2 {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 1.5rem !important;
+        margin-bottom: 1.5rem !important;
     }
     @media (max-width: 768px) {
-        .security-grid-5 {
-            grid-template-columns: repeat(2, 1fr);
+        #security-dashboard .sec-grid-5 {
+            grid-template-columns: repeat(2, 1fr) !important;
         }
-        .security-grid-2 {
-            grid-template-columns: 1fr;
+        #security-dashboard .sec-grid-2 {
+            grid-template-columns: 1fr !important;
         }
     }
-    .score-card {
-        background: white;
-        border-radius: 0.5rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        padding: 1rem;
-        text-align: center;
+    #security-dashboard .sec-card {
+        background: white !important;
+        border-radius: 0.5rem !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
+        padding: 1rem !important;
+        text-align: center !important;
     }
-    .score-value {
-        font-size: 2rem;
-        font-weight: 700;
+    #security-dashboard .sec-value {
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
     }
-    .score-value-lg {
-        font-size: 2.5rem;
-        font-weight: 700;
+    #security-dashboard .sec-value-lg {
+        font-size: 2.5rem !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
     }
-    .score-label {
-        font-size: 0.875rem;
-        color: #6b7280;
+    #security-dashboard .sec-label {
+        font-size: 0.875rem !important;
+        color: #6b7280 !important;
+        margin-top: 0.25rem !important;
     }
-    .score-sublabel {
-        font-size: 0.75rem;
-        color: #9ca3af;
+    #security-dashboard .sec-sublabel {
+        font-size: 0.75rem !important;
+        color: #9ca3af !important;
     }
-    .text-green { color: #16a34a; }
-    .text-red { color: #dc2626; }
-    .text-orange { color: #ea580c; }
-    .text-yellow { color: #ca8a04; }
-    .text-blue { color: #2563eb; }
-    .text-gray { color: #111827; }
-    .chart-container {
-        background: white;
-        border-radius: 0.5rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        padding: 1rem;
+    #security-dashboard .sec-green { color: #16a34a !important; }
+    #security-dashboard .sec-red { color: #dc2626 !important; }
+    #security-dashboard .sec-orange { color: #ea580c !important; }
+    #security-dashboard .sec-yellow { color: #ca8a04 !important; }
+    #security-dashboard .sec-blue { color: #2563eb !important; }
+    #security-dashboard .sec-gray { color: #111827 !important; }
+    #security-dashboard .sec-btn {
+        padding: 0.5rem 1rem !important;
+        background: #2563eb !important;
+        color: white !important;
+        border-radius: 0.375rem !important;
+        border: none !important;
+        cursor: pointer !important;
+        font-size: 0.875rem !important;
     }
+    #security-dashboard .sec-btn:hover {
+        background: #1d4ed8 !important;
+    }
+    #security-dashboard .sec-btn-secondary {
+        padding: 0.25rem 0.75rem !important;
+        background: #f3f4f6 !important;
+        color: #374151 !important;
+        border-radius: 0.25rem !important;
+        border: none !important;
+        cursor: pointer !important;
+        font-size: 0.875rem !important;
+    }
+    #security-dashboard h1 {
+        font-size: 1.5rem !important;
+        font-weight: 700 !important;
+        color: #111827 !important;
+        margin: 0 !important;
+    }
+    #security-dashboard h3 {
+        font-size: 1.125rem !important;
+        font-weight: 600 !important;
+        margin: 0 0 1rem 0 !important;
+    }
+    #security-dashboard table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    #security-dashboard th {
+        padding: 0.75rem 1rem !important;
+        text-align: left !important;
+        font-size: 0.75rem !important;
+        font-weight: 500 !important;
+        color: #6b7280 !important;
+        text-transform: uppercase !important;
+        background: #f9fafb !important;
+    }
+    #security-dashboard td {
+        padding: 0.75rem 1rem !important;
+        font-size: 0.875rem !important;
+        border-top: 1px solid #e5e7eb !important;
+    }
+    #security-dashboard tr.clickable:hover {
+        background: #f9fafb !important;
+        cursor: pointer !important;
+    }
+    #security-dashboard .severity-badge {
+        display: inline-block !important;
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.75rem !important;
+        border-radius: 9999px !important;
+    }
+    #security-dashboard .severity-critical { background: #fee2e2 !important; color: #991b1b !important; }
+    #security-dashboard .severity-high { background: #ffedd5 !important; color: #9a3412 !important; }
+    #security-dashboard .severity-medium { background: #fef9c3 !important; color: #854d0e !important; }
+    #security-dashboard .severity-low { background: #dbeafe !important; color: #1e40af !important; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div style="max-width: 80rem; margin: 0 auto; padding: 1.5rem 1rem;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <h1 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Security Dashboard</h1>
-        <button onclick="runAssessment()" style="padding: 0.5rem 1rem; background: #2563eb; color: white; border-radius: 0.375rem; border: none; cursor: pointer;">
-            Run Assessment
-        </button>
+<div id="security-dashboard">
+    <div class="sec-header">
+        <h1>Security Dashboard</h1>
+        <button onclick="runAssessment()" class="sec-btn">Run Assessment</button>
     </div>
 
     {% if latest_run %}
     <!-- Snapshot Cards -->
-    <div class="security-grid-5">
-        <div class="score-card">
-            <div class="score-value text-gray">{{ latest_run.total_tests }}</div>
-            <div class="score-label">Tests Run</div>
-            <div class="score-sublabel">100%</div>
+    <div class="sec-grid-5">
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ latest_run.total_tests }}</div>
+            <div class="sec-label">Tests Run</div>
+            <div class="sec-sublabel">100%</div>
         </div>
-        <div class="score-card">
-            <div class="score-value text-green">{{ latest_run.passed_tests }}</div>
-            <div class="score-label">Passed</div>
-            <div class="score-sublabel">{% widthratio latest_run.passed_tests latest_run.total_tests 100 %}%</div>
+        <div class="sec-card">
+            <div class="sec-value sec-green">{{ latest_run.passed_tests }}</div>
+            <div class="sec-label">Passed</div>
+            <div class="sec-sublabel">{% widthratio latest_run.passed_tests latest_run.total_tests 100 %}%</div>
         </div>
-        <div class="score-card">
-            <div class="score-value text-red">{{ latest_run.critical_findings }}</div>
-            <div class="score-label">Critical</div>
+        <div class="sec-card">
+            <div class="sec-value sec-red">{{ latest_run.critical_findings }}</div>
+            <div class="sec-label">Critical</div>
         </div>
-        <div class="score-card">
-            <div class="score-value text-orange">{{ latest_run.high_findings }}</div>
-            <div class="score-label">High</div>
+        <div class="sec-card">
+            <div class="sec-value sec-orange">{{ latest_run.high_findings }}</div>
+            <div class="sec-label">High</div>
         </div>
-        <div class="score-card">
-            <div class="score-value text-yellow">{{ latest_run.medium_findings }}</div>
-            <div class="score-label">Medium</div>
+        <div class="sec-card">
+            <div class="sec-value sec-yellow">{{ latest_run.medium_findings }}</div>
+            <div class="sec-label">Medium</div>
         </div>
     </div>
 
     <!-- Score Cards -->
     {% if latest_score %}
-    <div class="security-grid-5">
-        <div class="score-card">
-            <div class="score-value-lg {% if latest_score.securityscorecard_grade == 'A' %}text-green{% elif latest_score.securityscorecard_grade == 'B' %}text-blue{% elif latest_score.securityscorecard_grade == 'C' %}text-yellow{% else %}text-red{% endif %}">
+    <div class="sec-grid-5">
+        <div class="sec-card">
+            <div class="sec-value-lg {% if latest_score.securityscorecard_grade == 'A' %}sec-green{% elif latest_score.securityscorecard_grade == 'B' %}sec-blue{% elif latest_score.securityscorecard_grade == 'C' %}sec-yellow{% else %}sec-red{% endif %}">
                 {{ latest_score.securityscorecard_grade }}
             </div>
-            <div class="score-label">Grade</div>
+            <div class="sec-label">Grade</div>
         </div>
-        <div class="score-card">
-            <div class="score-value text-gray">{{ latest_score.bitsight_score }}</div>
-            <div class="score-label">BitSight Score</div>
-            <div class="score-sublabel">/ 900</div>
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ latest_score.bitsight_score }}</div>
+            <div class="sec-label">BitSight Score</div>
+            <div class="sec-sublabel">/ 900</div>
         </div>
-        <div class="score-card">
-            <div class="score-value text-gray">{{ latest_score.cvss_avg }}</div>
-            <div class="score-label">CVSS Avg</div>
-            <div class="score-sublabel">/ 10.0</div>
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ latest_score.cvss_avg }}</div>
+            <div class="sec-label">CVSS Avg</div>
+            <div class="sec-sublabel">/ 10.0</div>
         </div>
-        <div class="score-card">
-            <div class="score-value text-gray">{{ latest_score.risk_score_0_100 }}</div>
-            <div class="score-label">Risk Score</div>
-            <div class="score-sublabel">/ 100</div>
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ latest_score.risk_score_0_100 }}</div>
+            <div class="sec-label">Risk Score</div>
+            <div class="sec-sublabel">/ 100</div>
         </div>
-        <div class="score-card">
-            <div class="score-value text-gray">{{ latest_score.maturity_level }}</div>
-            <div class="score-label">Maturity</div>
-            <div class="score-sublabel">/ 3</div>
+        <div class="sec-card">
+            <div class="sec-value sec-gray">{{ latest_score.maturity_level }}</div>
+            <div class="sec-label">Maturity</div>
+            <div class="sec-sublabel">/ 3</div>
         </div>
     </div>
     {% endif %}
 
     <!-- Trend Charts -->
-    <div class="security-grid-2">
-        <div class="chart-container">
-            <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">BitSight Score Trend</h3>
+    <div class="sec-grid-2">
+        <div class="sec-card" style="text-align: left;">
+            <h3>BitSight Score Trend</h3>
             <canvas id="bitsightChart" height="200"></canvas>
         </div>
-        <div class="chart-container">
-            <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">Risk Score Trend</h3>
+        <div class="sec-card" style="text-align: left;">
+            <h3>Risk Score Trend</h3>
             <canvas id="riskChart" height="200"></canvas>
         </div>
     </div>
 
     <!-- Findings Table -->
-    <div class="score-card" style="text-align: left; margin-bottom: 1.5rem;">
+    <div class="sec-card" style="text-align: left; margin-bottom: 1.5rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem;">
             <h3 style="font-size: 1.125rem; font-weight: 600;">Latest Findings</h3>
             <a href="{% url 'security:run_detail' latest_run.pk %}" style="color: #2563eb; font-size: 0.875rem;">
@@ -192,7 +263,7 @@
     </div>
 
     <!-- Remediation Prompt Card -->
-    <div class="score-card" style="text-align: left; margin-bottom: 1.5rem;">
+    <div class="sec-card" style="text-align: left; margin-bottom: 1.5rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
             <h3 style="font-size: 1.125rem; font-weight: 600;">Remediation Prompt</h3>
             <button onclick="copyRemediationPrompt('{{ latest_run.pk }}')" style="padding: 0.25rem 0.75rem; background: #f3f4f6; color: #374151; border-radius: 0.25rem; border: none; cursor: pointer; font-size: 0.875rem;">
@@ -205,7 +276,7 @@
     </div>
 
     <!-- Recent Runs -->
-    <div class="score-card" style="text-align: left;">
+    <div class="sec-card" style="text-align: left;">
         <div style="padding-bottom: 0.75rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem;">
             <h3 style="font-size: 1.125rem; font-weight: 600;">Recent Runs</h3>
         </div>
@@ -253,7 +324,7 @@
 
     {% else %}
     <!-- No runs yet -->
-    <div class="score-card" style="padding: 2rem; text-align: center;">
+    <div class="sec-card" style="padding: 2rem; text-align: center;">
         <h2 style="font-size: 1.25rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">No Security Assessments Yet</h2>
         <p style="color: #6b7280; margin-bottom: 1rem;">Run your first security assessment to see results here.</p>
         <button onclick="runAssessment()" style="padding: 0.5rem 1.5rem; background: #2563eb; color: white; border-radius: 0.375rem; border: none; cursor: pointer;">

@@ -105,6 +105,28 @@ For active development context, see `CLAUDE.md` (project root).
 2. View dashboard: `/security/dashboard/` (staff only)
 3. Copy remediation prompt and paste to Claude to fix issues
 
+### Security Dashboard CSS Fixes and Web Assessment Button
+
+**Problem:** Dashboard layout was displaying in a single column instead of the intended grid layout. The "Run Assessment" button was showing an alert instead of actually running the assessment.
+
+**Solution:**
+1. Added `RunAssessmentView` to handle POST requests and trigger security assessments from the web UI
+2. Replaced Tailwind CSS classes with scoped inline CSS using ID prefixes (`#security-dashboard`, `#security-run-detail`) to avoid conflicts with base template styles
+3. Changed CSS class names from `score-card` to `sec-card` and used `!important` declarations for grid layouts
+
+**Files Modified:**
+- `apps/security/views.py` - Added `RunAssessmentView` class
+- `apps/security/urls.py` - Added `/run-assessment/` URL pattern
+- `apps/security/templates/security/dashboard.html` - Complete CSS rewrite with scoped styles
+- `apps/security/templates/security/run_detail.html` - Complete CSS rewrite with scoped styles
+
+**Features:**
+- Dashboard now displays 5-column grid for score cards (responsive to 2 columns on mobile)
+- 2-column grid for trend charts (responsive to 1 column on mobile)
+- "Run Assessment" button triggers actual security scan via AJAX POST
+- Modal popups for finding and test details use inline styles
+- Chart.js graphs display BitSight and Risk score trends
+
 ---
 
 ## 2026-01-22 Changes

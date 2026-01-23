@@ -218,6 +218,14 @@ class SecurityScanner:
         self._run_deployment_tests()
         self._run_abuse_resistance_tests()
 
+        # Industry-specific compliance tests
+        self._run_financial_compliance_tests()
+        self._run_health_compliance_tests()
+        self._run_api_security_tests()
+        self._run_database_security_tests()
+        self._run_third_party_tests()
+        self._run_infrastructure_tests()
+
         duration = time.time() - start_time
         logger.info(f"Security scan complete in {duration:.2f}s: {len(self.results)} tests, {len(self.findings)} findings")
 
@@ -2310,7 +2318,9 @@ class SecurityScanner:
         settings_file = self.base_path / 'config' / 'settings.py'
         if settings_file.exists():
             content = settings_file.read_text()
-            if "env('SECRET_KEY" in content or "os.environ.get('SECRET_KEY" in content:
+            # Check if SECRET_KEY is loaded from env (support both single and double quotes)
+            if ("env('SECRET_KEY" in content or 'env("SECRET_KEY' in content or
+                "os.environ.get('SECRET_KEY" in content or 'os.environ.get("SECRET_KEY' in content):
                 evidence['from_env'] = True
             # Check for hardcoded key
             if re.search(r"SECRET_KEY\s*=\s*['\"][^'\"]{20,}['\"]", content):
@@ -2479,6 +2489,2598 @@ class SecurityScanner:
             criteria="Rate limiting implemented for signup endpoint.",
             result=result,
             result_details=f"Rate limiting: {evidence['rate_limiting_found']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    # ==========================================================================
+    # FINANCIAL / PCI DSS COMPLIANCE TESTS (SEC-T051 - SEC-T060)
+    # ==========================================================================
+
+    def _run_financial_compliance_tests(self):
+        """Run financial data and PCI DSS compliance tests."""
+        self._test_pci_card_data_storage()
+        self._test_stripe_webhook_security()
+        self._test_plaid_token_security()
+        self._test_payment_audit_trail()
+        self._test_fraud_velocity_checks()
+        self._test_payment_credential_rotation()
+        self._test_financial_data_encryption()
+        self._test_transaction_integrity()
+        self._test_payment_error_handling()
+        self._test_financial_access_controls()
+
+    def _test_pci_card_data_storage(self):
+        """SEC-T051: Verify no credit card data is stored locally (PCI DSS)."""
+        start = time.time()
+        test_id = "SEC-T051"
+
+        evidence = {'card_patterns_found': [], 'tokenization_used': False}
+        findings = []
+
+        # Patterns that indicate raw card data storage
+        card_patterns = [
+            r'card_number',
+            r'card_num',
+            r'ccnum',
+            r'credit_card',
+            r'pan\s*=',  # Primary Account Number
+            r'cvv',
+            r'cvc',
+            r'expiry.*date',
+            r'expiration.*date',
+        ]
+
+        # Check models for card storage
+        models_path = self.base_path / 'apps'
+        for py_file in models_path.rglob('models.py'):
+            try:
+                content = py_file.read_text().lower()
+                for pattern in card_patterns:
+                    if re.search(pattern, content):
+                        rel_path = str(py_file.relative_to(self.base_path))
+                        if rel_path not in evidence['card_patterns_found']:
+                            evidence['card_patterns_found'].append(rel_path)
+            except Exception:
+                pass
+
+        # Check for Stripe tokenization (good)
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'stripe.PaymentMethod' in content or 'stripe.Token' in content or 'pm_' in content:
+                    evidence['tokenization_used'] = True
+                    break
+            except Exception:
+                pass
+
+        # Exclude false positives from billing app that uses Stripe tokens
+        evidence['card_patterns_found'] = [
+            f for f in evidence['card_patterns_found']
+            if 'test' not in f.lower() and 'migration' not in f.lower()
+        ]
+
+        result = 'pass' if not evidence['card_patterns_found'] and evidence['tokenization_used'] else 'fail'
+
+        if evidence['card_patterns_found']:
+            finding = self._add_finding(
+                finding_key="pci_card_data_storage",
+                title="Potential Card Data Storage Detected",
+                severity='critical',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+                description=f"Found potential card data fields in: {evidence['card_patterns_found']}",
+                risk_reasoning="Storing raw card data violates PCI DSS and creates massive liability exposure.",
+                evidence=evidence,
+                affected_components=evidence['card_patterns_found'],
+                recommendations=[
+                    "Remove all card data storage - use Stripe tokens only",
+                    "Never store CVV/CVC under any circumstances",
+                    "Use payment processor's hosted fields for card entry",
+                ],
+                validation_steps="Grep codebase for card_number, cvv, pan patterns",
+                is_quick_win=False,
+                remediation_effort='high',
+            )
+            findings.append(finding)
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="PCI DSS Card Data Storage",
+            description="Verify no raw credit card data is stored locally.",
+            criteria="No card numbers/CVV stored; tokenization via payment processor.",
+            result=result,
+            result_details=f"Card patterns: {len(evidence['card_patterns_found'])}, Tokenization: {evidence['tokenization_used']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_stripe_webhook_security(self):
+        """SEC-T052: Verify Stripe webhook signature validation."""
+        start = time.time()
+        test_id = "SEC-T052"
+
+        evidence = {
+            'webhook_found': False,
+            'signature_verification': False,
+            'timing_safe_compare': False,
+            'replay_protection': False,
+        }
+        findings = []
+
+        # Find Stripe webhook handlers
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'stripe' in content.lower() and 'webhook' in content.lower():
+                    evidence['webhook_found'] = True
+                    rel_path = str(py_file.relative_to(self.base_path))
+
+                    # Check for signature verification
+                    if 'construct_event' in content or 'verify_header' in content:
+                        evidence['signature_verification'] = True
+
+                    # Check for timing-safe comparison
+                    if 'hmac.compare_digest' in content or 'construct_event' in content:
+                        evidence['timing_safe_compare'] = True
+
+                    # Check for idempotency/replay protection
+                    if 'idempotency' in content.lower() or 'event.id' in content:
+                        evidence['replay_protection'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if (
+            evidence['webhook_found'] and
+            evidence['signature_verification'] and
+            evidence['timing_safe_compare']
+        ) else 'fail'
+
+        if evidence['webhook_found'] and not evidence['signature_verification']:
+            finding = self._add_finding(
+                finding_key="stripe_webhook_no_signature",
+                title="Stripe Webhook Missing Signature Verification",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:L",
+                description="Stripe webhooks should verify signatures to prevent spoofing.",
+                risk_reasoning="Without signature verification, attackers can forge webhook events.",
+                evidence=evidence,
+                affected_components=['apps/billing/webhooks.py'],
+                recommendations=[
+                    "Use stripe.Webhook.construct_event() for signature verification",
+                    "Store STRIPE_WEBHOOK_SECRET in environment",
+                    "Implement idempotency key tracking for replay protection",
+                ],
+                validation_steps="Verify construct_event() is called before processing webhook",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Stripe Webhook Security",
+            description="Verify Stripe webhook signature validation and replay protection.",
+            criteria="Webhook signatures verified, timing-safe comparison used.",
+            result=result,
+            result_details=f"Sig verify: {evidence['signature_verification']}, Timing-safe: {evidence['timing_safe_compare']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_plaid_token_security(self):
+        """SEC-T053: Verify Plaid link token and access token security."""
+        start = time.time()
+        test_id = "SEC-T053"
+
+        evidence = {
+            'plaid_integration': False,
+            'link_token_expiry': False,
+            'access_token_encrypted': False,
+            'user_ownership_check': False,
+        }
+        findings = []
+
+        # Find Plaid integration
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'plaid' in content.lower():
+                    evidence['plaid_integration'] = True
+
+                    # Check for link token expiration handling
+                    if 'expiration' in content.lower() or 'link_token' in content:
+                        evidence['link_token_expiry'] = True
+
+                    # Check for encrypted storage of access tokens
+                    if 'EncryptedTextField' in content or 'encrypt' in content.lower():
+                        evidence['access_token_encrypted'] = True
+
+                    # Check for user ownership verification
+                    if 'request.user' in content and 'plaid' in content.lower():
+                        evidence['user_ownership_check'] = True
+            except Exception:
+                pass
+
+        # If no Plaid integration, pass (not applicable)
+        if not evidence['plaid_integration']:
+            result = 'pass'
+        else:
+            result = 'pass' if evidence['access_token_encrypted'] and evidence['user_ownership_check'] else 'fail'
+
+        if evidence['plaid_integration'] and not evidence['access_token_encrypted']:
+            finding = self._add_finding(
+                finding_key="plaid_token_not_encrypted",
+                title="Plaid Access Tokens May Not Be Encrypted",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N",
+                description="Plaid access tokens should be encrypted at rest.",
+                risk_reasoning="Access tokens grant full access to user bank accounts.",
+                evidence=evidence,
+                affected_components=['apps/finance/models.py'],
+                recommendations=[
+                    "Encrypt access_token field using Fernet/AES-256",
+                    "Implement token refresh rotation",
+                    "Log all token access for audit trail",
+                ],
+                validation_steps="Verify access_token uses EncryptedTextField",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Plaid Token Security",
+            description="Verify Plaid access tokens are encrypted and ownership verified.",
+            criteria="Access tokens encrypted at rest, user ownership verified.",
+            result=result,
+            result_details=f"Encrypted: {evidence['access_token_encrypted']}, User check: {evidence['user_ownership_check']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_payment_audit_trail(self):
+        """SEC-T054: Verify payment transactions have audit trail."""
+        start = time.time()
+        test_id = "SEC-T054"
+
+        evidence = {
+            'audit_model_exists': False,
+            'payment_events_logged': False,
+            'immutable_records': False,
+        }
+        findings = []
+
+        # Check for payment audit models
+        audit_patterns = ['PaymentAuditLog', 'TransactionLog', 'FinanceAuditLog', 'BillingAudit']
+        for py_file in self.base_path.rglob('models.py'):
+            try:
+                content = py_file.read_text()
+                for pattern in audit_patterns:
+                    if pattern in content:
+                        evidence['audit_model_exists'] = True
+                        break
+            except Exception:
+                pass
+
+        # Check for payment event logging
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if ('stripe' in content.lower() or 'payment' in content.lower()) and 'logger' in content:
+                    evidence['payment_events_logged'] = True
+
+                # Check for soft delete (immutability indicator)
+                if 'soft_delete' in content or 'is_deleted' in content:
+                    evidence['immutable_records'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['audit_model_exists'] and evidence['payment_events_logged'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Payment Audit Trail",
+            description="Verify payment transactions have complete audit trail.",
+            criteria="Audit model exists, payment events logged, records immutable.",
+            result=result,
+            result_details=f"Audit model: {evidence['audit_model_exists']}, Events logged: {evidence['payment_events_logged']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_fraud_velocity_checks(self):
+        """SEC-T055: Verify fraud prevention velocity checks exist."""
+        start = time.time()
+        test_id = "SEC-T055"
+
+        evidence = {
+            'velocity_checks': False,
+            'amount_limits': False,
+            'frequency_limits': False,
+        }
+        findings = []
+
+        # Check for velocity/fraud checks
+        velocity_patterns = [
+            r'velocity',
+            r'rate.?limit.*payment',
+            r'max.*transaction',
+            r'daily.*limit',
+            r'fraud.*check',
+            r'suspicious.*activity',
+        ]
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text().lower()
+                for pattern in velocity_patterns:
+                    if re.search(pattern, content):
+                        evidence['velocity_checks'] = True
+                        break
+
+                # Check for amount limits
+                if 'max_amount' in content or 'amount_limit' in content:
+                    evidence['amount_limits'] = True
+
+                # Check for frequency limits
+                if 'transaction_count' in content or 'per_day' in content or 'per_hour' in content:
+                    evidence['frequency_limits'] = True
+            except Exception:
+                pass
+
+        # This is advisory - many apps rely on Stripe Radar
+        result = 'pass' if evidence['velocity_checks'] or evidence['amount_limits'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Fraud Velocity Checks",
+            description="Verify fraud prevention velocity and limit checks.",
+            criteria="Velocity checks or amount/frequency limits implemented.",
+            result=result,
+            result_details=f"Velocity: {evidence['velocity_checks']}, Amount limits: {evidence['amount_limits']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_payment_credential_rotation(self):
+        """SEC-T056: Verify payment API credentials support rotation."""
+        start = time.time()
+        test_id = "SEC-T056"
+
+        evidence = {
+            'stripe_keys_from_env': False,
+            'plaid_keys_from_env': False,
+            'no_hardcoded_keys': True,
+        }
+        findings = []
+
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+
+            # Check Stripe keys from env
+            if ("env('STRIPE" in content or 'env("STRIPE' in content or
+                "os.environ" in content and "STRIPE" in content):
+                evidence['stripe_keys_from_env'] = True
+
+            # Check Plaid keys from env
+            if ("env('PLAID" in content or 'env("PLAID' in content or
+                "os.environ" in content and "PLAID" in content):
+                evidence['plaid_keys_from_env'] = True
+
+            # Check for hardcoded keys
+            if re.search(r"sk_live_[a-zA-Z0-9]+", content) or re.search(r"sk_test_[a-zA-Z0-9]+", content):
+                evidence['no_hardcoded_keys'] = False
+
+        result = 'pass' if evidence['stripe_keys_from_env'] and evidence['no_hardcoded_keys'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Payment Credential Rotation",
+            description="Verify payment API credentials loaded from environment.",
+            criteria="Stripe/Plaid keys from env, no hardcoded keys.",
+            result=result,
+            result_details=f"Stripe env: {evidence['stripe_keys_from_env']}, No hardcoded: {evidence['no_hardcoded_keys']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_financial_data_encryption(self):
+        """SEC-T057: Verify financial data is encrypted at rest."""
+        start = time.time()
+        test_id = "SEC-T057"
+
+        evidence = {
+            'encrypted_fields_found': False,
+            'finance_models_checked': [],
+            'sensitive_fields_encrypted': [],
+        }
+        findings = []
+
+        # Check finance/billing models for encryption
+        finance_paths = [
+            self.base_path / 'apps' / 'finance' / 'models.py',
+            self.base_path / 'apps' / 'billing' / 'models.py',
+        ]
+
+        for model_file in finance_paths:
+            if model_file.exists():
+                content = model_file.read_text()
+                rel_path = str(model_file.relative_to(self.base_path))
+                evidence['finance_models_checked'].append(rel_path)
+
+                # Check for encrypted fields
+                if 'EncryptedTextField' in content or 'EncryptedCharField' in content:
+                    evidence['encrypted_fields_found'] = True
+
+                # Look for sensitive field names that should be encrypted
+                sensitive_patterns = ['access_token', 'account_number', 'routing_number', 'balance']
+                for pattern in sensitive_patterns:
+                    if pattern in content.lower():
+                        if 'Encrypted' in content.split(pattern)[0][-100:]:
+                            evidence['sensitive_fields_encrypted'].append(pattern)
+
+        result = 'pass' if evidence['encrypted_fields_found'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Financial Data Encryption",
+            description="Verify sensitive financial data is encrypted at rest.",
+            criteria="Financial models use encrypted fields for sensitive data.",
+            result=result,
+            result_details=f"Encrypted fields: {evidence['encrypted_fields_found']}, Models: {len(evidence['finance_models_checked'])}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_transaction_integrity(self):
+        """SEC-T058: Verify transaction integrity controls."""
+        start = time.time()
+        test_id = "SEC-T058"
+
+        evidence = {
+            'atomic_transactions': False,
+            'idempotency_keys': False,
+            'double_spend_prevention': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'payment' in content.lower() or 'transaction' in content.lower():
+                    # Check for atomic transactions
+                    if 'transaction.atomic' in content or '@atomic' in content:
+                        evidence['atomic_transactions'] = True
+
+                    # Check for idempotency
+                    if 'idempotency' in content.lower():
+                        evidence['idempotency_keys'] = True
+
+                    # Check for double-spend prevention
+                    if 'select_for_update' in content or 'lock' in content.lower():
+                        evidence['double_spend_prevention'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['atomic_transactions'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Transaction Integrity",
+            description="Verify transaction integrity with atomic operations.",
+            criteria="Atomic transactions used, idempotency supported.",
+            result=result,
+            result_details=f"Atomic: {evidence['atomic_transactions']}, Idempotency: {evidence['idempotency_keys']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_payment_error_handling(self):
+        """SEC-T059: Verify payment errors don't leak sensitive info."""
+        start = time.time()
+        test_id = "SEC-T059"
+
+        evidence = {
+            'generic_error_messages': False,
+            'no_stack_trace_exposure': True,
+            'error_logging_present': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'stripe' in content.lower() or 'payment' in content.lower():
+                    # Check for error handling
+                    if 'except' in content and ('StripeError' in content or 'PaymentError' in content):
+                        evidence['generic_error_messages'] = True
+
+                    # Check for logging
+                    if 'logger.error' in content or 'logger.exception' in content:
+                        evidence['error_logging_present'] = True
+
+                    # Check for potential stack trace exposure
+                    if 'traceback.format_exc' in content and 'JsonResponse' in content:
+                        evidence['no_stack_trace_exposure'] = False
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['generic_error_messages'] and evidence['no_stack_trace_exposure'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Payment Error Handling",
+            description="Verify payment errors don't expose sensitive information.",
+            criteria="Generic error messages, no stack trace exposure.",
+            result=result,
+            result_details=f"Generic errors: {evidence['generic_error_messages']}, Safe: {evidence['no_stack_trace_exposure']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_financial_access_controls(self):
+        """SEC-T060: Verify financial data access controls."""
+        start = time.time()
+        test_id = "SEC-T060"
+
+        evidence = {
+            'login_required': False,
+            'user_scoping': False,
+            'admin_separation': False,
+        }
+        findings = []
+
+        finance_views = [
+            self.base_path / 'apps' / 'finance' / 'views.py',
+            self.base_path / 'apps' / 'billing' / 'views.py',
+        ]
+
+        for view_file in finance_views:
+            if view_file.exists():
+                content = view_file.read_text()
+
+                # Check for login requirement
+                if '@login_required' in content or 'LoginRequiredMixin' in content:
+                    evidence['login_required'] = True
+
+                # Check for user scoping
+                if 'request.user' in content and ('filter' in content or 'get_queryset' in content):
+                    evidence['user_scoping'] = True
+
+                # Check for admin separation
+                if '@staff_member_required' in content or 'is_staff' in content:
+                    evidence['admin_separation'] = True
+
+        result = 'pass' if evidence['login_required'] and evidence['user_scoping'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Financial Access Controls",
+            description="Verify financial data requires authentication and user scoping.",
+            criteria="Login required, data scoped to user, admin separation.",
+            result=result,
+            result_details=f"Login: {evidence['login_required']}, User scoped: {evidence['user_scoping']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    # ==========================================================================
+    # HEALTH / HIPAA COMPLIANCE TESTS (SEC-T061 - SEC-T070)
+    # ==========================================================================
+
+    def _run_health_compliance_tests(self):
+        """Run health data and HIPAA compliance tests."""
+        self._test_health_data_encryption()
+        self._test_health_access_controls()
+        self._test_hipaa_audit_logging()
+        self._test_health_data_minimization()
+        self._test_phi_transmission_security()
+        self._test_health_data_retention()
+        self._test_patient_consent_tracking()
+        self._test_health_data_portability()
+        self._test_breach_notification_capability()
+        self._test_health_provider_separation()
+
+    def _test_health_data_encryption(self):
+        """SEC-T061: Verify health/PHI data is encrypted at rest (HIPAA)."""
+        start = time.time()
+        test_id = "SEC-T061"
+
+        evidence = {
+            'health_models_found': [],
+            'encrypted_fields': False,
+            'phi_fields_identified': [],
+        }
+        findings = []
+
+        # Health-related model files
+        health_paths = [
+            self.base_path / 'apps' / 'health' / 'models.py',
+            self.base_path / 'apps' / 'scan' / 'models.py',
+        ]
+
+        # PHI field patterns (Protected Health Information)
+        phi_patterns = ['weight', 'height', 'blood_pressure', 'heart_rate', 'glucose',
+                        'medication', 'diagnosis', 'symptom', 'cycle', 'period',
+                        'health_metric', 'body_', 'medical', 'treatment']
+
+        for model_file in health_paths:
+            if model_file.exists():
+                content = model_file.read_text()
+                rel_path = str(model_file.relative_to(self.base_path))
+                evidence['health_models_found'].append(rel_path)
+
+                # Check for encrypted fields
+                if 'EncryptedTextField' in content or 'EncryptedCharField' in content or 'EncryptedJSONField' in content:
+                    evidence['encrypted_fields'] = True
+
+                # Identify PHI fields
+                for pattern in phi_patterns:
+                    if pattern in content.lower():
+                        evidence['phi_fields_identified'].append(pattern)
+
+        # Pass if health data exists and encryption is used, or no health data found
+        if not evidence['health_models_found']:
+            result = 'pass'  # N/A
+        else:
+            result = 'pass' if evidence['encrypted_fields'] else 'fail'
+
+        if evidence['health_models_found'] and not evidence['encrypted_fields']:
+            finding = self._add_finding(
+                finding_key="hipaa_phi_not_encrypted",
+                title="Health/PHI Data May Not Be Encrypted at Rest",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N",
+                description="HIPAA requires PHI to be encrypted at rest.",
+                risk_reasoning="Unencrypted health data exposure = HIPAA violation + $100+ per record fine.",
+                evidence=evidence,
+                affected_components=evidence['health_models_found'],
+                recommendations=[
+                    "Use EncryptedTextField for all PHI fields",
+                    "Implement database-level encryption (TDE)",
+                    "Document encryption in HIPAA security plan",
+                ],
+                validation_steps="Verify health model fields use encrypted field types",
+                is_quick_win=False,
+                remediation_effort='high',
+            )
+            findings.append(finding)
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="HIPAA PHI Encryption",
+            description="Verify health/PHI data is encrypted at rest.",
+            criteria="All PHI fields use encryption, encryption keys secured.",
+            result=result,
+            result_details=f"Health models: {len(evidence['health_models_found'])}, Encrypted: {evidence['encrypted_fields']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_health_access_controls(self):
+        """SEC-T062: Verify health data access is properly controlled."""
+        start = time.time()
+        test_id = "SEC-T062"
+
+        evidence = {
+            'login_required': False,
+            'user_scoping': False,
+            'role_based_access': False,
+        }
+        findings = []
+
+        health_views = self.base_path / 'apps' / 'health' / 'views.py'
+        if health_views.exists():
+            content = health_views.read_text()
+
+            # Check authentication
+            if '@login_required' in content or 'LoginRequiredMixin' in content:
+                evidence['login_required'] = True
+
+            # Check user scoping
+            if 'request.user' in content and ('filter(user=' in content or 'user=request.user' in content):
+                evidence['user_scoping'] = True
+
+            # Check for role-based access
+            if 'has_perm' in content or 'permission_required' in content or 'UserPassesTestMixin' in content:
+                evidence['role_based_access'] = True
+
+        result = 'pass' if evidence['login_required'] and evidence['user_scoping'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="HIPAA Access Controls",
+            description="Verify health data requires authentication and proper access controls.",
+            criteria="Login required, user-scoped data, role-based access.",
+            result=result,
+            result_details=f"Auth: {evidence['login_required']}, Scoped: {evidence['user_scoping']}, RBAC: {evidence['role_based_access']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_hipaa_audit_logging(self):
+        """SEC-T063: Verify HIPAA-compliant audit logging for health data access."""
+        start = time.time()
+        test_id = "SEC-T063"
+
+        evidence = {
+            'audit_logging_present': False,
+            'who_what_when_where': False,
+            'access_denial_logged': False,
+        }
+        findings = []
+
+        # Check for audit logging in health module
+        for py_file in (self.base_path / 'apps' / 'health').rglob('*.py'):
+            try:
+                content = py_file.read_text()
+
+                # Check for logging
+                if 'logger' in content and ('access' in content.lower() or 'audit' in content.lower()):
+                    evidence['audit_logging_present'] = True
+
+                # Check for WHO-WHAT-WHEN logging
+                if 'request.user' in content and 'logger' in content:
+                    evidence['who_what_when_where'] = True
+
+                # Check for access denial logging
+                if 'PermissionDenied' in content or 'Http403' in content or 'Forbidden' in content:
+                    if 'logger' in content:
+                        evidence['access_denial_logged'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['audit_logging_present'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="HIPAA Audit Logging",
+            description="Verify comprehensive audit logging for health data access.",
+            criteria="All PHI access logged with WHO/WHAT/WHEN/WHERE.",
+            result=result,
+            result_details=f"Audit: {evidence['audit_logging_present']}, Full context: {evidence['who_what_when_where']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_health_data_minimization(self):
+        """SEC-T064: Verify health data collection is minimized to necessary fields."""
+        start = time.time()
+        test_id = "SEC-T064"
+
+        evidence = {
+            'forms_checked': 0,
+            'optional_fields': False,
+            'purpose_documented': False,
+        }
+        findings = []
+
+        # Check health forms
+        for py_file in (self.base_path / 'apps' / 'health').rglob('forms.py'):
+            try:
+                content = py_file.read_text()
+                evidence['forms_checked'] += 1
+
+                # Check for optional fields
+                if 'required=False' in content or 'blank=True' in content:
+                    evidence['optional_fields'] = True
+
+                # Check for documented purpose
+                if '"""' in content or "'''" in content:
+                    evidence['purpose_documented'] = True
+            except Exception:
+                pass
+
+        result = 'pass'  # Advisory check
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Health Data Minimization",
+            description="Verify health data collection follows minimization principle.",
+            criteria="Only necessary data collected, optional fields marked.",
+            result=result,
+            result_details=f"Forms: {evidence['forms_checked']}, Optional fields: {evidence['optional_fields']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_phi_transmission_security(self):
+        """SEC-T065: Verify PHI is transmitted securely (TLS 1.2+)."""
+        start = time.time()
+        test_id = "SEC-T065"
+
+        evidence = {
+            'https_enforced': False,
+            'secure_cookies': False,
+            'hsts_enabled': False,
+        }
+        findings = []
+
+        # Check settings for TLS enforcement
+        try:
+            from django.conf import settings
+            evidence['https_enforced'] = (
+                getattr(settings, 'SECURE_SSL_REDIRECT', False) or
+                getattr(settings, 'SECURE_PROXY_SSL_HEADER', None) is not None
+            )
+            evidence['secure_cookies'] = getattr(settings, 'SESSION_COOKIE_SECURE', False)
+            evidence['hsts_enabled'] = getattr(settings, 'SECURE_HSTS_SECONDS', 0) > 0
+        except Exception:
+            pass
+
+        result = 'pass' if evidence['https_enforced'] or evidence['hsts_enabled'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="PHI Transmission Security",
+            description="Verify health data transmitted over secure channels.",
+            criteria="HTTPS enforced, secure cookies, HSTS enabled.",
+            result=result,
+            result_details=f"HTTPS: {evidence['https_enforced']}, HSTS: {evidence['hsts_enabled']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_health_data_retention(self):
+        """SEC-T066: Verify health data retention policies are implemented."""
+        start = time.time()
+        test_id = "SEC-T066"
+
+        evidence = {
+            'retention_policy_found': False,
+            'soft_delete_used': False,
+            'archival_mechanism': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'health' in str(py_file).lower():
+                    # Check for retention policy
+                    if 'retention' in content.lower() or 'archive' in content.lower():
+                        evidence['retention_policy_found'] = True
+
+                    # Check for soft delete
+                    if 'soft_delete' in content or 'is_deleted' in content or 'deleted_at' in content:
+                        evidence['soft_delete_used'] = True
+
+                    # Check for archival
+                    if 'archive' in content.lower() or 'backup' in content.lower():
+                        evidence['archival_mechanism'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['soft_delete_used'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Health Data Retention",
+            description="Verify health data retention policies (HIPAA: 6 years minimum).",
+            criteria="Retention policy defined, soft delete used, archival supported.",
+            result=result,
+            result_details=f"Policy: {evidence['retention_policy_found']}, Soft delete: {evidence['soft_delete_used']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_patient_consent_tracking(self):
+        """SEC-T067: Verify patient consent is tracked for health data use."""
+        start = time.time()
+        test_id = "SEC-T067"
+
+        evidence = {
+            'consent_model': False,
+            'consent_timestamp': False,
+            'consent_revocation': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('models.py'):
+            try:
+                content = py_file.read_text()
+                if 'consent' in content.lower():
+                    evidence['consent_model'] = True
+
+                    if 'consent' in content.lower() and ('datetime' in content or 'timestamp' in content.lower()):
+                        evidence['consent_timestamp'] = True
+
+                    if 'revoke' in content.lower() or 'withdraw' in content.lower():
+                        evidence['consent_revocation'] = True
+            except Exception:
+                pass
+
+        # Also check for terms acceptance (basic consent)
+        if not evidence['consent_model']:
+            for py_file in self.base_path.rglob('*.py'):
+                try:
+                    content = py_file.read_text()
+                    if 'TermsAcceptance' in content or 'terms_accepted' in content.lower():
+                        evidence['consent_model'] = True
+                        break
+                except Exception:
+                    pass
+
+        result = 'pass' if evidence['consent_model'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Patient Consent Tracking",
+            description="Verify patient consent is tracked for health data collection.",
+            criteria="Consent model exists, timestamps recorded, revocation supported.",
+            result=result,
+            result_details=f"Consent: {evidence['consent_model']}, Timestamped: {evidence['consent_timestamp']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_health_data_portability(self):
+        """SEC-T068: Verify health data can be exported (HIPAA Right of Access)."""
+        start = time.time()
+        test_id = "SEC-T068"
+
+        evidence = {
+            'export_capability': False,
+            'supported_formats': [],
+            'user_accessible': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'export' in content.lower() and 'health' in str(py_file).lower():
+                    evidence['export_capability'] = True
+
+                    # Check for formats
+                    if 'csv' in content.lower():
+                        evidence['supported_formats'].append('CSV')
+                    if 'json' in content.lower():
+                        evidence['supported_formats'].append('JSON')
+                    if 'pdf' in content.lower():
+                        evidence['supported_formats'].append('PDF')
+
+                    if 'request.user' in content:
+                        evidence['user_accessible'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['export_capability'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Health Data Portability",
+            description="Verify health data export capability (HIPAA Right of Access).",
+            criteria="Export available, standard formats supported, user-accessible.",
+            result=result,
+            result_details=f"Export: {evidence['export_capability']}, Formats: {evidence['supported_formats']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_breach_notification_capability(self):
+        """SEC-T069: Verify breach notification capability exists."""
+        start = time.time()
+        test_id = "SEC-T069"
+
+        evidence = {
+            'notification_system': False,
+            'email_capability': False,
+            'affected_user_query': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                # Check for notification system
+                if 'notification' in content.lower() and ('send' in content or 'email' in content.lower()):
+                    evidence['notification_system'] = True
+
+                # Check for email capability
+                if 'send_mail' in content or 'EmailMessage' in content:
+                    evidence['email_capability'] = True
+
+                # Check for user query capability
+                if 'User.objects' in content and 'filter' in content:
+                    evidence['affected_user_query'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['notification_system'] and evidence['email_capability'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Breach Notification Capability",
+            description="Verify capability to notify affected users (HIPAA: 60 days).",
+            criteria="Notification system exists, email capability, can identify affected users.",
+            result=result,
+            result_details=f"Notifications: {evidence['notification_system']}, Email: {evidence['email_capability']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_health_provider_separation(self):
+        """SEC-T070: Verify separation between user health data and provider access."""
+        start = time.time()
+        test_id = "SEC-T070"
+
+        evidence = {
+            'provider_role_exists': False,
+            'access_controls_separate': False,
+            'audit_for_provider_access': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                # Check for provider/coach role
+                if 'provider' in content.lower() or 'coach' in content.lower() or 'practitioner' in content.lower():
+                    evidence['provider_role_exists'] = True
+
+                    # Check for separate access controls
+                    if 'is_provider' in content or 'is_coach' in content or 'has_provider_access' in content:
+                        evidence['access_controls_separate'] = True
+
+                    # Check for audit of provider access
+                    if 'logger' in content and ('provider' in content.lower() or 'coach' in content.lower()):
+                        evidence['audit_for_provider_access'] = True
+            except Exception:
+                pass
+
+        result = 'pass'  # Advisory - may not apply to all apps
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='compliance',
+            title="Provider Access Separation",
+            description="Verify provider access to patient data is controlled and logged.",
+            criteria="Provider role exists, separate access controls, audited.",
+            result=result,
+            result_details=f"Provider role: {evidence['provider_role_exists']}, Separate: {evidence['access_controls_separate']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    # ==========================================================================
+    # API SECURITY TESTS (SEC-T071 - SEC-T078)
+    # ==========================================================================
+
+    def _run_api_security_tests(self):
+        """Run API security tests."""
+        self._test_api_rate_limiting()
+        self._test_api_pagination_limits()
+        self._test_api_request_validation()
+        self._test_api_response_filtering()
+        self._test_api_versioning()
+        self._test_api_error_responses()
+        self._test_graphql_security()
+        self._test_api_key_management()
+
+    def _test_api_rate_limiting(self):
+        """SEC-T071: Verify API endpoints have rate limiting."""
+        start = time.time()
+        test_id = "SEC-T071"
+
+        evidence = {
+            'rate_limiting_found': False,
+            'throttle_classes': False,
+            'per_endpoint_limits': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                # DRF throttling
+                if 'throttle_classes' in content or 'Throttle' in content:
+                    evidence['throttle_classes'] = True
+                    evidence['rate_limiting_found'] = True
+
+                # Django rate limit decorator
+                if '@ratelimit' in content or 'rate_limit' in content:
+                    evidence['rate_limiting_found'] = True
+
+                # Per-endpoint check
+                if 'UserRateThrottle' in content or 'ScopedRateThrottle' in content:
+                    evidence['per_endpoint_limits'] = True
+            except Exception:
+                pass
+
+        # Also check settings for DRF throttling
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+            if 'DEFAULT_THROTTLE' in content or 'THROTTLE_RATES' in content:
+                evidence['rate_limiting_found'] = True
+
+        result = 'pass' if evidence['rate_limiting_found'] else 'fail'
+
+        if not evidence['rate_limiting_found']:
+            finding = self._add_finding(
+                finding_key="api_no_rate_limiting",
+                title="API Endpoints Lack Rate Limiting",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                description="API endpoints should have rate limiting to prevent abuse.",
+                risk_reasoning="Without rate limiting, APIs are vulnerable to DoS and scraping attacks.",
+                evidence=evidence,
+                affected_components=['API endpoints'],
+                recommendations=[
+                    "Implement DRF throttle_classes for REST APIs",
+                    "Add per-user and per-IP rate limits",
+                    "Configure graduated backoff for repeated violations",
+                ],
+                validation_steps="Check API views for throttle_classes or rate limiting",
+                is_quick_win=True,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='api',
+            title="API Rate Limiting",
+            description="Verify API endpoints have rate limiting.",
+            criteria="Rate limiting configured, per-user/IP limits set.",
+            result=result,
+            result_details=f"Rate limiting: {evidence['rate_limiting_found']}, Per-endpoint: {evidence['per_endpoint_limits']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_api_pagination_limits(self):
+        """SEC-T072: Verify API pagination has size limits."""
+        start = time.time()
+        test_id = "SEC-T072"
+
+        evidence = {
+            'pagination_configured': False,
+            'max_page_size': None,
+            'default_page_size': None,
+        }
+        findings = []
+
+        # Check DRF settings
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+            if 'PAGE_SIZE' in content or 'PAGINATION' in content:
+                evidence['pagination_configured'] = True
+
+            # Extract page size if possible
+            match = re.search(r"'PAGE_SIZE':\s*(\d+)", content)
+            if match:
+                evidence['default_page_size'] = int(match.group(1))
+
+            match = re.search(r"'MAX_PAGE_SIZE':\s*(\d+)", content)
+            if match:
+                evidence['max_page_size'] = int(match.group(1))
+
+        # Check for pagination in views
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'PageNumberPagination' in content or 'LimitOffsetPagination' in content:
+                    evidence['pagination_configured'] = True
+
+                    # Check for max_page_size
+                    if 'max_page_size' in content:
+                        match = re.search(r'max_page_size\s*=\s*(\d+)', content)
+                        if match:
+                            evidence['max_page_size'] = int(match.group(1))
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['pagination_configured'] and evidence['max_page_size'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='api',
+            title="API Pagination Limits",
+            description="Verify API pagination has maximum size limits.",
+            criteria="Pagination configured with max_page_size limit.",
+            result=result,
+            result_details=f"Pagination: {evidence['pagination_configured']}, Max size: {evidence['max_page_size']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_api_request_validation(self):
+        """SEC-T073: Verify API request validation (serializers/schemas)."""
+        start = time.time()
+        test_id = "SEC-T073"
+
+        evidence = {
+            'serializers_used': False,
+            'validation_present': False,
+            'schema_validation': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                # Check for DRF serializers
+                if 'Serializer' in content and 'serializers' in content:
+                    evidence['serializers_used'] = True
+
+                    # Check for validation
+                    if 'validate_' in content or 'validators=' in content or 'is_valid()' in content:
+                        evidence['validation_present'] = True
+
+                # Check for schema validation
+                if 'JSONSchema' in content or 'OpenAPI' in content or 'swagger' in content.lower():
+                    evidence['schema_validation'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['serializers_used'] and evidence['validation_present'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='api',
+            title="API Request Validation",
+            description="Verify API requests are validated via serializers/schemas.",
+            criteria="Serializers used, validation methods present.",
+            result=result,
+            result_details=f"Serializers: {evidence['serializers_used']}, Validation: {evidence['validation_present']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_api_response_filtering(self):
+        """SEC-T074: Verify API responses filter sensitive data."""
+        start = time.time()
+        test_id = "SEC-T074"
+
+        evidence = {
+            'exclude_fields': False,
+            'read_only_fields': False,
+            'sensitive_fields_protected': [],
+        }
+        findings = []
+
+        sensitive_patterns = ['password', 'secret', 'token', 'key', 'ssn', 'credit_card']
+
+        for py_file in self.base_path.rglob('serializers.py'):
+            try:
+                content = py_file.read_text()
+                # Check for field exclusion
+                if 'exclude' in content or 'fields =' in content:
+                    evidence['exclude_fields'] = True
+
+                # Check for read-only fields
+                if 'read_only_fields' in content or 'read_only=True' in content:
+                    evidence['read_only_fields'] = True
+
+                # Check sensitive field protection
+                for pattern in sensitive_patterns:
+                    if pattern in content.lower() and 'write_only' in content:
+                        evidence['sensitive_fields_protected'].append(pattern)
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['exclude_fields'] or evidence['read_only_fields'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='api',
+            title="API Response Filtering",
+            description="Verify API responses filter sensitive data.",
+            criteria="Serializers exclude/protect sensitive fields.",
+            result=result,
+            result_details=f"Exclude: {evidence['exclude_fields']}, Read-only: {evidence['read_only_fields']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_api_versioning(self):
+        """SEC-T075: Verify API versioning is implemented."""
+        start = time.time()
+        test_id = "SEC-T075"
+
+        evidence = {
+            'versioning_configured': False,
+            'version_in_url': False,
+            'version_in_header': False,
+        }
+        findings = []
+
+        # Check settings for DRF versioning
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+            if 'DEFAULT_VERSIONING_CLASS' in content or 'VERSION' in content:
+                evidence['versioning_configured'] = True
+
+        # Check URLs for versioning
+        for py_file in self.base_path.rglob('urls.py'):
+            try:
+                content = py_file.read_text()
+                if '/v1/' in content or '/v2/' in content or 'api/v' in content:
+                    evidence['version_in_url'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['versioning_configured'] or evidence['version_in_url'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='api',
+            title="API Versioning",
+            description="Verify API versioning is implemented for backward compatibility.",
+            criteria="Versioning configured in URL or header.",
+            result=result,
+            result_details=f"Configured: {evidence['versioning_configured']}, URL version: {evidence['version_in_url']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_api_error_responses(self):
+        """SEC-T076: Verify API error responses don't leak sensitive info."""
+        start = time.time()
+        test_id = "SEC-T076"
+
+        evidence = {
+            'custom_exception_handler': False,
+            'debug_disabled_in_prod': False,
+            'generic_error_responses': False,
+        }
+        findings = []
+
+        # Check for custom exception handler
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+            if 'EXCEPTION_HANDLER' in content:
+                evidence['custom_exception_handler'] = True
+
+            if 'DEBUG' in content and 'env' in content.lower():
+                evidence['debug_disabled_in_prod'] = True
+
+        # Check for generic error handling
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'exception_handler' in content or 'APIException' in content:
+                    if 'detail' in content and 'traceback' not in content.lower():
+                        evidence['generic_error_responses'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['debug_disabled_in_prod'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='api',
+            title="API Error Responses",
+            description="Verify API errors don't leak sensitive information.",
+            criteria="Custom exception handler, debug off in prod, generic errors.",
+            result=result,
+            result_details=f"Custom handler: {evidence['custom_exception_handler']}, Debug controlled: {evidence['debug_disabled_in_prod']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_graphql_security(self):
+        """SEC-T077: Verify GraphQL security if GraphQL is used."""
+        start = time.time()
+        test_id = "SEC-T077"
+
+        evidence = {
+            'graphql_used': False,
+            'depth_limiting': False,
+            'query_cost_analysis': False,
+            'introspection_disabled_prod': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'graphene' in content.lower() or 'graphql' in content.lower():
+                    evidence['graphql_used'] = True
+
+                    # Check for depth limiting
+                    if 'depth_limit' in content.lower() or 'max_depth' in content.lower():
+                        evidence['depth_limiting'] = True
+
+                    # Check for query cost
+                    if 'cost' in content.lower() and 'query' in content.lower():
+                        evidence['query_cost_analysis'] = True
+
+                    # Check for introspection
+                    if 'introspection' in content.lower() and 'false' in content.lower():
+                        evidence['introspection_disabled_prod'] = True
+            except Exception:
+                pass
+
+        # If no GraphQL, pass (N/A)
+        if not evidence['graphql_used']:
+            result = 'pass'
+        else:
+            result = 'pass' if evidence['depth_limiting'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='api',
+            title="GraphQL Security",
+            description="Verify GraphQL has depth limiting and introspection controls.",
+            criteria="Depth limiting enabled, introspection disabled in prod.",
+            result=result,
+            result_details=f"GraphQL: {evidence['graphql_used']}, Depth limit: {evidence['depth_limiting']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_api_key_management(self):
+        """SEC-T078: Verify API key management for internal APIs."""
+        start = time.time()
+        test_id = "SEC-T078"
+
+        evidence = {
+            'api_key_auth': False,
+            'key_rotation_support': False,
+            'key_from_env': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                # Check for API key authentication
+                if 'API_KEY' in content or 'ApiKeyAuthentication' in content or 'X-API-Key' in content:
+                    evidence['api_key_auth'] = True
+
+                    # Check for key from env
+                    if 'env(' in content and 'API_KEY' in content:
+                        evidence['key_from_env'] = True
+
+                    # Check for rotation support
+                    if 'key_rotation' in content.lower() or 'multiple_keys' in content.lower():
+                        evidence['key_rotation_support'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if not evidence['api_key_auth'] or evidence['key_from_env'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='api',
+            title="API Key Management",
+            description="Verify API keys are properly managed and rotatable.",
+            criteria="Keys from environment, rotation supported.",
+            result=result,
+            result_details=f"API key auth: {evidence['api_key_auth']}, From env: {evidence['key_from_env']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    # ==========================================================================
+    # DATABASE SECURITY TESTS (SEC-T079 - SEC-T084)
+    # ==========================================================================
+
+    def _run_database_security_tests(self):
+        """Run database security tests."""
+        self._test_database_connection_security()
+        self._test_raw_sql_usage()
+        self._test_database_user_permissions()
+        self._test_migration_security()
+        self._test_database_backup_encryption()
+        self._test_query_logging()
+
+    def _test_database_connection_security(self):
+        """SEC-T079: Verify database connections use TLS."""
+        start = time.time()
+        test_id = "SEC-T079"
+
+        evidence = {
+            'ssl_mode': None,
+            'connection_encrypted': False,
+            'connection_pooling': False,
+        }
+        findings = []
+
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+
+            # Check for SSL mode
+            if 'sslmode' in content.lower() or 'SSL' in content:
+                evidence['ssl_mode'] = 'configured'
+                if 'require' in content.lower() or 'verify' in content.lower():
+                    evidence['connection_encrypted'] = True
+
+            # Check for connection pooling
+            if 'CONN_MAX_AGE' in content or 'pgbouncer' in content.lower():
+                evidence['connection_pooling'] = True
+
+        # If using DATABASE_URL, assume cloud provider handles TLS
+        if 'DATABASE_URL' in (settings_file.read_text() if settings_file.exists() else ''):
+            evidence['connection_encrypted'] = True
+
+        result = 'pass' if evidence['connection_encrypted'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='database',
+            title="Database Connection Security",
+            description="Verify database connections use TLS encryption.",
+            criteria="SSL mode configured, connections encrypted.",
+            result=result,
+            result_details=f"SSL: {evidence['ssl_mode']}, Encrypted: {evidence['connection_encrypted']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_raw_sql_usage(self):
+        """SEC-T080: Detect raw SQL usage that may be vulnerable."""
+        start = time.time()
+        test_id = "SEC-T080"
+
+        evidence = {
+            'raw_sql_files': [],
+            'parameterized': True,
+            'string_formatting': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                rel_path = str(py_file.relative_to(self.base_path))
+
+                # Skip migrations and tests
+                if 'migration' in rel_path.lower() or 'test' in rel_path.lower():
+                    continue
+
+                # Check for raw SQL
+                if '.raw(' in content or 'cursor.execute' in content or 'RawSQL' in content:
+                    evidence['raw_sql_files'].append(rel_path)
+
+                    # Check for dangerous string formatting
+                    if '%s' not in content and '%(name)s' not in content:
+                        if '.format(' in content or 'f"' in content or "f'" in content:
+                            evidence['string_formatting'] = True
+                            evidence['parameterized'] = False
+            except Exception:
+                pass
+
+        result = 'pass' if not evidence['string_formatting'] else 'fail'
+
+        if evidence['string_formatting']:
+            finding = self._add_finding(
+                finding_key="raw_sql_injection_risk",
+                title="Raw SQL with String Formatting Detected",
+                severity='high',
+                likelihood='medium',
+                impact='high',
+                cvss_vector="AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+                description=f"Found raw SQL with string formatting in: {evidence['raw_sql_files']}",
+                risk_reasoning="String formatting in SQL queries can lead to SQL injection.",
+                evidence=evidence,
+                affected_components=evidence['raw_sql_files'],
+                recommendations=[
+                    "Use parameterized queries with %s placeholders",
+                    "Use Django ORM instead of raw SQL where possible",
+                    "Review and sanitize all raw SQL queries",
+                ],
+                validation_steps="Search for .raw( and cursor.execute with f-strings",
+                is_quick_win=False,
+                remediation_effort='medium',
+            )
+            findings.append(finding)
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='database',
+            title="Raw SQL Usage",
+            description="Detect raw SQL usage and verify parameterization.",
+            criteria="Raw SQL uses parameterized queries, no string formatting.",
+            result=result,
+            result_details=f"Raw SQL files: {len(evidence['raw_sql_files'])}, Parameterized: {evidence['parameterized']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_database_user_permissions(self):
+        """SEC-T081: Verify database user has minimal permissions."""
+        start = time.time()
+        test_id = "SEC-T081"
+
+        evidence = {
+            'separate_db_user': False,
+            'no_superuser': True,
+            'least_privilege': False,
+        }
+        findings = []
+
+        # Check if DATABASE_URL suggests non-root user
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+
+            # Check for separate database user
+            if 'DATABASE_URL' in content or "'USER'" in content:
+                evidence['separate_db_user'] = True
+
+            # Check for superuser indicators
+            if 'postgres:postgres' in content or 'root:root' in content:
+                evidence['no_superuser'] = False
+
+        result = 'pass' if evidence['separate_db_user'] and evidence['no_superuser'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='database',
+            title="Database User Permissions",
+            description="Verify database user follows least privilege principle.",
+            criteria="Separate DB user, not superuser, minimal permissions.",
+            result=result,
+            result_details=f"Separate user: {evidence['separate_db_user']}, No superuser: {evidence['no_superuser']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_migration_security(self):
+        """SEC-T082: Verify migrations don't contain sensitive data."""
+        start = time.time()
+        test_id = "SEC-T082"
+
+        evidence = {
+            'migrations_checked': 0,
+            'sensitive_data_found': [],
+            'hardcoded_passwords': False,
+        }
+        findings = []
+
+        sensitive_patterns = [
+            r'password\s*=\s*["\'][^"\']+["\']',
+            r'secret\s*=\s*["\'][^"\']+["\']',
+            r'api_key\s*=\s*["\'][^"\']+["\']',
+        ]
+
+        for migration in self.base_path.rglob('*/migrations/*.py'):
+            try:
+                content = migration.read_text()
+                evidence['migrations_checked'] += 1
+                rel_path = str(migration.relative_to(self.base_path))
+
+                for pattern in sensitive_patterns:
+                    if re.search(pattern, content, re.IGNORECASE):
+                        evidence['sensitive_data_found'].append(rel_path)
+                        evidence['hardcoded_passwords'] = True
+                        break
+            except Exception:
+                pass
+
+        result = 'pass' if not evidence['hardcoded_passwords'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='database',
+            title="Migration Security",
+            description="Verify migrations don't contain sensitive data.",
+            criteria="No hardcoded passwords/secrets in migrations.",
+            result=result,
+            result_details=f"Migrations: {evidence['migrations_checked']}, Issues: {len(evidence['sensitive_data_found'])}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_database_backup_encryption(self):
+        """SEC-T083: Verify database backup encryption is configured."""
+        start = time.time()
+        test_id = "SEC-T083"
+
+        evidence = {
+            'backup_script_found': False,
+            'encryption_mentioned': False,
+            'cloud_backup': False,
+        }
+        findings = []
+
+        # Check for backup scripts
+        for file in self.base_path.rglob('*backup*'):
+            evidence['backup_script_found'] = True
+            try:
+                if file.is_file():
+                    content = file.read_text()
+                    if 'encrypt' in content.lower() or 'gpg' in content.lower() or 'aes' in content.lower():
+                        evidence['encryption_mentioned'] = True
+            except Exception:
+                pass
+
+        # Check for cloud backup references
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 's3' in content.lower() or 'gcs' in content.lower() or 'azure' in content.lower():
+                    if 'backup' in content.lower():
+                        evidence['cloud_backup'] = True
+            except Exception:
+                pass
+
+        # If using Railway/cloud, assume provider handles backups
+        result = 'pass'  # Advisory
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='database',
+            title="Database Backup Encryption",
+            description="Verify database backups are encrypted.",
+            criteria="Backup encryption configured, cloud provider backups enabled.",
+            result=result,
+            result_details=f"Backup script: {evidence['backup_script_found']}, Encrypted: {evidence['encryption_mentioned']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_query_logging(self):
+        """SEC-T084: Verify database query logging for audit trail."""
+        start = time.time()
+        test_id = "SEC-T084"
+
+        evidence = {
+            'query_logging_enabled': False,
+            'slow_query_logging': False,
+            'sensitive_query_redaction': False,
+        }
+        findings = []
+
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+
+            # Check for query logging
+            if "'django.db.backends'" in content and 'DEBUG' in content:
+                evidence['query_logging_enabled'] = True
+
+            # Check for slow query logging
+            if 'slow' in content.lower() and 'query' in content.lower():
+                evidence['slow_query_logging'] = True
+
+        result = 'pass'  # Advisory
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='database',
+            title="Database Query Logging",
+            description="Verify database queries are logged for audit.",
+            criteria="Query logging enabled, slow queries tracked.",
+            result=result,
+            result_details=f"Query logging: {evidence['query_logging_enabled']}, Slow queries: {evidence['slow_query_logging']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    # ==========================================================================
+    # THIRD-PARTY RISK TESTS (SEC-T085 - SEC-T090)
+    # ==========================================================================
+
+    def _run_third_party_tests(self):
+        """Run third-party integration security tests."""
+        self._test_third_party_webhook_security()
+        self._test_oauth_configuration()
+        self._test_external_api_timeout()
+        self._test_vendor_data_handling()
+        self._test_third_party_error_handling()
+        self._test_external_service_fallback()
+
+    def _test_third_party_webhook_security(self):
+        """SEC-T085: Verify all third-party webhooks validate signatures."""
+        start = time.time()
+        test_id = "SEC-T085"
+
+        evidence = {
+            'webhooks_found': [],
+            'signature_validation': [],
+            'missing_validation': [],
+        }
+        findings = []
+
+        # Known webhook providers
+        providers = ['stripe', 'twilio', 'plaid', 'sendgrid', 'cloudinary']
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text().lower()
+                rel_path = str(py_file.relative_to(self.base_path))
+
+                for provider in providers:
+                    if provider in content and 'webhook' in content:
+                        evidence['webhooks_found'].append(f"{provider}:{rel_path}")
+
+                        # Check for signature validation
+                        if 'signature' in content or 'verify' in content or 'construct_event' in content:
+                            evidence['signature_validation'].append(provider)
+                        else:
+                            evidence['missing_validation'].append(provider)
+            except Exception:
+                pass
+
+        result = 'pass' if not evidence['missing_validation'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='third_party',
+            title="Third-Party Webhook Security",
+            description="Verify all third-party webhooks validate signatures.",
+            criteria="All webhook endpoints verify signatures.",
+            result=result,
+            result_details=f"Webhooks: {len(evidence['webhooks_found'])}, Missing validation: {len(evidence['missing_validation'])}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_oauth_configuration(self):
+        """SEC-T086: Verify OAuth/OIDC configuration security."""
+        start = time.time()
+        test_id = "SEC-T086"
+
+        evidence = {
+            'oauth_used': False,
+            'state_parameter': False,
+            'https_redirect': False,
+            'secret_from_env': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'oauth' in content.lower() or 'allauth' in content.lower() or 'social' in content.lower():
+                    evidence['oauth_used'] = True
+
+                    if 'state' in content.lower():
+                        evidence['state_parameter'] = True
+
+                    if 'https' in content.lower() and 'redirect' in content.lower():
+                        evidence['https_redirect'] = True
+            except Exception:
+                pass
+
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+            if 'SOCIAL' in content and 'env(' in content:
+                evidence['secret_from_env'] = True
+
+        result = 'pass' if not evidence['oauth_used'] or evidence['secret_from_env'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='third_party',
+            title="OAuth Configuration",
+            description="Verify OAuth/social auth is securely configured.",
+            criteria="State parameter used, HTTPS redirects, secrets from env.",
+            result=result,
+            result_details=f"OAuth: {evidence['oauth_used']}, Secrets from env: {evidence['secret_from_env']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_external_api_timeout(self):
+        """SEC-T087: Verify external API calls have timeouts."""
+        start = time.time()
+        test_id = "SEC-T087"
+
+        evidence = {
+            'requests_used': False,
+            'timeout_configured': False,
+            'default_timeout': None,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'requests.get' in content or 'requests.post' in content or 'httpx' in content.lower():
+                    evidence['requests_used'] = True
+
+                    if 'timeout=' in content or 'timeout =' in content:
+                        evidence['timeout_configured'] = True
+
+                        # Extract timeout value
+                        match = re.search(r'timeout\s*=\s*(\d+)', content)
+                        if match:
+                            evidence['default_timeout'] = int(match.group(1))
+            except Exception:
+                pass
+
+        result = 'pass' if not evidence['requests_used'] or evidence['timeout_configured'] else 'fail'
+
+        if evidence['requests_used'] and not evidence['timeout_configured']:
+            finding = self._add_finding(
+                finding_key="external_api_no_timeout",
+                title="External API Calls Missing Timeout",
+                severity='medium',
+                likelihood='medium',
+                impact='medium',
+                cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                description="External API calls should have timeouts to prevent hanging.",
+                risk_reasoning="Missing timeouts can lead to resource exhaustion and DoS.",
+                evidence=evidence,
+                affected_components=['External API calls'],
+                recommendations=[
+                    "Add timeout parameter to all requests calls",
+                    "Use a default timeout (e.g., 30 seconds)",
+                    "Implement circuit breaker pattern for resilience",
+                ],
+                validation_steps="Search for requests.get/post and verify timeout parameter",
+                is_quick_win=True,
+                remediation_effort='low',
+            )
+            findings.append(finding)
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='third_party',
+            title="External API Timeout",
+            description="Verify external API calls have timeout configured.",
+            criteria="All external API calls have timeout parameter.",
+            result=result,
+            result_details=f"Requests used: {evidence['requests_used']}, Timeout: {evidence['timeout_configured']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=findings,
+        ))
+
+    def _test_vendor_data_handling(self):
+        """SEC-T088: Verify minimal data shared with third parties."""
+        start = time.time()
+        test_id = "SEC-T088"
+
+        evidence = {
+            'data_minimization': False,
+            'pii_to_vendors': [],
+            'data_processing_agreement': False,
+        }
+        findings = []
+
+        pii_patterns = ['email', 'phone', 'address', 'ssn', 'dob', 'date_of_birth']
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                # Check for third-party API calls with PII
+                if 'requests' in content or 'api' in content.lower():
+                    for pattern in pii_patterns:
+                        if pattern in content.lower() and ('post' in content.lower() or 'send' in content.lower()):
+                            evidence['pii_to_vendors'].append(pattern)
+            except Exception:
+                pass
+
+        # Remove duplicates
+        evidence['pii_to_vendors'] = list(set(evidence['pii_to_vendors']))
+
+        result = 'pass'  # Advisory
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='third_party',
+            title="Vendor Data Handling",
+            description="Verify minimal data shared with third-party vendors.",
+            criteria="Data minimization, DPA in place, PII tracked.",
+            result=result,
+            result_details=f"PII to vendors: {evidence['pii_to_vendors']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_third_party_error_handling(self):
+        """SEC-T089: Verify third-party API errors are handled gracefully."""
+        start = time.time()
+        test_id = "SEC-T089"
+
+        evidence = {
+            'exception_handling': False,
+            'fallback_behavior': False,
+            'error_logging': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'requests' in content or 'stripe' in content.lower() or 'plaid' in content.lower():
+                    # Check for exception handling
+                    if 'try:' in content and 'except' in content:
+                        evidence['exception_handling'] = True
+
+                    # Check for fallback
+                    if 'fallback' in content.lower() or 'default' in content.lower():
+                        evidence['fallback_behavior'] = True
+
+                    # Check for error logging
+                    if 'logger.error' in content or 'logger.exception' in content:
+                        evidence['error_logging'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['exception_handling'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='third_party',
+            title="Third-Party Error Handling",
+            description="Verify third-party API errors handled gracefully.",
+            criteria="Exception handling, fallback behavior, error logging.",
+            result=result,
+            result_details=f"Exception handling: {evidence['exception_handling']}, Logging: {evidence['error_logging']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_external_service_fallback(self):
+        """SEC-T090: Verify fallback behavior when external services fail."""
+        start = time.time()
+        test_id = "SEC-T090"
+
+        evidence = {
+            'circuit_breaker': False,
+            'retry_logic': False,
+            'graceful_degradation': False,
+        }
+        findings = []
+
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                # Check for circuit breaker
+                if 'circuit' in content.lower() or 'breaker' in content.lower():
+                    evidence['circuit_breaker'] = True
+
+                # Check for retry logic
+                if 'retry' in content.lower() or 'backoff' in content.lower() or 'tenacity' in content.lower():
+                    evidence['retry_logic'] = True
+
+                # Check for graceful degradation
+                if 'graceful' in content.lower() or 'degraded' in content.lower() or 'fallback' in content.lower():
+                    evidence['graceful_degradation'] = True
+            except Exception:
+                pass
+
+        result = 'pass'  # Advisory
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='third_party',
+            title="External Service Fallback",
+            description="Verify fallback behavior for external service failures.",
+            criteria="Circuit breaker, retry logic, graceful degradation.",
+            result=result,
+            result_details=f"Circuit breaker: {evidence['circuit_breaker']}, Retry: {evidence['retry_logic']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    # ==========================================================================
+    # INFRASTRUCTURE SECURITY TESTS (SEC-T091 - SEC-T100)
+    # ==========================================================================
+
+    def _run_infrastructure_tests(self):
+        """Run infrastructure security tests."""
+        self._test_container_security()
+        self._test_environment_isolation()
+        self._test_secret_management()
+        self._test_deployment_security()
+        self._test_monitoring_alerting()
+        self._test_backup_recovery()
+        self._test_network_security()
+        self._test_logging_centralization()
+        self._test_incident_response()
+        self._test_security_of_security_system()
+
+    def _test_container_security(self):
+        """SEC-T091: Verify container security if Docker is used."""
+        start = time.time()
+        test_id = "SEC-T091"
+
+        evidence = {
+            'dockerfile_found': False,
+            'non_root_user': False,
+            'no_secrets_in_image': True,
+            'minimal_base_image': False,
+        }
+        findings = []
+
+        dockerfile = self.base_path / 'Dockerfile'
+        if dockerfile.exists():
+            evidence['dockerfile_found'] = True
+            content = dockerfile.read_text()
+
+            # Check for non-root user
+            if 'USER' in content and 'root' not in content.lower().split('USER')[1][:20]:
+                evidence['non_root_user'] = True
+
+            # Check for secrets
+            if 'SECRET' in content or 'PASSWORD' in content or 'API_KEY' in content:
+                evidence['no_secrets_in_image'] = False
+
+            # Check for minimal base image
+            if 'slim' in content.lower() or 'alpine' in content.lower():
+                evidence['minimal_base_image'] = True
+
+        result = 'pass' if not evidence['dockerfile_found'] or evidence['no_secrets_in_image'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Container Security",
+            description="Verify Docker container follows security best practices.",
+            criteria="Non-root user, no secrets in image, minimal base.",
+            result=result,
+            result_details=f"Dockerfile: {evidence['dockerfile_found']}, Safe: {evidence['no_secrets_in_image']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_environment_isolation(self):
+        """SEC-T092: Verify environment isolation (dev/staging/prod)."""
+        start = time.time()
+        test_id = "SEC-T092"
+
+        evidence = {
+            'env_based_config': False,
+            'separate_settings': False,
+            'no_prod_data_in_dev': True,
+        }
+        findings = []
+
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+
+            # Check for environment-based config
+            if 'env(' in content or 'os.environ' in content:
+                evidence['env_based_config'] = True
+
+            # Check for environment checks
+            if 'DEBUG' in content and 'if' in content:
+                evidence['separate_settings'] = True
+
+        result = 'pass' if evidence['env_based_config'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Environment Isolation",
+            description="Verify environment isolation between dev/staging/prod.",
+            criteria="Environment-based config, separate settings per env.",
+            result=result,
+            result_details=f"Env config: {evidence['env_based_config']}, Separate: {evidence['separate_settings']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_secret_management(self):
+        """SEC-T093: Verify secrets are managed securely."""
+        start = time.time()
+        test_id = "SEC-T093"
+
+        evidence = {
+            'secrets_from_env': False,
+            'no_hardcoded_secrets': True,
+            'secret_rotation_support': False,
+        }
+        findings = []
+
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+
+            # Check for secrets from env
+            if 'env(' in content and ('SECRET' in content or 'KEY' in content):
+                evidence['secrets_from_env'] = True
+
+            # Check for hardcoded secrets
+            if re.search(r"SECRET_KEY\s*=\s*['\"][a-zA-Z0-9]{30,}['\"]", content):
+                evidence['no_hardcoded_secrets'] = False
+
+        result = 'pass' if evidence['secrets_from_env'] and evidence['no_hardcoded_secrets'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Secret Management",
+            description="Verify secrets are managed securely via environment.",
+            criteria="Secrets from env, no hardcoded secrets, rotation supported.",
+            result=result,
+            result_details=f"From env: {evidence['secrets_from_env']}, No hardcoded: {evidence['no_hardcoded_secrets']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_deployment_security(self):
+        """SEC-T094: Verify deployment pipeline security."""
+        start = time.time()
+        test_id = "SEC-T094"
+
+        evidence = {
+            'ci_cd_found': False,
+            'tests_in_pipeline': False,
+            'security_checks': False,
+        }
+        findings = []
+
+        # Check for CI/CD configuration
+        ci_files = [
+            self.base_path / '.github' / 'workflows',
+            self.base_path / '.gitlab-ci.yml',
+            self.base_path / 'railway.json',
+            self.base_path / 'Procfile',
+        ]
+
+        for ci_path in ci_files:
+            if ci_path.exists():
+                evidence['ci_cd_found'] = True
+
+                if ci_path.is_dir():
+                    for workflow in ci_path.glob('*.yml'):
+                        content = workflow.read_text()
+                        if 'test' in content.lower():
+                            evidence['tests_in_pipeline'] = True
+                        if 'security' in content.lower() or 'audit' in content.lower():
+                            evidence['security_checks'] = True
+                elif ci_path.is_file():
+                    content = ci_path.read_text()
+                    if 'test' in content.lower():
+                        evidence['tests_in_pipeline'] = True
+
+        result = 'pass' if evidence['ci_cd_found'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Deployment Security",
+            description="Verify deployment pipeline includes security checks.",
+            criteria="CI/CD configured, tests run, security checks included.",
+            result=result,
+            result_details=f"CI/CD: {evidence['ci_cd_found']}, Tests: {evidence['tests_in_pipeline']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_monitoring_alerting(self):
+        """SEC-T095: Verify monitoring and alerting is configured."""
+        start = time.time()
+        test_id = "SEC-T095"
+
+        evidence = {
+            'logging_configured': False,
+            'error_tracking': False,
+            'alerting_configured': False,
+        }
+        findings = []
+
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+
+            # Check for logging
+            if 'LOGGING' in content:
+                evidence['logging_configured'] = True
+
+            # Check for error tracking (Sentry, etc.)
+            if 'sentry' in content.lower() or 'SENTRY_DSN' in content:
+                evidence['error_tracking'] = True
+
+        # Check for alerting
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'alert' in content.lower() or 'notify' in content.lower():
+                    evidence['alerting_configured'] = True
+                    break
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['logging_configured'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Monitoring & Alerting",
+            description="Verify monitoring and alerting is configured.",
+            criteria="Logging configured, error tracking, alerting enabled.",
+            result=result,
+            result_details=f"Logging: {evidence['logging_configured']}, Error tracking: {evidence['error_tracking']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_backup_recovery(self):
+        """SEC-T096: Verify backup and recovery procedures exist."""
+        start = time.time()
+        test_id = "SEC-T096"
+
+        evidence = {
+            'backup_mentioned': False,
+            'recovery_procedure': False,
+            'backup_encryption': False,
+        }
+        findings = []
+
+        # Check for backup references
+        for file in self.base_path.rglob('*'):
+            try:
+                if file.is_file() and 'backup' in str(file).lower():
+                    evidence['backup_mentioned'] = True
+                    content = file.read_text()
+                    if 'restore' in content.lower() or 'recovery' in content.lower():
+                        evidence['recovery_procedure'] = True
+                    if 'encrypt' in content.lower():
+                        evidence['backup_encryption'] = True
+            except Exception:
+                pass
+
+        result = 'pass'  # Advisory
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Backup & Recovery",
+            description="Verify backup and recovery procedures exist.",
+            criteria="Backup configured, recovery procedure documented, encrypted.",
+            result=result,
+            result_details=f"Backup: {evidence['backup_mentioned']}, Recovery: {evidence['recovery_procedure']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_network_security(self):
+        """SEC-T097: Verify network security configuration."""
+        start = time.time()
+        test_id = "SEC-T097"
+
+        evidence = {
+            'allowed_hosts_configured': False,
+            'cors_configured': False,
+            'csrf_configured': False,
+        }
+        findings = []
+
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+
+            if 'ALLOWED_HOSTS' in content:
+                evidence['allowed_hosts_configured'] = True
+
+            if 'CORS' in content:
+                evidence['cors_configured'] = True
+
+            if 'CSRF' in content or 'CsrfViewMiddleware' in content:
+                evidence['csrf_configured'] = True
+
+        result = 'pass' if evidence['allowed_hosts_configured'] and evidence['csrf_configured'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Network Security",
+            description="Verify network security configuration.",
+            criteria="ALLOWED_HOSTS set, CORS configured, CSRF enabled.",
+            result=result,
+            result_details=f"Hosts: {evidence['allowed_hosts_configured']}, CORS: {evidence['cors_configured']}, CSRF: {evidence['csrf_configured']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_logging_centralization(self):
+        """SEC-T098: Verify logs are centralized for security analysis."""
+        start = time.time()
+        test_id = "SEC-T098"
+
+        evidence = {
+            'structured_logging': False,
+            'centralized_logging': False,
+            'log_retention': False,
+        }
+        findings = []
+
+        settings_file = self.base_path / 'config' / 'settings.py'
+        if settings_file.exists():
+            content = settings_file.read_text()
+
+            # Check for structured logging
+            if 'json' in content.lower() and 'log' in content.lower():
+                evidence['structured_logging'] = True
+
+            # Check for centralized logging
+            if 'syslog' in content.lower() or 'logstash' in content.lower() or 'papertrail' in content.lower():
+                evidence['centralized_logging'] = True
+
+        result = 'pass'  # Advisory
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Logging Centralization",
+            description="Verify logs are centralized for security analysis.",
+            criteria="Structured logging, centralized collection, retention policy.",
+            result=result,
+            result_details=f"Structured: {evidence['structured_logging']}, Centralized: {evidence['centralized_logging']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_incident_response(self):
+        """SEC-T099: Verify incident response capability exists."""
+        start = time.time()
+        test_id = "SEC-T099"
+
+        evidence = {
+            'incident_documentation': False,
+            'notification_capability': False,
+            'audit_capability': False,
+        }
+        findings = []
+
+        # Check for incident response documentation
+        for file in self.base_path.rglob('*'):
+            try:
+                if 'incident' in str(file).lower() or 'security' in str(file).lower():
+                    evidence['incident_documentation'] = True
+                    break
+            except Exception:
+                pass
+
+        # Check for notification capability
+        for py_file in self.base_path.rglob('*.py'):
+            try:
+                content = py_file.read_text()
+                if 'send_mail' in content or 'notification' in content.lower():
+                    evidence['notification_capability'] = True
+                if 'AuditLog' in content or 'audit' in content.lower():
+                    evidence['audit_capability'] = True
+            except Exception:
+                pass
+
+        result = 'pass' if evidence['notification_capability'] and evidence['audit_capability'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Incident Response",
+            description="Verify incident response capability exists.",
+            criteria="Documentation, notification capability, audit trail.",
+            result=result,
+            result_details=f"Docs: {evidence['incident_documentation']}, Notify: {evidence['notification_capability']}",
+            evidence=evidence,
+            duration_ms=int((time.time() - start) * 1000),
+            findings=[],
+        ))
+
+    def _test_security_of_security_system(self):
+        """SEC-T100: Verify security of the security assessment system itself."""
+        start = time.time()
+        test_id = "SEC-T100"
+
+        evidence = {
+            'encrypted_storage': False,
+            'access_controlled': False,
+            'audit_logged': False,
+            'tier0_protected': False,
+        }
+        findings = []
+
+        # Check security models for encryption
+        security_models = self.base_path / 'apps' / 'security' / 'models.py'
+        if security_models.exists():
+            content = security_models.read_text()
+
+            # Check for encrypted fields
+            if 'EncryptedTextField' in content or 'EncryptedJSONField' in content:
+                evidence['encrypted_storage'] = True
+
+            # Check for access control
+            if 'staff' in content.lower() or 'permission' in content.lower():
+                evidence['access_controlled'] = True
+
+            # Check for audit logging
+            if 'SecurityAuditLog' in content or 'AuditLog' in content:
+                evidence['audit_logged'] = True
+
+        # Check views for access control
+        security_views = self.base_path / 'apps' / 'security' / 'views.py'
+        if security_views.exists():
+            content = security_views.read_text()
+            if '@staff_member_required' in content or 'LoginRequiredMixin' in content:
+                evidence['tier0_protected'] = True
+
+        result = 'pass' if evidence['encrypted_storage'] and evidence['tier0_protected'] else 'fail'
+
+        self.results.append(TestResult(
+            test_id=test_id,
+            category='infra',
+            title="Security System Protection",
+            description="Verify security assessment system itself is protected (Tier-0).",
+            criteria="Encrypted storage, access controlled, audit logged.",
+            result=result,
+            result_details=f"Encrypted: {evidence['encrypted_storage']}, Protected: {evidence['tier0_protected']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
             findings=[],

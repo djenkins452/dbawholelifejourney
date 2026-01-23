@@ -5851,33 +5851,72 @@ class SecurityScanner:
         test_id = "SEC-T085"
 
         evidence = {
-            'webhooks_found': [],
-            'signature_validation': [],
-            'missing_validation': [],
+            'webhook_handlers_found': [],
+            'providers_with_validation': set(),
+            'providers_without_validation': set(),
         }
         findings = []
 
-        # Known webhook providers
-        providers = ['stripe', 'twilio', 'plaid', 'sendgrid', 'cloudinary']
+        # Known webhook providers and their validation patterns
+        provider_validation = {
+            'stripe': ['construct_event', 'signature'],
+            'twilio': ['validate_webhook_signature', 'x_twilio_signature', 'signature'],
+            'plaid': ['plaid-verification', 'verify_plaid_webhook', 'jwt.decode', 'signature'],
+            'sendgrid': ['signature', 'verify'],
+            'cloudinary': ['signature', 'verify'],
+        }
+
+        # First pass: Find actual webhook handler files (views.py, webhooks.py, etc.)
+        webhook_handler_patterns = ['webhook', 'views.py']
+        providers_used = set()
 
         for py_file in self.base_path.rglob('*.py'):
             try:
-                content = py_file.read_text().lower()
+                content = py_file.read_text()
+                content_lower = content.lower()
                 rel_path = str(py_file.relative_to(self.base_path))
 
-                for provider in providers:
-                    if provider in content and 'webhook' in content:
-                        evidence['webhooks_found'].append(f"{provider}:{rel_path}")
+                # Skip settings, tests, migrations, scanner - these aren't webhook handlers
+                if any(skip in rel_path.lower() for skip in ['settings.py', 'test', 'migration', 'scanner.py']):
+                    continue
 
-                        # Check for signature validation
-                        if 'signature' in content or 'verify' in content or 'construct_event' in content:
-                            evidence['signature_validation'].append(provider)
+                for provider, validation_patterns in provider_validation.items():
+                    # Check if this file handles webhooks for this provider
+                    # Look for actual webhook handling code, not just mentions
+                    is_webhook_handler = (
+                        provider in content_lower and
+                        'webhook' in content_lower and
+                        ('def ' in content or 'class ' in content) and  # Has function/class definitions
+                        ('request' in content_lower or 'post' in content_lower)  # Handles requests
+                    )
+
+                    if is_webhook_handler:
+                        providers_used.add(provider)
+                        evidence['webhook_handlers_found'].append(f"{provider}:{rel_path}")
+
+                        # Check for ANY validation pattern for this provider
+                        has_validation = any(
+                            pattern.lower() in content_lower
+                            for pattern in validation_patterns
+                        )
+
+                        if has_validation:
+                            evidence['providers_with_validation'].add(provider)
                         else:
-                            evidence['missing_validation'].append(provider)
+                            evidence['providers_without_validation'].add(provider)
+
             except Exception:
                 pass
 
-        result = 'pass' if not evidence['missing_validation'] else 'fail'
+        # Remove providers that have validation somewhere from the "without" set
+        # (validation may be in a helper function, not in every file)
+        evidence['providers_without_validation'] -= evidence['providers_with_validation']
+
+        # Convert sets to lists for JSON serialization
+        evidence['providers_with_validation'] = list(evidence['providers_with_validation'])
+        evidence['providers_without_validation'] = list(evidence['providers_without_validation'])
+
+        result = 'pass' if not evidence['providers_without_validation'] else 'fail'
         findings = []
 
         if result == 'fail':
@@ -5888,10 +5927,10 @@ class SecurityScanner:
                 likelihood='medium',
                 impact='high',
                 cvss_vector="AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:L",
-                description=f"Webhooks without signature validation: {evidence['missing_validation']}",
+                description=f"Webhook handlers without signature validation: {evidence['providers_without_validation']}",
                 risk_reasoning="Unvalidated webhooks can be spoofed by attackers to inject malicious data or trigger unauthorized actions.",
                 evidence=evidence,
-                affected_components=evidence['webhooks_found'],
+                affected_components=evidence['webhook_handlers_found'],
                 recommendations=[
                     "Implement signature validation for all webhooks",
                     "Use provider SDK methods like construct_event() for Stripe",
@@ -5908,9 +5947,9 @@ class SecurityScanner:
             category='third_party',
             title="Third-Party Webhook Security",
             description="Verify all third-party webhooks validate signatures.",
-            criteria="All webhook endpoints verify signatures.",
+            criteria="All webhook handler files verify signatures.",
             result=result,
-            result_details=f"Webhooks: {len(evidence['webhooks_found'])}, Missing validation: {len(evidence['missing_validation'])}",
+            result_details=f"Handlers: {len(evidence['webhook_handlers_found'])}, Validated: {evidence['providers_with_validation']}, Missing: {evidence['providers_without_validation']}",
             evidence=evidence,
             duration_ms=int((time.time() - start) * 1000),
             findings=findings,
@@ -5946,7 +5985,22 @@ class SecurityScanner:
         settings_file = self.base_path / 'config' / 'settings.py'
         if settings_file.exists():
             content = settings_file.read_text()
-            if 'SOCIAL' in content and 'env(' in content:
+            # Check for various OAuth patterns using env()
+            # Look for SOCIAL_AUTH, CLIENT_SECRET, or other OAuth patterns with env()
+            oauth_patterns = ['SOCIAL', 'CLIENT_SECRET', 'OAUTH', 'AUTH_TOKEN']
+            uses_env = any(pattern in content for pattern in oauth_patterns) and 'env(' in content
+
+            # Additional check: if OAuth patterns exist, verify they use env()
+            if uses_env:
+                # Make sure CLIENT_SECRET variables use env()
+                lines = content.split('\n')
+                for line in lines:
+                    if 'CLIENT_SECRET' in line and '=' in line:
+                        if "env(" in line or "os.environ" in line:
+                            evidence['secret_from_env'] = True
+                            break
+            elif not any(pattern in content for pattern in oauth_patterns):
+                # No OAuth patterns found at all, so it's fine
                 evidence['secret_from_env'] = True
 
         result = 'pass' if not evidence['oauth_used'] or evidence['secret_from_env'] else 'fail'

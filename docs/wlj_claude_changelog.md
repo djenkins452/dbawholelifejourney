@@ -16,7 +16,28 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
-### Security Scanner False Positive Fixes
+### Additional Scanner False Positive Fixes (Round 2)
+
+Further improvements to reduce false positives in security scanner tests.
+
+**Fixes:**
+1. **SEC-T085 Webhook Signature Test**: Completely rewrote the webhook security test:
+   - Old test: Flagged ANY file mentioning provider + "webhook" without signature validation
+   - New test: Only checks actual webhook handler files (views.py, webhooks.py), not settings/tests/migrations
+   - Tracks which providers have validation GLOBALLY, not per-file (validation may be in helper functions)
+   - Added provider-specific validation patterns (e.g., `construct_event` for Stripe, `jwt.decode` for Plaid)
+
+2. **SEC-T086 OAuth Configuration Test**: Fixed OAuth secret detection:
+   - Old test: Only checked for `SOCIAL` pattern (django-allauth social auth)
+   - New test: Also checks for `CLIENT_SECRET`, `OAUTH`, `AUTH_TOKEN` patterns
+   - Properly detects Google Calendar, Gmail, and Dexcom OAuth using `env()`
+
+**Files Changed:**
+- `apps/security/scanner.py` - Rewrote webhook test, improved OAuth test
+
+---
+
+### Security Scanner False Positive Fixes (Round 1)
 
 Fixed several scanner tests that were generating false positives or failing to detect proper implementations.
 

@@ -62,8 +62,8 @@
         box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
     }
     /* Metric Info Modal */
-    #security-dashboard .metric-modal {
-        display: none;
+    .metric-modal {
+        display: none !important;
         position: fixed;
         top: 0;
         left: 0;
@@ -74,10 +74,10 @@
         justify-content: center;
         align-items: center;
     }
-    #security-dashboard .metric-modal.active {
+    .metric-modal.active {
         display: flex !important;
     }
-    #security-dashboard .metric-modal-content {
+    .metric-modal-content {
         background: white;
         border-radius: 0.75rem;
         max-width: 500px;
@@ -86,48 +86,52 @@
         overflow-y: auto;
         box-shadow: 0 20px 40px rgba(0,0,0,0.3);
     }
-    #security-dashboard .metric-modal-header {
+    .metric-modal-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 1rem 1.5rem;
         border-bottom: 1px solid #e5e7eb;
     }
-    #security-dashboard .metric-modal-header h3 {
+    .metric-modal-header h3 {
         margin: 0;
         font-size: 1.25rem;
         font-weight: 600;
     }
-    #security-dashboard .metric-modal-close {
+    .metric-modal-close {
         background: none;
         border: none;
         font-size: 1.5rem;
         cursor: pointer;
         color: #6b7280;
         line-height: 1;
+        padding: 0;
     }
-    #security-dashboard .metric-modal-body {
+    .metric-modal-close:hover {
+        color: #374151;
+    }
+    .metric-modal-body {
         padding: 1.5rem;
     }
-    #security-dashboard .metric-modal-body h4 {
+    .metric-modal-body h4 {
         margin: 0 0 0.5rem 0;
         font-size: 0.875rem;
         font-weight: 600;
         color: #374151;
     }
-    #security-dashboard .metric-modal-body p {
+    .metric-modal-body p {
         margin: 0 0 1rem 0;
         font-size: 0.875rem;
         color: #4b5563;
         line-height: 1.5;
     }
-    #security-dashboard .metric-modal-body ul {
+    .metric-modal-body ul {
         margin: 0 0 1rem 0;
         padding-left: 1.25rem;
         font-size: 0.875rem;
         color: #4b5563;
     }
-    #security-dashboard .metric-modal-body li {
+    .metric-modal-body li {
         margin-bottom: 0.25rem;
     }
     #security-dashboard .sec-value {
@@ -459,7 +463,7 @@
 </div>
 
 <!-- Metric Info Modal -->
-<div id="metricModal" class="metric-modal">
+<div id="metricModal" class="metric-modal" style="display: none;">
     <div class="metric-modal-content">
         <div class="metric-modal-header">
             <h3 id="metricModalTitle"></h3>

@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -250,7 +252,7 @@ https://wholelifejourney.com/admin/ai/valuesguardrailpattern/
             recipient_list=['admin@wholelifejourney.com'],
             fail_silently=False,
         )
-        logger.info(f"Appeal notification sent for user {user.email}")
+        logger.info(f"Appeal notification sent for {user_log_id(user)}")
         return True
     except Exception as e:
         logger.error(f"Failed to send appeal notification: {e}")

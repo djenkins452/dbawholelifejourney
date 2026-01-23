@@ -10,6 +10,7 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 
 from .docx_generator import generate_docx, get_docx_filename
+from apps.core.utils import user_log_id
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,7 @@ def send_processing_complete_email(capture_entry):
         capture_entry.completion_email_sent_at = timezone.now()
         capture_entry.save(update_fields=['completion_email_sent_at'])
 
-        logger.info(f"Processing complete email sent for entry {capture_entry.id} to {user.email}")
+        logger.info(f"Processing complete email sent for entry {capture_entry.id} to {user_log_id(user)}")
 
         return {'success': True}
 

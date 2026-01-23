@@ -942,13 +942,33 @@ class SecurityScanner:
                 content = py_file.read_text(encoding='utf-8', errors='ignore')
                 if 'WebAuthn' in content or 'webauthn' in content:
                     evidence['mfa_available'] = True
-                    evidence['methods'].append('WebAuthn')
+                    if 'WebAuthn' not in evidence['methods']:
+                        evidence['methods'].append('WebAuthn')
                 if 'TOTP' in content or 'pyotp' in content:
                     evidence['mfa_available'] = True
-                    evidence['methods'].append('TOTP')
+                    if 'TOTP' not in evidence['methods']:
+                        evidence['methods'].append('TOTP')
 
-        # Check if MFA is enforced for admin
-        evidence['mfa_enforced'] = False  # Would need to check middleware/decorators
+        # Check if MFA is enforced for admin via middleware
+        evidence['mfa_enforced'] = False
+        middleware_file = users_app / 'middleware.py'
+        if middleware_file.exists():
+            middleware_content = middleware_file.read_text(encoding='utf-8', errors='ignore')
+            # Check for MFA enforcement middleware that requires WebAuthn for staff
+            if 'MFAEnforcementMiddleware' in middleware_content:
+                # Verify it checks for staff/superuser and webauthn_credentials
+                if 'is_staff' in middleware_content and 'webauthn_credentials' in middleware_content:
+                    evidence['mfa_enforced'] = True
+                    evidence['enforcement_method'] = 'MFAEnforcementMiddleware'
+
+        # Also check if the middleware is registered in settings
+        if evidence['mfa_enforced']:
+            settings_file = self.base_path / 'config' / 'settings.py'
+            if settings_file.exists():
+                settings_content = settings_file.read_text(encoding='utf-8', errors='ignore')
+                if 'MFAEnforcementMiddleware' not in settings_content:
+                    evidence['mfa_enforced'] = False
+                    evidence['note'] = 'Middleware exists but not registered in settings'
 
         result = 'pass' if evidence['mfa_available'] else 'fail'
         findings = []
@@ -1572,27 +1592,57 @@ class SecurityScanner:
             r'logger\.\w+\([^)]*token[^)]*\)',
         ]
 
+        hash_pii_implemented = False
+        hash_pii_usage_count = 0
+
         for py_file in self.base_path.rglob('*.py'):
             if '/tests/' in str(py_file):
                 continue
             try:
                 content = py_file.read_text()
-                # Check for PII logging
+
+                # Check for hash_pii implementation in core/utils.py
+                if 'def hash_pii' in content:
+                    hash_pii_implemented = True
+                    evidence['redaction_found'] = True
+
+                # Count hash_pii usage
+                hash_pii_usage_count += content.count('hash_pii(')
+
+                # Check for PII logging (only if not using hash_pii on that line)
                 for pattern in pii_patterns:
-                    if re.search(pattern, content, re.IGNORECASE):
+                    matches = re.finditer(pattern, content, re.IGNORECASE)
+                    for match in matches:
+                        # Check if this line uses hash_pii
+                        line_start = content.rfind('\n', 0, match.start()) + 1
+                        line_end = content.find('\n', match.end())
+                        if line_end == -1:
+                            line_end = len(content)
+                        line = content[line_start:line_end]
+
+                        # Skip if line uses hash_pii or user_log_id
+                        if 'hash_pii(' in line or 'user_log_id(' in line:
+                            continue
+
                         rel_path = str(py_file.relative_to(self.base_path))
                         if rel_path not in evidence['pii_in_logs']:
                             evidence['pii_in_logs'].append(rel_path)
 
-                # Check for redaction
-                if 'hash_pii' in content or '[REDACTED]' in content or '_redact' in content:
+                # Check for other redaction patterns
+                if '[REDACTED]' in content or '_redact' in content or 'redact_email' in content:
                     evidence['redaction_found'] = True
             except Exception:
                 pass
 
-        result = 'pass' if len(evidence['pii_in_logs']) < 5 else 'fail'
+        evidence['hash_pii_implemented'] = hash_pii_implemented
+        evidence['hash_pii_usage_count'] = hash_pii_usage_count
+
+        # Pass only if there are no unredacted PII logging occurrences
+        result = 'pass' if len(evidence['pii_in_logs']) == 0 else 'fail'
+
         findings = []
 
+        # Create a finding if there are any files with unredacted PII logging
         if evidence['pii_in_logs']:
             finding = self._add_finding(
                 finding_key="pii_logged_without_redaction",

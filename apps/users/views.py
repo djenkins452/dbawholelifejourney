@@ -1593,3 +1593,31 @@ class ConfirmPasswordView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context['return_url'] = self.request.session.get('finance_return_url', '')
         return context
+
+
+# ==============================================================================
+# MFA Enforcement Views
+# ==============================================================================
+
+class MFARequiredView(LoginRequiredMixin, TemplateView):
+    """
+    Page for staff/admin users who must set up MFA (WebAuthn).
+
+    Staff and superuser accounts are required to have at least one
+    WebAuthn credential registered for security. This page explains
+    the requirement and provides a link to set it up.
+    """
+
+    template_name = "users/mfa_required.html"
+
+    def get(self, request, *args, **kwargs):
+        # If user already has MFA, redirect away
+        if request.user.webauthn_credentials.exists():
+            return redirect("dashboard:home")
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['is_staff'] = self.request.user.is_staff
+        context['is_superuser'] = self.request.user.is_superuser
+        return context

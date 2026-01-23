@@ -249,13 +249,15 @@ class ContentSecurityPolicyMiddleware:
         if nonce:
             # Nonce-based CSP for scripts provides XSS protection
             # Note: 'unsafe-inline' is ignored when nonce is present (browser spec)
-            script_src = f"script-src 'self' 'nonce-{nonce}' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
+            # 2026-01-22: Removed 'unsafe-eval' - our codebase doesn't use eval()
+            script_src = f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
             # Style-src keeps 'unsafe-inline' to prevent FOUC (Flash of Unstyled Content)
             # Nonce-based styles cause rendering delays; inline styles are lower XSS risk
             style_src = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com"
         else:
             # Fallback if nonce middleware didn't run (shouldn't happen in normal operation)
-            script_src = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
+            # 2026-01-22: Removed 'unsafe-eval' - our codebase doesn't use eval()
+            script_src = "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://cdn.plaid.com https://www.google.com https://www.gstatic.com"
             style_src = "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com"
 
         csp_directives = [

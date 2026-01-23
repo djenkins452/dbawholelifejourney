@@ -29,6 +29,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
+from apps.core.utils import user_log_id
 from apps.help.mixins import HelpContextMixin
 
 from .models import (
@@ -837,19 +838,19 @@ class AssistantDashboardView(LoginRequiredMixin, HelpContextMixin, AssistantMixi
         try:
             return super().get(request, *args, **kwargs)
         except Exception as e:
-            logger.exception(f"Error in AssistantDashboardView for {request.user.email}: {e}")
+            logger.exception(f"Error in AssistantDashboardView for {user_log_id(request.user)}: {e}")
             raise
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
         user = self.request.user
-        logger.info(f"AssistantDashboardView.get_context_data called for user: {user.email}")
+        logger.info(f"AssistantDashboardView.get_context_data called for {user_log_id(user)}")
 
         try:
             prefs = user.preferences
         except Exception as e:
-            logger.exception(f"Error getting user preferences for {user.email}: {e}")
+            logger.exception(f"Error getting user preferences for {user_log_id(user)}: {e}")
             raise
 
         context['ai_enabled'] = getattr(prefs, 'ai_enabled', False)
@@ -874,7 +875,7 @@ class AssistantDashboardView(LoginRequiredMixin, HelpContextMixin, AssistantMixi
             # Don't pass previous messages to template - chat starts fresh each visit
             context['messages'] = []
         except Exception as e:
-            logger.error(f"Error getting assistant conversation for {user.email}: {e}")
+            logger.error(f"Error getting assistant conversation for {user_log_id(user)}: {e}")
             context['conversation'] = None
             context['messages'] = []
 

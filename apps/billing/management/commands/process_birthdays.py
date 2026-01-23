@@ -23,6 +23,7 @@ from django.utils import timezone
 
 from apps.billing.models import BillingProfile
 from apps.billing.services import calculate_age
+from apps.core.utils import user_log_id
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,7 @@ class Command(BaseCommand):
                     # TODO: Update Stripe subscription to Adult pricing
                     # TODO: Send graduation_complete email
 
-                    logger.info(f"Graduated {profile.user.email} to Adult tier")
+                    logger.info(f"Graduated {user_log_id(profile.user)} to Adult tier")
 
         self.stdout.write(f"Graduations: {count} users")
 

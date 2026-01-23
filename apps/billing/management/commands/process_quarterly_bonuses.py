@@ -22,6 +22,7 @@ from apps.billing.models import (
     ReferralQualification,
 )
 from apps.billing.services import get_current_quarter
+from apps.core.utils import user_log_id
 
 logger = logging.getLogger(__name__)
 
@@ -157,9 +158,9 @@ class Command(BaseCommand):
                     )
 
                     if created:
-                        logger.info(f"Created payout for {user.email}: ${payout_amount}")
+                        logger.info(f"Created payout for {user_log_id(user)}: ${payout_amount}")
                     else:
-                        logger.info(f"Updated payout for {user.email}: ${payout_amount}")
+                        logger.info(f"Updated payout for {user_log_id(user)}: ${payout_amount}")
 
         self.stdout.write(
             f"\nTotal: {member_count} Founding Members, ${total_payouts} in pending payouts"

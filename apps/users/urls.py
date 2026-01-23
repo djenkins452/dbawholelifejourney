@@ -75,4 +75,7 @@ urlpatterns = [
 
     # Password confirmation for sensitive operations (CISO Review 2026-01-12)
     path("confirm-password/", views.ConfirmPasswordView.as_view(), name="confirm_password"),
+
+    # MFA Enforcement (staff/admin users must register biometric)
+    path("mfa-required/", views.MFARequiredView.as_view(), name="mfa_required"),
 ]

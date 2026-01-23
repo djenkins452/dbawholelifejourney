@@ -12,6 +12,7 @@ import stripe
 from django.conf import settings
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
 from .models import (
     BillingProfile,
     CreditTransaction,
@@ -89,7 +90,7 @@ class StripeService:
 
         # Create new customer
         customer = stripe_client.Customer.create(
-            email=user.email,
+            email=user_log_id(user),
             name=user.get_full_name(),
             metadata={
                 'user_id': str(user.id),
@@ -101,7 +102,7 @@ class StripeService:
         profile.stripe_customer_id = customer.id
         profile.save(update_fields=['stripe_customer_id', 'updated_at'])
 
-        logger.info(f"Created Stripe customer {customer.id} for user {user.email}")
+        logger.info(f"Created Stripe customer {customer.id} for user {user_log_id(user)}")
         return customer
 
     @classmethod
@@ -319,7 +320,7 @@ class StripeService:
             }
         )
 
-        logger.info(f"Checkout completed for {user.email}: {profile.pricing_tier}")
+        logger.info(f"Checkout completed for {user_log_id(user)}: {profile.pricing_tier}")
 
     @classmethod
     def handle_invoice_paid(cls, invoice):
@@ -528,7 +529,7 @@ class StripeService:
                 }
             )
 
-        logger.info(f"Referral recorded: {referrer.email} referred {user.email}")
+        logger.info(f"Referral recorded: {user_log_id(referrer)} referred {user_log_id(user)}")
 
     @classmethod
     def _process_referral_first_payment(cls, user):
@@ -549,7 +550,7 @@ class StripeService:
         referral.first_payment_date = timezone.now().date()
         referral.process_rewards()
 
-        logger.info(f"Referral rewards processed for {user.email}")
+        logger.info(f"Referral rewards processed for {user_log_id(user)}")
 
 
 # Utility functions
@@ -676,7 +677,7 @@ def redeem_vip_code(user, code, ip_address=None):
             ip_address=ip_address,
         )
 
-        logger.info(f"VIP code {code} redeemed by {user.email}")
+        logger.info(f"VIP code {code} redeemed by {user_log_id(user)}")
         return True, "VIP code redeemed! You now have lifetime access."
 
     except ValueError as e:

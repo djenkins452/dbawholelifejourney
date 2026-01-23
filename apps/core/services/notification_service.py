@@ -43,6 +43,8 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -189,7 +191,7 @@ class NotificationService:
         # Check if in-app notifications are enabled for this category
         if not self.is_inapp_enabled(user, category):
             logger.debug(
-                f"In-app notification skipped for {user.email}: "
+                f"In-app notification skipped for {user_log_id(user)}: "
                 f"category={category} disabled"
             )
             return None
@@ -215,7 +217,7 @@ class NotificationService:
         notification = Notification.objects.create(**notification_kwargs)
 
         logger.info(
-            f"Created notification for {user.email}: "
+            f"Created notification for {user_log_id(user)}: "
             f"category={category}, title={title}"
         )
 
@@ -273,7 +275,7 @@ class NotificationService:
                 subject=subject,
                 message=text_body,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
+                recipient_list=[user_log_id(user)],
                 html_message=html_body,
                 fail_silently=False,
             )
@@ -281,11 +283,11 @@ class NotificationService:
             # Mark email as sent
             notification.mark_email_sent()
 
-            logger.info(f"Sent immediate email to {user.email} for notification {notification.id}")
+            logger.info(f"Sent immediate email to {user_log_id(user)} for notification {notification.id}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send email to {user.email}: {e}")
+            logger.error(f"Failed to send email to {user_log_id(user)}: {e}")
             return False
 
     def send_daily_digest(self, user) -> bool:
@@ -356,7 +358,7 @@ class NotificationService:
                 subject=subject,
                 message=text_body,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
+                recipient_list=[user_log_id(user)],
                 html_message=html_body,
                 fail_silently=False,
             )
@@ -366,13 +368,13 @@ class NotificationService:
                 notif.mark_email_sent()
 
             logger.info(
-                f"Sent daily digest to {user.email} with "
+                f"Sent daily digest to {user_log_id(user)} with "
                 f"{len(filtered_notifications)} notifications"
             )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send daily digest to {user.email}: {e}")
+            logger.error(f"Failed to send daily digest to {user_log_id(user)}: {e}")
             return False
 
     def get_users_for_digest(self):

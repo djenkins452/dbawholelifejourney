@@ -33,6 +33,7 @@ import logging
 from allauth.account.adapter import DefaultAccountAdapter
 
 from apps.core.security_logging import log_security_event
+from apps.core.utils import hash_pii
 from apps.users.models import SignupAttempt
 from apps.users.security import hash_email, hash_ip
 from apps.users.services import RecaptchaService
@@ -83,7 +84,7 @@ class WLJAccountAdapter(DefaultAccountAdapter):
             True if the email is in the bypass list, otherwise defers to parent.
         """
         if email and email.lower() in ADMIN_BYPASS_EMAILS:
-            logger.info("Admin bypass: treating %s as verified", email)
+            logger.info("Admin bypass: treating %s as verified", hash_pii(email, 'email'))
             return True
         return super().is_email_verified(request, email)
 
@@ -211,7 +212,7 @@ class WLJAccountAdapter(DefaultAccountAdapter):
                     }
                 )
 
-            logger.info(f"Referral recorded at signup: {referrer.email} referred {user.email}")
+            logger.info(f"Referral recorded at signup: {hash_pii(referrer.email, 'referrer')} referred {hash_pii(user.email, 'user')}")
 
             # Clear the referral code from session
             del request.session['referral_code']

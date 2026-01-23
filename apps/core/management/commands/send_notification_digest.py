@@ -31,6 +31,8 @@ import logging
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,7 +107,7 @@ class Command(BaseCommand):
                             self.stdout.write(self.style.WARNING(f'    No digest sent (empty or error)'))
                 except Exception as e:
                     error_count += 1
-                    logger.error(f'Failed to send digest to {user.email}: {e}')
+                    logger.error(f'Failed to send digest to {user_log_id(user)}: {e}')
                     if verbosity >= 1:
                         self.stdout.write(self.style.ERROR(f'    Error: {e}'))
 

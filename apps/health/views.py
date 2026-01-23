@@ -25,7 +25,7 @@ from django.views.generic import (
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 
-from apps.core.utils import get_user_today
+from apps.core.utils import get_user_today, user_log_id
 from apps.core.views import SaveAddAnotherMixin, UndoDeleteMixin
 from apps.help.mixins import HelpContextMixin
 
@@ -4383,7 +4383,7 @@ class DexcomCallbackView(LoginRequiredMixin, View):
         logger = logging.getLogger(__name__)
 
         # Log callback receipt for debugging
-        logger.info(f"Dexcom callback received - User: {request.user.email if request.user.is_authenticated else 'Anonymous'}")
+        logger.info(f"Dexcom callback received - User: {user_log_id(request.user) if request.user.is_authenticated else 'anonymous'}")
         logger.info(f"Dexcom callback GET params: {dict(request.GET)}")
 
         # Check for errors from Dexcom
@@ -4435,14 +4435,14 @@ class DexcomCallbackView(LoginRequiredMixin, View):
             )
 
             if created:
-                logger.info(f"Dexcom credential created for user {request.user.email}")
+                logger.info(f"Dexcom credential created for {user_log_id(request.user)}")
                 messages.success(
                     request,
                     "Dexcom connected successfully! Your glucose readings "
                     "will now sync automatically."
                 )
             else:
-                logger.info(f"Dexcom credential updated for user {request.user.email}")
+                logger.info(f"Dexcom credential updated for {user_log_id(request.user)}")
                 messages.success(request, "Dexcom connection updated.")
 
             # Trigger initial sync

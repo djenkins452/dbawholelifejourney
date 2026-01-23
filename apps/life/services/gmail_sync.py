@@ -9,6 +9,8 @@ import logging
 
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +40,7 @@ class GmailSyncService:
         try:
             credential = user.gmail_credential
         except GmailCredential.DoesNotExist:
-            logger.info(f"No Gmail credential for user {user.email}")
+            logger.info(f"No Gmail credential for user {user_log_id(user)}")
             return {
                 'emails_scanned': 0,
                 'tasks_created': 0,
@@ -47,7 +49,7 @@ class GmailSyncService:
 
         # Check if scanning is enabled
         if not credential.scan_enabled:
-            logger.info(f"Gmail scanning disabled for user {user.email}")
+            logger.info(f"Gmail scanning disabled for user {user_log_id(user)}")
             return {
                 'emails_scanned': 0,
                 'tasks_created': 0,
@@ -56,7 +58,7 @@ class GmailSyncService:
 
         # Check for decryption errors (key rotation)
         if credential.has_decryption_error():
-            logger.error(f"Gmail decryption error for user {user.email}")
+            logger.error(f"Gmail decryption error for user {user_log_id(user)}")
             self._record_scan_error(credential, "decryption_error")
             return {
                 'emails_scanned': 0,
@@ -78,7 +80,7 @@ class GmailSyncService:
 
         # Refresh token if needed
         if credential.is_token_expired:
-            logger.info(f"Refreshing Gmail token for user {user.email}")
+            logger.info(f"Refreshing Gmail token for user {user_log_id(user)}")
             try:
                 new_creds = gmail_service.refresh_credentials(
                     credential.get_credentials_dict()
@@ -86,7 +88,7 @@ class GmailSyncService:
                 if new_creds:
                     credential.update_from_credentials(new_creds)
                 else:
-                    logger.error(f"Token refresh returned None for user {user.email}")
+                    logger.error(f"Token refresh returned None for user {user_log_id(user)}")
                     self._record_scan_error(credential, "token_refresh_failed")
                     return {
                         'emails_scanned': 0,
@@ -94,7 +96,7 @@ class GmailSyncService:
                         'error': 'token_expired'
                     }
             except Exception as e:
-                logger.error(f"Token refresh error for user {user.email}: {e}")
+                logger.error(f"Token refresh error for user {user_log_id(user)}: {e}")
                 self._record_scan_error(credential, f"refresh_error: {str(e)[:100]}")
                 return {
                     'emails_scanned': 0,
@@ -104,7 +106,7 @@ class GmailSyncService:
 
         # Fetch emails from primary inbox
         logger.info(
-            f"Fetching Gmail for user {user.email} "
+            f"Fetching Gmail for user {user_log_id(user)} "
             f"(max={credential.max_emails_per_scan}, days={credential.days_to_look_back})"
         )
 
@@ -115,7 +117,7 @@ class GmailSyncService:
                 days_back=credential.days_to_look_back,
             )
         except Exception as e:
-            logger.error(f"Gmail fetch error for user {user.email}: {e}")
+            logger.error(f"Gmail fetch error for user {user_log_id(user)}: {e}")
             self._record_scan_error(credential, f"fetch_error: {str(e)[:100]}")
             return {
                 'emails_scanned': 0,
@@ -124,7 +126,7 @@ class GmailSyncService:
             }
 
         if not emails:
-            logger.info(f"No new emails found for user {user.email}")
+            logger.info(f"No new emails found for user {user_log_id(user)}")
             self._record_scan_success(credential, 0, 0)
             return {
                 'emails_scanned': 0,
@@ -152,7 +154,7 @@ class GmailSyncService:
         self._record_scan_success(credential, len(emails), total_tasks, errors)
 
         logger.info(
-            f"Gmail scan complete for user {user.email}: "
+            f"Gmail scan complete for user {user_log_id(user)}: "
             f"scanned={len(emails)}, tasks={total_tasks}, errors={len(errors)}"
         )
 
@@ -190,14 +192,14 @@ class GmailSyncService:
                 total_tasks += result.get('tasks_created', 0)
 
                 if result.get('error'):
-                    errors.append(f"{credential.user.email}: {result['error']}")
+                    errors.append(f"{user_log_id(credential.user)}: {result['error']}")
                 elif result.get('errors'):
                     for err in result['errors']:
-                        errors.append(f"{credential.user.email}: {err}")
+                        errors.append(f"{user_log_id(credential.user)}: {err}")
 
             except Exception as e:
-                logger.error(f"Error scanning user {credential.user.email}: {e}")
-                errors.append(f"{credential.user.email}: {str(e)[:100]}")
+                logger.error(f"Error scanning user {user_log_id(credential.user)}: {e}")
+                errors.append(f"{user_log_id(credential.user)}: {str(e)[:100]}")
 
         logger.info(
             f"Gmail scan complete: users={total_users}, tasks={total_tasks}, errors={len(errors)}"

@@ -176,6 +176,52 @@ class SubscriptionRequiredMiddleware:
         return response
 
 
+class MFAEnforcementMiddleware:
+    """
+    Middleware to enforce MFA (WebAuthn) for staff and superuser accounts.
+
+    Staff and admin users are required to have at least one WebAuthn credential
+    registered before they can access the application. This protects privileged
+    accounts from credential compromise.
+
+    Flow:
+    1. Check if user is authenticated and is staff/superuser
+    2. Check if user has any WebAuthn credentials registered
+    3. If not, redirect to MFA setup page
+
+    Exempt paths:
+    - Login/logout (authentication flow)
+    - WebAuthn endpoints (to allow registration)
+    - Static/media files
+    - MFA setup page itself
+    """
+
+    EXEMPT_PATHS = [
+        "/accounts/",  # Login, logout, password reset
+        "/admin/login/",  # Admin login page
+        "/static/",
+        "/media/",
+        "/user/biometric/",  # WebAuthn endpoints for registration
+        "/user/mfa-required/",  # MFA setup page
+        "/api/",  # API endpoints
+    ]
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # Only check for authenticated staff/superusers
+        if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
+            # Skip exempt paths
+            if not any(request.path.startswith(path) for path in self.EXEMPT_PATHS):
+                # Check if user has any WebAuthn credentials
+                if not request.user.webauthn_credentials.exists():
+                    return redirect("users:mfa_required")
+
+        response = self.get_response(request)
+        return response
+
+
 class TimezoneMiddleware:
     """
     Middleware to activate the user's timezone for each request.

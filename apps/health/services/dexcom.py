@@ -25,6 +25,8 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -274,13 +276,13 @@ class DexcomSyncService:
             return True
 
         if not credential.refresh_token:
-            logger.warning(f"No refresh token for user {self.user.email}")
+            logger.warning(f"No refresh token for user {user_log_id(self.user)}")
             return False
 
         # Check for decryption errors
         if credential.has_decryption_error():
             logger.error(
-                f"Dexcom credentials for {self.user.email} have decryption errors. "
+                f"Dexcom credentials for {user_log_id(self.user)} have decryption errors. "
                 "User needs to re-authorize."
             )
             return False
@@ -292,7 +294,7 @@ class DexcomSyncService:
             credential.update_from_credentials(new_creds)
             return True
         except ValueError as e:
-            logger.error(f"Token refresh failed for {self.user.email}: {e}")
+            logger.error(f"Token refresh failed for {user_log_id(self.user)}: {e}")
             credential.record_sync(
                 success=False,
                 message=f"Token refresh failed: {e}"
@@ -455,4 +457,4 @@ class DexcomSyncService:
         credential = self.get_credential()
         if credential:
             credential.delete()
-            logger.info(f"Dexcom disconnected for user {self.user.email}")
+            logger.info(f"Dexcom disconnected for user {user_log_id(self.user)}")

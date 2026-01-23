@@ -27,6 +27,7 @@ from .cloudinary_storage import (
     upload_audio as cloudinary_upload_audio,
     CloudinaryStorageError,
 )
+from apps.core.utils import user_log_id
 
 logger = logging.getLogger(__name__)
 
@@ -491,7 +492,7 @@ class CaptureSubmitView(LoginRequiredMixin, View):
             entry.audio_file_url = upload_data['key']
             entry.save()
 
-            logger.info(f"Created capture entry {entry.id} for user {request.user.email}")
+            logger.info(f"Created capture entry {entry.id} for user {user_log_id(request.user)}")
 
             return JsonResponse({
                 'success': True,
@@ -965,7 +966,7 @@ class CaptureDownloadPDFView(LoginRequiredMixin, View):
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
             response['Content-Length'] = len(docx_bytes)
 
-            logger.info(f"DOCX downloaded for entry {entry.id} by user {request.user.email}")
+            logger.info(f"DOCX downloaded for entry {entry.id} by user {user_log_id(request.user)}")
 
             return response
 
@@ -1029,7 +1030,7 @@ class CaptureEmailView(LoginRequiredMixin, View):
 
         if result['success']:
             logger.info(
-                f"Email sent for entry {entry.id} by user {request.user.email} "
+                f"Email sent for entry {entry.id} by user {user_log_id(request.user)} "
                 f"to {recipient_email}"
             )
             return JsonResponse({
@@ -1077,7 +1078,7 @@ class CaptureRetryView(LoginRequiredMixin, View):
         entry.error_message = ''
         entry.save(update_fields=['status', 'error_message', 'updated_at'])
 
-        logger.info(f"Retrying capture entry {entry.id} for user {request.user.email}")
+        logger.info(f"Retrying capture entry {entry.id} for user {user_log_id(request.user)}")
 
         # Trigger async processing in a background thread
         import threading
@@ -1130,7 +1131,7 @@ class CaptureDeleteView(LoginRequiredMixin, View):
         # Delete the entry (hard delete since CaptureEntry doesn't use soft delete)
         entry.delete()
 
-        logger.info(f"Capture entry {entry_id} deleted by user {request.user.email}")
+        logger.info(f"Capture entry {entry_id} deleted by user {user_log_id(request.user)}")
 
         # For AJAX requests, return JSON
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

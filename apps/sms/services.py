@@ -28,6 +28,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
 from .models import SMSNotification, SMSResponse
+from apps.core.utils import user_log_id
 
 logger = logging.getLogger(__name__)
 
@@ -409,7 +410,7 @@ class SMSNotificationService:
             notification.object_id = source_object.pk
             notification.save(update_fields=['content_type', 'object_id'])
 
-        logger.info(f"Scheduled SMS {notification.notification_id} for {user.email} at {adjusted_time}")
+        logger.info(f"Scheduled SMS {notification.notification_id} for {user_log_id(user)} at {adjusted_time}")
         return notification
 
     def send_pending_notifications(self) -> dict:

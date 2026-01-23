@@ -17,6 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
+from apps.core.utils import user_log_id
 from .models import BillingProfile
 from .services import StripeService, determine_tier_by_age, get_stripe
 
@@ -103,7 +104,7 @@ def create_checkout_session(request):
         messages.error(request, str(e))
         return redirect('billing:select_plan')
     except Exception as e:
-        logger.exception(f"Checkout error for {request.user.email}: {e}")
+        logger.exception(f"Checkout error for {user_log_id(request.user)}: {e}")
         messages.error(request, 'An error occurred. Please try again.')
         return redirect('billing:select_plan')
 
@@ -165,7 +166,7 @@ def customer_portal(request):
         )
         return redirect(session.url)
     except Exception as e:
-        logger.exception(f"Portal error for {request.user.email}: {e}")
+        logger.exception(f"Portal error for {user_log_id(request.user)}: {e}")
         messages.error(request, 'Unable to access billing portal. Please try again.')
         return redirect('billing:billing_settings')
 
@@ -210,7 +211,7 @@ def cancel_subscription(request):
     except ValueError as e:
         messages.error(request, str(e))
     except Exception as e:
-        logger.exception(f"Cancel error for {request.user.email}: {e}")
+        logger.exception(f"Cancel error for {user_log_id(request.user)}: {e}")
         messages.error(request, 'Unable to cancel subscription. Please try again.')
 
     return redirect('billing:billing_settings')

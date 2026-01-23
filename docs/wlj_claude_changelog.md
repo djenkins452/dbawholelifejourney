@@ -14,6 +14,40 @@ For active development context, see `CLAUDE.md` (project root).
 
 ---
 
+## 2026-01-23 Changes
+
+### Security Remediation: SEC-001, SEC-002, SEC-003
+
+Fixed 3 security findings from the security assessment.
+
+**SEC-001: MFA Not Enforced for Privileged Access (MEDIUM)**
+- Created `MFAEnforcementMiddleware` that requires staff/admin users to register WebAuthn credentials
+- Added `mfa_required.html` template with inline biometric registration flow
+- Added `/user/mfa-required/` URL and `MFARequiredView`
+- Updated scanner to detect MFA enforcement middleware
+
+**SEC-002: PII Logged Without Redaction (MEDIUM)**
+- Implemented `hash_pii()`, `redact_email()`, and `user_log_id()` utilities in `apps/core/utils.py`
+- Updated 15+ files to use `user_log_id()` instead of logging raw email addresses
+- Updated scanner to properly detect hash_pii usage and exclude lines using it
+
+**SEC-003: CSP Contains unsafe-eval (LOW)**
+- Removed `'unsafe-eval'` from Content Security Policy in `apps/core/middleware.py`
+- Verified no eval() or new Function() usage in codebase
+
+**Files Modified:**
+- `apps/users/middleware.py` - Added MFAEnforcementMiddleware
+- `apps/users/views.py` - Added MFARequiredView
+- `apps/users/urls.py` - Added mfa-required URL
+- `templates/users/mfa_required.html` - New template
+- `config/settings.py` - Registered MFAEnforcementMiddleware
+- `apps/core/utils.py` - Added hash_pii, redact_email, user_log_id utilities
+- `apps/core/middleware.py` - Removed unsafe-eval from CSP
+- `apps/security/scanner.py` - Updated MFA and PII detection
+- Updated PII logging in: apps/users/adapters.py, apps/health/views.py, apps/health/services/dexcom.py, apps/ai/views.py, apps/ai/values_filter.py, apps/dashboard/views.py, apps/billing/views.py, apps/billing/services.py, apps/billing/management/commands/process_birthdays.py, apps/billing/management/commands/process_quarterly_bonuses.py, apps/life/services/gmail_sync.py, apps/capture/views.py, apps/capture/services/email.py, apps/core/services/notification_service.py, apps/core/management/commands/send_notification_digest.py, apps/sms/services.py
+
+---
+
 ## 2026-01-22 Changes
 
 ### Security Dashboard Link in Admin Console

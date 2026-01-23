@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}MFA Required - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="card" style="max-width: 600px; margin: 2rem auto;">
+        <div class="card-body">
+            <div class="text-center mb-6">
+                <div class="text-4xl mb-2">🔐</div>
+                <h1 class="page-title">Multi-Factor Authentication Required</h1>
+                <p class="text-muted">
+                    {% if is_superuser %}
+                    As a superuser, you must set up biometric authentication (Face ID, Touch ID, or security key) before accessing the application.
+                    {% else %}
+                    As a staff member, you must set up biometric authentication (Face ID, Touch ID, or security key) before accessing the application.
+                    {% endif %}
+                </p>
+            </div>
+
+            <div class="alert alert-warning mb-6">
+                <div class="flex gap-3">
+                    <div class="text-xl">⚠️</div>
+                    <div>
+                        <strong>Security Requirement</strong>
+                        <p class="mt-1 text-sm">
+                            Privileged accounts have access to sensitive data and administrative functions.
+                            Multi-factor authentication protects your account from credential theft and unauthorized access.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="font-semibold mb-3">Why is MFA required?</h3>
+                <ul class="list-disc list-inside space-y-2 text-muted">
+                    <li>Staff/admin accounts can access user data and system settings</li>
+                    <li>Passwords alone are vulnerable to phishing and credential theft</li>
+                    <li>Biometric authentication is resistant to remote attacks</li>
+                    <li>This is a security best practice for privileged access</li>
+                </ul>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="font-semibold mb-3">How to set up MFA:</h3>
+                <ol class="list-decimal list-inside space-y-2 text-muted">
+                    <li>Click the "Set Up Biometric Login" button below</li>
+                    <li>Follow your browser's prompts to register Face ID, Touch ID, or a security key</li>
+                    <li>Once registered, you'll be able to access the application</li>
+                </ol>
+            </div>
+
+            <div class="text-center">
+                <a href="{% url 'users:preferences' %}#biometric"
+                   class="btn btn-primary btn-lg"
+                   id="setupMfaBtn">
+                    Set Up Biometric Login
+                </a>
+            </div>
+
+            <div class="mt-6 text-center">
+                <p class="text-sm text-muted">
+                    Having trouble? Contact your system administrator for assistance.
+                </p>
+                <form method="post" action="{% url 'account_logout' %}" class="mt-4 inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm">
+                        Sign Out
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Direct registration flow - skip preferences page
+document.getElementById('setupMfaBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+
+    // Try to start biometric registration directly
+    fetch('{% url "users:biometric_register_begin" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(options => {
+        if (options.error) {
+            alert('Error: ' + options.error);
+            return;
+        }
+
+        // Convert base64url strings to ArrayBuffer
+        function base64urlToBuffer(base64url) {
+            const padding = '='.repeat((4 - base64url.length % 4) % 4);
+            const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray.buffer;
+        }
+
+        // Prepare credential creation options
+        const publicKeyCredentialCreationOptions = {
+            challenge: base64urlToBuffer(options.challenge),
+            rp: {
+                name: options.rp.name,
+                id: options.rp.id
+            },
+            user: {
+                id: base64urlToBuffer(options.user.id),
+                name: options.user.name,
+                displayName: options.user.displayName
+            },
+            pubKeyCredParams: options.pubKeyCredParams,
+            authenticatorSelection: options.authenticatorSelection,
+            timeout: options.timeout,
+            attestation: options.attestation
+        };
+
+        if (options.excludeCredentials) {
+            publicKeyCredentialCreationOptions.excludeCredentials = options.excludeCredentials.map(cred => ({
+                type: cred.type,
+                id: base64urlToBuffer(cred.id)
+            }));
+        }
+
+        // Create credential
+        return navigator.credentials.create({
+            publicKey: publicKeyCredentialCreationOptions
+        });
+    })
+    .then(credential => {
+        if (!credential) return;
+
+        // Encode the response for sending to server
+        function bufferToBase64url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let str = '';
+            for (let i = 0; i < bytes.length; i++) {
+                str += String.fromCharCode(bytes[i]);
+            }
+            return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        const credentialData = {
+            id: credential.id,
+            rawId: bufferToBase64url(credential.rawId),
+            type: credential.type,
+            response: {
+                clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+                attestationObject: bufferToBase64url(credential.response.attestationObject)
+            },
+            deviceName: 'MFA Registration'
+        };
+
+        // Send to server
+        return fetch('{% url "users:biometric_register_complete" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(credentialData)
+        });
+    })
+    .then(response => {
+        if (!response) return;
+        return response.json();
+    })
+    .then(result => {
+        if (!result) return;
+
+        if (result.success) {
+            alert('MFA setup complete! You can now access the application.');
+            window.location.href = '/';
+        } else {
+            alert('Error: ' + (result.error || 'Registration failed'));
+        }
+    })
+    .catch(error => {
+        console.error('WebAuthn error:', error);
+        if (error.name === 'NotAllowedError') {
+            alert('Registration was cancelled or timed out. Please try again.');
+        } else {
+            alert('Error setting up biometric authentication: ' + error.message);
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -53,6 +53,7 @@ from django.shortcuts import redirect
 
 from .models import DailyEncouragement
 from .services import DashboardConfigService
+from apps.core.utils import user_log_id
 from apps.help.mixins import HelpContextMixin
 
 
@@ -136,7 +137,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
             return context
         except Exception as e:
-            logger.error(f"Dashboard error for user {self.request.user.email}: {e}", exc_info=True)
+            logger.error(f"Dashboard error for {user_log_id(self.request.user)}: {e}", exc_info=True)
             raise
     
     def _get_greeting(self):
@@ -681,10 +682,10 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 message=', '.join(msg_parts) if msg_parts else 'No changes'
             )
 
-            logger.debug(f"Google Calendar auto-sync for {user.email}: {msg_parts}")
+            logger.debug(f"Google Calendar auto-sync for {user_log_id(user)}: {msg_parts}")
 
         except Exception as e:
-            logger.warning(f"Google Calendar auto-sync failed for {user.email}: {e}")
+            logger.warning(f"Google Calendar auto-sync failed for {user_log_id(user)}: {e}")
             # Don't break dashboard - just log the error
 
     def _get_life_data(self, user, today):

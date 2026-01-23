@@ -16,6 +16,14 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Security App Migration
+
+Added auto-generated migration for SecurityAuditLog action field choices.
+
+**Migration:** `apps/security/migrations/0006_alter_securityauditlog_action.py`
+
+---
+
 ### Fix Security Findings SEC-001 and SEC-002
 
 Fixed the two actual security issues detected by the scanner.

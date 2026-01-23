@@ -16,6 +16,25 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Fix: Security Scanner Quote Style Detection (SEC-T007, SEC-T008)
+
+Fixed false positive in security scanner for database credentials and API key detection.
+
+**Root Cause:**
+The scanner was only looking for single-quoted `env('VAR_NAME')` patterns, but `config/settings.py`
+uses double quotes: `env("DATABASE_URL")`. This caused SEC-T007 (Database Credentials) to fail.
+
+**Files Updated:**
+- `apps/security/scanner.py`:
+  - `_test_database_credentials()`: Added check for both single and double quote styles
+  - `_test_third_party_api_keys()`: Added check for both single and double quote styles
+
+**Tests Now Passing:**
+- SEC-T007: Database Credentials ✓
+- SEC-T008: Third-Party API Keys ✓
+
+---
+
 ### Test Fix: Add MFA Credentials for Staff Users in Tests
 
 Fixed 105 test failures (89 failures + 16 errors) caused by the MFAEnforcementMiddleware

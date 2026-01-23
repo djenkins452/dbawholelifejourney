@@ -314,6 +314,66 @@
     </div>
     {% endif %}
 
+    <!-- Finding Status Row (NEW) -->
+    <div class="sec-grid-4">
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('new_findings')">
+            <div class="sec-value sec-blue">{{ latest_run.new_findings }}</div>
+            <div class="sec-label">New</div>
+            <div class="sec-sublabel">First time detected</div>
+        </div>
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('recurring_findings')">
+            <div class="sec-value sec-yellow">{{ latest_run.recurring_findings }}</div>
+            <div class="sec-label">Recurring</div>
+            <div class="sec-sublabel">Still present</div>
+        </div>
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('fixed_findings')">
+            <div class="sec-value sec-green">{{ latest_run.fixed_findings }}</div>
+            <div class="sec-label">Fixed</div>
+            <div class="sec-sublabel">Since last run</div>
+        </div>
+        <div class="sec-card sec-clickable" onclick="showMetricInfo('regressed_findings')">
+            <div class="sec-value {% if latest_run.regressed_findings > 0 %}sec-red{% else %}sec-gray{% endif %}">{{ latest_run.regressed_findings }}</div>
+            <div class="sec-label">Regressed</div>
+            <div class="sec-sublabel">Came back</div>
+        </div>
+    </div>
+
+    <!-- Improvement Summary (NEW) -->
+    {% if improvement_metrics.improving is not None %}
+    <div class="sec-card" style="text-align: left; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h3 style="font-size: 1.125rem; font-weight: 600;">30-Day Security Trend</h3>
+            <span style="padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; {% if improvement_metrics.improving %}background: #dcfce7; color: #166534;{% else %}background: #fee2e2; color: #991b1b;{% endif %}">
+                {% if improvement_metrics.improving %}↑ Improving{% else %}↓ Needs Attention{% endif %}
+            </span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; text-align: center;">
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 700; {% if improvement_metrics.changes.bitsight >= 0 %}color: #16a34a;{% else %}color: #dc2626;{% endif %}">
+                    {% if improvement_metrics.changes.bitsight >= 0 %}+{% endif %}{{ improvement_metrics.changes.bitsight }}
+                </div>
+                <div style="font-size: 0.75rem; color: #6b7280;">BitSight Change</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 700; {% if improvement_metrics.changes.risk >= 0 %}color: #16a34a;{% else %}color: #dc2626;{% endif %}">
+                    {% if improvement_metrics.changes.risk >= 0 %}-{% else %}+{% endif %}{{ improvement_metrics.changes.risk|slice:"1:" }}
+                </div>
+                <div style="font-size: 0.75rem; color: #6b7280;">Risk Reduction</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #16a34a;">{{ improvement_metrics.totals.fixed }}</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">Findings Fixed</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 700; {% if improvement_metrics.totals.net_fixed >= 0 %}color: #16a34a;{% else %}color: #dc2626;{% endif %}">
+                    {% if improvement_metrics.totals.net_fixed >= 0 %}+{% endif %}{{ improvement_metrics.totals.net_fixed }}
+                </div>
+                <div style="font-size: 0.75rem; color: #6b7280;">Net Fixed</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Trend Charts -->
     <div class="sec-grid-2">
         <div class="sec-card" style="text-align: left;">
@@ -324,6 +384,12 @@
             <h3>Risk Score Trend</h3>
             <canvas id="riskChart" height="200"></canvas>
         </div>
+    </div>
+
+    <!-- Finding Status Trend (NEW) -->
+    <div class="sec-card" style="text-align: left; margin-bottom: 1.5rem;">
+        <h3>Finding Status Over Time</h3>
+        <canvas id="findingTrendChart" height="200"></canvas>
     </div>
 
     <!-- Findings Table -->
@@ -374,16 +440,24 @@
         </div>
     </div>
 
-    <!-- Remediation Prompt Card -->
+    <!-- Export & Remediation Card -->
     <div class="sec-card" style="text-align: left; margin-bottom: 1.5rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-            <h3 style="font-size: 1.125rem; font-weight: 600;">Remediation Prompt</h3>
-            <button onclick="copyRemediationPrompt('{{ latest_run.pk }}')" style="padding: 0.25rem 0.75rem; background: #f3f4f6; color: #374151; border-radius: 0.25rem; border: none; cursor: pointer; font-size: 0.875rem;">
-                Copy Prompt
-            </button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h3 style="font-size: 1.125rem; font-weight: 600;">Export & Remediation</h3>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="{% url 'security:export_csv' latest_run.pk %}" style="padding: 0.25rem 0.75rem; background: #dcfce7; color: #166534; border-radius: 0.25rem; text-decoration: none; font-size: 0.875rem;">
+                    CSV Export
+                </a>
+                <a href="{% url 'security:export_pdf' latest_run.pk %}" target="_blank" style="padding: 0.25rem 0.75rem; background: #dbeafe; color: #1e40af; border-radius: 0.25rem; text-decoration: none; font-size: 0.875rem;">
+                    PDF Report
+                </a>
+                <button onclick="copyRemediationPrompt('{{ latest_run.pk }}')" style="padding: 0.25rem 0.75rem; background: #f3f4f6; color: #374151; border-radius: 0.25rem; border: none; cursor: pointer; font-size: 0.875rem;">
+                    Copy Prompt
+                </button>
+            </div>
         </div>
         <p style="font-size: 0.875rem; color: #4b5563;">
-            Copy this prompt and paste it into a new Claude session to fix all findings systematically.
+            Export findings to CSV for analysis, generate a PDF report for stakeholders, or copy the remediation prompt for Claude.
         </p>
     </div>
 
@@ -479,6 +553,7 @@
 <script nonce="{{ request.csp_nonce }}">
     // Chart data from Django
     const chartData = {{ chart_data|safe }};
+    const findingTrendData = {{ finding_trend_data|safe }};
 
     // BitSight Chart
     if (document.getElementById('bitsightChart') && chartData.labels.length > 0) {
@@ -529,6 +604,51 @@
                 },
                 plugins: {
                     legend: { display: false }
+                }
+            }
+        });
+    }
+
+    // Finding Trend Chart
+    if (document.getElementById('findingTrendChart') && findingTrendData.labels.length > 0) {
+        new Chart(document.getElementById('findingTrendChart'), {
+            type: 'bar',
+            data: {
+                labels: findingTrendData.labels,
+                datasets: [
+                    {
+                        label: 'New',
+                        data: findingTrendData.new,
+                        backgroundColor: '#3B82F6',
+                    },
+                    {
+                        label: 'Recurring',
+                        data: findingTrendData.recurring,
+                        backgroundColor: '#F59E0B',
+                    },
+                    {
+                        label: 'Fixed',
+                        data: findingTrendData.fixed,
+                        backgroundColor: '#10B981',
+                    },
+                    {
+                        label: 'Regressed',
+                        data: findingTrendData.regressed,
+                        backgroundColor: '#EF4444',
+                    },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, padding: 15 }
+                    }
                 }
             }
         });
@@ -593,17 +713,20 @@
         document.getElementById('metricModal').classList.remove('active');
     }
 
+    // Get actual test count from the page data
+    const actualTestCount = {{ latest_run.total_tests|default:50 }};
+
     // Metric info definitions
     const metricInfo = {
         tests_run: {
             title: 'Tests Run',
             description: 'Total number of automated security tests executed during the assessment.',
             details: [
-                'The scanner runs 50 tests across 10 categories',
+                `The scanner ran ${actualTestCount} tests across 10 categories`,
                 'Categories: Secrets, Auth, Authorization, Input Validation, Data Protection, Logging, Web Security, Dependencies, Deployment, Abuse Resistance',
                 'Each test checks for specific security vulnerabilities or misconfigurations'
             ],
-            interpretation: 'This number should always be 50 for a full assessment. If lower, some tests may have been skipped due to configuration.'
+            interpretation: `This number should be ${actualTestCount} for a full assessment. If lower, some tests may have been skipped due to configuration.`
         },
         passed: {
             title: 'Tests Passed',
@@ -674,6 +797,46 @@
                 'Address during maintenance windows'
             ],
             interpretation: 'Low priority but still worth tracking. Fix when convenient.'
+        },
+        new_findings: {
+            title: 'New Findings',
+            description: 'Security issues detected for the first time in this assessment.',
+            details: [
+                'These issues were not present in previous assessments',
+                'May indicate new vulnerabilities introduced by recent code changes',
+                'Should be investigated promptly to understand root cause'
+            ],
+            interpretation: 'A spike in new findings after a deployment may indicate security regression. Investigate recent changes.'
+        },
+        recurring_findings: {
+            title: 'Recurring Findings',
+            description: 'Issues that still exist from the previous assessment.',
+            details: [
+                'These findings were detected before and have not been fixed',
+                'The longer an issue persists, the higher the risk exposure',
+                'Prioritize addressing long-standing vulnerabilities'
+            ],
+            interpretation: 'High recurring count means remediation is not keeping pace. Allocate more time to fixing existing issues.'
+        },
+        fixed_findings: {
+            title: 'Fixed Findings',
+            description: 'Issues that were present in the previous run but are now resolved.',
+            details: [
+                'These findings existed in the last assessment but no longer appear',
+                'Indicates successful remediation efforts',
+                'Contributes positively to security improvement metrics'
+            ],
+            interpretation: 'Higher is better! This shows your remediation efforts are working. Celebrate these wins.'
+        },
+        regressed_findings: {
+            title: 'Regressed Findings',
+            description: 'Previously fixed issues that have reappeared.',
+            details: [
+                'These findings were fixed at some point but have come back',
+                'May indicate incomplete fixes, code reversion, or similar patterns',
+                'Regressions require immediate investigation'
+            ],
+            interpretation: 'Regressions are concerning - they suggest fixes didn\'t address root cause. Review deployment and testing processes.'
         },
         grade: {
             title: 'Security Grade (A-F)',

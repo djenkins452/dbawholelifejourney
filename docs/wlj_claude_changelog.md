@@ -16,6 +16,77 @@ For active development context, see `CLAUDE.md` (project root).
 
 ## 2026-01-23 Changes
 
+### Security Dashboard Enhancements (Major)
+
+Added comprehensive enhancements to the Security/CISO App including admin interface, cross-run tracking, exports, and quick win detection.
+
+**New Features:**
+
+1. **Django Admin Interface** (`apps/security/admin.py`)
+   - Full admin views for SecurityRun, SecurityFinding, SecurityTest, AcknowledgedFinding, SecurityScore, SecurityAuditLog
+   - Color-coded severity/status badges
+   - Inline views for related models
+   - Filters for severity, status, quick wins, acknowledgments
+   - Bulk actions for marking quick wins
+   - Encrypted fields displayed safely with decryption
+
+2. **Cross-Run Finding Tracking** (`apps/security/finding_tracker.py`)
+   - Finding status tracking: new, recurring, fixed, regressed
+   - First-seen tracking with run ID reference
+   - Occurrence counting across runs
+   - Trend data generation for charts
+   - 30-day improvement metrics calculation
+
+3. **Export Capabilities** (`apps/security/views.py`, `apps/security/templates/security/export_pdf.html`)
+   - CSV export with all finding details
+   - PDF report with executive summary, findings by severity, CISO sleep test
+   - Print-to-PDF styling with page breaks
+   - Export buttons on dashboard
+
+4. **Auto Quick Win Detection** (`apps/security/quick_win_detector.py`)
+   - Pattern-based detection using title keywords
+   - Recommendation analysis for simple fixes
+   - Effort/CVSS heuristics
+   - Auto-marks findings during assessment run
+
+5. **Dashboard Enhancements** (`apps/security/templates/security/dashboard.html`)
+   - New finding status cards (New/Recurring/Fixed/Regressed)
+   - 30-day improvement summary widget
+   - Finding status trend chart (stacked bar)
+   - Export buttons (CSV, PDF, Remediation Prompt)
+   - Dynamic test count in metric modals
+
+**Database Changes:**
+- Migration `0004_add_finding_status_tracking.py`:
+  - `SecurityFinding.status` (new/recurring/fixed/regressed)
+  - `SecurityFinding.first_seen_run_id`
+  - `SecurityFinding.occurrence_count`
+  - `SecurityRun.new_findings`
+  - `SecurityRun.fixed_findings`
+  - `SecurityRun.regressed_findings`
+  - `SecurityRun.recurring_findings`
+
+**New API Endpoints:**
+- `GET /security/api/finding-trends/` - Finding status trend data
+- `GET /security/api/improvement/` - 30-day improvement metrics
+- `GET /security/export/csv/<uuid>/` - CSV export
+- `GET /security/export/pdf/<uuid>/` - PDF report
+
+**Files Created:**
+- `apps/security/admin.py`
+- `apps/security/finding_tracker.py`
+- `apps/security/quick_win_detector.py`
+- `apps/security/templates/security/export_pdf.html`
+- `apps/security/migrations/0004_add_finding_status_tracking.py`
+
+**Files Modified:**
+- `apps/security/models.py` - Added status tracking fields
+- `apps/security/views.py` - Added export views, finding tracking integration
+- `apps/security/urls.py` - Added new endpoints
+- `apps/security/templates/security/dashboard.html` - Enhanced UI
+
+---
+
 ### Security Fix: API Keys Removed from Documentation
 
 Fixed the API key exposure security finding by removing hardcoded API keys from documentation files.

@@ -42,6 +42,8 @@ from .models import (
 from .scanner import SecurityScanner
 from .scoring import ScoringEngine
 from .report_generator import ReportGenerator
+from .finding_tracker import analyze_finding_status, get_finding_trend_data, get_improvement_metrics, generate_finding_key
+from .quick_win_detector import process_run_quick_wins
 
 
 class SecurityAccessMixin:
@@ -122,6 +124,12 @@ class SecurityDashboardView(SecurityAccessMixin, TemplateView):
         context['runs'] = SecurityRun.objects.filter(
             status=SecurityRun.STATUS_COMPLETED
         )[:20]
+
+        # Add finding trend data
+        context['finding_trend_data'] = json.dumps(get_finding_trend_data(30))
+
+        # Add improvement metrics
+        context['improvement_metrics'] = get_improvement_metrics(30)
 
         return context
 
@@ -311,6 +319,39 @@ class TrendDataAPIView(SecurityAccessMixin, View):
         return JsonResponse(data)
 
 
+class FindingTrendAPIView(SecurityAccessMixin, View):
+    """
+    AJAX endpoint for finding trend chart data.
+
+    Returns time series data for finding status over time.
+    """
+
+    def get(self, request):
+        limit = int(request.GET.get('limit', 20))
+        data = get_finding_trend_data(limit)
+        return JsonResponse(data)
+
+
+class ImprovementMetricsAPIView(SecurityAccessMixin, View):
+    """
+    AJAX endpoint for security improvement metrics.
+
+    Returns improvement data over a specified period.
+    """
+
+    def get(self, request):
+        days = int(request.GET.get('days', 30))
+        metrics = get_improvement_metrics(days)
+
+        # Convert datetime objects for JSON
+        if metrics.get('first_run'):
+            metrics['first_run']['date'] = metrics['first_run']['date'].isoformat()
+        if metrics.get('latest_run'):
+            metrics['latest_run']['date'] = metrics['latest_run']['date'].isoformat()
+
+        return JsonResponse(metrics)
+
+
 class RunAssessmentView(SecurityAccessMixin, View):
     """
     Trigger a new security assessment.
@@ -376,6 +417,14 @@ class RunAssessmentView(SecurityAccessMixin, View):
             # Save findings
             for finding in findings:
                 test = SecurityTest.objects.filter(run=run).first()
+                # Generate stable finding key if not provided
+                finding_key = getattr(finding, 'finding_key', '') or ''
+                if not finding_key:
+                    finding_key = generate_finding_key(
+                        finding.title,
+                        finding.severity,
+                        finding.affected_components,
+                    )
                 SecurityFinding.objects.create(
                     run=run,
                     test=test,
@@ -395,7 +444,7 @@ class RunAssessmentView(SecurityAccessMixin, View):
                     is_quick_win=finding.is_quick_win,
                     remediation_effort=finding.remediation_effort,
                     # Acknowledgment tracking
-                    finding_key=getattr(finding, 'finding_key', '') or '',
+                    finding_key=finding_key,
                     is_acknowledged=getattr(finding, 'is_acknowledged', False),
                     acknowledgment_justification=getattr(finding, 'acknowledgment_justification', ''),
                 )
@@ -444,6 +493,24 @@ class RunAssessmentView(SecurityAccessMixin, View):
 
             run.save()
 
+            # Analyze finding status (compare to previous run)
+            previous_run = SecurityRun.objects.filter(
+                status=SecurityRun.STATUS_COMPLETED,
+                run_timestamp__lt=run.run_timestamp,
+            ).first()
+
+            status_stats = analyze_finding_status(run, previous_run)
+
+            # Update run with status counts
+            run.new_findings = status_stats['new']
+            run.recurring_findings = status_stats['recurring']
+            run.fixed_findings = status_stats['fixed']
+            run.regressed_findings = status_stats['regressed']
+            run.save(update_fields=['new_findings', 'recurring_findings', 'fixed_findings', 'regressed_findings'])
+
+            # Auto-detect quick wins
+            process_run_quick_wins(run)
+
             # Redirect to dashboard to see results
             return redirect('security:dashboard')
 
@@ -474,3 +541,129 @@ class RunAssessmentView(SecurityAccessMixin, View):
             })
 
         return JsonResponse({'status': 'no_runs'})
+
+
+class ExportCSVView(SecurityAccessMixin, View):
+    """
+    Export security run findings as CSV.
+
+    Includes all findings with their details for spreadsheet analysis.
+    """
+
+    def get(self, request, pk):
+        import csv
+        from django.http import HttpResponse
+
+        run = get_object_or_404(SecurityRun, pk=pk)
+
+        # Log export
+        self.log_access(
+            request,
+            SecurityAuditLog.ACTION_EXPORT,
+            resource_type='csv',
+            resource_id=run.id,
+        )
+
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        filename = f"security_findings_{run.run_timestamp.strftime('%Y%m%d_%H%M')}.csv"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+
+        # Header row
+        writer.writerow([
+            'Finding ID',
+            'Title',
+            'Severity',
+            'CVSS Score',
+            'CVSS Vector',
+            'Status',
+            'Quick Win',
+            'Remediation Effort',
+            'Likelihood',
+            'Impact',
+            'Description',
+            'Risk Reasoning',
+            'Affected Components',
+            'Recommendations',
+            'Validation Steps',
+            'Is Acknowledged',
+            'Acknowledgment Justification',
+            'Occurrence Count',
+        ])
+
+        # Data rows
+        for finding in run.findings.all().order_by('-cvss_score'):
+            writer.writerow([
+                finding.finding_id,
+                finding.title,
+                finding.severity,
+                float(finding.cvss_score),
+                finding.cvss_vector,
+                finding.status,
+                'Yes' if finding.is_quick_win else 'No',
+                finding.remediation_effort,
+                finding.likelihood,
+                finding.impact,
+                finding.description,
+                finding.risk_reasoning,
+                ', '.join(finding.affected_components or []),
+                '\n'.join(finding.recommendations or []),
+                finding.validation_steps,
+                'Yes' if finding.is_acknowledged else 'No',
+                finding.acknowledgment_justification,
+                finding.occurrence_count,
+            ])
+
+        return response
+
+
+class ExportPDFView(SecurityAccessMixin, View):
+    """
+    Export security run as PDF report.
+
+    Generates a comprehensive executive report with findings summary.
+    """
+
+    def get(self, request, pk):
+        from django.http import HttpResponse
+        from django.template.loader import render_to_string
+
+        run = get_object_or_404(SecurityRun, pk=pk)
+
+        # Log export
+        self.log_access(
+            request,
+            SecurityAuditLog.ACTION_EXPORT,
+            resource_type='pdf',
+            resource_id=run.id,
+        )
+
+        # Get score
+        try:
+            score = run.score
+        except Exception:
+            score = None
+
+        # Generate HTML content for PDF
+        context = {
+            'run': run,
+            'score': score,
+            'findings': run.findings.all().order_by('-cvss_score'),
+            'tests': run.tests.all().order_by('test_id'),
+            'critical_findings': run.findings.filter(severity='critical'),
+            'high_findings': run.findings.filter(severity='high'),
+            'medium_findings': run.findings.filter(severity='medium'),
+            'low_findings': run.findings.filter(severity='low'),
+        }
+
+        html_content = render_to_string('security/export_pdf.html', context, request=request)
+
+        # Return HTML that can be printed to PDF
+        # Note: For proper PDF generation, you'd use a library like weasyprint or xhtml2pdf
+        # For now, we return HTML with print styles that users can print to PDF
+        response = HttpResponse(html_content, content_type='text/html')
+        response['Content-Disposition'] = f'inline; filename="security_report_{run.run_timestamp.strftime("%Y%m%d_%H%M")}.html"'
+
+        return response

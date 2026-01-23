@@ -236,6 +236,12 @@ class SecurityRun(models.Model):
     medium_findings = models.IntegerField(default=0)
     low_findings = models.IntegerField(default=0)
 
+    # Finding status tracking (for cross-run trending)
+    new_findings = models.IntegerField(default=0, help_text='Findings appearing for the first time')
+    fixed_findings = models.IntegerField(default=0, help_text='Findings that were fixed since last run')
+    regressed_findings = models.IntegerField(default=0, help_text='Previously fixed findings that reappeared')
+    recurring_findings = models.IntegerField(default=0, help_text='Findings that still exist from previous run')
+
     # Encrypted sensitive data
     _executive_summary = EncryptedTextField(blank=True, default='')
     _attack_paths = EncryptedJSONField(blank=True, null=True)
@@ -546,6 +552,36 @@ class SecurityFinding(models.Model):
     finding_key = models.CharField(max_length=100, blank=True, db_index=True)  # Stable key for acknowledgment matching
     is_acknowledged = models.BooleanField(default=False)
     acknowledgment_justification = models.TextField(blank=True)
+
+    # Finding status tracking (for cross-run trending)
+    STATUS_NEW = 'new'
+    STATUS_RECURRING = 'recurring'
+    STATUS_FIXED = 'fixed'
+    STATUS_REGRESSED = 'regressed'
+
+    STATUS_CHOICES = [
+        (STATUS_NEW, 'New'),
+        (STATUS_RECURRING, 'Recurring'),
+        (STATUS_FIXED, 'Fixed'),
+        (STATUS_REGRESSED, 'Regressed'),
+    ]
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_NEW,
+        db_index=True,
+        help_text='Finding lifecycle status compared to previous runs',
+    )
+    first_seen_run_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text='Run ID when this finding was first detected',
+    )
+    occurrence_count = models.IntegerField(
+        default=1,
+        help_text='Number of times this finding has appeared across runs',
+    )
 
     class Meta:
         ordering = ['-cvss_score', 'finding_id']

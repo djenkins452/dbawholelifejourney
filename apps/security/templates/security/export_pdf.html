@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Assessment Report - {{ run.run_timestamp|date:"Y-m-d H:i" }}</title>
+    <style>
+        /* Print-optimized styles */
+        @media print {
+            body { font-size: 11pt; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+            table { page-break-inside: avoid; }
+            h2 { page-break-after: avoid; }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.5;
+            color: #1f2937;
+            padding: 2rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+
+        .header .subtitle {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card {
+            background: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .summary-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .summary-card .label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-transform: uppercase;
+        }
+
+        .grade-a { color: #16a34a; }
+        .grade-b { color: #2563eb; }
+        .grade-c { color: #ca8a04; }
+        .grade-d { color: #ea580c; }
+        .grade-f { color: #dc2626; }
+
+        h2 {
+            font-size: 1.25rem;
+            color: #1f2937;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+            margin: 2rem 0 1rem 0;
+        }
+
+        .executive-summary {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            white-space: pre-wrap;
+            font-size: 0.875rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+
+        .severity-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .severity-critical { background: #fee2e2; color: #991b1b; }
+        .severity-high { background: #ffedd5; color: #9a3412; }
+        .severity-medium { background: #fef9c3; color: #854d0e; }
+        .severity-low { background: #dbeafe; color: #1e40af; }
+
+        .status-new { background: #dbeafe; color: #1e40af; }
+        .status-recurring { background: #fef9c3; color: #854d0e; }
+        .status-fixed { background: #dcfce7; color: #166534; }
+        .status-regressed { background: #fee2e2; color: #991b1b; }
+
+        .finding-detail {
+            background: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .finding-detail h4 {
+            font-size: 0.875rem;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
+        .finding-detail p {
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+
+        .recommendations {
+            padding-left: 1.5rem;
+        }
+
+        .recommendations li {
+            margin-bottom: 0.25rem;
+        }
+
+        .print-button {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .print-button:hover {
+            background: #2563eb;
+        }
+
+        .footer {
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button no-print" onclick="window.print()">Print to PDF</button>
+
+    <div class="header">
+        <h1>Security Assessment Report</h1>
+        <div class="subtitle">
+            Whole Life Journey | Generated {{ run.run_timestamp|date:"F j, Y, g:i a" }}
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="value grade-{{ score.securityscorecard_grade|lower }}">{{ score.securityscorecard_grade }}</div>
+            <div class="label">Security Grade</div>
+        </div>
+        <div class="summary-card">
+            <div class="value">{{ score.bitsight_score }}</div>
+            <div class="label">BitSight Score</div>
+        </div>
+        <div class="summary-card">
+            <div class="value">{{ run.total_findings }}</div>
+            <div class="label">Total Findings</div>
+        </div>
+        <div class="summary-card">
+            <div class="value">{{ run.passed_tests }}/{{ run.total_tests }}</div>
+            <div class="label">Tests Passed</div>
+        </div>
+    </div>
+
+    <!-- Findings Summary -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="value" style="color: #dc2626;">{{ run.critical_findings }}</div>
+            <div class="label">Critical</div>
+        </div>
+        <div class="summary-card">
+            <div class="value" style="color: #ea580c;">{{ run.high_findings }}</div>
+            <div class="label">High</div>
+        </div>
+        <div class="summary-card">
+            <div class="value" style="color: #ca8a04;">{{ run.medium_findings }}</div>
+            <div class="label">Medium</div>
+        </div>
+        <div class="summary-card">
+            <div class="value" style="color: #2563eb;">{{ run.low_findings }}</div>
+            <div class="label">Low</div>
+        </div>
+    </div>
+
+    <!-- Status Summary -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="value" style="color: #2563eb;">{{ run.new_findings }}</div>
+            <div class="label">New</div>
+        </div>
+        <div class="summary-card">
+            <div class="value" style="color: #ca8a04;">{{ run.recurring_findings }}</div>
+            <div class="label">Recurring</div>
+        </div>
+        <div class="summary-card">
+            <div class="value" style="color: #16a34a;">{{ run.fixed_findings }}</div>
+            <div class="label">Fixed</div>
+        </div>
+        <div class="summary-card">
+            <div class="value" style="color: {% if run.regressed_findings > 0 %}#dc2626{% else %}#6b7280{% endif %};">{{ run.regressed_findings }}</div>
+            <div class="label">Regressed</div>
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <h2>Executive Summary</h2>
+    <div class="executive-summary">{{ run.executive_summary }}</div>
+
+    <!-- Findings Table -->
+    <h2>Findings Overview</h2>
+    {% if findings %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Severity</th>
+                <th>CVSS</th>
+                <th>Status</th>
+                <th>Quick Win</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for finding in findings %}
+            <tr>
+                <td style="font-family: monospace;">{{ finding.finding_id }}</td>
+                <td>{{ finding.title }}</td>
+                <td><span class="severity-badge severity-{{ finding.severity }}">{{ finding.severity|upper }}</span></td>
+                <td>{{ finding.cvss_score }}</td>
+                <td><span class="severity-badge status-{{ finding.status }}">{{ finding.status|upper }}</span></td>
+                <td>{% if finding.is_quick_win %}Yes{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #16a34a; padding: 1rem; background: #dcfce7; border-radius: 0.5rem;">
+        No findings detected. Excellent security posture!
+    </p>
+    {% endif %}
+
+    <!-- Detailed Findings -->
+    {% if critical_findings %}
+    <div class="page-break"></div>
+    <h2>Critical Findings (Immediate Action Required)</h2>
+    {% for finding in critical_findings %}
+    <div class="finding-detail">
+        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
+        <p><strong>CVSS:</strong> {{ finding.cvss_score }} | <strong>Effort:</strong> {{ finding.remediation_effort }}</p>
+        <p style="margin-top: 0.5rem;">{{ finding.description }}</p>
+        {% if finding.recommendations %}
+        <p style="margin-top: 0.5rem;"><strong>Recommendations:</strong></p>
+        <ol class="recommendations">
+            {% for rec in finding.recommendations %}
+            <li>{{ rec }}</li>
+            {% endfor %}
+        </ol>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if high_findings %}
+    <div class="page-break"></div>
+    <h2>High Severity Findings</h2>
+    {% for finding in high_findings %}
+    <div class="finding-detail">
+        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
+        <p><strong>CVSS:</strong> {{ finding.cvss_score }} | <strong>Effort:</strong> {{ finding.remediation_effort }}</p>
+        <p style="margin-top: 0.5rem;">{{ finding.description }}</p>
+        {% if finding.recommendations %}
+        <p style="margin-top: 0.5rem;"><strong>Recommendations:</strong></p>
+        <ol class="recommendations">
+            {% for rec in finding.recommendations %}
+            <li>{{ rec }}</li>
+            {% endfor %}
+        </ol>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if medium_findings %}
+    <div class="page-break"></div>
+    <h2>Medium Severity Findings</h2>
+    {% for finding in medium_findings %}
+    <div class="finding-detail">
+        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
+        <p><strong>CVSS:</strong> {{ finding.cvss_score }} | <strong>Effort:</strong> {{ finding.remediation_effort }}</p>
+        <p style="margin-top: 0.5rem;">{{ finding.description }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if low_findings %}
+    <h2>Low Severity Findings</h2>
+    {% for finding in low_findings %}
+    <div class="finding-detail">
+        <h4>{{ finding.finding_id }}: {{ finding.title }}</h4>
+        <p><strong>CVSS:</strong> {{ finding.cvss_score }} | <strong>Effort:</strong> {{ finding.remediation_effort }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- CISO Sleep Test -->
+    {% if run.ciso_sleep_test %}
+    <div class="page-break"></div>
+    <h2>CISO Sleep Test</h2>
+    <div class="executive-summary">{{ run.ciso_sleep_test }}</div>
+    {% endif %}
+
+    <div class="footer">
+        <p>Generated by Whole Life Journey Security Assessment System</p>
+        <p>Run ID: {{ run.id }} | Duration: {{ run.duration_seconds }}s | Triggered by: {{ run.triggered_by }}</p>
+    </div>
+</body>
+</html>
